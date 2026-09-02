@@ -187,6 +187,12 @@ class ControllerHandler(
         }
     }
 
+    fun resetNovaShortcutStates() {
+        for (i in 0 until inputDeviceContexts.size()) {
+            inputDeviceContexts.valueAt(i).novaShortcutState.reset()
+        }
+    }
+
     fun enableSensors() {
         if (stopped) {
             return

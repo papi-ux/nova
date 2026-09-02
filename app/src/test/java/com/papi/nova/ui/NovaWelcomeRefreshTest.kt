@@ -32,6 +32,11 @@ class NovaWelcomeRefreshTest {
 
         assertTrue("welcome should mention Polaris", copy.contains("Polaris"))
         assertTrue("welcome should mention Moonlight compatibility", copy.contains("Moonlight-compatible") || copy.contains("Moonlight pairing"))
+        assertTrue("welcome should include Android TV players", copy.contains("Android TVs"))
+        assertTrue("welcome should include handheld players", copy.contains("handhelds"))
+        assertTrue("welcome should include tablet players", copy.contains("tablets"))
+        assertTrue("welcome should include phone players", copy.contains("phones"))
+        assertFalse("welcome should not position Nova as a handheld-only product", copy.contains("Polaris, handhelds, TV"))
         assertTrue("welcome should frame QR as Polaris pairing only", copy.contains("Polaris pairing QR"))
         assertFalse("welcome should not overclaim automatic QR or TOFU pairing", copy.contains("TOFU auto-pair"))
         assertFalse("welcome should not overclaim AI tuning", copy.contains("AI-optimized"))

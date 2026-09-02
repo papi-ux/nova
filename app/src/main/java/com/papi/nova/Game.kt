@@ -2459,11 +2459,35 @@ logGameDisplayFocus(hasFocus)
 if (!hasFocus)
 {
 fallbackNovaShortcutState.reset()
+controllerHandler?.resetNovaShortcutStates()
 }
 
  // With Android native pointer capture, capture is lost when focus is lost,
         // so it must be requested again when focus is regained.
         inputCaptureProvider!!.onWindowFocusChanged(hasFocus)
+}
+
+fun restoreStreamInputAfterModalDismissal() {
+fallbackNovaShortcutState.reset()
+controllerHandler?.resetNovaShortcutStates()
+
+val target = streamContainer ?: return
+window.decorView.post {
+if (isFinishing || isDestroyed)
+{
+return@post
+}
+
+val viewFocusRestored = target.requestFocus()
+if (hasWindowFocus())
+{
+inputCaptureProvider?.onWindowFocusChanged(true)
+}
+LimeLog.info(
+"Nova: Restored stream input after modal dismissal " +
+"window_focus=${hasWindowFocus()} view_focus=${target.hasFocus()} requested=$viewFocusRestored"
+)
+}
 }
 
 @RequiresApi(Build.VERSION_CODES.Q)

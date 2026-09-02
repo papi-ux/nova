@@ -6,6 +6,7 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
+import android.view.KeyEvent
 import android.view.Window
 import android.view.WindowManager
 import androidx.compose.runtime.getValue
@@ -60,7 +61,39 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         composeView.setViewTreeLifecycleOwner(game)
         composeView.setViewTreeSavedStateRegistryOwner(game)
         composeView.setBackgroundColor(Color.TRANSPARENT)
+        composeView.isFocusable = true
+        composeView.isFocusableInTouchMode = true
         overlay.setContentView(composeView)
+        overlay.setOnKeyListener { _, keyCode, event ->
+            when (keyCode) {
+                KeyEvent.KEYCODE_BUTTON_A -> {
+                    // Compose clickables activate for Center/Enter, while Android gamepads
+                    // report their primary action as BUTTON_A. Keep the translation local to
+                    // the modal so the same controller button still reaches the streamed game
+                    // once Command Center closes.
+                    composeView.dispatchKeyEvent(
+                        KeyEvent(
+                            event.downTime,
+                            event.eventTime,
+                            event.action,
+                            KeyEvent.KEYCODE_DPAD_CENTER,
+                            event.repeatCount,
+                            event.metaState,
+                            event.deviceId,
+                            event.scanCode,
+                            event.flags,
+                            event.source,
+                        ),
+                    )
+                    true
+                }
+                KeyEvent.KEYCODE_BUTTON_B -> {
+                    if (event.action == KeyEvent.ACTION_UP) dismiss()
+                    true
+                }
+                else -> false
+            }
+        }
         overlay.setOnDismissListener {
             if (doctorMenuRefreshRegistry.close(menuValidationGeneration)) {
                 synchronized(doctorActionLock) {
@@ -70,6 +103,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 }
             }
             if (dialog === overlay) dialog = null
+            game.restoreStreamInputAfterModalDismissal()
         }
         overlay.setOnShowListener {
             overlay.window?.apply {
@@ -1021,6 +1055,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         dialog = overlay
         overlay.show()
+        overlay.window?.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+        composeView.post {
+            if (dialog === overlay && overlay.isShowing && !composeView.hasFocus()) {
+                composeView.requestFocus()
+            }
+        }
 
         if (apiClient != null) {
             game.launchReplacingRuntimeIo("NovaQuickMenuStateRefresh") {
@@ -1080,7 +1120,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
     }
 
     private fun dismiss() {
-        dialog?.dismiss()
+        val activeDialog = dialog ?: return
+        // Relinquish the controller input window before removal. Some Android TV
+        // window managers otherwise leave the dismissed full-screen dialog as the
+        // input target until the Activity is recreated.
+        activeDialog.window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+        activeDialog.dismiss()
         dialog = null
     }
 

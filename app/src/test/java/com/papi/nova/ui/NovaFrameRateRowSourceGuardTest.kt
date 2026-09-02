@@ -38,6 +38,20 @@ class NovaFrameRateRowSourceGuardTest {
         )
     }
 
+    @Test
+    fun resolutionChoicesDoNotPresentTheHostModesStaleRateAsTheirValue() {
+        val resolutionRow = source.indexOf("row = NovaPlaySetupRow.RESOLUTION")
+        val frameRateRow = source.indexOf("row = NovaPlaySetupRow.FRAME_RATE", resolutionRow)
+        assertTrue(resolutionRow >= 0 && frameRateRow > resolutionRow)
+
+        val body = source.substring(resolutionRow, frameRateRow)
+        assertTrue(
+            "Resolution choices should display only dimensions; the separate Frame Rate row owns the composed launch cadence.",
+            body.contains("NovaDisplayResolutionPlanner.resolutionLabel(choice.targetMode)") &&
+                !body.contains("listOf(choice.targetMode, choice.reason)"),
+        )
+    }
+
     /**
      * The Frame Rate row only exists alongside the display planner. Without this, a pin
      * saved during an earlier session with a planner would keep steering

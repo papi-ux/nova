@@ -20,7 +20,7 @@ class NovaControllerShortcutState {
     private var pendingConsumedButtonRelease = 0
     private var startDown = false
     private var selectDown = false
-    private var startSelectConsumedByNova = false
+    private var quickMenuChordConsumedByNova = false
     private var backDown = false
     private var yDown = false
     private var backYConsumedByNova = false
@@ -40,16 +40,16 @@ class NovaControllerShortcutState {
         }
 
         if (!guideDown && isNoGuideChordKey(keyCode)) {
-            if (startSelectConsumedByNova && isStartSelectKey(keyCode)) {
+            if (quickMenuChordConsumedByNova) {
                 return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON
             }
-            if (backYConsumedByNova && isBackYKey(keyCode)) {
+            if (backYConsumedByNova) {
                 return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON
             }
             if (repeatCount == 0) {
                 markNoGuideChordDown(keyCode)
-                if (startDown && selectDown) {
-                    startSelectConsumedByNova = true
+                if (startDown && (selectDown || backDown)) {
+                    quickMenuChordConsumedByNova = true
                     return NovaControllerShortcutAction.OPEN_QUICK_MENU
                 }
                 if (backDown && yDown) {
@@ -118,15 +118,15 @@ class NovaControllerShortcutState {
             markNoGuideChordUp(keyCode)
         }
 
-        if (startSelectConsumedByNova && isStartSelectKey(keyCode)) {
-            if (!startDown && !selectDown) {
-                startSelectConsumedByNova = false
+        if (quickMenuChordConsumedByNova && isNoGuideChordKey(keyCode)) {
+            if (!hasNoGuideChordKeyDown()) {
+                quickMenuChordConsumedByNova = false
             }
             return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON
         }
 
-        if (backYConsumedByNova && isBackYKey(keyCode)) {
-            if (!backDown && !yDown) {
+        if (backYConsumedByNova && isNoGuideChordKey(keyCode)) {
+            if (!hasNoGuideChordKeyDown()) {
                 backYConsumedByNova = false
             }
             return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON
@@ -171,7 +171,7 @@ class NovaControllerShortcutState {
         resetGuideState()
         startDown = false
         selectDown = false
-        startSelectConsumedByNova = false
+        quickMenuChordConsumedByNova = false
         backDown = false
         yDown = false
         backYConsumedByNova = false
@@ -206,6 +206,9 @@ class NovaControllerShortcutState {
 
     private fun isNoGuideChordKey(keyCode: Int): Boolean =
         isStartSelectKey(keyCode) || isBackYKey(keyCode)
+
+    private fun hasNoGuideChordKeyDown(): Boolean =
+        startDown || selectDown || backDown || yDown
 
     private fun markNoGuideChordDown(keyCode: Int) {
         when (keyCode) {

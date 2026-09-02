@@ -276,11 +276,9 @@ fun NovaQuickMenuContent(
     val initialFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
-        // Wait one Compose frame so the drawer content and the diagnosis-card focus target are
-        // attached. First focus lands on the diagnosis card, not Close: the first A-press on a
-        // menu the user deliberately opened should do something, not dismiss it. If the card is
-        // disabled the request fails silently and the first dpad press establishes focus as
-        // before.
+        // Wait one Compose frame so the always-present session strip is attached. It is a safe,
+        // non-destructive focus anchor while live Doctor/session data is still loading, so TV
+        // remotes and controllers can navigate immediately instead of leaking input to the stream.
         withFrameNanos { }
         runCatching { initialFocusRequester.requestFocus() }
     }
@@ -310,9 +308,9 @@ fun NovaQuickMenuContent(
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuHeader(state, callbacks)
         Spacer(Modifier.height(8.dp))
-        NovaQuickMenuSessionStrip(state)
+        NovaQuickMenuSessionStrip(state, initialFocusRequester)
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks, initialFocusRequester)
+        NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
         if (state.doctorReceiptAction.visible) {
             Spacer(Modifier.height(10.dp))
             NovaQuickMenuInfoCard(
@@ -480,7 +478,6 @@ private fun NovaQuickMenuCloseButton(
 private fun NovaQuickMenuDiagnosisCard(
     diagnosis: NovaQuickMenuDiagnosisState,
     callbacks: NovaQuickMenuCallbacks,
-    initialFocusRequester: FocusRequester? = null,
 ) {
     val capabilityLabel = when (diagnosis.capability) {
         NovaQuickMenuDoctorCapability.AUTO_FIX -> stringResource(R.string.nova_quick_menu_doctor_capability_auto_fix)
@@ -501,11 +498,6 @@ private fun NovaQuickMenuDiagnosisCard(
         ?.let { "Source: $it" }
     val supportingLine = listOfNotNull(aiSupportingLine, sourceSupportingLine).joinToString("\n")
     NovaQuickMenuInfoCard(
-        modifier = if (initialFocusRequester != null) {
-            Modifier.focusRequester(initialFocusRequester)
-        } else {
-            Modifier
-        },
         action = NovaQuickMenuAction(
             id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
             label = diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() }
@@ -530,20 +522,50 @@ private fun NovaQuickMenuDiagnosisCard(
 }
 
 @Composable
-private fun NovaQuickMenuSessionStrip(state: NovaQuickMenuUiState) {
+private fun NovaQuickMenuSessionStrip(
+    state: NovaQuickMenuUiState,
+    initialFocusRequester: FocusRequester,
+) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
+    val haptics = LocalHapticFeedback.current
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(NovaRadius.row)
+    val background = if (focused) {
+        surfaces.selectedControl
+    } else {
+        surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * LocalNovaMenuOpacityScale.current)
+    }
+    val borderColor = if (focused) {
+        surfaces.focusRing
+    } else {
+        surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current)
+    }
 
     Row(
         modifier = Modifier
+            .focusRequester(initialFocusRequester)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(NovaRadius.row))
-            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * LocalNovaMenuOpacityScale.current))
+            .clip(shape)
+            .background(background)
             .border(
-                1.dp,
-                surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current),
-                RoundedCornerShape(NovaRadius.row)
+                if (focused) 2.dp else 1.dp,
+                borderColor,
+                shape
             )
+            .semantics {
+                contentDescription = listOf(
+                    state.sessionMode.label,
+                    state.healthSummary,
+                    state.healthDetail,
+                ).filter { it.isNotBlank() }.joinToString(". ")
+            }
+            .onFocusChanged {
+                val nowFocused = it.isFocused || it.hasFocus
+                if (nowFocused && !focused) haptics.novaFocusTick()
+                focused = nowFocused
+            }
+            .focusable()
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)

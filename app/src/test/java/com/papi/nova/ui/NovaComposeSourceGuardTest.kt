@@ -54,13 +54,16 @@ class NovaComposeSourceGuardTest {
     @Test
     fun commandCenterRequestsInitialFocusForDpadNavigationOnOpen() {
         val quickMenuContent = readNovaQuickMenuContent()
+        val quickMenuHost = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt")
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val controllerHandler = readSource("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")
         val content = quickMenuContent.section(
             "fun NovaQuickMenuContent(",
             "@Composable\nprivate fun NovaQuickMenuHeader("
         )
-        val diagnosisCard = quickMenuContent.section(
-            "private fun NovaQuickMenuDiagnosisCard(",
-            "@Composable\nprivate fun NovaQuickMenuSessionStrip("
+        val sessionStrip = quickMenuContent.section(
+            "private fun NovaQuickMenuSessionStrip(",
+            "@Composable\nprivate fun NovaQuickMenuPostSessionReportCard("
         )
         val closeButton = quickMenuContent.section(
             "private fun NovaQuickMenuCloseButton(",
@@ -78,20 +81,45 @@ class NovaComposeSourceGuardTest {
                 content.contains("runCatching { initialFocusRequester.requestFocus() }")
         )
         assertTrue(
-            "Command Center should land initial focus on the diagnosis card, not Close: the first A-press on a menu the user deliberately opened must not dismiss it",
-            content.contains("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks, initialFocusRequester)") &&
-                diagnosisCard.contains("initialFocusRequester: FocusRequester? = null") &&
-                diagnosisCard.contains("Modifier.focusRequester(initialFocusRequester)")
+            "Command Center should land on the always-present session strip while asynchronous Doctor data is loading, rather than requesting focus from a disabled card",
+            content.contains("NovaQuickMenuSessionStrip(state, initialFocusRequester)") &&
+                sessionStrip.contains("initialFocusRequester: FocusRequester") &&
+                sessionStrip.contains(".focusRequester(initialFocusRequester)") &&
+                sessionStrip.contains(".focusable()")
         )
         assertFalse(
             "the Close button must not carry the initial focus requester",
             closeButton.contains("focusRequester")
         )
-        val requesterIndex = diagnosisCard.indexOf("Modifier.focusRequester(initialFocusRequester)")
-        val actionIndex = diagnosisCard.indexOf("action = NovaQuickMenuAction(")
         assertTrue(
-            "the diagnosis card should pass the requester through the surface's leading modifier so it precedes the semantics/clickable chain",
-            requesterIndex >= 0 && actionIndex > requesterIndex
+            "the Dialog ComposeView must itself accept Android TV focus before Compose moves it to the initial child",
+            quickMenuHost.contains("composeView.isFocusable = true") &&
+                quickMenuHost.contains("composeView.isFocusableInTouchMode = true") &&
+                quickMenuHost.contains("composeView.requestFocus()")
+        )
+        assertTrue(
+            "controller A must activate focused Compose controls through the TV-center key contract",
+            quickMenuHost.contains("KeyEvent.KEYCODE_BUTTON_A ->") &&
+                quickMenuHost.contains("KeyEvent.KEYCODE_DPAD_CENTER,") &&
+                quickMenuHost.contains("composeView.dispatchKeyEvent(")
+        )
+        assertTrue(
+            "a controller B release should dismiss the Command Center while the full press stays local",
+            quickMenuHost.contains("KeyEvent.KEYCODE_BUTTON_B ->") &&
+                quickMenuHost.contains("if (event.action == KeyEvent.ACTION_UP) dismiss()")
+        )
+        assertTrue(
+            "Command Center dismissal must relinquish its focusable window and restore the stream input target",
+            quickMenuHost.contains("activeDialog.window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)") &&
+                quickMenuHost.contains("game.restoreStreamInputAfterModalDismissal()") &&
+                game.contains("fun restoreStreamInputAfterModalDismissal()") &&
+                game.contains("val viewFocusRestored = target.requestFocus()")
+        )
+        assertTrue(
+            "stream-window focus loss must clear physical shortcut state because chord releases may arrive at the modal window",
+            game.contains("controllerHandler?.resetNovaShortcutStates()") &&
+                controllerHandler.contains("fun resetNovaShortcutStates()") &&
+                controllerHandler.contains("inputDeviceContexts.valueAt(i).novaShortcutState.reset()")
         )
     }
 
@@ -2190,7 +2218,7 @@ class NovaComposeSourceGuardTest {
             "@Composable\nprivate fun NovaQuickMenuTitleBlock("
         )
 
-        val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(state)")
+        val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(state, initialFocusRequester)")
         val stabilityCard = body.indexOf("NovaQuickMenuStabilityCard(state.stability, callbacks)")
         val syncCard = body.indexOf("action = state.sync")
         val overlaysPanel = body.indexOf("title = overlaysTitle")
@@ -2979,7 +3007,7 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "the diagnosis card takes callbacks and passes them to the card it draws",
-            quickMenu.contains("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks, initialFocusRequester)") &&
+            quickMenu.contains("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)") &&
                 quickMenu.contains("callbacks: NovaQuickMenuCallbacks,")
         )
     }

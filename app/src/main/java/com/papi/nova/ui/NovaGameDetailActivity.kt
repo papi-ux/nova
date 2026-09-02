@@ -1120,7 +1120,10 @@ class NovaGameDetailActivity : NovaActivity() {
                     options = planner.visibleChoices.map { choice ->
                         NovaPlaySetupOption(
                             label = choice.title,
-                            consequence = listOf(choice.targetMode, choice.reason)
+                            consequence = listOf(
+                                NovaDisplayResolutionPlanner.resolutionLabel(choice.targetMode),
+                                choice.reason,
+                            )
                                 .filter { it.isNotBlank() }
                                 .joinToString(" · "),
                             current = choice.id == effective?.id,

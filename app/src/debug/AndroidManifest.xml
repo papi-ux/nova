@@ -2,7 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <application>
+    <application
+        android:banner="@drawable/nova_debug_tv_banner"
+        android:icon="@mipmap/nova_debug_launcher"
+        tools:replace="android:banner,android:icon">
         <!-- Debug-only smoke hook: lets ADB launch the library surface directly with explicit extras. -->
         <activity
             android:name="com.papi.nova.ui.NovaLibraryActivity"
