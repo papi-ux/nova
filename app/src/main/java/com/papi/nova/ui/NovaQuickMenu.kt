@@ -88,7 +88,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     true
                 }
                 KeyEvent.KEYCODE_BUTTON_B -> {
-                    if (event.action == KeyEvent.ACTION_UP) overlay.dismiss()
+                    if (event.action == KeyEvent.ACTION_UP) dismiss()
                     true
                 }
                 else -> false
@@ -103,6 +103,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 }
             }
             if (dialog === overlay) dialog = null
+            game.restoreStreamInputAfterModalDismissal()
         }
         overlay.setOnShowListener {
             overlay.window?.apply {
@@ -1119,7 +1120,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
     }
 
     private fun dismiss() {
-        dialog?.dismiss()
+        val activeDialog = dialog ?: return
+        // Relinquish the controller input window before removal. Some Android TV
+        // window managers otherwise leave the dismissed full-screen dialog as the
+        // input target until the Activity is recreated.
+        activeDialog.window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+        activeDialog.dismiss()
         dialog = null
     }
 

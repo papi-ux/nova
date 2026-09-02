@@ -174,6 +174,44 @@ class NovaControllerShortcutStateTest {
     }
 
     @Test
+    fun modalFocusLossClearsChordWhenButtonReleasesMoveToDialogWindow() {
+        val shortcuts = NovaControllerShortcutState()
+
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_START, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.OPEN_QUICK_MENU,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_SELECT, repeatCount = 0)
+        )
+
+        // A focusable Command Center dialog may receive the physical button-up
+        // events instead of the stream view. Losing stream-window focus must retire
+        // the consumed chord without depending on those releases.
+        shortcuts.reset()
+
+        assertEquals(
+            "the old Start press must not combine with a later Select press",
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_SELECT, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonUp(KeyEvent.KEYCODE_BUTTON_SELECT)
+        )
+        assertEquals(
+            "ordinary game buttons must pass through after modal dismissal",
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_A, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonUp(KeyEvent.KEYCODE_BUTTON_A)
+        )
+    }
+
+    @Test
     fun startBackOpensQuickMenuForControllersThatReportSelectAsAndroidBack() {
         val shortcuts = NovaControllerShortcutState()
 

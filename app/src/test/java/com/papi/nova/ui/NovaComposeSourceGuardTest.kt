@@ -55,6 +55,8 @@ class NovaComposeSourceGuardTest {
     fun commandCenterRequestsInitialFocusForDpadNavigationOnOpen() {
         val quickMenuContent = readNovaQuickMenuContent()
         val quickMenuHost = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt")
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val controllerHandler = readSource("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")
         val content = quickMenuContent.section(
             "fun NovaQuickMenuContent(",
             "@Composable\nprivate fun NovaQuickMenuHeader("
@@ -104,8 +106,20 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "a controller B release should dismiss the Command Center while the full press stays local",
             quickMenuHost.contains("KeyEvent.KEYCODE_BUTTON_B ->") &&
-                quickMenuHost.contains("if (event.action == KeyEvent.ACTION_UP) overlay.dismiss()") &&
-                quickMenuHost.contains("overlay.dismiss()")
+                quickMenuHost.contains("if (event.action == KeyEvent.ACTION_UP) dismiss()")
+        )
+        assertTrue(
+            "Command Center dismissal must relinquish its focusable window and restore the stream input target",
+            quickMenuHost.contains("activeDialog.window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)") &&
+                quickMenuHost.contains("game.restoreStreamInputAfterModalDismissal()") &&
+                game.contains("fun restoreStreamInputAfterModalDismissal()") &&
+                game.contains("val viewFocusRestored = target.requestFocus()")
+        )
+        assertTrue(
+            "stream-window focus loss must clear physical shortcut state because chord releases may arrive at the modal window",
+            game.contains("controllerHandler?.resetNovaShortcutStates()") &&
+                controllerHandler.contains("fun resetNovaShortcutStates()") &&
+                controllerHandler.contains("inputDeviceContexts.valueAt(i).novaShortcutState.reset()")
         )
     }
 
