@@ -174,6 +174,28 @@ class NovaControllerShortcutStateTest {
     }
 
     @Test
+    fun startBackOpensQuickMenuForControllersThatReportSelectAsAndroidBack() {
+        val shortcuts = NovaControllerShortcutState()
+
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_START, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.OPEN_QUICK_MENU,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BACK, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.CONSUME_CHORD_BUTTON,
+            shortcuts.onButtonUp(KeyEvent.KEYCODE_BACK)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.CONSUME_CHORD_BUTTON,
+            shortcuts.onButtonUp(KeyEvent.KEYCODE_BUTTON_START)
+        )
+    }
+
+    @Test
     fun backYShowsOrCyclesNovaHudWithoutGuideAndConsumesRelease() {
         val shortcuts = NovaControllerShortcutState()
 

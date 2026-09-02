@@ -24,6 +24,8 @@ The HUD is observational and never changes bitrate merely because it is open. No
 
 Game detail keeps Launch as the primary action and gives Play Setup and Reset Game Profile the stronger text treatment. Pin to Home Screen and Artwork Studio are compact, state-aware icon actions, so secondary tools remain available without competing with getting back into the game. Pinned shortcuts now use the selected game's artwork, loading it off the UI thread and cancelling duplicate requests.
 
+Android TV Command Center now takes focus as soon as it opens, starting on a safe session-status anchor while host diagnostics load so a remote or controller can navigate instead of sending input back into the stream. Gamepad A activates the focused control and B closes the drawer without leaking either press to the game. Xbox-style controllers that report View/Select as Android Back can open it with Start + Back, and consumed Command Center chords no longer fall through into long-Start mouse emulation. Resolution choices show dimensions only; the separate Frame Rate row remains the source of the actual launch cadence instead of every resolution displaying a stale `x60` suffix.
+
 ### Release packaging
 
 - Bumps the Android app to versionName 1.4.0 and versionCode 42 so it installs cleanly over the accepted 1.3.9/41 candidate.
