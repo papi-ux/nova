@@ -36,6 +36,27 @@ play.
 
 ![Nova Polaris Aurora Library in Compact layout with Control Ultimate Edition ready to continue above a grid of twenty entries](docs/screenshots/nova-library-control-aurora-v1.3.6.webp)
 
+## Built for the whole player loop
+
+Nova is matched to Polaris while retaining the standard Moonlight-compatible
+path:
+
+- **Play Setup says what will launch.** Resolution and frame rate are independent
+  per-game choices, host-wide modes remain visibly host-wide, and Auto, Quality,
+  High FPS, and Stability show the resolved host plan before play.
+- **Doctor stays evidence-first.** Command Center refreshes current host evidence,
+  separates network, host, and client findings, and presents Auto Fix only for a
+  reversible same-stream action the paired host can verify or roll back.
+- **Secondary tools stay secondary.** Launch, Play Setup, and Reset lead the game
+  menu; Pin to Home Screen and Artwork Studio are compact state-aware actions.
+  Pinned shortcuts use the selected game's artwork.
+- **Stale host state fails closed.** Nova binds optimization to the exact app and
+  display topology and refuses an older or malformed deterministic launch
+  contract instead of guessing.
+
+Read the [changelog](CHANGELOG.md) for the release-by-release change and
+validation record.
+
 ## A compatible client, with more context
 
 | Normal compatible client | Nova with Polaris |
@@ -69,8 +90,10 @@ in Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You.
 ### Decide
 
 Play Setup describes what will happen for this title: where it runs, the client
-resolution, tuning policy, and Steam launch behavior. A session-scoped choice
-does not silently rewrite the host default.
+resolution, frame rate, tuning policy, and Steam launch behavior. Resolution and
+FPS stay independent, a host-only mode links back to Polaris instead of posing as
+a per-game choice, and a session-scoped choice does not silently rewrite the host
+default.
 
 ![Nova Polaris Aurora Play Setup for Control Ultimate Edition, showing Private Stream and session choices](docs/screenshots/nova-play-setup-control-aurora-v1.3.6.webp)
 
@@ -139,7 +162,7 @@ device, architecture, codec, HDR, sensor, and host notes.
 
 ## Documentation and project links
 
-- [Nova documentation](https://papi-ux.com/docs/nova/) · [Quick start](https://papi-ux.com/docs/nova/quickstart/) · [Compatibility](https://papi-ux.com/docs/nova/compatibility/)
+- [Nova documentation](https://papi-ux.com/docs/nova/) · [Play Setup](https://papi-ux.com/docs/nova/play-setup/) · [Quick start](https://papi-ux.com/docs/nova/quickstart/) · [Compatibility](https://papi-ux.com/docs/nova/compatibility/)
 - [Roadmap](https://papi-ux.com/docs/roadmap/) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/papi-ux/nova/releases)
 - [Matrix community](https://matrix.to/#/#papi-ux:papi-ux.com) · [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions) · [Source](https://github.com/papi-ux/nova)
 - [Security policy](SECURITY.md) · [Contributing](.github/CONTRIBUTING.md)
