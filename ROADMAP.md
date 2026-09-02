@@ -30,12 +30,18 @@ For the shared host-and-client view, see the
 
 ## Now — make handheld streaming dependable
 
+- Watch the public v1.4.0 path on real devices and prioritize reproducible
+  pairing, launch, artwork, stream, resume, and teardown regressions over feature
+  churn.
 - Make pairing, discovery, launch, reconnect, stop, cleanup, and watch/resume
   behavior predictable on real devices.
 - Keep controller-first navigation fast and readable across handhelds, phones,
   tablets, Android TV, and high-refresh Android devices.
 - Continue polishing the Library, game details, launch choices, Command Center,
   NovaHUD, and error recovery without hiding host or stream state.
+- Keep Play Setup, Artwork Studio, home-screen pin state, and the final launch
+  envelope aligned around one canonical game identity, including Heroic and
+  built-in utility entries.
 - Improve troubleshooting guidance for input, decoder, network, frame pacing,
   stream quality, and Polaris-specific launch modes.
 - Publish matched Polaris/Nova compatibility notes without making standard hosts
