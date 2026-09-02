@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_nova_star_foreground" />
+    <item android:drawable="@drawable/nova_debug_launcher_badge" />
+</layer-list>

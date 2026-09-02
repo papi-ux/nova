@@ -7,12 +7,12 @@
 
 # Nova
 
-**Game streaming for Android handhelds that understands the host.**
+**Your PC games, wherever you want to play on Android.**
 
-Nova is an Android client for Polaris and standard Moonlight-compatible hosts.
-With Polaris it turns a basic app grid into a controller-first Library, explains
-each launch before it happens, and keeps live session controls close while you
-play.
+Nova turns Android TVs, handhelds, tablets, and phones into a polished home for
+PC game streaming. Pair it with Polaris for a controller-first Library, clear
+launch plans, and live session controls that stay close while you play. Standard
+Moonlight-compatible hosts remain supported too.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1f1d31)](https://github.com/papi-ux/nova/stargazers)
 [![Matrix](https://img.shields.io/badge/Matrix-Join_chat-0dbd8b?style=for-the-badge&logo=matrix&logoColor=white&labelColor=1f1d31)](https://matrix.to/#/#papi-ux:papi-ux.com)

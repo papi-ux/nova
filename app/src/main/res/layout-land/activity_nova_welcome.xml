@@ -50,7 +50,7 @@
                 android:fontFamily="sans-serif"
                 android:gravity="center"
                 android:lineSpacingExtra="2dp"
-                android:text="A polished streaming home for Polaris, handhelds, TV, and Moonlight-compatible hosts."
+                android:text="Your PC games across Android TVs, handhelds, tablets, and phones."
                 android:textColor="?android:attr/textColorSecondary"
                 android:textSize="14sp" />
         </LinearLayout>
