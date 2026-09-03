@@ -317,6 +317,9 @@ data class PolarisSessionStatus(
         val available: Boolean = false,
         val version: Int = 0,
         val resultId: String = "",
+        val status: String = "",
+        val severity: String = "",
+        val trafficLight: String = "",
         val classification: String = "UNKNOWN",
         val likelyCause: String = "",
         val evidence: List<String> = emptyList(),
@@ -701,6 +704,23 @@ data class PolarisSessionStatus(
     val optimizationConfidenceLabel get() = encoder.optimizationConfidence.uppercase()
     val hasAuthoritativeDoctorResult get() =
         doctor.available && doctor.version >= 2 && doctor.resultId.isNotBlank()
+    val hasExplicitAuthoritativeDoctorVerdict get() =
+        hasAuthoritativeDoctorResult &&
+            doctor.status.isNotBlank() &&
+            doctor.severity.isNotBlank() &&
+            doctor.trafficLight.isNotBlank()
+    private val hasAnyAuthoritativeDoctorVerdictField get() =
+        hasAuthoritativeDoctorResult &&
+            (doctor.status.isNotBlank() ||
+                doctor.severity.isNotBlank() ||
+                doctor.trafficLight.isNotBlank())
+    val authoritativeDoctorVerdictIsHealthy get() =
+        hasExplicitAuthoritativeDoctorVerdict &&
+            doctor.status.equals("ok", ignoreCase = true) &&
+            doctor.severity.equals("info", ignoreCase = true) &&
+            doctor.trafficLight.equals("green", ignoreCase = true)
+    val authoritativeDoctorVerdictNeedsAttention get() =
+        hasAnyAuthoritativeDoctorVerdictField && !authoritativeDoctorVerdictIsHealthy
     val effectivePrimaryIssue get() = if (hasAuthoritativeDoctorResult) {
         doctor.primaryIssue.ifBlank { "none" }
     } else {
@@ -722,19 +742,26 @@ data class PolarisSessionStatus(
             (isHdrDowngraded && isHeadlessMode)
     private val doctorPrimaryIsObservation get() =
         doctor.primaryIssue.lowercase() in setOf("network_observation", "control_channel_observation")
-    private val actionableDoctorEvidence get() = doctor.evidenceItems.any { item ->
-        val status = item.status.lowercase()
-        if (status !in setOf("watch", "warning", "fail", "degraded", "needs_action")) {
-            false
-        } else {
-            when (item.id.lowercase()) {
-                "control_channel_packet_loss" -> false
-                "packet_loss" -> status == "fail" && item.source.equals("media_transport", ignoreCase = true)
-                "latency" -> status == "fail"
-                else -> true
-            }
+    fun doctorEvidenceIsActionable(item: DoctorStatus.EvidenceItem): Boolean {
+        val evidenceStatus = item.status.lowercase()
+        if (evidenceStatus !in setOf("watch", "warning", "fail", "degraded", "needs_action")) {
+            return false
         }
+        val isSubstantive = when (item.id.lowercase()) {
+            "control_channel_packet_loss" -> false
+            "packet_loss" -> evidenceStatus == "fail" &&
+                item.source.equals("media_transport", ignoreCase = true)
+            "latency" -> evidenceStatus == "fail"
+            else -> true
+        }
+        if (!isSubstantive) return false
+
+        // A healthy v2 envelope can carry informational capability watches, such as an
+        // encoder that cannot retune bitrate live. Hard or contradictory evidence must
+        // still fail closed even when the envelope itself says ok/info/green.
+        return !authoritativeDoctorVerdictIsHealthy || evidenceStatus != "watch"
     }
+    val hasActionableDoctorEvidence get() = doctor.evidenceItems.any(::doctorEvidenceIsActionable)
     private fun healthIssueIsCoveredByObservation(issue: String): Boolean =
         doctorPrimaryIsObservation &&
             (issue.contains("network", ignoreCase = true) ||
@@ -755,7 +782,8 @@ data class PolarisSessionStatus(
             (doctor.primaryIssue.isNotBlank() &&
                 !doctor.primaryIssue.equals("none", ignoreCase = true) &&
                 !doctorPrimaryIsObservation) ||
-            actionableDoctorEvidence
+            authoritativeDoctorVerdictNeedsAttention ||
+            hasActionableDoctorEvidence
     val healthToneLabel get() = when {
         isHostRenderLimited -> "Host Render"
         doctor.primaryIssue.equals("frame_pacing", ignoreCase = true) ||
@@ -763,7 +791,8 @@ data class PolarisSessionStatus(
                 health.primaryIssue.equals("frame_pacing", ignoreCase = true) ||
                     health.issues.any { it.equals("frame_pacing", ignoreCase = true) }
                 )) -> "Frame pacing"
-        doctorPrimaryIsObservation && actionableDoctorEvidence -> "Needs attention"
+        authoritativeDoctorVerdictNeedsAttention -> "Needs attention"
+        doctorPrimaryIsObservation && hasActionableDoctorEvidence -> "Needs attention"
         doctor.primaryIssue.equals("network_observation", ignoreCase = true) -> "Network recheck"
         doctor.primaryIssue.equals("control_channel_observation", ignoreCase = true) -> "Control retries"
         doctor.primaryIssue.equals("network_jitter", ignoreCase = true) -> "Network"
@@ -771,7 +800,7 @@ data class PolarisSessionStatus(
         !hasAuthoritativeDoctorResult && health.grade.equals("degraded", ignoreCase = true) -> "Stream degraded"
         !hasAuthoritativeDoctorResult && health.grade.equals("watch", ignoreCase = true) -> "Needs attention"
         doctor.primaryIssue.isNotBlank() && !doctor.primaryIssue.equals("none", ignoreCase = true) -> "Needs attention"
-        actionableDoctorEvidence -> "Needs attention"
+        hasActionableDoctorEvidence -> "Needs attention"
         !hasAuthoritativeDoctorResult && health.primaryIssue.isNotBlank() &&
             !health.primaryIssue.equals("none", ignoreCase = true) -> "Needs attention"
         !hasAuthoritativeDoctorResult && health.issues.isNotEmpty() -> "Needs attention"

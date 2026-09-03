@@ -684,6 +684,9 @@ class NovaHudUiStateTest {
                 available = true,
                 version = 2,
                 resultId = "doctor-control-observation",
+                status = "ok",
+                severity = "info",
+                trafficLight = "green",
                 primaryIssue = "control_channel_observation",
                 evidenceItems = listOf(
                     PolarisSessionStatus.DoctorStatus.EvidenceItem(
@@ -691,6 +694,11 @@ class NovaHudUiStateTest {
                         status = "watch",
                         source = "enet_control_channel",
                         value = 8.0
+                    ),
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "live_bitrate_control",
+                        status = "watch",
+                        source = "encoder_capability"
                     )
                 )
             )
@@ -713,6 +721,128 @@ class NovaHudUiStateTest {
         assertEquals("Control retries observed", state.healthReasonLabel)
         assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
         assertEquals(NovaHudTone.STABLE, state.layerHealth[1].tone)
+    }
+
+    @Test
+    fun authoritativeAmberDoctorStillEscalatesWatchEvidence() {
+        val status = status(
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                resultId = "doctor-control-needs-action",
+                status = "needs_action",
+                severity = "warning",
+                trafficLight = "amber",
+                primaryIssue = "control_channel_observation",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "live_bitrate_control",
+                        status = "watch",
+                        source = "encoder_capability"
+                    )
+                )
+            )
+        )
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status,
+            sparklineSamples = listOf(60f)
+        )
+
+        assertTrue(status.hasHealthConcerns)
+        assertEquals("Needs attention", status.healthToneLabel)
+        assertEquals("Needs attention", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+    }
+
+    @Test
+    fun partialAuthoritativeVerdictFailsClosed() {
+        val status = status(
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                resultId = "doctor-partial-verdict",
+                status = "needs_action",
+                severity = "warning",
+                primaryIssue = "control_channel_observation",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "live_bitrate_control",
+                        status = "watch",
+                        source = "encoder_capability"
+                    )
+                )
+            )
+        )
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status,
+            sparklineSamples = listOf(60f)
+        )
+
+        assertFalse(status.hasExplicitAuthoritativeDoctorVerdict)
+        assertTrue(status.authoritativeDoctorVerdictNeedsAttention)
+        assertTrue(status.hasHealthConcerns)
+        assertEquals("Needs attention", status.healthToneLabel)
+        assertEquals("Needs attention", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+    }
+
+    @Test
+    fun greenAuthoritativeVerdictCannotHideConfirmedMediaLoss() {
+        val status = status(
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                resultId = "doctor-green-contradiction",
+                status = "ok",
+                severity = "info",
+                trafficLight = "green",
+                primaryIssue = "control_channel_observation",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "packet_loss",
+                        status = "fail",
+                        source = "media_transport",
+                        value = 3.2
+                    )
+                )
+            )
+        )
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 22_000,
+            width = 1920,
+            height = 1080,
+            status = status,
+            sparklineSamples = listOf(60f)
+        )
+
+        assertTrue(status.authoritativeDoctorVerdictIsHealthy)
+        assertTrue(status.hasActionableDoctorEvidence)
+        assertTrue(status.hasHealthConcerns)
+        assertEquals("Needs attention", status.healthToneLabel)
+        assertEquals("Needs attention", state.healthReasonLabel)
+        assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
+        assertEquals(NovaHudTone.WARNING, state.layerHealth[1].tone)
     }
 
     @Test

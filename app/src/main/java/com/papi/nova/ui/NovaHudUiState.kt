@@ -328,16 +328,8 @@ data class NovaHudUiState(
         private fun doctorEvidenceWarns(status: PolarisSessionStatus?, ids: Set<String>? = null): Boolean =
             status?.doctor?.evidenceItems.orEmpty().any { item ->
                 val id = item.id.lowercase()
-                val evidenceStatus = item.status.lowercase()
                 (ids == null || id in ids) &&
-                    evidenceStatus in setOf("watch", "warning", "fail", "degraded", "needs_action") &&
-                    when (id) {
-                        "control_channel_packet_loss" -> false
-                        "packet_loss" -> evidenceStatus == "fail" &&
-                            item.source.equals("media_transport", ignoreCase = true)
-                        "latency" -> evidenceStatus == "fail"
-                        else -> true
-                    }
+                    status?.doctorEvidenceIsActionable(item) == true
             }
 
         private fun buildHealthReason(
@@ -362,6 +354,8 @@ data class NovaHudUiState(
                     status?.health?.grade.equals("degraded", ignoreCase = true) ->
                     "Stream degraded" to NovaHudTone.WARNING
                 doctorWarning -> "Needs attention" to NovaHudTone.WARNING
+                status?.authoritativeDoctorVerdictNeedsAttention == true ->
+                    "Needs attention" to NovaHudTone.WARNING
                 normalizedPrimaryIssue == "network_observation" ->
                     "Network recheck" to NovaHudTone.MUTED
                 normalizedPrimaryIssue == "control_channel_observation" ->
