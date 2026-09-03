@@ -7,7 +7,7 @@
 
 # Nova
 
-**Your PC games, wherever you want to play on Android.**
+**The streaming client that speaks host.**
 
 Nova turns Android TVs, handhelds, tablets, and phones into a polished home for
 PC game streaming. Pair it with Polaris for a controller-first Library, clear
