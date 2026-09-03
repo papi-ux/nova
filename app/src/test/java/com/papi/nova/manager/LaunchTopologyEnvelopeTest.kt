@@ -14,6 +14,22 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class LaunchTopologyEnvelopeTest {
     @Test
+    fun desktopTakeoverIsAcceptedAsAHostAuthoritativeTopology() {
+        val optimization = optimization(
+            requested = "desktop_takeover",
+            resolved = "desktop_takeover",
+            locked = true,
+        )
+
+        assertEquals("desktop_takeover", LaunchTopologyEnvelope.resolvedSelection(optimization))
+        assertTrue(
+            LaunchTopologyEnvelope.matches(
+                optimization, "game-a", "desktop_takeover", true, false, false
+            )
+        )
+    }
+
+    @Test
     fun hostDefaultIsDistinctFromAnExplicitDesktopRequest() {
         val optimization = optimization(
             requested = "host_default",

@@ -478,7 +478,7 @@ data class NovaHudUiState(
             }
             val modeSource = when (status.displayMode.requested) {
                 "auto" -> "AUTO"
-                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display" -> "EXP"
+                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display", "desktop_takeover" -> "EXP"
                 else -> ""
             }
             val lifecycle = when {

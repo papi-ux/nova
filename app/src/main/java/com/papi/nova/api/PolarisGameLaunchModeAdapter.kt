@@ -19,6 +19,7 @@ fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, client
         if (defaultToVirtualDisplay) add(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
         add(PolarisGame.MODE_HEADLESS_STREAM)
         add(PolarisGame.MODE_DESKTOP_DISPLAY)
+        add(PolarisGame.MODE_DESKTOP_TAKEOVER)
         add(PolarisGame.MODE_GAMESCOPE_STREAM)
         add(PolarisGame.MODE_WINDOWED_STREAM)
         add(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)

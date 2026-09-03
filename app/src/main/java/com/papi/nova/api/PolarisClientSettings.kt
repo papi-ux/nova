@@ -73,6 +73,7 @@ data class PolarisClientSettings(
     companion object {
         const val MODE_HEADLESS_STREAM = "headless_stream"
         const val MODE_DESKTOP_DISPLAY = "desktop_display"
+        const val MODE_DESKTOP_TAKEOVER = "desktop_takeover"
         const val MODE_HOST_VIRTUAL_DISPLAY = "host_virtual_display"
         const val MODE_GPU_NATIVE_TEST = "windowed_stream"
         const val MODE_GAMESCOPE_STREAM = "gamescope_stream"
@@ -84,6 +85,7 @@ data class PolarisClientSettings(
             MODE_HOST_VIRTUAL_DISPLAY -> "Host Virtual Display"
             MODE_GPU_NATIVE_TEST -> "Private Stream (GPU-native)"
             MODE_DESKTOP_DISPLAY -> "Mirror Desktop"
+            MODE_DESKTOP_TAKEOVER -> "Desktop Takeover"
             MODE_GAMESCOPE_STREAM -> "Gamescope Stream"
             MODE_HEADLESS_DONGLE -> "Headless Dongle"
             "headless" -> "Private Stream"

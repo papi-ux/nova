@@ -269,7 +269,16 @@ class PolarisGameContractTest {
         assertEquals(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY, PolarisGame.normalizeLaunchMode("host_virtual_display"))
         assertEquals(PolarisGame.MODE_HEADLESS_STREAM, PolarisGame.normalizeLaunchMode("headless_stream"))
         assertEquals(PolarisGame.MODE_WINDOWED_STREAM, PolarisGame.normalizeLaunchMode("windowed_stream"))
+        assertEquals(PolarisGame.MODE_DESKTOP_TAKEOVER, PolarisGame.normalizeLaunchMode("Desktop_Takeover"))
         assertEquals(PolarisGame.MODE_GAMESCOPE_STREAM, PolarisGame.normalizeLaunchMode("Gamescope_Stream"))
+        assertEquals(
+            PolarisGame.MODE_DESKTOP_TAKEOVER,
+            PolarisGame.resolveLaunchMode(
+                PolarisGame.MODE_DESKTOP_TAKEOVER,
+                headlessAllowed = false,
+                virtualDisplayAllowed = false,
+            ),
+        )
         assertEquals(
             listOf(PolarisGame.MODE_HEADLESS_STREAM, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY),
             PolarisGame.normalizeLaunchModes(emptyList(), defaultWhenEmpty = true)

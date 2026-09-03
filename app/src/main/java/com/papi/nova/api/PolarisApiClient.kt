@@ -690,6 +690,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 PolarisGame.MODE_HEADLESS_STREAM,
                 PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
                 PolarisGame.MODE_DESKTOP_DISPLAY,
+                PolarisGame.MODE_DESKTOP_TAKEOVER,
                 PolarisGame.MODE_WINDOWED_STREAM,
                 PolarisGame.MODE_GAMESCOPE_STREAM,
                 PolarisGame.MODE_HEADLESS_DONGLE,

@@ -884,6 +884,7 @@ class NovaLibraryActivity : NovaActivity() {
             PolarisGame.MODE_HEADLESS_STREAM -> getString(R.string.nova_library_launch_headless)
             PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_display)
             PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
+            PolarisGame.MODE_DESKTOP_TAKEOVER -> getString(R.string.nova_library_launch_desktop_takeover)
             PolarisGame.MODE_WINDOWED_STREAM -> getString(R.string.nova_library_launch_gpu_native_test)
             PolarisGame.MODE_GAMESCOPE_STREAM -> getString(R.string.nova_library_launch_gamescope)
             PolarisGame.MODE_HEADLESS_DONGLE -> getString(R.string.nova_library_launch_dongle)
@@ -2055,6 +2056,7 @@ class NovaLibraryActivity : NovaActivity() {
         PolarisClientSettings.MODE_HEADLESS_STREAM, "headless" -> "Headless"
         PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY, "virtual_display" -> "Virtual"
         PolarisClientSettings.MODE_DESKTOP_DISPLAY -> "Desktop"
+        PolarisClientSettings.MODE_DESKTOP_TAKEOVER -> "Takeover"
         PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "GPU Native"
         else -> null
     }

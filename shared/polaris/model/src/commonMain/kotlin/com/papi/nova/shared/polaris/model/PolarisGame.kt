@@ -281,6 +281,7 @@ data class PolarisGame(
         const val MODE_HEADLESS_STREAM = "headless_stream"
         const val MODE_HOST_VIRTUAL_DISPLAY = "host_virtual_display"
         const val MODE_DESKTOP_DISPLAY = "desktop_display"
+        const val MODE_DESKTOP_TAKEOVER = "desktop_takeover"
         const val MODE_WINDOWED_STREAM = "windowed_stream"
         const val MODE_GAMESCOPE_STREAM = "gamescope_stream"
         const val MODE_HEADLESS_DONGLE = "headless_dongle"
@@ -313,7 +314,8 @@ data class PolarisGame(
                 }
                 // Canonical non-pair ids stay themselves: their availability is
                 // gated by the host catalog, not by the legacy boolean pair.
-                MODE_DESKTOP_DISPLAY, MODE_WINDOWED_STREAM, MODE_GAMESCOPE_STREAM, MODE_HEADLESS_DONGLE -> key
+                MODE_DESKTOP_DISPLAY, MODE_DESKTOP_TAKEOVER, MODE_WINDOWED_STREAM,
+                MODE_GAMESCOPE_STREAM, MODE_HEADLESS_DONGLE -> key
                 else -> when {
                     headlessAllowed -> MODE_HEADLESS_STREAM
                     virtualDisplayAllowed -> MODE_HOST_VIRTUAL_DISPLAY

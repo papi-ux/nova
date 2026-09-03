@@ -1403,6 +1403,8 @@ class NovaGameDetailActivity : NovaActivity() {
                                         getString(R.string.nova_play_setup_mode_dongle_detail),
                                     PolarisClientSettings.MODE_DESKTOP_DISPLAY to
                                         getString(R.string.nova_play_setup_mode_mirror_detail),
+                                    PolarisClientSettings.MODE_DESKTOP_TAKEOVER to
+                                        getString(R.string.nova_play_setup_mode_takeover_detail),
                                 ),
                             )
                         }
@@ -1928,6 +1930,7 @@ class NovaGameDetailActivity : NovaActivity() {
         return when (PolarisGame.normalizeLaunchMode(mode)) {
             PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_display)
             PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
+            PolarisGame.MODE_DESKTOP_TAKEOVER -> getString(R.string.nova_library_launch_desktop_takeover)
             PolarisGame.MODE_WINDOWED_STREAM -> getString(R.string.nova_library_launch_gpu_native_test)
             PolarisGame.MODE_GAMESCOPE_STREAM -> getString(R.string.nova_library_launch_gamescope)
             PolarisGame.MODE_HEADLESS_DONGLE -> getString(R.string.nova_library_launch_dongle)
@@ -1939,6 +1942,7 @@ class NovaGameDetailActivity : NovaActivity() {
         return when (PolarisGame.normalizeLaunchMode(mode)) {
             PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_virtual_short)
             PolarisGame.MODE_DESKTOP_DISPLAY -> getString(R.string.nova_library_launch_desktop_display)
+            PolarisGame.MODE_DESKTOP_TAKEOVER -> getString(R.string.nova_library_launch_desktop_takeover)
             PolarisGame.MODE_WINDOWED_STREAM -> getString(R.string.nova_library_launch_gpu_native_test)
             PolarisGame.MODE_GAMESCOPE_STREAM -> getString(R.string.nova_library_launch_gamescope)
             PolarisGame.MODE_HEADLESS_DONGLE -> getString(R.string.nova_library_launch_dongle)

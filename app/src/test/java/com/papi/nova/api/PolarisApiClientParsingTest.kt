@@ -55,6 +55,13 @@ class PolarisApiClientParsingTest {
                 ),
             ),
         )
+        assertTrue(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_takeover"},"effective":{"stream_display_mode":"desktop_takeover"},"capabilities":{"modes":[{"value":"desktop_takeover","available":true,"session_overridable":true}]}}}""",
+                ),
+            ),
+        )
 
         assertTrue(
             PolarisApiClient.hasTypedLaunchModeAuthority(

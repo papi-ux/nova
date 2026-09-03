@@ -623,6 +623,8 @@ data class PolarisSessionStatus(
             displayMode.requested.equals("windowed_stream", ignoreCase = true) -> "Private Stream (GPU-native)"
         displayMode.selection.equals("desktop_display", ignoreCase = true) ||
             displayMode.requested.equals("desktop_display", ignoreCase = true) -> "Mirror Desktop"
+        displayMode.selection.equals("desktop_takeover", ignoreCase = true) ||
+            displayMode.requested.equals("desktop_takeover", ignoreCase = true) -> "Desktop Takeover"
         displayMode.label.isNotBlank() -> normalizeSessionModeLabel(displayMode.label)
         displayMode.effectiveHeadless -> "Private Stream"
         displayMode.virtualDisplay -> "Host Virtual Display"

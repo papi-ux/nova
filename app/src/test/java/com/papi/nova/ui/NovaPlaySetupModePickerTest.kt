@@ -303,4 +303,36 @@ class NovaPlaySetupModePickerTest {
             state.choices.single { it.id == "desktop_display" }.detail,
         )
     }
+
+    @Test
+    fun desktopTakeoverIsAnExplicitSelectableHostMode() {
+        val state = buildGameModePickerState(
+            modes = listOf(
+                mode("headless_stream", group = "private"),
+                mode(
+                    "desktop_takeover",
+                    group = "host",
+                    reason = "Runtime: Hyprland output migration",
+                    label = "Desktop Takeover",
+                ),
+            ),
+            allowedModes = listOf("desktop_takeover"),
+            playMode = "desktop_takeover",
+            hasExplicitOverride = true,
+            title = "Where It Runs",
+            hostDefaultLabel = "Follow the host",
+            plainModeDetails = mapOf(
+                "desktop_takeover" to "Temporarily moves the desktop to a client-sized display.",
+            ),
+        )
+
+        val takeover = state.choices.single()
+        assertEquals("desktop_takeover", takeover.id)
+        assertEquals("host", takeover.group)
+        assertEquals("Desktop Takeover", takeover.label)
+        assertEquals("Temporarily moves the desktop to a client-sized display.", takeover.detail)
+        assertTrue(takeover.enabled)
+        assertTrue(takeover.current)
+        assertFalse(takeover.active)
+    }
 }

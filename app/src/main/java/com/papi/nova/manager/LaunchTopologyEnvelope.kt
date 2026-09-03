@@ -6,6 +6,7 @@ import org.json.JSONObject
 internal object LaunchTopologyEnvelope {
     private val supportedTopologies = setOf(
         "desktop_display",
+        "desktop_takeover",
         "host_virtual_display",
         "headless_stream",
         "windowed_stream",

@@ -883,7 +883,7 @@ data class NovaQuickMenuUiState(
             }
             val source = when (status.displayMode.requested) {
                 "auto" -> "Auto"
-                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display" -> "Explicit"
+                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display", "desktop_takeover" -> "Explicit"
                 else -> ""
             }
             val base = listOf(mode, status.encoderSelectionLabel, source)
