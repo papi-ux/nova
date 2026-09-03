@@ -3,22 +3,22 @@ buildscript {
     dependencies {
         constraints {
             // These pins only affect the Gradle/AGP build toolchain, not the app's runtime graph.
-            classpath('io.netty:netty-codec:4.1.136.Final') {
+            classpath('io.netty:netty-codec:4.1.137.Final') {
                 because 'Keep any settings/build-tool Netty transitives on a patched line'
             }
-            classpath('io.netty:netty-codec-http:4.1.136.Final') {
+            classpath('io.netty:netty-codec-http:4.1.137.Final') {
                 because 'Keep any settings/build-tool Netty transitives on a patched line'
             }
-            classpath('io.netty:netty-codec-http2:4.1.136.Final') {
+            classpath('io.netty:netty-codec-http2:4.1.137.Final') {
                 because 'Keep any settings/build-tool Netty transitives on a patched line'
             }
-            classpath('io.netty:netty-common:4.1.136.Final') {
+            classpath('io.netty:netty-common:4.1.137.Final') {
                 because 'Keep any settings/build-tool Netty transitives on a patched line'
             }
-            classpath('io.netty:netty-handler:4.1.136.Final') {
+            classpath('io.netty:netty-handler:4.1.137.Final') {
                 because 'Keep any settings/build-tool Netty transitives on a patched line'
             }
-            classpath('io.netty:netty-handler-proxy:4.1.136.Final') {
+            classpath('io.netty:netty-handler-proxy:4.1.137.Final') {
                 because 'Keep any settings/build-tool Netty transitives on a patched line'
             }
             classpath('org.apache.commons:commons-lang3:3.18.0') {
@@ -53,7 +53,7 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.compose' version '2.3.21' apply false
 }
 
-def patchedNettyVersion = '4.1.136.Final'
+def patchedNettyVersion = '4.1.137.Final'
 def expectedNettyBuildscriptModules = [
     'netty-codec',
     'netty-codec-http',

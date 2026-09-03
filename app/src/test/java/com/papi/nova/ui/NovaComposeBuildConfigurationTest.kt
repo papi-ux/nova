@@ -131,7 +131,7 @@ class NovaComposeBuildConfigurationTest {
     @Test
     fun gradlePinsNettyForToolingDependencyAlerts() {
         val rootBuild = String(Files.readAllBytes(Paths.get("../build.gradle")), StandardCharsets.UTF_8)
-        val expectedVersion = "4.1.136.Final"
+        val expectedVersion = "4.1.137.Final"
 
         assertTrue(
             "root build should keep a single patched Netty version for Gradle and Android test tooling",
