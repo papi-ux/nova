@@ -861,7 +861,7 @@ class NovaLaunchProfileSummaryTest {
     }
 
     @Test
-    fun deterministicPresetShowsCompleteProvenanceWithoutAWarningLimit() {
+    fun deterministicPresetShowsReadableProfileWithoutRawContractTokens() {
         fun field(value: Any, source: String, reason: String, locked: Boolean, normalized: Boolean) =
             JSONObject()
                 .put("value", value)
@@ -894,10 +894,30 @@ class NovaLaunchProfileSummaryTest {
         val summary = requireNotNull(buildNovaLaunchProfileSummary(optimization, clientAskedFps = 120.0))
 
         assertTrue(summary.selectedLine.contains("1920×1080 @ 120 FPS"))
-        assertTrue(summary.provenanceLine.contains("FPS: client_launch_request / explicit_fps_lock / locked"))
-        assertTrue(summary.provenanceLine.contains("bitrate: host_capability / host_bitrate_cap / normalized"))
+        assertEquals("High FPS", summary.profileLabel)
+        assertEquals(
+            "Polaris resolved this from the launch request, paired-device settings, and current host capabilities.",
+            summary.profileDescription,
+        )
+        assertFalse(summary.profileDescription.contains("paired_client"))
+        assertFalse(summary.profileDescription.contains("reason_code"))
         assertEquals("", summary.limitingLine)
         assertEquals(NovaLaunchProfileNoticeTone.HEALTHY, summary.noticeTone)
+
+        val profileFact = novaPlaySetupPlan(
+            modeLabel = "Private Stream",
+            lines = emptyList(),
+            summary = summary,
+            lastSessionKey = "Last session",
+            limitedByKey = "Limited by",
+            askedKey = "Asked / granted",
+            profileKey = "Profile",
+            grantedFormat = "Granted: %s",
+        ).facts.single { it.key == "Profile" }
+
+        assertEquals("High FPS", profileFact.value)
+        assertEquals(summary.profileDescription, profileFact.detail)
+        assertFalse("${profileFact.value} ${profileFact.detail}".contains("paired_client"))
     }
 
 }

@@ -623,10 +623,11 @@ internal fun novaPlaySetupPlan(
             )
         }
 
-        summary.provenanceLine.takeIf { it.isNotBlank() }?.let {
+        summary.profileLabel.takeIf { it.isNotBlank() }?.let {
             facts += NovaPlaySetupFact(
                 key = profileKey,
                 value = it,
+                detail = summary.profileDescription,
                 tone = NovaPlaySetupTone.PLAIN,
             )
         }
@@ -646,7 +647,7 @@ internal fun novaPlaySetupPlan(
             )
         }
 
-        summary.freshnessLine.takeIf { it.isNotBlank() && summary.provenanceLine.isBlank() }?.let {
+        summary.freshnessLine.takeIf { it.isNotBlank() && summary.profileLabel.isBlank() }?.let {
             facts += NovaPlaySetupFact(key = profileKey, value = it)
         }
     }

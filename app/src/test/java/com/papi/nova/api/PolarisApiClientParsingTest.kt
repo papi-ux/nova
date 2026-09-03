@@ -55,6 +55,13 @@ class PolarisApiClientParsingTest {
                 ),
             ),
         )
+        assertTrue(
+            PolarisApiClient.hasTypedLaunchModeAuthority(
+                JSONObject(
+                    """{"client_settings":{"version":1,"desired":{"stream_display_mode":"desktop_takeover"},"effective":{"stream_display_mode":"desktop_takeover"},"capabilities":{"modes":[{"value":"desktop_takeover","available":true,"session_overridable":true}]}}}""",
+                ),
+            ),
+        )
 
         assertTrue(
             PolarisApiClient.hasTypedLaunchModeAuthority(
@@ -915,7 +922,12 @@ class PolarisApiClientParsingTest {
                 "\"mirror_desktop\":false,\"force_private_after_steam_close\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"resolution\":\"1920x1080\"," +
                 "\"transport\":\"dmabuf\",\"residency\":\"gpu\",\"format\":\"bgra8\"}," +
-                "\"encoder\":{\"codec\":\"hevc_nvenc\",\"bitrate_kbps\":20000,\"fps\":60.0," +
+                "\"encoder\":{\"active_backend\":\"nvenc\",\"selection\":{" +
+                "\"mode\":\"auto\",\"gpu_driver\":\"nvidia\",\"policy\":\"nvidia_nvenc\"," +
+                "\"preferred_encoder\":\"nvenc\",\"fallback_encoder\":\"next_available\"," +
+                "\"selected_encoder\":\"nvenc\",\"exact_live_probe_required\":false," +
+                "\"fallback_used\":false,\"reason\":\"Auto detected NVIDIA; prefer NVENC. Selected [nvenc].\"}," +
+                "\"codec\":\"hevc_nvenc\",\"bitrate_kbps\":20000,\"fps\":60.0," +
                 "\"requested_client_fps\":60.0,\"session_target_fps\":60.0," +
                 "\"encode_target_fps\":60.0,\"pacing_policy\":\"client_fps_limit\",\"optimization_source\":\"ai_cached\"," +
                 "\"optimization_confidence\":\"medium\",\"optimization_cache_status\":\"hit\"," +
@@ -998,6 +1010,16 @@ class PolarisApiClientParsingTest {
         assertEquals("hit", status.encoder.optimizationCacheStatus)
         assertEquals("Adjusted bitrate to fit host limits.", status.encoder.optimizationNormalizationReason)
         assertEquals(2, status.encoder.recommendationVersion)
+        assertEquals("nvenc", status.encoder.activeBackend)
+        assertEquals("auto", status.encoder.selection.mode)
+        assertEquals("nvidia", status.encoder.selection.gpuDriver)
+        assertEquals("nvidia_nvenc", status.encoder.selection.policy)
+        assertEquals("nvenc", status.encoder.selection.preferredEncoder)
+        assertEquals("next_available", status.encoder.selection.fallbackEncoder)
+        assertEquals("nvenc", status.encoder.selection.selectedEncoder)
+        assertFalse(status.encoder.selection.exactLiveProbeRequired)
+        assertFalse(status.encoder.selection.fallbackUsed)
+        assertEquals("Auto → NVENC", status.encoderSelectionLabel)
         assertEquals("1920x1080", status.capture.resolution)
         assertEquals("dmabuf", status.capture.transport)
         assertEquals("gpu", status.encoder.targetResidency)
@@ -1117,6 +1139,9 @@ class PolarisApiClientParsingTest {
                 JSONObject()
                     .put("version", 2)
                     .put("result_id", resultId)
+                    .put("status", "needs_action")
+                    .put("severity", "critical")
+                    .put("traffic_light", "red")
                     .put("primary_issue", "network_jitter")
                     .put("summary", "Current evidence confirms network pressure.")
                     .put("confidence", JSONObject().put("level", "high"))
@@ -1223,6 +1248,11 @@ class PolarisApiClientParsingTest {
         assertEquals("Wi-Fi jitter is the likely bottleneck.", status.doctor.aiExplanation.likelyCause)
         assertEquals("Lower bitrate", status.doctor.aiExplanation.tryFirst.first())
         assertEquals(2, status.doctor.version)
+        assertEquals("needs_action", status.doctor.status)
+        assertEquals("critical", status.doctor.severity)
+        assertEquals("red", status.doctor.trafficLight)
+        assertTrue(status.hasExplicitAuthoritativeDoctorVerdict)
+        assertTrue(status.authoritativeDoctorVerdictNeedsAttention)
         assertEquals("lower_bitrate", status.doctor.actionId)
         assertEquals("Auto Fix", status.doctor.actionLabel)
         assertEquals(16000, status.doctor.targetBitrateKbps)

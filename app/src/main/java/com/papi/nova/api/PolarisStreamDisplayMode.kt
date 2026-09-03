@@ -4,6 +4,7 @@ object PolarisStreamDisplayMode {
     val ORDER = listOf(
         PolarisClientSettings.MODE_HEADLESS_STREAM,
         PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY,
+        PolarisClientSettings.MODE_DESKTOP_TAKEOVER,
         PolarisClientSettings.MODE_DESKTOP_DISPLAY,
         PolarisClientSettings.MODE_GPU_NATIVE_TEST
     )
@@ -12,6 +13,7 @@ object PolarisStreamDisplayMode {
         "headless", "headless_stream", "private", "private_stream" -> PolarisClientSettings.MODE_HEADLESS_STREAM
         "virtual_display", "host_virtual_display" -> PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY
         "desktop", "desktop_display", "host_display" -> PolarisClientSettings.MODE_DESKTOP_DISPLAY
+        "desktop_takeover" -> PolarisClientSettings.MODE_DESKTOP_TAKEOVER
         "windowed", "windowed_stream", "gpu_native", "gpu-native", "gpu_native_test" -> PolarisClientSettings.MODE_GPU_NATIVE_TEST
         else -> mode?.trim().orEmpty()
     }
@@ -23,6 +25,7 @@ object PolarisStreamDisplayMode {
 
     fun isPrivateFamily(mode: String?): Boolean = normalize(mode) in setOf(
         PolarisClientSettings.MODE_HEADLESS_STREAM,
+        PolarisClientSettings.MODE_DESKTOP_TAKEOVER,
         PolarisClientSettings.MODE_DESKTOP_DISPLAY,
         PolarisClientSettings.MODE_GPU_NATIVE_TEST
     )

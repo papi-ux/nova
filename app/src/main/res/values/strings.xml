@@ -292,6 +292,7 @@
     <string name="nova_play_setup_mode_virtual_detail">Adds a display to the host desktop. Windows and icons may rearrange.</string>
     <string name="nova_play_setup_mode_dongle_detail">Moves the desktop to a dummy plug. Privacy blanks the real panel after one-time portal approval is saved; the approval session keeps it on. Off keeps it active. Configure this once as the host default.</string>
     <string name="nova_play_setup_mode_mirror_detail">Streams everything visible on the host, including notifications.</string>
+    <string name="nova_play_setup_mode_takeover_detail">Moves the live Hyprland desktop to a temporary streaming display, then restores the physical monitors when streaming ends.</string>
     <string name="nova_play_setup_band_private">Private — your desktop stays untouched</string>
     <string name="nova_play_setup_band_host">Host display — uses or swaps the host screen</string>
     <string name="nova_play_setup_host_default_entry_detail">Follow the host\'s Default Display — currently %1$s</string>
@@ -422,6 +423,7 @@
     <string name="nova_library_launch_gamescope">Gamescope Stream</string>
     <string name="nova_library_launch_dongle">Headless Dongle</string>
     <string name="nova_library_launch_desktop_display">Mirror Desktop</string>
+    <string name="nova_library_launch_desktop_takeover">Desktop Takeover</string>
     <string name="nova_library_launch_gpu_native_test">Private Stream (GPU-native)</string>
     <string name="nova_library_play">Launch Recommended</string>
     <string name="nova_library_play_mode">Launch %1$s</string>

@@ -1,0 +1,2 @@
+Nova 1.4.1
+Play Setup now explains the host's actual encoder choice and presents readable profile details. Doctor honors Polaris' authoritative verdict, keeping capability-only Watch evidence informational while contradictions fail closed. Desktop Takeover is available on supported Hyprland hosts, Android TV controller focus is tighter, and the build-tool Netty advisory is patched. Vulkan detection and fallback remain host-owned.

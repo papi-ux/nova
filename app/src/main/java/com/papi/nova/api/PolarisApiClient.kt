@@ -690,6 +690,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 PolarisGame.MODE_HEADLESS_STREAM,
                 PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
                 PolarisGame.MODE_DESKTOP_DISPLAY,
+                PolarisGame.MODE_DESKTOP_TAKEOVER,
                 PolarisGame.MODE_WINDOWED_STREAM,
                 PolarisGame.MODE_GAMESCOPE_STREAM,
                 PolarisGame.MODE_HEADLESS_DONGLE,
@@ -1144,6 +1145,9 @@ class PolarisApiClient @JvmOverloads constructor(
                 available = doctor != null,
                 version = doctorVersion,
                 resultId = doctorResultId,
+                status = strictString(doctor, "status"),
+                severity = strictString(doctor, "severity"),
+                trafficLight = strictString(doctor, "traffic_light"),
                 classification = classifyDoctorIssue(primaryIssue),
                 likelyCause = likelyCause,
                 evidence = evidence,
@@ -1599,6 +1603,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 ?: effectiveSettings?.optJSONObject("applied_stream_settings")
             val capture = json.optJSONObject("capture")
             val encoder = json.optJSONObject("encoder")
+            val encoderSelection = encoder?.optJSONObject("selection")
             val health = json.optJSONObject("health")
             val doctor = json.optJSONObject("doctor") ?: health?.optJSONObject("doctor")
             val aiDoctor = json.optJSONObject("ai_doctor_explanation")
@@ -1772,7 +1777,19 @@ class PolarisApiClient @JvmOverloads constructor(
                     recommendationVersion = encoder?.optInt("recommendation_version", 0) ?: 0,
                     targetDevice = encoder?.optString("target_device", "") ?: "",
                     targetResidency = encoder?.optString("target_residency", "") ?: "",
-                    targetFormat = encoder?.optString("target_format", "") ?: ""
+                    targetFormat = encoder?.optString("target_format", "") ?: "",
+                    activeBackend = strictString(encoder, "active_backend"),
+                    selection = PolarisSessionStatus.EncoderSelectionStatus(
+                        mode = strictString(encoderSelection, "mode"),
+                        gpuDriver = strictString(encoderSelection, "gpu_driver"),
+                        policy = strictString(encoderSelection, "policy"),
+                        preferredEncoder = strictString(encoderSelection, "preferred_encoder"),
+                        fallbackEncoder = strictString(encoderSelection, "fallback_encoder"),
+                        selectedEncoder = strictString(encoderSelection, "selected_encoder"),
+                        exactLiveProbeRequired = strictBoolean(encoderSelection, "exact_live_probe_required"),
+                        fallbackUsed = strictBoolean(encoderSelection, "fallback_used"),
+                        reason = strictString(encoderSelection, "reason")
+                    )
                 ),
                 linuxGpuProfile = parseLinuxGpuProfile(linuxGpuProfile),
                 autoQuality = parseAutoQualityPolicy(autoQuality),

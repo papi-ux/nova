@@ -328,16 +328,8 @@ data class NovaHudUiState(
         private fun doctorEvidenceWarns(status: PolarisSessionStatus?, ids: Set<String>? = null): Boolean =
             status?.doctor?.evidenceItems.orEmpty().any { item ->
                 val id = item.id.lowercase()
-                val evidenceStatus = item.status.lowercase()
                 (ids == null || id in ids) &&
-                    evidenceStatus in setOf("watch", "warning", "fail", "degraded", "needs_action") &&
-                    when (id) {
-                        "control_channel_packet_loss" -> false
-                        "packet_loss" -> evidenceStatus == "fail" &&
-                            item.source.equals("media_transport", ignoreCase = true)
-                        "latency" -> evidenceStatus == "fail"
-                        else -> true
-                    }
+                    status?.doctorEvidenceIsActionable(item) == true
             }
 
         private fun buildHealthReason(
@@ -362,6 +354,8 @@ data class NovaHudUiState(
                     status?.health?.grade.equals("degraded", ignoreCase = true) ->
                     "Stream degraded" to NovaHudTone.WARNING
                 doctorWarning -> "Needs attention" to NovaHudTone.WARNING
+                status?.authoritativeDoctorVerdictNeedsAttention == true ->
+                    "Needs attention" to NovaHudTone.WARNING
                 normalizedPrimaryIssue == "network_observation" ->
                     "Network recheck" to NovaHudTone.MUTED
                 normalizedPrimaryIssue == "control_channel_observation" ->
@@ -422,7 +416,7 @@ data class NovaHudUiState(
             }
             val hostDoctorWarning = doctorEvidenceWarns(
                 status,
-                setOf("capture_path", "encoder", "frame_pacing", "target_fps_gap", "source_capture", "encode_cadence", "effective_quality_ceiling")
+                setOf("capture_path", "encoder", "encoder_selection", "frame_pacing", "target_fps_gap", "source_capture", "encode_cadence", "effective_quality_ceiling")
             )
             val networkDoctorWarning = doctorEvidenceWarns(
                 status,
@@ -484,7 +478,7 @@ data class NovaHudUiState(
             }
             val modeSource = when (status.displayMode.requested) {
                 "auto" -> "AUTO"
-                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display" -> "EXP"
+                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display", "desktop_takeover" -> "EXP"
                 else -> ""
             }
             val lifecycle = when {
@@ -500,7 +494,7 @@ data class NovaHudUiState(
             }
             val normalized = if (status.hasOptimizationNormalization) "ADJ" else ""
 
-            return listOf(mode, bitDepth, path, modeSource, lifecycle, optimization, normalized)
+            return listOf(mode, status.encoderSelectionLabel, bitDepth, path, modeSource, lifecycle, optimization, normalized)
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
         }

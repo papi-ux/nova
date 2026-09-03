@@ -32,8 +32,9 @@ data class NovaLaunchProfileSummary(
      * the hold anyway.
      */
     val grantHoldReason: String = "",
-    /** Deterministic field-level source/reason/lock data; never a warning. */
-    val provenanceLine: String = ""
+    /** Resolved preset name and plain-language origin shown by Play Setup. */
+    val profileLabel: String = "",
+    val profileDescription: String = ""
 )
 
 internal fun buildNovaLaunchProfileSummary(
@@ -279,33 +280,9 @@ private fun buildDeterministicLaunchPresetSummary(
     }
     (value("hdr") as? Boolean)?.let { selectedParts += if (it) "HDR" else "SDR" }
 
-    val fieldLabels = mapOf(
-        "display_mode" to "mode",
-        "display_width" to "width",
-        "display_height" to "height",
-        "target_fps" to "FPS",
-        "target_bitrate_kbps" to "bitrate",
-        "preferred_codec" to "codec",
-        "nvenc_tune" to "encoder tune",
-        "hdr" to "HDR",
-        "color_range" to "color range",
-    )
-    val provenance = fields.keys().asSequence().asIterable()
-        .mapNotNull { name ->
-            val field = detail(name) ?: return@mapNotNull null
-            val source = (field.opt("source") as? String)?.takeIf { it.isNotBlank() }
-                ?: return@mapNotNull null
-            val reason = (field.opt("reason_code") as? String)?.takeIf { it.isNotBlank() }
-                ?: return@mapNotNull null
-            val locked = field.opt("locked") as? Boolean ?: return@mapNotNull null
-            val normalized = field.opt("normalized") as? Boolean ?: return@mapNotNull null
-            val flags = listOfNotNull(
-                "locked".takeIf { locked },
-                "normalized".takeIf { normalized },
-            ).joinToString(", ").ifBlank { "unlocked" }
-            "${fieldLabels[name] ?: name}: $source / $reason / $flags"
-        }
     val asked = if (clientAskedFps > 0.0) " · ${formatFps(clientAskedFps)} FPS" else ""
+    val profileDescription =
+        "Polaris resolved this from the launch request, paired-device settings, and current host capabilities."
     return NovaLaunchProfileSummary(
         primaryLaunchLabel = if (effectiveFps > 0.0) {
             "Launch $presetLabel · ${formatFps(effectiveFps)} FPS"
@@ -316,7 +293,7 @@ private fun buildDeterministicLaunchPresetSummary(
         selectedLine = "Resolved: ${selectedParts.joinToString(" · ").ifBlank { presetLabel }}",
         reasonLine = "Deterministic preset v1; Doctor history and AI output cannot change these fields.",
         limitingLine = "",
-        noticeDetail = "Field provenance lists the source, reason code, lock state, and any capability normalization.",
+        noticeDetail = profileDescription,
         noticeRecommendation = "Doctor observations do not change launch settings.",
         noticeTone = NovaLaunchProfileNoticeTone.HEALTHY,
         noticeLabel = "Launch preset",
@@ -325,7 +302,8 @@ private fun buildDeterministicLaunchPresetSummary(
         showRetryHighFps = false,
         retryHighFpsLabel = "",
         grantHoldReason = "",
-        provenanceLine = provenance.joinToString(" · ")
+        profileLabel = presetLabel,
+        profileDescription = profileDescription
     )
 }
 

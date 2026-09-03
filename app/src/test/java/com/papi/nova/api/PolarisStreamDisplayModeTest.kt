@@ -13,6 +13,7 @@ class PolarisStreamDisplayModeTest {
         assertEquals(PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY, PolarisStreamDisplayMode.normalize("virtual_display"))
         assertEquals(PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY, PolarisStreamDisplayMode.normalize("host_virtual_display"))
         assertEquals(PolarisClientSettings.MODE_DESKTOP_DISPLAY, PolarisStreamDisplayMode.normalize("desktop_display"))
+        assertEquals(PolarisClientSettings.MODE_DESKTOP_TAKEOVER, PolarisStreamDisplayMode.normalize("desktop_takeover"))
         assertEquals(PolarisClientSettings.MODE_GPU_NATIVE_TEST, PolarisStreamDisplayMode.normalize("windowed_stream"))
     }
 
@@ -21,6 +22,7 @@ class PolarisStreamDisplayModeTest {
         assertEquals("Private Stream", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_HEADLESS_STREAM))
         assertEquals("Host Virtual Display", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY))
         assertEquals("Mirror Desktop", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_DESKTOP_DISPLAY))
+        assertEquals("Desktop Takeover", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_DESKTOP_TAKEOVER))
         assertEquals("Private Stream (GPU-native)", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
         assertEquals("Gamescope Stream", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_GAMESCOPE_STREAM))
         assertEquals("Headless Dongle", PolarisStreamDisplayMode.labelForMode(PolarisClientSettings.MODE_HEADLESS_DONGLE))
@@ -59,6 +61,7 @@ class PolarisStreamDisplayModeTest {
         assertFalse(PolarisStreamDisplayMode.isVirtual(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
         assertTrue(PolarisStreamDisplayMode.isPrivateFamily(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
         assertTrue(PolarisStreamDisplayMode.isPrivateFamily(PolarisClientSettings.MODE_DESKTOP_DISPLAY))
+        assertTrue(PolarisStreamDisplayMode.isPrivateFamily(PolarisClientSettings.MODE_DESKTOP_TAKEOVER))
     }
 
     @Test

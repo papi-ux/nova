@@ -216,8 +216,18 @@ class NovaQuickMenuUiStateTest {
         val state = quickState(
             status = status(
                 encoder = PolarisSessionStatus.EncoderStatus(
-                    targetDevice = "cuda",
-                    targetResidency = "gpu"
+                    targetDevice = "vulkan",
+                    targetResidency = "gpu",
+                    activeBackend = "vulkan",
+                    selection = PolarisSessionStatus.EncoderSelectionStatus(
+                        mode = "auto",
+                        gpuDriver = "amdgpu",
+                        policy = "amd_private_vulkan_live_probe",
+                        preferredEncoder = "vulkan",
+                        fallbackEncoder = "vaapi",
+                        selectedEncoder = "vulkan",
+                        exactLiveProbeRequired = true,
+                    ),
                 ),
                 capture = PolarisSessionStatus.CaptureStatus(
                     transport = "dmabuf",
@@ -232,7 +242,31 @@ class NovaQuickMenuUiStateTest {
 
         assertTrue(state.sessionMode.label.contains("Private Stream"))
         assertTrue(state.sessionMode.label.contains("GPU-native DMA-BUF"))
+        assertTrue(state.sessionMode.label.contains("Auto → Vulkan"))
         assertFalse(state.sessionMode.label.contains("Headless"))
+    }
+
+    @Test
+    fun commandCenterNamesEncoderFallback() {
+        val state = quickState(
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    activeBackend = "vaapi",
+                    selection = PolarisSessionStatus.EncoderSelectionStatus(
+                        mode = "auto",
+                        gpuDriver = "amdgpu",
+                        policy = "amd_private_vulkan_live_probe",
+                        preferredEncoder = "vulkan",
+                        fallbackEncoder = "vaapi",
+                        selectedEncoder = "vaapi",
+                        fallbackUsed = true,
+                        reason = "live_probe_failed",
+                    ),
+                ),
+            ),
+        )
+
+        assertTrue(state.sessionMode.label.contains("Vulkan → VAAPI fallback"))
     }
 
     @Test

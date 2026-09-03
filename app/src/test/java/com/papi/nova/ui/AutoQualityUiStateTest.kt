@@ -36,6 +36,69 @@ class AutoQualityUiStateTest {
     }
 
     @Test
+    fun greenDoctorControlObservationKeepsCapabilityWatchInformational() {
+        val state = AutoQualityUiState.from(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-control-observation",
+                    status = "ok",
+                    severity = "info",
+                    trafficLight = "green",
+                    primaryIssue = "control_channel_observation",
+                    likelyCause = "Control-channel retries were observed, but video packet loss is not confirmed.",
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "live_bitrate_control",
+                            status = "watch",
+                            source = "encoder_capability"
+                        )
+                    )
+                )
+            ),
+            fallbackTargetFps = 120.0
+        )
+
+        assertEquals(AutoQualityUiState.State.STABLE, state.state)
+        assertEquals(AutoQualityUiState.Tone.STABLE, state.tone)
+        assertEquals("OK", state.compactLabel)
+        assertEquals("Stream Ready", state.label)
+    }
+
+    @Test
+    fun greenDoctorEnvelopeCannotHideConfirmedMediaLoss() {
+        val status = status(
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                resultId = "doctor-green-contradiction",
+                status = "ok",
+                severity = "info",
+                trafficLight = "green",
+                primaryIssue = "control_channel_observation",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "packet_loss",
+                        status = "fail",
+                        source = "media_transport",
+                        value = 3.2
+                    )
+                )
+            )
+        )
+        val state = AutoQualityUiState.from(
+            status = status,
+            fallbackTargetFps = 120.0
+        )
+
+        assertTrue(status.hasHealthConcerns)
+        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
+        assertEquals(AutoQualityUiState.Tone.WARNING, state.tone)
+        assertEquals("REC", state.compactLabel)
+    }
+
+    @Test
     fun lowRenderedFpsWithoutHostCadenceEvidenceRemainsObservational() {
         val state = AutoQualityUiState.from(
             status = status(

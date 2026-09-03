@@ -2,7 +2,28 @@
 
 ## Unreleased
 
-Android TV Command Center now takes focus as soon as it opens, starting on a safe session-status anchor while host diagnostics load so a remote or controller can navigate instead of sending input back into the stream. Gamepad A activates the focused control and B closes the drawer without leaking either press to the game. Closing Command Center explicitly returns Android window and controller focus to the live stream, so the game accepts input immediately without restarting Nova. Xbox-style controllers that report View/Select as Android Back can open it with Start + Back, and consumed Command Center chords no longer fall through into long-Start mouse emulation. Resolution choices show dimensions only; the separate Frame Rate row remains the source of the actual launch cadence instead of every resolution displaying a stale `x60` suffix. Debug builds now carry an amber bug badge on both the launcher icon and Android TV banner, keeping test installations visibly distinct from release Nova.
+## 1.4.1 - 2026-09-03
+
+Nova 1.4.1 is the matched client for Polaris 1.4.1. It makes the selected host encoder understandable in Play Setup, keeps capability-only Doctor evidence informational, adds the typed Hyprland Desktop Takeover choice, and tightens controller focus on Android TV.
+
+Android TV Command Center now takes focus as soon as it opens, starting on a safe session-status anchor while host diagnostics load so a remote or controller can navigate instead of sending input back into the stream. Gamepad A activates the focused control and B closes the drawer without leaking either press to the game. Closing Command Center explicitly returns Android window and controller focus to the live stream, so the game accepts input immediately without restarting Nova. Xbox-style controllers that report View/Select as Android Back can open it with Start + Back, and consumed Command Center chords no longer fall through into long-Start mouse emulation. Resolution choices show dimensions only; the separate Frame Rate row remains the source of the actual launch cadence instead of every resolution displaying a stale `x60` suffix. Debug builds now carry an amber bug badge on both the launcher icon and Android TV banner, keeping test installations visibly distinct from release Nova. Play Setup accepts Polaris' Hyprland-only Desktop Takeover mode as typed host authority, carries it unchanged through deterministic preflight, and names its temporary display and restore behavior explicitly.
+
+Play Setup now presents Polaris' detected GPU driver, automatic encoder policy, preferred encoder, selected encoder, fallback, and reason as player-readable rows. Profile summaries no longer expose raw `height: paired_client`-style provenance; they describe what will happen while retaining the typed host evidence for diagnostics. NVIDIA remains on NVENC by default, Intel remains on VA-API, and compatible AMD private-stream hosts can surface Polaris' live-validated experimental Vulkan choice without requiring Nova-side tuning.
+
+Doctor now consumes the host's authoritative overall `status`, `severity`, and `traffic_light`. An exact healthy verdict is not turned into **Needs attention** by the informational `live_bitrate_control` Watch capability, while a partial verdict or contradictory hard failure still fails closed. Auto Quality and NovaHUD share that classifier so the same payload cannot appear Stable in one surface and unhealthy in another.
+
+The Android build-tool graph pins Netty 4.1.137.Final across its constrained modules, closing the CORS `Vary` header advisory. Kotlin 2.3.21 remains in place until a stable 2.4.20-or-newer toolchain is qualified; Gradle build caching and KAPT incremental cache deserialization remain disabled as the existing mitigation. Steam Input remains manual and read-only.
+
+### Release packaging
+
+- Bumps the Android app to versionName 1.4.1 and versionCode 43 so it installs cleanly over Nova 1.4.0/42.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus portable SHA-256 sidecars through the GitHub release workflow.
+
+### Validation notes
+
+- The exact release-prep candidate must pass JVM tests, strict lint, public hygiene, and three-ABI release assembly before merge.
+- Final publication remains gated on exact signed-artifact identity and signer continuity, a preserved-data install and launch on the Retroid Pocket 6, the Control 120 FPS smoke, accurate encoder/Doctor presentation, and clean teardown with the host restored.
+- Nova does not enable experimental Vulkan on its own; Polaris owns detection, probing, fallback, and launch policy.
 
 ## 1.4.0 - 2026-09-01
 
