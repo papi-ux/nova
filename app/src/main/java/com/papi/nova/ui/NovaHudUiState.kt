@@ -422,7 +422,7 @@ data class NovaHudUiState(
             }
             val hostDoctorWarning = doctorEvidenceWarns(
                 status,
-                setOf("capture_path", "encoder", "frame_pacing", "target_fps_gap", "source_capture", "encode_cadence", "effective_quality_ceiling")
+                setOf("capture_path", "encoder", "encoder_selection", "frame_pacing", "target_fps_gap", "source_capture", "encode_cadence", "effective_quality_ceiling")
             )
             val networkDoctorWarning = doctorEvidenceWarns(
                 status,
@@ -500,7 +500,7 @@ data class NovaHudUiState(
             }
             val normalized = if (status.hasOptimizationNormalization) "ADJ" else ""
 
-            return listOf(mode, bitDepth, path, modeSource, lifecycle, optimization, normalized)
+            return listOf(mode, status.encoderSelectionLabel, bitDepth, path, modeSource, lifecycle, optimization, normalized)
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
         }

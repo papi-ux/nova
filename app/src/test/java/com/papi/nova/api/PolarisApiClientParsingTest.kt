@@ -915,7 +915,12 @@ class PolarisApiClientParsingTest {
                 "\"mirror_desktop\":false,\"force_private_after_steam_close\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"resolution\":\"1920x1080\"," +
                 "\"transport\":\"dmabuf\",\"residency\":\"gpu\",\"format\":\"bgra8\"}," +
-                "\"encoder\":{\"codec\":\"hevc_nvenc\",\"bitrate_kbps\":20000,\"fps\":60.0," +
+                "\"encoder\":{\"active_backend\":\"nvenc\",\"selection\":{" +
+                "\"mode\":\"auto\",\"gpu_driver\":\"nvidia\",\"policy\":\"nvidia_nvenc\"," +
+                "\"preferred_encoder\":\"nvenc\",\"fallback_encoder\":\"next_available\"," +
+                "\"selected_encoder\":\"nvenc\",\"exact_live_probe_required\":false," +
+                "\"fallback_used\":false,\"reason\":\"Auto detected NVIDIA; prefer NVENC. Selected [nvenc].\"}," +
+                "\"codec\":\"hevc_nvenc\",\"bitrate_kbps\":20000,\"fps\":60.0," +
                 "\"requested_client_fps\":60.0,\"session_target_fps\":60.0," +
                 "\"encode_target_fps\":60.0,\"pacing_policy\":\"client_fps_limit\",\"optimization_source\":\"ai_cached\"," +
                 "\"optimization_confidence\":\"medium\",\"optimization_cache_status\":\"hit\"," +
@@ -998,6 +1003,16 @@ class PolarisApiClientParsingTest {
         assertEquals("hit", status.encoder.optimizationCacheStatus)
         assertEquals("Adjusted bitrate to fit host limits.", status.encoder.optimizationNormalizationReason)
         assertEquals(2, status.encoder.recommendationVersion)
+        assertEquals("nvenc", status.encoder.activeBackend)
+        assertEquals("auto", status.encoder.selection.mode)
+        assertEquals("nvidia", status.encoder.selection.gpuDriver)
+        assertEquals("nvidia_nvenc", status.encoder.selection.policy)
+        assertEquals("nvenc", status.encoder.selection.preferredEncoder)
+        assertEquals("next_available", status.encoder.selection.fallbackEncoder)
+        assertEquals("nvenc", status.encoder.selection.selectedEncoder)
+        assertFalse(status.encoder.selection.exactLiveProbeRequired)
+        assertFalse(status.encoder.selection.fallbackUsed)
+        assertEquals("Auto → NVENC", status.encoderSelectionLabel)
         assertEquals("1920x1080", status.capture.resolution)
         assertEquals("dmabuf", status.capture.transport)
         assertEquals("gpu", status.encoder.targetResidency)

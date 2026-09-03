@@ -1,5 +1,7 @@
 package com.papi.nova.api
 
+import java.util.Locale
+
 data class PolarisSessionStatus(
     val state: String,
     val streamingActive: Boolean = false,
@@ -200,7 +202,22 @@ data class PolarisSessionStatus(
         val recommendationVersion: Int = 0,
         val targetDevice: String = "",
         val targetResidency: String = "",
-        val targetFormat: String = ""
+        val targetFormat: String = "",
+        val activeBackend: String = "",
+        val selection: EncoderSelectionStatus = EncoderSelectionStatus()
+    )
+
+    /** Informational provenance for Polaris' deterministic host-side encoder choice. */
+    data class EncoderSelectionStatus(
+        val mode: String = "",
+        val gpuDriver: String = "",
+        val policy: String = "",
+        val preferredEncoder: String = "",
+        val fallbackEncoder: String = "",
+        val selectedEncoder: String = "",
+        val exactLiveProbeRequired: Boolean = false,
+        val fallbackUsed: Boolean = false,
+        val reason: String = ""
     )
 
     data class LinuxGpuProfile(
@@ -610,6 +627,25 @@ data class PolarisSessionStatus(
     }
     val sessionModeWithCaptureLabel: String
         get() = listOf(sessionModeLabel, capturePathLabel).filter { it.isNotBlank() }.joinToString(" · ")
+    val encoderSelectionLabel: String
+        get() {
+            val selected = encoderDisplayName(
+                encoder.selection.selectedEncoder.takeUnless { it.isUnknownEncoderName }
+                    ?: encoder.activeBackend.takeUnless { it.isUnknownEncoderName }
+                    ?: ""
+            )
+            if (selected.isBlank()) return ""
+
+            val preferred = encoderDisplayName(
+                encoder.selection.preferredEncoder.takeUnless { it.isUnknownEncoderName } ?: ""
+            )
+            return when {
+                encoder.selection.fallbackUsed && preferred.isNotBlank() && preferred != selected ->
+                    "$preferred → $selected fallback"
+                encoder.selection.mode.equals("auto", ignoreCase = true) -> "Auto → $selected"
+                else -> selected
+            }
+        }
     val isViewer get() = clientRole.equals("viewer", ignoreCase = true)
     val hasExplicitDisplayModeChoice get() = displayMode.explicitChoice
     val canAdjustHostTuning get() = authorityContractValid &&
@@ -624,6 +660,17 @@ data class PolarisSessionStatus(
         "virtual display", "host virtual display" -> "Host Virtual Display"
         else -> label
     }
+
+    private fun encoderDisplayName(name: String): String = when (name.trim().lowercase()) {
+        "vulkan" -> "Vulkan"
+        "nvenc" -> "NVENC"
+        "vaapi" -> "VAAPI"
+        "software" -> "Software"
+        else -> name.trim().uppercase(Locale.US)
+    }
+
+    private val String.isUnknownEncoderName: Boolean
+        get() = isBlank() || equals("unknown", ignoreCase = true)
 
     private val String.isCudaGpuTarget: Boolean
         get() = equals("cuda", ignoreCase = true) ||

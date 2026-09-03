@@ -116,6 +116,38 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun streamModeLabelNamesAutoSelectedVulkanEncoder() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 119.5,
+            targetFps = 120.0,
+            latencyMs = 12,
+            codec = "hevc",
+            bitrateKbps = 30000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc",
+                    targetResidency = "gpu",
+                    activeBackend = "vulkan",
+                    selection = PolarisSessionStatus.EncoderSelectionStatus(
+                        mode = "auto",
+                        gpuDriver = "amdgpu",
+                        policy = "amd_private_vulkan_live_probe",
+                        preferredEncoder = "vulkan",
+                        fallbackEncoder = "vaapi",
+                        selectedEncoder = "vulkan",
+                    ),
+                ),
+            ),
+            sparklineSamples = emptyList(),
+        )
+
+        assertTrue(state.streamModeLabel.contains("Auto → Vulkan"))
+    }
+
+    @Test
     fun hudModesMapCasualPerformanceAndDebugPreferences() {
         assertEquals(NovaHudMode.MINIMAL, NovaHudMode.fromPreference("minimal"))
         assertEquals(NovaHudMode.PERFORMANCE, NovaHudMode.fromPreference("performance"))

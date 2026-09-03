@@ -886,7 +886,9 @@ data class NovaQuickMenuUiState(
                 "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display" -> "Explicit"
                 else -> ""
             }
-            val base = listOf(mode, source).filter { it.isNotBlank() }.joinToString(" · ")
+            val base = listOf(mode, status.encoderSelectionLabel, source)
+                .filter { it.isNotBlank() }
+                .joinToString(" · ")
             return when {
                 status.isViewer -> context.getString(R.string.nova_session_mode_watch_format, base)
                 status.ownedByClient -> context.getString(R.string.nova_session_mode_owner_format, base)
