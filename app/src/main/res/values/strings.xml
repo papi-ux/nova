@@ -341,7 +341,7 @@
     <string name="nova_play_setup_consequence_keep_off">The host keeps whatever was last sent.</string>
     <string name="nova_play_setup_on">On</string>
     <string name="nova_play_setup_off">Off</string>
-    <!-- Play Setup's four rows. The strip titles are conditional sentences rather than
+    <!-- Play Setup's rows. The strip titles are conditional sentences rather than
          nouns, because the strip explains a change not yet made. -->
     <string name="nova_play_setup_where_caption">Which display Polaris makes for this session</string>
     <string name="nova_play_setup_strip_where">If you changed where it runs</string>
@@ -356,6 +356,15 @@
     <string name="nova_play_setup_frame_rate_auto">Auto</string>
     <string name="nova_play_setup_frame_rate_auto_consequence">Keeps the host-resolved or Settings frame rate</string>
     <string name="nova_play_setup_frame_rate_fps_format">%d FPS</string>
+    <string name="nova_play_setup_encoder">Encoder</string>
+    <string name="nova_play_setup_encoder_host_default">Host default</string>
+    <string name="nova_play_setup_encoder_host_default_caption">Uses Polaris\' configured encoder policy</string>
+    <string name="nova_play_setup_encoder_auto_caption">Polaris chooses for this launch · fallback allowed</string>
+    <string name="nova_play_setup_encoder_exact_caption">Required for this launch · no silent fallback</string>
+    <string name="nova_play_setup_strip_encoder">If you changed the encoder</string>
+    <string name="nova_play_setup_encoder_host_default_consequence">Keeps the encoder configured on this host</string>
+    <string name="nova_play_setup_encoder_auto_consequence">Lets Polaris live-test and choose a working encoder</string>
+    <string name="nova_play_setup_encoder_exact_consequence">Fails the launch if this backend cannot initialize</string>
     <string name="nova_play_setup_tuning">Launch preset</string>
     <string name="nova_play_setup_strip_tuning">If you changed the tuning</string>
     <string name="nova_play_setup_tuning_pins">Pins %1$d FPS from your Settings frame rate</string>

@@ -37,6 +37,8 @@ data class PolarisClientSettings(
 
     data class Capabilities(
         val modes: List<ModeOption> = emptyList(),
+        val encoders: List<EncoderOption> = emptyList(),
+        val sessionEncoderOverride: Boolean = false,
         val displayModeOverride: Boolean = false,
         val targetBitrateOverride: Boolean = false,
         val aiAutoQualityControl: Boolean = false,
@@ -63,6 +65,20 @@ data class PolarisClientSettings(
          */
         val sessionOverridable: Boolean = true
     )
+
+    /** A backend this Polaris build accepts for one launch, pending its live GPU probe. */
+    data class EncoderOption(
+        val value: String = "",
+        val label: String = "",
+        val available: Boolean = false,
+        val experimental: Boolean = false,
+        val fallbackAllowed: Boolean = false,
+        val runtimeValidation: String = "",
+        val reason: String = ""
+    ) {
+        val displayLabel: String
+            get() = label.ifBlank { labelForEncoder(value) }
+    }
 
     val desiredModeLabel: String
         get() = desired.streamDisplayModeLabel.ifBlank { labelForMode(desired.streamDisplayMode) }
@@ -93,6 +109,25 @@ data class PolarisClientSettings(
             "desktop_display", "host_display" -> "Mirror Desktop"
             "windowed_stream", "gpu_native", "gpu-native" -> "Private Stream (GPU-native)"
             else -> ""
+        }
+
+        @JvmStatic
+        fun normalizeEncoderBackend(value: String?): String? = value
+            ?.trim()
+            ?.lowercase()
+            ?.takeIf { it.matches(Regex("[a-z0-9][a-z0-9_-]{0,63}")) }
+
+        @JvmStatic
+        fun labelForEncoder(backend: String): String = when (normalizeEncoderBackend(backend)) {
+            "auto" -> "Auto"
+            "nvenc" -> "NVIDIA NVENC"
+            "vaapi" -> "VA-API"
+            "vulkan" -> "Vulkan Video"
+            "quicksync" -> "Intel Quick Sync"
+            "amdvce" -> "AMD AMF/VCE"
+            "videotoolbox" -> "VideoToolbox"
+            "software" -> "Software"
+            else -> backend.trim()
         }
     }
 }

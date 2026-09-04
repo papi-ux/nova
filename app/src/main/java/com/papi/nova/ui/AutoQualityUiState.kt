@@ -105,15 +105,15 @@ data class AutoQualityUiState(
                 safeBitrateApplied ||
                 (!authoritativeDoctor && healthSuggestsRecovery && status.health.safeDisplayMode.isNotBlank()) ||
                 (!authoritativeDoctor && status.health.recoveryProfile.isNotBlank())
-            val cpuCapture = status.capture.transport.equals("shm", ignoreCase = true) ||
-                status.capture.residency.equals("cpu", ignoreCase = true) ||
-                status.encoder.targetResidency.equals("cpu", ignoreCase = true)
             val syncFailed = status.syncStatus.isFailed ||
                 presentationStatus == "blocked"
             val severeHealth = healthGrade == "degraded" ||
                 (!authoritativeDoctor && status.health.decoderRisk.equals("elevated", ignoreCase = true))
             val manualOverride = status.syncStatus.isManualOverride ||
                 syncState == "manual_override"
+            val cleanAdaptiveRecovery = authoritativeDoctor &&
+                adaptiveLowered &&
+                !status.hasHealthConcerns
 
             if (status.isHdrDowngraded) {
                 return AutoQualityUiState(
@@ -140,8 +140,7 @@ data class AutoQualityUiState(
 
             val manualNeedsAttention = manualOverride && (
                 syncFailed ||
-                    severeHealth ||
-                    cpuCapture
+                    severeHealth
                 )
 
             if (manualOverride && manualNeedsAttention) {
@@ -230,9 +229,8 @@ data class AutoQualityUiState(
                 )
             }
 
-            if (syncFailed || severeHealth || cpuCapture) {
+            if (syncFailed || severeHealth) {
                 val label = when {
-                    cpuCapture -> "Needs Attention"
                     status.health.decoderRisk.equals("elevated", ignoreCase = true) -> "Decoder pressure"
                     syncFailed -> "Sync attention"
                     else -> "Needs Attention"
@@ -250,7 +248,7 @@ data class AutoQualityUiState(
                 )
             }
 
-            if (autoPolicy.isRecoveringBitrate) {
+            if (autoPolicy.isRecoveringBitrate || cleanAdaptiveRecovery) {
                 return AutoQualityUiState(
                     state = State.RECOVERING,
                     label = "Recovering Bitrate",
@@ -259,7 +257,11 @@ data class AutoQualityUiState(
                         ?.replace(" Mbps", "M")
                         ?: "REC",
                     detail = autoPolicy.summary.takeIf { it.isNotBlank() }
-                        ?: streamPolicy.statusCaption,
+                        ?: if (status.tuning.adaptiveBitrateState.equals("recovering", ignoreCase = true)) {
+                            "Auto Safe is recovering toward the launch quality ceiling"
+                        } else {
+                            "Auto Safe is holding a lower live target while the stream remains healthy"
+                        },
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.INFO,
                     enabled = true,

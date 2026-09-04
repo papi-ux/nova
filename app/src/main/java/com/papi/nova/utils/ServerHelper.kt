@@ -173,6 +173,7 @@ object ServerHelper {
         mirrorDesktop: Boolean = false,
         forcePrivateAfterSteamClose: Boolean = false,
         streamMode: String = "",
+        encoderBackend: String = "",
     ): Intent {
         val prefConfig = PreferenceConfiguration.readPreferences(parent)
         val selectedAndroidDisplay = if (prefConfig.enableFullExDisplay) {
@@ -215,6 +216,9 @@ object ServerHelper {
         gameIntent.putExtra(Game.EXTRA_MIRROR_DESKTOP, mirrorDesktop)
         if (streamMode.isNotBlank()) {
             gameIntent.putExtra(Game.EXTRA_STREAM_MODE, streamMode)
+        }
+        if (encoderBackend.isNotBlank()) {
+            gameIntent.putExtra(Game.EXTRA_ENCODER_BACKEND, encoderBackend)
         }
         gameIntent.putExtra(Game.EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, forcePrivateAfterSteamClose)
         gameIntent.putExtra(Game.EXTRA_WATCH_ONLY, watchOnly)
@@ -301,6 +305,7 @@ object ServerHelper {
         streamHeight: Int = 0,
         streamFps: Float = 0f,
         streamMode: String = "",
+        encoderBackend: String = "",
     ): Intent {
         var serverCert: ByteArray? = null
         try {
@@ -337,6 +342,7 @@ object ServerHelper {
             mirrorDesktop = mirrorDesktop,
             forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
             streamMode = streamMode,
+            encoderBackend = encoderBackend,
         )
     }
 
@@ -406,6 +412,7 @@ object ServerHelper {
         mirrorDesktop: Boolean = false,
         forcePrivateAfterSteamClose: Boolean = false,
         streamMode: String = "",
+        encoderBackend: String = "",
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -433,6 +440,7 @@ object ServerHelper {
             mirrorDesktop,
             forcePrivateAfterSteamClose,
             streamMode = streamMode,
+            encoderBackend = encoderBackend,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)
@@ -499,6 +507,7 @@ object ServerHelper {
         mirrorDesktop: Boolean = false,
         forcePrivateAfterSteamClose: Boolean = false,
         streamMode: String = "",
+        encoderBackend: String = "",
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -523,6 +532,7 @@ object ServerHelper {
             mirrorDesktop = mirrorDesktop,
             forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
             streamMode = streamMode,
+            encoderBackend = encoderBackend,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)

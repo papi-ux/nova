@@ -41,9 +41,9 @@ Moonlight-compatible hosts remain supported too.
 Nova is matched to Polaris while retaining the standard Moonlight-compatible
 path:
 
-- **Play Setup says what will launch.** Resolution and frame rate are independent
-  per-game choices, host-wide modes remain visibly host-wide, and Auto, Quality,
-  High FPS, and Stability show the resolved host plan before play.
+- **Play Setup says what will launch.** Resolution, frame rate, and encoder are
+  independent per-game choices, host-wide modes remain visibly host-wide, and
+  Auto, Quality, High FPS, and Stability show the resolved host plan before play.
 - **Doctor stays evidence-first.** Command Center refreshes current host evidence,
   separates network, host, and client findings, and presents Auto Fix only for a
   reversible same-stream action the paired host can verify or roll back.
@@ -90,9 +90,10 @@ in Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You.
 ### Decide
 
 Play Setup describes what will happen for this title: where it runs, the client
-resolution, frame rate, tuning policy, and Steam launch behavior. Resolution and
-FPS stay independent, a host-only mode links back to Polaris instead of posing as
-a per-game choice, and a session-scoped choice does not silently rewrite the host
+resolution, frame rate, encoder policy, tuning policy, and Steam launch behavior.
+Resolution and FPS stay independent, a named encoder is strict while encoder Auto
+may fall back, a host-only mode links back to Polaris instead of posing as a
+per-game choice, and a session-scoped choice does not silently rewrite the host
 default.
 
 ![Nova Polaris Aurora Play Setup for Control Ultimate Edition, showing Private Stream and session choices](docs/screenshots/nova-play-setup-control-aurora-v1.3.6.webp)

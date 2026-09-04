@@ -843,6 +843,7 @@ class NovaLibraryActivity : NovaActivity() {
             forcePrivateAfterSteamClose = request.optBoolean(NovaGameDetailActivity.RESULT_KEY_FORCE_PRIVATE),
             profilePreference = request.optString(NovaGameDetailActivity.RESULT_KEY_PROFILE_PREFERENCE, "auto"),
             resolvedMode = request.optString(NovaGameDetailActivity.RESULT_KEY_STREAM_MODE, ""),
+            encoderBackend = request.optString(NovaGameDetailActivity.RESULT_KEY_ENCODER_BACKEND, ""),
             presentationMode = request.optString(NovaGameDetailActivity.RESULT_KEY_PRESENTATION_MODE, ""),
             preflightOptimization = request.optJSONObject(NovaGameDetailActivity.RESULT_KEY_PREFLIGHT),
         )
@@ -856,6 +857,7 @@ class NovaLibraryActivity : NovaActivity() {
         presentationMode: String = "",
         forcePrivateAfterSteamClose: Boolean = false,
         profilePreference: String = "auto",
+        encoderBackend: String = "",
         preflightOptimization: org.json.JSONObject? = null
     ) {
         if (game.appId <= 0) {
@@ -979,7 +981,8 @@ class NovaLibraryActivity : NovaActivity() {
                     launchOptimizationJson = preflightOptimization?.toString(),
                     mirrorDesktop = launchMirrorsDesktop,
                     forcePrivateAfterSteamClose = forcePrivateAfterSteamClose,
-                    streamMode = launchMode
+                    streamMode = launchMode,
+                    encoderBackend = encoderBackend,
                 )
             } catch (e: CancellationException) {
                 throw e

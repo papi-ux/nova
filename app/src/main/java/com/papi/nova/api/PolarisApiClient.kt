@@ -533,7 +533,8 @@ class PolarisApiClient @JvmOverloads constructor(
             bitrateKbps: Int = 0,
             bitrateLocked: Boolean = false,
             hdr: Boolean? = null,
-            clientMaxFps: Float = 0f
+            clientMaxFps: Float = 0f,
+            encoderBackend: String = ""
         ): String {
             val preferenceParam = preference
                 .takeIf { it.isNotBlank() }
@@ -564,6 +565,9 @@ class PolarisApiClient @JvmOverloads constructor(
                 .takeIf { it > 0f && it.isFinite() }
                 ?.let { "&client_max_fps=$it" }
                 ?: ""
+            val encoderParam = PolarisClientSettings.normalizeEncoderBackend(encoderBackend)
+                ?.let { "&encoder=${java.net.URLEncoder.encode(it, "UTF-8")}" }
+                ?: ""
             return "/optimize?device=${java.net.URLEncoder.encode(device, "UTF-8")}" +
                 "&game=${java.net.URLEncoder.encode(game, "UTF-8")}" +
                 preferenceParam +
@@ -576,7 +580,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 bitrateParam +
                 bitrateLockParam +
                 hdrParam +
-                clientMaxFpsParam
+                clientMaxFpsParam +
+                encoderParam
         }
 
         private fun parseStringArray(array: org.json.JSONArray?): List<String> {
@@ -668,6 +673,27 @@ class PolarisApiClient @JvmOverloads constructor(
                         sessionOverridable = mode.optBoolean("session_overridable", true)
                     )
                 }
+            }
+        }
+
+        private fun parseEncoderOptions(array: org.json.JSONArray?): List<PolarisClientSettings.EncoderOption> {
+            if (array == null) return emptyList()
+            val seen = linkedSetOf<String>()
+            return (0 until array.length()).mapNotNull { index ->
+                val encoder = array.optJSONObject(index) ?: return@mapNotNull null
+                val value = PolarisClientSettings.normalizeEncoderBackend(
+                    encoder.opt("value") as? String,
+                ) ?: return@mapNotNull null
+                if (!seen.add(value)) return@mapNotNull null
+                PolarisClientSettings.EncoderOption(
+                    value = value,
+                    label = (encoder.opt("label") as? String).orEmpty(),
+                    available = encoder.opt("available") as? Boolean ?: false,
+                    experimental = encoder.opt("experimental") as? Boolean ?: false,
+                    fallbackAllowed = encoder.opt("fallback_allowed") as? Boolean ?: false,
+                    runtimeValidation = (encoder.opt("runtime_validation") as? String).orEmpty(),
+                    reason = (encoder.opt("reason") as? String).orEmpty(),
+                )
             }
         }
 
@@ -768,6 +794,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 ),
                 capabilities = PolarisClientSettings.Capabilities(
                     modes = parseModeOptions(capabilities?.optJSONArray("modes")),
+                    encoders = parseEncoderOptions(capabilities?.optJSONArray("encoders")),
+                    sessionEncoderOverride = strictBoolean(capabilities, "session_encoder_override"),
                     displayModeOverride = capabilities?.optBoolean("display_mode_override", false) ?: false,
                     targetBitrateOverride = capabilities?.optBoolean("target_bitrate_override", false) ?: false,
                     aiAutoQualityControl = capabilities?.let {
@@ -1030,6 +1058,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     optimizerSync = features?.optBoolean("optimizer_sync_v1") ?: false,
                     resolvedProfileProvenance = strictBoolean(features, "resolved_profile_provenance_v1"),
                     expectedTopologyAssertion = strictBoolean(features, "expected_topology_assertion_v1"),
+                    encoderBackendSelection = strictBoolean(features, "encoder_backend_selection_v1"),
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
                     cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
                     liveMediaTelemetry = strictBoolean(features, "live_media_telemetry_v1"),
@@ -3070,7 +3099,8 @@ class PolarisApiClient @JvmOverloads constructor(
         bitrateLocked: Boolean = false,
         hdr: Boolean? = null,
         clientMaxFps: Float = 0f,
-        launchBounded: Boolean = false
+        launchBounded: Boolean = false,
+        encoderBackend: String = ""
     ): org.json.JSONObject? {
         return try {
             val url = "$baseUrl${buildOptimizationPath(
@@ -3088,7 +3118,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 bitrateKbps = bitrateKbps,
                 bitrateLocked = bitrateLocked,
                 hdr = hdr,
-                clientMaxFps = clientMaxFps
+                clientMaxFps = clientMaxFps,
+                encoderBackend = encoderBackend
             )}"
             val request = Request.Builder().url(url).get().build()
             LimeLog.info("Nova: Optimization query start for $url")

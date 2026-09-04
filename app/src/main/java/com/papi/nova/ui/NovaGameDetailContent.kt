@@ -223,7 +223,7 @@ internal fun NovaGameDetailContent(
     steamLaunchModeLabel: String,
     steamLaunchCaption: String,
     optimizationState: NovaGameDetailOptimizationState,
-    /** The four rows of the act column, already resolved, in draw order. */
+    /** The act-column rows already resolved from the current host catalog, in draw order. */
     playSetupRows: List<NovaPlaySetupRowState>,
     /** Which row the comparison strip is currently explaining. */
     explainedPlaySetupRow: NovaPlaySetupRow,
@@ -409,7 +409,7 @@ internal fun NovaGameDetailContent(
                 } else {
                     val summary = optimizationState.profileSummary
                     // Spend the room that is there rather than a number picked in advance:
-                    // a host with a display planner has a fourth row and so less of it.
+                    // each advertised launch control leaves less room for the legend.
                     val consequenceLines =
                         novaPlaySetupConsequenceLines(bodyHeight, playSetupRows.size)
                     NovaPlaySetupBody(
@@ -491,7 +491,7 @@ internal fun NovaGameDetailContent(
                             factCount = summary?.let { 4 } ?: 2,
                         ),
                         rows = {
-                            // Four rows, drawn in a fixed order. Each advances its own value
+                            // Host-backed rows, drawn in a fixed order. Each advances its own value
                             // on A or a tap, and points the strip at itself on focus, so the
                             // explanation follows the cursor without being a stop on it.
                             playSetupRows.forEachIndexed { index, rowState ->

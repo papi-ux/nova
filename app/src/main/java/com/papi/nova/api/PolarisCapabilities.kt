@@ -20,6 +20,7 @@ data class PolarisCapabilities(
         val optimizerSync: Boolean = false,
         val resolvedProfileProvenance: Boolean = false,
         val expectedTopologyAssertion: Boolean = false,
+        val encoderBackendSelection: Boolean = false,
         val lockScreenControl: Boolean = false,
         val cursorVisibilityControl: Boolean = false,
         val liveMediaTelemetry: Boolean = false,

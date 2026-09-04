@@ -233,9 +233,10 @@ internal fun NovaPlaySetupColumnHead(text: String) {
  *
  * This is a legend, not a picker. It describes whichever row currently holds focus, so it
  * is deliberately **not** a focus target: making it one would mean stopping on a thing
- * that exists only to explain the thing you just stopped on, and it would put a fifth and
- * sixth stop in the path of every visit down the column. Left and right do nothing in this
- * panel, which is the point -- four rows, no scrolling, nothing to hunt for.
+ * that exists only to explain the thing you just stopped on, and it would add another
+ * stop in the path of every visit down the column. Left and right do nothing in this
+ * panel, which is the point -- a short bounded list, with scrolling only when the
+ * host advertises enough session choices to need it.
  *
  * It stays tappable, because touch has no cursor for it to follow. A finger can take the
  * card it wants directly instead of pressing a row until the right value comes round.
@@ -251,13 +252,12 @@ internal fun NovaPlaySetupComparison(
     title: String,
     options: List<NovaPlaySetupOption>,
     /**
-     * One line rather than two once the column carries a fourth row.
+     * One line rather than two once the column grows beyond its compact shape.
      *
      * The panel has to fit a ~325dp landscape viewport without scrolling. Four rows at the
-     * 48dp accessible floor plus their gaps is 212dp of it, and the legend has to live in
-     * what is left. A host advertising a display planner is exactly the case that adds that
-     * fourth row, so the legend gives up its second line rather than the panel giving up
-     * fitting.
+     * 48dp accessible floor plus their gaps consume most of it, and the legend has to live
+     * in what is left. The legend gives up extra lines before the panel uses its scrolling
+     * fallback.
      */
     consequenceMaxLines: Int = 2,
     /**
@@ -393,11 +393,8 @@ internal enum class NovaPlaySetupScope { THIS_GAME, EVERY_GAME }
 /**
  * The things Play Setup can change, in the order they are drawn.
  *
- * Four per scope, and fixed at four. The act column has to fit a landscape viewport that is
- * roughly 230-275dp once the panel's chrome and the bottom fade are taken out, and the strip
- * below the rows used to start at 272dp in the lightest case and 332dp for a Steam game -- so
- * the strip every control on this screen wrote to was off the bottom of the window at the
- * moment it was written, with nothing scrolling to it. A fifth row would put it back there.
+ * Kept in one stable order. Compact hosts still fit without scrolling; richer host catalogs
+ * can add rows and use the wide panel's measured scroll fallback rather than hiding a choice.
  *
  * More Launch Settings is not among them. It held resolution, and behind it codec and
  * bitrate -- which are consequences of a resolution, not choices anyone makes separately.
@@ -411,6 +408,7 @@ internal enum class NovaPlaySetupRow {
     WHERE_IT_RUNS,
     RESOLUTION,
     FRAME_RATE,
+    ENCODER,
     TUNING,
     STEAM_LAUNCH,
     HOST_DEFAULT_DISPLAY,
