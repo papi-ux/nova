@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+NovaHUD now treats SHM/CPU capture as stream topology rather than a health failure. Healthy standard streams stay green while the capture path remains visible; Doctor, sync, HDR, decoder, and pacing evidence still raise attention when action is actually needed.
+
 ## 1.4.1 - 2026-09-03
 
 Nova 1.4.1 is the matched client for Polaris 1.4.1. It makes the selected host encoder understandable in Play Setup, keeps capability-only Doctor evidence informational, adds the typed Hyprland Desktop Takeover choice, and tightens controller focus on Android TV.

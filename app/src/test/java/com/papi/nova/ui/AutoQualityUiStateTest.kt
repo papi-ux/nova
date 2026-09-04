@@ -331,13 +331,15 @@ class AutoQualityUiStateTest {
     }
 
     @Test
-    fun cpuCaptureNeedsAttention() {
+    fun healthyCpuCaptureStaysStable() {
         val state = AutoQualityUiState.from(
             status = status(capture = capture(transport = "shm", residency = "cpu"))
         )
 
-        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
-        assertEquals("Needs Attention", state.label)
+        assertEquals(AutoQualityUiState.State.STABLE, state.state)
+        assertEquals(AutoQualityUiState.Tone.STABLE, state.tone)
+        assertEquals("Stream Ready", state.label)
+        assertEquals("OK", state.compactLabel)
     }
 
     @Test

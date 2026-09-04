@@ -340,7 +340,10 @@ class NovaHudUiStateTest {
             width = 1920,
             height = 1080,
             status = status(
-                encoder = PolarisSessionStatus.EncoderStatus(targetResidency = "cpu")
+                health = PolarisSessionStatus.HealthStatus(
+                    grade = "degraded",
+                    summary = "Decoder timing needs attention"
+                )
             ),
             sparklineSamples = emptyList()
         )
@@ -843,6 +846,55 @@ class NovaHudUiStateTest {
         assertEquals("Needs attention", state.healthReasonLabel)
         assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
         assertEquals(NovaHudTone.WARNING, state.layerHealth[1].tone)
+    }
+
+    @Test
+    fun healthyStandardShmCaptureDoesNotShowAttention() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 117.0,
+            targetFps = 120.0,
+            latencyMs = 5,
+            codec = "hevc_vulkan",
+            bitrateKbps = 20_000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc_vulkan",
+                    bitrateKbps = 20_000,
+                    fps = 120.0,
+                    requestedClientFps = 120.0,
+                    sessionTargetFps = 120.0,
+                    encodeTargetFps = 120.0,
+                    targetDevice = "vulkan",
+                    targetResidency = "gpu"
+                ),
+                capture = PolarisSessionStatus.CaptureStatus(
+                    transport = "shm",
+                    residency = "cpu"
+                ),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-current-control-observation",
+                    status = "ok",
+                    severity = "info",
+                    trafficLight = "green",
+                    primaryIssue = "control_channel_observation",
+                    likelyCause = "Control retries were observed without confirmed video loss."
+                )
+            ),
+            sparklineSamples = listOf(116f, 117f, 118f)
+        )
+
+        assertEquals("OK", state.autopilotCompactLabel)
+        assertEquals("Stream Ready", state.autopilotHudLabel)
+        assertEquals(NovaHudTone.STABLE, state.statusTone)
+        assertEquals("Control retries observed", state.healthReasonLabel)
+        assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
+        assertTrue(state.streamModeLabel.contains("SHM/CPU capture"))
+        assertEquals(NovaHudLayerHealth("HOST", NovaHudTone.STABLE), state.layerHealth.first())
     }
 
     @Test

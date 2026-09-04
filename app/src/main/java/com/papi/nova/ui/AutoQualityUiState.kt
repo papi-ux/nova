@@ -105,9 +105,6 @@ data class AutoQualityUiState(
                 safeBitrateApplied ||
                 (!authoritativeDoctor && healthSuggestsRecovery && status.health.safeDisplayMode.isNotBlank()) ||
                 (!authoritativeDoctor && status.health.recoveryProfile.isNotBlank())
-            val cpuCapture = status.capture.transport.equals("shm", ignoreCase = true) ||
-                status.capture.residency.equals("cpu", ignoreCase = true) ||
-                status.encoder.targetResidency.equals("cpu", ignoreCase = true)
             val syncFailed = status.syncStatus.isFailed ||
                 presentationStatus == "blocked"
             val severeHealth = healthGrade == "degraded" ||
@@ -140,8 +137,7 @@ data class AutoQualityUiState(
 
             val manualNeedsAttention = manualOverride && (
                 syncFailed ||
-                    severeHealth ||
-                    cpuCapture
+                    severeHealth
                 )
 
             if (manualOverride && manualNeedsAttention) {
@@ -230,9 +226,8 @@ data class AutoQualityUiState(
                 )
             }
 
-            if (syncFailed || severeHealth || cpuCapture) {
+            if (syncFailed || severeHealth) {
                 val label = when {
-                    cpuCapture -> "Needs Attention"
                     status.health.decoderRisk.equals("elevated", ignoreCase = true) -> "Decoder pressure"
                     syncFailed -> "Sync attention"
                     else -> "Needs Attention"
