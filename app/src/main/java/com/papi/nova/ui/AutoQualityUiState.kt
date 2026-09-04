@@ -111,6 +111,9 @@ data class AutoQualityUiState(
                 (!authoritativeDoctor && status.health.decoderRisk.equals("elevated", ignoreCase = true))
             val manualOverride = status.syncStatus.isManualOverride ||
                 syncState == "manual_override"
+            val cleanAdaptiveRecovery = authoritativeDoctor &&
+                adaptiveLowered &&
+                !status.hasHealthConcerns
 
             if (status.isHdrDowngraded) {
                 return AutoQualityUiState(
@@ -245,7 +248,7 @@ data class AutoQualityUiState(
                 )
             }
 
-            if (autoPolicy.isRecoveringBitrate) {
+            if (autoPolicy.isRecoveringBitrate || cleanAdaptiveRecovery) {
                 return AutoQualityUiState(
                     state = State.RECOVERING,
                     label = "Recovering Bitrate",
@@ -254,7 +257,11 @@ data class AutoQualityUiState(
                         ?.replace(" Mbps", "M")
                         ?: "REC",
                     detail = autoPolicy.summary.takeIf { it.isNotBlank() }
-                        ?: streamPolicy.statusCaption,
+                        ?: if (status.tuning.adaptiveBitrateState.equals("recovering", ignoreCase = true)) {
+                            "Auto Safe is recovering toward the launch quality ceiling"
+                        } else {
+                            "Auto Safe is holding a lower live target while the stream remains healthy"
+                        },
                     targetSummary = streamPolicy.targetSummary,
                     tone = Tone.INFO,
                     enabled = true,

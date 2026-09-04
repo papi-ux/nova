@@ -154,6 +154,45 @@ class AutoQualityUiStateTest {
     }
 
     @Test
+    fun greenDoctorMakesCleanAutoSafeRecoveryInformational() {
+        val state = AutoQualityUiState.from(
+            status = status(
+                tuning = PolarisSessionStatus.TuningStatus(
+                    adaptiveBitrateEnabled = true,
+                    adaptiveTargetBitrateKbps = 12000,
+                    adaptiveBaseBitrateKbps = 30000,
+                    adaptiveBitrateState = "recovering",
+                    adaptiveBitrateReason = "healthy_window",
+                    aiOptimizerEnabled = false
+                ),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-clean-auto-safe-recovery",
+                    status = "ok",
+                    severity = "info",
+                    trafficLight = "green",
+                    primaryIssue = "none",
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "effective_quality_ceiling",
+                            status = "watch",
+                            source = "launch_policy",
+                            value = 30000.0
+                        )
+                    )
+                )
+            )
+        )
+
+        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
+        assertEquals(AutoQualityUiState.Tone.INFO, state.tone)
+        assertEquals("Recovering Bitrate", state.label)
+        assertEquals("12M", state.compactLabel)
+        assertTrue(state.recovering)
+    }
+
+    @Test
     fun hostRenderRecoveryHistoryShowsObservationalPacingWatch() {
         val state = AutoQualityUiState.from(
             status = status(

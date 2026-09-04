@@ -301,6 +301,61 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun cleanAutoSafeRecoveryDoesNotRaiseAttention() {
+        val state = NovaHudUiState.from(
+            mode = NovaHudMode.MINIMAL,
+            fps = 120.0,
+            targetFps = 120.0,
+            latencyMs = 3,
+            codec = "hevc",
+            bitrateKbps = 12000,
+            width = 1920,
+            height = 1080,
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc_nvenc",
+                    bitrateKbps = 12000,
+                    fps = 120.0,
+                    requestedClientFps = 120.0,
+                    sessionTargetFps = 120.0,
+                    encodeTargetFps = 120.0,
+                    targetResidency = "gpu"
+                ),
+                tuning = PolarisSessionStatus.TuningStatus(
+                    adaptiveBitrateEnabled = true,
+                    adaptiveTargetBitrateKbps = 12000,
+                    adaptiveBaseBitrateKbps = 20000,
+                    adaptiveBitrateState = "recovering",
+                    adaptiveBitrateReason = "healthy_window",
+                    aiOptimizerEnabled = false
+                ),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-clean-auto-safe-recovery",
+                    status = "ok",
+                    severity = "info",
+                    trafficLight = "green",
+                    primaryIssue = "none",
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "effective_quality_ceiling",
+                            status = "watch",
+                            source = "launch_policy",
+                            value = 20000.0
+                        )
+                    )
+                )
+            ),
+            sparklineSamples = listOf(120f)
+        )
+
+        assertEquals("Stable", state.healthReasonLabel)
+        assertEquals("Recovering Bitrate", state.autopilotLabel)
+        assertEquals(NovaHudTone.INFO, state.statusTone)
+    }
+
+    @Test
     fun hudLabelsStayCompactForSpaceConstrainedOverlay() {
         val stable = NovaHudUiState.from(
             mode = NovaHudMode.DEBUG,
