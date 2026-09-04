@@ -1,0 +1,2 @@
+Nova 1.4.2
+Play Setup can now keep the host encoder policy or pick one of the backends Polaris advertises for a single game. Auto may fall back after its live probe; an explicit choice fails closed instead of switching silently. NovaHUD treats SHM/CPU capture as stream topology rather than a health failure, so healthy streams stay green while Doctor, sync, HDR, decoder, and pacing evidence still raise attention when needed. Matched client for Polaris 1.4.2.
