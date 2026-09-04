@@ -776,6 +776,7 @@ class PolarisApiClientParsingTest {
                 "\"features\":{\"ai_optimizer\":true,\"ai_optimizer_control\":true,\"cursor_visibility_control\":true," +
                 "\"stream_policy_v1\":true,\"client_settings_v1\":true,\"optimizer_sync_v1\":true," +
                 "\"resolved_profile_provenance_v1\":true,\"expected_topology_assertion_v1\":true," +
+                "\"encoder_backend_selection_v1\":true," +
                 "\"live_media_telemetry_v1\":true}," +
                 "\"capture\":{\"backend\":\"wayland\",\"codecs\":[\"hevc\"]}}"
         )
@@ -792,8 +793,33 @@ class PolarisApiClientParsingTest {
         assertTrue(capabilities.features.optimizerSync)
         assertTrue(capabilities.features.resolvedProfileProvenance)
         assertTrue(capabilities.features.expectedTopologyAssertion)
+        assertTrue(capabilities.features.encoderBackendSelection)
         assertTrue(capabilities.features.liveMediaTelemetry)
         assertTrue(PolarisApiClient.supportsDeterministicLaunchContract(capabilities))
+    }
+
+    @Test
+    fun parseClientSettingsResponseCarriesTypedSessionEncoderCatalog() {
+        val settings = PolarisApiClient.parseClientSettingsResponse(
+            JSONObject(
+                "{\"version\":1,\"desired\":{},\"effective\":{},\"capabilities\":{" +
+                    "\"session_encoder_override\":true,\"encoders\":[" +
+                    "{\"value\":\"AUTO\",\"label\":\"Automatic\",\"available\":true," +
+                    "\"fallback_allowed\":true,\"runtime_validation\":\"launch\"}," +
+                    "{\"value\":\"vulkan\",\"label\":\"Vulkan Video\",\"available\":true," +
+                    "\"experimental\":true,\"fallback_allowed\":false," +
+                    "\"runtime_validation\":\"launch\",\"reason\":\"Require Vulkan.\"}," +
+                    "{\"value\":\"vulkan\",\"available\":true}," +
+                    "{\"value\":\"bad/backend\",\"available\":true}]}}",
+            ),
+        )
+
+        assertTrue(settings.capabilities.sessionEncoderOverride)
+        assertEquals(listOf("auto", "vulkan"), settings.capabilities.encoders.map { it.value })
+        assertTrue(settings.capabilities.encoders.first().fallbackAllowed)
+        assertTrue(settings.capabilities.encoders.last().experimental)
+        assertEquals("launch", settings.capabilities.encoders.last().runtimeValidation)
+        assertEquals("Require Vulkan.", settings.capabilities.encoders.last().reason)
     }
 
     @Test
@@ -2341,6 +2367,28 @@ class PolarisApiClientParsingTest {
             path
         )
         assertFalse(path.contains("trial="))
+    }
+
+    @Test
+    fun buildOptimizationPathCarriesOnlyCanonicalExplicitEncoderChoice() {
+        val explicit = PolarisApiClient.buildOptimizationPath(
+            device = "Retroid Pocket 6",
+            game = "game-1",
+            encoderBackend = " VULKAN ",
+        )
+        val hostDefault = PolarisApiClient.buildOptimizationPath(
+            device = "Retroid Pocket 6",
+            game = "game-1",
+        )
+        val malformed = PolarisApiClient.buildOptimizationPath(
+            device = "Retroid Pocket 6",
+            game = "game-1",
+            encoderBackend = "not/a/backend",
+        )
+
+        assertTrue(explicit.contains("&encoder=vulkan"))
+        assertFalse(hostDefault.contains("&encoder="))
+        assertFalse(malformed.contains("&encoder="))
     }
 
     @Test

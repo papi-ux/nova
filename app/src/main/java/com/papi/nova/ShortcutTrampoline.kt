@@ -24,6 +24,7 @@ import com.papi.nova.nvstream.wol.WakeOnLanSender
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.AutoQualityProfilePreferences
+import com.papi.nova.ui.NovaEncoderBackendOverrides
 import com.papi.nova.ui.NovaLaunchPreflight
 import com.papi.nova.ui.NovaLaunchStreamOverride
 import com.papi.nova.ui.NovaThemeManager
@@ -68,6 +69,7 @@ class ShortcutTrampoline : NovaActivity() {
         val usesVirtualDisplay: Boolean? = null,
         val mirrorDesktop: Boolean = false,
         val streamMode: String = "",
+        val encoderBackend: String = "",
         val streamWidth: Int = 0,
         val streamHeight: Int = 0,
         val streamFps: Float = 0f,
@@ -185,6 +187,7 @@ class ShortcutTrampoline : NovaActivity() {
                                                         streamHeight = readyLaunchPlan.streamHeight,
                                                         streamFps = readyLaunchPlan.streamFps,
                                                         streamMode = readyLaunchPlan.streamMode,
+                                                        encoderBackend = readyLaunchPlan.encoderBackend,
                                                     ),
                                                 )
 
@@ -667,6 +670,10 @@ class ShortcutTrampoline : NovaActivity() {
             ShortcutLaunchPlan(
                 app = launchApp,
                 polarisGame = polarisGame,
+                encoderBackend = NovaEncoderBackendOverrides.load(
+                    this,
+                    polarisGame,
+                ).orEmpty(),
             )
         } catch (e: Exception) {
             LimeLog.warning("Nova: Shortcut launch Polaris metadata lookup failed: ${e.message}")
@@ -696,6 +703,14 @@ class ShortcutTrampoline : NovaActivity() {
             }
 
             val clientSettings = apiClient.getClientSettings()
+            val encoderBackend = if (clientSettings != null) {
+                NovaEncoderBackendOverrides.loadAvailable(this, polarisGame, clientSettings).orEmpty()
+            } else {
+                // Preserve the explicit choice when settings could not be fetched. Game's
+                // fresh resolver will either prove it or fail closed; a successful typed
+                // catalog lookup above is allowed to retire an unavailable stale choice.
+                launchPlan.encoderBackend
+            }
             // The per-game Tuning choice, not a fixed "auto": a game pinned to High FPS
             // in Play Setup must launch pinned from a home-screen shortcut too.
             val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.id, polarisGame.name)
@@ -716,6 +731,7 @@ class ShortcutTrampoline : NovaActivity() {
                 clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
                     ServerHelper.getActiveDisplay(this, preferences)
                 ),
+                encoderBackend = encoderBackend,
             )
             val composed = NovaLaunchStreamOverride.compose(
                 optimization,
@@ -756,6 +772,7 @@ class ShortcutTrampoline : NovaActivity() {
                 usesVirtualDisplay = launchUsesVirtualDisplay,
                 mirrorDesktop = launchMirrorDesktop,
                 streamMode = launchMode,
+                encoderBackend = encoderBackend,
                 streamWidth = launchResolution.width,
                 streamHeight = launchResolution.height,
                 streamFps = launchFps,
@@ -789,6 +806,7 @@ class ShortcutTrampoline : NovaActivity() {
                 streamHeight = readyLaunchPlan.streamHeight,
                 streamFps = readyLaunchPlan.streamFps,
                 streamMode = readyLaunchPlan.streamMode,
+                encoderBackend = readyLaunchPlan.encoderBackend,
             )
 
             runOnUiThread {

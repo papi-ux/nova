@@ -266,6 +266,8 @@ class KotlinNvstreamContractsMigrationTest {
         assertFalse(defaults.getEnableUltraLowLatency())
         assertFalse(defaults.getForceFreshLaunch())
         assertFalse(defaults.getResumeExistingOnly())
+        assertEquals("", defaults.getEncoderBackend())
+        assertEquals("", defaults.getExpectedEncoder())
         assertEquals("", defaults.getExpectedTopology())
 
         val customApp = NvApp("Custom")
@@ -296,10 +298,14 @@ class KotlinNvstreamContractsMigrationTest {
             .setEnableUltraLowLatency(true)
             .setForceFreshLaunch(true)
             .setResumeExistingOnly(true)
+            .setEncoderBackend(" VULKAN ")
+            .setExpectedEncoder(" VULKAN ")
             .setExpectedTopology(" Gamescope_Stream ")
             .build()
 
         assertSame(customApp, config.getApp())
+        assertEquals("vulkan", config.getEncoderBackend())
+        assertEquals("vulkan", config.getExpectedEncoder())
         assertEquals(StreamConfiguration.STREAM_CFG_REMOTE, config.getRemote())
         assertEquals(1920, config.getWidth())
         assertEquals(1080, config.getHeight())

@@ -151,8 +151,8 @@ class NovaGameDetailActivity : NovaActivity() {
      * shape lets the body below stay the code that was reviewed as a bottom sheet,
      * rather than a rewrite that happens to compile.
      */
-    private val onLaunch: ((PolarisGame, Boolean, Boolean, Boolean, String, String, String, JSONObject?) -> Unit)? =
-        { game, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, streamMode, presentationMode, preflight ->
+    private val onLaunch: ((PolarisGame, Boolean, Boolean, Boolean, String, String, String, String, JSONObject?) -> Unit)? =
+        { game, withVirtualDisplay, mirrorDesktop, forcePrivateAfterSteamClose, profilePreference, streamMode, encoderBackend, presentationMode, preflight ->
             setResult(
                 RESULT_OK,
                 Intent().putExtra(
@@ -163,6 +163,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         .put(RESULT_KEY_FORCE_PRIVATE, forcePrivateAfterSteamClose)
                         .put(RESULT_KEY_PROFILE_PREFERENCE, profilePreference)
                         .put(RESULT_KEY_STREAM_MODE, streamMode)
+                        .put(RESULT_KEY_ENCODER_BACKEND, encoderBackend)
                         // Presentation only: the library can name an unpinned host
                         // default without turning it into streamMode authority.
                         .put(RESULT_KEY_PRESENTATION_MODE, presentationMode)
@@ -486,6 +487,11 @@ class NovaGameDetailActivity : NovaActivity() {
         // resolution row changes dimensions while fpsOverride alone changes cadence. Persisted
         // the same way as chosenResolution, so it survives past this Activity's lifetime.
         var chosenFps by mutableStateOf<Int?>(loadFrameRateOverride(currentGame))
+        // Null keeps Polaris' configured host policy. "auto" is deliberately not
+        // null: it asks Polaris to choose and permits fallback for this launch.
+        var chosenEncoderBackend by mutableStateOf<String?>(
+            NovaEncoderBackendOverrides.load(this@NovaGameDetailActivity, currentGame),
+        )
         // Changing a row is cheap; telling the host about it is not. Presses settle first
         // so that cycling past three values costs one round-trip rather than three.
         var settleJob: Job? = null
@@ -530,6 +536,28 @@ class NovaGameDetailActivity : NovaActivity() {
             uiState = buildUiState(currentGame, preference)
         }
 
+        fun reconcileEncoderBackend(settings: PolarisClientSettings): Boolean {
+            val available = NovaEncoderBackendOverrides.loadAvailable(
+                this@NovaGameDetailActivity,
+                currentGame,
+                settings,
+            )
+            val changed = chosenEncoderBackend != available
+            chosenEncoderBackend = available
+            return changed
+        }
+
+        fun selectedEncoderBackend(): String {
+            val selected = chosenEncoderBackend ?: return ""
+            val settings = clientSettings ?: return ""
+            return selected.takeIf { candidate ->
+                settings.capabilities.sessionEncoderOverride &&
+                    settings.capabilities.encoders.any { option ->
+                        option.available && option.value == candidate
+                    }
+            }.orEmpty()
+        }
+
         /**
          * Publish the settings learned by launch preflight before resolving its mode.
          *
@@ -554,6 +582,7 @@ class NovaGameDetailActivity : NovaActivity() {
             if (!preflightRequestFence.owns(requestGeneration)) {
                 throw CancellationException("launch preflight superseded")
             }
+            reconcileEncoderBackend(updated)
             clientSettings = updated
             refreshUiState()
             return true
@@ -579,6 +608,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     .getOrNull()
             }
             if (settings != null) {
+                reconcileEncoderBackend(settings)
                 clientSettings = settings
                 refreshUiState()
             }
@@ -590,6 +620,7 @@ class NovaGameDetailActivity : NovaActivity() {
             serverUuid = serverUuid,
             scope = lifecycleScope,
             onSettingsChanged = { settings ->
+                reconcileEncoderBackend(settings)
                 clientSettings = settings
                 refreshUiState()
             },
@@ -674,6 +705,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 // choice, or the safe replacement for a host default that is no
                 // longer launch-ready, travels for this session only.
                 uiState.launchStreamMode,
+                selectedEncoderBackend(),
                 // A normal host default intentionally stays out of streamMode. Carry
                 // its resolved name separately so the library can describe it truthfully.
                 uiState.playMode,
@@ -781,6 +813,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         "launch preflight settings unavailable"
                     }
                     val optimizationMode = uiState.playMode
+                    val optimizationEncoder = selectedEncoderBackend()
                     val opt = withContext(Dispatchers.IO) {
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
                         val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
@@ -797,6 +830,7 @@ class NovaGameDetailActivity : NovaActivity() {
                             clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
                                 ServerHelper.getActiveDisplay(this@NovaGameDetailActivity, launchPrefs)
                             ),
+                            encoderBackend = optimizationEncoder,
                         )
                     }
                     check(StreamSyncManager.hasTrustedResolvedProfile(opt)) {
@@ -1013,6 +1047,29 @@ class NovaGameDetailActivity : NovaActivity() {
             }
         }
 
+        /** Select a backend for this game only; null returns to Polaris' host setting. */
+        fun chooseEncoderBackend(backend: String?) {
+            val normalized = PolarisClientSettings.normalizeEncoderBackend(backend)
+            if (backend != null && normalized == null) return
+            val allowed = backend == null || clientSettings?.capabilities?.let { capabilities ->
+                capabilities.sessionEncoderOverride && capabilities.encoders.any { option ->
+                    option.available && option.value == normalized
+                }
+            } == true
+            if (!allowed || normalized == chosenEncoderBackend) return
+            chosenEncoderBackend = normalized
+            if (normalized == null) {
+                NovaEncoderBackendOverrides.clear(this@NovaGameDetailActivity, currentGame)
+            } else {
+                NovaEncoderBackendOverrides.save(
+                    this@NovaGameDetailActivity,
+                    currentGame,
+                    normalized,
+                )
+            }
+            settleThen { loadOptimization(profilePreference) }
+        }
+
         fun selectProfilePreference(value: String) {
             if (value == profilePreference) return
             profilePreference = value
@@ -1058,9 +1115,8 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         /**
-         * The act column, resolved. Four rows at most, and fewer when a row has nothing to
-         * offer -- a host with one launch mode, or no display planner, drops the row rather
-         * than drawing a control with a single value in it.
+         * The act column, resolved. Rows appear only when the current host has a real choice
+         * to offer; richer catalogs use the panel's measured scrolling fallback.
          */
         fun buildPlaySetupRows(): List<NovaPlaySetupRowState> {
             val rows = mutableListOf<NovaPlaySetupRowState>()
@@ -1182,6 +1238,59 @@ class NovaGameDetailActivity : NovaActivity() {
                 // visible, clearable control on this screen -- a durable lock nobody can
                 // see or undo. Retire it instead of leaving it stuck.
                 chooseFrameRate(null)
+            }
+
+            val encoderCatalog = clientSettings?.capabilities?.takeIf {
+                it.sessionEncoderOverride
+            }?.encoders.orEmpty().filter { it.available }.distinctBy { it.value }
+            if (encoderCatalog.isNotEmpty()) {
+                val selectedEncoder = selectedEncoderBackend()
+                val selectedOption = encoderCatalog.firstOrNull { it.value == selectedEncoder }
+                rows += NovaPlaySetupRowState(
+                    row = NovaPlaySetupRow.ENCODER,
+                    label = getString(R.string.nova_play_setup_encoder),
+                    caption = when {
+                        selectedEncoder.isBlank() -> getString(
+                            R.string.nova_play_setup_encoder_host_default_caption,
+                        )
+                        selectedOption?.fallbackAllowed == true -> getString(
+                            R.string.nova_play_setup_encoder_auto_caption,
+                        )
+                        else -> getString(R.string.nova_play_setup_encoder_exact_caption)
+                    },
+                    value = selectedOption?.displayLabel
+                        ?: getString(R.string.nova_play_setup_encoder_host_default),
+                    stripTitle = getString(R.string.nova_play_setup_strip_encoder),
+                    options = buildList {
+                        add(
+                            NovaPlaySetupOption(
+                                label = getString(R.string.nova_play_setup_encoder_host_default),
+                                consequence = getString(
+                                    R.string.nova_play_setup_encoder_host_default_consequence,
+                                ),
+                                current = selectedEncoder.isBlank(),
+                                onSelect = { chooseEncoderBackend(null) },
+                            ),
+                        )
+                        encoderCatalog.forEach { option ->
+                            add(
+                                NovaPlaySetupOption(
+                                    label = option.displayLabel,
+                                    consequence = option.reason.ifBlank {
+                                        if (option.fallbackAllowed) {
+                                            getString(R.string.nova_play_setup_encoder_auto_consequence)
+                                        } else {
+                                            getString(R.string.nova_play_setup_encoder_exact_consequence)
+                                        }
+                                    },
+                                    current = option.value == selectedEncoder,
+                                    onSelect = { chooseEncoderBackend(option.value) },
+                                ),
+                            )
+                        }
+                    },
+                    overridden = selectedEncoder.isNotBlank(),
+                )
             }
 
             rows += NovaPlaySetupRowState(
@@ -2282,6 +2391,7 @@ class NovaGameDetailActivity : NovaActivity() {
         const val RESULT_KEY_FORCE_PRIVATE = "forcePrivateAfterSteamClose"
         const val RESULT_KEY_PROFILE_PREFERENCE = "profilePreference"
         const val RESULT_KEY_STREAM_MODE = "streamDisplayMode"
+        const val RESULT_KEY_ENCODER_BACKEND = "encoderBackend"
         const val RESULT_KEY_PRESENTATION_MODE = "presentationDisplayMode"
         const val RESULT_KEY_PREFLIGHT = "preflightOptimization"
 

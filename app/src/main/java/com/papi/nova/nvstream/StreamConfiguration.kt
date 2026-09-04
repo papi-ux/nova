@@ -32,6 +32,8 @@ class StreamConfiguration private constructor() {
     private var resolvedProfile = false
     private var mirrorDesktop = false
     private var streamMode = ""
+    private var encoderBackend = ""
+    private var expectedEncoder = ""
     private var expectedTopology = ""
     private var forcePrivateAfterSteamClose = false
 
@@ -185,6 +187,17 @@ class StreamConfiguration private constructor() {
             return this
         }
 
+        fun setEncoderBackend(encoderBackend: String?): Builder {
+            // Blank preserves the host default; "auto" is an explicit session policy.
+            config.encoderBackend = encoderBackend?.trim()?.lowercase().orEmpty()
+            return this
+        }
+
+        fun setExpectedEncoder(expectedEncoder: String?): Builder {
+            config.expectedEncoder = expectedEncoder?.trim()?.lowercase().orEmpty()
+            return this
+        }
+
         fun setExpectedTopology(expectedTopology: String?): Builder {
             config.expectedTopology = expectedTopology?.trim()?.lowercase().orEmpty()
             return this
@@ -265,6 +278,10 @@ class StreamConfiguration private constructor() {
     fun getMirrorDesktop(): Boolean = mirrorDesktop
 
     fun getStreamMode(): String = streamMode
+
+    fun getEncoderBackend(): String = encoderBackend
+
+    fun getExpectedEncoder(): String = expectedEncoder
 
     fun getExpectedTopology(): String = expectedTopology
 

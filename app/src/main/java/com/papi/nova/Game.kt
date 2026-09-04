@@ -282,6 +282,7 @@ val policyMessage:String = ""
 private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
 private var streamMode:String = ""
+private var encoderBackend:String = ""
 private var forcePrivateAfterSteamClose:Boolean = false
 private var clientPresentationReportInFlight:AtomicBoolean = AtomicBoolean(false)
 private var cursorVisibilitySyncLock:Any = Any()
@@ -1064,6 +1065,9 @@ vDisplay = this@Game.getIntent().getBooleanExtra(EXTRA_VDISPLAY, false)
 var displayModeExplicit:Boolean = this@Game.getIntent().getBooleanExtra(EXTRA_DISPLAY_MODE_EXPLICIT, false)
 mirrorDesktop = this@Game.getIntent().getBooleanExtra(EXTRA_MIRROR_DESKTOP, false)
 streamMode = this@Game.getIntent().getStringExtra(EXTRA_STREAM_MODE) ?: ""
+encoderBackend = com.papi.nova.api.PolarisClientSettings.normalizeEncoderBackend(
+this@Game.getIntent().getStringExtra(EXTRA_ENCODER_BACKEND)
+).orEmpty()
 forcePrivateAfterSteamClose = this@Game.getIntent().getBooleanExtra(EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, false)
 launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
 launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)
@@ -1620,6 +1624,8 @@ displayHeight
 .setDisplayModeExplicit(displayModeExplicit)
 .setMirrorDesktop(mirrorDesktop)
 .setStreamMode(streamMode)
+.setEncoderBackend(encoderBackend)
+.setExpectedEncoder(if (launchResolvedProfileTrusted) encoderBackend else "")
 .setExpectedTopology(expectedLaunchTopology)
 .setForcePrivateAfterSteamClose(forcePrivateAfterSteamClose)
 .setResolutionScaleFactor(prefConfig!!.resolutionScaleFactor)
@@ -2578,6 +2584,7 @@ com.papi.nova.utils.DeviceUtils.getModel(),
 launchProfilePreference,
 launchOptimizationJson.orEmpty(),
 streamMode,
+encoderBackend,
 mirrorDesktop.toString(),
 vDisplay.toString(),
 bitrateLocked.toString(),
@@ -2625,7 +2632,8 @@ fpsLocked:Boolean,
 requestedTopology:String,
 topologyLocked:Boolean,
 mirrorDesktopRequested:Boolean,
-forcePrivateRequested:Boolean
+forcePrivateRequested:Boolean,
+requestedEncoderBackend:String
 ):Boolean {
 if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimization)) return false
 val topologyEnvelopeHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
@@ -2684,6 +2692,10 @@ optimization,
 ) == true))
 return hdrWithinEnvelope &&
 topologyEnvelopeHonored &&
+com.papi.nova.manager.NovaEncoderLaunchContract.honors(
+optimization,
+requestedEncoderBackend
+) &&
 resolvedFps > 0f &&
 (clientMaximumFps <= 0f || resolvedFps <= clientMaximumFps + 0.5f) &&
 displayLockHonored &&
@@ -2764,7 +2776,8 @@ preference.equals("high_fps", ignoreCase = true),
 requestedTopology,
 exactTopologyLocked,
 mirrorDesktop,
-forcePrivateAfterSteamClose
+forcePrivateAfterSteamClose,
+encoderBackend
 ) && !containsNovaLaunchOverride)
 {
 // Play Setup already resolved the exact per-launch locks. Its HDR value is
@@ -2842,7 +2855,8 @@ bitrateKbps = resolverRequest.bitrateKbps,
 bitrateLocked = resolverRequest.bitrateLocked,
 hdr = requestedHdr,
 clientMaxFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay()),
-launchBounded = true)
+launchBounded = true,
+encoderBackend = encoderBackend)
 }
 catch (e:com.papi.nova.api.PolarisApiRejectedException)
 {
@@ -2875,10 +2889,11 @@ preference.equals("high_fps", ignoreCase = true),
 requestedTopology,
 exactTopologyLocked,
 mirrorDesktop,
-forcePrivateAfterSteamClose
+forcePrivateAfterSteamClose,
+encoderBackend
 ))
 {
-LimeLog.severe("Nova: Rejecting resolved profile outside the current HDR, FPS, or bitrate-lock envelope")
+LimeLog.severe("Nova: Rejecting resolved profile outside the current HDR, FPS, bitrate-lock, or encoder envelope")
 return blocked()
 }
 }
@@ -7291,6 +7306,7 @@ companion object {
  const val EXTRA_SERVER_CERT:String = "ServerCert"
  const val EXTRA_VDISPLAY:String = "VirtualDisplay"
  const val EXTRA_STREAM_MODE:String = "StreamMode"
+ const val EXTRA_ENCODER_BACKEND:String = "EncoderBackend"
  const val EXTRA_DISPLAY_MODE_EXPLICIT:String = "DisplayModeExplicit"
  const val EXTRA_MIRROR_DESKTOP:String = "MirrorDesktop"
 const val EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE:String = "ForcePrivateAfterSteamClose"

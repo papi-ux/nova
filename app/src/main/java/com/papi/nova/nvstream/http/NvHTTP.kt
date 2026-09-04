@@ -670,14 +670,31 @@ class NvHTTP @Throws(IOException::class) constructor(
             .takeIf { it.isNotBlank() }
             ?.let { "&streamMode=" + URLEncoder.encode(it, "UTF-8") }
             ?: ""
+        val encoderBackendParam = streamConfig.getEncoderBackend()
+            .takeIf { it.isNotBlank() }
+            ?.let { "&encoderBackend=" + URLEncoder.encode(it, "UTF-8") }
+            ?: ""
         val resolvedProfileParam = if (streamConfig.getResolvedProfile()) {
             val expectedTopology = streamConfig.getExpectedTopology()
             require(expectedTopology.isNotBlank()) {
                 "A deterministic resolved profile requires an expected topology assertion"
             }
+            val expectedEncoder = streamConfig.getExpectedEncoder()
+            if (streamConfig.getEncoderBackend().isNotBlank()) {
+                require(expectedEncoder == streamConfig.getEncoderBackend()) {
+                    "A deterministic encoder override requires a matching expected encoder assertion"
+                }
+            } else {
+                require(expectedEncoder.isBlank()) {
+                    "An expected encoder assertion requires an explicit encoder override"
+                }
+            }
             "&resolvedProfile=1&bitrateKbps=" + streamConfig.getBitrate() +
                 "&resolvedHdr=" + (if (enableHdr) 1 else 0) +
-                "&expectedTopology=" + URLEncoder.encode(expectedTopology, "UTF-8")
+                "&expectedTopology=" + URLEncoder.encode(expectedTopology, "UTF-8") +
+                expectedEncoder.takeIf { it.isNotBlank() }
+                    ?.let { "&expectedEncoder=" + URLEncoder.encode(it, "UTF-8") }
+                    .orEmpty()
         } else {
             ""
         }
@@ -702,6 +719,7 @@ class NvHTTP @Throws(IOException::class) constructor(
                 (if (mirrorDesktop) "&launchMode=mirror_desktop" else "") +
                 (if (forcePrivateAfterSteamClose) "&closeDesktopSteamForPrivate=1&launchMode=force_private_stream" else "") +
                 streamModeParam +
+                encoderBackendParam +
                 profilePreference +
                 resolvedProfileParam +
                 "&localAudioPlayMode=" + (if (streamConfig.getPlayLocalAudio()) 1 else 0) +
