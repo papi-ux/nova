@@ -2263,7 +2263,7 @@ performanceOverlayView!!.setVisibility(View.GONE)
 notificationOverlayView!!.setVisibility(View.GONE)
 
  // Disable sensors while in PiP mode
-                controllerHandler!!.disableSensors()
+                controllerHandler?.disableSensors()
 
  // Update GameManager state to indicate we're in PiP (still gaming, but interruptible)
                 UiHelper.notifyStreamEnteringPiP(this)
@@ -2307,7 +2307,7 @@ performanceOverlayView!!.setVisibility(View.VISIBLE)
 notificationOverlayView!!.setVisibility(requestedNotificationOverlayVisibility)
 
  // Enable sensors again after exiting PiP
-                controllerHandler!!.enableSensors()
+                controllerHandler?.enableSensors()
 
  // Update GameManager state to indicate we're out of PiP (gaming, non-interruptible)
                 UiHelper.notifyStreamExitingPiP(this)

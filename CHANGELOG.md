@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Starting a stream with the device held in portrait no longer crashes Nova. The rotation to landscape used to reach the controller handler before the connection had created it; the sensor toggles in that path now tolerate a missing handler.
+
 ## 1.4.2 - 2026-09-04
 
 Nova 1.4.2 is the matched client for Polaris 1.4.2. It adds per-game encoder selection to Play Setup and stops treating a healthy SHM capture path as a stream health failure.
