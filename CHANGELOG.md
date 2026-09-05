@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Artwork search failures now say what is wrong. When Polaris has no SteamGridDB key, when SteamGridDB rejects the key, or when the host is being rate limited, Nova shows that specific message instead of a generic "search unavailable", using the failure code Polaris 1.4.3 and newer send.
+
 Starting a stream with the device held in portrait no longer crashes Nova. The rotation to landscape used to reach the controller handler before the connection had created it; the sensor toggles in that path now tolerate a missing handler.
 
 ## 1.4.2 - 2026-09-04
