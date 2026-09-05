@@ -2,29 +2,20 @@
 
 ## Unreleased
 
-Artwork search failures now say what is wrong. When Polaris has no SteamGridDB key, when SteamGridDB rejects the key, or when the host is being rate limited, Nova shows that specific message instead of a generic "search unavailable", using the failure code Polaris 1.4.3 and newer send.
-
-Starting a stream with the device held in portrait no longer crashes Nova. The rotation to landscape used to reach the controller handler before the connection had created it; the sensor toggles in that path now tolerate a missing handler.
+- Starting a stream with the device held in portrait no longer crashes Nova.
+- Artwork search failures say what is wrong: no SteamGridDB key, a rejected key, or rate limiting, using the codes Polaris 1.4.3 and newer send.
 
 ## 1.4.2 - 2026-09-04
 
-Nova 1.4.2 is the matched client for Polaris 1.4.2. It adds per-game encoder selection to Play Setup and stops treating a healthy SHM capture path as a stream health failure.
+Matched client for Polaris 1.4.2.
 
-NovaHUD now treats SHM/CPU capture as stream topology rather than a health failure. Healthy standard streams stay green while the capture path remains visible; Doctor, sync, HDR, decoder, and pacing evidence still raise attention when action is actually needed.
-
-Play Setup can now keep the host encoder policy or select one of the backends Polaris advertises for a single game. Auto is the only choice allowed to fall back after a live launch probe; an explicit NVENC, VA-API, Vulkan, VideoToolbox, or software choice fails closed if that backend cannot initialize. The selection is remembered per game, carried through pinned shortcuts, and bound to Polaris' exact launch contract without rewriting the host-wide setting.
-
-Polaris owns encoder probing, fallback, and launch policy; Nova only carries the per-game request and shows what the host decided. Older hosts without the capability fields keep their configured default. Steam Input remains manual and read-only.
-
-### Release packaging
-
-- Bumps the Android app to versionName 1.4.2 and versionCode 44 so it installs cleanly over Nova 1.4.1/43.
-- Publishes signed ARM64, ARMv7, and x86_64 APKs plus portable SHA-256 sidecars through the GitHub release workflow.
-
-### Validation notes
-
-- The exact release-prep candidate must pass JVM tests, strict lint, public hygiene, and three-ABI release assembly before merge.
-- The per-game encoder path was exercised on the Retroid Pocket 6 with strict NVIDIA NVENC at 1920x1080, 120 FPS, HEVC, with no fallback and a clean abrupt-disconnect teardown; final publication remains gated on exact signed-artifact identity and signer continuity.
+- Pick the encoder per game in Play Setup. Auto can fall back; an explicit NVENC, VA-API, Vulkan, VideoToolbox, or software choice fails closed instead of switching.
+- The choice is remembered per game and carried through pinned shortcuts.
+- NovaHUD treats SHM capture as stream topology, not a health failure, so healthy streams stay green while Doctor, sync, HDR, decoder, and pacing evidence still raise attention when needed.
+- Polaris owns encoder probing, fallback, and launch policy; Nova only carries the per-game request. Older hosts keep their configured default.
+- Steam Input remains manual and read-only.
+- versionName 1.4.2, versionCode 44; installs cleanly over 1.4.1.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus SHA-256 sidecars.
 
 ## 1.4.1 - 2026-09-03
 
