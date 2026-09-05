@@ -99,6 +99,16 @@ data class PolarisArtworkUpdateResult(
     val remainingKinds: List<String>,
 )
 
+/**
+ * Polaris refused an artwork search and said why. [code] is the host's stable
+ * failure word (for example `steamgriddb_unauthorized`); an older host that sent
+ * no body leaves it null.
+ */
+class PolarisArtworkSearchUnavailableException(
+    val code: String?,
+    val httpStatus: Int,
+) : IOException("artwork candidate search HTTP $httpStatus${code?.let { " ($it)" } ?: ""}")
+
 class PolarisArtworkLibraryUpdateUnavailableException :
     IOException("Polaris artwork library update API unavailable")
 
@@ -2415,7 +2425,13 @@ class PolarisApiClient @JvmOverloads constructor(
                 .addQueryParameter("query", sanitizedQuery)
                 .build()
             executeArtwork(Request.Builder().url(url).build()).use { response ->
-                if (!response.isSuccessful) throw IOException("artwork candidate search HTTP ${response.code}")
+                if (!response.isSuccessful) {
+                    val failure = runCatching { parseBoundedArtworkJson(response.body) }.getOrNull()
+                    throw PolarisArtworkSearchUnavailableException(
+                        com.papi.nova.ui.NovaArtworkSearchFailure.codeFrom(failure),
+                        response.code,
+                    )
+                }
                 val json = parseBoundedArtworkJson(response.body)
                     ?: throw IOException("artwork candidate search returned an invalid response")
                 parseArtworkCandidates(json, gameId, serverAddress, resolvedHttpsPort)

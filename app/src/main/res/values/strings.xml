@@ -1569,6 +1569,9 @@
     <string name="nova_artwork_apply_match">Apply Match</string>
     <string name="nova_artwork_no_matches">No matches found</string>
     <string name="nova_artwork_search_failed">Artwork search unavailable. Check SteamGridDB in Polaris and try again.</string>
+    <string name="nova_artwork_search_no_key">Polaris has no SteamGridDB API key. Add one in Polaris settings, then search again.</string>
+    <string name="nova_artwork_search_key_rejected">SteamGridDB rejected the Polaris API key. Update it in Polaris settings, then search again.</string>
+    <string name="nova_artwork_search_rate_limited">SteamGridDB is rate limiting the host. Wait a minute and search again.</string>
     <string name="nova_artwork_refresh_failed">Artwork refresh failed</string>
     <string name="nova_artwork_apply_failed">Custom match failed</string>
     <string name="nova_artwork_clear_failed">Clear custom match failed</string>

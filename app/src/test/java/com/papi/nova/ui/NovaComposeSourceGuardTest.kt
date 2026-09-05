@@ -1412,7 +1412,13 @@ class NovaComposeSourceGuardTest {
 
         assertTrue(
             "candidate search should surface HTTP, envelope, and malformed-body failures without retaining provider response content",
-            api.contains("throw IOException(\"artwork candidate search HTTP \${response.code}\")") &&
+            api.contains("throw PolarisArtworkSearchUnavailableException(") &&
+                api.contains("NovaArtworkSearchFailure.codeFrom(failure)") &&
+                api.contains("class PolarisArtworkSearchUnavailableException(") &&
+                api.contains("val code: String?,") &&
+                api.contains("val httpStatus: Int,") &&
+                !api.contains("class PolarisArtworkSearchUnavailableException(\n    val body") &&
+                api.contains("IOException(\"artwork candidate search HTTP \$httpStatus") &&
                 api.contains("throw IOException(\"invalid artwork candidate search response\")") &&
                 api.contains("catch (_: JSONException)") &&
                 api.contains("throw IOException(\"invalid artwork JSON\")") &&
@@ -1424,6 +1430,8 @@ class NovaComposeSourceGuardTest {
                 searchHandler.contains("catch (e: CancellationException)") &&
                 searchHandler.contains("throw e") &&
                 searchHandler.contains("catch (_: Exception)") &&
+                searchHandler.contains("catch (e: com.papi.nova.api.PolarisArtworkSearchUnavailableException)") &&
+                searchHandler.contains("NovaArtworkSearchFailure.messageRes(e.code)") &&
                 !searchHandler.contains("runCatching") &&
                 searchHandler.contains("R.string.nova_artwork_search_failed") &&
                 searchHandler.contains("R.string.nova_artwork_no_matches")

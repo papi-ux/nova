@@ -1697,6 +1697,10 @@ class NovaGameDetailActivity : NovaActivity() {
                                 )
                             } catch (e: CancellationException) {
                                 throw e
+                            } catch (e: com.papi.nova.api.PolarisArtworkSearchUnavailableException) {
+                                artworkState = artworkState.reduce(
+                                    NovaArtworkStudioAction.Failed(getString(NovaArtworkSearchFailure.messageRes(e.code))),
+                                )
                             } catch (_: Exception) {
                                 artworkState = artworkState.reduce(
                                     NovaArtworkStudioAction.Failed(getString(R.string.nova_artwork_search_failed)),
