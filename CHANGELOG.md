@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.4.3 - 2026-09-05
+
+Matched client for Polaris 1.4.3: a launch crash fix, honest artwork search errors, complete resolution lists, and a tidier Command Center and NovaHUD.
+
 - The modern Settings resolution and FPS lists now offer the device's native modes and your custom resolution or refresh rate, the way the legacy view always did.
 - Starting a stream with the device held in portrait no longer crashes Nova.
 - Artwork search failures say what is wrong: no SteamGridDB key, a rejected key, or rate limiting, using the codes Polaris 1.4.3 and newer send.
@@ -12,6 +16,8 @@
 - Overlays gain a HUD Mode row that cycles Minimal, Performance, and Debug, and Stats Overlay says it is the legacy Moonlight text.
 - The host safe profile card moves under Advanced and says it is observational.
 - NovaHUD: recovery reads SAFE instead of REC, the 1% low tile shows the number once, control channel retries read Link retries, bitrate and codec drop the accent color, and the Debug header shows the short mode name.
+- versionName 1.4.3, versionCode 45; installs cleanly over 1.4.2.
+- Publishes signed ARM64, ARMv7, and x86_64 APKs plus SHA-256 sidecars.
 
 ## 1.4.2 - 2026-09-04
 
