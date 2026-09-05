@@ -1,0 +1,2 @@
+Nova 1.4.3
+Starting a stream with the device held in portrait no longer crashes. Artwork search says what is wrong (missing, rejected, or rate limited SteamGridDB key). The modern Settings lists carry your custom resolution and the device's native modes. Command Center puts Quick Keys and Controls first, Close is the primary button, the Doctor card leads with the finding, and NovaHUD gains a mode row and clearer labels. Matched client for Polaris 1.4.3.
