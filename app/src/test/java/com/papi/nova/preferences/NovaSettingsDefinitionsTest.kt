@@ -59,6 +59,23 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
+    fun resolutionAndFpsListsOfferTheCustomValuesTypedUnderAdvanced() {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putString(PreferenceConfiguration.CUSTOM_RESOLUTION_PREF_STRING, "2560x1600")
+            .putString(PreferenceConfiguration.CUSTOM_REFRESH_RATE_PREF_STRING, "90")
+            .commit()
+
+        val definitions = NovaSettingDefinitions.load(context)
+        val resolution = definitions.require("list_resolution").options
+        val fps = definitions.require("list_fps").options
+
+        val custom = resolution.single { it.value == "2560x1600" }
+        assertTrue(custom.label, custom.label.startsWith(context.getString(R.string.resolution_prefix_custom)))
+        assertEquals(resolution.size, resolution.map { it.value }.toSet().size)
+        assertTrue(fps.any { it.value == "90.0" && it.label.startsWith(context.getString(R.string.resolution_prefix_custom)) })
+    }
+
+    @Test
     fun definitionsClassifyCoreControlTypes() {
         val definitions = NovaSettingDefinitions.load(context)
 

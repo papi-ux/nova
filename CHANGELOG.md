@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The modern Settings resolution and FPS lists now offer the device's native modes and your custom resolution or refresh rate, the way the legacy view always did.
 - Starting a stream with the device held in portrait no longer crashes Nova.
 - Artwork search failures say what is wrong: no SteamGridDB key, a rejected key, or rate limiting, using the codes Polaris 1.4.3 and newer send.
 
