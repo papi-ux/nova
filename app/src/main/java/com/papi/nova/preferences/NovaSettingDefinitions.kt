@@ -103,7 +103,10 @@ object NovaSettingDefinitions {
             }
         }
 
-        return NovaSettingsDefinitionSet(categories = categories, settings = settings)
+        // The resolution and FPS lists also carry what the legacy fragment appends at
+        // runtime: the device's native modes and the custom values typed under Advanced.
+        val deviceLists = NovaDeviceListOptions.forDevice(context)
+        return NovaSettingsDefinitionSet(categories = categories, settings = settings.map(deviceLists::augment))
     }
 
     private fun AttributeSet.toDefinition(
