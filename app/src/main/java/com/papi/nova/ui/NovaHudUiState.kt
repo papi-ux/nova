@@ -114,6 +114,7 @@ data class NovaHudUiState(
     val codecLabel: String,
     val lowOnePercentLabel: String,
     val streamModeLabel: String,
+    val streamModeShortLabel: String,
     val autopilotLabel: String,
     val autopilotHudLabel: String,
     val autopilotCompactLabel: String,
@@ -205,8 +206,9 @@ data class NovaHudUiState(
                 bitrateLabel = formatBitrate(mode, bitrateKbps),
                 resolutionLabel = formatResolution(mode, width, height),
                 codecLabel = normalizeCodecLabel(codec),
-                lowOnePercentLabel = lowOnePercentFps.takeIf { it > 0.0 }?.roundToInt()?.let { "1%: $it" } ?: "--",
+                lowOnePercentLabel = lowOnePercentFps.takeIf { it > 0.0 }?.roundToInt()?.toString() ?: "--",
                 streamModeLabel = status?.let(::buildSessionModeLabel).orEmpty(),
+                streamModeShortLabel = status?.let(::buildSessionModeShortLabel).orEmpty(),
                 autopilotLabel = autoQuality.label,
                 autopilotHudLabel = autoQuality.hudLabel(),
                 autopilotCompactLabel = autoQuality.compactLabel,
@@ -359,7 +361,7 @@ data class NovaHudUiState(
                 normalizedPrimaryIssue == "network_observation" ->
                     "Network recheck" to NovaHudTone.MUTED
                 normalizedPrimaryIssue == "control_channel_observation" ->
-                    "Control retries observed" to NovaHudTone.MUTED
+                    "Link retries" to NovaHudTone.MUTED
                 normalizedPrimaryIssue == "network_jitter" ||
                     (status?.hasAuthoritativeDoctorResult != true && riskElevated(status?.health?.networkRisk)) ->
                     "Network jitter" to NovaHudTone.WARNING
@@ -498,6 +500,10 @@ data class NovaHudUiState(
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
         }
+
+        // The Debug header has 96dp; the full mode label stays in the diagnostics copy.
+        private fun buildSessionModeShortLabel(status: PolarisSessionStatus): String =
+            status.sessionModeLabel.substringBefore(" (").trim()
 
         private fun AutoQualityUiState.hudLabel(): String = when (state) {
             AutoQualityUiState.State.OFF -> "Live Tune Off"

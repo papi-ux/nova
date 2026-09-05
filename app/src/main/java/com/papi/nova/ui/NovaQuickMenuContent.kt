@@ -113,6 +113,7 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.QUICK_CTRL_1,
             NovaQuickMenuActionId.QUICK_CTRL_2 -> onQuickKey(action.id)
             NovaQuickMenuActionId.NOVA_HUD,
+            NovaQuickMenuActionId.NOVA_HUD_MODE,
             NovaQuickMenuActionId.PERF_STATS,
             NovaQuickMenuActionId.DIAGNOSE_STREAM,
             NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> onOverlayAction(action.id)
@@ -309,26 +310,24 @@ fun NovaQuickMenuContent(
         NovaQuickMenuHeader(state, callbacks)
         Spacer(Modifier.height(8.dp))
         NovaQuickMenuSessionStrip(state, initialFocusRequester)
+        // Daily use first: the strip above already carries the health verdict, so keys,
+        // input, and overlays come before the Doctor and stream cards that explain it.
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
-        if (state.doctorReceiptAction.visible) {
-            Spacer(Modifier.height(10.dp))
-            NovaQuickMenuInfoCard(
-                action = state.doctorReceiptAction,
-                callbacks = callbacks
-            )
+        NovaQuickMenuPanel(title = quickKeysTitle) {
+            NovaQuickKeys(state.quickKeys, callbacks)
         }
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuStabilityCard(state.stability, callbacks)
-        if (state.postSessionReport.visible) {
-            Spacer(Modifier.height(10.dp))
-            NovaQuickMenuPostSessionReportCard(state.postSessionReport)
+        NovaQuickMenuPanel(title = controlsTitle) {
+            state.controlRows.forEach { row ->
+                NovaQuickMenuRow(action = row, callbacks = callbacks)
+            }
         }
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuInfoCard(
-            action = state.sync,
-            callbacks = callbacks
-        )
+        NovaQuickMenuPanel(title = sessionTitle) {
+            state.sessionRows.filter { it.visible }.forEach { row ->
+                NovaQuickMenuRow(action = row, callbacks = callbacks)
+            }
+        }
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuPanel(title = overlaysTitle) {
             state.overlayRows.forEach { row ->
@@ -344,9 +343,21 @@ fun NovaQuickMenuContent(
             )
         }
         Spacer(Modifier.height(10.dp))
-        NovaQuickMenuPanel(title = quickKeysTitle) {
-            NovaQuickKeys(state.quickKeys, callbacks)
+        NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
+        if (state.doctorReceiptAction.visible) {
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuInfoCard(
+                action = state.doctorReceiptAction,
+                callbacks = callbacks
+            )
         }
+        Spacer(Modifier.height(10.dp))
+        NovaQuickMenuStabilityCard(state.stability, callbacks)
+        Spacer(Modifier.height(10.dp))
+        NovaQuickMenuInfoCard(
+            action = state.sync,
+            callbacks = callbacks
+        )
         Spacer(Modifier.height(10.dp))
         NovaQuickMenuInfoCard(
             action = state.advancedToggle,
@@ -359,17 +370,11 @@ fun NovaQuickMenuContent(
                     NovaQuickMenuRow(action = row, callbacks = callbacks)
                 }
             }
-        }
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuPanel(title = controlsTitle) {
-            state.controlRows.forEach { row ->
-                NovaQuickMenuRow(action = row, callbacks = callbacks)
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuPanel(title = sessionTitle) {
-            state.sessionRows.filter { it.visible }.forEach { row ->
-                NovaQuickMenuRow(action = row, callbacks = callbacks)
+            // Observational history from the host; it explains Auto's fallbacks but never
+            // changes a launch, so it lives with the other diagnostics.
+            if (state.postSessionReport.visible) {
+                Spacer(Modifier.height(10.dp))
+                NovaQuickMenuPostSessionReportCard(state.postSessionReport)
             }
         }
     }
@@ -435,6 +440,8 @@ private fun NovaQuickMenuTitleBlock(state: NovaQuickMenuUiState, modifier: Modif
     }
 }
 
+// Close is the primary: this menu opens on every Back press, so the safe action wears the
+// accent. Disconnect stays quiet and End Session reads as destructive.
 @Composable
 private fun NovaQuickMenuHeaderButton(
     action: NovaQuickMenuAction,
@@ -446,7 +453,8 @@ private fun NovaQuickMenuHeaderButton(
         onClick = { callbacks.perform(action) },
         modifier = modifier.widthIn(min = 84.dp),
         enabled = action.enabled,
-        primary = !action.destructive,
+        primary = false,
+        destructive = action.destructive,
         cornerRadius = NovaRadius.hero,
         minHeight = 34.dp,
         fontSize = 12.sp,
@@ -466,7 +474,7 @@ private fun NovaQuickMenuCloseButton(
         modifier = modifier
             .widthIn(min = 72.dp)
             .semantics { contentDescription = closeCommandCenter },
-        primary = false,
+        primary = true,
         cornerRadius = NovaRadius.hero,
         minHeight = 34.dp,
         fontSize = 12.sp,
@@ -485,11 +493,17 @@ private fun NovaQuickMenuDiagnosisCard(
         NovaQuickMenuDoctorCapability.RECHECK -> stringResource(R.string.nova_quick_menu_doctor_capability_recheck)
         NovaQuickMenuDoctorCapability.MANUAL -> stringResource(R.string.nova_quick_menu_doctor_capability_manual)
     }
+    val classification = diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") }
     val detail = buildList {
+        classification?.let(::add)
         diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
-        diagnosis.evidence.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("Evidence: $it") }
-        diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
+        // Confidence only means something next to the evidence it grades.
+        diagnosis.evidenceHighlight.takeIf { it.isNotBlank() }?.let { evidence ->
+            add("Evidence: $evidence")
+            diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
+        }
     }.joinToString(" · ")
+    val diagnoseTitle = stringResource(R.string.nova_quick_menu_diagnose_stream)
     val aiSupportingLine = diagnosis.aiExplanation.takeIf { it.isNotBlank() }?.let {
         stringResource(R.string.nova_quick_menu_doctor_ai_explanation, it)
     }
@@ -498,21 +512,22 @@ private fun NovaQuickMenuDiagnosisCard(
         ?.let { "Source: $it" }
     val supportingLine = listOfNotNull(aiSupportingLine, sourceSupportingLine).joinToString("\n")
     NovaQuickMenuInfoCard(
+        // The finding is the title and the action lives in the chip, so "Recheck" no longer
+        // shows up as title, chip, and button at once.
         action = NovaQuickMenuAction(
             id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
-            label = diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() }
-                ?: "${diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") } ?: "DIAG"}: ${diagnosis.likelyCause}",
-            caption = buildList {
-                diagnosis.likelyCause.takeIf { diagnosis.actionExecutable && it.isNotBlank() }?.let { add(it) }
-                detail.takeIf { it.isNotBlank() }?.let { add(it) }
-            }.joinToString(" · ").ifBlank { "HOST / NET / CLIENT self-service diagnostics" },
+            label = diagnosis.likelyCause.trim().trimEnd('.').ifBlank { diagnoseTitle },
+            caption = detail,
             chip = NovaQuickMenuChip(
-                label = capabilityLabel,
+                label = diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() }
+                    ?: capabilityLabel,
                 tone = if (diagnosis.available) NovaQuickMenuTone.INFO else NovaQuickMenuTone.MUTED
             ),
             enabled = diagnosis.available
         ),
         supportingLine = supportingLine,
+        // Doctor findings are whole sentences; give them a second line before ellipsis.
+        labelMaxLines = 2,
         // The real callbacks. This used to construct a fresh default instance, whose
         // every member is a no-op, so the card rendered enabled and did nothing when
         // pressed -- and looked no different from one that worked. The guard forbids the
@@ -556,6 +571,7 @@ private fun NovaQuickMenuSessionStrip(
             .semantics {
                 contentDescription = listOf(
                     state.sessionMode.label,
+                    state.sessionDetail,
                     state.healthSummary,
                     state.healthDetail,
                 ).filter { it.isNotBlank() }.joinToString(". ")
@@ -580,6 +596,17 @@ private fun NovaQuickMenuSessionStrip(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (state.sessionDetail.isNotBlank()) {
+                Text(
+                    text = state.sessionDetail,
+                    color = colors.textMuted,
+                    fontSize = 9.sp,
+                    lineHeight = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
             if (state.healthDetail.isNotBlank()) {
                 Text(
                     text = state.healthDetail,
@@ -617,6 +644,13 @@ private fun NovaQuickMenuPostSessionReportCard(report: NovaPostSessionReportUiSt
                 color = colors.textPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = stringResource(R.string.nova_quick_menu_post_session_report_caption),
+                color = colors.textMuted,
+                fontSize = 10.sp,
+                lineHeight = 13.sp,
+                modifier = Modifier.padding(top = 4.dp)
             )
             listOf(report.qualityLine, report.issueLine, report.nextLaunchLine, report.recoveryLine).forEach { line ->
                 Text(
@@ -665,15 +699,17 @@ private fun NovaQuickMenuStabilityCard(
                 )
                 NovaQuickMenuChipView(stability.chip)
             }
-            Text(
-                text = stability.caption,
-                color = colors.textPrimary,
-                fontSize = 12.sp,
-                lineHeight = 15.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+            if (stability.caption.isNotBlank()) {
+                Text(
+                    text = stability.caption,
+                    color = colors.textPrimary,
+                    fontSize = 12.sp,
+                    lineHeight = 15.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
             Text(
                 text = stability.targetSummary,
                 color = colors.textMuted,
@@ -743,7 +779,8 @@ private fun NovaQuickMenuInfoCard(
     action: NovaQuickMenuAction,
     callbacks: NovaQuickMenuCallbacks,
     modifier: Modifier = Modifier,
-    supportingLine: String = ""
+    supportingLine: String = "",
+    labelMaxLines: Int = 1
 ) {
     NovaQuickMenuClickableSurface(
         enabled = action.enabled,
@@ -761,7 +798,7 @@ private fun NovaQuickMenuInfoCard(
                     color = LocalNovaComposeColors.current.textPrimary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
+                    maxLines = labelMaxLines,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )

@@ -75,10 +75,10 @@ class NovaDisplayResolutionPlannerTest {
             )
         )
 
-        assertEquals("Quality: Watch", report.qualityLine)
+        assertEquals("Grade: Watch", report.qualityLine)
         assertEquals("Main issue: network jitter", report.issueLine)
-        assertEquals("Next launch: headless · 60fps · 16 Mbps", report.nextLaunchLine)
-        assertEquals("Recovery: network jitter", report.recoveryLine)
+        assertEquals("Safe profile: headless · 60fps · 16 Mbps", report.nextLaunchLine)
+        assertEquals("Recovery record: network jitter", report.recoveryLine)
         assertTrue(report.copyDiagnostics.contains("Network jitter"))
         assertTrue(report.visible)
     }
@@ -89,10 +89,12 @@ class NovaDisplayResolutionPlannerTest {
             health = com.papi.nova.api.PolarisSessionStatus.HealthStatus(summary = "Session looks steady.")
         )
 
-        assertEquals("Quality: Unknown", report.qualityLine)
+        assertEquals("Grade: Unknown", report.qualityLine)
         assertEquals("Main issue: none", report.issueLine)
-        assertEquals("Next launch: keep current settings", report.nextLaunchLine)
-        assertEquals("Recovery: none", report.recoveryLine)
-        assertTrue(report.visible)
+        assertEquals("Safe profile: keep current settings", report.nextLaunchLine)
+        assertEquals("Recovery record: none", report.recoveryLine)
+        // A steady health block has nothing to report, so the Command Center card stays
+        // hidden instead of listing four "none" lines.
+        assertFalse(report.visible)
     }
 }

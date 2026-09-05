@@ -255,7 +255,7 @@ data class AutoQualityUiState(
                     compactLabel = streamPolicy.adaptiveTargetLabel
                         .takeIf { it.isNotBlank() }
                         ?.replace(" Mbps", "M")
-                        ?: "REC",
+                        ?: "SAFE",
                     detail = autoPolicy.summary.takeIf { it.isNotBlank() }
                         ?: if (status.tuning.adaptiveBitrateState.equals("recovering", ignoreCase = true)) {
                             "Auto Safe is recovering toward the launch quality ceiling"
@@ -345,7 +345,7 @@ data class AutoQualityUiState(
                     compactLabel = when {
                         hostRenderLimited -> "HOST"
                         adaptiveLowered -> streamPolicy.adaptiveTargetLabel.replace(" Mbps", "M")
-                        else -> "REC"
+                        else -> "SAFE"
                     },
                     detail = detail,
                     targetSummary = streamPolicy.targetSummary,

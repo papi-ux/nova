@@ -2215,7 +2215,7 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun commandCenterFirstPaintPrioritizesSessionQualityAndHudBeforeQuickKeys() {
+    fun commandCenterFirstPaintPutsSessionHealthThenDailyControlsBeforeDiagnostics() {
         val content = readNovaQuickMenuContent()
         val body = content.section(
             "fun NovaQuickMenuContent(",
@@ -2225,31 +2225,47 @@ class NovaComposeSourceGuardTest {
             "private fun NovaQuickMenuHeader(",
             "@Composable\nprivate fun NovaQuickMenuTitleBlock("
         )
+        val headerButton = content.section(
+            "private fun NovaQuickMenuHeaderButton(",
+            "@Composable\nprivate fun NovaQuickMenuCloseButton("
+        )
+        val closeButton = content.section(
+            "private fun NovaQuickMenuCloseButton(",
+            "@Composable\nprivate fun NovaQuickMenuDiagnosisCard("
+        )
 
         val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(state, initialFocusRequester)")
-        val stabilityCard = body.indexOf("NovaQuickMenuStabilityCard(state.stability, callbacks)")
-        val syncCard = body.indexOf("action = state.sync")
-        val overlaysPanel = body.indexOf("title = overlaysTitle")
         val quickKeysPanel = body.indexOf("NovaQuickMenuPanel(title = quickKeysTitle)")
-        val advancedToggleCard = body.indexOf("action = state.advancedToggle")
         val controlsPanel = body.indexOf("title = controlsTitle")
         val sessionPanel = body.indexOf("NovaQuickMenuPanel(title = sessionTitle)")
+        val overlaysPanel = body.indexOf("title = overlaysTitle")
+        val diagnosisCard = body.indexOf("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)")
+        val stabilityCard = body.indexOf("NovaQuickMenuStabilityCard(state.stability, callbacks)")
+        val syncCard = body.indexOf("action = state.sync")
+        val advancedToggleCard = body.indexOf("action = state.advancedToggle")
+        val reportCard = body.indexOf("NovaQuickMenuPostSessionReportCard(state.postSessionReport)")
 
         assertTrue(
-            "Command Center first paint should keep the session strip immediately after the header",
-            sessionStrip >= 0 && stabilityCard > sessionStrip
+            "Command Center first paint should keep the session strip, which carries the health verdict, immediately after the header",
+            sessionStrip >= 0 && quickKeysPanel > sessionStrip
         )
         assertTrue(
-            "stream quality/recovery state should be above overlay/HUD controls so gameplay health is understood before shortcuts",
-            stabilityCard in 0 until syncCard &&
-                syncCard in 0 until overlaysPanel
+            "the controls a player touches every session (Quick Keys, Controls, Session, Overlays) come before the Doctor and stream cards that explain the strip's verdict; on a Retroid those cards used to push the keys two pages down",
+            quickKeysPanel in 0 until controlsPanel &&
+                controlsPanel in 0 until sessionPanel &&
+                sessionPanel in 0 until overlaysPanel &&
+                overlaysPanel in 0 until diagnosisCard
         )
         assertTrue(
-            "NovaHUD/overlay controls should be promoted above Quick Keys and lower utilities in the polished Command Center hierarchy",
-            overlaysPanel in 0 until quickKeysPanel &&
-                quickKeysPanel in 0 until advancedToggleCard &&
-                advancedToggleCard in 0 until controlsPanel &&
-                controlsPanel in 0 until sessionPanel
+            "Doctor, stream target, sync, and Advanced keep their explanatory order below the controls",
+            diagnosisCard in 0 until stabilityCard &&
+                stabilityCard in 0 until syncCard &&
+                syncCard in 0 until advancedToggleCard
+        )
+        assertTrue(
+            "the host safe profile is observational history and lives inside the expanded Advanced section, not in the first paint",
+            reportCard > advancedToggleCard &&
+                body.substring(advancedToggleCard, reportCard).contains("if (state.advancedExpanded) {")
         )
         assertTrue(
             "Command Center header should expose an explicit close affordance that invokes the same dismiss callback as scrim/back",
@@ -2257,6 +2273,13 @@ class NovaComposeSourceGuardTest {
                 content.contains("stringResource(R.string.nova_quick_menu_close_command_center)") &&
                 content.contains("contentDescription = closeCommandCenter") &&
                 content.contains("onClick = callbacks.onDismiss")
+        )
+        assertTrue(
+            "Close is the primary header button: the menu opens on every Back press, so the safe action wears the accent while Disconnect stays quiet and End Session reads destructive",
+            closeButton.contains("primary = true") &&
+                headerButton.contains("primary = false") &&
+                headerButton.contains("destructive = action.destructive") &&
+                !content.contains("primary = !action.destructive")
         )
     }
 

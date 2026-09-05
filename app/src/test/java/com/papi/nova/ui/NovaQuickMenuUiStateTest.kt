@@ -241,9 +241,15 @@ class NovaQuickMenuUiStateTest {
         )
 
         assertTrue(state.sessionMode.label.contains("Private Stream"))
-        assertTrue(state.sessionMode.label.contains("GPU-native DMA-BUF"))
         assertTrue(state.sessionMode.label.contains("Auto → Vulkan"))
         assertFalse(state.sessionMode.label.contains("Headless"))
+        // The capture path belongs to the detail line, not the pill, so the health summary
+        // beside the pill keeps its room.
+        assertFalse(state.sessionMode.label.contains("GPU-native DMA-BUF"))
+        assertFalse(state.sessionMode.label.contains("owner"))
+        assertTrue(state.sessionDetail.contains("GPU-native DMA-BUF"))
+        assertTrue(state.sessionDetail.contains("Explicit choice"))
+        assertTrue(state.sessionDetail.contains("Owner"))
     }
 
     @Test
@@ -305,7 +311,7 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
-    fun commandCenterExposesDiagnoseThisStreamAsPrimaryOverlayAction() {
+    fun commandCenterExposesDiagnoseThisStreamAsTheDoctorCardAction() {
         val state = quickState(
             status = status(
                 doctor = PolarisSessionStatus.DoctorStatus(
@@ -350,14 +356,17 @@ class NovaQuickMenuUiStateTest {
             )
         )
 
-        val diagnose = state.overlayRows.first()
+        val diagnose = state.diagnosisAction
         assertEquals(NovaQuickMenuActionId.DIAGNOSE_STREAM, diagnose.id)
+        // Doctor's verdict is its own card; the Overlays panel holds overlays only.
+        assertFalse(state.overlayRows.any { it.id == NovaQuickMenuActionId.DIAGNOSE_STREAM })
         assertEquals("Auto Fix", diagnose.label)
         assertEquals("Wi-Fi jitter is the likely bottleneck.", diagnose.caption)
         assertEquals("NET", diagnose.chip!!.label)
         assertEquals(NovaQuickMenuTone.WARNING, diagnose.chip.tone)
         assertEquals("Lower bitrate", state.diagnosis.tryFirst)
         assertEquals("3.4% packet loss", state.diagnosis.evidence.first())
+        assertEquals("3.4% packet loss", state.diagnosis.evidenceHighlight)
         assertEquals("high", state.diagnosis.confidence)
         assertTrue(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
@@ -436,7 +445,7 @@ class NovaQuickMenuUiStateTest {
         )
 
         assertEquals("Confirmed media loss is limiting the stream.", state.diagnosis.likelyCause)
-        assertEquals("Auto Fix", state.overlayRows.first().label)
+        assertEquals("Auto Fix", state.diagnosisAction.label)
         assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
         assertTrue(state.diagnosis.aiExplanation.contains("Wi-Fi interference"))
         assertTrue(state.diagnosis.aiExplanation.contains("Move closer"))
@@ -446,7 +455,7 @@ class NovaQuickMenuUiStateTest {
     @Test
     fun commandCenterDisablesDiagnoseThisStreamForMoonlightFallbackSession() {
         val state = quickState(status = null, apiAvailable = false)
-        val diagnose = state.overlayRows.first { it.id == NovaQuickMenuActionId.DIAGNOSE_STREAM }
+        val diagnose = state.diagnosisAction
 
         assertFalse(diagnose.enabled)
         assertEquals("N/A", diagnose.chip!!.label)
@@ -484,7 +493,7 @@ class NovaQuickMenuUiStateTest {
             )
         )
 
-        assertEquals("Recheck network", state.overlayRows.first().label)
+        assertEquals("Recheck network", state.diagnosisAction.label)
         assertTrue(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.RECHECK, state.diagnosis.capability)
         assertEquals(0, state.diagnosis.targetBitrateKbps)
@@ -513,7 +522,7 @@ class NovaQuickMenuUiStateTest {
 
         assertFalse(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
-        assertEquals("Diagnose This Stream", state.overlayRows.first().label)
+        assertEquals("Diagnose This Stream", state.diagnosisAction.label)
     }
 
     @Test
@@ -537,7 +546,7 @@ class NovaQuickMenuUiStateTest {
 
         assertFalse(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
-        assertEquals("Diagnose This Stream", state.overlayRows.first().label)
+        assertEquals("Diagnose This Stream", state.diagnosisAction.label)
     }
 
     @Test
@@ -595,7 +604,7 @@ class NovaQuickMenuUiStateTest {
             )
         )
 
-        assertEquals("Auto Fix", state.overlayRows.first().label)
+        assertEquals("Auto Fix", state.diagnosisAction.label)
         assertTrue(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
         assertEquals(15000, state.diagnosis.targetBitrateKbps)
@@ -628,7 +637,67 @@ class NovaQuickMenuUiStateTest {
 
         assertFalse(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
-        assertEquals("Diagnose This Stream", state.overlayRows.first().label)
+        assertEquals("Diagnose This Stream", state.diagnosisAction.label)
+    }
+
+    @Test
+    fun doctorCardHidesThePassingStreamCheckAndTheStreamCardDoesNotRepeatTheVerdict() {
+        val state = quickState(
+            status = status(
+                aiOptimizerEnabled = true,
+                tuning = PolarisSessionStatus.TuningStatus(aiOptimizerEnabled = true),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-current-frame-pacing",
+                    classification = "HOST",
+                    likelyCause = "Frame pacing telemetry needs attention.",
+                    evidence = listOf("A stream is active."),
+                    confidence = "high",
+                    primaryIssue = "frame_pacing",
+                    evidenceItems = listOf(
+                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                            id = "streaming",
+                            status = "pass",
+                            source = "stream_stats"
+                        )
+                    )
+                )
+            )
+        )
+
+        // The host lists its passing "a stream is active" check first; that is not evidence
+        // of anything, so the card shows no evidence line rather than a vacuous one.
+        assertEquals("", state.diagnosis.evidenceHighlight)
+        assertEquals("Frame pacing telemetry needs attention.", state.diagnosis.likelyCause)
+        assertEquals("Frame pacing", state.healthSummary)
+        // The strip and the Doctor card already carry the sentence; the Stream card keeps
+        // its chip and target line and drops the duplicate.
+        assertEquals("Stream", state.stability.title)
+        assertEquals("", state.stability.caption)
+        assertEquals("Launch preset", state.stability.profileTitle)
+    }
+
+    @Test
+    fun overlaysCarryAHudModeRowThatOnlyCyclesWhileTheHudIsShowing() {
+        val showing = quickState(status = status(), hudShowing = true, hudMode = NovaHudMode.DEBUG)
+        val hidden = quickState(status = status(), hudShowing = false, hudMode = NovaHudMode.PERFORMANCE)
+
+        val showingRow = showing.overlayRows.first { it.id == NovaQuickMenuActionId.NOVA_HUD_MODE }
+        assertEquals("HUD Mode", showingRow.label)
+        assertEquals("Debug", showingRow.chip!!.label)
+        assertEquals(NovaQuickMenuTone.INFO, showingRow.chip.tone)
+        assertTrue(showingRow.enabled)
+
+        val hiddenRow = hidden.overlayRows.first { it.id == NovaQuickMenuActionId.NOVA_HUD_MODE }
+        assertEquals("Performance", hiddenRow.chip!!.label)
+        assertEquals(NovaQuickMenuTone.MUTED, hiddenRow.chip.tone)
+        assertFalse(hiddenRow.enabled)
+
+        val hudRow = showing.overlayRows.first { it.id == NovaQuickMenuActionId.NOVA_HUD }
+        assertEquals("Long press the HUD to open Command Center.", hudRow.caption)
+        val statsRow = showing.overlayRows.first { it.id == NovaQuickMenuActionId.PERF_STATS }
+        assertTrue(statsRow.caption.contains("Legacy Moonlight"))
     }
 
     @Test
@@ -825,6 +894,7 @@ class NovaQuickMenuUiStateTest {
         currentGameName: String? = "Portal",
         currentGameUuid: String? = "game-1",
         hudShowing: Boolean = false,
+        hudMode: NovaHudMode = NovaHudMode.MINIMAL,
         hudOpacityPercent: Int = 90,
         menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
         fallbackTargetFps: Double = 60.0,
@@ -845,6 +915,7 @@ class NovaQuickMenuUiStateTest {
         currentGameUuid = currentGameUuid,
         profilePreference = "quality",
         hudShowing = hudShowing,
+        hudMode = hudMode,
         hudOpacityPercent = hudOpacityPercent,
         menuOpacityPercent = menuOpacityPercent,
         perfOverlayEnabled = false,

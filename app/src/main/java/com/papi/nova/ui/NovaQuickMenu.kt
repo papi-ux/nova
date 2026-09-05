@@ -460,6 +460,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 currentGameUuid = currentGameUuid(),
                 profilePreference = currentProfilePreference(gameName),
                 hudShowing = game.isNovaHudShowing(),
+                hudMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal")),
                 hudOpacityPercent = NovaHudPreferences.readOpacityPercent(prefs),
                 menuOpacityPercent = NovaMenuPreferences.readOpacityPercent(prefs),
                 perfOverlayEnabled = game.prefConfig.enablePerfOverlay,
@@ -950,6 +951,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     when (actionId) {
                         NovaQuickMenuActionId.NOVA_HUD -> {
                             game.toggleNovaHud()
+                        }
+                        NovaQuickMenuActionId.NOVA_HUD_MODE -> {
+                            game.cycleNovaHudMode()
                         }
                         NovaQuickMenuActionId.PERF_STATS -> {
                             if (!game.prefConfig.enablePerfOverlay && game.isNovaHudShowing()) {

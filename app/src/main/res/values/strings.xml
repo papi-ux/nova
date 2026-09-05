@@ -966,7 +966,9 @@
     <string name="nova_quick_menu_host_controls_unavailable_caption">host controls unavailable</string>
     <string name="nova_quick_menu_session_ending_caption">session ending</string>
     <string name="nova_quick_menu_mode_unknown">Checking stream mode</string>
-    <string name="nova_quick_menu_mode_format">%1$s session</string>
+    <string name="nova_quick_menu_mode_source_auto">Auto choice</string>
+    <string name="nova_quick_menu_mode_source_explicit">Explicit choice</string>
+    <string name="nova_quick_menu_mode_role_owner">Owner</string>
     <string name="nova_quick_menu_command_center_title">Command Center</string>
     <string name="nova_quick_menu_command_center_subtitle">Quick keys, stream tuning, and session controls</string>
     <string name="nova_quick_menu_headless_subtitle">Quick keys and controls for Private Stream</string>
@@ -982,6 +984,7 @@
     <string name="nova_quick_menu_health_attention">Session needs attention.</string>
     <string name="nova_quick_menu_health_steady">Session looks steady.</string>
     <string name="nova_quick_menu_ai_auto_quality">Launch preset</string>
+    <string name="nova_quick_menu_stream_card">Stream</string>
     <string name="nova_quick_menu_auto_quality_caption_default">Watching stream quality</string>
     <string name="nova_quick_menu_ai_caption_default">balancing FPS, bitrate, and smoothness</string>
     <string name="nova_quick_menu_target_checking">Waiting for stream target</string>
@@ -1004,7 +1007,12 @@
     <string name="nova_quick_menu_controls">Controls</string>
     <string name="nova_quick_menu_session">Session</string>
     <string name="nova_quick_menu_nova_hud">Nova HUD</string>
-    <string name="nova_quick_menu_nova_hud_caption">Long-press the HUD for Command Center; hold Guide and press Y to cycle HUD modes.</string>
+    <string name="nova_quick_menu_nova_hud_caption">Long press the HUD to open Command Center.</string>
+    <string name="nova_quick_menu_hud_mode">HUD Mode</string>
+    <string name="nova_quick_menu_hud_mode_caption">Tap to cycle. Guide + Y does the same on a controller.</string>
+    <string name="nova_quick_menu_hud_mode_minimal">Minimal</string>
+    <string name="nova_quick_menu_hud_mode_performance">Performance</string>
+    <string name="nova_quick_menu_hud_mode_debug">Debug</string>
     <string name="nova_quick_menu_menu_opacity">Menu Opacity</string>
     <string name="nova_quick_menu_menu_opacity_caption">Adjust Nova menus, drawers, options, and session glass without dimming text or focus cues.</string>
     <string name="nova_quick_menu_menu_opacity_preset_cd">Set menu opacity to %1$d percent</string>
@@ -1015,6 +1023,7 @@
     <string name="nova_quick_menu_hud_opacity_selected">Selected</string>
     <string name="nova_quick_menu_hud_opacity_not_selected">Not selected</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
+    <string name="nova_quick_menu_perf_stats_caption">Legacy Moonlight stats text, separate from Nova HUD.</string>
     <string name="nova_quick_menu_diagnose_stream">Diagnose This Stream</string>
     <string name="nova_quick_menu_doctor_capability_auto_fix">Auto Fix</string>
     <string name="nova_quick_menu_doctor_capability_run_trial">Run a trial</string>
@@ -1056,7 +1065,8 @@
     <string name="nova_conn_reconnect">Reconnect</string>
     <string name="nova_quick_menu_close">Close</string>
     <string name="nova_quick_menu_close_command_center">Close Command Center</string>
-    <string name="nova_quick_menu_post_session_report">Post-session recovery report</string>
+    <string name="nova_quick_menu_post_session_report">Host safe profile</string>
+    <string name="nova_quick_menu_post_session_report_caption">Observational history from earlier sessions. Launch settings are unchanged.</string>
     <string name="nova_settings_back">Back</string>
     <string name="nova_settings_legacy">Legacy</string>
     <string name="nova_settings_search_results">%1$d results</string>
@@ -1117,7 +1127,6 @@
     <string name="nova_session_mode_virtual_display">Host Virtual Display</string>
     <string name="nova_session_mode_host_display">Mirror Desktop</string>
     <string name="nova_session_mode_watch_format">Watching · %1$s</string>
-    <string name="nova_session_mode_owner_format">%1$s · owner</string>
     <string name="nova_mangohud_warning_big_picture">Avoid on Steam Big Picture on this host.</string>
     <string name="nova_mangohud_warning_steam">Risky on Steam and Proton on this host.</string>
 

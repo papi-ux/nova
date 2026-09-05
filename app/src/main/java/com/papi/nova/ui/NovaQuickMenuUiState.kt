@@ -32,6 +32,7 @@ enum class NovaQuickMenuActionId {
     QUICK_CTRL_1,
     QUICK_CTRL_2,
     NOVA_HUD,
+    NOVA_HUD_MODE,
     PERF_STATS,
     DIAGNOSE_STREAM,
     DOCTOR_UNDO,
@@ -99,6 +100,7 @@ data class NovaQuickMenuDiagnosisState(
     val classification: String,
     val likelyCause: String,
     val evidence: List<String>,
+    val evidenceHighlight: String,
     val tryFirst: String,
     val confidence: String,
     val available: Boolean,
@@ -117,6 +119,7 @@ data class NovaQuickMenuUiState(
     val title: String,
     val subtitle: String,
     val sessionMode: NovaQuickMenuChip,
+    val sessionDetail: String,
     val healthSummary: String,
     val healthDetail: String,
     val healthTone: NovaQuickMenuTone,
@@ -129,6 +132,7 @@ data class NovaQuickMenuUiState(
     val advancedRows: List<NovaQuickMenuAction>,
     val quickKeys: List<NovaQuickMenuAction>,
     val diagnosis: NovaQuickMenuDiagnosisState,
+    val diagnosisAction: NovaQuickMenuAction,
     val doctorReceiptAction: NovaQuickMenuAction,
     val postSessionReport: NovaPostSessionReportUiState,
     val hudOpacity: NovaQuickMenuHudOpacityState,
@@ -161,6 +165,7 @@ data class NovaQuickMenuUiState(
             currentGameUuid: String?,
             profilePreference: String,
             hudShowing: Boolean,
+            hudMode: NovaHudMode = NovaHudMode.MINIMAL,
             hudOpacityPercent: Int = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
             menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
             perfOverlayEnabled: Boolean,
@@ -221,6 +226,7 @@ data class NovaQuickMenuUiState(
                 else -> NovaQuickMenuTone.MUTED
             }
 
+            val sessionDetail = resolveSessionDetail(context, status)
             val sessionMode = NovaQuickMenuChip(
                 label = resolveSessionModeLabel(context, status),
                 tone = when {
@@ -278,12 +284,17 @@ data class NovaQuickMenuUiState(
                 )
             }
 
+            val diagnosis = diagnosisState(status)
             val stability = NovaQuickMenuStabilityState(
-                title = context.getString(R.string.nova_quick_menu_ai_auto_quality),
+                title = context.getString(R.string.nova_quick_menu_stream_card),
                 caption = when {
                     hostStateUnavailable -> context.getString(R.string.nova_quick_menu_host_state_unavailable)
                     !apiAvailable && status == null -> context.getString(R.string.nova_quick_menu_not_polaris_session)
                     status == null -> context.getString(R.string.nova_quick_menu_health_checking)
+                    // The session strip and the Doctor card already say this sentence; the
+                    // Stream card repeats it only when it adds something.
+                    autoQuality.detail.sameSentenceAs(healthSummary) ||
+                        autoQuality.detail.sameSentenceAs(diagnosis.likelyCause) -> ""
                     else -> autoQuality.detail
                 },
                 targetSummary = streamPolicy.targetSummary.takeIf { it.isNotBlank() }
@@ -347,15 +358,14 @@ data class NovaQuickMenuUiState(
                 percent = NovaMenuPreferences.coerceOpacityPercent(menuOpacityPercent),
                 presets = NovaMenuPreferences.OPACITY_PRESETS
             )
-            val diagnosis = diagnosisState(status)
             val doctorReceiptAction = doctorReceiptAction(
                 context = context,
                 receipt = doctorReceipt,
                 canAdjustHostTuning = canAdjustHostTuning
             )
 
+            // Doctor's verdict is a card of its own, so the Overlays panel holds overlays only.
             val overlays = listOf(
-                diagnoseAction(context, status, diagnosis),
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.NOVA_HUD,
                     label = context.getString(R.string.nova_quick_menu_nova_hud),
@@ -364,8 +374,19 @@ data class NovaQuickMenuUiState(
                     enabled = true
                 ),
                 NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.NOVA_HUD_MODE,
+                    label = context.getString(R.string.nova_quick_menu_hud_mode),
+                    caption = context.getString(R.string.nova_quick_menu_hud_mode_caption),
+                    chip = chip(
+                        hudModeLabel(context, hudMode),
+                        if (hudShowing) NovaQuickMenuTone.INFO else NovaQuickMenuTone.MUTED
+                    ),
+                    enabled = hudShowing
+                ),
+                NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.PERF_STATS,
                     label = context.getString(R.string.nova_quick_menu_perf_stats),
+                    caption = context.getString(R.string.nova_quick_menu_perf_stats_caption),
                     chip = onOffChip(context, perfOverlayEnabled),
                     enabled = true
                 ),
@@ -424,6 +445,7 @@ data class NovaQuickMenuUiState(
                 title = context.getString(R.string.nova_quick_menu_command_center_title),
                 subtitle = subtitle,
                 sessionMode = sessionMode,
+                sessionDetail = sessionDetail,
                 healthSummary = healthSummary,
                 healthDetail = healthDetail,
                 healthTone = healthTone,
@@ -450,6 +472,7 @@ data class NovaQuickMenuUiState(
                 advancedRows = listOf(clearRow, mangoRow),
                 quickKeys = quickKeyActions(context),
                 diagnosis = diagnosis,
+                diagnosisAction = diagnoseAction(context, status, diagnosis),
                 doctorReceiptAction = doctorReceiptAction,
                 postSessionReport = postSessionReport,
                 hudOpacity = hudOpacity,
@@ -611,6 +634,7 @@ data class NovaQuickMenuUiState(
                 classification = doctor?.classification?.takeIf { it.isNotBlank() } ?: "UNKNOWN",
                 likelyCause = doctor?.likelyCause?.takeIf { it.isNotBlank() } ?: "Connect to Polaris for HOST / NET / CLIENT diagnostics.",
                 evidence = doctor?.evidence ?: emptyList(),
+                evidenceHighlight = doctorEvidenceHighlight(status),
                 tryFirst = doctor?.firstTry.orEmpty(),
                 confidence = doctor?.confidence.orEmpty(),
                 available = available,
@@ -644,6 +668,27 @@ data class NovaQuickMenuUiState(
                     else -> ""
                 }
             )
+        }
+
+        // The host lists a passing "a stream is active" check first, so the first evidence
+        // string is never the interesting one. Show the first item Doctor itself grades as
+        // actionable, or nothing at all.
+        private fun doctorEvidenceHighlight(status: PolarisSessionStatus?): String {
+            val doctor = status?.doctor ?: return ""
+            if (doctor.evidenceItems.isEmpty()) {
+                return doctor.evidence.firstOrNull().orEmpty()
+            }
+            val index = doctor.evidenceItems.indexOfFirst { status.doctorEvidenceIsActionable(it) }
+            if (index < 0) {
+                return ""
+            }
+            val item = doctor.evidenceItems[index]
+            item.detail.takeIf { it.isNotBlank() }?.let { return it }
+            if (doctor.evidence.size == doctor.evidenceItems.size) {
+                doctor.evidence[index].takeIf { it.isNotBlank() }?.let { return it }
+            }
+            return listOfNotNull(item.id.replace('_', ' '), item.value?.toString())
+                .joinToString(" ")
         }
 
         private fun diagnoseAction(
@@ -873,27 +918,54 @@ data class NovaQuickMenuUiState(
             )
         }
 
+        // The pill names the mode and the encoder. Capture path, mode source, and role go on
+        // the detail line so the health summary beside the pill keeps its room.
         private fun resolveSessionModeLabel(context: Context, status: PolarisSessionStatus?): String {
-            val mode = when {
-                status == null -> context.getString(R.string.nova_quick_menu_mode_unknown)
-                else -> status.sessionModeWithCaptureLabel.ifBlank { status.sessionModeLabel }
-            }
             if (status == null) {
-                return mode
+                return context.getString(R.string.nova_quick_menu_mode_unknown)
             }
-            val source = when (status.displayMode.requested) {
-                "auto" -> "Auto"
-                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display", "desktop_takeover" -> "Explicit"
-                else -> ""
-            }
-            val base = listOf(mode, status.encoderSelectionLabel, source)
+            val base = listOf(status.sessionModeLabel, status.encoderSelectionLabel)
                 .filter { it.isNotBlank() }
                 .joinToString(" · ")
-            return when {
-                status.isViewer -> context.getString(R.string.nova_session_mode_watch_format, base)
-                status.ownedByClient -> context.getString(R.string.nova_session_mode_owner_format, base)
-                else -> context.getString(R.string.nova_quick_menu_mode_format, base)
+            return if (status.isViewer) {
+                context.getString(R.string.nova_session_mode_watch_format, base)
+            } else {
+                base
             }
+        }
+
+        private fun resolveSessionDetail(context: Context, status: PolarisSessionStatus?): String {
+            if (status == null) {
+                return ""
+            }
+            val source = when (status.displayMode.requested) {
+                "auto" -> context.getString(R.string.nova_quick_menu_mode_source_auto)
+                "headless", "headless_stream", "virtual_display", "host_virtual_display", "windowed_stream", "desktop_display", "desktop_takeover" ->
+                    context.getString(R.string.nova_quick_menu_mode_source_explicit)
+                else -> ""
+            }
+            val role = if (!status.isViewer && status.ownedByClient) {
+                context.getString(R.string.nova_quick_menu_mode_role_owner)
+            } else {
+                ""
+            }
+            return listOf(status.capturePathLabel, source, role)
+                .filter { it.isNotBlank() }
+                .joinToString(" · ")
+        }
+
+        private fun hudModeLabel(context: Context, mode: NovaHudMode): String = context.getString(
+            when (mode) {
+                NovaHudMode.MINIMAL -> R.string.nova_quick_menu_hud_mode_minimal
+                NovaHudMode.PERFORMANCE -> R.string.nova_quick_menu_hud_mode_performance
+                NovaHudMode.DEBUG -> R.string.nova_quick_menu_hud_mode_debug
+            }
+        )
+
+        private fun String.sameSentenceAs(other: String): Boolean {
+            val mine = trim().trimEnd('.', '!')
+            val theirs = other.trim().trimEnd('.', '!')
+            return mine.isNotBlank() && mine.equals(theirs, ignoreCase = true)
         }
 
         private fun PolarisSessionStatus.hdrDowngradeDetail(context: Context): String? {
