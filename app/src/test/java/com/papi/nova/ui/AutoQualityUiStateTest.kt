@@ -95,7 +95,8 @@ class AutoQualityUiStateTest {
         assertTrue(status.hasHealthConcerns)
         assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
         assertEquals(AutoQualityUiState.Tone.WARNING, state.tone)
-        assertEquals("REC", state.compactLabel)
+        // "REC" read as recording on the HUD; the compact recovery label says what it does.
+        assertEquals("SAFE", state.compactLabel)
     }
 
     @Test

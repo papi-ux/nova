@@ -1664,7 +1664,7 @@ class PolarisApiClientParsingTest {
 
         assertEquals("UNKNOWN", status.doctor.classification)
         assertFalse(status.hasHealthConcerns)
-        assertEquals("Control retries", status.healthToneLabel)
+        assertEquals("Link retries", status.healthToneLabel)
     }
 
     @Test

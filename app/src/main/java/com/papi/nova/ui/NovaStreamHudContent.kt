@@ -123,7 +123,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 )
                 if (state.streamModeLabel.isNotBlank()) {
                     Text(
-                        text = state.streamModeLabel,
+                        text = state.streamModeShortLabel,
                         color = LocalNovaComposeColors.current.textMuted,
                         fontSize = 9.sp,
                         lineHeight = 11.sp,
@@ -155,7 +155,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
         ) {
             HudMetric("1% LOW", state.lowOnePercentLabel, Modifier.weight(1f))
             HudMetric("RTT", state.latencyLabel, Modifier.weight(1f), valueTone = state.latencyTone)
-            HudMetric("BIT", state.bitrateLabel, Modifier.weight(1f), valueTone = NovaHudTone.INFO)
+            HudMetric("BIT", state.bitrateLabel, Modifier.weight(1f))
         }
         Row(
             modifier = Modifier
@@ -163,7 +163,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 .padding(top = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            HudMetric("CODEC", state.codecLabel.ifBlank { "--" }, Modifier.weight(1f), valueTone = NovaHudTone.INFO)
+            HudMetric("CODEC", state.codecLabel.ifBlank { "--" }, Modifier.weight(1f))
             HudMetric("RES", state.resolutionLabel, Modifier.weight(1f))
         }
     }
@@ -252,7 +252,7 @@ private fun HudPerformanceDetailRow(state: NovaHudUiState) {
         )
         HudCompactText(
             state.bitrateLabel,
-            NovaHudTone.INFO,
+            NovaHudTone.MUTED,
             modifier = Modifier.weight(1f),
             startPadding = 0.dp
         )

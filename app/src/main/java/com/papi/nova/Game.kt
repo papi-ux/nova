@@ -6792,6 +6792,14 @@ showNovaHud()
 }
 }
 
+fun cycleNovaHudMode() {
+if (!isNovaHudShowing())
+{
+return
+}
+novaHud?.cycleMode()
+}
+
 private fun setNovaHudPreference(enabled:Boolean) {
 PreferenceManager.getDefaultSharedPreferences(this)
 .edit()

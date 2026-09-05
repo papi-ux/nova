@@ -82,6 +82,10 @@ class NovaHudUiStateTest {
         assertTrue(state.streamModeLabel.contains("Private Stream"))
         assertTrue(state.streamModeLabel.contains("GPU-native DMA-BUF"))
         assertFalse(state.streamModeLabel.contains("Headless"))
+        // The Debug header has 96dp: the short label is the mode alone, the full label
+        // stays for the diagnostics copy.
+        assertEquals("Private Stream", state.streamModeShortLabel)
+        assertEquals("55", state.lowOnePercentLabel)
         assertEquals(listOf(55f, 58f, 60f), state.sparklineSamples)
     }
 
@@ -775,8 +779,8 @@ class NovaHudUiStateTest {
         )
 
         assertFalse(status.hasHealthConcerns)
-        assertEquals("Control retries", status.healthToneLabel)
-        assertEquals("Control retries observed", state.healthReasonLabel)
+        assertEquals("Link retries", status.healthToneLabel)
+        assertEquals("Link retries", state.healthReasonLabel)
         assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
         assertEquals(NovaHudTone.STABLE, state.layerHealth[1].tone)
     }
@@ -946,7 +950,7 @@ class NovaHudUiStateTest {
         assertEquals("OK", state.autopilotCompactLabel)
         assertEquals("Stream Ready", state.autopilotHudLabel)
         assertEquals(NovaHudTone.STABLE, state.statusTone)
-        assertEquals("Control retries observed", state.healthReasonLabel)
+        assertEquals("Link retries", state.healthReasonLabel)
         assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
         assertTrue(state.streamModeLabel.contains("SHM/CPU capture"))
         assertEquals(NovaHudLayerHealth("HOST", NovaHudTone.STABLE), state.layerHealth.first())

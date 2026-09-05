@@ -128,13 +128,19 @@ data class NovaPostSessionReportUiState(
                 if (health.safeBitrateKbps > 0) add("${health.safeBitrateKbps / 1000} Mbps")
                 health.safeCodec.ifBlank { null }?.let { add(it.uppercase(Locale.US)) }
             }
-            val qualityLine = "Quality: ${grade.replaceFirstChar { it.titlecase(Locale.US) }}"
+            val qualityLine = "Grade: ${grade.replaceFirstChar { it.titlecase(Locale.US) }}"
             val issueLine = "Main issue: ${issue.ifBlank { "none" }.replace('_', ' ')}"
-            val nextLaunchLine = "Next launch: ${nextLaunchParts.joinToString(" · ").ifBlank { "keep current settings" }}"
-            val recoveryLine = "Recovery: ${health.recoveryProfile.ifBlank { "none" }.replace('_', ' ')}"
-            val summary = health.summary.ifBlank { "Post-session report unavailable on this Polaris host." }
+            val nextLaunchLine = "Safe profile: ${nextLaunchParts.joinToString(" · ").ifBlank { "keep current settings" }}"
+            val recoveryLine = "Recovery record: ${health.recoveryProfile.ifBlank { "none" }.replace('_', ' ')}"
+            val summary = health.summary.ifBlank { "Host safe profile unavailable on this Polaris host." }
+            val gradeNeedsAttention = grade.lowercase(Locale.US) in setOf("watch", "degraded")
             return NovaPostSessionReportUiState(
-                visible = summary.isNotBlank() || grade != "unknown" || issue.isNotBlank(),
+                // A steady health block has nothing to report. The card earns its space only
+                // when the host carries a safe profile, a recovery record, or an issue.
+                visible = nextLaunchParts.isNotEmpty() ||
+                    health.recoveryProfile.isNotBlank() ||
+                    issue.isNotBlank() ||
+                    gradeNeedsAttention,
                 qualityLine = qualityLine,
                 issueLine = issueLine,
                 nextLaunchLine = nextLaunchLine,

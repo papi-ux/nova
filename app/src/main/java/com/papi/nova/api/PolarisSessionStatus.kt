@@ -796,7 +796,7 @@ data class PolarisSessionStatus(
         authoritativeDoctorVerdictNeedsAttention -> "Needs attention"
         doctorPrimaryIsObservation && hasActionableDoctorEvidence -> "Needs attention"
         doctor.primaryIssue.equals("network_observation", ignoreCase = true) -> "Network recheck"
-        doctor.primaryIssue.equals("control_channel_observation", ignoreCase = true) -> "Control retries"
+        doctor.primaryIssue.equals("control_channel_observation", ignoreCase = true) -> "Link retries"
         doctor.primaryIssue.equals("network_jitter", ignoreCase = true) -> "Network"
         doctor.primaryIssue.contains("decoder", ignoreCase = true) -> "Decoder"
         !hasAuthoritativeDoctorResult && health.grade.equals("degraded", ignoreCase = true) -> "Stream degraded"

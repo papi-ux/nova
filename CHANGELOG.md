@@ -5,6 +5,13 @@
 - The modern Settings resolution and FPS lists now offer the device's native modes and your custom resolution or refresh rate, the way the legacy view always did.
 - Starting a stream with the device held in portrait no longer crashes Nova.
 - Artwork search failures say what is wrong: no SteamGridDB key, a rejected key, or rate limiting, using the codes Polaris 1.4.3 and newer send.
+- Command Center puts Quick Keys, Controls, and Session first; Doctor, Stream, Sync, and Advanced follow. The session strip still carries the health verdict at the top.
+- Close is the primary Command Center button. Disconnect stays quiet and End Session reads as destructive.
+- The Doctor card leads with the finding, keeps one action, and shows evidence only when Doctor graded something as actionable. It no longer repeats under Overlays.
+- The Stream card (formerly Launch preset) drops the sentence the strip and Doctor already show. The session pill names the mode and encoder; capture path, mode source, and role move to the detail line.
+- Overlays gain a HUD Mode row that cycles Minimal, Performance, and Debug, and Stats Overlay says it is the legacy Moonlight text.
+- The host safe profile card moves under Advanced and says it is observational.
+- NovaHUD: recovery reads SAFE instead of REC, the 1% low tile shows the number once, control channel retries read Link retries, bitrate and codec drop the accent color, and the Debug header shows the short mode name.
 
 ## 1.4.2 - 2026-09-04
 

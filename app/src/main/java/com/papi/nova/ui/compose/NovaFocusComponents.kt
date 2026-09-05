@@ -278,6 +278,10 @@ fun HapticFeedback.novaConfirm() {
     performHapticFeedback(HapticFeedbackType.Confirm)
 }
 
+// Destructive actions keep the quiet ghost shape and only tint their text, matching the
+// End Session confirm sheet.
+private val NovaDestructiveContent = Color(0xFFF87171)
+
 @Composable
 fun NovaActionButton(
     text: String,
@@ -285,6 +289,7 @@ fun NovaActionButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     primary: Boolean = false,
+    destructive: Boolean = false,
     contentDescription: String = text,
     selected: Boolean = false,
     stateDescription: String? = null,
@@ -319,6 +324,7 @@ fun NovaActionButton(
     )
     val contentColor = when {
         primary && enabled -> colors.onAccent
+        destructive && enabled -> NovaDestructiveContent
         enabled -> colors.textPrimary
         else -> colors.textMuted
     }
@@ -326,6 +332,7 @@ fun NovaActionButton(
         targetValue = when {
             focused && primary -> colors.onAccent
             focused -> surfaces.focusRing
+            destructive && !primary -> NovaDestructiveContent.copy(alpha = 0.45f)
             !primary -> surfaces.tileBorder
             else -> surfaces.tileBorder
         },
