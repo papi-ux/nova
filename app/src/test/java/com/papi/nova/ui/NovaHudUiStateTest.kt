@@ -260,6 +260,68 @@ class NovaHudUiStateTest {
         assertEquals("60", slim.fpsLabel)
         assertEquals("51ms", slim.latencyLabel)
         assertEquals("1080p", slim.resolutionLabel)
+        // Slim spends its one line on numbers, so the bitrate drops its unit like Performance.
+        assertEquals("24M", slim.bitrateLabel)
+    }
+
+    @Test
+    fun debugNetworkRowGradesLossSoZeroIsTheOnlyGreen() {
+        fun debug(loss: Double, jitter: Int = 2, lost: Long = 0L, latency: Int = 9) = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = latency,
+            codec = "hevc",
+            bitrateKbps = 20000,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = emptyList(),
+            packetLossPct = loss,
+            rttVarianceMs = jitter,
+            framesLost = lost
+        )
+
+        val noSample = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = 60.0,
+            latencyMs = 9,
+            codec = "hevc",
+            bitrateKbps = 20000,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = emptyList()
+        )
+        assertEquals("--", noSample.packetLossLabel)
+        assertEquals(NovaHudTone.MUTED, noSample.packetLossTone)
+        assertEquals("--", noSample.jitterLabel)
+        assertEquals("--", noSample.framesLostLabel)
+
+        val clean = debug(0.0)
+        assertEquals("0%", clean.packetLossLabel)
+        assertEquals(NovaHudTone.STABLE, clean.packetLossTone)
+        assertEquals("2ms", clean.jitterLabel)
+        assertEquals("0", clean.framesLostLabel)
+
+        // A trace of loss is named as one instead of rounding to a green-looking 0%.
+        val trace = debug(0.04)
+        assertEquals("<0.1%", trace.packetLossLabel)
+        assertEquals(NovaHudTone.WARNING, trace.packetLossTone)
+
+        val some = debug(0.34, lost = 12L)
+        assertEquals("0.3%", some.packetLossLabel)
+        assertEquals(NovaHudTone.WARNING, some.packetLossTone)
+        assertEquals("12", some.framesLostLabel)
+
+        assertEquals("2.6%", debug(2.6).packetLossLabel)
+        assertEquals(NovaHudTone.DANGER, debug(2.6).packetLossTone)
+        assertEquals("12%", debug(12.4).packetLossLabel)
+
+        // Jitter means nothing without a round trip to wobble around.
+        assertEquals("--", debug(0.0, latency = 0).jitterLabel)
+        assertEquals("0ms", debug(0.0, jitter = 0).jitterLabel)
     }
 
     @Test

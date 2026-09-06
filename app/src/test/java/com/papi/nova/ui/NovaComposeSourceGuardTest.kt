@@ -2215,7 +2215,7 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun commandCenterFirstPaintPutsSessionHealthThenDailyControlsBeforeDiagnostics() {
+    fun commandCenterFirstPaintPutsSessionHealthThenItsExplanationBeforeTheDailyPanels() {
         val content = readNovaQuickMenuContent()
         val body = content.section(
             "fun NovaQuickMenuContent(",
@@ -2235,6 +2235,7 @@ class NovaComposeSourceGuardTest {
         )
 
         val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(state, initialFocusRequester)")
+        val pinnedKeys = body.indexOf("NovaQuickKeys(state.pinnedQuickKeys, callbacks)")
         val quickKeysPanel = body.indexOf("NovaQuickMenuPanel(title = quickKeysTitle)")
         val controlsPanel = body.indexOf("title = controlsTitle")
         val sessionPanel = body.indexOf("NovaQuickMenuPanel(title = sessionTitle)")
@@ -2246,21 +2247,24 @@ class NovaComposeSourceGuardTest {
         val reportCard = body.indexOf("NovaQuickMenuPostSessionReportCard(state.postSessionReport)")
 
         assertTrue(
-            "Command Center first paint should keep the session strip, which carries the health verdict, immediately after the header",
-            sessionStrip >= 0 && quickKeysPanel > sessionStrip
+            "Command Center first paint should keep the session strip, which carries the health verdict, immediately after the header, with the three keys a handheld cannot press any other way right under it",
+            sessionStrip >= 0 && pinnedKeys > sessionStrip && diagnosisCard > pinnedKeys
         )
         assertTrue(
-            "the controls a player touches every session (Quick Keys, Controls, Session, Overlays) come before the Doctor and stream cards that explain the strip's verdict; on a Retroid those cards used to push the keys two pages down",
-            quickKeysPanel in 0 until controlsPanel &&
-                controlsPanel in 0 until sessionPanel &&
-                sessionPanel in 0 until overlaysPanel &&
-                overlaysPanel in 0 until diagnosisCard
-        )
-        assertTrue(
-            "Doctor, stream target, sync, and Advanced keep their explanatory order below the controls",
+            "the strip is a one-line verdict, so the Doctor's reading and the Stream card that explain it come next instead of three screens down",
             diagnosisCard in 0 until stabilityCard &&
-                stabilityCard in 0 until syncCard &&
-                syncCard in 0 until advancedToggleCard
+                stabilityCard in 0 until overlaysPanel
+        )
+        assertTrue(
+            "the panels a player adjusts follow: Overlays first because the HUD switch is the frequent tap, then Controls and Session, and the full Quick Keys grid last of them because its top three are already pinned under the strip",
+            overlaysPanel in 0 until controlsPanel &&
+                controlsPanel in 0 until sessionPanel &&
+                sessionPanel in 0 until quickKeysPanel &&
+                quickKeysPanel in 0 until syncCard
+        )
+        assertTrue(
+            "sync and Advanced stay at the end",
+            syncCard in 0 until advancedToggleCard
         )
         assertTrue(
             "the host safe profile is observational history and lives inside the expanded Advanced section, not in the first paint",
@@ -2479,16 +2483,18 @@ class NovaComposeSourceGuardTest {
             minimalHud.contains("NovaHudSparkline")
         )
         assertTrue(
-            "slim HUD is one pill: the health bar, the frame rate, the round trip, nothing labelled",
+            "slim HUD is one pill that reads like MangoHud's bar: the health bar, the frame rate with its last minute drawn beside it, then decode, round trip, and bitrate with inline labels; no target, no autopilot text, no breadcrumb, no stacked tiles",
             slimHud.contains("cornerRadius = NovaRadius.pill") &&
                 slimHud.contains("state.fpsLabel") &&
-                slimHud.contains("state.latencyLabel") &&
+                slimHud.contains("NovaHudSparkline(") &&
+                slimHud.contains("HudSlimStat(\"DEC\", state.decodeTimeLabel, state.decodeTone)") &&
+                slimHud.contains("HudSlimStat(\"RTT\", state.latencyLabel, state.latencyTone)") &&
+                slimHud.contains("HudSlimStat(\"BIT\", state.bitrateLabel") &&
+                !slimHud.contains("HudMetric(") &&
                 !slimHud.contains("HudTinyLabel(") &&
                 !slimHud.contains("state.targetFpsLabel") &&
-                !slimHud.contains("state.bitrateLabel") &&
                 !slimHud.contains("autopilot") &&
-                !slimHud.contains("HudEventBreadcrumb") &&
-                !slimHud.contains("NovaHudSparkline")
+                !slimHud.contains("HudEventBreadcrumb")
         )
     }
 
@@ -2514,6 +2520,13 @@ class NovaComposeSourceGuardTest {
             debugHud.contains("HudMetric(\"HOST\", state.hostLatencyLabel") &&
                 debugHud.contains("HudMetric(\"IN\", state.incomingFpsLabel") &&
                 debugHud.contains("HudMetric(\"OUT\", state.renderedFpsLabel")
+        )
+        assertTrue(
+            "Debug's last row is the network: loss in the current window graded so zero is the only green, round-trip jitter, and the session's lost-frame count",
+            debugHud.contains("HudMetric(\"LOSS\", state.packetLossLabel") &&
+                debugHud.contains("valueTone = state.packetLossTone") &&
+                debugHud.contains("HudMetric(\"JIT\", state.jitterLabel") &&
+                debugHud.contains("HudMetric(\"DROPS\", state.framesLostLabel")
         )
         assertFalse(
             "Performance stays the four-metric row it is pinned to",

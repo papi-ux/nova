@@ -332,24 +332,27 @@ fun NovaQuickMenuContent(
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp)
         ) {
             NovaQuickMenuSessionStrip(state, initialFocusRequester)
-            // Daily use first: the strip above already carries the health verdict, so keys,
-            // input, and overlays come before the Doctor and stream cards that explain it.
+            // The keys a handheld cannot press any other way stay one reach from the top;
+            // the full keyboard grid lives further down with the rest of the panels.
+            if (state.pinnedQuickKeys.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                NovaQuickKeys(state.pinnedQuickKeys, callbacks)
+            }
+            // The strip above is a one-line verdict. What explains it, the Doctor's reading
+            // and what Auto is running, comes next instead of three screens down. The panels
+            // a player adjusts follow, Overlays first because the HUD switch is the frequent
+            // tap, and the Quick Keys grid last of them since its top three are pinned above.
             Spacer(Modifier.height(10.dp))
-            NovaQuickMenuPanel(title = quickKeysTitle) {
-                NovaQuickKeys(state.quickKeys, callbacks)
+            NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
+            if (state.doctorReceiptAction.visible) {
+                Spacer(Modifier.height(10.dp))
+                NovaQuickMenuInfoCard(
+                    action = state.doctorReceiptAction,
+                    callbacks = callbacks
+                )
             }
             Spacer(Modifier.height(10.dp))
-            NovaQuickMenuPanel(title = controlsTitle) {
-                state.controlRows.forEach { row ->
-                    NovaQuickMenuRow(action = row, callbacks = callbacks)
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            NovaQuickMenuPanel(title = sessionTitle) {
-                state.sessionRows.filter { it.visible }.forEach { row ->
-                    NovaQuickMenuRow(action = row, callbacks = callbacks)
-                }
-            }
+            NovaQuickMenuStabilityCard(state.stability, callbacks)
             Spacer(Modifier.height(10.dp))
             NovaQuickMenuPanel(title = overlaysTitle) {
                 state.overlayRows.forEach { row ->
@@ -369,16 +372,21 @@ fun NovaQuickMenuContent(
                 )
             }
             Spacer(Modifier.height(10.dp))
-            NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
-            if (state.doctorReceiptAction.visible) {
-                Spacer(Modifier.height(10.dp))
-                NovaQuickMenuInfoCard(
-                    action = state.doctorReceiptAction,
-                    callbacks = callbacks
-                )
+            NovaQuickMenuPanel(title = controlsTitle) {
+                state.controlRows.forEach { row ->
+                    NovaQuickMenuRow(action = row, callbacks = callbacks)
+                }
             }
             Spacer(Modifier.height(10.dp))
-            NovaQuickMenuStabilityCard(state.stability, callbacks)
+            NovaQuickMenuPanel(title = sessionTitle) {
+                state.sessionRows.filter { it.visible }.forEach { row ->
+                    NovaQuickMenuRow(action = row, callbacks = callbacks)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuPanel(title = quickKeysTitle) {
+                NovaQuickKeys(state.quickKeys, callbacks)
+            }
             Spacer(Modifier.height(10.dp))
             NovaQuickMenuInfoCard(
                 action = state.sync,
