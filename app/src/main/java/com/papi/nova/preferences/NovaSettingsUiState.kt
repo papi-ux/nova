@@ -36,6 +36,7 @@ object NovaSettingsUiStateFactory {
         "video_format" to listOf("codec", "h264", "h265", "hevc", "av1"),
         "frame_pacing" to listOf("latency", "smoothness", "frame pacing"),
         "nova_polaris_hud" to listOf("hud", "overlay", "stats"),
+        "checkbox_enable_perf_overlay" to listOf("stats", "fps", "overlay", "perf", "moonlight", "decode"),
         "checkbox_enable_rumble" to listOf("rumble", "vibration", "haptics"),
         "nova_app_version" to listOf("build", "about", "version code", "version name")
     )

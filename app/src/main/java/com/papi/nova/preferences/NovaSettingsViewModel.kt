@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 internal val NOVA_STREAM_UI_DEFAULT_UPDATES = listOf(
     "nova_polaris_hud" to NovaSettingValue.BooleanValue(false),
     "nova_polaris_hud_mode" to NovaSettingValue.StringValue("minimal"),
-    "nova_polaris_hud_position" to NovaSettingValue.StringValue("top_left"),
     NovaHudPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaHudPreferences.DEFAULT_OPACITY_PERCENT),
     NovaMenuPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaMenuPreferences.DEFAULT_OPACITY_PERCENT),
     "checkbox_enable_perf_overlay" to NovaSettingValue.BooleanValue(false),

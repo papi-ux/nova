@@ -81,12 +81,12 @@ data class NovaQuickMenuCallbacks(
     val onStability: () -> Unit = {},
     val onSyncStatus: () -> Unit = {},
     val onToggleAdvanced: () -> Unit = {},
-    val onAiAutoQuality: () -> Unit = {},
     val onClearGameProfile: () -> Unit = {},
     val onMangoHud: () -> Unit = {},
     val onProfilePreference: (String) -> Unit = {},
     val onQuickKey: (NovaQuickMenuActionId) -> Unit = {},
     val onOverlayAction: (NovaQuickMenuActionId) -> Unit = {},
+    val onHudModeSelect: (NovaHudMode) -> Unit = {},
     val onDoctorUndo: () -> Unit = {},
     val onHudOpacityChange: (Int) -> Unit = {},
     val onMenuOpacityChange: (Int) -> Unit = {},
@@ -100,7 +100,6 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.STABILITY -> onStability()
             NovaQuickMenuActionId.SYNC_STATUS -> onSyncStatus()
             NovaQuickMenuActionId.ADVANCED_TUNING -> onToggleAdvanced()
-            NovaQuickMenuActionId.AI_AUTO_QUALITY -> onAiAutoQuality()
             NovaQuickMenuActionId.CLEAR_GAME_PROFILE -> onClearGameProfile()
             NovaQuickMenuActionId.MANGOHUD -> onMangoHud()
             NovaQuickMenuActionId.QUICK_ESC,
@@ -113,7 +112,6 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.QUICK_CTRL_1,
             NovaQuickMenuActionId.QUICK_CTRL_2 -> onQuickKey(action.id)
             NovaQuickMenuActionId.NOVA_HUD,
-            NovaQuickMenuActionId.NOVA_HUD_MODE,
             NovaQuickMenuActionId.PERF_STATS,
             NovaQuickMenuActionId.DIAGNOSE_STREAM,
             NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> onOverlayAction(action.id)
@@ -134,7 +132,8 @@ private const val NovaQuickMenuDrawerDismissProgress = 0.58f
 fun NovaQuickMenuDrawer(
     state: NovaQuickMenuUiState,
     callbacks: NovaQuickMenuCallbacks,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    dismissRequests: Int = 0
 ) {
     NovaMenuBackdropBlur()
     val configuration = LocalConfiguration.current
@@ -188,6 +187,16 @@ fun NovaQuickMenuDrawer(
         } else {
             scope.launch { animateDrawerTo(1f) }
         }
+    }
+
+    // Close, B, and Back used to drop the dialog on the spot while scrim-tap and drag slid
+    // it out. Every exit takes the motion now: the header's Close goes through this copy,
+    // and the host bumps dismissRequests for the controller and Back paths.
+    val contentCallbacks = remember(callbacks) {
+        callbacks.copy(onDismiss = { dismissDrawerWithMotion() })
+    }
+    LaunchedEffect(dismissRequests) {
+        if (dismissRequests > 0) dismissDrawerWithMotion()
     }
 
     // Keyed on Unit: the entrance plays once, when the drawer opens. It used to be
@@ -254,7 +263,7 @@ fun NovaQuickMenuDrawer(
         ) {
             NovaQuickMenuContent(
                 state = state,
-                callbacks = callbacks,
+                callbacks = contentCallbacks,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -295,86 +304,104 @@ fun NovaQuickMenuContent(
                 color = surfaces.panelBorder.copy(alpha = NovaInGameOverlayAlpha.Border * LocalNovaMenuOpacityScale.current),
                 shape = drawerShape
             )
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 18.dp)
     ) {
-        Box(
+        // The header stays put. Close, Disconnect, and End Session are under the thumb
+        // however far the sections have been scrolled; they used to scroll away with the
+        // first panel on a Retroid.
+        Column(
             modifier = Modifier
-                .width(44.dp)
-                .height(3.dp)
-                .clip(RoundedCornerShape(NovaRadius.pill))
-                .background(colors.accent.copy(alpha = NovaInGameOverlayAlpha.AccentHandle))
-                .align(Alignment.Start)
-        )
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuHeader(state, callbacks)
-        Spacer(Modifier.height(8.dp))
-        NovaQuickMenuSessionStrip(state, initialFocusRequester)
-        // Daily use first: the strip above already carries the health verdict, so keys,
-        // input, and overlays come before the Doctor and stream cards that explain it.
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuPanel(title = quickKeysTitle) {
-            NovaQuickKeys(state.quickKeys, callbacks)
-        }
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuPanel(title = controlsTitle) {
-            state.controlRows.forEach { row ->
-                NovaQuickMenuRow(action = row, callbacks = callbacks)
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuPanel(title = sessionTitle) {
-            state.sessionRows.filter { it.visible }.forEach { row ->
-                NovaQuickMenuRow(action = row, callbacks = callbacks)
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuPanel(title = overlaysTitle) {
-            state.overlayRows.forEach { row ->
-                NovaQuickMenuRow(action = row, callbacks = callbacks)
-            }
-            NovaQuickMenuMenuOpacityControl(
-                state = state,
-                callbacks = callbacks
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 18.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(44.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(NovaRadius.pill))
+                    .background(colors.accent.copy(alpha = NovaInGameOverlayAlpha.AccentHandle))
+                    .align(Alignment.Start)
             )
-            NovaQuickMenuHudOpacityControl(
-                state = state,
-                callbacks = callbacks
-            )
-        }
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
-        if (state.doctorReceiptAction.visible) {
             Spacer(Modifier.height(10.dp))
-            NovaQuickMenuInfoCard(
-                action = state.doctorReceiptAction,
-                callbacks = callbacks
-            )
+            NovaQuickMenuHeader(state, callbacks)
         }
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuStabilityCard(state.stability, callbacks)
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuInfoCard(
-            action = state.sync,
-            callbacks = callbacks
-        )
-        Spacer(Modifier.height(10.dp))
-        NovaQuickMenuInfoCard(
-            action = state.advancedToggle,
-            callbacks = callbacks
-        )
-        if (state.advancedExpanded) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp)
+        ) {
+            NovaQuickMenuSessionStrip(state, initialFocusRequester)
+            // Daily use first: the strip above already carries the health verdict, so keys,
+            // input, and overlays come before the Doctor and stream cards that explain it.
             Spacer(Modifier.height(10.dp))
-            NovaQuickMenuPanel(title = null) {
-                state.advancedRows.forEach { row ->
+            NovaQuickMenuPanel(title = quickKeysTitle) {
+                NovaQuickKeys(state.quickKeys, callbacks)
+            }
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuPanel(title = controlsTitle) {
+                state.controlRows.forEach { row ->
                     NovaQuickMenuRow(action = row, callbacks = callbacks)
                 }
             }
-            // Observational history from the host; it explains Auto's fallbacks but never
-            // changes a launch, so it lives with the other diagnostics.
-            if (state.postSessionReport.visible) {
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuPanel(title = sessionTitle) {
+                state.sessionRows.filter { it.visible }.forEach { row ->
+                    NovaQuickMenuRow(action = row, callbacks = callbacks)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuPanel(title = overlaysTitle) {
+                state.overlayRows.forEach { row ->
+                    NovaQuickMenuRow(action = row, callbacks = callbacks)
+                    // The layout picker sits under the switch it configures.
+                    if (row.id == NovaQuickMenuActionId.NOVA_HUD) {
+                        NovaQuickMenuHudModePicker(state.hudMode, callbacks)
+                    }
+                }
+                NovaQuickMenuMenuOpacityControl(
+                    state = state,
+                    callbacks = callbacks
+                )
+                NovaQuickMenuHudOpacityControl(
+                    state = state,
+                    callbacks = callbacks
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
+            if (state.doctorReceiptAction.visible) {
                 Spacer(Modifier.height(10.dp))
-                NovaQuickMenuPostSessionReportCard(state.postSessionReport)
+                NovaQuickMenuInfoCard(
+                    action = state.doctorReceiptAction,
+                    callbacks = callbacks
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuStabilityCard(state.stability, callbacks)
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuInfoCard(
+                action = state.sync,
+                callbacks = callbacks
+            )
+            Spacer(Modifier.height(10.dp))
+            NovaQuickMenuInfoCard(
+                action = state.advancedToggle,
+                callbacks = callbacks
+            )
+            if (state.advancedExpanded) {
+                Spacer(Modifier.height(10.dp))
+                NovaQuickMenuPanel(title = null) {
+                    state.advancedRows.forEach { row ->
+                        NovaQuickMenuRow(action = row, callbacks = callbacks)
+                    }
+                }
+                // Observational history from the host; it explains Auto's fallbacks but never
+                // changes a launch, so it lives with the other diagnostics.
+                if (state.postSessionReport.visible) {
+                    Spacer(Modifier.height(10.dp))
+                    NovaQuickMenuPostSessionReportCard(state.postSessionReport)
+                }
             }
         }
     }
@@ -493,16 +520,19 @@ private fun NovaQuickMenuDiagnosisCard(
         NovaQuickMenuDoctorCapability.RECHECK -> stringResource(R.string.nova_quick_menu_doctor_capability_recheck)
         NovaQuickMenuDoctorCapability.MANUAL -> stringResource(R.string.nova_quick_menu_doctor_capability_manual)
     }
-    val classification = diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") }
-    val detail = buildList {
-        classification?.let(::add)
-        diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
-        // Confidence only means something next to the evidence it grades.
-        diagnosis.evidenceHighlight.takeIf { it.isNotBlank() }?.let { evidence ->
-            add("Evidence: $evidence")
-            diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
-        }
-    }.joinToString(" · ")
+    // Built once per diagnosis, not once per recomposition of the drawer.
+    val detail = remember(diagnosis) {
+        val classification = diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") }
+        buildList {
+            classification?.let(::add)
+            diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
+            // Confidence only means something next to the evidence it grades.
+            diagnosis.evidenceHighlight.takeIf { it.isNotBlank() }?.let { evidence ->
+                add("Evidence: $evidence")
+                diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
+            }
+        }.joinToString(" · ")
+    }
     val diagnoseTitle = stringResource(R.string.nova_quick_menu_diagnose_stream)
     val aiSupportingLine = diagnosis.aiExplanation.takeIf { it.isNotBlank() }?.let {
         stringResource(R.string.nova_quick_menu_doctor_ai_explanation, it)
@@ -511,10 +541,10 @@ private fun NovaQuickMenuDiagnosisCard(
         .takeIf { it.isNotBlank() }
         ?.let { "Source: $it" }
     val supportingLine = listOfNotNull(aiSupportingLine, sourceSupportingLine).joinToString("\n")
-    NovaQuickMenuInfoCard(
-        // The finding is the title and the action lives in the chip, so "Recheck" no longer
-        // shows up as title, chip, and button at once.
-        action = NovaQuickMenuAction(
+    // The finding is the title and the action lives in the chip, so "Recheck" no longer
+    // shows up as title, chip, and button at once.
+    val action = remember(diagnosis, detail, capabilityLabel, diagnoseTitle) {
+        NovaQuickMenuAction(
             id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
             label = diagnosis.likelyCause.trim().trimEnd('.').ifBlank { diagnoseTitle },
             caption = detail,
@@ -524,7 +554,10 @@ private fun NovaQuickMenuDiagnosisCard(
                 tone = if (diagnosis.available) NovaQuickMenuTone.INFO else NovaQuickMenuTone.MUTED
             ),
             enabled = diagnosis.available
-        ),
+        )
+    }
+    NovaQuickMenuInfoCard(
+        action = action,
         supportingLine = supportingLine,
         // Doctor findings are whole sentences; give them a second line before ellipsis.
         labelMaxLines = 2,
@@ -673,15 +706,10 @@ private fun NovaQuickMenuStabilityCard(
     callbacks: NovaQuickMenuCallbacks
 ) {
     val colors = LocalNovaComposeColors.current
-    val action = NovaQuickMenuAction(
-        id = NovaQuickMenuActionId.STABILITY,
-        label = stability.title,
-        enabled = stability.enabled
-    )
 
     NovaQuickMenuClickableSurface(
         enabled = stability.enabled,
-        onClick = { callbacks.perform(action) },
+        onClick = { callbacks.perform(stability.action) },
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(14.dp),
         contentDescription = stability.title
@@ -959,66 +987,51 @@ private fun NovaQuickMenuMenuOpacityControl(
     state: NovaQuickMenuUiState,
     callbacks: NovaQuickMenuCallbacks
 ) {
-    val colors = LocalNovaComposeColors.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.nova_quick_menu_menu_opacity),
-                color = colors.textPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            NovaQuickMenuChipView(
-                NovaQuickMenuChip(
-                    label = state.menuOpacity.percent.toString() + "%",
-                    tone = NovaQuickMenuTone.INFO
-                )
-            )
-        }
-        Text(
-            text = stringResource(R.string.nova_quick_menu_menu_opacity_caption),
-            color = colors.textMuted,
-            fontSize = 10.sp,
-            lineHeight = 13.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 5.dp)
+    // Collapsed until asked for: the row is the setting, the preset strip is the editor.
+    // Two strips open at once were about 120dp of a 312dp Retroid body.
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        NovaQuickMenuOpacityHeader(
+            title = stringResource(R.string.nova_quick_menu_menu_opacity),
+            caption = stringResource(R.string.nova_quick_menu_menu_opacity_caption),
+            chip = NovaQuickMenuChip(
+                label = state.menuOpacity.percentLabel,
+                tone = NovaQuickMenuTone.INFO
+            ),
+            expanded = expanded,
+            enabled = true,
+            onToggle = { expanded = !expanded }
         )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(top = 8.dp)
-        ) {
-            state.menuOpacity.presets.forEach { percent ->
-                val selected = percent == state.menuOpacity.percent
-                NovaActionButton(
-                    text = percent.toString() + "%",
-                    onClick = { callbacks.onMenuOpacityChange(percent) },
-                    modifier = Modifier.weight(1f),
-                    primary = selected,
-                    contentDescription = stringResource(
-                        R.string.nova_quick_menu_menu_opacity_preset_cd,
-                        percent
-                    ),
-                    selected = selected,
-                    stateDescription = stringResource(
-                        if (selected) {
-                            R.string.nova_quick_menu_hud_opacity_selected
-                        } else {
-                            R.string.nova_quick_menu_hud_opacity_not_selected
-                        }
-                    ),
-                    cornerRadius = NovaRadius.hero,
-                    minHeight = 44.dp,
-                    fontSize = 10.sp,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
-                )
+        if (expanded) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 8.dp)
+            ) {
+                state.menuOpacity.presets.forEach { percent ->
+                    val selected = percent == state.menuOpacity.percent
+                    NovaActionButton(
+                        text = percent.toString() + "%",
+                        onClick = { callbacks.onMenuOpacityChange(percent) },
+                        modifier = Modifier.weight(1f),
+                        primary = selected,
+                        contentDescription = stringResource(
+                            R.string.nova_quick_menu_menu_opacity_preset_cd,
+                            percent
+                        ),
+                        selected = selected,
+                        stateDescription = stringResource(
+                            if (selected) {
+                                R.string.nova_quick_menu_hud_opacity_selected
+                            } else {
+                                R.string.nova_quick_menu_hud_opacity_not_selected
+                            }
+                        ),
+                        cornerRadius = NovaRadius.hero,
+                        minHeight = 44.dp,
+                        fontSize = 10.sp,
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
+                    )
+                }
             }
         }
     }
@@ -1029,72 +1042,155 @@ private fun NovaQuickMenuHudOpacityControl(
     state: NovaQuickMenuUiState,
     callbacks: NovaQuickMenuCallbacks
 ) {
-    val colors = LocalNovaComposeColors.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.nova_quick_menu_hud_opacity),
-                color = colors.textPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            NovaQuickMenuChipView(
-                NovaQuickMenuChip(
-                    label = state.hudOpacity.percent.toString() + "%",
-                    tone = if (state.hudOpacity.enabled) NovaQuickMenuTone.INFO else NovaQuickMenuTone.INACTIVE
-                )
-            )
-        }
-        Text(
-            text = stringResource(
+    var expanded by remember { mutableStateOf(false) }
+    // The strip closes with the HUD: a disabled row should not leave five dead buttons open.
+    val presetsOpen = expanded && state.hudOpacity.enabled
+    Column(modifier = Modifier.fillMaxWidth()) {
+        NovaQuickMenuOpacityHeader(
+            title = stringResource(R.string.nova_quick_menu_hud_opacity),
+            caption = stringResource(
                 if (state.hudOpacity.enabled) {
                     R.string.nova_quick_menu_hud_opacity_caption
                 } else {
                     R.string.nova_quick_menu_hud_opacity_disabled_caption
                 }
             ),
+            chip = NovaQuickMenuChip(
+                label = state.hudOpacity.percentLabel,
+                tone = if (state.hudOpacity.enabled) NovaQuickMenuTone.INFO else NovaQuickMenuTone.INACTIVE
+            ),
+            expanded = presetsOpen,
+            enabled = state.hudOpacity.enabled,
+            onToggle = { expanded = !expanded }
+        )
+        if (presetsOpen) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 8.dp)
+            ) {
+                state.hudOpacity.presets.forEach { percent ->
+                    val selected = percent == state.hudOpacity.percent
+                    NovaActionButton(
+                        text = percent.toString() + "%",
+                        onClick = { callbacks.onHudOpacityChange(percent) },
+                        modifier = Modifier.weight(1f),
+                        enabled = state.hudOpacity.enabled,
+                        primary = selected,
+                        contentDescription = stringResource(
+                            R.string.nova_quick_menu_hud_opacity_preset_cd,
+                            percent
+                        ),
+                        selected = selected,
+                        stateDescription = stringResource(
+                            if (selected) {
+                                R.string.nova_quick_menu_hud_opacity_selected
+                            } else {
+                                R.string.nova_quick_menu_hud_opacity_not_selected
+                            }
+                        ),
+                        cornerRadius = NovaRadius.hero,
+                        minHeight = 44.dp,
+                        fontSize = 10.sp,
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// The collapsed face of an opacity control: reads like every other Overlays row, and the
+// tap opens the presets beneath it.
+@Composable
+private fun NovaQuickMenuOpacityHeader(
+    title: String,
+    caption: String,
+    chip: NovaQuickMenuChip,
+    expanded: Boolean,
+    enabled: Boolean,
+    onToggle: () -> Unit
+) {
+    val colors = LocalNovaComposeColors.current
+    val toggleHint = stringResource(
+        if (expanded) R.string.nova_quick_menu_opacity_hide_presets else R.string.nova_quick_menu_opacity_show_presets
+    )
+    NovaQuickMenuClickableSurface(
+        enabled = enabled,
+        onClick = onToggle,
+        modifier = Modifier.fillMaxWidth(),
+        flat = true,
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 7.dp),
+        contentDescription = listOf(title, chip.label, toggleHint).joinToString(". ")
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = colors.textPrimary,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = caption,
+                    color = colors.textMuted,
+                    fontSize = 9.sp,
+                    lineHeight = 12.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            NovaQuickMenuChipView(chip)
+        }
+    }
+}
+
+// Four layouts, one tap each. This was a row that cycled blind: Debug was two presses away
+// and nothing said where the next press would land.
+@Composable
+private fun NovaQuickMenuHudModePicker(
+    hudMode: NovaQuickMenuHudModeState,
+    callbacks: NovaQuickMenuCallbacks
+) {
+    val colors = LocalNovaComposeColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 7.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.nova_quick_menu_hud_mode),
+            color = colors.textPrimary,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = stringResource(
+                if (hudMode.enabled) {
+                    R.string.nova_quick_menu_hud_mode_caption
+                } else {
+                    R.string.nova_quick_menu_hud_mode_disabled_caption
+                }
+            ),
             color = colors.textMuted,
-            fontSize = 10.sp,
-            lineHeight = 13.sp,
+            fontSize = 9.sp,
+            lineHeight = 12.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 5.dp)
+            modifier = Modifier.padding(top = 2.dp)
         )
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.padding(top = 8.dp)
         ) {
-            state.hudOpacity.presets.forEach { percent ->
-                val selected = percent == state.hudOpacity.percent
-                NovaActionButton(
-                    text = percent.toString() + "%",
-                    onClick = { callbacks.onHudOpacityChange(percent) },
+            hudMode.options.forEach { option ->
+                NovaQuickMenuPreferenceButton(
+                    option = option,
                     modifier = Modifier.weight(1f),
-                    enabled = state.hudOpacity.enabled,
-                    primary = selected,
-                    contentDescription = stringResource(
-                        R.string.nova_quick_menu_hud_opacity_preset_cd,
-                        percent
-                    ),
-                    selected = selected,
-                    stateDescription = stringResource(
-                        if (selected) {
-                            R.string.nova_quick_menu_hud_opacity_selected
-                        } else {
-                            R.string.nova_quick_menu_hud_opacity_not_selected
-                        }
-                    ),
-                    cornerRadius = NovaRadius.hero,
-                    minHeight = 44.dp,
-                    fontSize = 10.sp,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
+                    onClick = { callbacks.onHudModeSelect(NovaHudMode.fromPreference(option.value)) }
                 )
             }
         }

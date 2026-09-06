@@ -123,17 +123,19 @@ class NovaSettingsDefinitionsTest {
     }
 
     @Test
-    fun hudModePreferenceOffersCasualPerformanceAndDebugModes() {
+    fun hudModePreferenceOffersSlimCasualPerformanceAndDebugModes() {
         val definitions = NovaSettingDefinitions.load(context)
         val hudMode = definitions.require("nova_polaris_hud_mode")
 
+        // Smallest first, and the default stays Minimal: Slim is a new stop on the ring,
+        // not a new default.
         assertEquals(NovaSettingValue.StringValue("minimal"), hudMode.defaultValue)
         assertEquals(
-            listOf("minimal", "performance", "debug"),
+            listOf("slim", "minimal", "performance", "debug"),
             hudMode.options.map { it.value }
         )
         assertEquals(
-            listOf("Minimal", "Performance", "Debug"),
+            listOf("Slim", "Minimal", "Performance", "Debug"),
             hudMode.options.map { it.label }
         )
     }

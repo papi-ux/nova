@@ -728,76 +728,47 @@ class MediaCodecDecoderRenderer(
         decodeTimeMs: Float,
         rttInfo: Long,
     ): String {
+        // One shape only. The one-line "lite" variant was gated on preferences no settings
+        // surface has offered in years; it was unreachable code with its own strings.
         val sb = StringBuilder()
-        if (prefs.enablePerfOverlayLite) {
-            if (TrafficStatsHelper.getPackageRxBytes(Process.myUid()) != TrafficStats.UNSUPPORTED.toLong()) {
-                val netData = TrafficStatsHelper.getPackageRxBytes(Process.myUid()) +
-                    TrafficStatsHelper.getPackageTxBytes(Process.myUid())
-                if (lastNetDataNum != 0L) {
-                    sb.append(context.getString(R.string.perf_overlay_lite_bandwidth) + ": ")
-                    val realtimeNetData = (netData - lastNetDataNum) / 1024f
-                    if (realtimeNetData >= 1000) {
-                        sb.append(String.format("%.2f", realtimeNetData / 1024f) + "M/s\t ")
-                    } else {
-                        sb.append(String.format("%.2f", realtimeNetData) + "K/s\t ")
-                    }
+        sb.append(context.getString(R.string.perf_overlay_streamdetails, "${initialWidth}x$initialHeight", fps.totalFps))
+        sb.append('\n')
+        sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n')
+        sb.append(context.getString(R.string.perf_overlay_incomingfps, fps.receivedFps)).append('\n')
+        sb.append(context.getString(R.string.perf_overlay_renderingfps, fps.renderedFps)).append('\n')
+        sb.append(
+            context.getString(
+                R.string.perf_overlay_netdrops,
+                lastTwo.framesLost.toFloat() / lastTwo.totalFrames * 100,
+            ),
+        ).append('\n')
+        if (TrafficStatsHelper.getPackageRxBytes(Process.myUid()) != TrafficStats.UNSUPPORTED.toLong()) {
+            val netData = TrafficStatsHelper.getPackageRxBytes(Process.myUid()) +
+                TrafficStatsHelper.getPackageTxBytes(Process.myUid())
+            if (lastNetDataNum != 0L) {
+                sb.append(context.getString(R.string.perf_overlay_lite_bandwidth) + ": ")
+                val realtimeNetData = (netData - lastNetDataNum) / 1024f
+                if (realtimeNetData >= 1000) {
+                    sb.append(String.format("%.2f", realtimeNetData / 1024f) + "M/s\n")
+                } else {
+                    sb.append(String.format("%.2f", realtimeNetData) + "K/s\n")
                 }
-                lastNetDataNum = netData
             }
-            sb.append(context.getString(R.string.perf_overlay_lite_network_decoding_delay) + ": ")
-            sb.append(context.getString(R.string.perf_overlay_lite_net, (rttInfo shr 32).toInt()))
-            sb.append(" / ")
-            sb.append(context.getString(R.string.perf_overlay_lite_dectime, decodeTimeMs))
-            sb.append("\t")
-            sb.append(context.getString(R.string.perf_overlay_lite_packet_loss) + ": ")
+            lastNetDataNum = netData
+        }
+        sb.append(context.getString(R.string.perf_overlay_netlatency, (rttInfo shr 32).toInt(), rttInfo.toInt()))
+            .append('\n')
+        if (lastTwo.framesWithHostProcessingLatency > 0) {
             sb.append(
                 context.getString(
-                    R.string.perf_overlay_lite_netdrops,
-                    lastTwo.framesLost.toFloat() / lastTwo.totalFrames * 100,
-                ),
-            )
-            sb.append("\t FPS：")
-            sb.append(context.getString(R.string.perf_overlay_lite_fps, fps.totalFps))
-        } else {
-            sb.append(context.getString(R.string.perf_overlay_streamdetails, "${initialWidth}x$initialHeight", fps.totalFps))
-            sb.append('\n')
-            sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n')
-            sb.append(context.getString(R.string.perf_overlay_incomingfps, fps.receivedFps)).append('\n')
-            sb.append(context.getString(R.string.perf_overlay_renderingfps, fps.renderedFps)).append('\n')
-            sb.append(
-                context.getString(
-                    R.string.perf_overlay_netdrops,
-                    lastTwo.framesLost.toFloat() / lastTwo.totalFrames * 100,
+                    R.string.perf_overlay_hostprocessinglatency,
+                    lastTwo.minHostProcessingLatency.code.toFloat() / 10,
+                    lastTwo.maxHostProcessingLatency.code.toFloat() / 10,
+                    lastTwo.totalHostProcessingLatency.toFloat() / 10 / lastTwo.framesWithHostProcessingLatency,
                 ),
             ).append('\n')
-            if (TrafficStatsHelper.getPackageRxBytes(Process.myUid()) != TrafficStats.UNSUPPORTED.toLong()) {
-                val netData = TrafficStatsHelper.getPackageRxBytes(Process.myUid()) +
-                    TrafficStatsHelper.getPackageTxBytes(Process.myUid())
-                if (lastNetDataNum != 0L) {
-                    sb.append(context.getString(R.string.perf_overlay_lite_bandwidth) + ": ")
-                    val realtimeNetData = (netData - lastNetDataNum) / 1024f
-                    if (realtimeNetData >= 1000) {
-                        sb.append(String.format("%.2f", realtimeNetData / 1024f) + "M/s\n")
-                    } else {
-                        sb.append(String.format("%.2f", realtimeNetData) + "K/s\n")
-                    }
-                }
-                lastNetDataNum = netData
-            }
-            sb.append(context.getString(R.string.perf_overlay_netlatency, (rttInfo shr 32).toInt(), rttInfo.toInt()))
-                .append('\n')
-            if (lastTwo.framesWithHostProcessingLatency > 0) {
-                sb.append(
-                    context.getString(
-                        R.string.perf_overlay_hostprocessinglatency,
-                        lastTwo.minHostProcessingLatency.code.toFloat() / 10,
-                        lastTwo.maxHostProcessingLatency.code.toFloat() / 10,
-                        lastTwo.totalHostProcessingLatency.toFloat() / 10 / lastTwo.framesWithHostProcessingLatency,
-                    ),
-                ).append('\n')
-            }
-            sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs))
         }
+        sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs))
         return sb.toString()
     }
 

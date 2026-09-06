@@ -33,7 +33,10 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Leave", state.endAction.label)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.MOUSE_MODE }.enabled)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.KEYBOARD }.enabled)
-        assertFalse(state.advancedRows.any { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY })
+        assertEquals(
+            listOf(NovaQuickMenuActionId.CLEAR_GAME_PROFILE, NovaQuickMenuActionId.MANGOHUD),
+            state.advancedRows.map { it.id }
+        )
         assertEquals("Owner", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.MUTED, state.stability.chip.tone)
     }
@@ -189,7 +192,10 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Checking stream mode", state.sessionMode.label)
         assertEquals("N/A", state.advancedRows.first { it.id == NovaQuickMenuActionId.MANGOHUD }.chip!!.label)
-        assertFalse(state.advancedRows.any { it.id == NovaQuickMenuActionId.AI_AUTO_QUALITY })
+        assertEquals(
+            listOf(NovaQuickMenuActionId.CLEAR_GAME_PROFILE, NovaQuickMenuActionId.MANGOHUD),
+            state.advancedRows.map { it.id }
+        )
         assertFalse(state.advancedRows.first { it.id == NovaQuickMenuActionId.CLEAR_GAME_PROFILE }.enabled)
     }
 
@@ -679,20 +685,22 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
-    fun overlaysCarryAHudModeRowThatOnlyCyclesWhileTheHudIsShowing() {
+    fun overlaysPickTheHudModeDirectlyAndOnlyWhileTheHudIsShowing() {
         val showing = quickState(status = status(), hudShowing = true, hudMode = NovaHudMode.DEBUG)
         val hidden = quickState(status = status(), hudShowing = false, hudMode = NovaHudMode.PERFORMANCE)
 
-        val showingRow = showing.overlayRows.first { it.id == NovaQuickMenuActionId.NOVA_HUD_MODE }
-        assertEquals("HUD Mode", showingRow.label)
-        assertEquals("Debug", showingRow.chip!!.label)
-        assertEquals(NovaQuickMenuTone.INFO, showingRow.chip.tone)
-        assertTrue(showingRow.enabled)
+        // Every layout is one tap away, smallest first. This was a row that cycled blind.
+        assertEquals(listOf("Slim", "Minimal", "Performance", "Debug"), showing.hudMode.options.map { it.label })
+        assertEquals(listOf("slim", "minimal", "performance", "debug"), showing.hudMode.options.map { it.value })
+        assertEquals(NovaHudMode.DEBUG, showing.hudMode.selected)
+        assertEquals(listOf(false, false, false, true), showing.hudMode.options.map { it.selected })
+        assertTrue(showing.hudMode.enabled)
+        assertTrue(showing.hudMode.options.all { it.enabled })
+        assertTrue(showing.overlayRows.none { it.label == "HUD Mode" })
 
-        val hiddenRow = hidden.overlayRows.first { it.id == NovaQuickMenuActionId.NOVA_HUD_MODE }
-        assertEquals("Performance", hiddenRow.chip!!.label)
-        assertEquals(NovaQuickMenuTone.MUTED, hiddenRow.chip.tone)
-        assertFalse(hiddenRow.enabled)
+        assertEquals(NovaHudMode.PERFORMANCE, hidden.hudMode.selected)
+        assertFalse(hidden.hudMode.enabled)
+        assertTrue(hidden.hudMode.options.none { it.enabled })
 
         val hudRow = showing.overlayRows.first { it.id == NovaQuickMenuActionId.NOVA_HUD }
         assertEquals("Long press the HUD to open Command Center.", hudRow.caption)

@@ -70,22 +70,6 @@
             android:preferKeepClear="true"
             android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/performanceOverlayLite"
-            tools:text="延迟/解码：109ms/7ms 丢包率：69% FPS：60"
-            android:textSize="10sp"
-            android:layout_marginTop="4dp"
-            android:background="@drawable/ic_hud_bg"
-            android:paddingLeft="5dp"
-            android:paddingRight="5dp"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp"
-            android:visibility="gone"
-            android:textAppearance="?android:attr/textAppearanceLarge"
-            android:layout_gravity="center_horizontal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
     </LinearLayout>
 
     <!-- Floating Menu Button -->

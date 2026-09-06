@@ -307,7 +307,8 @@ class KotlinGameRuntimeMigrationTest {
         assertTrue(source.contains("override fun onPerfSample(sample:PerfOverlaySample)"))
         assertTrue(source.contains("novaHud!!.updateFromPerfSample(sample)"))
         assertTrue(source.contains("override fun onPerfUpdate(text:String)"))
-        assertTrue(source.contains("novaHud!!.updateFromPerfText(text)"))
+        // The text callback feeds only the legacy overlay now; the HUD stopped regexing it.
+        assertFalse(source.contains("updateFromPerfText"))
     }
 
     private fun readGameSource(): String {

@@ -56,6 +56,7 @@ fun NovaStreamHudContent(
             NovaHudMode.DEBUG -> NovaStreamHudDebug(state, modifier)
             NovaHudMode.PERFORMANCE -> NovaStreamHudPerformance(state, modifier)
             NovaHudMode.MINIMAL -> NovaStreamHudMinimal(state, modifier)
+            NovaHudMode.SLIM -> NovaStreamHudSlim(state, modifier)
         }
     }
 }
@@ -72,8 +73,9 @@ private fun rememberHudOpacityScale(opacityScale: Float): Float {
 
 @Composable
 private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
+    // 256dp: three metric tiles across need to hold "1920×1080" at 10sp with room left.
     HudPanel(
-        modifier = modifier.width(236.dp),
+        modifier = modifier.width(256.dp),
         cornerRadius = NovaRadius.hero,
         padding = 10.dp
     ) {
@@ -143,7 +145,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 .height(22.dp)
                 .padding(top = 7.dp)
         )
-        HudDiagnosticStrip(state)
+        HudDiagnosticStrip(state.healthReasonLabel, state.healthReasonTone, state.streamTruthLabel)
         HudLayerHealthRow(state.layerHealth)
         HudEventBreadcrumb(state.eventBreadcrumbLabel)
 
@@ -165,6 +167,19 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
         ) {
             HudMetric("CODEC", state.codecLabel.ifBlank { "--" }, Modifier.weight(1f))
             HudMetric("RES", state.resolutionLabel, Modifier.weight(1f))
+            HudMetric("DEC", state.decodeTimeLabel, Modifier.weight(1f), valueTone = state.decodeTone)
+        }
+        // Where the frame's time goes and where its frames go: host encode latency next to
+        // the decode tile above it, then what arrived against what was drawn.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            HudMetric("HOST", state.hostLatencyLabel, Modifier.weight(1f))
+            HudMetric("IN", state.incomingFpsLabel, Modifier.weight(1f))
+            HudMetric("OUT", state.renderedFpsLabel, Modifier.weight(1f))
         }
     }
 }
@@ -178,7 +193,7 @@ private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) 
     ) {
         HudPerformancePrimaryRow(state)
         HudPerformanceDetailRow(state)
-        HudCompactDiagnosticStrip(state)
+        HudCompactDiagnosticStrip(state.healthReasonLabel, state.healthReasonTone, state.streamTruthLabel)
         HudEventBreadcrumb(state.eventBreadcrumbLabel)
     }
 }
@@ -322,6 +337,31 @@ private fun NovaStreamHudMinimal(state: NovaHudUiState, modifier: Modifier) {
     }
 }
 
+// One line, one glance: the health bar, the frame rate, the round trip. Nothing that
+// needs reading, so no labels, no target, no breadcrumb, no sparkline.
+@Composable
+private fun NovaStreamHudSlim(state: NovaHudUiState, modifier: Modifier) {
+    HudPanel(
+        modifier = modifier,
+        cornerRadius = NovaRadius.pill,
+        padding = 5.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 4.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HudStatusDot(state.statusTone, height = 16.dp)
+            HudValueText(
+                text = state.fpsLabel,
+                tone = state.fpsTone,
+                size = 15,
+                modifier = Modifier.padding(start = 6.dp)
+            )
+            HudCompactText(state.latencyLabel, state.latencyTone, startPadding = 7.dp)
+        }
+    }
+}
+
 @Composable
 private fun HudPanel(
     modifier: Modifier = Modifier,
@@ -347,9 +387,16 @@ private fun HudPanel(
     )
 }
 
+// The strips and chips take only the strings and tones they draw. Handed the whole state,
+// they recomposed on every sample because the fps changed, even when their own text
+// had not; with plain parameters Compose skips them until their words actually change.
 @Composable
-private fun HudDiagnosticStrip(state: NovaHudUiState) {
-    if (state.healthReasonLabel.isBlank() && state.streamTruthLabel.isBlank()) return
+private fun HudDiagnosticStrip(
+    healthReasonLabel: String,
+    healthReasonTone: NovaHudTone,
+    streamTruthLabel: String
+) {
+    if (healthReasonLabel.isBlank() && streamTruthLabel.isBlank()) return
     val surfaces = LocalNovaLibrarySurfaces.current
     val hudOpacityScale = LocalNovaHudOpacityScale.current
     Row(
@@ -362,8 +409,8 @@ private fun HudDiagnosticStrip(state: NovaHudUiState) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = state.healthReasonLabel,
-            color = state.healthReasonTone.hudColor(),
+            text = healthReasonLabel,
+            color = healthReasonTone.hudColor(),
             fontSize = 10.sp,
             lineHeight = 12.sp,
             fontWeight = FontWeight.SemiBold,
@@ -372,7 +419,7 @@ private fun HudDiagnosticStrip(state: NovaHudUiState) {
             modifier = Modifier.weight(0.7f)
         )
         Text(
-            text = state.streamTruthLabel,
+            text = streamTruthLabel,
             color = LocalNovaComposeColors.current.textSecondary,
             fontSize = 9.sp,
             lineHeight = 11.sp,
@@ -384,11 +431,15 @@ private fun HudDiagnosticStrip(state: NovaHudUiState) {
 }
 
 @Composable
-private fun HudCompactDiagnosticStrip(state: NovaHudUiState) {
-    if (state.healthReasonLabel == "Stable" && state.streamTruthLabel.isBlank()) return
+private fun HudCompactDiagnosticStrip(
+    healthReasonLabel: String,
+    healthReasonTone: NovaHudTone,
+    streamTruthLabel: String
+) {
+    if (healthReasonLabel == "Stable" && streamTruthLabel.isBlank()) return
     Text(
-        text = listOf(state.healthReasonLabel, state.streamTruthLabel).filter { it.isNotBlank() }.joinToString(" · "),
-        color = state.healthReasonTone.hudColor(),
+        text = listOf(healthReasonLabel, streamTruthLabel).filter { it.isNotBlank() }.joinToString(" · "),
+        color = healthReasonTone.hudColor(),
         fontSize = 8.sp,
         lineHeight = 10.sp,
         fontWeight = FontWeight.SemiBold,
@@ -400,6 +451,8 @@ private fun HudCompactDiagnosticStrip(state: NovaHudUiState) {
 
 @Composable
 private fun HudLayerHealthRow(layers: List<NovaHudLayerHealth>) {
+    // The row itself re-runs each tick (a List parameter is never provably stable), but
+    // each chip takes an immutable value and skips while its label and tone hold.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -494,7 +547,7 @@ private fun HudTinyLabel(text: String) {
 }
 
 @Composable
-private fun HudValueText(text: String, tone: NovaHudTone, size: Int) {
+private fun HudValueText(text: String, tone: NovaHudTone, size: Int, modifier: Modifier = Modifier) {
     Text(
         text = text,
         color = tone.hudColor(),
@@ -503,7 +556,8 @@ private fun HudValueText(text: String, tone: NovaHudTone, size: Int) {
         fontWeight = FontWeight.Bold,
         fontFamily = FontFamily.SansSerif,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
     )
 }
 
@@ -564,6 +618,10 @@ private fun NovaHudSparkline(
 ) {
     val lineColor = tone.hudColor()
     val hudOpacityScale = LocalNovaHudOpacityScale.current
+    // The sparkline redraws once a second for the life of a stream. Two paths that live
+    // with the composable and get reset cost nothing; two fresh ones per draw were garbage.
+    val linePath = remember { Path() }
+    val fillPath = remember { Path() }
     Canvas(modifier = modifier) {
         if (samples.size < 2 || size.width <= 0f || size.height <= 0f) {
             return@Canvas
@@ -572,8 +630,8 @@ private fun NovaHudSparkline(
         val max = samples.maxOrNull() ?: return@Canvas
         val range = (max - min).coerceAtLeast(5f)
         val stepX = size.width / (samples.size - 1).coerceAtLeast(1)
-        val linePath = Path()
-        val fillPath = Path()
+        linePath.reset()
+        fillPath.reset()
         samples.forEachIndexed { index, value ->
             val x = index * stepX
             val y = size.height - ((value - min) / range) * (size.height - 2f) - 1f

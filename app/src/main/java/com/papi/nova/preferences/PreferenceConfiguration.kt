@@ -85,9 +85,6 @@ class PreferenceConfiguration {
     @JvmField var enablePip = false
     @JvmField var enablePerfOverlay = false
     @JvmField var enablePerfLogging = false
-    @JvmField var enablePerfOverlayLite = false
-    @JvmField var enablePerfOverlayLiteDialog = false
-    @JvmField var enablePerfOverlayBottom = false
     @JvmField var enableLatencyToast = false
     @JvmField var enableBackMenu = false
     @JvmField var enableFloatingButton = false
@@ -203,7 +200,8 @@ class PreferenceConfiguration {
         private const val LEGACY_DISABLE_FRAME_DROP_PREF_STRING = "checkbox_disable_frame_drop"
         private const val ENABLE_HDR_PREF_STRING = "checkbox_enable_hdr"
         private const val ENABLE_PIP_PREF_STRING = "checkbox_enable_pip"
-        private const val ENABLE_PERF_OVERLAY_STRING = "checkbox_enable_perf_overlay"
+        // Public: Game persists the in-stream Stats Overlay toggle under this key.
+        const val ENABLE_PERF_OVERLAY_STRING = "checkbox_enable_perf_overlay"
         private const val ENABLE_PERF_LOGGING = "checkbox_enable_perf_logging"
         private const val BIND_ALL_USB_STRING = "checkbox_usb_bind_all"
         private const val MOUSE_EMULATION_STRING = "checkbox_mouse_emulation"
@@ -290,7 +288,6 @@ class PreferenceConfiguration {
         private const val DEFAULT_ENABLE_HDR = false
         private const val DEFAULT_ENABLE_PIP = false
         private const val DEFAULT_ENABLE_PERF_OVERLAY = false
-        private const val DEFAULT_PERF_OVERLAY_BOTTOM = false
         private const val DEFAULT_ENABLE_PERF_LOGGING = false
         private const val DEFAULT_BIND_ALL_USB = false
         private const val DEFAULT_MOUSE_EMULATION = true
@@ -897,10 +894,6 @@ class PreferenceConfiguration {
             config.enablePip = prefs.getBoolean(ENABLE_PIP_PREF_STRING, DEFAULT_ENABLE_PIP)
             config.enablePerfOverlay = prefs.getBoolean(ENABLE_PERF_OVERLAY_STRING, DEFAULT_ENABLE_PERF_OVERLAY)
             config.enablePerfLogging = prefs.getBoolean(ENABLE_PERF_LOGGING, DEFAULT_ENABLE_PERF_LOGGING)
-            config.enablePerfOverlayLite =
-                prefs.getBoolean("checkbox_enable_perf_overlay_lite", DEFAULT_ENABLE_PERF_OVERLAY)
-            config.enablePerfOverlayBottom =
-                prefs.getBoolean("checkbox_enable_perf_overlay_bottom", DEFAULT_PERF_OVERLAY_BOTTOM)
             config.bindAllUsb = prefs.getBoolean(BIND_ALL_USB_STRING, DEFAULT_BIND_ALL_USB)
             config.mouseEmulation = prefs.getBoolean(MOUSE_EMULATION_STRING, DEFAULT_MOUSE_EMULATION)
             config.mouseNavButtons = prefs.getBoolean(MOUSE_NAV_BUTTONS_STRING, DEFAULT_MOUSE_NAV_BUTTONS)
@@ -966,8 +959,6 @@ class PreferenceConfiguration {
             config.enableTouchSensitivity = prefs.getBoolean("checkbox_enable_touch_sensitivity", false)
             config.enableMouseLocalCursor = prefs.getBoolean("checkbox_mouse_local_cursor", false)
             config.enableMultiTouchGestures = prefs.getBoolean("checkbox_multi_touch_gestures", false)
-            config.enablePerfOverlayLiteDialog =
-                prefs.getBoolean("checkbox_enable_perf_overlay_lite_dialog", false)
             config.disableDefaultExtraKeys =
                 prefs.getBoolean("checkbox_enable_clear_default_special_button", false)
             config.enableDeviceRumble = prefs.getBoolean("checkbox_enable_device_rumble", false)

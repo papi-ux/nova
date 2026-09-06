@@ -19,7 +19,6 @@ enum class NovaQuickMenuActionId {
     STABILITY,
     SYNC_STATUS,
     ADVANCED_TUNING,
-    AI_AUTO_QUALITY,
     CLEAR_GAME_PROFILE,
     MANGOHUD,
     QUICK_ESC,
@@ -32,7 +31,6 @@ enum class NovaQuickMenuActionId {
     QUICK_CTRL_1,
     QUICK_CTRL_2,
     NOVA_HUD,
-    NOVA_HUD_MODE,
     PERF_STATS,
     DIAGNOSE_STREAM,
     DOCTOR_UNDO,
@@ -76,17 +74,35 @@ data class NovaQuickMenuStabilityState(
     val profileTitle: String,
     val profileCaption: String,
     val profileOptions: List<NovaQuickMenuPreferenceOption>
-)
+) {
+    // The card's own tap target, built with the state instead of on every recomposition.
+    val action: NovaQuickMenuAction = NovaQuickMenuAction(
+        id = NovaQuickMenuActionId.STABILITY,
+        label = title,
+        enabled = enabled
+    )
+}
 
 data class NovaQuickMenuHudOpacityState(
     val percent: Int,
     val presets: List<Int>,
     val enabled: Boolean
-)
+) {
+    val percentLabel: String = "$percent%"
+}
 
 data class NovaQuickMenuMenuOpacityState(
     val percent: Int,
     val presets: List<Int>
+) {
+    val percentLabel: String = "$percent%"
+}
+
+/** Every HUD layout as a selectable option, smallest first; [selected] is the live one. */
+data class NovaQuickMenuHudModeState(
+    val options: List<NovaQuickMenuPreferenceOption>,
+    val selected: NovaHudMode,
+    val enabled: Boolean
 )
 
 enum class NovaQuickMenuDoctorCapability {
@@ -137,6 +153,7 @@ data class NovaQuickMenuUiState(
     val postSessionReport: NovaPostSessionReportUiState,
     val hudOpacity: NovaQuickMenuHudOpacityState,
     val menuOpacity: NovaQuickMenuMenuOpacityState,
+    val hudMode: NovaQuickMenuHudModeState,
     val overlayRows: List<NovaQuickMenuAction>,
     val controlRows: List<NovaQuickMenuAction>,
     val sessionRows: List<NovaQuickMenuAction>
@@ -176,7 +193,10 @@ data class NovaQuickMenuUiState(
             isOnExternalDisplay: Boolean,
             fallbackBitrateKbps: Int,
             fallbackTargetFps: Double,
-            doctorReceipt: DoctorActionReceipt? = null
+            doctorReceipt: DoctorActionReceipt? = null,
+            // Static per locale. The host builds it once per open and hands it back in, so
+            // a refresh after every tap does not rebuild nine identical rows from resources.
+            quickKeys: List<NovaQuickMenuAction> = quickKeyActions(context)
         ): NovaQuickMenuUiState {
             val viewerSession = status?.isViewer == true
             val canAdjustHostTuning = status?.canAdjustHostTuning == true
@@ -358,6 +378,20 @@ data class NovaQuickMenuUiState(
                 percent = NovaMenuPreferences.coerceOpacityPercent(menuOpacityPercent),
                 presets = NovaMenuPreferences.OPACITY_PRESETS
             )
+            // One tap per layout. This was a row that cycled blind: Debug was two presses
+            // away and nothing said where the next press would land.
+            val hudModeState = NovaQuickMenuHudModeState(
+                options = NovaHudMode.entries.map { mode ->
+                    NovaQuickMenuPreferenceOption(
+                        value = mode.preferenceValue,
+                        label = hudModeLabel(context, mode),
+                        selected = mode == hudMode,
+                        enabled = hudShowing
+                    )
+                },
+                selected = hudMode,
+                enabled = hudShowing
+            )
             val doctorReceiptAction = doctorReceiptAction(
                 context = context,
                 receipt = doctorReceipt,
@@ -372,16 +406,6 @@ data class NovaQuickMenuUiState(
                     caption = context.getString(R.string.nova_quick_menu_nova_hud_caption),
                     chip = onOffChip(context, hudShowing),
                     enabled = true
-                ),
-                NovaQuickMenuAction(
-                    id = NovaQuickMenuActionId.NOVA_HUD_MODE,
-                    label = context.getString(R.string.nova_quick_menu_hud_mode),
-                    caption = context.getString(R.string.nova_quick_menu_hud_mode_caption),
-                    chip = chip(
-                        hudModeLabel(context, hudMode),
-                        if (hudShowing) NovaQuickMenuTone.INFO else NovaQuickMenuTone.MUTED
-                    ),
-                    enabled = hudShowing
                 ),
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.PERF_STATS,
@@ -470,13 +494,14 @@ data class NovaQuickMenuUiState(
                 // AI may explain evidence, but it no longer owns a mutable
                 // launch-policy control. Presets live in the card above.
                 advancedRows = listOf(clearRow, mangoRow),
-                quickKeys = quickKeyActions(context),
+                quickKeys = quickKeys,
                 diagnosis = diagnosis,
                 diagnosisAction = diagnoseAction(context, status, diagnosis),
                 doctorReceiptAction = doctorReceiptAction,
                 postSessionReport = postSessionReport,
                 hudOpacity = hudOpacity,
                 menuOpacity = menuOpacity,
+                hudMode = hudModeState,
                 overlayRows = overlays,
                 controlRows = controls,
                 sessionRows = sessionRows
@@ -781,50 +806,6 @@ data class NovaQuickMenuUiState(
             )
         }
 
-        private fun aiAction(
-            context: Context,
-            status: PolarisSessionStatus?,
-            apiAvailable: Boolean,
-            hostStateUnavailable: Boolean,
-            supported: Boolean,
-            enabledNow: Boolean,
-            canAdjustHostTuning: Boolean,
-            viewerSession: Boolean,
-            shutdownInProgress: Boolean,
-            policy: StreamPolicyUiState,
-            autoQuality: AutoQualityUiState
-        ): NovaQuickMenuAction {
-            val rowEnabled = apiAvailable && supported && canAdjustHostTuning
-            val chip = when {
-                hostStateUnavailable -> chip(context.getString(R.string.nova_quick_menu_unavailable), NovaQuickMenuTone.MUTED)
-                !apiAvailable && status == null -> chip(context.getString(R.string.nova_quick_menu_not_available), NovaQuickMenuTone.MUTED)
-                !supported -> chip(context.getString(R.string.nova_quick_menu_not_available), NovaQuickMenuTone.MUTED)
-                enabledNow -> chip(context.getString(R.string.nova_quick_menu_on), NovaQuickMenuTone.ACTIVE)
-                else -> chip(context.getString(R.string.nova_quick_menu_off), NovaQuickMenuTone.INACTIVE)
-            }
-            val caption = when {
-                hostStateUnavailable -> context.getString(R.string.nova_quick_menu_host_state_unavailable)
-                !apiAvailable && status == null -> context.getString(R.string.nova_quick_menu_not_polaris_session)
-                !supported -> "server unavailable"
-                shutdownInProgress -> context.getString(R.string.nova_quick_menu_session_ending_caption)
-                !canAdjustHostTuning && viewerSession -> context.getString(R.string.nova_quick_menu_owner_only_caption)
-                !canAdjustHostTuning -> context.getString(R.string.nova_quick_menu_host_controls_unavailable_caption)
-                enabledNow && policy.adaptiveTargetBitrateKbps > 0 ->
-                    "${autoQuality.detail} · ${policy.adaptiveTargetLabel} live bitrate"
-                enabledNow -> autoQuality.detail.ifBlank {
-                    optimizationRuntimeCaption(context, status) ?: context.getString(R.string.nova_quick_menu_ai_caption_default)
-                }
-                else -> "manual stream tuning"
-            }
-            return NovaQuickMenuAction(
-                id = NovaQuickMenuActionId.AI_AUTO_QUALITY,
-                label = context.getString(R.string.nova_quick_menu_ai_auto_quality),
-                caption = caption,
-                chip = chip,
-                enabled = rowEnabled
-            )
-        }
-
         private fun clearProfileAction(
             context: Context,
             apiAvailable: Boolean,
@@ -956,6 +937,7 @@ data class NovaQuickMenuUiState(
 
         private fun hudModeLabel(context: Context, mode: NovaHudMode): String = context.getString(
             when (mode) {
+                NovaHudMode.SLIM -> R.string.nova_quick_menu_hud_mode_slim
                 NovaHudMode.MINIMAL -> R.string.nova_quick_menu_hud_mode_minimal
                 NovaHudMode.PERFORMANCE -> R.string.nova_quick_menu_hud_mode_performance
                 NovaHudMode.DEBUG -> R.string.nova_quick_menu_hud_mode_debug
@@ -1015,7 +997,7 @@ data class NovaQuickMenuUiState(
             ).joinToString(" · ")
         }
 
-        private fun quickKeyActions(context: Context) = listOf(
+        fun quickKeyActions(context: Context): List<NovaQuickMenuAction> = listOf(
             NovaQuickMenuAction(
                 id = NovaQuickMenuActionId.QUICK_ESC,
                 label = context.getString(R.string.game_menu_send_keys_esc)
