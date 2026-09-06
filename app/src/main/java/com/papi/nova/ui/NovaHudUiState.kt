@@ -88,7 +88,13 @@ data class NovaHudUiState(
     val decodeTone: NovaHudTone = NovaHudTone.MUTED,
     val hostLatencyLabel: String = "--",
     val incomingFpsLabel: String = "--",
-    val renderedFpsLabel: String = "--"
+    val renderedFpsLabel: String = "--",
+    // Debug's network row: loss in the current window, round-trip jitter, and the
+    // session's lost-frame count. The decoder reports all three; nothing showed them.
+    val packetLossLabel: String = "--",
+    val packetLossTone: NovaHudTone = NovaHudTone.MUTED,
+    val jitterLabel: String = "--",
+    val framesLostLabel: String = "--"
 ) {
     companion object {
         private const val SPARKLINE_CAPACITY = 60
@@ -147,7 +153,10 @@ data class NovaHudUiState(
             decodeTimeMs = 6.4,
             hostProcessingLatencyMs = 2.1,
             incomingFps = 60.0,
-            renderedFps = 60.0
+            renderedFps = 60.0,
+            packetLossPct = 0.0,
+            rttVarianceMs = 2,
+            framesLost = 0L
         )
 
         fun from(
@@ -166,7 +175,10 @@ data class NovaHudUiState(
             decodeTimeMs: Double = 0.0,
             hostProcessingLatencyMs: Double? = null,
             incomingFps: Double = 0.0,
-            renderedFps: Double = 0.0
+            renderedFps: Double = 0.0,
+            packetLossPct: Double = -1.0,
+            rttVarianceMs: Int = -1,
+            framesLost: Long = -1L
         ): NovaHudUiState {
             val autoQuality = AutoQualityUiState.from(status, targetFps)
             val healthReason = buildHealthReason(status, latencyMs)
@@ -203,8 +215,32 @@ data class NovaHudUiState(
                 decodeTone = toneForDecode(decodeTimeMs, targetFps),
                 hostLatencyLabel = formatMillis(hostProcessingLatencyMs ?: 0.0),
                 incomingFpsLabel = formatFps(incomingFps),
-                renderedFpsLabel = formatFps(renderedFps)
+                renderedFpsLabel = formatFps(renderedFps),
+                packetLossLabel = formatPercent(packetLossPct),
+                packetLossTone = toneForPacketLoss(packetLossPct),
+                // Jitter means nothing without a round trip to wobble around.
+                jitterLabel = rttVarianceMs.takeIf { it >= 0 && latencyMs > 0 }?.let { "${it}ms" } ?: "--",
+                framesLostLabel = framesLost.takeIf { it >= 0L }?.toString() ?: "--"
             )
+        }
+
+        // Loss is a share of the frames in the last window. Zero is the only good number;
+        // a trace still gets named as one rather than rounding to a green-looking 0%.
+        fun formatPercent(pct: Double): String = when {
+            pct < 0.0 -> "--"
+            pct == 0.0 -> "0%"
+            pct < 0.1 -> "<0.1%"
+            pct < 10.0 -> String.format(java.util.Locale.US, "%.1f%%", pct)
+            else -> "${pct.roundToInt()}%"
+        }
+
+        // Under one percent the stream is losing frames you might not notice; at one
+        // percent and over it is visibly stuttering.
+        fun toneForPacketLoss(pct: Double): NovaHudTone = when {
+            pct < 0.0 -> NovaHudTone.MUTED
+            pct == 0.0 -> NovaHudTone.STABLE
+            pct < 1.0 -> NovaHudTone.WARNING
+            else -> NovaHudTone.DANGER
         }
 
         private fun formatFps(fps: Double): String =
@@ -277,9 +313,10 @@ data class NovaHudUiState(
             val full = StreamPolicyUiState.formatMbps(bitrateKbps)
             return when (mode) {
                 NovaHudMode.DEBUG,
-                NovaHudMode.MINIMAL,
-                NovaHudMode.SLIM -> full
-                NovaHudMode.PERFORMANCE -> full.replace(" Mbps", "M").replace(" ", "")
+                NovaHudMode.MINIMAL -> full
+                // The one-line layouts spend their width on numbers, not units.
+                NovaHudMode.PERFORMANCE,
+                NovaHudMode.SLIM -> full.replace(" Mbps", "M").replace(" ", "")
             }
         }
 

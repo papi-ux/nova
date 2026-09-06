@@ -3,8 +3,10 @@
 ## Unreleased
 
 - The library's Start Polaris button is now Wake Host, which is what it does. It tells a sleeping host apart from one that is awake with Polaris down: the first gets a wake packet, the second gets told to start Polaris on the host or enable headless boot. The timeout message says that a wake packet only reaches a sleeping host from its own network.
-- NovaHUD gains a Slim layout: one pill with the health bar, the frame rate, and the round trip. Guide + Y now cycles Minimal, Performance, Debug, Slim.
+- Command Center puts the Doctor's reading and the Stream card right under the session strip, where the verdict they explain lives, then Overlays, Controls, Session, and the full Quick Keys grid. Esc, Meta, and Alt + Enter stay pinned under the strip, one reach from the top.
+- NovaHUD gains a Slim layout, a one-line bar in the MangoHud spirit: the health bar, the frame rate with its last minute drawn beside it, then decode time, round trip, and bitrate with inline labels. Guide + Y now cycles Minimal, Performance, Debug, Slim.
 - NovaHUD Debug shows decode time (DEC), graded against the frame budget at the target rate, plus host processing latency (HOST) and incoming against rendered frame rate (IN / OUT). That is the rest of what the legacy stats text knew, inside the HUD.
+- NovaHUD Debug gains a network row: packet loss in the current window (LOSS), graded so zero is the only green, round-trip jitter (JIT), and frames lost this session (DROPS).
 - Command Center picks the HUD layout with four buttons instead of cycling blind, keeps Close, Disconnect, and End Session fixed above the scrolling sections, folds the two opacity preset strips behind their rows, and slides out on Close, B, and Back the way it already did on scrim and drag.
 - Stats Overlay toggled from Command Center works on a stream that started with it off, and the toggle is remembered in Settings. Turning it on turns Nova HUD off for the next stream too, and the reverse.
 - NovaHUD reads the decoder's structured sample only. The decoder no longer builds the legacy overlay text while just the HUD is showing, and the HUD updates once per sample instead of twice.

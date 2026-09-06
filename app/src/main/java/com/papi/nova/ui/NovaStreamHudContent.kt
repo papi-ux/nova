@@ -181,6 +181,18 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
             HudMetric("IN", state.incomingFpsLabel, Modifier.weight(1f))
             HudMetric("OUT", state.renderedFpsLabel, Modifier.weight(1f))
         }
+        // The network row: what the link is doing to frames right now, how much the round
+        // trip wobbles, and how many frames the whole session has lost.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            HudMetric("LOSS", state.packetLossLabel, Modifier.weight(1f), valueTone = state.packetLossTone)
+            HudMetric("JIT", state.jitterLabel, Modifier.weight(1f))
+            HudMetric("DROPS", state.framesLostLabel, Modifier.weight(1f))
+        }
     }
 }
 
@@ -337,8 +349,10 @@ private fun NovaStreamHudMinimal(state: NovaHudUiState, modifier: Modifier) {
     }
 }
 
-// One line, one glance: the health bar, the frame rate, the round trip. Nothing that
-// needs reading, so no labels, no target, no breadcrumb, no sparkline.
+// One line, one glance, the way MangoHud's bar reads: the health bar, the frame rate with
+// its last minute drawn beside it, then the three facts that explain a bad number. Each
+// fact carries an inline label because two millisecond values cannot be told apart by
+// position. No target, no autopilot text, no breadcrumb, no stacked tiles.
 @Composable
 private fun NovaStreamHudSlim(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
@@ -347,7 +361,7 @@ private fun NovaStreamHudSlim(state: NovaHudUiState, modifier: Modifier) {
         padding = 5.dp
     ) {
         Row(
-            modifier = Modifier.padding(start = 4.dp, end = 6.dp),
+            modifier = Modifier.padding(start = 4.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             HudStatusDot(state.statusTone, height = 16.dp)
@@ -357,7 +371,17 @@ private fun NovaStreamHudSlim(state: NovaHudUiState, modifier: Modifier) {
                 size = 15,
                 modifier = Modifier.padding(start = 6.dp)
             )
-            HudCompactText(state.latencyLabel, state.latencyTone, startPadding = 7.dp)
+            NovaHudSparkline(
+                samples = state.sparklineSamples,
+                tone = state.fpsTone,
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .width(44.dp)
+                    .height(14.dp)
+            )
+            HudSlimStat("DEC", state.decodeTimeLabel, state.decodeTone)
+            HudSlimStat("RTT", state.latencyLabel, state.latencyTone)
+            HudSlimStat("BIT", state.bitrateLabel, NovaHudTone.MUTED)
         }
     }
 }
@@ -385,6 +409,26 @@ private fun HudPanel(
             .padding(padding),
         content = content
     )
+}
+
+// Slim's inline fact: a 7 sp label glued to its value, so two millisecond numbers in one
+// line read apart without the stacked tile Debug uses.
+@Composable
+private fun HudSlimStat(label: String, value: String, tone: NovaHudTone) {
+    Row(
+        modifier = Modifier.padding(start = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = LocalNovaComposeColors.current.textMuted,
+            fontSize = 7.sp,
+            lineHeight = 8.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
+        )
+        HudCompactText(value, tone, startPadding = 3.dp)
+    }
 }
 
 // The strips and chips take only the strings and tones they draw. Handed the whole state,

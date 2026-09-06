@@ -45,6 +45,9 @@ class NovaStreamHud(
     private var lastHostLatencyMs: Double? = null
     private var lastIncomingFps = 0.0
     private var lastRenderedFps = 0.0
+    private var lastPacketLossPct = -1.0
+    private var lastRttVarianceMs = -1
+    private var lastFramesLost = -1L
     private var currentBitrateKbps = 0
     var lastCodec = ""
     var lastBitrateKbps = 0
@@ -126,6 +129,9 @@ class NovaStreamHud(
         lastHostLatencyMs = null
         lastIncomingFps = 0.0
         lastRenderedFps = 0.0
+        lastPacketLossPct = -1.0
+        lastRttVarianceMs = -1
+        lastFramesLost = -1L
     }
 
     private fun setupTouchHandler(view: View) {
@@ -276,6 +282,9 @@ class NovaStreamHud(
             lastHostLatencyMs = sample.hostProcessingLatencyMs
             lastIncomingFps = sample.incomingFps
             lastRenderedFps = sample.renderedFps
+            lastPacketLossPct = sample.packetLossPct
+            lastRttVarianceMs = sample.rttVarianceMs
+            lastFramesLost = sample.framesLost
             // The display helpers above own the HUD's rolling averages. Preserve the
             // exact cumulative decoder evidence too, so Copy diagnostics reports the
             // same raw sample that Doctor uploads instead of default zero counters.
@@ -409,7 +418,10 @@ class NovaStreamHud(
             decodeTimeMs = lastDecodeTimeMs,
             hostProcessingLatencyMs = lastHostLatencyMs,
             incomingFps = lastIncomingFps,
-            renderedFps = lastRenderedFps
+            renderedFps = lastRenderedFps,
+            packetLossPct = lastPacketLossPct,
+            rttVarianceMs = lastRttVarianceMs,
+            framesLost = lastFramesLost
         )
     }
 

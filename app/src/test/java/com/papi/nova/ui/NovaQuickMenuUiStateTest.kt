@@ -200,6 +200,25 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun pinnedQuickKeysAreTheThreeAHandheldCannotPressAnyOtherWay() {
+        val state = NovaQuickMenuUiState.preview(context)
+
+        assertEquals(
+            "Esc for the game's own menu, Meta for the desktop, Alt + Enter for fullscreen: the keys worth one reach from the top, in that order",
+            listOf(
+                NovaQuickMenuActionId.QUICK_ESC,
+                NovaQuickMenuActionId.QUICK_META,
+                NovaQuickMenuActionId.QUICK_ALT_ENTER
+            ),
+            state.pinnedQuickKeys.map { it.id }
+        )
+        assertTrue(
+            "the pinned row reuses the grid's own actions, so the grid stays the whole keyboard and both rows fire the same key",
+            state.pinnedQuickKeys.all { pinned -> state.quickKeys.any { it === pinned } }
+        )
+    }
+
+    @Test
     fun previewStateExposesCoreActionsForComposeContent() {
         val state = NovaQuickMenuUiState.preview(context).copy(advancedExpanded = true)
 

@@ -147,6 +147,9 @@ data class NovaQuickMenuUiState(
     val advancedExpanded: Boolean,
     val advancedRows: List<NovaQuickMenuAction>,
     val quickKeys: List<NovaQuickMenuAction>,
+    // The grid's own top three, repeated under the session strip so a handheld reaches
+    // Esc without scrolling. Same instances, so both rows fire the same key.
+    val pinnedQuickKeys: List<NovaQuickMenuAction> = emptyList(),
     val diagnosis: NovaQuickMenuDiagnosisState,
     val diagnosisAction: NovaQuickMenuAction,
     val doctorReceiptAction: NovaQuickMenuAction,
@@ -495,6 +498,7 @@ data class NovaQuickMenuUiState(
                 // launch-policy control. Presets live in the card above.
                 advancedRows = listOf(clearRow, mangoRow),
                 quickKeys = quickKeys,
+                pinnedQuickKeys = pinnedQuickKeys(quickKeys),
                 diagnosis = diagnosis,
                 diagnosisAction = diagnoseAction(context, status, diagnosis),
                 doctorReceiptAction = doctorReceiptAction,
@@ -996,6 +1000,17 @@ data class NovaQuickMenuUiState(
                 normalization
             ).joinToString(" · ")
         }
+
+        // Esc for the game's own menu, Meta for the desktop, Alt + Enter for fullscreen: the
+        // keys a handheld has no other way to press, in the order they get reached for.
+        val pinnedQuickKeyIds: List<NovaQuickMenuActionId> = listOf(
+            NovaQuickMenuActionId.QUICK_ESC,
+            NovaQuickMenuActionId.QUICK_META,
+            NovaQuickMenuActionId.QUICK_ALT_ENTER
+        )
+
+        fun pinnedQuickKeys(quickKeys: List<NovaQuickMenuAction>): List<NovaQuickMenuAction> =
+            pinnedQuickKeyIds.mapNotNull { id -> quickKeys.firstOrNull { it.id == id } }
 
         fun quickKeyActions(context: Context): List<NovaQuickMenuAction> = listOf(
             NovaQuickMenuAction(
