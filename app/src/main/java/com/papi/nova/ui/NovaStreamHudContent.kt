@@ -145,7 +145,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 .height(22.dp)
                 .padding(top = 7.dp)
         )
-        HudDiagnosticStrip(state)
+        HudDiagnosticStrip(state.healthReasonLabel, state.healthReasonTone, state.streamTruthLabel)
         HudLayerHealthRow(state.layerHealth)
         HudEventBreadcrumb(state.eventBreadcrumbLabel)
 
@@ -193,7 +193,7 @@ private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) 
     ) {
         HudPerformancePrimaryRow(state)
         HudPerformanceDetailRow(state)
-        HudCompactDiagnosticStrip(state)
+        HudCompactDiagnosticStrip(state.healthReasonLabel, state.healthReasonTone, state.streamTruthLabel)
         HudEventBreadcrumb(state.eventBreadcrumbLabel)
     }
 }
@@ -387,9 +387,16 @@ private fun HudPanel(
     )
 }
 
+// The strips and chips take only the strings and tones they draw. Handed the whole state,
+// they recomposed on every sample because the fps changed, even when their own text
+// had not; with plain parameters Compose skips them until their words actually change.
 @Composable
-private fun HudDiagnosticStrip(state: NovaHudUiState) {
-    if (state.healthReasonLabel.isBlank() && state.streamTruthLabel.isBlank()) return
+private fun HudDiagnosticStrip(
+    healthReasonLabel: String,
+    healthReasonTone: NovaHudTone,
+    streamTruthLabel: String
+) {
+    if (healthReasonLabel.isBlank() && streamTruthLabel.isBlank()) return
     val surfaces = LocalNovaLibrarySurfaces.current
     val hudOpacityScale = LocalNovaHudOpacityScale.current
     Row(
@@ -402,8 +409,8 @@ private fun HudDiagnosticStrip(state: NovaHudUiState) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = state.healthReasonLabel,
-            color = state.healthReasonTone.hudColor(),
+            text = healthReasonLabel,
+            color = healthReasonTone.hudColor(),
             fontSize = 10.sp,
             lineHeight = 12.sp,
             fontWeight = FontWeight.SemiBold,
@@ -412,7 +419,7 @@ private fun HudDiagnosticStrip(state: NovaHudUiState) {
             modifier = Modifier.weight(0.7f)
         )
         Text(
-            text = state.streamTruthLabel,
+            text = streamTruthLabel,
             color = LocalNovaComposeColors.current.textSecondary,
             fontSize = 9.sp,
             lineHeight = 11.sp,
@@ -424,11 +431,15 @@ private fun HudDiagnosticStrip(state: NovaHudUiState) {
 }
 
 @Composable
-private fun HudCompactDiagnosticStrip(state: NovaHudUiState) {
-    if (state.healthReasonLabel == "Stable" && state.streamTruthLabel.isBlank()) return
+private fun HudCompactDiagnosticStrip(
+    healthReasonLabel: String,
+    healthReasonTone: NovaHudTone,
+    streamTruthLabel: String
+) {
+    if (healthReasonLabel == "Stable" && streamTruthLabel.isBlank()) return
     Text(
-        text = listOf(state.healthReasonLabel, state.streamTruthLabel).filter { it.isNotBlank() }.joinToString(" · "),
-        color = state.healthReasonTone.hudColor(),
+        text = listOf(healthReasonLabel, streamTruthLabel).filter { it.isNotBlank() }.joinToString(" · "),
+        color = healthReasonTone.hudColor(),
         fontSize = 8.sp,
         lineHeight = 10.sp,
         fontWeight = FontWeight.SemiBold,
@@ -440,6 +451,8 @@ private fun HudCompactDiagnosticStrip(state: NovaHudUiState) {
 
 @Composable
 private fun HudLayerHealthRow(layers: List<NovaHudLayerHealth>) {
+    // The row itself re-runs each tick (a List parameter is never provably stable), but
+    // each chip takes an immutable value and skips while its label and tone hold.
     Row(
         modifier = Modifier
             .fillMaxWidth()

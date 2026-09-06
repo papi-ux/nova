@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import androidx.compose.runtime.Immutable
 import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.binding.video.PerfOverlaySample
 import kotlin.math.roundToInt
@@ -46,11 +47,17 @@ enum class NovaHudTone {
     MUTED
 }
 
+@Immutable
 data class NovaHudLayerHealth(
     val label: String,
     val tone: NovaHudTone
 )
 
+// Immutable in fact as well as in name: every field is a val and the two lists are fresh
+// snapshots that nothing writes to afterwards. Telling Compose so lets the pieces of the
+// HUD whose inputs did not change this tick skip recomposition instead of redrawing
+// because a list parameter could not be proven stable.
+@Immutable
 data class NovaHudUiState(
     val mode: NovaHudMode,
     val fpsLabel: String,
