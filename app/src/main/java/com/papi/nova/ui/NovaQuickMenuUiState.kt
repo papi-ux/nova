@@ -659,12 +659,16 @@ data class NovaQuickMenuUiState(
                     else -> NovaQuickMenuDoctorCapability.MANUAL
                 }
             }
+            val likelyCause = doctor?.likelyCause?.takeIf { it.isNotBlank() }
+                ?: "Connect to Polaris for HOST / NET / CLIENT diagnostics."
             return NovaQuickMenuDiagnosisState(
                 classification = doctor?.classification?.takeIf { it.isNotBlank() } ?: "UNKNOWN",
-                likelyCause = doctor?.likelyCause?.takeIf { it.isNotBlank() } ?: "Connect to Polaris for HOST / NET / CLIENT diagnostics.",
+                likelyCause = likelyCause,
                 evidence = doctor?.evidence ?: emptyList(),
                 evidenceHighlight = doctorEvidenceHighlight(status),
-                tryFirst = doctor?.firstTry.orEmpty(),
+                // The host's first-try line usually opens by restating the finding, which is
+                // already the card's title. Keep only the advice that follows it.
+                tryFirst = doctor?.firstTry.orEmpty().withoutLeadingSentence(likelyCause),
                 confidence = doctor?.confidence.orEmpty(),
                 available = available,
                 actionId = actionId,
@@ -952,6 +956,22 @@ data class NovaQuickMenuUiState(
             val mine = trim().trimEnd('.', '!')
             val theirs = other.trim().trimEnd('.', '!')
             return mine.isNotBlank() && mine.equals(theirs, ignoreCase = true)
+        }
+
+        // "Streaming telemetry looks ready. Keep this page open..." under a title that already
+        // says "Streaming telemetry looks ready" read as a stutter once the Doctor card led the
+        // page. Drop that opening sentence; if nothing follows it, the row disappears.
+        private fun String.withoutLeadingSentence(title: String): String {
+            val mine = trim()
+            val head = title.trim().trimEnd('.', '!')
+            if (head.isBlank() || !mine.startsWith(head, ignoreCase = true)) {
+                return mine
+            }
+            val boundary = mine.getOrNull(head.length)
+            if (boundary != null && boundary !in ".! ") {
+                return mine
+            }
+            return mine.substring(head.length).trimStart('.', '!', ' ')
         }
 
         private fun PolarisSessionStatus.hdrDowngradeDetail(context: Context): String? {

@@ -177,6 +177,49 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun doctorTryFirstDoesNotRepeatTheTitleNowThatTheCardLeadsThePage() {
+        fun diagnosis(likelyCause: String, tryFirst: String) = quickState(
+            status = status(
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "doctor-$likelyCause",
+                    primaryIssue = "none",
+                    likelyCause = likelyCause,
+                    tryFirst = listOf(tryFirst)
+                )
+            )
+        ).diagnosis
+
+        val ready = diagnosis(
+            "Streaming telemetry looks ready.",
+            "Streaming telemetry looks ready. Keep this page open if you are trying to catch an intermittent problem."
+        )
+        assertEquals("Streaming telemetry looks ready.", ready.likelyCause)
+        assertEquals(
+            "the finding is already the card's title, so the try-first line keeps only the advice that follows it",
+            "Keep this page open if you are trying to catch an intermittent problem.",
+            ready.tryFirst
+        )
+
+        assertEquals(
+            "a try-first that only restates the title disappears instead of saying it twice",
+            "",
+            diagnosis("No confirmed issue", "No confirmed issue.").tryFirst
+        )
+        assertEquals(
+            "advice that does not open with the title is untouched",
+            "Move closer to the access point.",
+            diagnosis("Network jitter on the link", "Move closer to the access point.").tryFirst
+        )
+        assertEquals(
+            "a title that is only a prefix of a longer word is not a repeated sentence",
+            "Streaming telemetry looks readyish today.",
+            diagnosis("Streaming telemetry looks ready", "Streaming telemetry looks readyish today.").tryFirst
+        )
+    }
+
+    @Test
     fun controllerToggleCopyClarifiesTouchOverlayInsteadOfPhysicalGamepad() {
         val state = quickState(status = status(), currentGameName = "Portal")
         val touchControls = state.controlRows.first { it.id == NovaQuickMenuActionId.CONTROLLER }
@@ -223,7 +266,7 @@ class NovaQuickMenuUiStateTest {
         val state = NovaQuickMenuUiState.preview(context).copy(advancedExpanded = true)
 
         assertEquals("Command Center", state.title)
-        assertEquals("Quick keys and controls for Private Stream", state.subtitle)
+        assertEquals("Session controls for Private Stream", state.subtitle)
         assertEquals("Disconnect", state.disconnectAction.label)
         assertEquals("End Session", state.endAction.label)
         assertTrue(state.quickKeys.any { it.id == NovaQuickMenuActionId.QUICK_ESC && it.label == "ESC" })

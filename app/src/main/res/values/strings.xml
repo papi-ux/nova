@@ -706,6 +706,7 @@
     <string name="applist_hero_summary_continue">Pick up where you left off</string>
     <string name="applist_hero_summary_resume">Resume your active session on this device</string>
     <string name="applist_hero_summary_watch">Another device owns the current session</string>
+    <string name="applist_hero_action_play">Play</string>
     <string name="applist_refresh_title">App List</string>
     <string name="applist_refresh_msg">Refreshing apps…</string>
     <string name="applist_refresh_error_title">Error</string>
@@ -971,9 +972,9 @@
     <string name="nova_quick_menu_mode_source_explicit">Explicit choice</string>
     <string name="nova_quick_menu_mode_role_owner">Owner</string>
     <string name="nova_quick_menu_command_center_title">Command Center</string>
-    <string name="nova_quick_menu_command_center_subtitle">Quick keys, stream tuning, and session controls</string>
-    <string name="nova_quick_menu_headless_subtitle">Quick keys and controls for Private Stream</string>
-    <string name="nova_quick_menu_virtual_subtitle">Quick keys and controls for virtual display streaming</string>
+    <string name="nova_quick_menu_command_center_subtitle">Stream health, tuning, and session controls</string>
+    <string name="nova_quick_menu_headless_subtitle">Session controls for Private Stream</string>
+    <string name="nova_quick_menu_virtual_subtitle">Session controls for virtual display streaming</string>
     <string name="nova_quick_menu_shutdown_subtitle">Host shutdown is in progress. Session actions are limited.</string>
     <string name="nova_quick_menu_health_checking">Checking session health</string>
     <string name="nova_quick_menu_health_host_render">Host is rendering below the stream FPS target.</string>

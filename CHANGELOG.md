@@ -3,6 +3,8 @@
 ## Unreleased
 
 - The library's Start Polaris button is now Wake Host, which is what it does. It tells a sleeping host apart from one that is awake with Polaris down: the first gets a wake packet, the second gets told to start Polaris on the host or enable headless boot. The timeout message says that a wake packet only reaches a sleeping host from its own network.
+- The library's Continue card says Play when the host is not running the game, and Resume only while it is.
+- Command Center's Doctor card no longer opens its advice by repeating its own title, and the subtitle reads "Session controls for…" instead of promising Quick Keys first.
 - Command Center puts the Doctor's reading and the Stream card right under the session strip, where the verdict they explain lives, then Overlays, Controls, Session, and the full Quick Keys grid. Esc, Meta, and Alt + Enter stay pinned under the strip, one reach from the top.
 - NovaHUD gains a Slim layout, a one-line bar in the MangoHud spirit: the health bar, the frame rate with its last minute drawn beside it, then decode time, round trip, and bitrate with inline labels. Guide + Y now cycles Minimal, Performance, Debug, Slim.
 - NovaHUD Debug shows decode time (DEC), graded against the frame budget at the target rate, plus host processing latency (HOST) and incoming against rendered frame rate (IN / OUT). That is the rest of what the legacy stats text knew, inside the HUD.

@@ -613,10 +613,12 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                 )
             }
         actionView?.setText(
-            if (appOwnedByAnotherClient) {
-                R.string.applist_menu_watch
-            } else {
-                R.string.pcview_card_action_resume
+            when {
+                appOwnedByAnotherClient -> R.string.applist_menu_watch
+                // Resume is only honest while the host is still running the game. Otherwise
+                // this button launches it, and the kicker above already says Continue.
+                appIsRunning -> R.string.pcview_card_action_resume
+                else -> R.string.applist_hero_action_play
             },
         )
         endSessionView?.visibility = if (appIsRunning && !appOwnedByAnotherClient) {
