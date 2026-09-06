@@ -53,6 +53,7 @@ import com.papi.nova.grid.PcGridAdapter
 import com.papi.nova.grid.assets.DiskAssetLoader
 import com.papi.nova.manager.PolarisStartupCoordinator
 import com.papi.nova.manager.PolarisStartupStatus
+import com.papi.nova.manager.TcpHostReachabilityProbe
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.nvstream.http.NvHTTP
@@ -2441,7 +2442,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     override fun hasGameLibrary(computer: ComputerDetails): Boolean {
                         return probePolarisGameLibrary(computer)
                     }
-                }
+                },
+                reachabilityProbe = TcpHostReachabilityProbe()
             )
             val result = coordinator.start(computer)
             runtimeTasks.runOnMainIfActive {
@@ -2485,6 +2487,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_timeout))
             PolarisStartupStatus.POLARIS_UNAVAILABLE ->
                 NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_unavailable))
+            PolarisStartupStatus.POLARIS_NOT_RUNNING ->
+                NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_not_running))
         }
     }
 

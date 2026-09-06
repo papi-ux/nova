@@ -129,10 +129,104 @@ class PolarisStartupCoordinatorTest {
         assertEquals(ComputerDetails.LibraryState.UNAVAILABLE, result.computer?.libraryState)
     }
 
+    @Test
+    fun awakeHostWithPolarisDownIsToldSoInsteadOfBeingWoken() {
+        var wakeCalled = false
+        var pollCount = 0
+
+        val result = coordinator(
+            wake = { wakeCalled = true },
+            poll = {
+                pollCount++
+                it
+            },
+            awake = { true }
+        ).start(
+            computer = pairedComputer(state = ComputerDetails.State.OFFLINE),
+            maxPollAttempts = PolarisStartupCoordinator.DEFAULT_POLL_ATTEMPTS,
+            pollDelayMs = 0
+        )
+
+        // The machine answered the connect, so a wake packet has nothing to do; the
+        // honest answer is that Polaris is not running there, and it should not take
+        // the full boot budget to say so.
+        assertFalse(wakeCalled)
+        assertEquals(PolarisStartupStatus.POLARIS_NOT_RUNNING, result.status)
+        assertEquals(PolarisStartupCoordinator.AWAKE_POLL_ATTEMPTS, pollCount)
+    }
+
+    @Test
+    fun awakeHostWhosePolarisComesUpDuringPollingIsReady() {
+        var wakeCalled = false
+        var pollCount = 0
+        val online = pairedComputer(state = ComputerDetails.State.ONLINE)
+
+        val result = coordinator(
+            wake = { wakeCalled = true },
+            poll = {
+                pollCount++
+                if (pollCount >= 2) online else it
+            },
+            probe = { true },
+            awake = { true }
+        ).start(
+            computer = pairedComputer(state = ComputerDetails.State.OFFLINE),
+            maxPollAttempts = 4,
+            pollDelayMs = 0
+        )
+
+        assertFalse(wakeCalled)
+        assertEquals(PolarisStartupStatus.READY, result.status)
+    }
+
+    @Test
+    fun hostThatWentDownSinceTheLastPollIsReportedAsPolarisNotRunning() {
+        var wakeCalled = false
+        var probeCount = 0
+        val offline = pairedComputer(state = ComputerDetails.State.OFFLINE)
+
+        val result = coordinator(
+            wake = { wakeCalled = true },
+            // The list still says online; the first real poll says otherwise.
+            poll = { offline },
+            probe = {
+                probeCount++
+                false
+            },
+            awake = { true }
+        ).start(
+            computer = pairedComputer(state = ComputerDetails.State.ONLINE),
+            maxPollAttempts = 3,
+            pollDelayMs = 0
+        )
+
+        assertFalse(wakeCalled)
+        assertEquals(1, probeCount)
+        assertEquals(PolarisStartupStatus.POLARIS_NOT_RUNNING, result.status)
+    }
+
+    @Test
+    fun unreachableHostStillGetsTheWakePacketAndTimesOut() {
+        var wakeCalled = false
+
+        val result = coordinator(
+            wake = { wakeCalled = true },
+            awake = { false }
+        ).start(
+            computer = pairedComputer(state = ComputerDetails.State.OFFLINE),
+            maxPollAttempts = 2,
+            pollDelayMs = 0
+        )
+
+        assertTrue(wakeCalled)
+        assertEquals(PolarisStartupStatus.TIMEOUT, result.status)
+    }
+
     private fun coordinator(
         wake: (ComputerDetails) -> Unit = {},
         poll: (ComputerDetails) -> ComputerDetails = { it },
-        probe: (ComputerDetails) -> Boolean = { false }
+        probe: (ComputerDetails) -> Boolean = { false },
+        awake: (ComputerDetails) -> Boolean = { false }
     ) = PolarisStartupCoordinator(
         wakeSender = object : PolarisStartupCoordinator.WakeSender {
             override fun wake(computer: ComputerDetails) = wake(computer)
@@ -145,6 +239,9 @@ class PolarisStartupCoordinatorTest {
         },
         sleeper = object : PolarisStartupCoordinator.Sleeper {
             override fun sleep(delayMs: Long) = Unit
+        },
+        reachabilityProbe = object : PolarisStartupCoordinator.HostReachabilityProbe {
+            override fun isAwake(computer: ComputerDetails): Boolean = awake(computer)
         }
     )
 

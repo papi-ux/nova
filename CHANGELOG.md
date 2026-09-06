@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The library's Start Polaris button is now Wake Host, which is what it does. It tells a sleeping host apart from one that is awake with Polaris down: the first gets a wake packet, the second gets told to start Polaris on the host or enable headless boot. The timeout message says that a wake packet only reaches a sleeping host from its own network.
 - NovaHUD gains a Slim layout: one pill with the health bar, the frame rate, and the round trip. Guide + Y now cycles Minimal, Performance, Debug, Slim.
 - NovaHUD Debug shows decode time (DEC), graded against the frame budget at the target rate, plus host processing latency (HOST) and incoming against rendered frame rate (IN / OUT). That is the rest of what the legacy stats text knew, inside the HUD.
 - Command Center picks the HUD layout with four buttons instead of cycling blind, keeps Close, Disconnect, and End Session fixed above the scrolling sections, folds the two opacity preset strips behind their rows, and slides out on Close, B, and Back the way it already did on scrim and drag.

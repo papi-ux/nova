@@ -37,7 +37,7 @@
     <string name="pcview_menu_header_format">%1$s · %2$s</string>
     <string name="pcview_menu_app_list">Compatibility App List</string>
     <string name="pcview_menu_nova_library">Open Library</string>
-    <string name="pcview_menu_start_polaris">Start Polaris</string>
+    <string name="pcview_menu_start_polaris">Wake Host</string>
     <string name="pcview_menu_section_play">Play</string>
     <string name="pcview_menu_section_manage">Manage</string>
     <string name="pcview_menu_pair_pc">Trusted Pair</string>
@@ -78,8 +78,8 @@
     <string name="pcview_hosts_summary_format">%1$d visible · %2$d total</string>
     <string name="pcview_quick_add_server">Add Server</string>
     <string name="pcview_quick_scan_pair">Scan Pair</string>
-    <string name="pcview_quick_polaris_sync">Start Polaris</string>
-    <string name="pcview_quick_start_polaris">Start Polaris</string>
+    <string name="pcview_quick_polaris_sync">Wake Host</string>
+    <string name="pcview_quick_start_polaris">Wake Host</string>
     <string name="pcview_quick_profiles">Profiles</string>
     <string name="pcview_quick_theme">Theme</string>
     <string name="pcview_quick_github">GitHub</string>
@@ -591,11 +591,12 @@
 	    If it doesn\'t, make sure it\'s configured properly for Wake-On-LAN.
     </string>
     <string name="wol_fail">Failed to send Wake-On-LAN packets</string>
-    <string name="pcview_polaris_starting">Starting Polaris…</string>
+    <string name="pcview_polaris_starting">Waking the host and waiting for Polaris…</string>
     <string name="pcview_polaris_started">Polaris is ready</string>
     <string name="pcview_polaris_start_no_server">No paired Polaris host is available</string>
-    <string name="pcview_polaris_start_pair_first">Pair with this host before starting Polaris from Nova</string>
-    <string name="pcview_polaris_start_timeout">Polaris did not come online. Enable host autostart and try again.</string>
+    <string name="pcview_polaris_start_pair_first">Pair with this host before waking it from Nova</string>
+    <string name="pcview_polaris_start_timeout">The host did not answer. A wake packet only reaches a sleeping host from its own network.</string>
+    <string name="pcview_polaris_start_not_running">The host is awake, but Polaris is not answering. Start it on the host, or enable headless boot so it starts on its own.</string>
     <string name="pcview_polaris_start_unavailable">This host did not report Polaris Library support</string>
     <string name="pcview_polaris_start_failed">Polaris started, but Nova could not open the library</string>
 
