@@ -4,7 +4,15 @@ import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.binding.video.PerfOverlaySample
 import kotlin.math.roundToInt
 
+/**
+ * HUD layouts, declared smallest to largest so a picker can list `entries` as they are.
+ *
+ * [next] is the ring Guide + Y walks. It starts from the default and puts the one-line
+ * Slim pill last, so the three layouts people already know keep their order and Slim is
+ * one press past Debug.
+ */
 enum class NovaHudMode(val preferenceValue: String) {
+    SLIM("slim"),
     MINIMAL("minimal"),
     PERFORMANCE("performance"),
     DEBUG("debug");
@@ -12,13 +20,15 @@ enum class NovaHudMode(val preferenceValue: String) {
     fun next(): NovaHudMode = when (this) {
         MINIMAL -> PERFORMANCE
         PERFORMANCE -> DEBUG
-        DEBUG -> MINIMAL
+        DEBUG -> SLIM
+        SLIM -> MINIMAL
     }
 
     companion object {
         fun fromPreference(value: String?): NovaHudMode {
             val normalized = value?.trim()?.lowercase().orEmpty()
             return when (normalized) {
+                "slim", "pill" -> SLIM
                 "minimal", "fps_only", "nano", "compact" -> MINIMAL
                 "performance", "banner", "strip" -> PERFORMANCE
                 "debug", "full", "command" -> DEBUG
@@ -40,69 +50,6 @@ data class NovaHudLayerHealth(
     val label: String,
     val tone: NovaHudTone
 )
-
-data class NovaHudPerfSample(
-    val fps: Double? = null,
-    val width: Int? = null,
-    val height: Int? = null,
-    val latencyMs: Int? = null,
-    val codec: String? = null,
-    val packetLossPct: Double? = null
-) {
-    companion object {
-        // Compiled once. These used to be built inside fromPerfText, which runs on the
-        // main thread once per perf sample for as long as a game is streaming -- seven
-        // Regex compilations per interval, for patterns that never change.
-        private const val LOCALIZED_NUMBER = """\d+(?:[.,]\d+)?"""
-
-        private val FPS_SUFFIXED = Regex(
-            """(?<![\d.,])($LOCALIZED_NUMBER)\s*(?:fps|FPS)\b""", RegexOption.IGNORE_CASE
-        )
-        private val FPS_LABELLED = Regex(
-            """FPS[:：\s]+($LOCALIZED_NUMBER)""", RegexOption.IGNORE_CASE
-        )
-        private val FPS_TRAILING_ON_FIRST_LINE = Regex(
-            """($LOCALIZED_NUMBER)\s*$""", RegexOption.MULTILINE
-        )
-        private val RESOLUTION = Regex("""(\d{3,4})\s*[x×]\s*(\d{3,4})""")
-        private val LATENCY = Regex(
-            """(?:RTT|latency)[^0-9]*(\d+)\s*ms""", RegexOption.IGNORE_CASE
-        )
-        private val CODEC = Regex("""(?:decoder|codec)[:\s]+(\S+)""", RegexOption.IGNORE_CASE)
-        private val PACKET_LOSS_LABELLED = Regex(
-            """(?:packet loss|frames dropped by your network connection|netdrops)[^0-9]*($LOCALIZED_NUMBER)\s*%""",
-            RegexOption.IGNORE_CASE
-        )
-        private val PACKET_LOSS_SUFFIXED = Regex(
-            """($LOCALIZED_NUMBER)\s*%\s*(?:packet loss|netdrops)""", RegexOption.IGNORE_CASE
-        )
-
-        fun fromPerfText(text: String): NovaHudPerfSample {
-            // Fallback order is behaviour, not formatting: a bare "N fps" wins over a
-            // "FPS: N" label, which wins over a trailing number on the first line.
-            val fpsMatch = FPS_SUFFIXED.find(text)
-                ?: FPS_LABELLED.find(text)
-                ?: FPS_TRAILING_ON_FIRST_LINE.find(text.lines().firstOrNull() ?: "")
-            val resolutionMatch = RESOLUTION.find(text)
-            val latencyMatch = LATENCY.find(text)
-            val codecMatch = CODEC.find(text)
-            val packetLossMatch = PACKET_LOSS_LABELLED.find(text)
-                ?: PACKET_LOSS_SUFFIXED.find(text)
-
-            return NovaHudPerfSample(
-                fps = fpsMatch?.localizedDouble(),
-                width = resolutionMatch?.groupValues?.getOrNull(1)?.toIntOrNull(),
-                height = resolutionMatch?.groupValues?.getOrNull(2)?.toIntOrNull(),
-                latencyMs = latencyMatch?.groupValues?.getOrNull(1)?.toIntOrNull(),
-                codec = codecMatch?.groupValues?.getOrNull(1)?.let(NovaHudUiState::normalizeCodecLabel),
-                packetLossPct = packetLossMatch?.localizedDouble()
-            )
-        }
-
-        private fun MatchResult.localizedDouble(): Double? =
-            groupValues.getOrNull(1)?.replace(',', '.')?.toDoubleOrNull()
-    }
-}
 
 data class NovaHudUiState(
     val mode: NovaHudMode,
@@ -126,9 +73,19 @@ data class NovaHudUiState(
     val streamTruthLabel: String,
     val layerHealth: List<NovaHudLayerHealth>,
     val eventBreadcrumbLabel: String,
-    val sparklineSamples: List<Float>
+    val sparklineSamples: List<Float>,
+    // Debug-only latency budget and frame-flow tiles. Decode time is the one people ask
+    // for; host latency and incoming vs rendered fps are the rest of what the legacy
+    // Moonlight text shows and NovaHUD did not.
+    val decodeTimeLabel: String = "--",
+    val decodeTone: NovaHudTone = NovaHudTone.MUTED,
+    val hostLatencyLabel: String = "--",
+    val incomingFpsLabel: String = "--",
+    val renderedFpsLabel: String = "--"
 ) {
     companion object {
+        private const val SPARKLINE_CAPACITY = 60
+
         fun empty(mode: NovaHudMode = NovaHudMode.MINIMAL): NovaHudUiState = from(
             mode = mode,
             fps = 0.0,
@@ -179,7 +136,11 @@ data class NovaHudUiState(
                 health = PolarisSessionStatus.HealthStatus(grade = "good"),
                 syncStatus = PolarisSessionStatus.SyncStatus(available = true, state = "synced")
             ),
-            sparklineSamples = listOf(55f, 58f, 61f, 57f, 60f, 59f)
+            sparklineSamples = listOf(55f, 58f, 61f, 57f, 60f, 59f),
+            decodeTimeMs = 6.4,
+            hostProcessingLatencyMs = 2.1,
+            incomingFps = 60.0,
+            renderedFps = 60.0
         )
 
         fun from(
@@ -194,13 +155,17 @@ data class NovaHudUiState(
             status: PolarisSessionStatus?,
             sparklineSamples: List<Float>,
             eventBreadcrumbLabel: String = "",
-            lowOnePercentFps: Double = calculateLowOnePercent(sparklineSamples)
+            lowOnePercentFps: Double = calculateLowOnePercent(sparklineSamples),
+            decodeTimeMs: Double = 0.0,
+            hostProcessingLatencyMs: Double? = null,
+            incomingFps: Double = 0.0,
+            renderedFps: Double = 0.0
         ): NovaHudUiState {
             val autoQuality = AutoQualityUiState.from(status, targetFps)
             val healthReason = buildHealthReason(status, latencyMs)
             return NovaHudUiState(
                 mode = mode,
-                fpsLabel = fps.takeIf { it > 0.0 }?.roundToInt()?.toString() ?: "--",
+                fpsLabel = formatFps(fps),
                 targetFpsLabel = formatTargetFps(mode, targetFps),
                 latencyLabel = latencyMs.takeIf { it > 0 }?.let { "${it}ms" } ?: "--ms",
                 bitrateLabel = formatBitrate(mode, bitrateKbps),
@@ -220,8 +185,45 @@ data class NovaHudUiState(
                 streamTruthLabel = buildStreamTruth(status, targetFps, codec, height),
                 layerHealth = buildLayerHealth(status, latencyMs),
                 eventBreadcrumbLabel = eventBreadcrumbLabel,
-                sparklineSamples = sparklineSamples.takeLast(60)
+                // The buffer already caps at the capacity; copying it again once a second
+                // bought nothing.
+                sparklineSamples = if (sparklineSamples.size <= SPARKLINE_CAPACITY) {
+                    sparklineSamples
+                } else {
+                    sparklineSamples.takeLast(SPARKLINE_CAPACITY)
+                },
+                decodeTimeLabel = formatMillis(decodeTimeMs),
+                decodeTone = toneForDecode(decodeTimeMs, targetFps),
+                hostLatencyLabel = formatMillis(hostProcessingLatencyMs ?: 0.0),
+                incomingFpsLabel = formatFps(incomingFps),
+                renderedFpsLabel = formatFps(renderedFps)
             )
+        }
+
+        private fun formatFps(fps: Double): String =
+            fps.takeIf { it > 0.0 }?.roundToInt()?.toString() ?: "--"
+
+        // Under 10 ms the decimal is the difference between decoders: 2.4ms and 8.9ms are
+        // not the same panel. Past that, the whole number is the story.
+        fun formatMillis(ms: Double): String = when {
+            ms <= 0.0 -> "--"
+            ms < 10.0 -> String.format(java.util.Locale.US, "%.1fms", ms)
+            else -> "${ms.roundToInt()}ms"
+        }
+
+        // Decode time is only good or bad against the frame it has to fit in: 13 ms is
+        // fine at 60 fps and a dropped frame at 120. With no target yet, 60 fps is the
+        // budget, which is what most panels show anyway.
+        fun toneForDecode(ms: Double, targetFps: Double): NovaHudTone {
+            if (ms <= 0.0) {
+                return NovaHudTone.MUTED
+            }
+            val frameMs = 1000.0 / (if (targetFps > 0.0) targetFps else 60.0)
+            return when {
+                ms < frameMs * 0.5 -> NovaHudTone.STABLE
+                ms < frameMs -> NovaHudTone.WARNING
+                else -> NovaHudTone.DANGER
+            }
         }
 
         fun normalizeCodecLabel(codec: String): String {
@@ -256,7 +258,8 @@ data class NovaHudUiState(
             return when (mode) {
                 NovaHudMode.DEBUG -> "TGT $rounded"
                 NovaHudMode.PERFORMANCE -> "/$rounded"
-                NovaHudMode.MINIMAL -> ""
+                NovaHudMode.MINIMAL,
+                NovaHudMode.SLIM -> ""
             }
         }
 
@@ -267,7 +270,8 @@ data class NovaHudUiState(
             val full = StreamPolicyUiState.formatMbps(bitrateKbps)
             return when (mode) {
                 NovaHudMode.DEBUG,
-                NovaHudMode.MINIMAL -> full
+                NovaHudMode.MINIMAL,
+                NovaHudMode.SLIM -> full
                 NovaHudMode.PERFORMANCE -> full.replace(" Mbps", "M").replace(" ", "")
             }
         }
@@ -279,7 +283,8 @@ data class NovaHudUiState(
             return when (mode) {
                 NovaHudMode.DEBUG -> "$width×$height"
                 NovaHudMode.PERFORMANCE,
-                NovaHudMode.MINIMAL -> "${height}p"
+                NovaHudMode.MINIMAL,
+                NovaHudMode.SLIM -> "${height}p"
             }
         }
 

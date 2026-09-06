@@ -10,6 +10,7 @@ import android.view.KeyEvent
 import android.view.Window
 import android.view.WindowManager
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
@@ -37,6 +38,7 @@ import java.util.UUID
  */
 class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
     private var dialog: Dialog? = null
+    private var dismissWithMotion: (() -> Unit)? = null
     private val doctorActionLock = Any()
     private var doctorReceipt: DoctorActionReceipt? = null
     private var doctorReceiptScopeId: String? = null
@@ -64,6 +66,16 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         composeView.isFocusable = true
         composeView.isFocusableInTouchMode = true
         overlay.setContentView(composeView)
+        // B, Back, and programmatic hides ask the drawer to slide out; it calls dismiss()
+        // when the motion lands. If composition is not running (paused activity, detached
+        // view) nothing would, so a fallback closes the dialog regardless.
+        val dismissMotionRequests = mutableIntStateOf(0)
+        fun requestDismissWithMotion() {
+            if (dialog !== overlay) return
+            dismissMotionRequests.intValue++
+            game.window.decorView.postDelayed({ if (dialog === overlay) dismiss() }, DISMISS_MOTION_FALLBACK_MS)
+        }
+        dismissWithMotion = { requestDismissWithMotion() }
         overlay.setOnKeyListener { _, keyCode, event ->
             when (keyCode) {
                 KeyEvent.KEYCODE_BUTTON_A -> {
@@ -88,7 +100,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     true
                 }
                 KeyEvent.KEYCODE_BUTTON_B -> {
-                    if (event.action == KeyEvent.ACTION_UP) dismiss()
+                    if (event.action == KeyEvent.ACTION_UP) requestDismissWithMotion()
                     true
                 }
                 else -> false
@@ -441,10 +453,14 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             }
         }
 
+        // Static per locale; built once per open instead of once per refresh.
+        val quickKeys = NovaQuickMenuUiState.quickKeyActions(game)
+
         fun buildState(): NovaQuickMenuUiState {
             val gameName = currentProfileGameName()
             return NovaQuickMenuUiState.from(
                 context = game,
+                quickKeys = quickKeys,
                 status = sessionStatus,
                 apiAvailable = apiClient != null,
                 hostStateUnavailable = hostStateUnavailable,
@@ -846,30 +862,6 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     refreshState()
                 }
             },
-            onAiAutoQuality = {
-                haptic {
-                    val status = sessionStatus
-                    if (status == null || apiClient == null || !aiSupported || !status.canAdjustHostTuning) {
-                        return@haptic
-                    }
-                    val next = !aiEnabled
-                    aiEnabled = next
-                    refreshState()
-                    game.launchRuntimeIo("NovaQuickMenuAiAutoQuality") {
-                        val success = apiClient.setAiAutoQualityEnabled(next)
-                        if (success) {
-                            acceptRefreshedSessionStatus(apiClient.getSessionStatus())
-                        }
-                        game.runOnMainIfRuntimeActive {
-                            if (!success) {
-                                aiEnabled = !next
-                                NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_ai_toggle_failed), anchor = composeView)
-                            }
-                            refreshState()
-                        }
-                    }
-                }
-            },
             onClearGameProfile = {
                 haptic {
                     val gameName = currentProfileGameName()
@@ -952,12 +944,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         NovaQuickMenuActionId.NOVA_HUD -> {
                             game.toggleNovaHud()
                         }
-                        NovaQuickMenuActionId.NOVA_HUD_MODE -> {
-                            game.cycleNovaHudMode()
-                        }
                         NovaQuickMenuActionId.PERF_STATS -> {
+                            // The two overlays share the top-left corner, so the legacy text
+                            // replaces Nova HUD, and the swap is remembered for the next
+                            // stream: toggleNovaHud persists, dismissNovaHud did not.
                             if (!game.prefConfig.enablePerfOverlay && game.isNovaHudShowing()) {
-                                game.dismissNovaHud()
+                                game.toggleNovaHud()
                             }
                             game.toggleHUD()
                         }
@@ -969,6 +961,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         }
                         else -> Unit
                     }
+                    refreshState()
+                }
+            },
+            onHudModeSelect = { mode ->
+                haptic {
+                    game.setNovaHudMode(mode)
                     refreshState()
                 }
             },
@@ -1052,7 +1050,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             NovaComposeTheme(menuOpacityPercent = uiState.menuOpacity.percent) {
                 NovaQuickMenuDrawer(
                     state = uiState,
-                    callbacks = callbacks
+                    callbacks = callbacks,
+                    dismissRequests = dismissMotionRequests.intValue
                 )
             }
         }
@@ -1069,7 +1068,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         if (apiClient != null) {
             game.launchReplacingRuntimeIo("NovaQuickMenuStateRefresh") {
                 try {
-                    val refreshedCapabilities = apiClient.getCapabilities()
+                    // Capabilities do not change inside a stream; one fetch per session,
+                    // not one per open.
+                    val refreshedCapabilities = capabilities ?: apiClient.getCapabilities()
                     val refreshedSessionStatus = apiClient.getSessionStatus()
                     val accepted = doctorMenuRefreshRegistry.runIfCurrent(menuValidationGeneration) {
                         synchronized(doctorActionLock) {
@@ -1116,7 +1117,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
     }
 
     override fun hideMenu() {
-        dismiss()
+        dismissWithMotion?.invoke() ?: dismiss()
     }
 
     override fun isMenuOpen(): Boolean {
@@ -1131,6 +1132,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         activeDialog.window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         activeDialog.dismiss()
         dialog = null
+        dismissWithMotion = null
     }
 
     private fun sendKeysWithFocus(keys: ShortArray) {
@@ -1178,5 +1180,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
     companion object {
         private const val KEY_UP_DELAY = 25L
+        // Longer than the drawer's spring needs to settle; only reached if composition
+        // never ran the exit motion.
+        private const val DISMISS_MOTION_FALLBACK_MS = 450L
     }
 }

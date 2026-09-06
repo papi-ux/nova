@@ -444,7 +444,7 @@
         <CheckBoxPreference
             android:key="nova_polaris_hud"
             android:title="Nova Stream HUD"
-            android:summary="Drag to move, tap to cycle modes (minimal / performance / debug)"
+            android:summary="Drag to move. Long press opens Command Center."
             android:defaultValue="false"
             app:iconSpaceReserved="false" />
         <ListPreference
@@ -454,15 +454,7 @@
             android:entries="@array/nova_hud_mode_names"
             android:entryValues="@array/nova_hud_mode_values"
             android:defaultValue="minimal"
-            android:summary="Minimal for play, Performance for tuning, Debug for dense troubleshooting"
-            app:iconSpaceReserved="false" />
-        <ListPreference
-            android:key="nova_polaris_hud_position"
-            android:title="HUD Position"
-            android:dependency="nova_polaris_hud"
-            android:entries="@array/nova_hud_position_names"
-            android:entryValues="@array/nova_hud_position_values"
-            android:defaultValue="top_left"
+            android:summary="Slim for a glance, Minimal for play, Performance for tuning, Debug for troubleshooting"
             app:iconSpaceReserved="false" />
         <com.papi.nova.preferences.SeekBarPreference
             android:key="nova_polaris_hud_opacity"

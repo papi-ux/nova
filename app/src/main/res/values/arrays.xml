@@ -43,19 +43,6 @@
         <item>1800</item>
     </string-array>
 
-    <string-array name="nova_hud_position_names">
-        <item>Top Left</item>
-        <item>Top Right</item>
-        <item>Bottom Left</item>
-        <item>Bottom Right</item>
-    </string-array>
-    <string-array name="nova_hud_position_values">
-        <item>top_left</item>
-        <item>top_right</item>
-        <item>bottom_left</item>
-        <item>bottom_right</item>
-    </string-array>
-
     <string-array name="android_stream_display_target_names">
         <item>@string/android_stream_display_target_auto</item>
         <item>@string/android_stream_display_target_primary</item>
@@ -118,11 +105,13 @@
     </string-array>
 
     <string-array name="nova_hud_mode_names">
+        <item>Slim</item>
         <item>Minimal</item>
         <item>Performance</item>
         <item>Debug</item>
     </string-array>
     <string-array name="nova_hud_mode_values">
+        <item>slim</item>
         <item>minimal</item>
         <item>performance</item>
         <item>debug</item>

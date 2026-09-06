@@ -329,8 +329,6 @@ private var notificationOverlayView:TextView? = null
 private var requestedNotificationOverlayVisibility:Int = View.GONE
 private var performanceOverlayView:View? = null
 
-private var performanceOverlayLite:TextView? = null
-
 private var performanceOverlayBig:TextView? = null
 
 private var decoderRenderer:MediaCodecDecoderRenderer? = null
@@ -1006,8 +1004,6 @@ notificationOverlayView = findViewById(R.id.notificationOverlay)
 
 performanceOverlayView = findViewById(R.id.performanceOverlay)
 
-performanceOverlayLite = findViewById(R.id.performanceOverlayLite)
-
 performanceOverlayBig = findViewById(R.id.performanceOverlayBig)
 
 inputCaptureProvider = InputCaptureManager.getInputCaptureProvider(this, this)
@@ -1157,25 +1153,7 @@ NovaSnackbar.show(this, getString(R.string.nova_hdr_requires_android_n), Snackba
         if (prefConfig!!.enablePerfOverlay)
 {
 performanceOverlayView!!.setVisibility(View.VISIBLE)
-if (prefConfig!!.enablePerfOverlayLite)
-{
-performanceOverlayLite!!.setVisibility(View.VISIBLE)
-if (prefConfig!!.enablePerfOverlayLiteDialog)
-{
-performanceOverlayLite!!.setOnClickListener({ v-> showGameMenu(null) })
-}
-}
-else
-{
 performanceOverlayBig!!.setVisibility(View.VISIBLE)
-}
-if (prefConfig!!.enablePerfOverlayBottom)
-{
- //performanceOverlayView.getLayoutParams().layout_gravity = Gravity.BOTTOM;
-                var params:FrameLayout.LayoutParams? = performanceOverlayView!!.getLayoutParams() as FrameLayout.LayoutParams
-params!!.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-performanceOverlayView!!.setLayoutParams(params)
-}
 }
 
 decoderRenderer = MediaCodecDecoderRenderer(
@@ -5985,23 +5963,11 @@ doctorTelemetryUploadGate.release(uploadToken)
 override fun onPerfUpdate(text:String) {
 runOnUiThread(object : Runnable {
 override fun run() {
- // Legacy perf overlay (only if enabled)
+ // Legacy perf overlay only. Nova HUD reads the structured sample in onPerfSample,
+                // so the decoder is asked for this text only while this overlay is on.
                 if (prefConfig!!.enablePerfOverlay)
 {
-if (prefConfig!!.enablePerfOverlayLite)
-{
-performanceOverlayLite!!.setText(text)
-}
-else
-{
 performanceOverlayBig!!.setText(text)
-}
-}
-
- // Feed Nova HUD (works independently of legacy overlay)
-                if (novaHud != null && novaHud!!.isShowing)
-{
-novaHud!!.updateFromPerfText(text)
 }
 }
 })
@@ -6792,12 +6758,12 @@ showNovaHud()
 }
 }
 
-fun cycleNovaHudMode() {
+fun setNovaHudMode(mode:com.papi.nova.ui.NovaHudMode) {
 if (!isNovaHudShowing())
 {
 return
 }
-novaHud?.cycleMode()
+novaHud?.setMode(mode)
 }
 
 private fun setNovaHudPreference(enabled:Boolean) {
@@ -6813,10 +6779,10 @@ novaHud = null
 syncPerfTextWanted()
 }
 
+ // Only the legacy text overlay needs the decoder to build its string on the decode
+ // thread. Nova HUD reads the structured PerfOverlaySample, which is emitted regardless.
 private fun syncPerfTextWanted() {
-decoderRenderer?.setPerfTextWanted(
-(::prefConfig.isInitialized && prefConfig!!.enablePerfOverlay) || novaHud?.isShowing == true
-)
+decoderRenderer?.setPerfTextWanted(::prefConfig.isInitialized && prefConfig!!.enablePerfOverlay)
 }
 
 fun copyNovaHudDiagnostics() {
@@ -6876,24 +6842,22 @@ hud.cycleMode()
 }
 }
 
+ /**
+  * Toggle the legacy Moonlight stats text. The choice is persisted and the decoder's text
+  * builder is re-armed in the same step. This used to flip an in-memory flag and a View,
+  * so a stream that started with the setting off showed an empty overlay when toggled from
+  * Command Center, and Settings never learned about the toggle at all.
+  */
  fun toggleHUD() {
-prefConfig!!.enablePerfOverlay = !prefConfig!!.enablePerfOverlay
-if (prefConfig!!.enablePerfOverlay)
-{
-performanceOverlayView!!.setVisibility(View.VISIBLE)
-if (prefConfig!!.enablePerfOverlayLite)
-{
-performanceOverlayLite!!.setVisibility(View.VISIBLE)
-}
-else
-{
-performanceOverlayBig!!.setVisibility(View.VISIBLE)
-}
-}
-else
-{
-performanceOverlayView!!.setVisibility(View.GONE)
-}
+val enabled:Boolean = !prefConfig!!.enablePerfOverlay
+prefConfig!!.enablePerfOverlay = enabled
+PreferenceManager.getDefaultSharedPreferences(this)
+.edit()
+.putBoolean(PreferenceConfiguration.ENABLE_PERF_OVERLAY_STRING, enabled)
+.apply()
+performanceOverlayView!!.setVisibility(if (enabled) View.VISIBLE else View.GONE)
+performanceOverlayBig!!.setVisibility(if (enabled) View.VISIBLE else View.GONE)
+syncPerfTextWanted()
 }
 
  //切换触控灵敏度开关

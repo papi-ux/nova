@@ -1009,7 +1009,9 @@
     <string name="nova_quick_menu_nova_hud">Nova HUD</string>
     <string name="nova_quick_menu_nova_hud_caption">Long press the HUD to open Command Center.</string>
     <string name="nova_quick_menu_hud_mode">HUD Mode</string>
-    <string name="nova_quick_menu_hud_mode_caption">Tap to cycle. Guide + Y does the same on a controller.</string>
+    <string name="nova_quick_menu_hud_mode_caption">Pick a layout. Guide + Y cycles through them on a controller.</string>
+    <string name="nova_quick_menu_hud_mode_disabled_caption">Turn Nova HUD on to pick a layout.</string>
+    <string name="nova_quick_menu_hud_mode_slim">Slim</string>
     <string name="nova_quick_menu_hud_mode_minimal">Minimal</string>
     <string name="nova_quick_menu_hud_mode_performance">Performance</string>
     <string name="nova_quick_menu_hud_mode_debug">Debug</string>
@@ -1022,8 +1024,10 @@
     <string name="nova_quick_menu_hud_opacity_preset_cd">Set HUD opacity to %1$d percent</string>
     <string name="nova_quick_menu_hud_opacity_selected">Selected</string>
     <string name="nova_quick_menu_hud_opacity_not_selected">Not selected</string>
+    <string name="nova_quick_menu_opacity_show_presets">Show presets</string>
+    <string name="nova_quick_menu_opacity_hide_presets">Hide presets</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
-    <string name="nova_quick_menu_perf_stats_caption">Legacy Moonlight stats text, separate from Nova HUD.</string>
+    <string name="nova_quick_menu_perf_stats_caption">Legacy Moonlight stats text. Replaces Nova HUD while it is on.</string>
     <string name="nova_quick_menu_diagnose_stream">Diagnose This Stream</string>
     <string name="nova_quick_menu_doctor_capability_auto_fix">Auto Fix</string>
     <string name="nova_quick_menu_doctor_capability_run_trial">Run a trial</string>

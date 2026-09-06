@@ -16,43 +16,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class NovaHudUiStateTest {
     @Test
-    fun performanceTextParserExtractsHudSample() {
-        val sample = NovaHudPerfSample.fromPerfText(
-            """
-            Video stream: 1920x1080
-            Decoder: hevc
-            FPS: 59.8
-            RTT: 18 ms
-            Packet loss: 1.5%
-            """.trimIndent()
-        )
-
-        assertEquals(59.8, sample.fps!!, 0.01)
-        assertEquals(1920, sample.width)
-        assertEquals(1080, sample.height)
-        assertEquals(18, sample.latencyMs)
-        assertEquals("HEVC", sample.codec)
-        assertEquals(1.5, sample.packetLossPct!!, 0.01)
-    }
-
-    @Test
-    fun performanceTextParserKeepsLocalizedCommaFpsWhole() {
-        val sample = NovaHudPerfSample.fromPerfText(
-            """
-            1920x1080 119,84 FPS
-            Avc.decoder.low_latency
-            Bildfrekvens från nätverket: 119,84 FPS
-            Renderingsfrekvens: 113,87 FPS
-            Frames dropped by your network connection: 0,00%
-            """.trimIndent()
-        )
-
-        assertEquals(119.84, sample.fps!!, 0.01)
-        assertEquals(1920, sample.width)
-        assertEquals(1080, sample.height)
-    }
-
-    @Test
     fun fullModeFormatsReadableLabelsAndTones() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.DEBUG,
@@ -152,7 +115,9 @@ class NovaHudUiStateTest {
     }
 
     @Test
-    fun hudModesMapCasualPerformanceAndDebugPreferences() {
+    fun hudModesMapSlimCasualPerformanceAndDebugPreferences() {
+        assertEquals(NovaHudMode.SLIM, NovaHudMode.fromPreference("slim"))
+        assertEquals(NovaHudMode.SLIM, NovaHudMode.fromPreference("pill"))
         assertEquals(NovaHudMode.MINIMAL, NovaHudMode.fromPreference("minimal"))
         assertEquals(NovaHudMode.PERFORMANCE, NovaHudMode.fromPreference("performance"))
         assertEquals(NovaHudMode.DEBUG, NovaHudMode.fromPreference("debug"))
@@ -160,9 +125,58 @@ class NovaHudUiStateTest {
         assertEquals(NovaHudMode.PERFORMANCE, NovaHudMode.fromPreference("banner"))
         assertEquals(NovaHudMode.MINIMAL, NovaHudMode.fromPreference("fps_only"))
         assertEquals(NovaHudMode.MINIMAL, NovaHudMode.fromPreference(null))
+        // Guide + Y walks the ring from the default; Slim is one press past Debug so the
+        // three layouts people already know keep their order.
         assertEquals(NovaHudMode.PERFORMANCE, NovaHudMode.MINIMAL.next())
         assertEquals(NovaHudMode.DEBUG, NovaHudMode.PERFORMANCE.next())
-        assertEquals(NovaHudMode.MINIMAL, NovaHudMode.DEBUG.next())
+        assertEquals(NovaHudMode.SLIM, NovaHudMode.DEBUG.next())
+        assertEquals(NovaHudMode.MINIMAL, NovaHudMode.SLIM.next())
+        // A picker lists them smallest to largest.
+        assertEquals(
+            listOf(NovaHudMode.SLIM, NovaHudMode.MINIMAL, NovaHudMode.PERFORMANCE, NovaHudMode.DEBUG),
+            NovaHudMode.entries
+        )
+    }
+
+    @Test
+    fun debugTilesGradeDecodeTimeAgainstTheFrameBudget() {
+        fun debug(decodeMs: Double, target: Double, host: Double? = null) = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG,
+            fps = 60.0,
+            targetFps = target,
+            latencyMs = 3,
+            codec = "hevc",
+            bitrateKbps = 20000,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = emptyList(),
+            decodeTimeMs = decodeMs,
+            hostProcessingLatencyMs = host,
+            incomingFps = 60.4,
+            renderedFps = 59.6
+        )
+
+        val noSample = debug(0.0, 120.0)
+        assertEquals("--", noSample.decodeTimeLabel)
+        assertEquals(NovaHudTone.MUTED, noSample.decodeTone)
+        assertEquals("--", noSample.hostLatencyLabel)
+
+        // Under 10 ms the decimal is the difference between decoders.
+        val quick = debug(3.0, 120.0, host = 2.14)
+        assertEquals("3.0ms", quick.decodeTimeLabel)
+        assertEquals(NovaHudTone.STABLE, quick.decodeTone)
+        assertEquals("2.1ms", quick.hostLatencyLabel)
+        assertEquals("60", quick.incomingFpsLabel)
+        assertEquals("60", quick.renderedFpsLabel)
+
+        // 13 ms is fine inside a 60 fps frame and a dropped frame at 120.
+        assertEquals("13ms", debug(13.0, 60.0).decodeTimeLabel)
+        assertEquals(NovaHudTone.WARNING, debug(13.0, 60.0).decodeTone)
+        assertEquals(NovaHudTone.DANGER, debug(13.0, 120.0).decodeTone)
+        // With no target yet the budget is 60 fps.
+        assertEquals(NovaHudTone.WARNING, debug(9.0, 0.0).decodeTone)
+        assertEquals(NovaHudTone.STABLE, debug(4.0, 0.0).decodeTone)
     }
 
     @Test
@@ -222,6 +236,19 @@ class NovaHudUiStateTest {
             sparklineSamples = emptyList()
         )
 
+        val slim = NovaHudUiState.from(
+            mode = NovaHudMode.SLIM,
+            fps = 59.7,
+            targetFps = 120.0,
+            latencyMs = 51,
+            codec = "AV1 Main",
+            bitrateKbps = 24187,
+            width = 1920,
+            height = 1080,
+            status = status(),
+            sparklineSamples = emptyList()
+        )
+
         assertEquals("/120", performance.targetFpsLabel)
         assertEquals("24M", performance.bitrateLabel)
         assertEquals("1080p", performance.resolutionLabel)
@@ -229,6 +256,10 @@ class NovaHudUiStateTest {
         assertEquals(NovaHudTone.DANGER, performance.latencyTone)
         assertEquals("", minimal.targetFpsLabel)
         assertEquals("24 Mbps", debug.bitrateLabel)
+        assertEquals("", slim.targetFpsLabel)
+        assertEquals("60", slim.fpsLabel)
+        assertEquals("51ms", slim.latencyLabel)
+        assertEquals("1080p", slim.resolutionLabel)
     }
 
     @Test
@@ -1222,7 +1253,7 @@ class NovaHudUiStateTest {
     }
 
     @Test
-    fun streamHudConsumesStructuredPerfSamplesBesideTextFallback() {
+    fun streamHudConsumesStructuredPerfSamplesOnly() {
         val source = String(
             Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
             StandardCharsets.UTF_8
@@ -1231,8 +1262,12 @@ class NovaHudUiStateTest {
         assertTrue(source.contains("fun updateFromPerfSample(sample: PerfOverlaySample)"))
         assertTrue(source.contains("updateFps(sample.fps)"))
         assertTrue(source.contains("sessionStats.recordRawMediaEvidence(sample)"))
-        assertTrue(source.contains("updateFromPerfText(text: String)"))
-        assertTrue(source.contains("NovaHudPerfSample.fromPerfText(text)"))
+        assertTrue(source.contains("lastDecodeTimeMs = sample.decodeTimeMs"))
+        // The text path is gone on purpose. It made the decoder build the legacy overlay
+        // string on the decode thread whenever the HUD was up, to regex out numbers the
+        // struct already carries, and it published the HUD twice per sample.
+        assertFalse(source.contains("updateFromPerfText"))
+        assertFalse(source.contains("fromPerfText"))
     }
 
     @Test

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- NovaHUD gains a Slim layout: one pill with the health bar, the frame rate, and the round trip. Guide + Y now cycles Minimal, Performance, Debug, Slim.
+- NovaHUD Debug shows decode time (DEC), graded against the frame budget at the target rate, plus host processing latency (HOST) and incoming against rendered frame rate (IN / OUT). That is the rest of what the legacy stats text knew, inside the HUD.
+- Command Center picks the HUD layout with four buttons instead of cycling blind, keeps Close, Disconnect, and End Session fixed above the scrolling sections, folds the two opacity preset strips behind their rows, and slides out on Close, B, and Back the way it already did on scrim and drag.
+- Stats Overlay toggled from Command Center works on a stream that started with it off, and the toggle is remembered in Settings. Turning it on turns Nova HUD off for the next stream too, and the reverse.
+- NovaHUD reads the decoder's structured sample only. The decoder no longer builds the legacy overlay text while just the HUD is showing, and the HUD updates once per sample instead of twice.
+- The HUD Position setting is gone. It never did anything; drag the HUD to place it.
+
 ## 1.4.3 - 2026-09-05
 
 Matched client for Polaris 1.4.3: a launch crash fix, honest artwork search errors, complete resolution lists, and a tidier Command Center and NovaHUD.

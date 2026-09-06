@@ -40,6 +40,11 @@ class NovaStreamHud(
     private var targetFps = 0.0
     private var lastFps = 0.0
     private var lastLatency = 0.0
+    private var lastLowOnePercentFps = 0.0
+    private var lastDecodeTimeMs = 0.0
+    private var lastHostLatencyMs: Double? = null
+    private var lastIncomingFps = 0.0
+    private var lastRenderedFps = 0.0
     private var currentBitrateKbps = 0
     var lastCodec = ""
     var lastBitrateKbps = 0
@@ -116,6 +121,11 @@ class NovaStreamHud(
         sessionStats.reset()
         sparklineData.clear()
         eventTrail.clear()
+        lastLowOnePercentFps = 0.0
+        lastDecodeTimeMs = 0.0
+        lastHostLatencyMs = null
+        lastIncomingFps = 0.0
+        lastRenderedFps = 0.0
     }
 
     private fun setupTouchHandler(view: View) {
@@ -218,10 +228,22 @@ class NovaStreamHud(
     }
 
     fun cycleMode() {
+        applyMode(currentMode.next())
+    }
+
+    /** Jump straight to a layout; the Command Center picker uses this instead of cycling blind. */
+    fun setMode(mode: NovaHudMode) {
+        if (mode == currentMode) {
+            return
+        }
+        applyMode(mode)
+    }
+
+    private fun applyMode(mode: NovaHudMode) {
         val view = hudView ?: return
         val savedX = view.x
         val savedY = view.y
-        currentMode = currentMode.next()
+        currentMode = mode
         PreferenceManager.getDefaultSharedPreferences(activity)
             .edit()
             .putString("nova_polaris_hud_mode", currentMode.preferenceValue)
@@ -236,22 +258,11 @@ class NovaStreamHud(
         }
     }
 
-    fun updateFromPerfText(text: String) {
-        val sample = NovaHudPerfSample.fromPerfText(text)
-        activity.runOnUiThread {
-            if (hudView == null) return@runOnUiThread
-            sample.fps?.let(::updateFps)
-            if (sample.width != null && sample.height != null) {
-                width = sample.width
-                height = sample.height
-            }
-            sample.latencyMs?.let(::updateLatency)
-            sample.codec?.let(::applyCodecLabel)
-            sample.packetLossPct?.let(sessionStats::recordPacketLoss)
-            publishState()
-        }
-    }
-
+    /**
+     * The one feed. The decoder emits this struct once a second whether or not any overlay
+     * is up; it carries every number the HUD shows, so the HUD no longer asks the decoder
+     * to also build the legacy overlay text on its own thread just to regex it back out.
+     */
     fun updateFromPerfSample(sample: PerfOverlaySample) {
         activity.runOnUiThread {
             if (hudView == null) return@runOnUiThread
@@ -261,6 +272,10 @@ class NovaStreamHud(
             updateLatency(sample.rttMs)
             applyCodecLabel(sample.codec)
             sessionStats.recordPacketLoss(sample.packetLossPct)
+            lastDecodeTimeMs = sample.decodeTimeMs
+            lastHostLatencyMs = sample.hostProcessingLatencyMs
+            lastIncomingFps = sample.incomingFps
+            lastRenderedFps = sample.renderedFps
             // The display helpers above own the HUD's rolling averages. Preserve the
             // exact cumulative decoder evidence too, so Copy diagnostics reports the
             // same raw sample that Doctor uploads instead of default zero counters.
@@ -270,11 +285,13 @@ class NovaStreamHud(
     }
 
     fun setTargetBitrateKbps(bitrateKbps: Int) {
-        currentBitrateKbps = bitrateKbps
-        lastBitrateKbps = bitrateKbps
-        sessionStats.setLastBitrateKbps(bitrateKbps)
-        streamPolicy = StreamPolicyUiState.from(lastSessionStatus, bitrateKbps, targetFps)
-        publishState()
+        activity.runOnUiThread {
+            currentBitrateKbps = bitrateKbps
+            lastBitrateKbps = bitrateKbps
+            sessionStats.setLastBitrateKbps(bitrateKbps)
+            streamPolicy = StreamPolicyUiState.from(lastSessionStatus, bitrateKbps, targetFps)
+            if (hudView != null) publishState()
+        }
     }
 
     fun setTargetFps(fps: Double) {
@@ -283,7 +300,9 @@ class NovaStreamHud(
         }
         targetFps = fps
         sessionStats.setTargetFps(fps)
-        activity.runOnUiThread { publishState() }
+        activity.runOnUiThread {
+            if (hudView != null) publishState()
+        }
     }
 
     fun update(fps: Double, codec: String, bitrateKbps: Int, width: Int, height: Int, latencyMs: Double) {
@@ -309,6 +328,9 @@ class NovaStreamHud(
 
     fun applySessionStatus(status: PolarisSessionStatus?) {
         activity.runOnUiThread {
+            // Polaris is polled once a second and mostly answers the same thing. A status
+            // that equals the last one changes nothing below, so skip the rebuild.
+            if (status != null && status == lastSessionStatus) return@runOnUiThread
             lastSessionStatus = status
             sessionStats.applySessionStatus(status)
             val resolvedTargetFps = status?.let(::resolveTargetFps) ?: 0.0
@@ -336,9 +358,12 @@ class NovaStreamHud(
         }
         lastFps = fps
         sparklineData.add(fps.toFloat())
+        // One sort per sample. publishState() used to sort the ring buffer a second time
+        // for the same number.
+        lastLowOnePercentFps = sparklineData.lowOnePercent()
         sessionStats.recordFps(
             fps = fps,
-            lowOnePercentFps = sparklineData.lowOnePercent()
+            lowOnePercentFps = lastLowOnePercentFps
         )
 
         // The HUD is observational. Low rendered FPS may be static content or
@@ -380,7 +405,11 @@ class NovaStreamHud(
             status = lastSessionStatus,
             sparklineSamples = sparklineData.snapshot(),
             eventBreadcrumbLabel = eventTrail.latestLabel,
-            lowOnePercentFps = sparklineData.lowOnePercent()
+            lowOnePercentFps = lastLowOnePercentFps,
+            decodeTimeMs = lastDecodeTimeMs,
+            hostProcessingLatencyMs = lastHostLatencyMs,
+            incomingFps = lastIncomingFps,
+            renderedFps = lastRenderedFps
         )
     }
 

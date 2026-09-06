@@ -106,7 +106,7 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "a controller B release should dismiss the Command Center while the full press stays local",
             quickMenuHost.contains("KeyEvent.KEYCODE_BUTTON_B ->") &&
-                quickMenuHost.contains("if (event.action == KeyEvent.ACTION_UP) dismiss()")
+                quickMenuHost.contains("if (event.action == KeyEvent.ACTION_UP) requestDismissWithMotion()")
         )
         assertTrue(
             "Command Center dismissal must relinquish its focusable window and restore the stream input target",
@@ -1957,7 +1957,7 @@ class NovaComposeSourceGuardTest {
         )
         val cycleMode = source.section(
             "fun cycleMode()",
-            "fun updateFromPerfText("
+            "fun updateFromPerfSample("
         )
 
         assertTrue(
@@ -2443,6 +2443,10 @@ class NovaComposeSourceGuardTest {
         )
         val minimalHud = source.section(
             "private fun NovaStreamHudMinimal(",
+            "@Composable\nprivate fun NovaStreamHudSlim("
+        )
+        val slimHud = source.section(
+            "private fun NovaStreamHudSlim(",
             "@Composable\nprivate fun HudPanel("
         )
 
@@ -2473,6 +2477,137 @@ class NovaComposeSourceGuardTest {
         assertFalse(
             "minimal HUD should avoid sparkline density during casual play",
             minimalHud.contains("NovaHudSparkline")
+        )
+        assertTrue(
+            "slim HUD is one pill: the health bar, the frame rate, the round trip, nothing labelled",
+            slimHud.contains("cornerRadius = NovaRadius.pill") &&
+                slimHud.contains("state.fpsLabel") &&
+                slimHud.contains("state.latencyLabel") &&
+                !slimHud.contains("HudTinyLabel(") &&
+                !slimHud.contains("state.targetFpsLabel") &&
+                !slimHud.contains("state.bitrateLabel") &&
+                !slimHud.contains("autopilot") &&
+                !slimHud.contains("HudEventBreadcrumb") &&
+                !slimHud.contains("NovaHudSparkline")
+        )
+    }
+
+    @Test
+    fun streamHudDebugShowsTheLatencyBudgetAndFrameFlowTiles() {
+        val source = readNovaStreamHudContent()
+        val debugHud = source.section(
+            "private fun NovaStreamHudDebug(",
+            "@Composable\nprivate fun NovaStreamHudPerformance("
+        )
+        val performanceHud = source.section(
+            "private fun NovaStreamHudPerformance(",
+            "@Composable\nprivate fun NovaStreamHudMinimal("
+        )
+
+        assertTrue(
+            "Debug answers 'how long does my panel take to decode' beside codec and resolution, graded against the frame budget rather than a fixed number",
+            debugHud.contains("HudMetric(\"DEC\", state.decodeTimeLabel") &&
+                debugHud.contains("valueTone = state.decodeTone")
+        )
+        assertTrue(
+            "Debug shows host encode latency and incoming against rendered fps, the legacy text's remaining facts, so the legacy overlay can retire later",
+            debugHud.contains("HudMetric(\"HOST\", state.hostLatencyLabel") &&
+                debugHud.contains("HudMetric(\"IN\", state.incomingFpsLabel") &&
+                debugHud.contains("HudMetric(\"OUT\", state.renderedFpsLabel")
+        )
+        assertFalse(
+            "Performance stays the four-metric row it is pinned to",
+            performanceHud.contains("decodeTimeLabel")
+        )
+    }
+
+    @Test
+    fun commandCenterHeaderStaysFixedWhileSectionsScroll() {
+        val content = readNovaQuickMenuContent()
+        val body = content.section(
+            "fun NovaQuickMenuContent(",
+            "@Composable\nprivate fun NovaQuickMenuHeader("
+        )
+        val header = body.indexOf("NovaQuickMenuHeader(state, callbacks)")
+        val scroll = body.indexOf(".verticalScroll(rememberScrollState())")
+        val strip = body.indexOf("NovaQuickMenuSessionStrip(state, initialFocusRequester)")
+
+        assertTrue(
+            "Close, Disconnect, and End Session must not scroll away: the header lives above the scrolling column, and only the sections scroll",
+            header in 0 until scroll && scroll in 0 until strip
+        )
+    }
+
+    @Test
+    fun commandCenterPicksTheHudModeDirectly() {
+        val content = readNovaQuickMenuContent()
+        val quickMenu = readNovaQuickMenu()
+
+        assertTrue(
+            "HUD Mode is a picker of every layout, not a cycle button that hid where the next press would land",
+            content.contains("private fun NovaQuickMenuHudModePicker(") &&
+                content.contains("hudMode.options.forEach") &&
+                content.contains("callbacks.onHudModeSelect(NovaHudMode.fromPreference(option.value))")
+        )
+        assertTrue(
+            "the picker sits right under the Nova HUD row it configures",
+            content.contains("if (row.id == NovaQuickMenuActionId.NOVA_HUD) {")
+        )
+        assertTrue(
+            "the host jumps the HUD straight to the chosen layout",
+            quickMenu.contains("game.setNovaHudMode(mode)")
+        )
+        assertFalse(
+            "no cycle row survives beside the picker",
+            content.contains("NOVA_HUD_MODE") || quickMenu.contains("NOVA_HUD_MODE")
+        )
+    }
+
+    @Test
+    fun commandCenterOpacityPresetsStayCollapsedUntilOpened() {
+        val content = readNovaQuickMenuContent()
+        val menuOpacity = content.section(
+            "private fun NovaQuickMenuMenuOpacityControl(",
+            "@Composable\nprivate fun NovaQuickMenuHudOpacityControl("
+        )
+        val hudOpacity = content.section(
+            "private fun NovaQuickMenuHudOpacityControl(",
+            "@Composable\nprivate fun NovaQuickMenuOpacityHeader("
+        )
+
+        assertTrue(
+            "menu opacity presets render only after the row is opened; two open strips were most of the Overlays panel on a Retroid",
+            menuOpacity.contains("var expanded by remember { mutableStateOf(false) }") &&
+                menuOpacity.contains("if (expanded) {")
+        )
+        assertTrue(
+            "HUD opacity presets render only after the row is opened, and close again with the HUD",
+            hudOpacity.contains("var expanded by remember { mutableStateOf(false) }") &&
+                hudOpacity.contains("val presetsOpen = expanded && state.hudOpacity.enabled") &&
+                hudOpacity.contains("if (presetsOpen) {")
+        )
+    }
+
+    @Test
+    fun commandCenterEveryExitSlidesTheDrawerOut() {
+        val content = readNovaQuickMenuContent()
+        val quickMenu = readNovaQuickMenu()
+        val drawer = content.section(
+            "fun NovaQuickMenuDrawer(",
+            "@Composable\nfun NovaQuickMenuContent("
+        )
+
+        assertTrue(
+            "Close goes through the drawer's motion like scrim-tap and drag do",
+            drawer.contains("callbacks.copy(onDismiss = { dismissDrawerWithMotion() })") &&
+                drawer.contains("callbacks = contentCallbacks")
+        )
+        assertTrue(
+            "B and Back ask the drawer to slide out instead of dropping the dialog, with a fallback in case composition is not running",
+            drawer.contains("LaunchedEffect(dismissRequests)") &&
+                quickMenu.contains("dismissMotionRequests.intValue++") &&
+                quickMenu.contains("DISMISS_MOTION_FALLBACK_MS") &&
+                quickMenu.contains("dismissWithMotion?.invoke() ?: dismiss()")
         )
     }
 

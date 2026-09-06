@@ -56,6 +56,7 @@ fun NovaStreamHudContent(
             NovaHudMode.DEBUG -> NovaStreamHudDebug(state, modifier)
             NovaHudMode.PERFORMANCE -> NovaStreamHudPerformance(state, modifier)
             NovaHudMode.MINIMAL -> NovaStreamHudMinimal(state, modifier)
+            NovaHudMode.SLIM -> NovaStreamHudSlim(state, modifier)
         }
     }
 }
@@ -72,8 +73,9 @@ private fun rememberHudOpacityScale(opacityScale: Float): Float {
 
 @Composable
 private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
+    // 256dp: three metric tiles across need to hold "1920×1080" at 10sp with room left.
     HudPanel(
-        modifier = modifier.width(236.dp),
+        modifier = modifier.width(256.dp),
         cornerRadius = NovaRadius.hero,
         padding = 10.dp
     ) {
@@ -165,6 +167,19 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
         ) {
             HudMetric("CODEC", state.codecLabel.ifBlank { "--" }, Modifier.weight(1f))
             HudMetric("RES", state.resolutionLabel, Modifier.weight(1f))
+            HudMetric("DEC", state.decodeTimeLabel, Modifier.weight(1f), valueTone = state.decodeTone)
+        }
+        // Where the frame's time goes and where its frames go: host encode latency next to
+        // the decode tile above it, then what arrived against what was drawn.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            HudMetric("HOST", state.hostLatencyLabel, Modifier.weight(1f))
+            HudMetric("IN", state.incomingFpsLabel, Modifier.weight(1f))
+            HudMetric("OUT", state.renderedFpsLabel, Modifier.weight(1f))
         }
     }
 }
@@ -318,6 +333,31 @@ private fun NovaStreamHudMinimal(state: NovaHudUiState, modifier: Modifier) {
         }
         if (state.eventBreadcrumbLabel.isNotBlank()) {
             HudEventBreadcrumb(state.eventBreadcrumbLabel)
+        }
+    }
+}
+
+// One line, one glance: the health bar, the frame rate, the round trip. Nothing that
+// needs reading, so no labels, no target, no breadcrumb, no sparkline.
+@Composable
+private fun NovaStreamHudSlim(state: NovaHudUiState, modifier: Modifier) {
+    HudPanel(
+        modifier = modifier,
+        cornerRadius = NovaRadius.pill,
+        padding = 5.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 4.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HudStatusDot(state.statusTone, height = 16.dp)
+            HudValueText(
+                text = state.fpsLabel,
+                tone = state.fpsTone,
+                size = 15,
+                modifier = Modifier.padding(start = 6.dp)
+            )
+            HudCompactText(state.latencyLabel, state.latencyTone, startPadding = 7.dp)
         }
     }
 }
@@ -494,7 +534,7 @@ private fun HudTinyLabel(text: String) {
 }
 
 @Composable
-private fun HudValueText(text: String, tone: NovaHudTone, size: Int) {
+private fun HudValueText(text: String, tone: NovaHudTone, size: Int, modifier: Modifier = Modifier) {
     Text(
         text = text,
         color = tone.hudColor(),
@@ -503,7 +543,8 @@ private fun HudValueText(text: String, tone: NovaHudTone, size: Int) {
         fontWeight = FontWeight.Bold,
         fontFamily = FontFamily.SansSerif,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
     )
 }
 
@@ -564,6 +605,10 @@ private fun NovaHudSparkline(
 ) {
     val lineColor = tone.hudColor()
     val hudOpacityScale = LocalNovaHudOpacityScale.current
+    // The sparkline redraws once a second for the life of a stream. Two paths that live
+    // with the composable and get reset cost nothing; two fresh ones per draw were garbage.
+    val linePath = remember { Path() }
+    val fillPath = remember { Path() }
     Canvas(modifier = modifier) {
         if (samples.size < 2 || size.width <= 0f || size.height <= 0f) {
             return@Canvas
@@ -572,8 +617,8 @@ private fun NovaHudSparkline(
         val max = samples.maxOrNull() ?: return@Canvas
         val range = (max - min).coerceAtLeast(5f)
         val stepX = size.width / (samples.size - 1).coerceAtLeast(1)
-        val linePath = Path()
-        val fillPath = Path()
+        linePath.reset()
+        fillPath.reset()
         samples.forEachIndexed { index, value ->
             val x = index * stepX
             val y = size.height - ((value - min) / range) * (size.height - 2f) - 1f

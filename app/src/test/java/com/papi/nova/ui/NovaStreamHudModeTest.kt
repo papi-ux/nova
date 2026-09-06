@@ -42,6 +42,30 @@ class NovaStreamHudModeTest {
     }
 
     @Test
+    fun setModePersistsTheChosenHudModePreference() {
+        val activity = Robolectric.buildActivity(AppCompatActivity::class.java).setup().get()
+        val content = activity.findViewById<ViewGroup>(R.id.content)
+        content.setViewTreeLifecycleOwner(activity)
+        content.setViewTreeViewModelStoreOwner(activity)
+        content.setViewTreeSavedStateRegistryOwner(activity)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
+        prefs.edit().putString("nova_polaris_hud_mode", NovaHudMode.MINIMAL.preferenceValue).commit()
+
+        val hud = NovaStreamHud(activity)
+        hud.show()
+
+        // The Command Center picker jumps straight to a layout instead of cycling.
+        hud.setMode(NovaHudMode.SLIM)
+
+        assertEquals(
+            NovaHudMode.SLIM.preferenceValue,
+            prefs.getString("nova_polaris_hud_mode", null)
+        )
+
+        hud.dismiss()
+    }
+
+    @Test
     fun hudLongPressOpensCommandCenterAndPositionPersistsInsideSafeZone() {
         val source = String(
             java.nio.file.Files.readAllBytes(java.nio.file.Path.of("src/main/java/com/papi/nova/ui/NovaStreamHud.kt")),
