@@ -1,0 +1,2 @@
+Nova 1.4.4
+Wake Host tells a sleeping host from one that is awake with Polaris down. Command Center leads with the Doctor's reading and the Stream card, keeps Esc, Meta, and Alt + Enter one reach from the top, and picks the HUD layout directly. NovaHUD gains a Slim one-line bar with a frame-rate sparkline, and Debug shows decode time, host latency, in/out frame rate, and a network row. Stats Overlay toggled mid-stream works. Matched client for Polaris 1.4.4.
