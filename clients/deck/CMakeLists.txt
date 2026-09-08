@@ -19,7 +19,7 @@ pkg_check_modules(NOVA_DECK_LINUX_AUDIO REQUIRED IMPORTED_TARGET
     libpipewire-0.3
     libpulse
 )
-find_package(Qt6 REQUIRED COMPONENTS Quick)
+find_package(Qt6 REQUIRED COMPONENTS Quick Network)
 
 add_library(nova_deck_core
     src/deck_gamepad.cpp
@@ -29,6 +29,9 @@ add_library(nova_deck_core
     src/stream/deck_stream_core.cpp
     src/stream/deck_stream_media_adapters.cpp
     src/stream/deck_moonlight_handoff_preflight.cpp
+    src/identity/deck_moonlight_identity.cpp
+    src/polaris/deck_polaris_client.cpp
+    src/backend/deck_live_read_only_state.cpp
 )
 
 set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
@@ -52,6 +55,7 @@ target_link_libraries(nova_deck_core
         PkgConfig::NOVA_DECK_FFMPEG_VAAPI
         PkgConfig::NOVA_DECK_LINUX_AUDIO
         Qt6::Quick
+        Qt6::Network
 )
 target_compile_definitions(nova_deck_core
     PUBLIC
@@ -94,6 +98,24 @@ if(BUILD_TESTING)
     )
     target_link_libraries(nova_deck_backend_interfaces_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_backend_interfaces_test COMMAND nova_deck_backend_interfaces_test)
+
+    add_executable(nova_deck_moonlight_identity_test
+        tests/deck_moonlight_identity_test.cpp
+    )
+    target_link_libraries(nova_deck_moonlight_identity_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_moonlight_identity_test COMMAND nova_deck_moonlight_identity_test)
+
+    add_executable(nova_deck_polaris_client_test
+        tests/deck_polaris_client_test.cpp
+    )
+    target_link_libraries(nova_deck_polaris_client_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_polaris_client_test COMMAND nova_deck_polaris_client_test)
+
+    add_executable(nova_deck_live_read_only_state_test
+        tests/deck_live_read_only_state_test.cpp
+    )
+    target_link_libraries(nova_deck_live_read_only_state_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_live_read_only_state_test COMMAND nova_deck_live_read_only_state_test)
 
     add_executable(nova_deck_qsg_render_node_scenegraph_smoke
         tests/deck_qsg_render_node_scenegraph_smoke.cpp

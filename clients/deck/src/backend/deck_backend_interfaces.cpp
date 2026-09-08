@@ -248,6 +248,12 @@ DeckPublicPreflightPreview publicPreviewFor(
     };
 }
 
+bool hasBlockerCode(const DeckPublicReadOnlyPreflightState& preflight, const std::string_view code) {
+    return std::find(preflight.blockerCodes.begin(), preflight.blockerCodes.end(), code) != preflight.blockerCodes.end();
+}
+
+} // namespace
+
 DeckPublicReadOnlyDtoParity readOnlyDtoParityFor(
     const DeckPublicReadOnlyPreflightState& preflight,
     const std::string& scenarioId,
@@ -263,10 +269,6 @@ DeckPublicReadOnlyDtoParity readOnlyDtoParityFor(
         .expandedDiagnostics = "DTO parity: scenario=" + scenario + " · label=" + label + " · contract=backend-owned-read-only-dto-v1 · owner=backend-owned-read-only-model · privacy=redacted-public-dto · readiness=dto-parity-ready",
         .artifactSummary = "dto_contract=backend-owned-read-only-dto-v1 dto_owner=backend-owned-read-only-model dto_privacy=redacted-public-dto dto_readiness=dto-parity-ready backendPowerStarted=false stream=false",
     };
-}
-
-bool hasBlockerCode(const DeckPublicReadOnlyPreflightState& preflight, const std::string_view code) {
-    return std::find(preflight.blockerCodes.begin(), preflight.blockerCodes.end(), code) != preflight.blockerCodes.end();
 }
 
 DeckPublicReadOnlyPlayerState playerStateFor(const DeckPublicReadOnlyPreflightState& preflight, const std::string& scenarioLabel) {
@@ -320,8 +322,6 @@ DeckPublicReadOnlyPlayerState playerStateFor(const DeckPublicReadOnlyPreflightSt
     }
     return playerState;
 }
-
-} // namespace
 
 DeckLabGate DeckLabGate::forMode(const DeckLabGateMode mode) {
     return DeckLabGate(mode);
@@ -660,6 +660,15 @@ DeckPublicReadOnlyHostLibraryState buildReadOnlyHostLibraryState(
     const PolarisGameLibraryFixture& library,
     const DeckLaunchPreflightService& preflightService,
     const DeckLabGate& labGate) {
+    return buildReadOnlyHostLibraryState(repository, library, preflightService, labGate, DeckReadOnlyStateOptions{});
+}
+
+DeckPublicReadOnlyHostLibraryState buildReadOnlyHostLibraryState(
+    const DeckHostRepository& repository,
+    const PolarisGameLibraryFixture& library,
+    const DeckLaunchPreflightService& preflightService,
+    const DeckLabGate& labGate,
+    const DeckReadOnlyStateOptions& options) {
     DeckPublicReadOnlyHostLibraryState state;
     state.sourceLabel = library.sourceLabel;
     state.readOnly = library.readOnly;
@@ -693,10 +702,9 @@ DeckPublicReadOnlyHostLibraryState buildReadOnlyHostLibraryState(
         ++gameRow;
     }
 
-    DeckCredentialMetadata credentials;
     DeckLaunchPreflightInput input;
     input.host = hosts.empty() ? std::optional<DeckHostSummary>{} : std::optional<DeckHostSummary>{hosts.front()};
-    input.credentials = credentials;
+    input.credentials = options.credentials;
     if (input.host.has_value()) {
         input.credentials.hostId = input.host->id;
     }
@@ -723,7 +731,7 @@ DeckPublicReadOnlyHostLibraryState buildReadOnlyHostLibraryState(
     state.preflight.launchDryRunAllowed = report.coordinatorRequest.launchAllowed;
     state.preflight.streamAllowed = report.coordinatorRequest.streamAllowed;
     state.preflight.backendPowerStarted = false;
-    state.preflight.publicCopy = report.publicCopy + "; source=backend-owned-read-only-model; backendPowerStarted=false";
+    state.preflight.publicCopy = report.publicCopy + "; source=" + options.sourceTag + "; backendPowerStarted=false";
     state.preflight.blockerCodes.reserve(report.blockers.size());
     for (const auto& blocker : report.blockers) {
         state.preflight.blockerCodes.push_back(blocker.code);

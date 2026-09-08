@@ -276,6 +276,31 @@ Non-goals for the MVP:
 - perfect gyro and haptics parity
 - background-service behavior identical to Android
 
+## 2026-09-08: the handoff arc comes first, the media slice second
+
+Decision (papi, 2026-09-08): revive the Deck and Linux client in two arcs, and lift
+the August rule that fenced moonlight-common-c media out of `clients/deck` until the
+Nordstern M2 decision. Nordstern never reached M0, so that fence had no date; it is
+now a seam, and Nordstern is parked with a named resume trigger (Nova on Deck ships,
+or the measurement harness shows the Moonlight plane is the bottleneck).
+
+Arc 1, the Moonlight-Qt handoff: Nova is the shell and the Polaris brains on the
+Deck and on Linux desktops; Moonlight-Qt streams. The shell borrows Moonlight-Qt's
+existing pairing (client certificate, pinned server certificates, cached app lists)
+instead of pairing a second time, reads the Polaris library over the same
+certificate, and hands a launch to `moonlight stream` through the preflight contract
+that #116 already defined. Steam shortcut registration makes it native in Game Mode.
+Packaging targets the `org.kde.Platform` runtime Moonlight-Qt already installs.
+
+Arc 2, the media slice: the FFmpeg/VA-API, Qt Quick/QRhi and PipeWire adapters below
+connect to `LiStartConnection` behind the `StreamingSession` seam, so a later
+transport (Nordstern's C ABI, if it lands) replaces the plumbing without touching the
+shell.
+
+Slice 1 of arc 1 is the live read-only route in `clients/deck/README.md`: real hosts
+and library, no execution. Slice 2 executes the handoff and returns focus. Slice 3 is
+Game Mode integration and packaging.
+
 ## Deck-T4 streaming backend decision
 
 Decision: proceed with a Nova-owned native Linux streaming backend that links
