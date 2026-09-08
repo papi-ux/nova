@@ -1,5 +1,7 @@
 #include "backend/deck_live_read_only_state.h"
 
+#include <future>
+#include <optional>
 #include <sstream>
 #include <utility>
 
@@ -8,6 +10,53 @@ namespace nova::deck::backend {
 namespace {
 
 using polaris::DeckPolarisRequestStatus;
+
+/// Why a host cannot be asked anything, or nullopt when it can.
+std::optional<std::string> reasonNotProbeable(const identity::DeckMoonlightIdentity& identity, const identity::DeckMoonlightHostRecord& host) {
+    if (!identity.hasClientIdentity()) {
+        return "Moonlight has no client certificate on this device";
+    }
+    if (!host.hasServerCertificate()) {
+        return "Moonlight has not pinned this host's certificate";
+    }
+    return std::nullopt;
+}
+
+struct ParallelProbeResults {
+    /// One slot per identity host, in Moonlight's order; nullopt where the host was not askable.
+    std::vector<std::optional<DeckLivePolarisFetch>> fetches;
+    /// The host that was asked for its library in the first round, if any.
+    std::optional<std::size_t> libraryAskedIndex;
+};
+
+/// Ask every askable host at once. Each probe blocks on its own nested event
+/// loop with per-request timeouts, so on one thread N paired hosts cost N
+/// timeouts in a row before the window can appear (a Deck away from home hits
+/// this on every LAN address Moonlight remembered); on N threads they cost the
+/// slowest one. The first askable host in Moonlight's order is the likely
+/// library source, so it is asked for the library in the same round trip.
+ParallelProbeResults probeHostsInParallel(const identity::DeckMoonlightIdentity& identity, const DeckLivePolarisFetcher& fetcher) {
+    ParallelProbeResults results;
+    results.fetches.resize(identity.hosts.size());
+    std::vector<std::pair<std::size_t, std::future<DeckLivePolarisFetch>>> pending;
+    for (std::size_t index = 0; index < identity.hosts.size(); ++index) {
+        const auto& host = identity.hosts[index];
+        if (reasonNotProbeable(identity, host)) {
+            continue;
+        }
+        const bool wantLibrary = !results.libraryAskedIndex.has_value();
+        if (wantLibrary) {
+            results.libraryAskedIndex = index;
+        }
+        pending.emplace_back(index, std::async(std::launch::async, [&fetcher, &host, wantLibrary] {
+            return fetcher(host, wantLibrary);
+        }));
+    }
+    for (auto& [index, future] : pending) {
+        results.fetches[index] = future.get();
+    }
+    return results;
+}
 
 std::string hostStatusLabel(const DeckLiveHostProbe& probe) {
     switch (probe.status) {
@@ -124,28 +173,46 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
         return snapshot;
     }
 
-    bool librarySelected = false;
-    for (const auto& host : identity.hosts) {
+    auto probed = probeHostsInParallel(identity, fetcher);
+
+    // Library precedence: the first reachable Polaris host in Moonlight's order
+    // wins. When that host was only probed in the first round (an earlier host
+    // was asked for the library and did not answer), ask it once more for the
+    // library; its latest answer is the one the snapshot reports.
+    std::optional<std::size_t> polarisIndex;
+    for (std::size_t index = 0; index < probed.fetches.size(); ++index) {
+        if (probed.fetches[index] && probed.fetches[index]->status == DeckPolarisRequestStatus::Ok) {
+            polarisIndex = index;
+            break;
+        }
+    }
+    if (polarisIndex && probed.libraryAskedIndex != polarisIndex) {
+        auto& fetch = *probed.fetches[*polarisIndex];
+        fetch = fetcher(identity.hosts[*polarisIndex], true);
+        if (fetch.status != DeckPolarisRequestStatus::Ok) {
+            polarisIndex.reset();
+        }
+    }
+
+    for (std::size_t index = 0; index < identity.hosts.size(); ++index) {
+        const auto& host = identity.hosts[index];
         DeckLiveHostProbe probe;
         probe.hostId = host.stableId();
         probe.displayName = host.displayName();
         probe.cachedAppCount = static_cast<int>(host.apps.size());
 
-        if (!identity.hasClientIdentity()) {
+        if (const auto reason = reasonNotProbeable(identity, host)) {
             probe.status = DeckPolarisRequestStatus::InvalidIdentity;
-            probe.detail = "Moonlight has no client certificate on this device";
-        } else if (!host.hasServerCertificate()) {
-            probe.status = DeckPolarisRequestStatus::InvalidIdentity;
-            probe.detail = "Moonlight has not pinned this host's certificate";
+            probe.detail = *reason;
         } else {
-            auto fetch = fetcher(host, !librarySelected);
+            auto& fetch = *probed.fetches[index];
             probe.status = fetch.status;
             probe.detail = std::move(fetch.detail);
             probe.serverVersion = std::move(fetch.serverVersion);
             probe.resolvedHttpsPort = fetch.httpsPort;
             if (probe.status == DeckPolarisRequestStatus::Ok) {
                 probe.librarySource = "polaris-live";
-                if (!librarySelected) {
+                if (polarisIndex == index) {
                     probe.gameCount = static_cast<int>(fetch.games.size());
                     snapshot.library.games.clear();
                     for (const auto& game : fetch.games) {
@@ -153,22 +220,12 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
                     }
                     snapshot.library.sourceLabel = "Polaris library · " + probe.displayName;
                     snapshot.selectedHostId = probe.hostId;
-                    librarySelected = true;
                 }
             }
         }
 
         if (probe.status != DeckPolarisRequestStatus::Ok) {
             probe.librarySource = probe.cachedAppCount > 0 ? "moonlight-cached-app-list" : "none";
-            if (!librarySelected && probe.cachedAppCount > 0 && snapshot.library.games.empty()) {
-                for (const auto& app : host.apps) {
-                    if (!app.hidden) {
-                        snapshot.library.games.push_back(toLibraryGame(app));
-                    }
-                }
-                snapshot.library.sourceLabel = "Moonlight's cached apps · " + probe.displayName;
-                snapshot.selectedHostId = probe.hostId;
-            }
         }
 
         snapshot.hosts.push_back(DeckHostSummary{
@@ -185,6 +242,34 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
             .publicProvenanceLabel = "moonlight-pairing/" + identity.sourceLabel + "/redacted-public",
         });
         snapshot.probes.push_back(std::move(probe));
+    }
+
+    // Nobody answered as Polaris: the first host with a visible cached
+    // Moonlight app stands in, else the first host with any cached app.
+    if (!polarisIndex) {
+        std::optional<std::size_t> cachedIndex;
+        for (std::size_t index = 0; index < identity.hosts.size() && !cachedIndex; ++index) {
+            for (const auto& app : identity.hosts[index].apps) {
+                if (!app.hidden) {
+                    cachedIndex = index;
+                    break;
+                }
+            }
+        }
+        for (std::size_t index = 0; index < identity.hosts.size() && !cachedIndex; ++index) {
+            if (!identity.hosts[index].apps.empty()) {
+                cachedIndex = index;
+            }
+        }
+        if (cachedIndex) {
+            for (const auto& app : identity.hosts[*cachedIndex].apps) {
+                if (!app.hidden) {
+                    snapshot.library.games.push_back(toLibraryGame(app));
+                }
+            }
+            snapshot.library.sourceLabel = "Moonlight's cached apps · " + snapshot.probes[*cachedIndex].displayName;
+            snapshot.selectedHostId = snapshot.probes[*cachedIndex].hostId;
+        }
     }
 
     if (identity.hosts.empty()) {

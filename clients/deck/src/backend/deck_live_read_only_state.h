@@ -25,7 +25,8 @@ struct DeckLivePolarisFetch {
     std::vector<polaris::DeckPolarisGame> games;
 };
 
-/// Probe one host. `wantLibrary` is false once a host already supplied the library, so only capabilities are asked.
+/// Probe one host. `wantLibrary` is true only for the host expected to supply the library; the others are asked
+/// for capabilities alone. Called concurrently from one thread per host, so it must not share mutable state.
 using DeckLivePolarisFetcher = std::function<DeckLivePolarisFetch(const identity::DeckMoonlightHostRecord& host, bool wantLibrary)>;
 
 struct DeckLiveHostProbe {
@@ -52,7 +53,9 @@ struct DeckLiveHostLibrarySnapshot {
 };
 
 /// Probe every paired host through @p fetcher and build the sanitized snapshot. Pure apart from the fetcher.
-/// The first reachable Polaris host supplies the library and becomes the selected host; later hosts are only probed.
+/// Hosts are probed concurrently (the fetcher is called from one thread per host), so the wait is the
+/// slowest host's, not the sum. The first reachable Polaris host in Moonlight's order supplies the
+/// library and becomes the selected host; other hosts are only asked for capabilities.
 DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdentity& identity, const DeckLivePolarisFetcher& fetcher);
 
 /// Hosts in presentation order: the selected host first, then Moonlight's order.
