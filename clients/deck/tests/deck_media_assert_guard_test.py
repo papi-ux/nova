@@ -380,11 +380,18 @@ class DeckMediaAssertGuardTest(unittest.TestCase):
         self.assertIn("assertDiagnosticsAndPreflightCopyArePrivate", test)
         self.assertIn("copy.find(forbiddenToken) == std::string::npos", test)
 
-    def test_raw_start_symbols_are_source_allowlisted_away_from_ui_and_stream_core(self):
+    def test_raw_start_symbols_stay_in_the_stream_backend_seam(self):
+        # The real host connection lives in the stream backend seam that owns the
+        # moonlight-common-c structs (deck_stream_core) and the backend interfaces,
+        # with their tests. It stays out of the UI, the shell (main.cpp), the media
+        # adapters, and the preflight, which is what the other cases here enforce.
         allowed_paths = {
             BACKEND_HEADER,
             BACKEND_SOURCE,
             BACKEND_TEST,
+            DECK_ROOT / "src" / "stream" / "deck_stream_core.h",
+            DECK_ROOT / "src" / "stream" / "deck_stream_core.cpp",
+            DECK_ROOT / "tests" / "deck_stream_core_test.cpp",
             pathlib.Path(__file__).resolve(),
         }
         forbidden_symbols = (
@@ -406,7 +413,9 @@ class DeckMediaAssertGuardTest(unittest.TestCase):
         self.assertEqual(
             offenders,
             [],
-            "raw backend/start symbols must stay in backend seams or backend test seams only:\n" + "\n".join(offenders),
+            "raw backend/start symbols must stay in the stream backend seam "
+            "(deck_stream_core, deck_backend_interfaces) and their tests, never in the "
+            "UI, shell, media adapters, or preflight:\n" + "\n".join(offenders),
         )
 
 

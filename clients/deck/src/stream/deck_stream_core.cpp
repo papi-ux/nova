@@ -1,6 +1,18 @@
 #include "stream/deck_stream_core.h"
 
+#include <cstring>
+
 namespace nova::deck::stream {
+
+void applyConnectionStreamConfig(STREAM_CONFIGURATION& config, const DeckStreamConnectionInfo& info) {
+    static_assert(sizeof(config.remoteInputAesKey) == 16, "remoteInputAesKey is 16 bytes");
+    static_assert(sizeof(config.remoteInputAesIv) == 16, "remoteInputAesIv is 16 bytes");
+    std::memcpy(config.remoteInputAesKey, info.keys.aesKey.data(), info.keys.aesKey.size());
+    std::memcpy(config.remoteInputAesIv, info.keys.aesIv.data(), info.keys.aesIv.size());
+    config.encryptionFlags = info.encryptionFlags;
+    config.colorSpace = info.colorSpace;
+    config.colorRange = info.colorRange;
+}
 
 namespace {
 
@@ -827,9 +839,54 @@ DeckStreamTransition DeckStreamSession::startNoNetwork() {
     return transitionTo(DeckStreamSessionState::Active, "active skeleton session; no sockets or host connection opened");
 }
 
+DeckStreamTransition DeckStreamSession::startNetwork(const DeckStreamConnectionInfo& info) {
+    if (state_ != DeckStreamSessionState::Preparing) {
+        return fail("network start requested before prepare");
+    }
+    if (info.serverAddress.empty() || info.rtspSessionUrl.empty()) {
+        return fail("network start requires a host address and an RTSP session URL");
+    }
+
+    // Own the strings the host session points into for its lifetime.
+    serverAddress_ = info.serverAddress;
+    serverAppVersion_ = info.appVersion;
+    serverGfeVersion_ = info.gfeVersion;
+    rtspSessionUrl_ = info.rtspSessionUrl;
+    applyConnectionStreamConfig(streamConfig_, info);
+    moonlightBoundary_.networkStartAllowed = true;
+
+    SERVER_INFORMATION serverInfo{};
+    serverInfo.address = serverAddress_.c_str();
+    serverInfo.serverInfoAppVersion = serverAppVersion_.c_str();
+    serverInfo.serverInfoGfeVersion = serverGfeVersion_.empty() ? nullptr : serverGfeVersion_.c_str();
+    serverInfo.rtspSessionUrl = rtspSessionUrl_.c_str();
+    serverInfo.serverCodecModeSupport = info.serverCodecModeSupport;
+
+    transitionTo(DeckStreamSessionState::Starting, "starting host session via moonlight-common-c");
+    const int rc = LiStartConnection(&serverInfo, &streamConfig_, &listenerCallbacks_, &videoCallbacks_,
+                                     &audioCallbacks_, callbackContext_, 0, callbackContext_, 0);
+    if (rc != 0) {
+        moonlightBoundary_.networkStartAllowed = false;
+        clearCallbackOwner(*this);
+        return fail("LiStartConnection did not establish the host session");
+    }
+    networkStarted_ = true;
+    return transitionTo(DeckStreamSessionState::Active, "active host session streaming via moonlight-common-c", true);
+}
+
 DeckStreamTransition DeckStreamSession::stop() {
     if (state_ != DeckStreamSessionState::Starting && state_ != DeckStreamSessionState::Active) {
         return fail("stop requested before active stream");
+    }
+
+    if (networkStarted_) {
+        transitionTo(DeckStreamSessionState::Stopping, "stopping host session; calling LiStopConnection");
+        LiStopConnection();
+        networkStarted_ = false;
+        moonlightBoundary_.networkStartAllowed = false;
+        auto stopped = transitionTo(DeckStreamSessionState::Stopped, "stopped host session");
+        clearCallbackOwner(*this);
+        return stopped;
     }
 
     transitionTo(DeckStreamSessionState::Stopping, "stopping skeleton session; LiStopConnection not called because network never started");

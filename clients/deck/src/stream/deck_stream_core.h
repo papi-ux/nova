@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+#include "stream/deck_gamestream_launch.h"
+
 namespace nova::deck::stream {
 
 enum class DeckStreamSessionState {
@@ -34,6 +36,27 @@ struct DeckStreamTransition {
     std::string reason;
     bool networkStarted = false;
 };
+
+/// Everything a real connection needs beyond the request: the host address, the
+/// version strings and codec support the host reports in serverinfo, the RTSP
+/// session URL the launch handshake returned, and the AES stream keys. The
+/// caller assembles this from deck_gamestream_launch plus a serverinfo read.
+struct DeckStreamConnectionInfo {
+    std::string serverAddress;
+    std::string appVersion;
+    std::string gfeVersion;          ///< empty when the host omits it
+    std::string rtspSessionUrl;
+    int serverCodecModeSupport = 0;
+    DeckStreamKeys keys;
+    int encryptionFlags = ENCFLG_AUDIO;   ///< the launch negotiates the rest
+    int colorSpace = COLORSPACE_REC_709;
+    int colorRange = COLOR_RANGE_LIMITED;
+};
+
+/// Copy the AES key and IV and the encryption and color choices from a
+/// connection descriptor into a stream configuration. Pure, so tests can pin
+/// the exact bytes without opening a connection.
+void applyConnectionStreamConfig(STREAM_CONFIGURATION& config, const DeckStreamConnectionInfo& info);
 
 struct DeckMoonlightBoundary {
     const CONNECTION_LISTENER_CALLBACKS* listenerCallbacks = nullptr;
@@ -99,6 +122,10 @@ public:
 
     DeckStreamTransition prepare(const DeckStreamRequest& request);
     DeckStreamTransition startNoNetwork();
+    /// Open the real host session: fill SERVER_INFORMATION and the AES fields
+    /// from `info`, authorize this session's boundary, and call LiStartConnection.
+    /// Only reachable after prepare(); a failure fails the session closed.
+    DeckStreamTransition startNetwork(const DeckStreamConnectionInfo& info);
     DeckStreamTransition stop();
     DeckStreamTransition cancel(std::string_view reason);
     DeckStreamTransition fail(std::string_view reason);
@@ -437,6 +464,13 @@ private:
     DECODER_RENDERER_CALLBACKS videoCallbacks_{};
     AUDIO_RENDERER_CALLBACKS audioCallbacks_{};
     DeckMoonlightBoundary moonlightBoundary_{};
+    // SERVER_INFORMATION holds raw pointers, so the session owns the backing
+    // strings for the connection's lifetime.
+    std::string serverAddress_;
+    std::string serverAppVersion_;
+    std::string serverGfeVersion_;
+    std::string rtspSessionUrl_;
+    bool networkStarted_ = false;
 };
 
 } // namespace nova::deck::stream

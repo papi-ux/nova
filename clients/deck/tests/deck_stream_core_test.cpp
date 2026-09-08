@@ -2,8 +2,10 @@
 
 #include <Limelight.h>
 
+#include <array>
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -11,9 +13,13 @@
 
 namespace {
 
+using nova::deck::stream::applyConnectionStreamConfig;
+using nova::deck::stream::buildStreamKeys;
+using nova::deck::stream::DeckStreamConnectionInfo;
 using nova::deck::stream::DeckStreamRequest;
 using nova::deck::stream::DeckStreamSession;
 using nova::deck::stream::DeckStreamSessionState;
+using nova::deck::stream::generateStreamKeys;
 
 struct RendererCall {
     int videoFormat = 0;
@@ -386,6 +392,68 @@ int main() {
         const auto preparedSequential = sequential.prepare(validRequest("game-sequential-" + std::to_string(i)));
         assert(preparedSequential.state == DeckStreamSessionState::Preparing);
         sequential.cancel("sequential owner release");
+    }
+
+    // The connection config helper copies the AES material and the encryption
+    // and color choices into a stream configuration, byte for byte.
+    {
+        STREAM_CONFIGURATION cfg;
+        LiInitializeStreamConfiguration(&cfg);
+        std::array<std::uint8_t, 16> key{};
+        for (std::size_t i = 0; i < key.size(); ++i) {
+            key[i] = static_cast<std::uint8_t>(0xA0 + i);
+        }
+        DeckStreamConnectionInfo info;
+        info.keys = buildStreamKeys(key, 0x0A0B0C0D);
+        info.encryptionFlags = ENCFLG_AUDIO;
+        info.colorSpace = COLORSPACE_REC_709;
+        info.colorRange = COLOR_RANGE_LIMITED;
+        applyConnectionStreamConfig(cfg, info);
+        assert(std::memcmp(cfg.remoteInputAesKey, key.data(), key.size()) == 0);
+        assert(static_cast<unsigned char>(cfg.remoteInputAesIv[0]) == 0x0A);
+        assert(static_cast<unsigned char>(cfg.remoteInputAesIv[1]) == 0x0B);
+        assert(static_cast<unsigned char>(cfg.remoteInputAesIv[2]) == 0x0C);
+        assert(static_cast<unsigned char>(cfg.remoteInputAesIv[3]) == 0x0D);
+        assert(cfg.remoteInputAesIv[4] == 0);
+        assert(cfg.encryptionFlags == ENCFLG_AUDIO);
+        assert(cfg.colorSpace == COLORSPACE_REC_709);
+        assert(cfg.colorRange == COLOR_RANGE_LIMITED);
+    }
+
+    // startNetwork before prepare fails closed and never authorizes the boundary,
+    // so no connection is attempted.
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        DeckStreamSession s(r, a, in, ev);
+        DeckStreamConnectionInfo info;
+        info.serverAddress = "192.0.2.10";
+        info.rtspSessionUrl = "rtsp://192.0.2.10:48010";
+        info.keys = generateStreamKeys();
+        const auto beforePrepare = s.startNetwork(info);
+        assert(beforePrepare.state == DeckStreamSessionState::Failed);
+        assert(beforePrepare.reason == "network start requested before prepare");
+        assert(!s.moonlightBoundary().networkStartAllowed);
+    }
+
+    // A prepared session still refuses to start without an address or RTSP URL,
+    // before LiStartConnection is ever reached.
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        DeckStreamSession s(r, a, in, ev);
+        s.prepare(validRequest("game-net-guard"));
+        DeckStreamConnectionInfo missingUrl;
+        missingUrl.serverAddress = "192.0.2.10";
+        missingUrl.keys = generateStreamKeys();
+        const auto refusedUrl = s.startNetwork(missingUrl);
+        assert(refusedUrl.state == DeckStreamSessionState::Failed);
+        assert(refusedUrl.reason == "network start requires a host address and an RTSP session URL");
+        assert(!s.moonlightBoundary().networkStartAllowed);
     }
 
     return 0;
