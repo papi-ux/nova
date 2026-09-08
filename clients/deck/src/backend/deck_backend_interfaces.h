@@ -351,10 +351,36 @@ private:
     const DeckLaunchPreflightService& preflightService,
     const DeckLabGate& labGate);
 
+/// What a read-only provider knows beyond the repository and library: the
+/// credential facts the preflight should judge, and the source tag stamped
+/// into the public preflight copy.
+struct DeckReadOnlyStateOptions {
+    DeckCredentialMetadata credentials;
+    std::string sourceTag = "backend-owned-read-only-model";
+};
+
+[[nodiscard]] DeckPublicReadOnlyHostLibraryState buildReadOnlyHostLibraryState(
+    const DeckHostRepository& repository,
+    const PolarisGameLibraryFixture& library,
+    const DeckLaunchPreflightService& preflightService,
+    const DeckLabGate& labGate,
+    const DeckReadOnlyStateOptions& options);
+
 [[nodiscard]] std::vector<DeckPublicReadOnlyHostLibraryState> buildReadOnlyHostLibraryStateMatrix(
     const PolarisGameLibraryFixture& library,
     const DeckLaunchPreflightService& preflightService);
 
 [[nodiscard]] std::string toPublicCode(DeckPreflightBlockerCategory category);
+
+/// The player-facing state copy for a preflight outcome, shared by every read-only provider.
+[[nodiscard]] DeckPublicReadOnlyPlayerState playerStateFor(
+    const DeckPublicReadOnlyPreflightState& preflight,
+    const std::string& scenarioLabel);
+
+/// The DTO parity block for a preflight outcome, shared by every read-only provider.
+[[nodiscard]] DeckPublicReadOnlyDtoParity readOnlyDtoParityFor(
+    const DeckPublicReadOnlyPreflightState& preflight,
+    const std::string& scenarioId,
+    const std::string& scenarioLabel);
 
 } // namespace nova::deck::backend

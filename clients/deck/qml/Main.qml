@@ -548,7 +548,7 @@ ApplicationWindow {
 
                     Label {
                         Layout.preferredWidth: hostTextWidth
-                        text: "Backend-fed hosts · " + novaBackendReadOnlyState.sourceLabel + (novaBackendReadOnlyState.readOnly ? " · backend-owned read-only model · fixture provenance" : " · Backend read-only model unavailable — network remains disabled")
+                        text: "Backend-fed hosts · " + novaBackendReadOnlyState.sourceLabel + (novaBackendReadOnlyState.readOnly ? " · backend-owned read-only model · " + novaBackendReadOnlyProvenance : " · Backend read-only model unavailable — network remains disabled")
                         color: "#A8B0D8"
                         font.pixelSize: 13
                         wrapMode: Text.WordWrap
@@ -673,7 +673,7 @@ ApplicationWindow {
 
                     Label {
                         Layout.preferredWidth: sampleTextWidth
-                        text: "Backend-fed library snapshot · " + novaBackendReadOnlyState.sourceLabel + (novaBackendReadOnlyState.readOnly ? " · backend-owned read-only model · fixture provenance" : " · Backend read-only model unavailable — network remains disabled")
+                        text: "Backend-fed library snapshot · " + novaBackendReadOnlyState.sourceLabel + (novaBackendReadOnlyState.readOnly ? " · backend-owned read-only model · " + novaBackendReadOnlyProvenance : " · Backend read-only model unavailable — network remains disabled")
                         color: "#A8B0D8"
                         font.pixelSize: 13
                         wrapMode: Text.WordWrap

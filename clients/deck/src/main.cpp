@@ -2,6 +2,7 @@
 #include "deck_gamepad.h"
 #include "polaris_game_fixture.h"
 #include "backend/deck_backend_interfaces.h"
+#include "backend/deck_live_read_only_state.h"
 #include "stream/deck_stream_media_adapters.h"
 
 #include <QClipboard>
@@ -11,6 +12,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <chrono>
+#include <memory>
+#include <optional>
 #include <QGuiApplication>
 #include <QImage>
 #include <QQmlApplicationEngine>
@@ -932,9 +936,29 @@ int main(int argc, char *argv[]) {
     const auto profile = nova::deck::defaultWindowProfile();
     const auto sampleLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
     const nova::deck::backend::DeckLaunchPreflightService readOnlyPreflightService;
-    const nova::deck::backend::DeckFixtureReadOnlyStateProvider readOnlyStateProvider(
-        sampleLibrary,
-        readOnlyPreflightService);
+
+    // --live reads the identity Moonlight-Qt already holds on this device and
+    // asks Polaris for the library with it; nothing is launched and no session
+    // is started. The default stays the offline fixture so the smoke routes
+    // keep proving the shell without a host.
+    const bool liveRoute = appArguments.contains(QStringLiteral("--live")) || qEnvironmentVariableIntValue("NOVA_DECK_LIVE") == 1;
+    const bool printLiveState = appArguments.contains(QStringLiteral("--print-live-state"));
+    std::optional<nova::deck::backend::DeckLiveHostLibrarySnapshot> liveSnapshot;
+    if (liveRoute || printLiveState) {
+        liveSnapshot = nova::deck::backend::buildLiveSnapshotFromDefaultIdentity(std::chrono::milliseconds(4000));
+        qInfo().noquote() << QString::fromStdString(nova::deck::backend::describeLiveSnapshotForTerminal(*liveSnapshot));
+        if (printLiveState) {
+            return liveSnapshot->identityLoaded ? 0 : 2;
+        }
+    }
+    std::unique_ptr<nova::deck::backend::DeckReadOnlyStateProvider> readOnlyStateProviderOwner;
+    if (liveSnapshot) {
+        readOnlyStateProviderOwner = std::make_unique<nova::deck::backend::DeckLiveReadOnlyStateProvider>(*liveSnapshot, readOnlyPreflightService);
+    } else {
+        readOnlyStateProviderOwner = std::make_unique<nova::deck::backend::DeckFixtureReadOnlyStateProvider>(sampleLibrary, readOnlyPreflightService);
+    }
+    const auto& readOnlyStateProvider = *readOnlyStateProviderOwner;
+    const auto activeLibrary = liveSnapshot ? liveSnapshot->library : sampleLibrary;
     const auto backendReadOnlyStateMatrix = readOnlyStateProvider.stateMatrix();
     const QString selectedMatrixScenario = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-readonly-state"));
     const auto backendReadOnlyState = readOnlyStateProvider.stateForScenario(selectedMatrixScenario.toStdString());
@@ -951,7 +975,7 @@ int main(int argc, char *argv[]) {
         });
         ++launchPreviewHostRow;
     }
-    auto selectedLaunchLibrary = sampleLibrary;
+    auto selectedLaunchLibrary = activeLibrary;
     if (backendReadOnlyState.games.empty()) {
         selectedLaunchLibrary.games.clear();
     }
@@ -973,7 +997,12 @@ int main(int argc, char *argv[]) {
     QtLocalClipboardBridge localClipboard;
     QtDeckGamepadBridge gamepadBridge;
     QtBackendPreviewBridge backendPreview;
-    for (const auto& host : sampleLibrary.hosts) {
+    if (liveSnapshot) {
+        for (const auto& host : liveSnapshot->hosts) {
+            backendPreview.seedReadOnlyHostSummary(host);
+        }
+    }
+    for (const auto& host : liveSnapshot ? std::vector<nova::deck::PolarisHostFixture>{} : sampleLibrary.hosts) {
         backendPreview.seedReadOnlyHostSummary(nova::deck::backend::DeckHostSummary{
             .id = host.id,
             .displayName = host.displayName,
@@ -1019,6 +1048,10 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaBackendReadOnlyState", toReadOnlyStateModel(backendReadOnlyState));
     engine.rootContext()->setContextProperty("novaLibraryFixtureSource", toQString(backendReadOnlyState.sourceLabel));
     engine.rootContext()->setContextProperty("novaLibraryReadOnly", backendReadOnlyState.readOnly);
+    engine.rootContext()->setContextProperty(
+        "novaBackendReadOnlyProvenance",
+        liveSnapshot ? QString::fromUtf8(nova::deck::backend::kLiveProvenanceLabel.data(), static_cast<int>(nova::deck::backend::kLiveProvenanceLabel.size()))
+                     : QStringLiteral("fixture provenance"));
     engine.rootContext()->setContextProperty("novaLibraryGames", toLibraryGameModel(backendReadOnlyState.games));
     engine.rootContext()->setContextProperty("novaLibraryHosts", toHostModel(backendReadOnlyState.hosts));
     engine.rootContext()->setContextProperty("novaSelectedHostDetail", selectedHostDetailModel);

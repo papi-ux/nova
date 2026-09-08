@@ -54,6 +54,24 @@ Visible frontend smoke route, for judging the Deck product shell on the actual G
 
 The frontend smoke uses the same rootless Deck Podman image with `--network=none`, launches `nova-deck` visibly through `QT_QPA_PLATFORM=wayland WAYLAND_DISPLAY=gamescope-0`, and asks the app to save its own `frontend-frame-capture.png`. Artifacts include `environment-summary.txt`, `ui-launch.log`, `qml-runtime.log`, `smoke-summary.txt`, and the frame capture when Qt can grab the window.
 
+## Live route: real hosts and library through Moonlight's pairing
+
+`nova-deck --live` (or `NOVA_DECK_LIVE=1`) replaces the fixture with the hosts Moonlight-Qt has already paired on this device and the library Polaris serves for them. Nothing is launched and no session is started; the preflight stays read-only with `backendPowerStarted=false`.
+
+How it works:
+
+- `src/identity/deck_moonlight_identity.*` reads Moonlight-Qt's own settings file: the Flatpak copy under `~/.var/app/com.moonlight_stream.Moonlight/config/`, the native copy under `~/.config/`, or the file named by `NOVA_DECK_MOONLIGHT_CONF`. That file holds the client certificate and key, every paired host with its pinned server certificate, and the cached app list per host. The private key stays inside the identity object; no public DTO or log line carries it, and host addresses never reach the shell either.
+- `src/polaris/deck_polaris_client.*` learns the HTTPS port from the host's plain-HTTP serverinfo the way Moonlight does, then calls `/polaris/v1/capabilities` and `/polaris/v1/games` with that client certificate. The server certificate Moonlight pinned at pairing is the only trust anchor: the handshake fails against any other certificate before the request is sent, and the host is reported as a certificate mismatch. Network failures are reported with fixed wording, never with the address.
+- `src/backend/deck_live_read_only_state.*` turns the probes into the same sanitized read-only DTOs the fixture route produces. A reachable Polaris host supplies the library; an unreachable one falls back to the apps Moonlight cached, labelled as such.
+
+On the host side, any paired certificate that calls `/polaris/v1` is promoted to the `nova` client family, so after the first live run Polaris sees the Deck's Moonlight pairing as a Nova client. That is the intended shape: one pairing, one identity, two apps on the Deck until the media slice lands.
+
+To check the route without opening a window:
+
+    QT_QPA_PLATFORM=offscreen nova-deck --print-live-state
+
+It prints the identity source, each host's probe result (`ok`, `unreachable`, `cert-mismatch`, `unauthorized`, ...), which library source won, and the first titles. Exit code 2 means no Moonlight pairing file was found.
+
 ## Shared Polaris DTO boundary
 
 Native C++ cannot include Kotlin source directly. For this first slice, fixtures/sample_polaris_game.json is a generated/shared-contract sample using the same snake_case keys covered by the Kotlin shared DTO tests. src/polaris_game_fixture.h and src/polaris_game_fixture.cpp load that fixture into a tiny native projection so the Deck shell can exercise a real library-card shape while the actual native Polaris API/client bridge is still future work.
