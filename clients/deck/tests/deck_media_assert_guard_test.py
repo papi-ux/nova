@@ -105,10 +105,16 @@ class DeckMediaAssertGuardTest(unittest.TestCase):
             "Deck shell must not submit decode units directly; decoded frames arrive through the guarded stream-session producer",
         )
 
-    def test_guarded_preview_lifecycle_gate_keeps_network_start_source_unreachable(self):
+    def test_network_start_is_reachable_only_through_the_operator_authorized_lane(self):
+        # A real host start is reachable through exactly one lane,
+        # startAuthorizedHostSession, and only with an operator start
+        # authorization and an assembled host connection in hand. The connection
+        # call itself and the raw networkStartAllowed=true stay out of this file;
+        # they live in the stream core the producer forwards to.
         header = (DECK_ROOT / "src" / "stream" / "deck_stream_media_adapters.h").read_text(encoding="utf-8")
         source = MEDIA_ADAPTER_SOURCE.read_text(encoding="utf-8")
 
+        self.assertIn("startAuthorizedHostSession", header)
         self.assertIn("struct DeckGuardedPreviewLifecycleReport", header)
         self.assertIn("struct DeckOperatorStartAuthorizationSnapshot", header)
         self.assertIn("class DeckOperatorStartAuthorizationPolicy", header)

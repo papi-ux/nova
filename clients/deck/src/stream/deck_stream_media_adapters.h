@@ -434,6 +434,9 @@ public:
     void attachProductPreviewPipeline(DeckProductPreviewPipeline& pipeline);
     DeckStreamTransition prepareNoNetwork(const DeckStreamRequest& request);
     DeckStreamTransition startNoNetwork();
+    /// Open the real host session. Only the guarded gate's authorized lane calls
+    /// this; it forwards to the stream session, which owns the connection call.
+    DeckStreamTransition startNetwork(const DeckStreamConnectionInfo& info);
     DeckStreamTransition stop();
 
     const DeckMoonlightBoundary& moonlightBoundary() const;
@@ -522,6 +525,14 @@ public:
         const DeckStreamRequest& request);
     DeckGuardedPreviewLifecycleReport requestOperatorAuthorizedHostNetworkStart(
         const DeckOperatorStartAuthorizationSnapshot& authorization);
+    /// The approved real-start lane: with an operator start authorization and an
+    /// assembled host connection, prepare the session and open the host stream.
+    /// Without either, it stays report-only, so a real start is reachable only
+    /// through this lane with both in hand.
+    DeckGuardedPreviewLifecycleReport startAuthorizedHostSession(
+        const DeckOperatorStartAuthorizationSnapshot& authorization,
+        const DeckStreamRequest& request,
+        const DeckStreamConnectionInfo& connection);
     DeckGuardedPreviewLifecycleReport stop();
 
     const DeckGuardedPreviewLifecycleReport& lastReport() const;

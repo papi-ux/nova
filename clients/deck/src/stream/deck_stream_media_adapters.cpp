@@ -1708,6 +1708,10 @@ DeckStreamTransition DeckGuardedStreamSessionPreviewProducer::startNoNetwork() {
     return session_.startNoNetwork();
 }
 
+DeckStreamTransition DeckGuardedStreamSessionPreviewProducer::startNetwork(const DeckStreamConnectionInfo& info) {
+    return session_.startNetwork(info);
+}
+
 DeckStreamTransition DeckGuardedStreamSessionPreviewProducer::stop() {
     return session_.stop();
 }
@@ -1960,6 +1964,54 @@ DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::requestOperat
 
     lastReport_.statusCode = "operator-start-not-ready";
     lastReport_.reason = "operator start contract is approved, but external host readiness is not available and the Deck product route keeps network disabled; no network start was attempted";
+    return lastReport_;
+}
+
+DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::startAuthorizedHostSession(
+    const DeckOperatorStartAuthorizationSnapshot& authorization,
+    const DeckStreamRequest& request,
+    const DeckStreamConnectionInfo& connection) {
+    lastReport_.hostId = request.hostId;
+    lastReport_.gameId = request.gameId;
+    lastReport_.width = request.width;
+    lastReport_.height = request.height;
+    lastReport_.fps = request.fps;
+    lastReport_.bitrateKbps = request.bitrateKbps;
+    lastReport_.dryRunPreflightRequested = false;
+    lastReport_.hostStartBoundaryExplicit = true;
+    lastReport_.hostStartContractAuthorized = authorization.startAuthorized;
+    lastReport_.operatorAuthorizationState = operatorAuthorizationStateLabel(authorization.mode);
+    lastReport_.networkStartAllowed = false;
+    lastReport_.networkStarted = false;
+    lastReport_.transitionCount = producer_.transitions().size();
+
+    if (!authorization.startAuthorized) {
+        lastReport_.statusCode = "host-network-start-blocked";
+        lastReport_.reason = "operator start contract is blocked; no host session was started";
+        return lastReport_;
+    }
+    if (connection.serverAddress.empty() || connection.rtspSessionUrl.empty()) {
+        lastReport_.statusCode = "operator-start-not-ready";
+        lastReport_.reason = "operator start contract is approved but no host readiness was assembled; no host session was started";
+        return lastReport_;
+    }
+
+    const auto prepared = producer_.prepareNoNetwork(request);
+    if (prepared.state != DeckStreamSessionState::Preparing) {
+        lastReport_ = reportForTransition(prepared, "host-start-prepare-denied", false, false, &request);
+        lastReport_.operatorAuthorizationState = operatorAuthorizationStateLabel(authorization.mode);
+        return lastReport_;
+    }
+
+    const auto started = producer_.startNetwork(connection);
+    lastReport_ = reportForTransition(
+        started,
+        started.networkStarted ? "host-network-started" : "host-network-start-failed",
+        true,
+        started.networkStarted,
+        &request);
+    lastReport_.hostStartContractAuthorized = true;
+    lastReport_.operatorAuthorizationState = operatorAuthorizationStateLabel(authorization.mode);
     return lastReport_;
 }
 

@@ -259,6 +259,7 @@ int main(int argc, char** argv) {
     using nova::deck::stream::DeckGuardedStreamSessionPreviewProducer;
     using nova::deck::stream::DeckOperatorStartAuthorizationMode;
     using nova::deck::stream::DeckOperatorStartAuthorizationPolicy;
+    using nova::deck::stream::DeckStreamConnectionInfo;
     using nova::deck::stream::DeckStreamRequest;
     using nova::deck::stream::DeckStreamSession;
     using nova::deck::stream::DeckStreamSessionState;
@@ -669,6 +670,49 @@ int main(int argc, char** argv) {
     NOVA_TEST_REQUIRE(!lifecycleStopped.dryRunPreflightRequested);
     NOVA_TEST_REQUIRE(!lifecycleStopped.networkStarted);
     NOVA_TEST_REQUIRE(guardedLifecycleGate.transitions().size() >= 4);
+
+    // The approved real-start lane refuses without authorization or without an
+    // assembled connection, and never reaches the connection call in those cases.
+    {
+        DeckGuardedStreamSessionPreviewProducer realStartProducer;
+        DeckGuardedPreviewLifecycleGate realStartGate(realStartProducer);
+        const DeckStreamRequest realStartRequest{
+            .hostId = "host-real-start",
+            .gameId = "game-real-start",
+            .width = 1280,
+            .height = 800,
+            .fps = 60,
+            .bitrateKbps = 20000,
+        };
+
+        DeckOperatorStartAuthorizationPolicy blockedPolicy;
+        const auto blockedStart = realStartGate.startAuthorizedHostSession(
+            blockedPolicy.snapshot(), realStartRequest, DeckStreamConnectionInfo{});
+        NOVA_TEST_REQUIRE(blockedStart.statusCode == std::string("host-network-start-blocked"));
+        NOVA_TEST_REQUIRE(!blockedStart.networkStartAllowed);
+        NOVA_TEST_REQUIRE(!blockedStart.networkStarted);
+        NOVA_TEST_REQUIRE(realStartProducer.rendererLifecycle().setupCalls == 0);
+
+        DeckOperatorStartAuthorizationPolicy approvedPolicy;
+        approvedPolicy.authorizeStart("local-real-start-ok");
+        const auto notReady = realStartGate.startAuthorizedHostSession(
+            approvedPolicy.snapshot(), realStartRequest, DeckStreamConnectionInfo{});
+        NOVA_TEST_REQUIRE(notReady.statusCode == std::string("operator-start-not-ready"));
+        NOVA_TEST_REQUIRE(notReady.hostStartContractAuthorized);
+        NOVA_TEST_REQUIRE(!notReady.networkStartAllowed);
+        NOVA_TEST_REQUIRE(!notReady.networkStarted);
+
+        // An address without an RTSP url is still not ready, and stops before the
+        // session's own connection call is reached.
+        DeckStreamConnectionInfo addressWithoutRtsp;
+        addressWithoutRtsp.serverAddress = "192.0.2.10";
+        const auto stillNotReady = realStartGate.startAuthorizedHostSession(
+            approvedPolicy.snapshot(), realStartRequest, addressWithoutRtsp);
+        NOVA_TEST_REQUIRE(stillNotReady.statusCode == std::string("operator-start-not-ready"));
+        NOVA_TEST_REQUIRE(!stillNotReady.networkStartAllowed);
+        NOVA_TEST_REQUIRE(!stillNotReady.networkStarted);
+        NOVA_TEST_REQUIRE(realStartProducer.rendererLifecycle().setupCalls == 0);
+    }
 
     DeckGuardedStreamSessionPreviewProducer idempotentLifecycleProducer;
     DeckGuardedPreviewLifecycleGate idempotentLifecycleGate(idempotentLifecycleProducer);
