@@ -199,7 +199,10 @@ DeckMoonlightArgvPlan buildMoonlightStreamArgv(const DeckMoonlightInstall& insta
     plan.argv.emplace_back("stream");
     plan.argv.push_back(request.hostSelector);
     plan.argv.push_back(request.appName);
-    plan.argv.emplace_back(request.fullscreen ? "--fullscreen" : "--windowed");
+    // Moonlight-Qt's display mode is a value option; a bare --fullscreen flag
+    // makes it print usage and exit 1 (found on the first real launch).
+    plan.argv.emplace_back("--display-mode");
+    plan.argv.emplace_back(request.fullscreen ? "fullscreen" : "windowed");
     if (request.quitAppAfter) {
         plan.argv.emplace_back("--quit-after");
     }

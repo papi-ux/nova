@@ -369,7 +369,8 @@ public:
     }
 
     /// Headless proof path: launch without arming and report when Moonlight exits or the wait runs out.
-    QVariantMap launchImmediately(const QString& hostId, const QString& gameTitle) {
+    QVariantMap launchImmediately(const QString& hostId, const QString& gameTitle, const bool windowed) {
+        fullscreen_ = !windowed;
         launchNow(hostId, gameTitle);
         return state();
     }
@@ -413,7 +414,7 @@ private:
         nova::deck::runtime::DeckMoonlightLaunchRequest request;
         request.hostSelector = host->stableId();
         request.appName = gameTitle.toStdString();
-        request.fullscreen = true;
+        request.fullscreen = fullscreen_;
         const auto plan = nova::deck::runtime::buildMoonlightStreamArgv(install_, request);
         if (!plan.valid) {
             statusCopy_ = QString::fromStdString(plan.reason);
@@ -483,6 +484,7 @@ private:
     QString activeHostId_;
     QString statusCopy_;
     QString sessionCopy_;
+    bool fullscreen_ = true;
 };
 
 class QtPreviewLifecycleBridge final : public QObject {
@@ -1277,7 +1279,7 @@ int main(int argc, char *argv[]) {
     if (!handoffGame.isEmpty()) {
         const int waitMs = intArgumentAfter(appArguments, QStringLiteral("--handoff-wait-ms"), 20000);
         const QString hostId = liveSnapshot ? QString::fromStdString(liveSnapshot->selectedHostId) : QString();
-        auto report = handoffBridge.launchImmediately(hostId, handoffGame);
+        auto report = handoffBridge.launchImmediately(hostId, handoffGame, appArguments.contains(QStringLiteral("--handoff-windowed")));
         std::cout << "nova-deck handoff: phase=" << report.value("phase").toString().toStdString()
                   << " copy=\"" << report.value("copy").toString().toStdString() << "\"" << std::endl;
         if (handoffBridge.running()) {

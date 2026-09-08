@@ -101,7 +101,7 @@ void testStreamArgvShapes() {
     native.label = "Moonlight (native)";
     const auto plain = buildMoonlightStreamArgv(native, request);
     assert(plain.valid);
-    assert(joined(plain.argv) == "/usr/bin/moonlight stream 935B1F5B-D2EC-E720-6600-5EB7986004EC Slay the Spire 2 --fullscreen");
+    assert(joined(plain.argv) == "/usr/bin/moonlight stream 935B1F5B-D2EC-E720-6600-5EB7986004EC Slay the Spire 2 --display-mode fullscreen");
     assert(contains(plain.publicSummary, "Moonlight (native) will open \"Slay the Spire 2\""));
     assert(!contains(plain.publicSummary, "935B1F5B"));
 
@@ -116,7 +116,7 @@ void testStreamArgvShapes() {
     request.height = 800;
     const auto viaFlatpak = buildMoonlightStreamArgv(flatpak, request);
     assert(viaFlatpak.valid);
-    assert(joined(viaFlatpak.argv) == "/usr/bin/flatpak run com.moonlight_stream.Moonlight stream 935B1F5B-D2EC-E720-6600-5EB7986004EC Slay the Spire 2 --fullscreen --quit-after --fps 60 --bitrate 20000 --resolution 1280x800");
+    assert(joined(viaFlatpak.argv) == "/usr/bin/flatpak run com.moonlight_stream.Moonlight stream 935B1F5B-D2EC-E720-6600-5EB7986004EC Slay the Spire 2 --display-mode fullscreen --quit-after --fps 60 --bitrate 20000 --resolution 1280x800");
 
     flatpak.novaInsideFlatpak = true;
     const auto sandboxed = buildMoonlightStreamArgv(flatpak, request);
@@ -126,6 +126,9 @@ void testStreamArgvShapes() {
     request.appName = "bad; name";
     assert(!buildMoonlightStreamArgv(flatpak, request).valid);
     request.appName = "ok";
+    request.fullscreen = false;
+    const auto windowed = buildMoonlightStreamArgv(flatpak, request);
+    assert(windowed.valid && contains(joined(windowed.argv), "--display-mode windowed"));
     request.fps = 1000;
     assert(!buildMoonlightStreamArgv(flatpak, request).valid);
     request.fps.reset();
@@ -187,7 +190,7 @@ void testRealChildProcessAgainstAFakeMoonlight() {
 
     std::ifstream in(record);
     std::string recorded((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    assert(recorded == "stream\nhost-uuid\nDesktop\n--fullscreen\n");
+    assert(recorded == "stream\nhost-uuid\nDesktop\n--display-mode\nfullscreen\n");
 
     // A second launch after exit is allowed; a missing binary fails closed.
     DeckMoonlightInstall missing = install;
