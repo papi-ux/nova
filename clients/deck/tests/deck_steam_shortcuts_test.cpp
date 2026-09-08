@@ -118,7 +118,7 @@ void testRegistrationAppendsThenReplaces() {
     const auto originalAppId = find(novaEntry, "appid")->number;
     for (auto& [key, value] : novaEntry) {
         if (key == "LastPlayTime") value.number = 1725760000;
-        if (key == "icon") value.text = "/home/deck/.local/share/icons/nova.png";
+        if (key == "icon") value.text = "/srv/icons/nova.png";
         if (key == "IsHidden") value.number = 1;
         if (key == "tags") { DeckVdfValue extra; extra.kind = DeckVdfValue::Kind::String; extra.text = "Favorites"; value.children.emplace_back("1", extra); }
     }
@@ -136,7 +136,7 @@ void testRegistrationAppendsThenReplaces() {
     assert(find(merged, "appid")->number == originalAppId && "a replace keeps the app id grid art hangs off");
     assert(second.appId == static_cast<std::uint32_t>(originalAppId));
     assert(find(merged, "LastPlayTime")->number == 1725760000);
-    assert(find(merged, "icon")->text == "/home/deck/.local/share/icons/nova.png" && "an empty icon in the request leaves the player's icon alone");
+    assert(find(merged, "icon")->text == "/srv/icons/nova.png" && "an empty icon in the request leaves the player's icon alone");
     assert(find(merged, "IsHidden")->number == 1);
     assert(find(merged, "SomeFutureSteamKey")->text == "keep me");
     assert(find(merged, "tags")->children.size() == 2 && "existing tags stay, Nova's tag is not duplicated");
