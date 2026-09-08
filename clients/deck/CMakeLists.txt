@@ -21,7 +21,7 @@ pkg_check_modules(NOVA_DECK_LINUX_AUDIO REQUIRED IMPORTED_TARGET
 )
 find_package(Qt6 REQUIRED COMPONENTS Quick Network)
 
-add_library(nova_deck_core
+add_library(nova_deck_core STATIC
     src/deck_gamepad.cpp
     src/deck_layout.cpp
     src/polaris_game_fixture.cpp
@@ -45,11 +45,13 @@ set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
 if(EXISTS "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/Limelight.h")
     # moonlight-common-c defaults to a shared library when BUILD_SHARED_LIBS is
     # unset; the Deck shell links it statically so an installed binary (the
-    # Flatpak, a Deck copy) carries it instead of hunting for the .so.
-    if(NOT DEFINED BUILD_SHARED_LIBS)
+    # Flatpak, a Deck copy) carries it instead of hunting for the .so. The
+    # function scope keeps the override away from the caller's own setting.
+    function(nova_deck_add_moonlight_common_c source_dir binary_dir)
         set(BUILD_SHARED_LIBS OFF)
-    endif()
-    add_subdirectory("${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/moonlight-common-c")
+        add_subdirectory("${source_dir}" "${binary_dir}")
+    endfunction()
+    nova_deck_add_moonlight_common_c("${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/moonlight-common-c")
     target_link_libraries(nova_deck_core PUBLIC moonlight-common-c)
 else()
     message(FATAL_ERROR "moonlight-common-c is required for the Deck stream skeleton; expected ${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/Limelight.h")
@@ -66,10 +68,12 @@ target_link_libraries(nova_deck_core
         Qt6::Quick
         Qt6::Network
 )
+include(GNUInstallDirs)
 target_compile_definitions(nova_deck_core
     PUBLIC
         NOVA_DECK_SAMPLE_GAME_FIXTURE=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures/sample_polaris_game.json\"
         NOVA_DECK_SAMPLE_LIBRARY_FIXTURE=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures/sample_polaris_library.json\"
+        NOVA_DECK_INSTALL_FIXTURE_DIR=\"${CMAKE_INSTALL_FULL_DATADIR}/nova-deck/fixtures\"
 )
 
 include(CTest)
@@ -201,7 +205,6 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 Qt6::QuickControls2
         )
 
-        include(GNUInstallDirs)
         install(TARGETS nova-deck RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
         install(FILES fixtures/sample_polaris_game.json fixtures/sample_polaris_library.json
             DESTINATION ${CMAKE_INSTALL_DATADIR}/nova-deck/fixtures)

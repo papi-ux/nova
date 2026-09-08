@@ -13,8 +13,9 @@
     "--device=input",
     "--filesystem=xdg-run/gamescope-0",
     "--filesystem=~/.var/app/com.moonlight_stream.Moonlight/config:ro",
-    "--filesystem=~/.local/share/Steam/userdata:create",
-    "--filesystem=~/.steam/steam/userdata:create",
+    "--filesystem=~/.local/share/Steam/userdata",
+    "--filesystem=~/.steam/steam/userdata",
+    "--filesystem=~/.var/app/com.valvesoftware.Steam/.local/share/Steam/userdata",
     "--talk-name=org.freedesktop.Flatpak",
     "--env=QT_QUICK_CONTROLS_STYLE=Material"
   ],

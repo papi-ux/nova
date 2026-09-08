@@ -23,12 +23,11 @@ std::string readAll(const fs::path& path) {
 }
 
 const DeckVdfValue* find(const DeckVdfObject& object, const std::string& key) {
-    for (const auto& [k, v] : object) {
-        if (k == key) {
-            return &v;
-        }
-    }
-    return nullptr;
+    return findKey(object, key);
+}
+
+std::string entryBytes(const DeckSteamShortcut& shortcut, std::uint32_t appId) {
+    return serializeBinaryVdf(registerShortcut(DeckVdfObject{}, shortcut).document);
 }
 
 std::string syntheticFile() {
@@ -112,16 +111,116 @@ void testRegistrationAppendsThenReplaces() {
     // The original entry is byte-identical after the append.
     assert(serializeBinaryVdf(first.document).find(syntheticFile().substr(11, 80)) != std::string::npos);
 
+    // Steam and the player touch the entry between runs: play time, a custom
+    // icon, a hidden flag, a collection tag and a key Nova has never heard of.
+    auto touched = first.document;
+    auto& novaEntry = touched.front().second.children.back().second.children;
+    const auto originalAppId = find(novaEntry, "appid")->number;
+    for (auto& [key, value] : novaEntry) {
+        if (key == "LastPlayTime") value.number = 1725760000;
+        if (key == "icon") value.text = "/home/deck/.local/share/icons/nova.png";
+        if (key == "IsHidden") value.number = 1;
+        if (key == "tags") { DeckVdfValue extra; extra.kind = DeckVdfValue::Kind::String; extra.text = "Favorites"; value.children.emplace_back("1", extra); }
+    }
+    DeckVdfValue unknown; unknown.kind = DeckVdfValue::Kind::String; unknown.text = "keep me";
+    novaEntry.emplace_back("SomeFutureSteamKey", unknown);
+
+    nova.exe = "\"/usr/bin/flatpak\"";
     nova.launchOptions = "run com.papi_ux.Nova --live";
-    const auto second = registerShortcut(first.document, nova);
+    const auto second = registerShortcut(touched, nova);
     assert(second.replaced);
     assert(second.entryKey == "1");
     assert(second.document.front().second.children.size() == 2);
-    assert(find(second.document.front().second.children.back().second.children, "LaunchOptions")->text == "run com.papi_ux.Nova --live");
+    const auto& merged = second.document.front().second.children.back().second.children;
+    assert(find(merged, "LaunchOptions")->text == "run com.papi_ux.Nova --live");
+    assert(find(merged, "appid")->number == originalAppId && "a replace keeps the app id grid art hangs off");
+    assert(second.appId == static_cast<std::uint32_t>(originalAppId));
+    assert(find(merged, "LastPlayTime")->number == 1725760000);
+    assert(find(merged, "icon")->text == "/home/deck/.local/share/icons/nova.png" && "an empty icon in the request leaves the player's icon alone");
+    assert(find(merged, "IsHidden")->number == 1);
+    assert(find(merged, "SomeFutureSteamKey")->text == "keep me");
+    assert(find(merged, "tags")->children.size() == 2 && "existing tags stay, Nova's tag is not duplicated");
 
     const auto fromEmpty = registerShortcut(DeckVdfObject{}, nova);
     assert(!fromEmpty.replaced && fromEmpty.entryKey == "0");
     assert(parseBinaryVdf(serializeBinaryVdf(fromEmpty.document)).has_value());
+}
+
+void testLowercaseKeysAreFoundAndSpellingIsKept() {
+    // Older clients and third-party tools write lowercase keys; Steam reads them case-insensitively.
+    std::string bytes;
+    bytes += std::string("\x00shortcuts\x00", 11);
+    bytes += std::string("\x00" "0" "\x00", 3);
+    bytes += std::string("\x02" "appid" "\x00", 7) + std::string("\x01\x02\x03\x84", 4);
+    bytes += std::string("\x01" "appname" "\x00" "Nova" "\x00", 14);
+    bytes += std::string("\x01" "exe" "\x00" "\"/usr/bin/flatpak\"" "\x00", 24);
+    bytes += std::string("\x01" "launchoptions" "\x00" "run com.papi_ux.Nova" "\x00", 36);
+    bytes += std::string("\x08", 1) + std::string("\x08", 1) + std::string("\x08", 1);
+    const auto parsed = parseBinaryVdf(bytes);
+    assert(parsed.has_value());
+    DeckSteamShortcut nova;
+    nova.appName = "Nova";
+    nova.exe = "\"/usr/bin/flatpak\"";
+    nova.startDir = "\"/usr/bin/\"";
+    nova.launchOptions = "run com.papi_ux.Nova --live";
+    const auto registration = registerShortcut(*parsed, nova);
+    assert(registration.replaced && "the lowercase entry is Nova's and is updated, not duplicated");
+    const auto& shortcuts = registration.document.front().second.children;
+    assert(shortcuts.size() == 1);
+    const auto& entry = shortcuts.front().second.children;
+    bool sawLowercase = false;
+    for (const auto& [key, value] : entry) {
+        if (key == "launchoptions") { sawLowercase = true; assert(value.text == "run com.papi_ux.Nova --live"); }
+        assert(key != "LaunchOptions" && "no second spelling is added");
+    }
+    assert(sawLowercase);
+    assert(find(entry, "StartDir") != nullptr && "a key Nova owns that was missing is added");
+}
+
+void testUnrelatedShortcutNamedNovaIsLeftAlone() {
+    const auto parsed = parseBinaryVdf(syntheticFile());
+    assert(parsed.has_value());
+    DeckSteamShortcut other;
+    other.appName = "Nova";
+    other.exe = "\"/opt/some-other-tool/nova\"";
+    other.startDir = "\"/opt/some-other-tool/\"";
+    other.launchOptions = "--fancy";
+    other.identityMarkers = {"some-other-tool"};
+    const auto withOther = registerShortcut(*parsed, other);
+    assert(!withOther.replaced);
+
+    DeckSteamShortcut nova;
+    nova.appName = "Nova";
+    nova.exe = "\"/usr/bin/flatpak\"";
+    nova.startDir = "\"/usr/bin/\"";
+    nova.launchOptions = "run com.papi_ux.Nova --live";
+    const auto ours = registerShortcut(withOther.document, nova);
+    assert(!ours.replaced && "same name, not ours: appended, never overwritten");
+    const auto& shortcuts = ours.document.front().second.children;
+    assert(shortcuts.size() == 3);
+    assert(find(shortcuts[1].second.children, "Exe")->text == "\"/opt/some-other-tool/nova\"");
+    assert(find(shortcuts[2].second.children, "LaunchOptions")->text == "run com.papi_ux.Nova --live");
+}
+
+void testOneBadProfileRefusesTheWholeRun() {
+    const auto root = fs::temp_directory_path() / ("nova-deck-profiles-" + std::to_string(::getpid()));
+    fs::create_directories(root / "userdata" / "111" / "config");
+    fs::create_directories(root / "userdata" / "222" / "config");
+    const auto files = defaultShortcutFiles(root);
+    assert(files.size() == 2);
+    { std::ofstream out(files[0], std::ios::binary); const auto b = syntheticFile(); out.write(b.data(), static_cast<std::streamsize>(b.size())); }
+    { std::ofstream out(files[1], std::ios::binary); out << "definitely not a KeyValues file"; }
+    DeckSteamShortcut nova;
+    nova.appName = "Nova";
+    nova.exe = "\"/usr/bin/flatpak\"";
+    nova.startDir = "\"/usr/bin/\"";
+    nova.launchOptions = "run com.papi_ux.Nova --live";
+    const auto result = writeShortcutForAccount(files, nova, false);
+    assert(!result.ok);
+    assert(result.written.empty() && "nothing is written when a later profile cannot be read");
+    assert(result.detail.find("222") != std::string::npos);
+    assert(readAll(files[0]) == syntheticFile() && "the good profile is untouched");
+    fs::remove_all(root);
 }
 
 void testWritesFilesAtomicallyAndRefusesWhileSteamRuns() {
@@ -185,6 +284,9 @@ int main() {
     testRoundTripsARealFileWhenProvided();
     testAppIdMatchesSteam();
     testRegistrationAppendsThenReplaces();
+    testLowercaseKeysAreFoundAndSpellingIsKept();
+    testUnrelatedShortcutNamedNovaIsLeftAlone();
+    testOneBadProfileRefusesTheWholeRun();
     testWritesFilesAtomicallyAndRefusesWhileSteamRuns();
     testSteamDetectionReadsProc();
     return 0;

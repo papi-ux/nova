@@ -1,6 +1,14 @@
 #include "runtime/deck_steam_shortcuts.h"
 
+#include <QByteArray>
+#include <QProcess>
+#include <QSaveFile>
+#include <QString>
+#include <QStringList>
+
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -14,6 +22,18 @@ constexpr char kTypeObject = '\x00';
 constexpr char kTypeString = '\x01';
 constexpr char kTypeInt32 = '\x02';
 constexpr char kEndObject = '\x08';
+
+bool sameKey(const std::string_view a, const std::string_view b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
 
 struct Reader {
     std::string_view bytes;
@@ -161,16 +181,37 @@ DeckVdfValue intValue(const std::int32_t number) {
     return value;
 }
 
-const DeckVdfValue* find(const DeckVdfObject& object, const std::string_view key) {
-    for (const auto& [k, v] : object) {
-        if (k == key) {
-            return &v;
-        }
+/// Set a key, keeping the spelling already in the object when it exists.
+void setString(DeckVdfObject& object, const std::string_view key, std::string text) {
+    if (auto* existing = findKey(object, key); existing != nullptr && existing->kind == DeckVdfValue::Kind::String) {
+        existing->text = std::move(text);
+        return;
     }
-    return nullptr;
+    object.emplace_back(std::string(key), stringValue(std::move(text)));
 }
 
-DeckVdfObject shortcutEntry(const DeckSteamShortcut& shortcut, const std::uint32_t appId) {
+bool stringContains(const DeckVdfObject& object, const std::string_view key, const std::string_view needle) {
+    const auto* value = findKey(object, key);
+    return value != nullptr && value->kind == DeckVdfValue::Kind::String && value->text.find(needle) != std::string::npos;
+}
+
+bool isNovaEntry(const DeckVdfObject& entry, const DeckSteamShortcut& shortcut) {
+    const auto* name = findKey(entry, "AppName");
+    if (name == nullptr || name->kind != DeckVdfValue::Kind::String || !sameKey(name->text, shortcut.appName)) {
+        return false;
+    }
+    if (const auto* exe = findKey(entry, "Exe"); exe != nullptr && exe->kind == DeckVdfValue::Kind::String && exe->text == shortcut.exe) {
+        return true;
+    }
+    for (const auto& marker : shortcut.identityMarkers) {
+        if (stringContains(entry, "Exe", marker) || stringContains(entry, "LaunchOptions", marker)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+DeckVdfObject newEntry(const DeckSteamShortcut& shortcut, const std::uint32_t appId) {
     DeckVdfObject entry;
     entry.emplace_back("appid", intValue(static_cast<std::int32_t>(appId)));
     entry.emplace_back("AppName", stringValue(shortcut.appName));
@@ -198,6 +239,41 @@ DeckVdfObject shortcutEntry(const DeckSteamShortcut& shortcut, const std::uint32
     return entry;
 }
 
+/// Update only what Nova owns on an entry that is already Nova's.
+void mergeEntry(DeckVdfObject& entry, const DeckSteamShortcut& shortcut) {
+    setString(entry, "AppName", shortcut.appName);
+    setString(entry, "Exe", shortcut.exe);
+    setString(entry, "StartDir", shortcut.startDir);
+    setString(entry, "LaunchOptions", shortcut.launchOptions);
+    if (!shortcut.icon.empty()) {
+        setString(entry, "icon", shortcut.icon);
+    }
+    auto* tags = findKey(entry, "tags");
+    if (tags == nullptr || tags->kind != DeckVdfValue::Kind::Object) {
+        DeckVdfValue container;
+        container.kind = DeckVdfValue::Kind::Object;
+        entry.emplace_back("tags", std::move(container));
+        tags = &entry.back().second;
+    }
+    for (const auto& tag : shortcut.tags) {
+        bool present = false;
+        for (const auto& [key, value] : tags->children) {
+            present = present || (value.kind == DeckVdfValue::Kind::String && value.text == tag);
+        }
+        if (!present) {
+            int next = 0;
+            for (const auto& [key, value] : tags->children) {
+                char* end = nullptr;
+                const long parsed = std::strtol(key.c_str(), &end, 10);
+                if (end != nullptr && *end == '\0' && parsed >= next) {
+                    next = static_cast<int>(parsed) + 1;
+                }
+            }
+            tags->children.emplace_back(std::to_string(next), stringValue(tag));
+        }
+    }
+}
+
 } // namespace
 
 std::optional<DeckVdfObject> parseBinaryVdf(const std::string_view bytes) {
@@ -217,6 +293,24 @@ std::string serializeBinaryVdf(const DeckVdfObject& root) {
     return out;
 }
 
+const DeckVdfValue* findKey(const DeckVdfObject& object, const std::string_view key) {
+    for (const auto& [k, v] : object) {
+        if (sameKey(k, key)) {
+            return &v;
+        }
+    }
+    return nullptr;
+}
+
+DeckVdfValue* findKey(DeckVdfObject& object, const std::string_view key) {
+    for (auto& [k, v] : object) {
+        if (sameKey(k, key)) {
+            return &v;
+        }
+    }
+    return nullptr;
+}
+
 std::uint32_t steamShortcutAppId(const std::string_view exe, const std::string_view appName) {
     std::string seed(exe);
     seed += appName;
@@ -226,47 +320,45 @@ std::uint32_t steamShortcutAppId(const std::string_view exe, const std::string_v
 DeckShortcutRegistration registerShortcut(const DeckVdfObject& document, const DeckSteamShortcut& shortcut) {
     DeckShortcutRegistration registration;
     registration.document = document;
-    registration.appId = steamShortcutAppId(shortcut.exe, shortcut.appName);
 
-    DeckVdfObject* shortcuts = nullptr;
-    for (auto& [key, value] : registration.document) {
-        if (key == "shortcuts" && value.kind == DeckVdfValue::Kind::Object) {
-            shortcuts = &value.children;
-        }
-    }
-    if (shortcuts == nullptr) {
+    auto* shortcuts = findKey(registration.document, "shortcuts");
+    if (shortcuts == nullptr || shortcuts->kind != DeckVdfValue::Kind::Object) {
         DeckVdfValue container;
         container.kind = DeckVdfValue::Kind::Object;
         registration.document.emplace_back("shortcuts", std::move(container));
-        shortcuts = &registration.document.back().second.children;
+        shortcuts = &registration.document.back().second;
     }
 
-    for (auto& [key, value] : *shortcuts) {
-        if (value.kind != DeckVdfValue::Kind::Object) {
+    for (auto& [key, value] : shortcuts->children) {
+        if (value.kind != DeckVdfValue::Kind::Object || !isNovaEntry(value.children, shortcut)) {
             continue;
         }
-        const auto* name = find(value.children, "AppName");
-        if (name != nullptr && name->kind == DeckVdfValue::Kind::String && name->text == shortcut.appName) {
-            value.children = shortcutEntry(shortcut, registration.appId);
-            registration.replaced = true;
-            registration.entryKey = key;
-            return registration;
+        mergeEntry(value.children, shortcut);
+        registration.replaced = true;
+        registration.entryKey = key;
+        if (const auto* appId = findKey(value.children, "appid"); appId != nullptr && appId->kind == DeckVdfValue::Kind::Int32) {
+            registration.appId = static_cast<std::uint32_t>(appId->number);
+        } else {
+            registration.appId = steamShortcutAppId(shortcut.exe, shortcut.appName);
+            value.children.insert(value.children.begin(), {"appid", intValue(static_cast<std::int32_t>(registration.appId))});
         }
+        return registration;
     }
 
     int next = 0;
-    for (const auto& [key, value] : *shortcuts) {
+    for (const auto& [key, value] : shortcuts->children) {
         char* end = nullptr;
         const long parsed = std::strtol(key.c_str(), &end, 10);
         if (end != nullptr && *end == '\0' && parsed >= next) {
             next = static_cast<int>(parsed) + 1;
         }
     }
+    registration.appId = steamShortcutAppId(shortcut.exe, shortcut.appName);
     DeckVdfValue entry;
     entry.kind = DeckVdfValue::Kind::Object;
-    entry.children = shortcutEntry(shortcut, registration.appId);
+    entry.children = newEntry(shortcut, registration.appId);
     registration.entryKey = std::to_string(next);
-    shortcuts->emplace_back(registration.entryKey, std::move(entry));
+    shortcuts->children.emplace_back(registration.entryKey, std::move(entry));
     return registration;
 }
 
@@ -285,6 +377,7 @@ std::vector<std::filesystem::path> defaultShortcutFiles(const std::filesystem::p
             files.push_back(it->path() / "config" / "shortcuts.vdf");
         }
     }
+    std::sort(files.begin(), files.end());
     return files;
 }
 
@@ -300,19 +393,16 @@ std::vector<std::filesystem::path> defaultSteamRoots() {
         return roots;
     }
     const std::filesystem::path base(home);
-    // The SteamOS layout first; the two are usually the same directory through a symlink.
+    // SteamOS and native Steam share one directory through a symlink; Flatpak Steam keeps its own.
     for (const auto& candidate : {base / ".local" / "share" / "Steam", base / ".steam" / "steam", base / ".var" / "app" / "com.valvesoftware.Steam" / ".local" / "share" / "Steam"}) {
         std::error_code ec;
-        if (std::filesystem::is_directory(candidate / "userdata", ec)) {
-            const auto canonical = std::filesystem::canonical(candidate, ec);
-            const auto path = ec ? candidate : canonical;
-            bool seen = false;
-            for (const auto& existing : roots) {
-                seen = seen || existing == path;
-            }
-            if (!seen) {
-                roots.push_back(path);
-            }
+        if (!std::filesystem::is_directory(candidate / "userdata", ec)) {
+            continue;
+        }
+        const auto canonical = std::filesystem::canonical(candidate, ec);
+        const auto path = ec ? candidate : canonical;
+        if (std::find(roots.begin(), roots.end(), path) == roots.end()) {
+            roots.push_back(path);
         }
     }
     return roots;
@@ -346,6 +436,30 @@ bool steamClientRunning(const std::filesystem::path& procRoot, const unsigned ui
     return false;
 }
 
+std::optional<bool> steamClientRunningForAccount(const bool insideFlatpak, const unsigned uid) {
+    if (!insideFlatpak) {
+        return steamClientRunning("/proc", uid);
+    }
+    // The sandbox has its own PID namespace; ask the host session instead.
+    QProcess probe;
+    probe.setProgram(QStringLiteral("flatpak-spawn"));
+    probe.setArguments({QStringLiteral("--host"), QStringLiteral("pgrep"), QStringLiteral("-x"), QStringLiteral("-u"), QString::number(uid), QStringLiteral("steam")});
+    probe.setStandardOutputFile(QProcess::nullDevice());
+    probe.setStandardErrorFile(QProcess::nullDevice());
+    probe.start();
+    if (!probe.waitForStarted(5000) || !probe.waitForFinished(10000) || probe.exitStatus() != QProcess::NormalExit) {
+        return std::nullopt;
+    }
+    // pgrep: 0 = at least one match, 1 = none; anything else is an error.
+    if (probe.exitCode() == 0) {
+        return true;
+    }
+    if (probe.exitCode() == 1) {
+        return false;
+    }
+    return std::nullopt;
+}
+
 DeckShortcutWriteResult writeShortcutForAccount(
     const std::vector<std::filesystem::path>& shortcutFiles,
     const DeckSteamShortcut& shortcut,
@@ -359,6 +473,10 @@ DeckShortcutWriteResult writeShortcutForAccount(
         result.detail = "No Steam user data directory was found for this account.";
         return result;
     }
+
+    // Prepare every file before touching any, so one bad profile refuses the
+    // whole run instead of leaving the others half done.
+    std::vector<std::pair<std::filesystem::path, std::string>> prepared;
     for (const auto& file : shortcutFiles) {
         DeckVdfObject document;
         std::error_code ec;
@@ -367,26 +485,25 @@ DeckShortcutWriteResult writeShortcutForAccount(
             std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
             auto parsed = parseBinaryVdf(bytes);
             if (!parsed) {
-                result.detail = "Could not read the existing shortcuts file: " + file.filename().string();
+                result.detail = "Could not read the existing shortcuts file for profile " + file.parent_path().parent_path().filename().string() + "; nothing was changed.";
                 return result;
             }
             document = std::move(*parsed);
         }
         const auto registration = registerShortcut(document, shortcut);
         result.appId = registration.appId;
-        const auto serialized = serializeBinaryVdf(registration.document);
-        const auto temp = file.string() + ".nova-tmp";
-        {
-            std::ofstream out(temp, std::ios::binary | std::ios::trunc);
-            if (!out) {
-                result.detail = "Could not write next to the shortcuts file.";
-                return result;
-            }
-            out.write(serialized.data(), static_cast<std::streamsize>(serialized.size()));
+        prepared.emplace_back(file, serializeBinaryVdf(registration.document));
+    }
+
+    for (const auto& [file, bytes] : prepared) {
+        QSaveFile out(QString::fromStdString(file.string()));
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            result.detail = "Could not write the shortcuts file for profile " + file.parent_path().parent_path().filename().string() + ".";
+            return result;
         }
-        std::filesystem::rename(temp, file, ec);
-        if (ec) {
-            result.detail = "Could not replace the shortcuts file: " + ec.message();
+        const auto written = out.write(bytes.data(), static_cast<qint64>(bytes.size()));
+        if (written != static_cast<qint64>(bytes.size()) || !out.commit()) {
+            result.detail = "Could not finish writing the shortcuts file for profile " + file.parent_path().parent_path().filename().string() + ".";
             return result;
         }
         result.written.push_back(file);
