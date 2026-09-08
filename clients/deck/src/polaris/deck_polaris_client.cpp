@@ -169,6 +169,17 @@ std::optional<DeckPolarisSessionStatus> parseSessionStatus(const std::string_vie
     return status;
 }
 
+DeckPolarisRequestTarget splitRequestTarget(const std::string_view pathWithQuery) {
+    const auto mark = pathWithQuery.find('?');
+    if (mark == std::string_view::npos) {
+        return DeckPolarisRequestTarget{.path = std::string(pathWithQuery), .query = {}};
+    }
+    return DeckPolarisRequestTarget{
+        .path = std::string(pathWithQuery.substr(0, mark)),
+        .query = std::string(pathWithQuery.substr(mark + 1)),
+    };
+}
+
 std::optional<int> parseServerInfoHttpsPort(const std::string_view xml) {
     constexpr std::string_view open = "<HttpsPort>";
     constexpr std::string_view close = "</HttpsPort>";
@@ -280,11 +291,15 @@ DeckPolarisResult<std::string> DeckPolarisClient::get(const std::string& path) c
         return result;
     }
 
+    const auto target = splitRequestTarget(path);
     QUrl url;
     url.setScheme(QStringLiteral("https"));
     url.setHost(QString::fromStdString(endpoint_.address));
     url.setPort(endpoint_.httpsPort);
-    url.setPath(QString::fromStdString(path));
+    url.setPath(QString::fromStdString(target.path));
+    if (!target.query.empty()) {
+        url.setQuery(QString::fromStdString(target.query));
+    }
 
     QNetworkRequest request(url);
     // The pinned certificate is the only trust anchor. Polaris serves a

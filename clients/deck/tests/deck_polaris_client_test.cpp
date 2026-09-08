@@ -106,6 +106,19 @@ void testParsesServerInfoHttpsPort() {
     assert(!resolveHttpsPortFromServerInfo("", 47989, std::chrono::milliseconds(50)).has_value());
 }
 
+void testSplitsPathAndQueryForQUrl() {
+    // Field bug from the first pc-papi probe: the games page went out as
+    // /polaris/v1/games%3Flimit=100 and the host answered 404.
+    const auto paged = splitRequestTarget("/polaris/v1/games?limit=100&offset=0");
+    assert(paged.path == "/polaris/v1/games");
+    assert(paged.query == "limit=100&offset=0");
+    const auto plain = splitRequestTarget("/polaris/v1/capabilities");
+    assert(plain.path == "/polaris/v1/capabilities");
+    assert(plain.query.empty());
+    const auto emptyQuery = splitRequestTarget("/x?");
+    assert(emptyQuery.path == "/x" && emptyQuery.query.empty());
+}
+
 void testDescribeCoversEveryStatus() {
     assert(describe(DeckPolarisRequestStatus::Ok) == "ok");
     assert(describe(DeckPolarisRequestStatus::CertMismatch) == "cert-mismatch");
@@ -131,6 +144,7 @@ int main(int argc, char* argv[]) {
     testParsesGamesPageFromHostShape();
     testParsesSessionStatus();
     testParsesServerInfoHttpsPort();
+    testSplitsPathAndQueryForQUrl();
     testDescribeCoversEveryStatus();
     testInvalidIdentityFailsClosedWithoutTouchingTheNetwork();
     return 0;

@@ -13,6 +13,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <chrono>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <QGuiApplication>
@@ -946,7 +947,9 @@ int main(int argc, char *argv[]) {
     std::optional<nova::deck::backend::DeckLiveHostLibrarySnapshot> liveSnapshot;
     if (liveRoute || printLiveState) {
         liveSnapshot = nova::deck::backend::buildLiveSnapshotFromDefaultIdentity(std::chrono::milliseconds(4000));
-        qInfo().noquote() << QString::fromStdString(nova::deck::backend::describeLiveSnapshotForTerminal(*liveSnapshot));
+        // Plain stdout on purpose: Qt routes qInfo to journald when stderr is
+        // not a terminal, which hides a CLI summary from the person who asked.
+        std::cout << nova::deck::backend::describeLiveSnapshotForTerminal(*liveSnapshot) << std::flush;
         if (printLiveState) {
             return liveSnapshot->identityLoaded ? 0 : 2;
         }
