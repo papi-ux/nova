@@ -3,6 +3,8 @@
 #include "polaris_game_fixture.h"
 
 #include <cassert>
+#include <unistd.h>
+#include <filesystem>
 #include <cctype>
 #include <cstdlib>
 #include <fstream>
@@ -594,6 +596,28 @@ int main() {
     assert(!libraryFixturePath.empty());
     setenv("NOVA_DECK_SAMPLE_LIBRARY_FIXTURE_PATH", libraryFixturePath.c_str(), 1);
     assert(nova::deck::samplePolarisGameLibraryFixturePath() == libraryFixturePath);
+
+    // A fixture directory override wins over every installed location, and a
+    // directory that does not exist surfaces as the path it named, so a typo
+    // fails to open instead of silently loading the checked-in copy.
+    {
+        const auto scratch = std::filesystem::temp_directory_path() / ("nova-deck-fixtures-" + std::to_string(::getpid()));
+        std::filesystem::create_directories(scratch);
+        std::filesystem::copy_file(compiledFixturePath, scratch / "sample_polaris_game.json", std::filesystem::copy_options::overwrite_existing);
+        std::filesystem::copy_file(libraryFixturePath, scratch / "sample_polaris_library.json", std::filesystem::copy_options::overwrite_existing);
+        unsetenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH");
+        unsetenv("NOVA_DECK_SAMPLE_LIBRARY_FIXTURE_PATH");
+        setenv("NOVA_DECK_FIXTURE_DIR", scratch.c_str(), 1);
+        assert(nova::deck::samplePolarisGameFixturePath() == scratch / "sample_polaris_game.json");
+        assert(nova::deck::samplePolarisGameLibraryFixturePath() == scratch / "sample_polaris_library.json");
+        assert(nova::deck::loadSamplePolarisGameFixture().name == "Portal 2");
+        setenv("NOVA_DECK_FIXTURE_DIR", "/nonexistent/nova-deck-typo", 1);
+        assert(nova::deck::samplePolarisGameFixturePath() == std::filesystem::path("/nonexistent/nova-deck-typo/sample_polaris_game.json"));
+        unsetenv("NOVA_DECK_FIXTURE_DIR");
+        setenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH", compiledFixturePath.c_str(), 1);
+        setenv("NOVA_DECK_SAMPLE_LIBRARY_FIXTURE_PATH", libraryFixturePath.c_str(), 1);
+        std::filesystem::remove_all(scratch);
+    }
 
     const auto library = nova::deck::loadSamplePolarisGameLibraryFixture();
     unsetenv("NOVA_DECK_SAMPLE_LIBRARY_FIXTURE_PATH");

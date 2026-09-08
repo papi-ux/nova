@@ -4,6 +4,7 @@
 #include "backend/deck_backend_interfaces.h"
 #include "backend/deck_live_read_only_state.h"
 #include "runtime/deck_moonlight_launcher.h"
+#include "runtime/deck_steam_shortcuts.h"
 #include "stream/deck_stream_media_adapters.h"
 
 #include <QClipboard>
@@ -14,6 +15,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -1192,12 +1194,66 @@ void writeExpandedDiagnosticsFrameSmokeArtifact(QObject* rootObject, const QStri
 }
 } // namespace
 
+/**
+ * --register-steam-shortcut adds Nova to Steam as a non-Steam game so Game
+ * Mode can launch it. It runs before any window exists so it works from a
+ * terminal or over SSH, and refuses while Steam is open, because Steam
+ * rewrites shortcuts.vdf on exit. Exit codes: 0 registered, 5 refused.
+ */
+int registerSteamShortcutCommand(const QStringList& arguments) {
+    nova::deck::runtime::DeckSteamShortcut shortcut;
+    shortcut.appName = "Nova";
+    std::error_code ec;
+    const bool insideFlatpak = std::filesystem::exists("/.flatpak-info", ec);
+    const QString exeOverride = stringArgumentAfter(arguments, QStringLiteral("--register-steam-exe"));
+    if (!exeOverride.isEmpty()) {
+        shortcut.exe = "\"" + exeOverride.toStdString() + "\"";
+        shortcut.launchOptions = stringArgumentAfter(arguments, QStringLiteral("--register-steam-launch-options")).toStdString();
+    } else if (insideFlatpak) {
+        shortcut.exe = "\"/usr/bin/flatpak\"";
+        shortcut.launchOptions = "run com.papi_ux.Nova --live";
+    } else {
+        const auto self = std::filesystem::read_symlink("/proc/self/exe", ec);
+        shortcut.exe = "\"" + (ec ? std::string{"nova-deck"} : self.string()) + "\"";
+        shortcut.launchOptions = "--live";
+    }
+    shortcut.startDir = "\"/usr/bin/\"";
+    shortcut.tags = {"Nova"};
+
+    std::vector<std::filesystem::path> files;
+    for (const auto& root : nova::deck::runtime::defaultSteamRoots()) {
+        for (auto& file : nova::deck::runtime::defaultShortcutFiles(root)) {
+            files.push_back(std::move(file));
+        }
+    }
+    const auto steamRunning = nova::deck::runtime::steamClientRunningForAccount(insideFlatpak, static_cast<unsigned>(::getuid()));
+    nova::deck::runtime::DeckShortcutWriteResult result;
+    if (!steamRunning.has_value()) {
+        result.detail = "Could not tell whether Steam is running; close Steam and try again.";
+    } else {
+        result = nova::deck::runtime::writeShortcutForAccount(files, shortcut, *steamRunning);
+    }
+    std::cout << "nova-deck steam shortcut: " << (result.ok ? "ok" : "refused") << " · " << result.detail;
+    if (result.appId != 0) {
+        std::cout << " · appid=" << result.appId;
+    }
+    std::cout << " · files=" << result.written.size() << std::endl;
+    return result.ok ? 0 : 5;
+}
+
 int main(int argc, char *argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--register-steam-shortcut") {
+            QCoreApplication app(argc, argv);
+            return registerSteamShortcutCommand(QCoreApplication::arguments());
+        }
+    }
+
     QGuiApplication app(argc, argv);
 
     const QStringList appArguments = QCoreApplication::arguments();
+
     const auto profile = nova::deck::defaultWindowProfile();
-    const auto sampleLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
     const nova::deck::backend::DeckLaunchPreflightService readOnlyPreflightService;
 
     // --live reads the identity Moonlight-Qt already holds on this device and
@@ -1217,6 +1273,12 @@ int main(int argc, char *argv[]) {
         if (printLiveState) {
             return liveSnapshot->identityLoaded ? 0 : 2;
         }
+    }
+    // The sample library only matters off the live route; an installed binary
+    // without fixtures must still run --live.
+    nova::deck::PolarisGameLibraryFixture sampleLibrary;
+    if (!liveSnapshot) {
+        sampleLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
     }
     std::unique_ptr<nova::deck::backend::DeckReadOnlyStateProvider> readOnlyStateProviderOwner;
     if (liveSnapshot) {

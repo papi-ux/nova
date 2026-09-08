@@ -1,0 +1,40 @@
+{
+  "app-id": "com.papi_ux.Nova",
+  "runtime": "org.kde.Platform",
+  "runtime-version": "6.10",
+  "sdk": "org.kde.Sdk",
+  "command": "nova-deck",
+  "finish-args": [
+    "--share=network",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--share=ipc",
+    "--device=dri",
+    "--device=input",
+    "--filesystem=xdg-run/gamescope-0",
+    "--filesystem=~/.var/app/com.moonlight_stream.Moonlight/config:ro",
+    "--filesystem=~/.local/share/Steam/userdata",
+    "--filesystem=~/.steam/steam/userdata",
+    "--filesystem=~/.var/app/com.valvesoftware.Steam/.local/share/Steam/userdata",
+    "--talk-name=org.freedesktop.Flatpak",
+    "--env=QT_QUICK_CONTROLS_STYLE=Material"
+  ],
+  "cleanup": ["/include", "*.a", "/lib/static", "/lib/pkgconfig", "/share/nova-deck/cmake"],
+  "modules": [
+    {
+      "name": "nova-deck",
+      "buildsystem": "cmake-ninja",
+      "subdir": "clients/deck",
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_TESTING=OFF"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "../../../.."
+        }
+      ]
+    }
+  ]
+}

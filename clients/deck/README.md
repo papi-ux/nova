@@ -84,6 +84,10 @@ Headless proof, with a real Moonlight or a recorder script:
 
 It prints the launch phase, how Moonlight ended, and a bounded tail of Moonlight's own output (backend-only: it can carry host addresses, so the shell never shows it). Exit codes: 0 launched and exited, 3 never launched, 4 still running when the wait ran out. Add `--handoff-windowed` to keep a real Moonlight in a window, for a proof on a desktop rather than a Deck.
 
+## Game Mode and packaging
+
+`packaging/flatpak/` builds the shell as the `com.papi_ux.Nova` Flatpak on `org.kde.Platform` 6.10, the runtime Moonlight-Qt already installs on a Steam Deck; see its README for the build, install and permission notes. `nova-deck --register-steam-shortcut` adds Nova to Steam as a non-Steam game so Game Mode can launch it: `src/runtime/deck_steam_shortcuts.*` parses and rewrites Steam's binary `shortcuts.vdf` byte for byte, registers or replaces one "Nova" entry, writes atomically, and refuses while Steam runs because Steam rewrites that file on exit. Inside the Flatpak the entry runs `flatpak run com.papi_ux.Nova --live`. Fixtures are found at runtime under `/app/share/nova-deck/fixtures` or next to the installed binary before the source tree is tried, and moonlight-common-c is linked statically so an installed binary carries it.
+
 ## Shared Polaris DTO boundary
 
 Native C++ cannot include Kotlin source directly. For this first slice, fixtures/sample_polaris_game.json is a generated/shared-contract sample using the same snake_case keys covered by the Kotlin shared DTO tests. src/polaris_game_fixture.h and src/polaris_game_fixture.cpp load that fixture into a tiny native projection so the Deck shell can exercise a real library-card shape while the actual native Polaris API/client bridge is still future work.
