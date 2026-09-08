@@ -300,8 +300,13 @@ shell.
 Slice 1 of arc 1 is the live read-only route in `clients/deck/README.md`: real hosts
 and library, no execution (shipped as nova#287 and proven on pc-papi against its own
 Polaris through a Moonlight-Qt Flatpak pairing). Slice 2 executes the handoff through
-`clients/deck/src/runtime/deck_moonlight_launcher.*` and returns focus. Slice 3 is
-Game Mode integration (Steam shortcut) and Flatpak packaging on `org.kde.Platform`.
+`clients/deck/src/runtime/deck_moonlight_launcher.*` and returns focus (nova#288,
+proven with a real Moonlight-Qt on pc-papi). Slice 3 packages the shell as the
+`com.papi_ux.Nova` Flatpak on `org.kde.Platform` 6.10 and registers it with Steam
+through `clients/deck/src/runtime/deck_steam_shortcuts.*`, so Game Mode launches it;
+proven on pc-papi from inside the sandbox, including the handoff through the Flatpak
+portal. The remaining physical step is the Deck itself: install the bundle, register
+from Desktop Mode with Steam closed, launch from Game Mode.
 
 ## Deck-T4 streaming backend decision
 
