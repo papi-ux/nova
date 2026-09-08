@@ -9,6 +9,7 @@ import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.nvstream.http.LimelightCryptoProvider
+import com.papi.nova.nvstream.http.NvHTTP
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -120,6 +121,18 @@ enum class PolarisLaunchHostKind {
 }
 
 /**
+ * Host family read from GameStream serverinfo's <state> field, the one signal
+ * every reachable GameStream host reports the same way. POLARIS_SERVER_* is
+ * Polaris; SUNSHINE_SERVER_*, MJOLNIR (GeForce Experience) and every other
+ * value is a stock host; absent or unreadable is ambiguous.
+ */
+enum class PolarisServerFamily {
+    POLARIS,
+    STOCK,
+    UNKNOWN
+}
+
+/**
  * HTTP client for Polaris REST API on the nvhttp port (47984).
  * Uses the same client certificate as Moonlight pairing.
  */
@@ -148,6 +161,9 @@ class PolarisApiClient @JvmOverloads constructor(
 
     companion object {
         const val WEB_UI_HTTPS_PORT = 47990
+        private const val SERVERINFO_IDENTITY_TIMEOUT_SECONDS = 3L
+        // GameStream serves HTTP five ports above its HTTPS port (47989 vs 47984).
+        private const val GAMESTREAM_HTTP_HTTPS_PORT_OFFSET = 5
         private const val CLIENT_CERT_ALIAS = "Limelight-RSA"
         // Poster-shaped bucket; also the fallback for studio preview cells.
         private const val PREVIEW_TARGET_WIDTH = 512
@@ -1093,6 +1109,23 @@ class PolarisApiClient @JvmOverloads constructor(
         fun supportsDeterministicLaunchContract(capabilities: PolarisCapabilities): Boolean =
             capabilities.features.resolvedProfileProvenance &&
                 capabilities.features.expectedTopologyAssertion
+
+        /**
+         * Map a serverinfo <state> value to a host family. Polaris reports
+         * POLARIS_SERVER_FREE / POLARIS_SERVER_BUSY; a stock GameStream host
+         * reports SUNSHINE_SERVER_*, MJOLNIR* or similar. A blank or missing
+         * value is ambiguous and must not identify a host either way.
+         */
+        @JvmStatic
+        fun launchHostFamilyFromServerState(state: String?): PolarisServerFamily {
+            val trimmed = state?.trim().orEmpty()
+            if (trimmed.isEmpty()) return PolarisServerFamily.UNKNOWN
+            return if (trimmed.startsWith("POLARIS_SERVER", ignoreCase = true)) {
+                PolarisServerFamily.POLARIS
+            } else {
+                PolarisServerFamily.STOCK
+            }
+        }
 
         private fun parseDoctorStatus(
             doctor: JSONObject?,
@@ -2141,50 +2174,102 @@ class PolarisApiClient @JvmOverloads constructor(
 
     /**
      * Resolve host identity for a new launch without publishing process-global
-     * feature state. Network/protocol ambiguity is UNKNOWN and must fail closed;
-     * only explicit 404s from both Polaris routes identify a stock host.
+     * feature state. Identity comes from GameStream serverinfo's <state> field,
+     * which every reachable host answers the same well-formed way, so a stock
+     * host is recognized without depending on how its fork answers an unknown
+     * /polaris/v1 route. Sunshine's not-found handler writes a malformed
+     * 200-then-404 that some HTTP clients read as a protocol error (#291), so a
+     * probe of a Polaris-only route can never be a reliable stock-host signal.
+     * A Polaris host is then split into current or legacy by whether it serves
+     * the deterministic launch contract. Anything ambiguous is UNKNOWN and must
+     * fail closed.
      */
     fun identifyLaunchHost(): PolarisLaunchHostKind {
+        val state = readServerStateForIdentity()
+        return when (launchHostFamilyFromServerState(state)) {
+            PolarisServerFamily.UNKNOWN -> PolarisLaunchHostKind.UNKNOWN
+            PolarisServerFamily.STOCK -> PolarisLaunchHostKind.NON_POLARIS
+            PolarisServerFamily.POLARIS -> probePolarisLaunchContract()
+        }
+    }
+
+    /**
+     * Read the GameStream serverinfo <state> for launch identity. Tries HTTPS
+     * with the paired client certificate first, then falls back to plain HTTP
+     * the way NvHTTP already does. The fallback triggers whenever a readable
+     * state does not come back, not only when the HTTP layer fails: a stock
+     * Sunshine host drops the first cold HTTPS connection in a way Android reads
+     * as a protocol error, and an unpaired or cert-rejected HTTPS serverinfo
+     * answers HTTP 200 with an XML root whose status_code is 401, which is not a
+     * readable state either. Its HTTP serverinfo answers cleanly, and the
+     * <state> field is the same over either transport. Returns null only when
+     * neither transport yields a state, which fails the launch closed.
+     */
+    private fun readServerStateForIdentity(): String? {
+        readServerStateOnce(clientForCall(), "https://$serverAddress:$resolvedHttpsPort/serverinfo", "https")?.let { return it }
+        val httpPort = resolvedHttpsPort + GAMESTREAM_HTTP_HTTPS_PORT_OFFSET
+        return readServerStateOnce(client, "http://$serverAddress:$httpPort/serverinfo", "http")
+    }
+
+    private fun readServerStateOnce(httpClient: OkHttpClient, url: String, transport: String): String? {
+        val probeClient = httpClient.newBuilder()
+            .connectTimeout(SERVERINFO_IDENTITY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(SERVERINFO_IDENTITY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
+        val request = Request.Builder().url(url).header("Connection", "close").build()
+        return try {
+            probeClient.newCall(request).execute().use { response ->
+                if (response.code != 200) return null
+                val body = response.body?.string() ?: return null
+                // getXmlString validates the XML root status_code, so a 401 or
+                // malformed serverinfo throws here and the HTTP fallback is tried.
+                NvHTTP.getXmlString(body, "state", false)?.takeIf { it.isNotBlank() }
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Launch host identity serverinfo over $transport failed: ${errorMessage(e)}")
+            null
+        }
+    }
+
+    /**
+     * The host is known to be Polaris from its serverinfo state; decide whether
+     * it serves the deterministic launch contract. A Polaris host answers
+     * /polaris/v1/capabilities with clean JSON, so a failure here is a Polaris
+     * host that cannot prove the contract, which fails closed.
+     */
+    private fun probePolarisLaunchContract(): PolarisLaunchHostKind {
         val probeClient = clientForCall().newBuilder()
             .connectTimeout(2, TimeUnit.SECONDS)
             .readTimeout(2, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
             .build()
-        fun executeProbe(path: String) = probeClient.newCall(
-            Request.Builder()
-                .url("$baseUrl$path")
-                .header("Connection", "close")
-                .build()
-        ).execute()
-
         return try {
-            executeProbe("/capabilities").use { response ->
-                when (response.code) {
-                    200 -> {
-                        val body = response.body?.string() ?: return PolarisLaunchHostKind.UNKNOWN
-                        val capabilities = runCatching {
-                            parseCapabilitiesResponse(JSONObject(body))
-                        }.getOrNull() ?: return PolarisLaunchHostKind.UNKNOWN
-                        if (!capabilities.server.equals("polaris", ignoreCase = true)) {
-                            PolarisLaunchHostKind.UNKNOWN
-                        } else if (supportsDeterministicLaunchContract(capabilities)) {
-                            PolarisLaunchHostKind.CURRENT_POLARIS
-                        } else {
-                            PolarisLaunchHostKind.LEGACY_POLARIS
-                        }
-                    }
-                    404 -> executeProbe("/session/status").use { fallback ->
-                        when (fallback.code) {
-                            200 -> PolarisLaunchHostKind.LEGACY_POLARIS
-                            404 -> PolarisLaunchHostKind.NON_POLARIS
-                            else -> PolarisLaunchHostKind.UNKNOWN
-                        }
-                    }
-                    else -> PolarisLaunchHostKind.UNKNOWN
+            probeClient.newCall(
+                Request.Builder()
+                    .url("$baseUrl/capabilities")
+                    .header("Connection", "close")
+                    .build()
+            ).execute().use { response ->
+                if (response.code != 200) return PolarisLaunchHostKind.UNKNOWN
+                val body = response.body?.string() ?: return PolarisLaunchHostKind.UNKNOWN
+                val capabilities = runCatching {
+                    parseCapabilitiesResponse(JSONObject(body))
+                }.getOrNull() ?: return PolarisLaunchHostKind.UNKNOWN
+                // The serverinfo state said Polaris; a capabilities document that
+                // does not agree is contradictory, so fail closed rather than
+                // trust a foreign body.
+                if (!capabilities.server.equals("polaris", ignoreCase = true)) {
+                    return PolarisLaunchHostKind.UNKNOWN
+                }
+                if (supportsDeterministicLaunchContract(capabilities)) {
+                    PolarisLaunchHostKind.CURRENT_POLARIS
+                } else {
+                    PolarisLaunchHostKind.LEGACY_POLARIS
                 }
             }
         } catch (e: Exception) {
-            LimeLog.warning("Nova: Launch host identity probe failed: ${errorMessage(e)}")
+            LimeLog.warning("Nova: Polaris launch contract probe failed: ${errorMessage(e)}")
             PolarisLaunchHostKind.UNKNOWN
         }
     }
