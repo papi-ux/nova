@@ -314,11 +314,18 @@ int main() {
         .type = static_cast<unsigned char>(nova::deck::kDeckGamepadButtonEvent | nova::deck::kDeckGamepadInitEvent),
         .number = nova::deck::kDeckGamepadPrimaryButton,
     }) == nova::deck::DeckGamepadAction::None);
+    // B is the secondary action (cancel an armed handoff); anything past it is nothing.
     assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
         .timeMs = 13,
         .value = 1,
         .type = nova::deck::kDeckGamepadButtonEvent,
-        .number = static_cast<unsigned char>(nova::deck::kDeckGamepadPrimaryButton + 1),
+        .number = nova::deck::kDeckGamepadSecondaryButton,
+    }) == nova::deck::DeckGamepadAction::SecondaryPressed);
+    assert(nova::deck::decodeGamepadAction(nova::deck::DeckGamepadEvent{
+        .timeMs = 14,
+        .value = 1,
+        .type = nova::deck::kDeckGamepadButtonEvent,
+        .number = static_cast<unsigned char>(nova::deck::kDeckGamepadSecondaryButton + 1),
     }) == nova::deck::DeckGamepadAction::None);
 
     const auto focusTargets = nova::deck::defaultLibraryFocusTargets();

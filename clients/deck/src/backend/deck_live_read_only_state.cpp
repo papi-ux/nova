@@ -142,6 +142,7 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
             probe.status = fetch.status;
             probe.detail = std::move(fetch.detail);
             probe.serverVersion = std::move(fetch.serverVersion);
+            probe.resolvedHttpsPort = fetch.httpsPort;
             if (probe.status == DeckPolarisRequestStatus::Ok) {
                 probe.librarySource = "polaris-live";
                 if (!librarySelected) {
@@ -228,28 +229,34 @@ DeckCredentialMetadata credentialsForSelectedHost(const DeckLiveHostLibrarySnaps
     return credentials;
 }
 
+int resolvePolarisHttpsPort(const identity::DeckMoonlightHostRecord& host, const std::chrono::milliseconds timeout) {
+    const auto httpPort = host.preferredHttpPort();
+    // Moonlight learns the HTTPS port from serverinfo on every connection
+    // because forwarded hosts do not keep the five-port spacing.
+    return polaris::resolveHttpsPortFromServerInfo(host.preferredAddress(), httpPort, timeout)
+        .value_or(identity::polarisHttpsPortForMoonlightHttpPort(httpPort));
+}
+
+polaris::DeckPolarisClient polarisClientForHost(
+    const identity::DeckMoonlightIdentity& identity,
+    const identity::DeckMoonlightHostRecord& host,
+    const int httpsPort,
+    const std::chrono::milliseconds timeout) {
+    return polaris::DeckPolarisClient(
+        polaris::DeckPolarisEndpoint{.address = host.preferredAddress(), .httpsPort = httpsPort},
+        polaris::DeckPolarisTlsIdentity{
+            .clientCertificatePem = identity.clientCertificatePem,
+            .clientPrivateKeyPem = identity.clientPrivateKeyPemForBackendOnly,
+            .pinnedServerCertificatePem = host.serverCertificatePem,
+        },
+        timeout);
+}
+
 DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdentity& identity, const std::chrono::milliseconds timeout) {
-    const polaris::DeckPolarisTlsIdentity tls{
-        .clientCertificatePem = identity.clientCertificatePem,
-        .clientPrivateKeyPem = identity.clientPrivateKeyPemForBackendOnly,
-        .pinnedServerCertificatePem = {},
-    };
-    return [tls, timeout](const identity::DeckMoonlightHostRecord& host, const bool wantLibrary) {
+    return [&identity, timeout](const identity::DeckMoonlightHostRecord& host, const bool wantLibrary) {
         DeckLivePolarisFetch fetch;
-        auto hostTls = tls;
-        hostTls.pinnedServerCertificatePem = host.serverCertificatePem;
-        const auto address = host.preferredAddress();
-        const auto httpPort = host.preferredHttpPort();
-        // Moonlight learns the HTTPS port from serverinfo on every connection
-        // because forwarded hosts do not keep the five-port spacing.
-        const auto advertised = polaris::resolveHttpsPortFromServerInfo(address, httpPort, timeout);
-        const polaris::DeckPolarisClient client(
-            polaris::DeckPolarisEndpoint{
-                .address = address,
-                .httpsPort = advertised.value_or(identity::polarisHttpsPortForMoonlightHttpPort(httpPort)),
-            },
-            hostTls,
-            timeout);
+        fetch.httpsPort = resolvePolarisHttpsPort(host, timeout);
+        const auto client = polarisClientForHost(identity, host, fetch.httpsPort, timeout);
         const auto capabilities = client.fetchCapabilities();
         fetch.status = capabilities.status;
         fetch.detail = capabilities.detail;
@@ -278,7 +285,8 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshotFromDefaultIdentity(const std::chro
             return DeckLivePolarisFetch{};
         });
     }
-    return buildLiveSnapshot(*identity, polarisNetworkFetcher(*identity, timeout));
+    const auto fetcher = polarisNetworkFetcher(*identity, timeout);
+    return buildLiveSnapshot(*identity, fetcher);
 }
 
 std::string describeLiveSnapshotForTerminal(const DeckLiveHostLibrarySnapshot& snapshot) {

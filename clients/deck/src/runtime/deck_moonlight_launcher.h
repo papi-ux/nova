@@ -14,7 +14,8 @@
 // launch to Moonlight-Qt by its command line: `moonlight stream <host> <app>`
 // with the host named by the UUID Moonlight already knows, so no address ever
 // appears in argv. Everything here is explicit: which Moonlight, which argv,
-// which process, and what it said when it ended.
+// which process, and what it said when it ended. Nothing blocks the caller;
+// results arrive through outcomeChanged().
 namespace nova::deck::runtime {
 
 enum class DeckMoonlightInstallKind {
@@ -63,13 +64,14 @@ struct DeckMoonlightArgvPlan {
     std::string publicSummary;  ///< what will run, without private material
 };
 
-/// Build the exact command line, refusing anything that is not a plain token.
+/// Build the exact command line. Tokens go straight to the child, never through a shell.
 DeckMoonlightArgvPlan buildMoonlightStreamArgv(const DeckMoonlightInstall& install, const DeckMoonlightLaunchRequest& request);
 
 /// `moonlight quit <host>`: ask the host to end the running app.
 DeckMoonlightArgvPlan buildMoonlightQuitArgv(const DeckMoonlightInstall& install, std::string_view hostSelector);
 
-/// True when a token can go straight to a child process: no control characters, quotes or shell syntax.
+/// True when a token can go straight to a child process: no control characters and a sane length.
+/// Shell metacharacters are fine because no shell is involved; game titles carry ampersands and quotes.
 bool isPlainArgvToken(std::string_view token);
 
 enum class DeckMoonlightHandoffState {
@@ -82,45 +84,66 @@ enum class DeckMoonlightHandoffState {
 
 std::string_view describe(DeckMoonlightHandoffState state);
 
+enum class DeckMoonlightQuitState {
+    NotRequested,
+    Requested,
+    Acknowledged,
+    Failed,
+};
+
+std::string_view describe(DeckMoonlightQuitState state);
+
 struct DeckMoonlightHandoffOutcome {
     DeckMoonlightHandoffState state = DeckMoonlightHandoffState::Idle;
+    DeckMoonlightQuitState quitState = DeckMoonlightQuitState::NotRequested;
     int exitCode = -1;
     bool crashed = false;
     std::string publicCopy;
     std::string appName;
     std::string hostSelector;
+    /// Bounded tail of Moonlight's own output. It can carry host addresses, so it stays out of every public surface;
+    /// the headless proof prints it, the shell never does.
+    std::string outputTailForBackendOnly;
 };
 
 /**
  * One Moonlight child at a time. The process is started without a shell and
- * with a clean argument vector; stdout and stderr are discarded so Moonlight's
- * own logs, which include host addresses, never enter Nova's output.
+ * with a clean argument vector. Its output is drained into a bounded tail
+ * that only backend-facing callers read. Every state change is announced
+ * through outcomeChanged(); no method blocks on the child.
  */
 class DeckMoonlightHandoffSession final : public QObject {
     Q_OBJECT
 
 public:
+    static constexpr std::size_t kOutputTailBytes = 4096;
+
     explicit DeckMoonlightHandoffSession(QObject* parent = nullptr);
     ~DeckMoonlightHandoffSession() override;
 
+    /// Start Moonlight. Returns false when the plan is invalid or a child is already running; success and failure to
+    /// start both arrive later through outcomeChanged().
     [[nodiscard]] bool launch(const DeckMoonlightArgvPlan& plan, const DeckMoonlightLaunchRequest& request);
-    /// Run `moonlight quit` for the current host as a separate short-lived process; no-op without a running session.
+    /// Run `moonlight quit` for the current host as a separate child; its result arrives through outcomeChanged().
     [[nodiscard]] bool requestQuit(const DeckMoonlightInstall& install);
+    /// Ask the child to stop (SIGTERM). Used when Nova itself is closing.
     void terminate();
 
     [[nodiscard]] const DeckMoonlightHandoffOutcome& outcome() const;
     [[nodiscard]] bool running() const;
-    [[nodiscard]] qint64 processId() const;
 
 signals:
     void outcomeChanged();
 
 private:
+    void recordStarted();
     void recordFinished(int exitCode, QProcess::ExitStatus status);
     void recordFailure(QProcess::ProcessError error);
+    void drainOutput();
 
-    std::unique_ptr<QProcess> process_;
+    std::unique_ptr<QProcess> quitProcess_;
     DeckMoonlightHandoffOutcome outcome_;
+    std::unique_ptr<QProcess> process_;  ///< last member so it is destroyed first, before anything its signals touch
 };
 
 } // namespace nova::deck::runtime

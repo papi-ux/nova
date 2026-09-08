@@ -1,10 +1,10 @@
 #include "runtime/deck_moonlight_launcher.h"
 
+#include <QStandardPaths>
 #include <QString>
 #include <QStringList>
 
 #include <algorithm>
-#include <cctype>
 #include <cstdlib>
 #include <system_error>
 #include <unistd.h>
@@ -28,14 +28,12 @@ bool executableFile(const std::filesystem::path& path) {
     return std::filesystem::is_regular_file(path, ec) && ::access(path.c_str(), X_OK) == 0;
 }
 
-std::optional<std::filesystem::path> findOnPath(const std::vector<std::filesystem::path>& dirs, const std::string_view name) {
+QStringList toQStringList(const std::vector<std::filesystem::path>& dirs) {
+    QStringList list;
     for (const auto& dir : dirs) {
-        const auto candidate = dir / name;
-        if (executableFile(candidate)) {
-            return candidate;
-        }
+        list.push_back(QString::fromStdString(dir.string()));
     }
-    return std::nullopt;
+    return list;
 }
 
 QStringList toQStringList(const std::vector<std::string>& tokens) {
@@ -46,6 +44,20 @@ QStringList toQStringList(const std::vector<std::string>& tokens) {
     return list;
 }
 
+std::optional<std::filesystem::path> findOnPath(const std::vector<std::filesystem::path>& dirs, const std::string_view name) {
+    const auto found = QStandardPaths::findExecutable(QString::fromUtf8(name.data(), static_cast<int>(name.size())), toQStringList(dirs));
+    if (found.isEmpty()) {
+        return std::nullopt;
+    }
+    return std::filesystem::path(found.toStdString());
+}
+
+void configureChild(QProcess& process, const std::vector<std::string>& argv) {
+    process.setProgram(QString::fromStdString(argv.front()));
+    process.setArguments(toQStringList(std::vector<std::string>(argv.begin() + 1, argv.end())));
+    process.setProcessChannelMode(QProcess::MergedChannels);
+}
+
 } // namespace
 
 bool isPlainArgvToken(const std::string_view token) {
@@ -54,9 +66,6 @@ bool isPlainArgvToken(const std::string_view token) {
     }
     for (const unsigned char ch : token) {
         if (ch < 0x20 || ch == 0x7f) {
-            return false;
-        }
-        if (ch == '`' || ch == '$' || ch == ';' || ch == '|' || ch == '&' || ch == '<' || ch == '>' || ch == '"') {
             return false;
         }
     }
@@ -79,19 +88,35 @@ std::string_view describe(const DeckMoonlightHandoffState state) {
     return "unknown";
 }
 
+std::string_view describe(const DeckMoonlightQuitState state) {
+    switch (state) {
+    case DeckMoonlightQuitState::NotRequested:
+        return "not-requested";
+    case DeckMoonlightQuitState::Requested:
+        return "requested";
+    case DeckMoonlightQuitState::Acknowledged:
+        return "acknowledged";
+    case DeckMoonlightQuitState::Failed:
+        return "failed";
+    }
+    return "unknown";
+}
+
 DeckMoonlightInstallProbe defaultMoonlightInstallProbe() {
     DeckMoonlightInstallProbe probe;
     if (const char* override = std::getenv("NOVA_DECK_MOONLIGHT_BIN"); override != nullptr && *override != '\0') {
         probe.overrideBinary = std::filesystem::path(override);
     }
+    const auto pushUnique = [&probe](std::filesystem::path dir) {
+        if (!dir.empty() && std::find(probe.pathDirs.begin(), probe.pathDirs.end(), dir) == probe.pathDirs.end()) {
+            probe.pathDirs.push_back(std::move(dir));
+        }
+    };
     if (const char* path = std::getenv("PATH"); path != nullptr && *path != '\0') {
         std::string_view remaining{path};
         while (!remaining.empty()) {
             const auto colon = remaining.find(':');
-            const auto entry = remaining.substr(0, colon);
-            if (!entry.empty()) {
-                probe.pathDirs.emplace_back(entry);
-            }
+            pushUnique(std::filesystem::path(remaining.substr(0, colon)));
             if (colon == std::string_view::npos) {
                 break;
             }
@@ -99,13 +124,11 @@ DeckMoonlightInstallProbe defaultMoonlightInstallProbe() {
         }
     }
     for (const char* dir : {"/usr/bin", "/usr/local/bin", "/var/lib/flatpak/exports/bin"}) {
-        if (std::find(probe.pathDirs.begin(), probe.pathDirs.end(), std::filesystem::path(dir)) == probe.pathDirs.end()) {
-            probe.pathDirs.emplace_back(dir);
-        }
+        pushUnique(dir);
     }
     if (const auto home = homeDirectory(); !home.empty()) {
         probe.flatpakAppDir = home / ".var" / "app" / std::string(kFlatpakAppId);
-        probe.pathDirs.push_back(home / ".local" / "share" / "flatpak" / "exports" / "bin");
+        pushUnique(home / ".local" / "share" / "flatpak" / "exports" / "bin");
     }
     probe.flatpakInfoFile = "/.flatpak-info";
     return probe;
@@ -249,9 +272,23 @@ DeckMoonlightHandoffSession::DeckMoonlightHandoffSession(QObject* parent)
     : QObject(parent) {}
 
 DeckMoonlightHandoffSession::~DeckMoonlightHandoffSession() {
-    if (process_ && process_->state() != QProcess::NotRunning) {
-        process_->kill();
-        process_->waitForFinished(1000);
+    // Signals from a dying child must not reach a half-destroyed owner.
+    if (process_) {
+        process_->disconnect(this);
+        if (process_->state() != QProcess::NotRunning) {
+            process_->terminate();
+            if (!process_->waitForFinished(1500)) {
+                process_->kill();
+                process_->waitForFinished(500);
+            }
+        }
+    }
+    if (quitProcess_) {
+        quitProcess_->disconnect(this);
+        if (quitProcess_->state() != QProcess::NotRunning) {
+            quitProcess_->kill();
+            quitProcess_->waitForFinished(500);
+        }
     }
 }
 
@@ -259,13 +296,15 @@ bool DeckMoonlightHandoffSession::launch(const DeckMoonlightArgvPlan& plan, cons
     if (!plan.valid || plan.argv.empty() || running()) {
         return false;
     }
+    if (process_) {
+        process_->disconnect(this);
+    }
     process_ = std::make_unique<QProcess>(this);
-    process_->setProgram(QString::fromStdString(plan.argv.front()));
-    process_->setArguments(toQStringList(std::vector<std::string>(plan.argv.begin() + 1, plan.argv.end())));
-    process_->setStandardOutputFile(QProcess::nullDevice());
-    process_->setStandardErrorFile(QProcess::nullDevice());
+    configureChild(*process_, plan.argv);
+    QObject::connect(process_.get(), &QProcess::started, this, &DeckMoonlightHandoffSession::recordStarted);
     QObject::connect(process_.get(), &QProcess::finished, this, &DeckMoonlightHandoffSession::recordFinished);
     QObject::connect(process_.get(), &QProcess::errorOccurred, this, &DeckMoonlightHandoffSession::recordFailure);
+    QObject::connect(process_.get(), &QProcess::readyReadStandardOutput, this, &DeckMoonlightHandoffSession::drainOutput);
 
     outcome_ = DeckMoonlightHandoffOutcome{};
     outcome_.state = DeckMoonlightHandoffState::Starting;
@@ -275,15 +314,6 @@ bool DeckMoonlightHandoffSession::launch(const DeckMoonlightArgvPlan& plan, cons
     emit outcomeChanged();
 
     process_->start();
-    if (!process_->waitForStarted(5000)) {
-        if (outcome_.state == DeckMoonlightHandoffState::Starting) {
-            recordFailure(process_->error());
-        }
-        return false;
-    }
-    outcome_.state = DeckMoonlightHandoffState::Running;
-    outcome_.publicCopy = "Moonlight is streaming \"" + request.appName + "\". Nova returns when it closes.";
-    emit outcomeChanged();
     return true;
 }
 
@@ -291,21 +321,33 @@ bool DeckMoonlightHandoffSession::requestQuit(const DeckMoonlightInstall& instal
     if (!running() || outcome_.hostSelector.empty()) {
         return false;
     }
+    if (quitProcess_ && quitProcess_->state() != QProcess::NotRunning) {
+        return true;  // one quit in flight is enough
+    }
     const auto plan = buildMoonlightQuitArgv(install, outcome_.hostSelector);
     if (!plan.valid) {
         return false;
     }
-    QProcess quit;
-    quit.setProgram(QString::fromStdString(plan.argv.front()));
-    quit.setArguments(toQStringList(std::vector<std::string>(plan.argv.begin() + 1, plan.argv.end())));
-    quit.setStandardOutputFile(QProcess::nullDevice());
-    quit.setStandardErrorFile(QProcess::nullDevice());
-    quit.start();
-    const bool started = quit.waitForStarted(5000);
-    if (started) {
-        quit.waitForFinished(15000);
+    if (quitProcess_) {
+        quitProcess_->disconnect(this);
     }
-    return started;
+    quitProcess_ = std::make_unique<QProcess>(this);
+    configureChild(*quitProcess_, plan.argv);
+    quitProcess_->setStandardOutputFile(QProcess::nullDevice());
+    QObject::connect(quitProcess_.get(), &QProcess::finished, this, [this](const int exitCode, const QProcess::ExitStatus status) {
+        outcome_.quitState = (status == QProcess::NormalExit && exitCode == 0) ? DeckMoonlightQuitState::Acknowledged : DeckMoonlightQuitState::Failed;
+        emit outcomeChanged();
+    });
+    QObject::connect(quitProcess_.get(), &QProcess::errorOccurred, this, [this](const QProcess::ProcessError) {
+        if (outcome_.quitState == DeckMoonlightQuitState::Requested) {
+            outcome_.quitState = DeckMoonlightQuitState::Failed;
+            emit outcomeChanged();
+        }
+    });
+    outcome_.quitState = DeckMoonlightQuitState::Requested;
+    emit outcomeChanged();
+    quitProcess_->start();
+    return true;
 }
 
 void DeckMoonlightHandoffSession::terminate() {
@@ -322,11 +364,25 @@ bool DeckMoonlightHandoffSession::running() const {
     return process_ && process_->state() != QProcess::NotRunning;
 }
 
-qint64 DeckMoonlightHandoffSession::processId() const {
-    return process_ ? process_->processId() : 0;
+void DeckMoonlightHandoffSession::recordStarted() {
+    outcome_.state = DeckMoonlightHandoffState::Running;
+    outcome_.publicCopy = "Moonlight is showing \"" + outcome_.appName + "\". Nova returns when it closes.";
+    emit outcomeChanged();
+}
+
+void DeckMoonlightHandoffSession::drainOutput() {
+    if (!process_) {
+        return;
+    }
+    const auto chunk = process_->readAllStandardOutput();
+    outcome_.outputTailForBackendOnly.append(chunk.constData(), static_cast<std::size_t>(chunk.size()));
+    if (outcome_.outputTailForBackendOnly.size() > kOutputTailBytes) {
+        outcome_.outputTailForBackendOnly.erase(0, outcome_.outputTailForBackendOnly.size() - kOutputTailBytes);
+    }
 }
 
 void DeckMoonlightHandoffSession::recordFinished(const int exitCode, const QProcess::ExitStatus status) {
+    drainOutput();
     outcome_.state = DeckMoonlightHandoffState::Exited;
     outcome_.exitCode = exitCode;
     outcome_.crashed = status == QProcess::CrashExit;

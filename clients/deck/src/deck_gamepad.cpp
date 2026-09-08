@@ -15,6 +15,9 @@ DeckGamepadAction decodeGamepadAction(const DeckGamepadEvent& event) {
     if (event.number == kDeckGamepadPrimaryButton && event.value == 1) {
         return DeckGamepadAction::PrimaryPressed;
     }
+    if (event.number == kDeckGamepadSecondaryButton && event.value == 1) {
+        return DeckGamepadAction::SecondaryPressed;
+    }
 
     return DeckGamepadAction::None;
 }

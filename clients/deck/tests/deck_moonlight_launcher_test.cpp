@@ -48,11 +48,13 @@ void testPlainTokens() {
     assert(isPlainArgvToken("935B1F5B-D2EC-E720-6600-5EB7986004EC"));
     assert(isPlainArgvToken("Slay the Spire 2"));
     assert(isPlainArgvToken("No, I'm not a Human"));
+    // No shell is involved, so titles with shell-looking characters are fine.
+    assert(isPlainArgvToken("Ratchet & Clank"));
+    assert(isPlainArgvToken("quoted \"name\""));
+    assert(isPlainArgvToken("$(not a shell)"));
     assert(!isPlainArgvToken(""));
-    assert(!isPlainArgvToken("game; rm -rf"));
-    assert(!isPlainArgvToken("$(id)"));
     assert(!isPlainArgvToken("a\nb"));
-    assert(!isPlainArgvToken("quoted \"name\""));
+    assert(!isPlainArgvToken(std::string(600, 'x')));
 }
 
 void testDetectionPrefersOverrideThenPathThenFlatpak() {
@@ -123,7 +125,7 @@ void testStreamArgvShapes() {
     assert(sandboxed.valid);
     assert(sandboxed.argv[0] == "flatpak-spawn" && sandboxed.argv[1] == "--host" && sandboxed.argv[2] == "flatpak" && sandboxed.argv[3] == "run");
 
-    request.appName = "bad; name";
+    request.appName = "bad\nname";
     assert(!buildMoonlightStreamArgv(flatpak, request).valid);
     request.appName = "ok";
     request.fullscreen = false;
@@ -141,7 +143,7 @@ void testStreamArgvShapes() {
     const auto quit = buildMoonlightQuitArgv(flatpak, "935B1F5B-D2EC-E720-6600-5EB7986004EC");
     assert(quit.valid);
     assert(joined(quit.argv) == "flatpak-spawn --host flatpak run com.moonlight_stream.Moonlight quit 935B1F5B-D2EC-E720-6600-5EB7986004EC");
-    assert(!buildMoonlightQuitArgv(flatpak, "x y;").valid);
+    assert(!buildMoonlightQuitArgv(flatpak, "x\ty").valid);
 }
 
 void waitForOutcome(DeckMoonlightHandoffSession& session, const DeckMoonlightHandoffState wanted, const int timeoutMs) {
@@ -164,7 +166,7 @@ void testRealChildProcessAgainstAFakeMoonlight() {
     QTemporaryDir dir;
     const fs::path root(dir.path().toStdString());
     const auto record = root / "argv.txt";
-    const auto fake = writeExecutable(root / "fake-moonlight", "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + record.string() + "'\nexit 3\n");
+    const auto fake = writeExecutable(root / "fake-moonlight", "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + record.string() + "'\necho 'recorder says hi' >&2\nexit 3\n");
 
     DeckMoonlightInstall install;
     install.kind = DeckMoonlightInstallKind::Native;
@@ -180,12 +182,15 @@ void testRealChildProcessAgainstAFakeMoonlight() {
     DeckMoonlightHandoffSession session;
     assert(session.outcome().state == DeckMoonlightHandoffState::Idle);
     assert(session.launch(plan, request));
+    assert(session.outcome().state == DeckMoonlightHandoffState::Starting && "launch never blocks on the child");
     assert(session.outcome().appName == "Desktop");
     waitForOutcome(session, DeckMoonlightHandoffState::Exited, 5000);
     assert(session.outcome().state == DeckMoonlightHandoffState::Exited);
     assert(session.outcome().exitCode == 3);
     assert(!session.outcome().crashed);
     assert(contains(session.outcome().publicCopy, "code 3"));
+    assert(contains(session.outcome().outputTailForBackendOnly, "recorder says hi"));
+    assert(!contains(session.outcome().publicCopy, "recorder says hi") && "child output never reaches public copy");
     assert(!session.running());
 
     std::ifstream in(record);
@@ -198,7 +203,8 @@ void testRealChildProcessAgainstAFakeMoonlight() {
     const auto badPlan = buildMoonlightStreamArgv(missing, request);
     assert(badPlan.valid && "argv construction does not stat the binary");
     DeckMoonlightHandoffSession second;
-    assert(!second.launch(badPlan, request));
+    assert(second.launch(badPlan, request) && "the attempt is accepted; the failure arrives through the signal");
+    waitForOutcome(second, DeckMoonlightHandoffState::FailedToStart, 5000);
     assert(second.outcome().state == DeckMoonlightHandoffState::FailedToStart);
     assert(contains(second.outcome().publicCopy, "could not be started"));
 }
@@ -219,8 +225,14 @@ void testQuitRunsTheQuitCommandWhileRunning() {
     request.appName = "Desktop";
     DeckMoonlightHandoffSession session;
     assert(session.launch(buildMoonlightStreamArgv(install, request), request));
+    waitForOutcome(session, DeckMoonlightHandoffState::Running, 5000);
     assert(session.running());
     assert(session.requestQuit(install));
+    assert(session.outcome().quitState == DeckMoonlightQuitState::Requested);
+    for (int i = 0; i < 50 && session.outcome().quitState == DeckMoonlightQuitState::Requested; ++i) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents, 100);
+    }
+    assert(session.outcome().quitState == DeckMoonlightQuitState::Acknowledged);
     std::ifstream in(record);
     std::string recorded((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     assert(recorded == "quit\nhost-uuid\n");

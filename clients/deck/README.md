@@ -74,15 +74,15 @@ It prints the identity source, each host's probe result (`ok`, `unreachable`, `c
 
 ## Handoff: Play in Moonlight
 
-On the live route the launch card's A button hands the highlighted game to Moonlight-Qt instead of copying a plan. The first press arms the request and says so; a second press within eight seconds runs `moonlight stream <host-uuid> "<app>" --display-mode fullscreen`, where the host is named by the UUID Moonlight already knows, so no address enters the command line. While Moonlight runs, Nova asks Polaris for the session truth every five seconds and shows it under the card; A asks Moonlight to end the stream; when Moonlight exits, Nova asks for focus back.
+On the live route the launch card's A button hands the highlighted game to Moonlight-Qt instead of copying a plan. The first press arms the request for eight seconds and says so, B or Escape cancels, and a second press within the window runs `moonlight stream <host-uuid> "<app>" --display-mode fullscreen`, where the host is named by the UUID Moonlight already knows, so no address enters the command line. While Moonlight runs, Nova asks Polaris for the session truth every five seconds and shows it under the card; A asks Moonlight to end the stream; when Moonlight exits, Nova asks for focus back.
 
-`src/runtime/deck_moonlight_launcher.*` is the only place in the client that starts another program. It finds Moonlight as a native binary on PATH, as the `com.moonlight_stream.Moonlight` Flatpak, or through `NOVA_DECK_MOONLIGHT_BIN` for tests; inside a Flatpak sandbox it prefixes `flatpak-spawn --host`. Every argv token is checked to be plain (no shell syntax, quotes or control characters), the child is started without a shell, and its output is discarded so Moonlight's own logs never enter Nova's.
+`src/runtime/deck_moonlight_launcher.*` is the only place in the client that starts another program. It finds Moonlight as a native binary on PATH, as the `com.moonlight_stream.Moonlight` Flatpak, or through `NOVA_DECK_MOONLIGHT_BIN` for tests; inside a Flatpak sandbox it prefixes `flatpak-spawn --host`. Every argv token is checked to be plain (no control characters; shell characters are fine because no shell is involved, and game titles carry ampersands), the child is started without a shell, and its output is kept only as a bounded backend-only tail that never reaches the shell.
 
 Headless proof, with a real Moonlight or a recorder script:
 
     NOVA_DECK_MOONLIGHT_BIN=/path/to/recorder QT_QPA_PLATFORM=offscreen nova-deck --live --handoff-game "Desktop" --handoff-wait-ms 5000
 
-It prints the launch phase and how Moonlight ended. Exit code 3 means Moonlight could not be started. Add `--handoff-windowed` to keep a real Moonlight in a window, for a proof on a desktop rather than a Deck.
+It prints the launch phase, how Moonlight ended, and a bounded tail of Moonlight's own output (backend-only: it can carry host addresses, so the shell never shows it). Exit codes: 0 launched and exited, 3 never launched, 4 still running when the wait ran out. Add `--handoff-windowed` to keep a real Moonlight in a window, for a proof on a desktop rather than a Deck.
 
 ## Shared Polaris DTO boundary
 

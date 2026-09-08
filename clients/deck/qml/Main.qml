@@ -175,16 +175,12 @@ ApplicationWindow {
         }
     }
 
-    property var handoffState: novaHandoff.state
-
-    Connections {
-        target: novaHandoff
-        function onStateChanged() { handoffState = novaHandoff.state }
-    }
+    // Bound straight to the bridge property; its NOTIFY keeps this fresh.
+    readonly property var handoffState: novaHandoff.state
 
     function activateLaunchCardFromController() {
         if (handoffState.available) {
-            handoffState = novaHandoff.activate(
+            novaHandoff.activate(
                 selectedHostForPreview ? selectedHostForPreview.id : "",
                 selectedGameForPreview ? selectedGameForPreview.id : "",
                 selectedGameForPreview ? selectedGameForPreview.title : "")
@@ -195,7 +191,7 @@ ApplicationWindow {
 
     function cancelHandoffFromController() {
         if (handoffState.available && handoffState.armed) {
-            handoffState = novaHandoff.cancel()
+            novaHandoff.cancel()
         }
     }
 
@@ -459,7 +455,10 @@ ApplicationWindow {
     Connections {
         target: novaGamepad
         function onPrimaryActionPressed(activationCount) {
-            activateLaunchPreviewCopyFromController()
+            activateLaunchCardFromController()
+        }
+        function onSecondaryActionPressed(activationCount) {
+            cancelHandoffFromController()
         }
     }
 
@@ -915,9 +914,9 @@ ApplicationWindow {
                         KeyNavigation.down: secondaryDiagnosticsToggle
                         Keys.onUpPressed: hostDetailPanel.forceActiveFocus()
                         Keys.onDownPressed: secondaryDiagnosticsToggle.forceActiveFocus()
-                        Keys.onReturnPressed: activateLaunchCardFromController()
-                        Keys.onEnterPressed: activateLaunchCardFromController()
-                        Keys.onSpacePressed: activateLaunchCardFromController()
+                        Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) activateLaunchCardFromController() }
+                        Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) activateLaunchCardFromController() }
+                        Keys.onSpacePressed: (event) => { if (!event.isAutoRepeat) activateLaunchCardFromController() }
                         Keys.onEscapePressed: cancelHandoffFromController()
                         Keys.onBackPressed: cancelHandoffFromController()
                         Keys.onLeftPressed: focusSelectedLibraryItem()
