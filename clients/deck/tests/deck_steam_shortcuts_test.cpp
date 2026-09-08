@@ -44,7 +44,7 @@ std::string syntheticFile() {
     bytes += std::string("\x00" "tags" "\x00", 6) + std::string("\x08", 1);
     bytes += std::string("\x08", 1);  // end entry 0
     bytes += std::string("\x08", 1);  // end shortcuts
-    bytes += std::string("\x08", 1);  // end document
+    bytes += std::string("\x08", 1);  // end of the root object, the last byte Steam writes
     return bytes;
 }
 

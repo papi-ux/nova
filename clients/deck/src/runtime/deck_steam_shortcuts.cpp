@@ -202,12 +202,10 @@ DeckVdfObject shortcutEntry(const DeckSteamShortcut& shortcut, const std::uint32
 
 std::optional<DeckVdfObject> parseBinaryVdf(const std::string_view bytes) {
     Reader reader{bytes};
+    // The document is one object: the end marker that closes it is the last
+    // byte of the file. Anything after it means the file is not what Steam writes.
     auto root = parseObject(reader);
-    if (!root) {
-        return std::nullopt;
-    }
-    // Steam terminates the document with a second end marker.
-    if (const auto trailer = reader.byte(); !trailer || *trailer != kEndObject || !reader.done()) {
+    if (!root || !reader.done()) {
         return std::nullopt;
     }
     return root;
@@ -216,7 +214,6 @@ std::optional<DeckVdfObject> parseBinaryVdf(const std::string_view bytes) {
 std::string serializeBinaryVdf(const DeckVdfObject& root) {
     std::string out;
     serializeObject(root, out);
-    out.push_back(kEndObject);
     return out;
 }
 
