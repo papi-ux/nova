@@ -117,8 +117,19 @@ struct DeckPolarisRequestTarget {
 };
 DeckPolarisRequestTarget splitRequestTarget(std::string_view pathWithQuery);
 
+/// What the host's plain-HTTP serverinfo said, or how it failed to.
+struct DeckPolarisServerInfoProbe {
+    std::optional<int> httpsPort;  ///< the advertised HttpsPort, when the host answered with one
+    bool timedOut = false;         ///< nothing came back within the timeout: the address is a black hole, not a refusal
+};
+
 /// Ask the host's plain-HTTP port which HTTPS port to use, the way Moonlight does
-/// before every connection; nullopt when the host does not answer or advertise one.
+/// before every connection. A refusal or a non-GameStream answer leaves httpsPort
+/// empty; a silent address also sets timedOut so the caller can skip the HTTPS
+/// probe that would only wait out the same timeout again on the same address.
+DeckPolarisServerInfoProbe probeServerInfoHttpsPort(const std::string& address, int httpPort, std::chrono::milliseconds timeout);
+
+/// probeServerInfoHttpsPort without the failure shape: nullopt when the host does not answer or advertise one.
 std::optional<int> resolveHttpsPortFromServerInfo(const std::string& address, int httpPort, std::chrono::milliseconds timeout);
 
 class DeckPolarisClient {

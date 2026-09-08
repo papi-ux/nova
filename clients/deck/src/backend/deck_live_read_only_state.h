@@ -67,9 +67,6 @@ DeckCredentialMetadata credentialsForSelectedHost(const DeckLiveHostLibrarySnaps
 /// One word for the header: where this read-only state came from.
 inline constexpr std::string_view kLiveProvenanceLabel = "moonlight-pairing provenance";
 
-/// The HTTPS port for a host: what its serverinfo advertises, else the five-port rule.
-int resolvePolarisHttpsPort(const identity::DeckMoonlightHostRecord& host, std::chrono::milliseconds timeout);
-
 /// A client for one host over the identity's certificate and that host's pinned server certificate, on the given port.
 polaris::DeckPolarisClient polarisClientForHost(
     const identity::DeckMoonlightIdentity& identity,

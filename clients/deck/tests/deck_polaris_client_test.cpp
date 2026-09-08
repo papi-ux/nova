@@ -104,6 +104,12 @@ void testParsesServerInfoHttpsPort() {
     assert(!parseServerInfoHttpsPort("<root><HttpsPort>47a84</HttpsPort></root>").has_value());
     assert(!parseServerInfoHttpsPort("<root><HttpsPort>99999</HttpsPort></root>").has_value());
     assert(!resolveHttpsPortFromServerInfo("", 47989, std::chrono::milliseconds(50)).has_value());
+    const auto unaddressed = probeServerInfoHttpsPort("", 47989, std::chrono::milliseconds(50));
+    assert(!unaddressed.httpsPort.has_value() && !unaddressed.timedOut);
+    // A refusal answers at once and must not be mistaken for a silent address:
+    // the live route skips the HTTPS probe only for the latter.
+    const auto refused = probeServerInfoHttpsPort("127.0.0.1", 1, std::chrono::milliseconds(2000));
+    assert(!refused.httpsPort.has_value() && !refused.timedOut);
 }
 
 void testSplitsPathAndQueryForQUrl() {

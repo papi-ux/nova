@@ -232,9 +232,10 @@ std::string_view describeNetworkError(const QNetworkReply::NetworkError error) {
 
 } // namespace
 
-std::optional<int> resolveHttpsPortFromServerInfo(const std::string& address, const int httpPort, const std::chrono::milliseconds timeout) {
+DeckPolarisServerInfoProbe probeServerInfoHttpsPort(const std::string& address, const int httpPort, const std::chrono::milliseconds timeout) {
+    DeckPolarisServerInfoProbe probe;
     if (address.empty() || httpPort <= 0) {
-        return std::nullopt;
+        return probe;
     }
     QUrl url;
     url.setScheme(QStringLiteral("http"));
@@ -251,12 +252,18 @@ std::optional<int> resolveHttpsPortFromServerInfo(const std::string& address, co
     QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
     loop.exec();
     const auto body = reply->readAll();
-    const bool ok = reply->error() == QNetworkReply::NoError;
+    const auto networkError = reply->error();
     reply->deleteLater();
-    if (!ok) {
-        return std::nullopt;
+    probe.timedOut = networkError == QNetworkReply::OperationCanceledError || networkError == QNetworkReply::TimeoutError;
+    if (networkError != QNetworkReply::NoError) {
+        return probe;
     }
-    return parseServerInfoHttpsPort(std::string_view(body.constData(), static_cast<std::size_t>(body.size())));
+    probe.httpsPort = parseServerInfoHttpsPort(std::string_view(body.constData(), static_cast<std::size_t>(body.size())));
+    return probe;
+}
+
+std::optional<int> resolveHttpsPortFromServerInfo(const std::string& address, const int httpPort, const std::chrono::milliseconds timeout) {
+    return probeServerInfoHttpsPort(address, httpPort, timeout).httpsPort;
 }
 
 struct DeckPolarisClient::Session {

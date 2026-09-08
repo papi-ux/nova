@@ -314,14 +314,6 @@ DeckCredentialMetadata credentialsForSelectedHost(const DeckLiveHostLibrarySnaps
     return credentials;
 }
 
-int resolvePolarisHttpsPort(const identity::DeckMoonlightHostRecord& host, const std::chrono::milliseconds timeout) {
-    const auto httpPort = host.preferredHttpPort();
-    // Moonlight learns the HTTPS port from serverinfo on every connection
-    // because forwarded hosts do not keep the five-port spacing.
-    return polaris::resolveHttpsPortFromServerInfo(host.preferredAddress(), httpPort, timeout)
-        .value_or(identity::polarisHttpsPortForMoonlightHttpPort(httpPort));
-}
-
 polaris::DeckPolarisClient polarisClientForHost(
     const identity::DeckMoonlightIdentity& identity,
     const identity::DeckMoonlightHostRecord& host,
@@ -340,7 +332,21 @@ polaris::DeckPolarisClient polarisClientForHost(
 DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdentity& identity, const std::chrono::milliseconds timeout) {
     return [&identity, timeout](const identity::DeckMoonlightHostRecord& host, const bool wantLibrary) {
         DeckLivePolarisFetch fetch;
-        fetch.httpsPort = resolvePolarisHttpsPort(host, timeout);
+        // Moonlight learns the HTTPS port from serverinfo on every connection
+        // because forwarded hosts do not keep the five-port spacing.
+        const auto httpPort = host.preferredHttpPort();
+        const auto serverInfo = polaris::probeServerInfoHttpsPort(host.preferredAddress(), httpPort, timeout);
+        fetch.httpsPort = serverInfo.httpsPort.value_or(identity::polarisHttpsPortForMoonlightHttpPort(httpPort));
+        if (serverInfo.timedOut) {
+            // The HTTPS port lives on the same address: a black hole on the
+            // pairing port is a black hole there too, and waiting out a second
+            // full timeout per unreachable host is what kept the Deck on a blank
+            // window away from home. A refusal or a non-GameStream answer still
+            // gets the HTTPS probe, since a host may block plain HTTP on purpose.
+            fetch.status = DeckPolarisRequestStatus::Timeout;
+            fetch.detail = "no answer within the timeout";
+            return fetch;
+        }
         const auto client = polarisClientForHost(identity, host, fetch.httpsPort, timeout);
         const auto capabilities = client.fetchCapabilities();
         fetch.status = capabilities.status;
