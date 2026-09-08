@@ -33,6 +33,7 @@ add_library(nova_deck_core
     src/polaris/deck_polaris_client.cpp
     src/backend/deck_live_read_only_state.cpp
     src/runtime/deck_moonlight_launcher.cpp
+    src/runtime/deck_steam_shortcuts.cpp
 )
 set_target_properties(nova_deck_core PROPERTIES AUTOMOC ON)
 
@@ -126,6 +127,12 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_moonlight_launcher_test COMMAND nova_deck_moonlight_launcher_test)
     set_tests_properties(nova_deck_moonlight_launcher_test PROPERTIES TIMEOUT 60)
 
+    add_executable(nova_deck_steam_shortcuts_test
+        tests/deck_steam_shortcuts_test.cpp
+    )
+    target_link_libraries(nova_deck_steam_shortcuts_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_steam_shortcuts_test COMMAND nova_deck_steam_shortcuts_test)
+
     add_executable(nova_deck_qsg_render_node_scenegraph_smoke
         tests/deck_qsg_render_node_scenegraph_smoke.cpp
     )
@@ -187,6 +194,17 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 Qt6::Quick
                 Qt6::QuickControls2
         )
+
+        include(GNUInstallDirs)
+        install(TARGETS nova-deck RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+        install(FILES fixtures/sample_polaris_game.json fixtures/sample_polaris_library.json
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/nova-deck/fixtures)
+        install(FILES packaging/flatpak/com.papi_ux.Nova.desktop
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+        install(FILES packaging/flatpak/com.papi_ux.Nova.svg
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+        install(FILES packaging/flatpak/com.papi_ux.Nova.metainfo.xml
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 
         if(BUILD_TESTING)
             add_test(NAME nova_deck_qt_shell_smoke COMMAND nova-deck --smoke-exit)

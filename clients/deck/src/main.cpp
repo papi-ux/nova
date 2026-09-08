@@ -4,6 +4,7 @@
 #include "backend/deck_backend_interfaces.h"
 #include "backend/deck_live_read_only_state.h"
 #include "runtime/deck_moonlight_launcher.h"
+#include "runtime/deck_steam_shortcuts.h"
 #include "stream/deck_stream_media_adapters.h"
 
 #include <QClipboard>
@@ -14,6 +15,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -1196,6 +1198,45 @@ int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
 
     const QStringList appArguments = QCoreApplication::arguments();
+
+    // --register-steam-shortcut adds Nova to Steam as a non-Steam game so Game
+    // Mode can launch it. Steam rewrites shortcuts.vdf on exit, so this refuses
+    // to run while Steam is open. Exit codes: 0 registered, 5 refused.
+    if (appArguments.contains(QStringLiteral("--register-steam-shortcut"))) {
+        nova::deck::runtime::DeckSteamShortcut shortcut;
+        shortcut.appName = "Nova";
+        const bool insideFlatpak = std::filesystem::exists("/.flatpak-info");
+        const QString exeOverride = stringArgumentAfter(appArguments, QStringLiteral("--register-steam-exe"));
+        if (!exeOverride.isEmpty()) {
+            shortcut.exe = "\"" + exeOverride.toStdString() + "\"";
+            shortcut.launchOptions = stringArgumentAfter(appArguments, QStringLiteral("--register-steam-launch-options")).toStdString();
+        } else if (insideFlatpak) {
+            shortcut.exe = "\"/usr/bin/flatpak\"";
+            shortcut.launchOptions = "run com.papi_ux.Nova --live";
+        } else {
+            std::error_code ec;
+            const auto self = std::filesystem::read_symlink("/proc/self/exe", ec);
+            shortcut.exe = "\"" + (ec ? std::string{"nova-deck"} : self.string()) + "\"";
+            shortcut.launchOptions = "--live";
+        }
+        shortcut.startDir = "\"/usr/bin/\"";
+        shortcut.tags = {"Nova"};
+        std::vector<std::filesystem::path> files;
+        for (const auto& root : nova::deck::runtime::defaultSteamRoots()) {
+            for (auto& file : nova::deck::runtime::defaultShortcutFiles(root)) {
+                files.push_back(std::move(file));
+            }
+        }
+        const bool steamRunning = nova::deck::runtime::steamClientRunning("/proc", static_cast<unsigned>(::getuid()));
+        const auto result = nova::deck::runtime::writeShortcutForAccount(files, shortcut, steamRunning);
+        std::cout << "nova-deck steam shortcut: " << (result.ok ? "ok" : "refused") << " · " << result.detail;
+        if (result.ok) {
+            std::cout << " · appid=" << result.appId << " · files=" << result.written.size();
+        }
+        std::cout << std::endl;
+        return result.ok ? 0 : 5;
+    }
+
     const auto profile = nova::deck::defaultWindowProfile();
     const auto sampleLibrary = nova::deck::loadSamplePolarisGameLibraryFixture();
     const nova::deck::backend::DeckLaunchPreflightService readOnlyPreflightService;

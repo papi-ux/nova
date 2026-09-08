@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Nova
+GenericName=Polaris game streaming client
+Comment=Your Polaris library on the Deck, streamed through Moonlight
+Exec=nova-deck --live
+Icon=com.papi_ux.Nova
+Terminal=false
+Categories=Game;
+Keywords=Polaris;Moonlight;streaming;Steam Deck;

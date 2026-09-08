@@ -3,6 +3,8 @@
 #include <charconv>
 #include <cstdlib>
 #include <fstream>
+#include <vector>
+#include <system_error>
 #include <iterator>
 #include <stdexcept>
 #include <string_view>
@@ -297,22 +299,37 @@ PolarisGameFixture parsePolarisGameFixtureJson(const std::string& json) {
 
 } // namespace
 
-std::filesystem::path samplePolarisGameFixturePath() {
-    if (const auto* overridePath = std::getenv("NOVA_DECK_SAMPLE_GAME_FIXTURE_PATH")) {
-        if (overridePath[0] != char(0)) {
-            return std::filesystem::path(overridePath);
+namespace {
+
+// Installed copies win over the source tree the binary was built from, which
+// does not exist on a Deck or inside a Flatpak.
+std::filesystem::path resolveFixture(const char* fileName, const char* compileTimePath) {
+    std::vector<std::filesystem::path> candidates;
+    if (const char* dir = std::getenv("NOVA_DECK_FIXTURE_DIR"); dir != nullptr && *dir != '\0') {
+        candidates.emplace_back(std::filesystem::path(dir) / fileName);
+    }
+    candidates.emplace_back(std::filesystem::path("/app/share/nova-deck/fixtures") / fileName);
+    std::error_code ec;
+    if (const auto self = std::filesystem::read_symlink("/proc/self/exe", ec); !ec) {
+        candidates.emplace_back(self.parent_path().parent_path() / "share" / "nova-deck" / "fixtures" / fileName);
+    }
+    candidates.emplace_back(compileTimePath);
+    for (const auto& candidate : candidates) {
+        if (std::filesystem::is_regular_file(candidate, ec)) {
+            return candidate;
         }
     }
-    return std::filesystem::path(NOVA_DECK_SAMPLE_GAME_FIXTURE);
+    return candidates.back();
+}
+
+} // namespace
+
+std::filesystem::path samplePolarisGameFixturePath() {
+    return resolveFixture("sample_polaris_game.json", NOVA_DECK_SAMPLE_GAME_FIXTURE);
 }
 
 std::filesystem::path samplePolarisGameLibraryFixturePath() {
-    if (const auto* overridePath = std::getenv("NOVA_DECK_SAMPLE_LIBRARY_FIXTURE_PATH")) {
-        if (overridePath[0] != char(0)) {
-            return std::filesystem::path(overridePath);
-        }
-    }
-    return std::filesystem::path(NOVA_DECK_SAMPLE_LIBRARY_FIXTURE);
+    return resolveFixture("sample_polaris_library.json", NOVA_DECK_SAMPLE_LIBRARY_FIXTURE);
 }
 
 PolarisGameFixture loadPolarisGameFixture(const std::filesystem::path& path) {
