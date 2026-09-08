@@ -24,10 +24,25 @@ enum class DeckMoonlightInstallKind {
     Flatpak,  ///< com.moonlight_stream.Moonlight, run through `flatpak run`
 };
 
+/// Where Nova's own window lives, as this process sees it. defaultMoonlightInstallProbe()
+/// reads it from the environment; tests inject values.
+struct DeckDisplayEnvironment {
+    std::string waylandDisplay;  ///< WAYLAND_DISPLAY, empty when unset
+    std::string display;  ///< DISPLAY, empty when unset
+    std::filesystem::path runtimeDir;  ///< XDG_RUNTIME_DIR, where Wayland sockets live
+};
+
+/// What a sandboxed Nova hands to `flatpak-spawn --env=` so the host command can find the display.
+struct DeckForwardedEnvironment {
+    std::vector<std::string> assignments;  ///< NAME=VALUE, in argv order
+    std::vector<std::string> skipped;  ///< backend-only notes about values that were set but not forwarded
+};
+
 struct DeckMoonlightInstall {
     DeckMoonlightInstallKind kind = DeckMoonlightInstallKind::None;
     std::string executable;  ///< the native binary, or `flatpak` for the Flatpak kind
     bool novaInsideFlatpak = false;  ///< Nova runs sandboxed, so the launch goes through flatpak-spawn --host
+    DeckForwardedEnvironment forwardedEnvironment;  ///< filled only when novaInsideFlatpak
     std::string label;  ///< public wording: "Moonlight (Flatpak)", "Moonlight (native)", "Moonlight not found"
 
     [[nodiscard]] bool available() const {
@@ -40,6 +55,7 @@ struct DeckMoonlightInstallProbe {
     std::vector<std::filesystem::path> pathDirs;
     std::filesystem::path flatpakAppDir;  ///< ~/.var/app/com.moonlight_stream.Moonlight
     std::filesystem::path flatpakInfoFile;  ///< /.flatpak-info, present inside a sandbox
+    DeckDisplayEnvironment displayEnvironment;  ///< forwarded to the host command when Nova is sandboxed
 };
 
 DeckMoonlightInstallProbe defaultMoonlightInstallProbe();
@@ -70,14 +86,36 @@ DeckMoonlightArgvPlan buildMoonlightStreamArgv(const DeckMoonlightInstall& insta
 /// `moonlight quit <host>`: ask the host to end the running app.
 DeckMoonlightArgvPlan buildMoonlightQuitArgv(const DeckMoonlightInstall& install, std::string_view hostSelector);
 
+/// The name Flatpak gives a host Wayland socket whose name does not start with "wayland-".
+inline constexpr std::string_view kFlatpakRenamedWaylandDisplay = "wayland-0";
+/// Forwarded with the Wayland socket so Moonlight draws on it directly; Qt tries the platforms in order.
+inline constexpr std::string_view kForwardedQtPlatform = "wayland;xcb";
+
 /**
- * The display variables a sandboxed Nova forwards to Moonlight. flatpak-spawn
- * runs the host command with the host session's environment, not Nova's, so
- * under gamescope Moonlight would never learn WAYLAND_DISPLAY=gamescope-0 and
- * Qt falls back to driving DRM directly, which the Deck refuses. Values come
- * from Nova's own environment and are only forwarded when set and plain.
+ * The host's name for the Wayland socket Nova is on. Flatpak binds the host
+ * socket into the sandbox but renames any WAYLAND_DISPLAY that does not start
+ * with "wayland-" to "wayland-0" (gamescope-0 on a Steam Deck), so the value
+ * Nova reads cannot be handed to a host command as it is. The bound socket
+ * keeps its inode, so when Nova sees the renamed value this looks for another
+ * socket in the runtime directory with the same inode and returns that name;
+ * the Flatpak manifest binds xdg-run/gamescope-0 for exactly this reason. Any
+ * other value is returned unchanged.
  */
-std::vector<std::string> forwardedDisplayEnvironment();
+std::string hostWaylandDisplayName(const DeckDisplayEnvironment& environment);
+
+/**
+ * What a sandboxed Nova forwards to the host command. flatpak-spawn runs it
+ * with the host session's environment, not Nova's; under gamescope that
+ * environment names no display at all, so Moonlight would fall back to driving
+ * DRM directly and be refused. Forwarded: WAYLAND_DISPLAY translated back to
+ * the host's socket name, QT_QPA_PLATFORM=wayland;xcb whenever that socket
+ * travels, and DISPLAY as Nova sees it (Flatpak passes it through unchanged).
+ * Nothing else: XAUTHORITY and XDG_RUNTIME_DIR are sandbox-synthesized paths,
+ * and Nova's own platform choice (offscreen in the headless proofs) must not
+ * be imposed on Moonlight. Each assembled `--env=` token has to be plain;
+ * anything skipped is named in `skipped`.
+ */
+DeckForwardedEnvironment forwardedDisplayEnvironment(const DeckDisplayEnvironment& environment);
 
 /// True when a token can go straight to a child process: no control characters and a sane length.
 /// Shell metacharacters are fine because no shell is involved; game titles carry ampersands and quotes.
