@@ -110,6 +110,13 @@ std::optional<DeckPolarisSessionStatus> parseSessionStatus(std::string_view json
 /// The HttpsPort a GameStream host advertises in its plain-HTTP serverinfo XML.
 std::optional<int> parseServerInfoHttpsPort(std::string_view xml);
 
+/// Split "/path?query" into its two parts; QUrl needs them set separately or it encodes the `?`.
+struct DeckPolarisRequestTarget {
+    std::string path;
+    std::string query;
+};
+DeckPolarisRequestTarget splitRequestTarget(std::string_view pathWithQuery);
+
 /// Ask the host's plain-HTTP port which HTTPS port to use, the way Moonlight does
 /// before every connection; nullopt when the host does not answer or advertise one.
 std::optional<int> resolveHttpsPortFromServerInfo(const std::string& address, int httpPort, std::chrono::milliseconds timeout);

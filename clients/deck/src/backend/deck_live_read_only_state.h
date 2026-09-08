@@ -21,6 +21,7 @@ struct DeckLivePolarisFetch {
     polaris::DeckPolarisRequestStatus status = polaris::DeckPolarisRequestStatus::Unreachable;
     std::string detail;
     std::string serverVersion;
+    int httpsPort = 0;
     std::vector<polaris::DeckPolarisGame> games;
 };
 
@@ -36,6 +37,7 @@ struct DeckLiveHostProbe {
     std::string librarySource;  ///< polaris-live, moonlight-cached-app-list, or none
     int gameCount = 0;
     int cachedAppCount = 0;
+    int resolvedHttpsPort = 0;  ///< the port Polaris was actually reached on (serverinfo first, then the five-port rule)
 };
 
 struct DeckLiveHostLibrarySnapshot {
@@ -61,6 +63,16 @@ DeckCredentialMetadata credentialsForSelectedHost(const DeckLiveHostLibrarySnaps
 
 /// One word for the header: where this read-only state came from.
 inline constexpr std::string_view kLiveProvenanceLabel = "moonlight-pairing provenance";
+
+/// The HTTPS port for a host: what its serverinfo advertises, else the five-port rule.
+int resolvePolarisHttpsPort(const identity::DeckMoonlightHostRecord& host, std::chrono::milliseconds timeout);
+
+/// A client for one host over the identity's certificate and that host's pinned server certificate, on the given port.
+polaris::DeckPolarisClient polarisClientForHost(
+    const identity::DeckMoonlightIdentity& identity,
+    const identity::DeckMoonlightHostRecord& host,
+    int httpsPort,
+    std::chrono::milliseconds timeout);
 
 /// A fetcher that talks to Polaris with the identity's certificate and the host's pinned server certificate.
 DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdentity& identity, std::chrono::milliseconds timeout);

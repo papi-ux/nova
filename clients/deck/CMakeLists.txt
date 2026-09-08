@@ -32,7 +32,9 @@ add_library(nova_deck_core
     src/identity/deck_moonlight_identity.cpp
     src/polaris/deck_polaris_client.cpp
     src/backend/deck_live_read_only_state.cpp
+    src/runtime/deck_moonlight_launcher.cpp
 )
+set_target_properties(nova_deck_core PROPERTIES AUTOMOC ON)
 
 set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
     ${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c
@@ -116,6 +118,13 @@ if(BUILD_TESTING)
     )
     target_link_libraries(nova_deck_live_read_only_state_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_live_read_only_state_test COMMAND nova_deck_live_read_only_state_test)
+
+    add_executable(nova_deck_moonlight_launcher_test
+        tests/deck_moonlight_launcher_test.cpp
+    )
+    target_link_libraries(nova_deck_moonlight_launcher_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_moonlight_launcher_test COMMAND nova_deck_moonlight_launcher_test)
+    set_tests_properties(nova_deck_moonlight_launcher_test PROPERTIES TIMEOUT 60)
 
     add_executable(nova_deck_qsg_render_node_scenegraph_smoke
         tests/deck_qsg_render_node_scenegraph_smoke.cpp

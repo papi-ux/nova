@@ -3,6 +3,7 @@
 #include "polaris_game_fixture.h"
 #include "backend/deck_backend_interfaces.h"
 #include "backend/deck_live_read_only_state.h"
+#include "runtime/deck_moonlight_launcher.h"
 #include "stream/deck_stream_media_adapters.h"
 
 #include <QClipboard>
@@ -13,9 +14,13 @@
 #include <QFile>
 #include <QFileInfo>
 #include <chrono>
+#include <iostream>
 #include <memory>
 #include <optional>
+#include <QElapsedTimer>
 #include <QGuiApplication>
+#include <QThread>
+#include <QTimer>
 #include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -72,6 +77,7 @@ public:
 signals:
     void availabilityChanged();
     void primaryActionPressed(int activationCount);
+    void secondaryActionPressed(int activationCount);
 
 private:
     void openDefaultDevice() {
@@ -106,6 +112,9 @@ private:
                 if (action == nova::deck::DeckGamepadAction::PrimaryPressed) {
                     ++primaryActivationCount_;
                     emit primaryActionPressed(primaryActivationCount_);
+                } else if (action == nova::deck::DeckGamepadAction::SecondaryPressed) {
+                    ++secondaryActivationCount_;
+                    emit secondaryActionPressed(secondaryActivationCount_);
                 }
                 continue;
             }
@@ -128,6 +137,7 @@ private:
     void readPendingJoystickEvents() {}
 #endif
     int primaryActivationCount_ = 0;
+    int secondaryActivationCount_ = 0;
 };
 
 class QtLocalClipboardBridge final : public QObject {
@@ -283,6 +293,259 @@ private:
     nova::deck::backend::DeckLabGate labGate_;
     QVariantMap lastPreflightPreview_{};
     QVariantMap lastDiagnosticsPreview_{};
+};
+
+/**
+ * Hands the highlighted game to Moonlight-Qt. Only exists on the live route,
+ * because the host UUID and the exact app name come from the identity
+ * Moonlight already holds. Two presses launch: the first arms the request for
+ * a few seconds and says so, the second within that window starts Moonlight.
+ * While Moonlight runs, Polaris is asked for the session truth on a slow
+ * timer, off the GUI thread. Nothing here blocks the shell.
+ */
+class QtMoonlightHandoffBridge final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QVariantMap state READ state NOTIFY stateChanged)
+
+public:
+    QtMoonlightHandoffBridge(
+        std::optional<nova::deck::identity::DeckMoonlightIdentity> identity,
+        std::optional<nova::deck::backend::DeckLiveHostLibrarySnapshot> snapshot,
+        QObject* parent = nullptr)
+        : QObject(parent)
+        , identity_(std::move(identity))
+        , snapshot_(std::move(snapshot)) {
+        if (identity_ && snapshot_) {
+            install_ = nova::deck::runtime::detectMoonlightInstall();
+        }
+        armTimer_.setSingleShot(true);
+        armTimer_.setInterval(kArmWindowMs);
+        QObject::connect(&armTimer_, &QTimer::timeout, this, [this]() {
+            armedKey_.clear();
+            statusCopy_ = QStringLiteral("Launch request expired. Press A twice to open it in Moonlight.");
+            emit stateChanged();
+        });
+        sessionTruthTimer_.setInterval(5000);
+        QObject::connect(&sessionTruthTimer_, &QTimer::timeout, this, &QtMoonlightHandoffBridge::refreshSessionTruth);
+        QObject::connect(&session_, &nova::deck::runtime::DeckMoonlightHandoffSession::outcomeChanged, this, &QtMoonlightHandoffBridge::onOutcomeChanged);
+        QObject::connect(qApp, &QCoreApplication::aboutToQuit, this, &QtMoonlightHandoffBridge::shutdown);
+    }
+
+    ~QtMoonlightHandoffBridge() override {
+        shutdown();
+        session_.disconnect(this);
+    }
+
+    [[nodiscard]] bool available() const {
+        return identity_.has_value() && snapshot_.has_value() && install_.available();
+    }
+
+    [[nodiscard]] QVariantMap state() const {
+        QVariantMap model;
+        model.insert("available", available());
+        model.insert("installLabel", QString::fromStdString(install_.label));
+        model.insert("armed", armed());
+        const auto& outcome = session_.outcome();
+        model.insert("phase", QString::fromUtf8(nova::deck::runtime::describe(outcome.state).data()));
+        model.insert("running", session_.running());
+        model.insert("copy", statusCopy_.isEmpty() ? QString::fromStdString(outcome.publicCopy) : statusCopy_);
+        model.insert("sessionCopy", sessionCopy_);
+        model.insert("actionHint", actionHint());
+        return model;
+    }
+
+    /// First press arms, second press (within the window) launches; while running, a press asks Moonlight to quit.
+    Q_INVOKABLE QVariantMap activate(const QString& hostId, const QString& gameId, const QString& gameTitle) {
+        if (!available()) {
+            statusCopy_ = QStringLiteral("Play in Moonlight needs the live route and an installed Moonlight.");
+            emit stateChanged();
+            return state();
+        }
+        if (session_.running()) {
+            const bool asked = session_.requestQuit(install_);
+            statusCopy_ = asked ? QStringLiteral("Asking Moonlight to end the stream.") : QStringLiteral("Could not ask Moonlight to end the stream.");
+            emit stateChanged();
+            return state();
+        }
+        const QString key = hostId + QStringLiteral("/") + gameId;
+        if (armed() && armedKey_ == key) {
+            launchNow(hostId, gameTitle);
+            return state();
+        }
+        armedKey_ = key;
+        armTimer_.start();
+        statusCopy_ = QStringLiteral("Press A again to open \"%1\" in Moonlight. B cancels.").arg(gameTitle);
+        emit stateChanged();
+        return state();
+    }
+
+    Q_INVOKABLE QVariantMap cancel() {
+        if (armed()) {
+            armTimer_.stop();
+            armedKey_.clear();
+            statusCopy_ = QStringLiteral("Launch cancelled.");
+            emit stateChanged();
+        }
+        return state();
+    }
+
+    /// Headless proof path: launch without arming and report when Moonlight exits or the wait runs out.
+    QVariantMap launchImmediately(const QString& hostId, const QString& gameTitle, const bool windowed) {
+        fullscreen_ = !windowed;
+        if (!available()) {
+            statusCopy_ = QStringLiteral("Play in Moonlight needs the live route and an installed Moonlight.");
+            emit stateChanged();
+            return state();
+        }
+        launchNow(hostId, gameTitle);
+        return state();
+    }
+
+    [[nodiscard]] bool running() const {
+        return session_.running();
+    }
+
+    [[nodiscard]] bool launched() const {
+        return launched_;
+    }
+
+    [[nodiscard]] QString outputTailForBackendOnly() const {
+        return QString::fromStdString(session_.outcome().outputTailForBackendOnly);
+    }
+
+signals:
+    void stateChanged();
+
+private:
+    static constexpr int kArmWindowMs = 8000;
+
+    [[nodiscard]] bool armed() const {
+        return !armedKey_.isEmpty() && armTimer_.isActive();
+    }
+
+    [[nodiscard]] QString actionHint() const {
+        if (!available()) {
+            return QStringLiteral("A = Copy safe launch plan · no stream power enabled");
+        }
+        if (session_.running()) {
+            return QStringLiteral("A = Ask Moonlight to end the stream");
+        }
+        if (armed()) {
+            return QStringLiteral("A again = Open in Moonlight now · B = cancel");
+        }
+        return QStringLiteral("A = Play in Moonlight (press twice)");
+    }
+
+    void launchNow(const QString& hostId, const QString& gameTitle) {
+        armTimer_.stop();
+        armedKey_.clear();
+        const auto* host = identity_->hostById(hostId.toStdString());
+        if (host == nullptr) {
+            statusCopy_ = QStringLiteral("Moonlight does not know this host yet.");
+            emit stateChanged();
+            return;
+        }
+        nova::deck::runtime::DeckMoonlightLaunchRequest request;
+        request.hostSelector = host->stableId();
+        request.appName = gameTitle.toStdString();
+        request.fullscreen = fullscreen_;
+        const auto plan = nova::deck::runtime::buildMoonlightStreamArgv(install_, request);
+        if (!plan.valid) {
+            statusCopy_ = QString::fromStdString(plan.reason);
+            emit stateChanged();
+            return;
+        }
+        statusCopy_.clear();
+        sessionCopy_.clear();
+        activeHostId_ = hostId;
+        activeHttpsPort_ = 0;
+        for (const auto& probe : snapshot_->probes) {
+            if (probe.hostId == hostId.toStdString()) {
+                activeHttpsPort_ = probe.resolvedHttpsPort;
+            }
+        }
+        if (session_.launch(plan, request)) {
+            launched_ = true;
+        }
+        emit stateChanged();
+    }
+
+    void onOutcomeChanged() {
+        using nova::deck::runtime::DeckMoonlightHandoffState;
+        const auto state = session_.outcome().state;
+        if (state == DeckMoonlightHandoffState::Running && !sessionTruthTimer_.isActive()) {
+            sessionTruthTimer_.start();
+            refreshSessionTruth();
+        }
+        if (state == DeckMoonlightHandoffState::Exited || state == DeckMoonlightHandoffState::FailedToStart) {
+            sessionTruthTimer_.stop();
+            sessionCopy_.clear();
+            statusCopy_.clear();
+            if (const auto windows = QGuiApplication::allWindows(); !windows.isEmpty()) {
+                windows.front()->requestActivate();
+            }
+        }
+        emit stateChanged();
+    }
+
+    /// One poll in flight at a time, on its own thread; the answer is applied back on this thread.
+    void refreshSessionTruth() {
+        if (pollInFlight_ || !session_.running() || !identity_) {
+            return;
+        }
+        const auto* host = identity_->hostById(activeHostId_.toStdString());
+        if (host == nullptr || !host->hasServerCertificate()) {
+            return;
+        }
+        pollInFlight_ = true;
+        const auto identity = *identity_;
+        const auto record = *host;
+        const int port = activeHttpsPort_ > 0 ? activeHttpsPort_ : nova::deck::identity::polarisHttpsPortForMoonlightHttpPort(record.preferredHttpPort());
+        auto* worker = QThread::create([this, identity, record, port]() {
+            const auto client = nova::deck::backend::polarisClientForHost(identity, record, port, std::chrono::milliseconds(1500));
+            const auto status = client.fetchSessionStatus();
+            QString copy;
+            if (!status.ok()) {
+                copy = QStringLiteral("Host session: not answering right now.");
+            } else if (status.value->streamingActive) {
+                copy = QStringLiteral("Host session: streaming %1 · %2")
+                    .arg(QString::fromStdString(status.value->game.empty() ? std::string{"an app"} : status.value->game))
+                    .arg(status.value->ownedByClient ? QStringLiteral("owned by this device") : QStringLiteral("owned by another device"));
+            } else {
+                copy = QStringLiteral("Host session: idle (%1)").arg(QString::fromStdString(status.value->state));
+            }
+            QMetaObject::invokeMethod(this, [this, copy]() {
+                pollInFlight_ = false;
+                if (session_.running() && sessionCopy_ != copy) {
+                    sessionCopy_ = copy;
+                    emit stateChanged();
+                }
+            }, Qt::QueuedConnection);
+        });
+        QObject::connect(worker, &QThread::finished, worker, &QObject::deleteLater);
+        worker->start();
+    }
+
+    void shutdown() {
+        sessionTruthTimer_.stop();
+        armTimer_.stop();
+        session_.terminate();
+    }
+
+    std::optional<nova::deck::identity::DeckMoonlightIdentity> identity_;
+    std::optional<nova::deck::backend::DeckLiveHostLibrarySnapshot> snapshot_;
+    nova::deck::runtime::DeckMoonlightInstall install_;
+    QTimer sessionTruthTimer_;
+    QTimer armTimer_;
+    QString armedKey_;
+    QString activeHostId_;
+    int activeHttpsPort_ = 0;
+    QString statusCopy_;
+    QString sessionCopy_;
+    bool fullscreen_ = true;
+    bool launched_ = false;
+    bool pollInFlight_ = false;
+    nova::deck::runtime::DeckMoonlightHandoffSession session_;  ///< last: destroyed first, its signals disconnected in ~bridge
 };
 
 class QtPreviewLifecycleBridge final : public QObject {
@@ -944,9 +1207,13 @@ int main(int argc, char *argv[]) {
     const bool liveRoute = appArguments.contains(QStringLiteral("--live")) || qEnvironmentVariableIntValue("NOVA_DECK_LIVE") == 1;
     const bool printLiveState = appArguments.contains(QStringLiteral("--print-live-state"));
     std::optional<nova::deck::backend::DeckLiveHostLibrarySnapshot> liveSnapshot;
+    std::optional<nova::deck::identity::DeckMoonlightIdentity> liveIdentity;
     if (liveRoute || printLiveState) {
+        liveIdentity = nova::deck::identity::loadDefaultMoonlightIdentity();
         liveSnapshot = nova::deck::backend::buildLiveSnapshotFromDefaultIdentity(std::chrono::milliseconds(4000));
-        qInfo().noquote() << QString::fromStdString(nova::deck::backend::describeLiveSnapshotForTerminal(*liveSnapshot));
+        // Plain stdout on purpose: Qt routes qInfo to journald when stderr is
+        // not a terminal, which hides a CLI summary from the person who asked.
+        std::cout << nova::deck::backend::describeLiveSnapshotForTerminal(*liveSnapshot) << std::flush;
         if (printLiveState) {
             return liveSnapshot->identityLoaded ? 0 : 2;
         }
@@ -1039,6 +1306,8 @@ int main(int argc, char *argv[]) {
 
     qmlRegisterType<nova::deck::stream::DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream", 0, 1, "DeckVaapiPreviewSurface");
 
+    // Constructed before the engine so it outlives every QML binding to it.
+    QtMoonlightHandoffBridge handoffBridge(liveIdentity, liveSnapshot);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("novaDeckShellName", toQString(profile.shellName));
     engine.rootContext()->setContextProperty("novaDeckWidth", profile.width);
@@ -1063,6 +1332,45 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaLaunchPreviewCopyAction", toPreviewCopyActionModel(launchPreviewCopyAction));
     engine.rootContext()->setContextProperty("novaPresenterReadiness", toPresenterReadinessModel(presenterReadiness));
     engine.rootContext()->setContextProperty("novaPreviewLifecycle", &previewLifecycle);
+    engine.rootContext()->setContextProperty("novaHandoff", &handoffBridge);
+
+    // --handoff-game "<title>" opens the title on the selected live host at
+    // once and reports how Moonlight ended, for a headless proof with either a
+    // real Moonlight or NOVA_DECK_MOONLIGHT_BIN pointing at a recorder.
+    // Exit codes: 0 launched and exited, 3 never launched, 4 still running at the deadline.
+    const QString handoffGame = stringArgumentAfter(appArguments, QStringLiteral("--handoff-game"));
+    if (!handoffGame.isEmpty()) {
+        const int waitMs = intArgumentAfter(appArguments, QStringLiteral("--handoff-wait-ms"), 20000);
+        const QString hostId = liveSnapshot ? QString::fromStdString(liveSnapshot->selectedHostId) : QString();
+        const auto printReport = [&handoffBridge]() {
+            const auto report = handoffBridge.state();
+            std::cout << "nova-deck handoff: phase=" << report.value("phase").toString().toStdString()
+                      << " copy=\"" << report.value("copy").toString().toStdString() << "\""
+                      << " session=\"" << report.value("sessionCopy").toString().toStdString() << "\"" << std::endl;
+            return report;
+        };
+        handoffBridge.launchImmediately(hostId, handoffGame, appArguments.contains(QStringLiteral("--handoff-windowed")));
+        QElapsedTimer deadline;
+        deadline.start();
+        // Wait for the child to reach a terminal state, or the deadline. The
+        // timed processEvents overload never waits, so sleep between passes.
+        while (deadline.elapsed() < waitMs) {
+            QCoreApplication::processEvents();
+            QThread::msleep(100);
+            const auto phase = handoffBridge.state().value("phase").toString();
+            if (!handoffBridge.launched() || phase == QStringLiteral("exited") || phase == QStringLiteral("failed-to-start")) {
+                break;
+            }
+        }
+        const auto report = printReport();
+        if (const auto tail = handoffBridge.outputTailForBackendOnly(); !tail.isEmpty()) {
+            std::cout << "nova-deck handoff: moonlight output tail (backend only):\n" << tail.toStdString() << std::endl;
+        }
+        if (!handoffBridge.launched() || report.value("phase").toString() == QStringLiteral("failed-to-start")) {
+            return 3;
+        }
+        return handoffBridge.running() ? 4 : 0;
+    }
     engine.rootContext()->setContextProperty("novaBackendPreview", &backendPreview);
     engine.rootContext()->setContextProperty("novaLocalClipboard", &localClipboard);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepadBridge);
