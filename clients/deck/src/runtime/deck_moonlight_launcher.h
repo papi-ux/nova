@@ -70,6 +70,15 @@ DeckMoonlightArgvPlan buildMoonlightStreamArgv(const DeckMoonlightInstall& insta
 /// `moonlight quit <host>`: ask the host to end the running app.
 DeckMoonlightArgvPlan buildMoonlightQuitArgv(const DeckMoonlightInstall& install, std::string_view hostSelector);
 
+/**
+ * The display variables a sandboxed Nova forwards to Moonlight. flatpak-spawn
+ * runs the host command with the host session's environment, not Nova's, so
+ * under gamescope Moonlight would never learn WAYLAND_DISPLAY=gamescope-0 and
+ * Qt falls back to driving DRM directly, which the Deck refuses. Values come
+ * from Nova's own environment and are only forwarded when set and plain.
+ */
+std::vector<std::string> forwardedDisplayEnvironment();
+
 /// True when a token can go straight to a child process: no control characters and a sane length.
 /// Shell metacharacters are fine because no shell is involved; game titles carry ampersands and quotes.
 bool isPlainArgvToken(std::string_view token);

@@ -176,7 +176,12 @@ std::vector<std::string> programPrefix(const DeckMoonlightInstall& install) {
     if (install.novaInsideFlatpak) {
         // Inside the sandbox nothing is on PATH; flatpak-spawn asks the host
         // session to run the command, which needs --talk-name=org.freedesktop.Flatpak.
+        // The host runs it with its own environment, so the display Nova is on
+        // has to travel with the command.
         prefix = {"flatpak-spawn", "--host"};
+        for (const auto& assignment : forwardedDisplayEnvironment()) {
+            prefix.push_back("--env=" + assignment);
+        }
     }
     if (install.kind == DeckMoonlightInstallKind::Flatpak) {
         prefix.push_back(install.novaInsideFlatpak ? std::string{"flatpak"} : install.executable);
@@ -189,6 +194,18 @@ std::vector<std::string> programPrefix(const DeckMoonlightInstall& install) {
 }
 
 } // namespace
+
+std::vector<std::string> forwardedDisplayEnvironment() {
+    std::vector<std::string> assignments;
+    for (const char* name : {"WAYLAND_DISPLAY", "DISPLAY", "XDG_RUNTIME_DIR", "XDG_SESSION_TYPE", "XAUTHORITY", "QT_QPA_PLATFORM"}) {
+        const char* value = std::getenv(name);
+        if (value == nullptr || *value == '\0' || !isPlainArgvToken(value)) {
+            continue;
+        }
+        assignments.push_back(std::string(name) + "=" + value);
+    }
+    return assignments;
+}
 
 DeckMoonlightArgvPlan buildMoonlightStreamArgv(const DeckMoonlightInstall& install, const DeckMoonlightLaunchRequest& request) {
     DeckMoonlightArgvPlan plan;

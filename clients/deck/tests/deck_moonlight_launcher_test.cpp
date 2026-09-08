@@ -122,9 +122,29 @@ void testStreamArgvShapes() {
     assert(joined(viaFlatpak.argv) == "/usr/bin/flatpak run com.moonlight_stream.Moonlight stream 935B1F5B-D2EC-E720-6600-5EB7986004EC Slay the Spire 2 --display-mode fullscreen --quit-after --fps 60 --bitrate 20000 --resolution 1280x800");
 
     flatpak.novaInsideFlatpak = true;
+    // Under gamescope the sandbox sees these; the host command must too.
+    for (const char* name : {"WAYLAND_DISPLAY", "DISPLAY", "XDG_RUNTIME_DIR", "XDG_SESSION_TYPE", "XAUTHORITY", "QT_QPA_PLATFORM"}) {
+        unsetenv(name);
+    }
+    setenv("WAYLAND_DISPLAY", "gamescope-0", 1);
+    setenv("XDG_RUNTIME_DIR", "/run/user/1000", 1);
+    setenv("QT_QPA_PLATFORM", "wayland", 1);
+    setenv("DISPLAY", "bad\nvalue", 1);  // not plain: never forwarded
     const auto sandboxed = buildMoonlightStreamArgv(flatpak, request);
     assert(sandboxed.valid);
-    assert(sandboxed.argv[0] == "flatpak-spawn" && sandboxed.argv[1] == "--host" && sandboxed.argv[2] == "flatpak" && sandboxed.argv[3] == "run");
+    assert(sandboxed.argv[0] == "flatpak-spawn" && sandboxed.argv[1] == "--host");
+    assert(sandboxed.argv[2] == "--env=WAYLAND_DISPLAY=gamescope-0");
+    assert(sandboxed.argv[3] == "--env=XDG_RUNTIME_DIR=/run/user/1000");
+    assert(sandboxed.argv[4] == "--env=QT_QPA_PLATFORM=wayland");
+    assert(sandboxed.argv[5] == "flatpak" && sandboxed.argv[6] == "run");
+    assert(joined(sandboxed.argv).find("DISPLAY=bad") == std::string::npos);
+    unsetenv("DISPLAY");
+    const auto quitSandboxed = buildMoonlightQuitArgv(flatpak, "935B1F5B-D2EC-E720-6600-5EB7986004EC");
+    assert(quitSandboxed.valid && quitSandboxed.argv[2] == "--env=WAYLAND_DISPLAY=gamescope-0");
+    for (const char* name : {"WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "QT_QPA_PLATFORM"}) {
+        unsetenv(name);
+    }
+    flatpak.novaInsideFlatpak = false;
 
     request.appName = "bad\nname";
     assert(!buildMoonlightStreamArgv(flatpak, request).valid);
@@ -141,9 +161,10 @@ void testStreamArgvShapes() {
     DeckMoonlightInstall none;
     assert(!buildMoonlightStreamArgv(none, request).valid);
 
+    flatpak.novaInsideFlatpak = true;
     const auto quit = buildMoonlightQuitArgv(flatpak, "935B1F5B-D2EC-E720-6600-5EB7986004EC");
     assert(quit.valid);
-    assert(joined(quit.argv) == "flatpak-spawn --host flatpak run com.moonlight_stream.Moonlight quit 935B1F5B-D2EC-E720-6600-5EB7986004EC");
+    assert(joined(quit.argv) == "flatpak-spawn --host flatpak run com.moonlight_stream.Moonlight quit 935B1F5B-D2EC-E720-6600-5EB7986004EC" && "no display variables set: nothing forwarded");
     assert(!buildMoonlightQuitArgv(flatpak, "x\ty").valid);
 }
 
