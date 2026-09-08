@@ -18,7 +18,7 @@
     "--talk-name=org.freedesktop.Flatpak",
     "--env=QT_QUICK_CONTROLS_STYLE=Material"
   ],
-  "cleanup": ["/include", "*.a", "/lib/pkgconfig", "/share/nova-deck/cmake"],
+  "cleanup": ["/include", "*.a", "/lib/static", "/lib/pkgconfig", "/share/nova-deck/cmake"],
   "modules": [
     {
       "name": "nova-deck",

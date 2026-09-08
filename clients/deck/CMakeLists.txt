@@ -43,6 +43,12 @@ set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
     "Path to the checked-out moonlight-common-c source tree used by the Deck stream skeleton"
 )
 if(EXISTS "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/Limelight.h")
+    # moonlight-common-c defaults to a shared library when BUILD_SHARED_LIBS is
+    # unset; the Deck shell links it statically so an installed binary (the
+    # Flatpak, a Deck copy) carries it instead of hunting for the .so.
+    if(NOT DEFINED BUILD_SHARED_LIBS)
+        set(BUILD_SHARED_LIBS OFF)
+    endif()
     add_subdirectory("${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/moonlight-common-c")
     target_link_libraries(nova_deck_core PUBLIC moonlight-common-c)
 else()
