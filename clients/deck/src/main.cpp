@@ -415,6 +415,15 @@ public:
         return QString::fromStdString(session_.outcome().outputTailForBackendOnly);
     }
 
+    /// Which Moonlight was found and which display values were set but not forwarded to it.
+    [[nodiscard]] QString launcherNotesForBackendOnly() const {
+        QStringList notes{QString::fromStdString(install_.label)};
+        for (const auto& skipped : install_.forwardedEnvironment.skipped) {
+            notes << QString::fromStdString(skipped);
+        }
+        return notes.join(QStringLiteral("; "));
+    }
+
 signals:
     void stateChanged();
 
@@ -1425,6 +1434,7 @@ int main(int argc, char *argv[]) {
             }
         }
         const auto report = printReport();
+        std::cout << "nova-deck handoff: launcher (backend only): " << handoffBridge.launcherNotesForBackendOnly().toStdString() << std::endl;
         if (const auto tail = handoffBridge.outputTailForBackendOnly(); !tail.isEmpty()) {
             std::cout << "nova-deck handoff: moonlight output tail (backend only):\n" << tail.toStdString() << std::endl;
         }
