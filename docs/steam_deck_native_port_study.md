@@ -298,8 +298,10 @@ transport (Nordstern's C ABI, if it lands) replaces the plumbing without touchin
 shell.
 
 Slice 1 of arc 1 is the live read-only route in `clients/deck/README.md`: real hosts
-and library, no execution. Slice 2 executes the handoff and returns focus. Slice 3 is
-Game Mode integration and packaging.
+and library, no execution (shipped as nova#287 and proven on pc-papi against its own
+Polaris through a Moonlight-Qt Flatpak pairing). Slice 2 executes the handoff through
+`clients/deck/src/runtime/deck_moonlight_launcher.*` and returns focus. Slice 3 is
+Game Mode integration (Steam shortcut) and Flatpak packaging on `org.kde.Platform`.
 
 ## Deck-T4 streaming backend decision
 

@@ -175,6 +175,30 @@ ApplicationWindow {
         }
     }
 
+    property var handoffState: novaHandoff.state
+
+    Connections {
+        target: novaHandoff
+        function onStateChanged() { handoffState = novaHandoff.state }
+    }
+
+    function activateLaunchCardFromController() {
+        if (handoffState.available) {
+            handoffState = novaHandoff.activate(
+                selectedHostForPreview ? selectedHostForPreview.id : "",
+                selectedGameForPreview ? selectedGameForPreview.id : "",
+                selectedGameForPreview ? selectedGameForPreview.title : "")
+            return
+        }
+        activateLaunchPreviewCopyFromController()
+    }
+
+    function cancelHandoffFromController() {
+        if (handoffState.available && handoffState.armed) {
+            handoffState = novaHandoff.cancel()
+        }
+    }
+
     function activateLaunchPreviewCopyFromController() {
         const canCopyPreview = launchPreviewCopyAction.enabled
             && launchPreviewCopyAction.previewText.length > 0
@@ -891,9 +915,11 @@ ApplicationWindow {
                         KeyNavigation.down: secondaryDiagnosticsToggle
                         Keys.onUpPressed: hostDetailPanel.forceActiveFocus()
                         Keys.onDownPressed: secondaryDiagnosticsToggle.forceActiveFocus()
-                        Keys.onReturnPressed: activateLaunchPreviewCopyFromController()
-                        Keys.onEnterPressed: activateLaunchPreviewCopyFromController()
-                        Keys.onSpacePressed: activateLaunchPreviewCopyFromController()
+                        Keys.onReturnPressed: activateLaunchCardFromController()
+                        Keys.onEnterPressed: activateLaunchCardFromController()
+                        Keys.onSpacePressed: activateLaunchCardFromController()
+                        Keys.onEscapePressed: cancelHandoffFromController()
+                        Keys.onBackPressed: cancelHandoffFromController()
                         Keys.onLeftPressed: focusSelectedLibraryItem()
 
                         ColumnLayout {
@@ -952,12 +978,25 @@ ApplicationWindow {
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
-                                text: "A = Copy safe launch plan · no stream power enabled"
+                                text: handoffState.actionHint ? handoffState.actionHint : "A = Copy safe launch plan · no stream power enabled"
                                 color: "#8AFFC1"
                                 font.pixelSize: 12
                                 font.bold: true
                                 wrapMode: Text.WordWrap
                                 visible: !diagnosticsExpanded
+                            }
+
+                            Label {
+                                objectName: "moonlight-handoff-status"
+                                Layout.preferredWidth: detailTextWidth
+                                text: handoffState.copy + (handoffState.sessionCopy ? " · " + handoffState.sessionCopy : "")
+                                color: handoffState.running ? "#8AFFC1" : "#FFDDA8"
+                                font.pixelSize: 13
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                                visible: !diagnosticsExpanded && handoffState.copy.length > 0
                             }
 
                             Label {
