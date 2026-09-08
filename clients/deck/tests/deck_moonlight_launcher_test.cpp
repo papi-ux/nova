@@ -6,6 +6,7 @@
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QTimer>
 
 #include <cassert>
@@ -229,8 +230,10 @@ void testQuitRunsTheQuitCommandWhileRunning() {
     assert(session.running());
     assert(session.requestQuit(install));
     assert(session.outcome().quitState == DeckMoonlightQuitState::Requested);
-    for (int i = 0; i < 50 && session.outcome().quitState == DeckMoonlightQuitState::Requested; ++i) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents, 100);
+    // The timed processEvents overload never waits, so sleep between passes.
+    for (int i = 0; i < 100 && session.outcome().quitState == DeckMoonlightQuitState::Requested; ++i) {
+        QCoreApplication::processEvents();
+        QThread::msleep(50);
     }
     assert(session.outcome().quitState == DeckMoonlightQuitState::Acknowledged);
     std::ifstream in(record);

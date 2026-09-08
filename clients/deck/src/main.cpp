@@ -1352,9 +1352,11 @@ int main(int argc, char *argv[]) {
         handoffBridge.launchImmediately(hostId, handoffGame, appArguments.contains(QStringLiteral("--handoff-windowed")));
         QElapsedTimer deadline;
         deadline.start();
-        // Wait for the child to reach a terminal state, or the deadline; WaitForMoreEvents keeps this from spinning.
+        // Wait for the child to reach a terminal state, or the deadline. The
+        // timed processEvents overload never waits, so sleep between passes.
         while (deadline.elapsed() < waitMs) {
-            QCoreApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents, 250);
+            QCoreApplication::processEvents();
+            QThread::msleep(100);
             const auto phase = handoffBridge.state().value("phase").toString();
             if (!handoffBridge.launched() || phase == QStringLiteral("exited") || phase == QStringLiteral("failed-to-start")) {
                 break;
