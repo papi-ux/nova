@@ -6,6 +6,9 @@
 
 #include <cassert>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 namespace {
@@ -74,6 +77,61 @@ void testParsesGamesPageFromHostShape() {
     assert(bare.launchRecommendedMode.empty());
     assert(!bare.steamLaunchAvailable);
     assert(!parseGamesPage(R"({"total": 1})").has_value());
+}
+
+std::string readFixture(const char* name) {
+    std::ifstream in(std::filesystem::path(NOVA_DECK_FIXTURE_SOURCE_DIR) / name);
+    assert(in && "fixture must exist");
+    std::ostringstream body;
+    body << in.rdbuf();
+    return body.str();
+}
+
+// The hand-written bodies above encode what we assumed Polaris serves. These
+// two were recorded from Polaris 1.4.4 on pc-papi with a paired Moonlight
+// certificate (fixtures/polaris_1_4_4_*.json, verbatim), and pin the three
+// things the assumed shape got wrong the first time: `app_id` is a string,
+// `total` counts the page, not the library, and ids are dashed UUIDs.
+void testParsesBodiesPolarisActuallyServed() {
+    const auto capabilities = parseCapabilities(readFixture("polaris_1_4_4_capabilities.json"));
+    assert(capabilities.has_value());
+    assert(capabilities->server == "polaris" && "lowercase on the wire");
+    assert(capabilities->version == "1.4.4");
+    assert(capabilities->gameLibrary && capabilities->sessionLifecycle && capabilities->clientSettings);
+    assert(capabilities->captureBackend == "portal");
+    assert(capabilities->codecs.size() == 1 && capabilities->codecs[0] == "h264");
+
+    const auto page = parseGamesPage(readFixture("polaris_1_4_4_games_limit2_offset0.json"));
+    assert(page.has_value());
+    assert(page->games.size() == 2);
+    assert(page->total == 2 && "limit=2 on a bigger library: total is the page, so paging must not stop on it");
+
+    const auto& bigPicture = page->games[0];
+    assert(bigPicture.id == "CDEAD7A8-D05B-3E2C-F20B-C6D58352A19D");
+    assert(bigPicture.appId == 1231570251 && "served as the string \"1231570251\"");
+    assert(bigPicture.name == "Steam Big Picture");
+    assert(bigPicture.source == "manual");
+    assert(bigPicture.steamAppid.empty());
+    assert(bigPicture.installed && !bigPicture.hdrSupported);
+    assert(bigPicture.platform.empty() && bigPicture.runtime.empty() && "not served for manual entries");
+    assert(bigPicture.lastLaunched == 1787198388LL);
+    assert(bigPicture.launchPreferredMode == "headless_stream");
+    assert(bigPicture.launchRecommendedMode == "headless_stream");
+    assert(bigPicture.launchAllowedModes.size() == 6);
+    assert(!bigPicture.launchModeReason.empty());
+    assert(!bigPicture.steamLaunchAvailable && bigPicture.steamLaunchAllowedModes.empty());
+    assert(bigPicture.genres.empty());
+
+    const auto& indy = page->games[1];
+    assert(indy.appId == 1630208108);
+    assert(indy.name == "Indiana Jones and the Great Circle");
+    assert(indy.source == "steam" && indy.steamAppid == "2677660");
+    assert(indy.category == "fast_action");
+    assert(indy.launchPreferredMode == "host_virtual_display");
+    assert(indy.launchRecommendedMode == "headless_stream");
+    assert(indy.steamLaunchAvailable && indy.steamLaunchMode == "direct" && indy.steamLaunchRecommendedMode == "direct");
+    assert(indy.steamLaunchAllowedModes.size() == 2);
+    assert(indy.genres.size() == 2 && indy.genres[0] == "Action");
 }
 
 void testParsesSessionStatus() {
@@ -148,6 +206,7 @@ int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     testParsesCapabilities();
     testParsesGamesPageFromHostShape();
+    testParsesBodiesPolarisActuallyServed();
     testParsesSessionStatus();
     testParsesServerInfoHttpsPort();
     testSplitsPathAndQueryForQUrl();

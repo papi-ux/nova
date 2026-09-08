@@ -74,6 +74,8 @@ target_compile_definitions(nova_deck_core
         NOVA_DECK_SAMPLE_GAME_FIXTURE=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures/sample_polaris_game.json\"
         NOVA_DECK_SAMPLE_LIBRARY_FIXTURE=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures/sample_polaris_library.json\"
         NOVA_DECK_INSTALL_FIXTURE_DIR=\"${CMAKE_INSTALL_FULL_DATADIR}/nova-deck/fixtures\"
+        # Recorded real-writer fixtures (a Moonlight-Qt pairing file, Polaris API bodies) for the tests.
+        NOVA_DECK_FIXTURE_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures\"
 )
 
 include(CTest)
