@@ -215,9 +215,9 @@ void testReadsAFileMoonlightQtWrote() {
 
     assert(identity->hosts.size() == 1);
     const auto& host = identity->hosts[0];
-    assert(host.uuid == "935B1F5B-D2EC-E720-6600-5EB7986004EC");
-    assert(host.hostname == "pc-papi.lan");
-    assert(host.displayName() == "pc-papi.lan" && "customname=false is a flag, never a name");
+    assert(host.uuid == "11111111-2222-4333-8444-555555555555");
+    assert(host.hostname == "example-host.invalid");
+    assert(host.displayName() == "example-host.invalid" && "customname=false is a flag, never a name");
     assert(host.preferredAddress() == "127.0.0.1" && "the manual address Moonlight recorded comes first");
     assert(host.preferredHttpPort() == 47989);
     assert(host.hasServerCertificate());
@@ -233,7 +233,7 @@ void testReadsAFileMoonlightQtWrote() {
     }
     assert(sawQuotedName && "QSettings quotes a name with a comma; the reader must unquote it");
     assert(sawSteamBigPicture);
-    assert(identity->hostById("935B1F5B-D2EC-E720-6600-5EB7986004EC") == &host);
+    assert(identity->hostById("11111111-2222-4333-8444-555555555555") == &host);
 }
 
 } // namespace
