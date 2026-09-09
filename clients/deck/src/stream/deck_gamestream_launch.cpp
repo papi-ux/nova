@@ -41,10 +41,16 @@ DeckStreamKeys buildStreamKeys(const std::array<std::uint8_t, 16>& aesKey, std::
 }
 
 DeckStreamKeys generateStreamKeys() {
+    // On Linux, std::random_device is backed by the kernel CSPRNG (/dev/urandom),
+    // which is what the Deck runs. Use every bit of each 32-bit draw for the key.
     std::random_device source;
     std::array<std::uint8_t, 16> key{};
-    for (auto& byte : key) {
-        byte = static_cast<std::uint8_t>(source() & 0xFF);
+    for (std::size_t i = 0; i < key.size(); i += 4) {
+        const std::uint32_t word = source();
+        key[i] = static_cast<std::uint8_t>(word & 0xFF);
+        key[i + 1] = static_cast<std::uint8_t>((word >> 8) & 0xFF);
+        key[i + 2] = static_cast<std::uint8_t>((word >> 16) & 0xFF);
+        key[i + 3] = static_cast<std::uint8_t>((word >> 24) & 0xFF);
     }
     const auto rikeyId = static_cast<std::int32_t>(source());
     return buildStreamKeys(key, rikeyId);

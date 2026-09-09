@@ -73,6 +73,8 @@ void testServerInfoParse() {
     assert(!parseServerInfo("<root status_code=\"200\"><state>x</state></root>").has_value());
     assert(!parseServerInfo("<root status_code=\"401\"></root>").has_value());
     assert(!parseServerInfo("not xml").has_value());
+    // An error root that still carries an appversion is rejected on its status.
+    assert(!parseServerInfo("<root status_code=\"401\"><appversion>7.1</appversion></root>").has_value());
 
     // GfeVersion and codec support are optional; codec defaults to zero.
     const auto minimal = parseServerInfo("<root status_code=\"200\"><appversion>7.1</appversion></root>");
@@ -116,6 +118,14 @@ void testBuildFailures() {
         host.table["/serverinfo"] = DeckHttpResponse{true, 401, "<root status_code=\"401\"/>"};
         const auto r = buildStreamConnection(host.fetcher(), "192.0.2.10", sampleRequest(), keys);
         assert(!r.ok && r.error == "host serverinfo returned an unexpected status");
+    }
+    // launch HTTP error (wrong endpoint / server error) is surfaced distinctly.
+    {
+        FakeHost host;
+        host.table["/serverinfo"] = DeckHttpResponse{true, 200, kServerInfo};
+        host.table["/launch"] = DeckHttpResponse{true, 500, "server error"};
+        const auto r = buildStreamConnection(host.fetcher(), "192.0.2.10", sampleRequest(), keys);
+        assert(!r.ok && r.error == "host launch returned an unexpected status");
     }
     // launch not started (host busy).
     {

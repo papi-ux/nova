@@ -57,7 +57,9 @@ RawServerInfo readServerInfo(std::string_view xml) {
 
 std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
     const RawServerInfo raw = readServerInfo(xml);
-    if (!raw.rootOk || !raw.sawAppVersion || raw.appVersion.isEmpty()) {
+    // The GameStream root carries its own status_code; an authorization or
+    // pairing error can still include an appversion, so gate on it too.
+    if (!raw.rootOk || raw.statusCode != 200 || !raw.sawAppVersion || raw.appVersion.isEmpty()) {
         return std::nullopt;
     }
     DeckServerInfo info;
@@ -92,6 +94,10 @@ DeckSessionBuildResult buildStreamConnection(
     const DeckHttpResponse launchReply = fetch(buildLaunchTarget(request, keys));
     if (!launchReply.transportOk) {
         result.error = "could not reach the host to start the session";
+        return result;
+    }
+    if (launchReply.status != 200) {
+        result.error = "host launch returned an unexpected status";
         return result;
     }
     const DeckLaunchResult launch = parseLaunchResponse(request.resume, launchReply.body);

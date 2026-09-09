@@ -793,6 +793,13 @@ DeckStreamSession::DeckStreamSession(
 }
 
 DeckStreamSession::~DeckStreamSession() {
+    // moonlight-common-c has one global connection; a live one must be torn down
+    // or the next LiStartConnection fails. stop() does it on the normal path;
+    // this covers a session dropped while still streaming.
+    if (networkStarted_) {
+        LiStopConnection();
+        networkStarted_ = false;
+    }
     clearCallbackOwner(*this);
     releaseCallbackSlot(callbackSlot_);
     callbackSlot_ = kInvalidCallbackSlot;
@@ -896,7 +903,14 @@ DeckStreamTransition DeckStreamSession::stop() {
 }
 
 DeckStreamTransition DeckStreamSession::cancel(const std::string_view reason) {
-    auto cancelled = transitionTo(DeckStreamSessionState::Cancelled, reason.empty() ? "cancelled before network start" : reason);
+    // cancel() has no state guard, so it can arrive on a network-active session;
+    // tear the host connection down before leaving it.
+    if (networkStarted_) {
+        LiStopConnection();
+        networkStarted_ = false;
+        moonlightBoundary_.networkStartAllowed = false;
+    }
+    auto cancelled = transitionTo(DeckStreamSessionState::Cancelled, reason.empty() ? "cancelled" : reason);
     clearCallbackOwner(*this);
     return cancelled;
 }
