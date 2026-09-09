@@ -10,15 +10,20 @@
 #include <QTcpServer>
 #include <QTemporaryDir>
 
-#include <cassert>
+#include <cstdlib>
 #include <chrono>
 #include <string>
 
 namespace {
 
+// Keep setup and verification active in every CMake build type.
+void require(bool condition) {
+    if (!condition) std::abort();
+}
+
 QByteArray readFile(const QString& path) {
     QFile file(path);
-    assert(file.open(QIODevice::ReadOnly));
+    require(file.open(QIODevice::ReadOnly));
     return file.readAll();
 }
 
@@ -33,8 +38,8 @@ TestIdentity createIdentity(const QString& directory, const QString& name) {
     QProcess process;
     process.start(QStringLiteral(NOVA_DECK_TEST_OPENSSL), {"req", "-x509", "-newkey", "rsa:2048", "-nodes",
         "-keyout", keyPath, "-out", certPath, "-days", "1", "-subj", "/CN=nova-loopback-test"});
-    assert(process.waitForFinished(15000));
-    assert(process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0);
+    require(process.waitForFinished(15000));
+    require(process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0);
     return {readFile(certPath), readFile(keyPath)};
 }
 
@@ -49,7 +54,7 @@ protected:
         socket->setLocalCertificate(QSslCertificate(identity_.cert));
         socket->setPrivateKey(QSslKey(identity_.key, QSsl::Rsa));
         socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-        assert(socket->setSocketDescriptor(descriptor));
+        require(socket->setSocketDescriptor(descriptor));
         connect(socket, &QSslSocket::disconnected, socket, &QObject::deleteLater);
         connect(socket, &QSslSocket::readyRead, socket, [this, socket, request = QByteArray{}]() mutable {
             request += socket->readAll();
@@ -72,18 +77,18 @@ private:
 void testSilentHttpStillUsesPinnedHttps() {
     using namespace nova::deck;
     QTemporaryDir directory;
-    assert(directory.isValid());
+    require(directory.isValid());
     const auto serverIdentity = createIdentity(directory.path(), "server");
     const auto clientIdentity = createIdentity(directory.path(), "client");
     TlsServer https(serverIdentity);
     QTcpServer http;
     // Reserve both ports simultaneously; the production fallback is HTTP - 5.
     for (int attempt = 0; attempt < 100; ++attempt) {
-        assert(https.listen(QHostAddress::LocalHost, 0));
+        require(https.listen(QHostAddress::LocalHost, 0));
         if (https.serverPort() < 65530 && http.listen(QHostAddress::LocalHost, https.serverPort() + 5)) break;
         https.close();
     }
-    assert(http.isListening() && https.isListening());
+    require(http.isListening() && https.isListening());
     int httpRequests = 0;
     QObject::connect(&http, &QTcpServer::newConnection, &http, [&] {
         while (auto* socket = http.nextPendingConnection()) {
@@ -104,19 +109,19 @@ void testSilentHttpStillUsesPinnedHttps() {
     host.serverCertificatePem = serverIdentity.cert.toStdString();
     const auto timeout = std::chrono::milliseconds(750);
     const auto httpProbe = polaris::probeServerInfoHttpsPort(host.localAddress, host.localPort, timeout);
-    assert(httpProbe.timedOut && !httpProbe.httpsPort);
+    require(httpProbe.timedOut && !httpProbe.httpsPort);
     const auto fetcher = backend::polarisNetworkFetcher(identity, timeout);
     const auto fetched = fetcher(host, true);
-    assert(fetched.status == polaris::DeckPolarisRequestStatus::Ok);
-    assert(fetched.httpsPort == https.serverPort());
-    assert(fetched.games.size() == 1 && fetched.games[0].id == "test-game");
-    assert(httpRequests == 2 && https.requests == 2);
+    require(fetched.status == polaris::DeckPolarisRequestStatus::Ok);
+    require(fetched.httpsPort == https.serverPort());
+    require(fetched.games.size() == 1 && fetched.games[0].id == "test-game");
+    require(httpRequests == 2 && https.requests == 2);
 
     // The fallback must retain exact certificate pinning even after HTTP timeout.
     host.serverCertificatePem = clientIdentity.cert.toStdString();
     const auto rejected = fetcher(host, true);
-    assert(rejected.status == polaris::DeckPolarisRequestStatus::CertMismatch);
-    assert(httpRequests == 3 && https.requests == 2);
+    require(rejected.status == polaris::DeckPolarisRequestStatus::CertMismatch);
+    require(httpRequests == 3 && https.requests == 2);
 }
 
 } // namespace

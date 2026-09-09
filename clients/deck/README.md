@@ -24,15 +24,15 @@ Planned role:
 
 ## Runnable smoke paths
 
-Fallback native core and controller/library placeholder, no Qt required:
+Native core and controller/library tests with the QML shell disabled (Qt and Linux media development dependencies are still required):
 
-    cmake -S clients/deck -B build/deck-smoke-core -DNOVA_DECK_BUILD_QT_SHELL=OFF
+    cmake -S clients/deck -B build/deck-smoke-core -DNOVA_DECK_BUILD_QT_SHELL=OFF -DCMAKE_BUILD_TYPE=Debug
     cmake --build build/deck-smoke-core
     ctest --test-dir build/deck-smoke-core --output-on-failure
 
 Full Qt shell smoke, when Qt deps are present:
 
-    cmake -S clients/deck -B build/deck-smoke-qt
+    cmake -S clients/deck -B build/deck-smoke-qt -DCMAKE_BUILD_TYPE=Debug
     cmake --build build/deck-smoke-qt
     ctest --test-dir build/deck-smoke-qt --output-on-failure
 
@@ -102,11 +102,11 @@ The skeleton intentionally exposes adapter seams for renderer/presentation, audi
 
 ## Fedora or SteamOS dependency notes
 
-The fallback smoke needs CMake, C/C++ compilers, OpenSSL crypto development headers, and the checked-out moonlight-common-c submodule.
+The native tests need CMake, C/C++ compilers, OpenSSL crypto development headers, Qt, the Linux media libraries required by CMake, and the checked-out moonlight-common-c submodule. The network regression also needs the `openssl` executable to create ephemeral test certificates in a temporary directory.
 
 For the Qt shell on Fedora, install the Qt 6 development packages if CMake warns that Qt6 Quick or QuickControls2 is missing:
 
-    sudo dnf install cmake gcc-c++ qt6-qtbase-devel qt6-qtdeclarative-devel
+    sudo dnf install cmake gcc-c++ openssl qt6-qtbase-devel qt6-qtdeclarative-devel
 
 On Fedora, qt6-qtdeclarative-devel provides cmake(Qt6QuickControls2). SteamOS package names may differ; the required CMake components are Qt6 Core, Qt6 Gui, Qt6 Qml, Qt6 Quick, and Qt6 QuickControls2.
 
