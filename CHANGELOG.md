@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Launching on a Sunshine host works again. Since 1.4.0 the launch gate identified the host by probing a Polaris-only route and treating anything it could not read as a reason to refuse with "Update Polaris before launching". Sunshine answers an unknown route with a malformed reply that Android reads as a protocol error, so every Sunshine host was blocked. Nova now reads the host family from GameStream serverinfo, the route every host answers the same way, and launches a stock host with local settings. Polaris hosts are identified exactly as before. (#291)
+
 ## 1.4.4 - 2026-09-06
 
 Matched client for Polaris 1.4.4: Wake Host, a Command Center that leads with the verdict's explanation, a MangoHud-style Slim HUD, decode time and a network row in Debug, and labels that say what they do.

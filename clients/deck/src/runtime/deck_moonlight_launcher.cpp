@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <sys/stat.h>
 #include <system_error>
 #include <unistd.h>
 #include <utility>
@@ -131,6 +132,13 @@ DeckMoonlightInstallProbe defaultMoonlightInstallProbe() {
         pushUnique(home / ".local" / "share" / "flatpak" / "exports" / "bin");
     }
     probe.flatpakInfoFile = "/.flatpak-info";
+    const auto environmentValue = [](const char* name) {
+        const char* value = std::getenv(name);
+        return value == nullptr ? std::string{} : std::string{value};
+    };
+    probe.displayEnvironment.waylandDisplay = environmentValue("WAYLAND_DISPLAY");
+    probe.displayEnvironment.display = environmentValue("DISPLAY");
+    probe.displayEnvironment.runtimeDir = environmentValue("XDG_RUNTIME_DIR");
     return probe;
 }
 
@@ -138,6 +146,9 @@ DeckMoonlightInstall detectMoonlightInstall(const DeckMoonlightInstallProbe& pro
     DeckMoonlightInstall install;
     std::error_code ec;
     install.novaInsideFlatpak = !probe.flatpakInfoFile.empty() && std::filesystem::exists(probe.flatpakInfoFile, ec);
+    if (install.novaInsideFlatpak) {
+        install.forwardedEnvironment = forwardedDisplayEnvironment(probe.displayEnvironment);
+    }
 
     if (probe.overrideBinary && executableFile(*probe.overrideBinary)) {
         install.kind = DeckMoonlightInstallKind::Native;
@@ -176,7 +187,12 @@ std::vector<std::string> programPrefix(const DeckMoonlightInstall& install) {
     if (install.novaInsideFlatpak) {
         // Inside the sandbox nothing is on PATH; flatpak-spawn asks the host
         // session to run the command, which needs --talk-name=org.freedesktop.Flatpak.
+        // The host runs it with its own environment, so the display Nova is on
+        // has to travel with the command; detectMoonlightInstall() worked it out.
         prefix = {"flatpak-spawn", "--host"};
+        for (const auto& assignment : install.forwardedEnvironment.assignments) {
+            prefix.push_back("--env=" + assignment);
+        }
     }
     if (install.kind == DeckMoonlightInstallKind::Flatpak) {
         prefix.push_back(install.novaInsideFlatpak ? std::string{"flatpak"} : install.executable);
@@ -189,6 +205,59 @@ std::vector<std::string> programPrefix(const DeckMoonlightInstall& install) {
 }
 
 } // namespace
+
+std::string hostWaylandDisplayName(const DeckDisplayEnvironment& environment) {
+    const std::string& seen = environment.waylandDisplay;
+    if (seen != kFlatpakRenamedWaylandDisplay || environment.runtimeDir.empty()) {
+        return seen;
+    }
+    struct stat renamed {};
+    const auto renamedPath = environment.runtimeDir / seen;
+    if (::stat(renamedPath.c_str(), &renamed) != 0 || !S_ISSOCK(renamed.st_mode)) {
+        return seen;
+    }
+    // Every bind of one host socket shares its device and inode, so the socket
+    // Flatpak renamed and the one the manifest binds under its host name are
+    // told apart from any other socket in the directory (the bus proxy, say).
+    std::error_code ec;
+    std::vector<std::string> sameSocket;
+    for (const auto& entry : std::filesystem::directory_iterator(environment.runtimeDir, ec)) {
+        const std::string name = entry.path().filename().string();
+        struct stat candidate {};
+        if (name == seen || ::stat(entry.path().c_str(), &candidate) != 0 || !S_ISSOCK(candidate.st_mode)) {
+            continue;
+        }
+        if (candidate.st_dev == renamed.st_dev && candidate.st_ino == renamed.st_ino) {
+            sameSocket.push_back(name);
+        }
+    }
+    if (ec || sameSocket.empty()) {
+        return seen;
+    }
+    std::sort(sameSocket.begin(), sameSocket.end());
+    return sameSocket.front();
+}
+
+DeckForwardedEnvironment forwardedDisplayEnvironment(const DeckDisplayEnvironment& environment) {
+    DeckForwardedEnvironment forwarded;
+    const auto offer = [&forwarded](std::string_view name, const std::string& value) {
+        if (value.empty()) {
+            return false;
+        }
+        std::string assignment = std::string(name) + "=" + value;
+        if (!isPlainArgvToken("--env=" + assignment)) {
+            forwarded.skipped.push_back(std::string(name) + " not forwarded: its value is not a plain argument");
+            return false;
+        }
+        forwarded.assignments.push_back(std::move(assignment));
+        return true;
+    };
+    if (offer("WAYLAND_DISPLAY", hostWaylandDisplayName(environment))) {
+        offer("QT_QPA_PLATFORM", std::string(kForwardedQtPlatform));
+    }
+    offer("DISPLAY", environment.display);
+    return forwarded;
+}
 
 DeckMoonlightArgvPlan buildMoonlightStreamArgv(const DeckMoonlightInstall& install, const DeckMoonlightLaunchRequest& request) {
     DeckMoonlightArgvPlan plan;

@@ -83,8 +83,10 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Frame-pacing evidence needs a read-only recheck; launch settings are unchanged.", state.healthSummary)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
-        assertEquals("Frame Pacing Watch", state.stability.chip.label)
-        assertEquals(NovaQuickMenuTone.WARNING, state.stability.chip.tone)
+        assertEquals("Quality", state.stability.chip.label)
+        assertEquals("Live Tuning", state.liveTuningAction.label)
+        assertEquals("Off", state.liveTuningAction.chip?.label)
+        assertEquals(NovaQuickMenuTone.INFO, state.stability.chip.tone)
     }
 
     @Test
@@ -129,7 +131,7 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("HDR requested, but Private Stream is 10-bit SDR.", state.healthSummary)
         assertEquals("Private Stream does not report HDR metadata. Polaris is sending 10-bit SDR; use an HDR-capable display path for true HDR.", state.healthDetail)
-        assertEquals("Polaris is sending 10-bit SDR, not HDR. Use an HDR-capable display path for true HDR.", state.stability.caption)
+        assertEquals("", state.stability.caption)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
     }
 

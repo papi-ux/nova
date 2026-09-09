@@ -1,9 +1,9 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisSessionStatus
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import com.papi.nova.api.LiveTuningStatus
+import org.json.JSONArray
+import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -12,259 +12,36 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 @RunWith(RobolectricTestRunner::class)
 class AutoQualityUiStateTest {
-    @Test
-    fun stableQualityRunShowsStable() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                health = PolarisSessionStatus.HealthStatus(
-                    grade = "good",
-                    safeBitrateKbps = 30000,
-                    safeDisplayMode = "headless"
-                ),
-                encoder = encoder(fps = 118.0),
-                capture = capture()
-            ),
-            fallbackTargetFps = 120.0
-        )
-
-        assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals("Stream Ready", state.label)
-        assertEquals("Stream target is holding steady", state.detail)
-        assertFalse(state.detail.contains("Network", ignoreCase = true))
-        assertFalse(state.detail.contains("frame pacing", ignoreCase = true))
-        assertTrue(state.targetSummary.contains("HEVC"))
+    @Test fun sharedStatesDescribeAcknowledgedIntentAndRate() {
+        val fixtures = JSONArray(javaClass.getResource("/live-tuning-v1.json")!!.readText())
+        for (i in 0 until fixtures.length()) {
+            val live = LiveTuningStatus.parse(fixtures.getJSONObject(i).getJSONObject("live_tuning"))!!
+            val status = status().copy(liveTuning = live, liveTuningPresent = true)
+            val ui = AutoQualityUiState.from(status)
+            assertEquals(live.enabled, ui.enabled)
+            assertTrue(ui.label.startsWith("Live Tuning"))
+            assertEquals(live.appliedBitrateKbps, StreamPolicyUiState.from(status).effectiveBitrateKbps)
+        }
     }
-
-    @Test
-    fun greenDoctorControlObservationKeepsCapabilityWatchInformational() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                doctor = PolarisSessionStatus.DoctorStatus(
-                    available = true,
-                    version = 2,
-                    resultId = "doctor-control-observation",
-                    status = "ok",
-                    severity = "info",
-                    trafficLight = "green",
-                    primaryIssue = "control_channel_observation",
-                    likelyCause = "Control-channel retries were observed, but video packet loss is not confirmed.",
-                    evidenceItems = listOf(
-                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
-                            id = "live_bitrate_control",
-                            status = "watch",
-                            source = "encoder_capability"
-                        )
-                    )
-                )
-            ),
-            fallbackTargetFps = 120.0
-        )
-
-        assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals(AutoQualityUiState.Tone.STABLE, state.tone)
-        assertEquals("OK", state.compactLabel)
-        assertEquals("Stream Ready", state.label)
+    @Test fun aiReadinessCannotEnableLiveTuning() {
+        val ui = AutoQualityUiState.from(status(adaptiveBitrateEnabled = false, aiOptimizerEnabled = true))
+        assertFalse(ui.enabled)
+        assertEquals("Live Tuning Off", ui.label)
     }
-
-    @Test
-    fun greenDoctorEnvelopeCannotHideConfirmedMediaLoss() {
-        val status = status(
-            doctor = PolarisSessionStatus.DoctorStatus(
-                available = true,
-                version = 2,
-                resultId = "doctor-green-contradiction",
-                status = "ok",
-                severity = "info",
-                trafficLight = "green",
-                primaryIssue = "control_channel_observation",
-                evidenceItems = listOf(
-                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
-                        id = "packet_loss",
-                        status = "fail",
-                        source = "media_transport",
-                        value = 3.2
-                    )
-                )
-            )
-        )
-        val state = AutoQualityUiState.from(
-            status = status,
-            fallbackTargetFps = 120.0
-        )
-
-        assertTrue(status.hasHealthConcerns)
-        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
-        assertEquals(AutoQualityUiState.Tone.WARNING, state.tone)
-        // "REC" read as recording on the HUD; the compact recovery label says what it does.
-        assertEquals("SAFE", state.compactLabel)
+    @Test fun healthWarningsCannotEraseEnabledState() {
+        val unhealthy = status(health = PolarisSessionStatus.HealthStatus(grade = "degraded", summary = "Network pressure"))
+        val ui = AutoQualityUiState.from(unhealthy)
+        assertTrue(ui.enabled)
+        assertEquals("Live Tuning On", ui.label)
+        assertEquals("Network pressure", unhealthy.health.summary)
     }
-
-    @Test
-    fun lowRenderedFpsWithoutHostCadenceEvidenceRemainsObservational() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                health = PolarisSessionStatus.HealthStatus(
-                    grade = "good",
-                    primaryIssue = "none"
-                ),
-                encoder = encoder(fps = 30.0),
-                capture = capture()
-            ),
-            fallbackTargetFps = 120.0
-        )
-
-        assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals("Stream Ready", state.label)
+    @Test fun missingOrUnsupportedSchemaIsUnknown() {
+        assertEquals("Tuning: Unknown", AutoQualityUiState.from(null).compactLabel)
+        assertEquals("Tuning: Unknown", AutoQualityUiState.from(status().copy(liveTuningPresent = true)).compactLabel)
     }
-
-    @Test
-    fun warningOnlyFramePacingEvidenceNeverShowsStable() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                health = PolarisSessionStatus.HealthStatus(
-                    grade = "watch",
-                    summary = "Stable",
-                    primaryIssue = "frame_pacing",
-                    issues = listOf("frame_pacing")
-                )
-            )
-        )
-
-        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
-        assertEquals("Frame pacing", state.label)
-        assertEquals(AutoQualityUiState.Tone.WARNING, state.tone)
-        assertEquals("Frame pacing", state.detail)
-    }
-
-    @Test
-    fun adaptiveTargetBelowBaseShowsAutoSafeCap() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                tuning = PolarisSessionStatus.TuningStatus(
-                    adaptiveBitrateEnabled = true,
-                    adaptiveTargetBitrateKbps = 12000,
-                    adaptiveBaseBitrateKbps = 30000,
-                    aiOptimizerEnabled = true
-                )
-            )
-        )
-
-        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
-        assertEquals("Live bitrate adjusted", state.label)
-        assertTrue(state.targetSummary.contains("12 Mbps live / 30 Mbps limit"))
-    }
-
-    @Test
-    fun greenDoctorMakesCleanAutoSafeRecoveryInformational() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                tuning = PolarisSessionStatus.TuningStatus(
-                    adaptiveBitrateEnabled = true,
-                    adaptiveTargetBitrateKbps = 12000,
-                    adaptiveBaseBitrateKbps = 30000,
-                    adaptiveBitrateState = "recovering",
-                    adaptiveBitrateReason = "healthy_window",
-                    aiOptimizerEnabled = false
-                ),
-                doctor = PolarisSessionStatus.DoctorStatus(
-                    available = true,
-                    version = 2,
-                    resultId = "doctor-clean-auto-safe-recovery",
-                    status = "ok",
-                    severity = "info",
-                    trafficLight = "green",
-                    primaryIssue = "none",
-                    evidenceItems = listOf(
-                        PolarisSessionStatus.DoctorStatus.EvidenceItem(
-                            id = "effective_quality_ceiling",
-                            status = "watch",
-                            source = "launch_policy",
-                            value = 30000.0
-                        )
-                    )
-                )
-            )
-        )
-
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals(AutoQualityUiState.Tone.INFO, state.tone)
-        assertEquals("Recovering Bitrate", state.label)
-        assertEquals("12M", state.compactLabel)
-        assertTrue(state.recovering)
-    }
-
-    @Test
-    fun hostRenderRecoveryHistoryShowsObservationalPacingWatch() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                health = PolarisSessionStatus.HealthStatus(
-                    grade = "watch",
-                    primaryIssue = "host_render_limited",
-                    hostRenderLimited = true,
-                    safeTargetFps = 60.0,
-                    recoveryProfile = "host_render_limited",
-                    relaunchRecommended = true
-                ),
-                autoQuality = PolarisSessionStatus.AutoQualityPolicy(
-                    state = "recovery_queued",
-                    relaunchRequired = true,
-                    suggestedTargetFps = 60.0
-                )
-            )
-        )
-
-        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
-        assertEquals("Frame Pacing Watch", state.label)
-        assertEquals("HOST", state.compactLabel)
-        assertEquals(false, state.recovering)
-    }
-
-    @Test
-    fun healthyManualQualityPresetShowsStable() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                sync = PolarisSessionStatus.SyncStatus(
-                    available = true,
-                    state = "manual_override",
-                    manualOverride = true
-                )
-            )
-        )
-
-        assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals("Quality Preset", state.label)
-        assertTrue(state.manualOverride)
-    }
-
-    @Test
-    fun manualQualityDoesNotHideHostRenderRecovery() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                health = PolarisSessionStatus.HealthStatus(
-                    grade = "watch",
-                    summary = "Host render path is missing the target frame rate",
-                    primaryIssue = "host_render_limited",
-                    hostRenderLimited = true,
-                    safeTargetFps = 60.0,
-                    recoveryProfile = "host_render_limited",
-                    relaunchRecommended = true
-                ),
-                autoQuality = PolarisSessionStatus.AutoQualityPolicy(
-                    state = "recovery_queued",
-                    relaunchRequired = true,
-                    suggestedTargetFps = 60.0
-                ),
-                sync = PolarisSessionStatus.SyncStatus(
-                    available = true,
-                    state = "manual_override",
-                    manualOverride = true
-                )
-            )
-        )
-
-        assertEquals(AutoQualityUiState.State.NEEDS_ATTENTION, state.state)
-        assertEquals("Frame Pacing Watch", state.label)
-        assertTrue(state.manualOverride)
+    @Test fun legacyTargetDoesNotClaimEncoderAcknowledgement() {
+        val ui = AutoQualityUiState.from(status())
+        assertTrue(ui.detail.contains("acknowledgement is unavailable"))
     }
 
     @Test
@@ -331,111 +108,6 @@ class AutoQualityUiStateTest {
 
         assertEquals("VAAPI + SHM fallback", policy.hostCaptureLabel)
         assertTrue(policy.targetSummary.contains("VAAPI + SHM fallback"))
-    }
-
-    @Test
-    fun autoQualityPolicyShowsBitrateRecovery() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                autoQuality = PolarisSessionStatus.AutoQualityPolicy(
-                    state = "recovering_bitrate",
-                    liveBitrateKbps = 12000,
-                    qualityCapKbps = 30000,
-                    canRecoverLive = true,
-                    summary = "Recovering bitrate toward the quality cap."
-                )
-            )
-        )
-
-        assertEquals(AutoQualityUiState.State.RECOVERING, state.state)
-        assertEquals("Recovering Bitrate", state.label)
-        assertTrue(state.recovering)
-        assertTrue(state.targetSummary.contains("12 Mbps live / 30 Mbps limit"))
-    }
-
-    @Test
-    fun autoQualityPolicyShowsUpgradeAvailable() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                autoQuality = PolarisSessionStatus.AutoQualityPolicy(
-                    state = "upgrade_available",
-                    relaunchRequired = true,
-                    summary = "Higher quality is available on the next launch."
-                )
-            )
-        )
-
-        assertEquals(AutoQualityUiState.State.UPGRADE_AVAILABLE, state.state)
-        assertEquals("Higher Quality Ready", state.label)
-        assertEquals("UP", state.compactLabel)
-    }
-
-    @Test
-    fun healthyCpuCaptureStaysStable() {
-        val state = AutoQualityUiState.from(
-            status = status(capture = capture(transport = "shm", residency = "cpu"))
-        )
-
-        assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals(AutoQualityUiState.Tone.STABLE, state.tone)
-        assertEquals("Stream Ready", state.label)
-        assertEquals("OK", state.compactLabel)
-    }
-
-    @Test
-    fun disabledAutoQualityReportsOff() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                tuning = PolarisSessionStatus.TuningStatus(
-                    adaptiveBitrateEnabled = false,
-                    aiOptimizerEnabled = false
-                ),
-                adaptiveBitrateEnabled = false,
-                aiOptimizerEnabled = false
-            )
-        )
-
-        assertEquals(AutoQualityUiState.State.OFF, state.state)
-        assertEquals("Live Tuning Off", state.label)
-    }
-
-    @Test
-    fun authoritativeDoctorNoneIgnoresStaleHealthRecoveryAndPacingHistory() {
-        val state = AutoQualityUiState.from(
-            status = status(
-                health = PolarisSessionStatus.HealthStatus(
-                    grade = "watch",
-                    summary = "Network jitter and frame pacing were previously observed.",
-                    primaryIssue = "frame_pacing",
-                    issues = listOf("frame_pacing", "network_jitter"),
-                    networkRisk = "elevated",
-                    recoveryProfile = "host_render_limited",
-                    relaunchRecommended = true,
-                    safeTargetFps = 30.0,
-                    safeBitrateKbps = 12000
-                ),
-                doctor = PolarisSessionStatus.DoctorStatus(
-                    available = true,
-                    version = 2,
-                    resultId = "doctor-current-none",
-                    primaryIssue = "none"
-                ),
-                autoQuality = PolarisSessionStatus.AutoQualityPolicy(
-                    enabled = true,
-                    state = "blocked",
-                    blockedReason = "network",
-                    relaunchRequired = true,
-                    summary = "Holding quality while network pressure clears."
-                )
-            ),
-            fallbackTargetFps = 120.0
-        )
-
-        assertEquals(AutoQualityUiState.State.STABLE, state.state)
-        assertEquals("Stream Ready", state.label)
-        assertEquals("Stream target is holding steady", state.detail)
-        assertFalse(state.detail.contains("Network", ignoreCase = true))
-        assertFalse(state.detail.contains("frame pacing", ignoreCase = true))
     }
 
     private fun status(

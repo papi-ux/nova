@@ -36,9 +36,9 @@ class NovaHudUiStateTest {
         assertEquals("24 Mbps", state.bitrateLabel)
         assertEquals("1920×1080", state.resolutionLabel)
         assertEquals("HEVC", state.codecLabel)
-        assertEquals("Stream Ready", state.autopilotLabel)
-        assertEquals("Stream Ready", state.autopilotHudLabel)
-        assertEquals("OK", state.autopilotCompactLabel)
+        assertEquals("Live Tuning On", state.autopilotLabel)
+        assertEquals("Tuning: On", state.autopilotHudLabel)
+        assertEquals("Tuning: On", state.autopilotCompactLabel)
         assertEquals(NovaHudTone.STABLE, state.fpsTone)
         assertEquals(NovaHudTone.STABLE, state.latencyTone)
         assertEquals(NovaHudTone.STABLE, state.statusTone)
@@ -352,9 +352,9 @@ class NovaHudUiStateTest {
             sparklineSamples = listOf(42f)
         )
 
-        assertEquals("Frame Pacing Watch", state.autopilotLabel)
-        assertEquals("Pacing Watch", state.autopilotHudLabel)
-        assertEquals("HOST", state.autopilotCompactLabel)
+        assertEquals("Live Tuning On", state.autopilotLabel)
+        assertEquals("Tuning: On", state.autopilotHudLabel)
+        assertEquals("Tuning: On", state.autopilotCompactLabel)
         assertEquals(NovaHudTone.WARNING, state.statusTone)
         assertEquals(NovaHudTone.WARNING, state.fpsTone)
     }
@@ -392,9 +392,9 @@ class NovaHudUiStateTest {
             sparklineSamples = listOf(118f)
         )
 
-        assertEquals("Live bitrate adjusted", state.autopilotLabel)
-        assertEquals("Bitrate Adjusted", state.autopilotHudLabel)
-        assertEquals(NovaHudTone.WARNING, state.statusTone)
+        assertEquals("Live Tuning On", state.autopilotLabel)
+        assertEquals("Tuning: On", state.autopilotHudLabel)
+        assertEquals(NovaHudTone.STABLE, state.statusTone)
     }
 
     @Test
@@ -448,8 +448,8 @@ class NovaHudUiStateTest {
         )
 
         assertEquals("Stable", state.healthReasonLabel)
-        assertEquals("Recovering Bitrate", state.autopilotLabel)
-        assertEquals(NovaHudTone.INFO, state.statusTone)
+        assertEquals("Live Tuning On", state.autopilotLabel)
+        assertEquals(NovaHudTone.STABLE, state.statusTone)
     }
 
     @Test
@@ -500,9 +500,9 @@ class NovaHudUiStateTest {
             sparklineSamples = emptyList()
         )
 
-        assertEquals("Stream Ready", stable.autopilotHudLabel)
-        assertEquals("Quality Ready", upgrade.autopilotHudLabel)
-        assertEquals("Attention", attention.autopilotHudLabel)
+        assertEquals("Tuning: On", stable.autopilotHudLabel)
+        assertEquals("Tuning: On", upgrade.autopilotHudLabel)
+        assertEquals("Tuning: On", attention.autopilotHudLabel)
         assertTrue(
             listOf(stable, upgrade, attention).all {
                 it.autopilotHudLabel.length <= 16
@@ -1040,9 +1040,9 @@ class NovaHudUiStateTest {
             sparklineSamples = listOf(116f, 117f, 118f)
         )
 
-        assertEquals("OK", state.autopilotCompactLabel)
-        assertEquals("Stream Ready", state.autopilotHudLabel)
-        assertEquals(NovaHudTone.STABLE, state.statusTone)
+        assertEquals("Tuning: On", state.autopilotCompactLabel)
+        assertEquals("Tuning: On", state.autopilotHudLabel)
+        assertEquals(NovaHudTone.MUTED, state.statusTone)
         assertEquals("Link retries", state.healthReasonLabel)
         assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
         assertTrue(state.streamModeLabel.contains("SHM/CPU capture"))

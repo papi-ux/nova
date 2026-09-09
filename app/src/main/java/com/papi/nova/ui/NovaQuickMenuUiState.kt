@@ -17,6 +17,7 @@ enum class NovaQuickMenuActionId {
     DISCONNECT,
     END_STREAM,
     STABILITY,
+    LIVE_TUNING,
     SYNC_STATUS,
     ADVANCED_TUNING,
     CLEAR_GAME_PROFILE,
@@ -142,6 +143,7 @@ data class NovaQuickMenuUiState(
     val disconnectAction: NovaQuickMenuAction,
     val endAction: NovaQuickMenuAction,
     val stability: NovaQuickMenuStabilityState,
+    val liveTuningAction: NovaQuickMenuAction = NovaQuickMenuAction(NovaQuickMenuActionId.LIVE_TUNING, "Live Tuning", enabled = false),
     val sync: NovaQuickMenuAction,
     val advancedToggle: NovaQuickMenuAction,
     val advancedExpanded: Boolean,
@@ -173,6 +175,7 @@ data class NovaQuickMenuUiState(
             status: PolarisSessionStatus?,
             apiAvailable: Boolean,
             hostStateUnavailable: Boolean = false,
+            liveTuningPending: Boolean = false,
             adaptiveSupported: Boolean,
             aiSupported: Boolean,
             adaptiveEnabled: Boolean,
@@ -208,16 +211,6 @@ data class NovaQuickMenuUiState(
             val ownerInputAllowed = !viewerSession
             val streamPolicy = StreamPolicyUiState.from(status, fallbackBitrateKbps, fallbackTargetFps)
             val autoQuality = AutoQualityUiState.from(status, fallbackTargetFps)
-            val effectiveAdaptiveEnabled = adaptiveEnabled ||
-                status?.tuning?.adaptiveBitrateEnabled == true ||
-                status?.adaptiveBitrateEnabled == true
-            val effectiveAiEnabled = aiEnabled ||
-                status?.autoQuality?.enabled == true ||
-                status?.tuning?.aiAutoQualityEnabled == true ||
-                status?.aiAutoQualityEnabled == true ||
-                status?.tuning?.aiOptimizerEnabled == true ||
-                status?.aiOptimizerEnabled == true ||
-                effectiveAdaptiveEnabled
             val currentGame = currentGameName?.takeIf { it.isNotBlank() }
             val currentUuid = currentGameUuid?.takeIf { it.isNotBlank() }
             val postSessionReport = NovaPostSessionReportUiState.from(status?.health ?: PolarisSessionStatus.HealthStatus())
@@ -267,30 +260,6 @@ data class NovaQuickMenuUiState(
                 else -> context.getString(R.string.nova_quick_menu_command_center_subtitle)
             }
 
-            val safeBitrate = status?.health?.safeBitrateKbps ?: 0
-            val liveBitrate = streamPolicy.effectiveBitrateKbps
-            val qualityBlocked = status?.autoQuality?.isBlocked == true || status?.isHostRenderLimited == true
-            val canLowerBitrate = !qualityBlocked && safeBitrate > 0 && liveBitrate > 0 && safeBitrate < liveBitrate
-            val canEnableAdaptive = !qualityBlocked && canAdjustHostTuning && !effectiveAiEnabled
-            val relaunchOnly = !qualityBlocked &&
-                (
-                    status?.autoQuality?.let { it.isUpgradeAvailable && it.relaunchRequired } == true ||
-                        status?.health?.relaunchRecommended == true
-                    ) &&
-                !canLowerBitrate &&
-                !canEnableAdaptive
-            val stabilityEnabled = canAdjustHostTuning && (canLowerBitrate || canEnableAdaptive || relaunchOnly)
-            val stabilityChip = when {
-                hostStateUnavailable -> chip(context.getString(R.string.nova_quick_menu_unavailable), NovaQuickMenuTone.MUTED)
-                !apiAvailable && status == null -> chip(context.getString(R.string.nova_quick_menu_not_available), NovaQuickMenuTone.MUTED)
-                status == null -> chip(context.getString(R.string.nova_quick_menu_loading), NovaQuickMenuTone.MUTED)
-                !stabilityEnabled && viewerSession -> chip(context.getString(R.string.nova_quick_menu_owner), NovaQuickMenuTone.MUTED)
-                !stabilityEnabled -> chip(autoQuality.label, autoQuality.tone.toQuickTone())
-                stabilityApplied -> chip(context.getString(R.string.nova_quick_menu_done), NovaQuickMenuTone.ACTIVE)
-                relaunchOnly -> chip("Relaunch", NovaQuickMenuTone.WARNING)
-                else -> chip(autoQuality.label, autoQuality.tone.toQuickTone())
-            }
-
             val profileButtonsEnabled = currentGame != null
             val normalizedPreference = AutoQualityProfilePreferences.normalize(profilePreference)
             val profileOptions = listOf(
@@ -310,20 +279,12 @@ data class NovaQuickMenuUiState(
             val diagnosis = diagnosisState(status)
             val stability = NovaQuickMenuStabilityState(
                 title = context.getString(R.string.nova_quick_menu_stream_card),
-                caption = when {
-                    hostStateUnavailable -> context.getString(R.string.nova_quick_menu_host_state_unavailable)
-                    !apiAvailable && status == null -> context.getString(R.string.nova_quick_menu_not_polaris_session)
-                    status == null -> context.getString(R.string.nova_quick_menu_health_checking)
-                    // The session strip and the Doctor card already say this sentence; the
-                    // Stream card repeats it only when it adds something.
-                    autoQuality.detail.sameSentenceAs(healthSummary) ||
-                        autoQuality.detail.sameSentenceAs(diagnosis.likelyCause) -> ""
-                    else -> autoQuality.detail
-                },
+                caption = if (hostStateUnavailable) context.getString(R.string.nova_quick_menu_host_state_unavailable) else "",
                 targetSummary = streamPolicy.targetSummary.takeIf { it.isNotBlank() }
                     ?: context.getString(R.string.nova_quick_menu_target_checking),
-                chip = stabilityChip,
-                enabled = stabilityEnabled,
+                chip = if (viewerSession) chip(context.getString(R.string.nova_quick_menu_owner), NovaQuickMenuTone.MUTED) else
+                    chip(profileOptions.first { it.selected }.label, NovaQuickMenuTone.INFO),
+                enabled = false,
                 profileTitle = context.getString(R.string.nova_quick_menu_profile_preference),
                 profileCaption = when {
                     currentGame == null -> context.getString(R.string.nova_quick_menu_profile_preference_checking)
@@ -469,6 +430,14 @@ data class NovaQuickMenuUiState(
             )
 
             return NovaQuickMenuUiState(
+                liveTuningAction = NovaQuickMenuAction(
+                    NovaQuickMenuActionId.LIVE_TUNING, "Live Tuning",
+                    caption = if (liveTuningPending) "Saving…" else if (hostStateUnavailable) "Reconnecting — state not confirmed" else
+                        "${autoQuality.label}. Host setting. ${autoQuality.detail}",
+                    chip = NovaQuickMenuChip(if (hostStateUnavailable || status == null || (status.liveTuningPresent && status.liveTuning == null)) "Unknown" else if (autoQuality.enabled) "On" else "Off", if (autoQuality.enabled) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE),
+                    enabled = !liveTuningPending && !hostStateUnavailable && canAdjustHostTuning &&
+                        (status?.liveTuning != null || (status?.liveTuningPresent != true && adaptiveSupported))
+                ),
                 title = context.getString(R.string.nova_quick_menu_command_center_title),
                 subtitle = subtitle,
                 sessionMode = sessionMode,

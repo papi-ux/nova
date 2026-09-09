@@ -883,6 +883,27 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun launchHostFamilyReadsTheServerinfoState() {
+        // The real serverinfo state strings, captured from paired hosts.
+        assertEquals(PolarisServerFamily.POLARIS, PolarisApiClient.launchHostFamilyFromServerState("POLARIS_SERVER_FREE"))
+        assertEquals(PolarisServerFamily.POLARIS, PolarisApiClient.launchHostFamilyFromServerState("POLARIS_SERVER_BUSY"))
+        assertEquals(PolarisServerFamily.POLARIS, PolarisApiClient.launchHostFamilyFromServerState("  polaris_server_free  "))
+
+        // Every stock GameStream host is a stock host, identified without its
+        // /polaris/v1 answer. This is the #291 fix: Sunshine no longer needs to
+        // return a readable 404 to be recognized.
+        assertEquals(PolarisServerFamily.STOCK, PolarisApiClient.launchHostFamilyFromServerState("SUNSHINE_SERVER_FREE"))
+        assertEquals(PolarisServerFamily.STOCK, PolarisApiClient.launchHostFamilyFromServerState("SUNSHINE_SERVER_BUSY"))
+        assertEquals(PolarisServerFamily.STOCK, PolarisApiClient.launchHostFamilyFromServerState("MJOLNIR_SERVER_FREE"))
+        assertEquals(PolarisServerFamily.STOCK, PolarisApiClient.launchHostFamilyFromServerState("APOLLO_SERVER_FREE"))
+
+        // A blank or missing state is ambiguous and identifies nothing.
+        assertEquals(PolarisServerFamily.UNKNOWN, PolarisApiClient.launchHostFamilyFromServerState(null))
+        assertEquals(PolarisServerFamily.UNKNOWN, PolarisApiClient.launchHostFamilyFromServerState(""))
+        assertEquals(PolarisServerFamily.UNKNOWN, PolarisApiClient.launchHostFamilyFromServerState("   "))
+    }
+
+    @Test
     fun parseSessionStatusResponse_includesHdrDowngradeTruth() {
         val health = JSONObject()
             .put("primary_issue", "hdr_downgraded")

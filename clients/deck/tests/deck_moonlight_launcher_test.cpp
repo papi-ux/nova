@@ -5,6 +5,7 @@
 
 #include <QCoreApplication>
 #include <QEventLoop>
+#include <QLocalServer>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
@@ -89,8 +90,80 @@ void testDetectionPrefersOverrideThenPathThenFlatpak() {
     assert(overridden.kind == DeckMoonlightInstallKind::Native);
     assert(overridden.executable == probe.overrideBinary->string());
 
+    probe.displayEnvironment.display = ":0";
+    assert(detectMoonlightInstall(probe).forwardedEnvironment.assignments.empty() && "outside a sandbox nothing is forwarded");
     probe.flatpakInfoFile = writeExecutable(root / "flatpak-info", "[Application]\n");
-    assert(detectMoonlightInstall(probe).novaInsideFlatpak);
+    const auto sandboxed = detectMoonlightInstall(probe);
+    assert(sandboxed.novaInsideFlatpak);
+    assert(sandboxed.forwardedEnvironment.assignments == std::vector<std::string>{"DISPLAY=:0"});
+}
+
+void testForwardedDisplayEnvironmentShapes() {
+    DeckDisplayEnvironment none;
+    assert(forwardedDisplayEnvironment(none).assignments.empty());
+    assert(forwardedDisplayEnvironment(none).skipped.empty());
+
+    // The Steam Game Mode shape: Steam hands a shortcut DISPLAY only.
+    DeckDisplayEnvironment x11Only;
+    x11Only.display = ":0";
+    const auto x11 = forwardedDisplayEnvironment(x11Only);
+    assert(x11.assignments == std::vector<std::string>{"DISPLAY=:0"} && "no Wayland socket, so no platform hint either");
+
+    DeckDisplayEnvironment both;
+    both.waylandDisplay = "wayland-1";
+    both.display = ":1";
+    const auto wayland = forwardedDisplayEnvironment(both);
+    assert(wayland.assignments == (std::vector<std::string>{"WAYLAND_DISPLAY=wayland-1", "QT_QPA_PLATFORM=wayland;xcb", "DISPLAY=:1"}));
+    assert(wayland.skipped.empty());
+
+    DeckDisplayEnvironment odd;
+    odd.waylandDisplay = "bad\nvalue";
+    odd.display = std::string(600, 'x');
+    const auto skipped = forwardedDisplayEnvironment(odd);
+    assert(skipped.assignments.empty() && "a value that is not a plain argument never travels");
+    assert(skipped.skipped.size() == 2);
+    assert(contains(skipped.skipped[0], "WAYLAND_DISPLAY not forwarded"));
+    assert(contains(skipped.skipped[1], "DISPLAY not forwarded"));
+    assert(!contains(skipped.skipped[0], "bad") && "the note names the variable, not the value");
+}
+
+void testHostWaylandDisplayNameUndoesTheFlatpakRename() {
+    QTemporaryDir dir;
+    const fs::path runtime(dir.path().toStdString());
+
+    // Anything Flatpak preserves comes back unchanged, whatever is on disk.
+    DeckDisplayEnvironment preserved;
+    preserved.waylandDisplay = "wayland-1";
+    preserved.runtimeDir = runtime;
+    assert(hostWaylandDisplayName(preserved) == "wayland-1");
+    DeckDisplayEnvironment unset;
+    unset.runtimeDir = runtime;
+    assert(hostWaylandDisplayName(unset).empty());
+
+    // The renamed value with no socket behind it, or no runtime dir, stays as it is.
+    DeckDisplayEnvironment renamed;
+    renamed.waylandDisplay = std::string(kFlatpakRenamedWaylandDisplay);
+    assert(hostWaylandDisplayName(renamed) == "wayland-0" && "no runtime dir");
+    renamed.runtimeDir = runtime;
+    assert(hostWaylandDisplayName(renamed) == "wayland-0" && "no socket yet");
+
+    // The Deck layout: the host's gamescope-0 is bound under its own name and
+    // again as the renamed wayland-0 (a symlink to the bind here, one inode either way),
+    // next to an unrelated socket.
+    QLocalServer gamescope;
+    assert(gamescope.listen(QString::fromStdString((runtime / "gamescope-0").string())));
+    QLocalServer unrelated;
+    assert(unrelated.listen(QString::fromStdString((runtime / "bus").string())));
+    fs::create_symlink("gamescope-0", runtime / "wayland-0");
+    assert(hostWaylandDisplayName(renamed) == "gamescope-0");
+    const auto forwarded = forwardedDisplayEnvironment(renamed);
+    assert(forwarded.assignments == (std::vector<std::string>{"WAYLAND_DISPLAY=gamescope-0", "QT_QPA_PLATFORM=wayland;xcb"}));
+
+    // A host whose socket really is wayland-0: nothing else shares the inode, so the name stands.
+    fs::remove(runtime / "wayland-0");
+    QLocalServer plain;
+    assert(plain.listen(QString::fromStdString((runtime / "wayland-0").string())));
+    assert(hostWaylandDisplayName(renamed) == "wayland-0");
 }
 
 void testStreamArgvShapes() {
@@ -121,10 +194,20 @@ void testStreamArgvShapes() {
     assert(viaFlatpak.valid);
     assert(joined(viaFlatpak.argv) == "/usr/bin/flatpak run com.moonlight_stream.Moonlight stream 935B1F5B-D2EC-E720-6600-5EB7986004EC Slay the Spire 2 --display-mode fullscreen --quit-after --fps 60 --bitrate 20000 --resolution 1280x800");
 
+    // Sandboxed: the display Nova is on travels with the command. Values are
+    // injected, never read from this process, so no test leaks into another.
     flatpak.novaInsideFlatpak = true;
+    DeckDisplayEnvironment onWayland;
+    onWayland.waylandDisplay = "wayland-1";
+    onWayland.display = ":0";
+    flatpak.forwardedEnvironment = forwardedDisplayEnvironment(onWayland);
     const auto sandboxed = buildMoonlightStreamArgv(flatpak, request);
     assert(sandboxed.valid);
-    assert(sandboxed.argv[0] == "flatpak-spawn" && sandboxed.argv[1] == "--host" && sandboxed.argv[2] == "flatpak" && sandboxed.argv[3] == "run");
+    assert(joined(sandboxed.argv) == "flatpak-spawn --host --env=WAYLAND_DISPLAY=wayland-1 --env=QT_QPA_PLATFORM=wayland;xcb --env=DISPLAY=:0 flatpak run com.moonlight_stream.Moonlight stream 935B1F5B-D2EC-E720-6600-5EB7986004EC Slay the Spire 2 --display-mode fullscreen --quit-after --fps 60 --bitrate 20000 --resolution 1280x800");
+    const auto quitSandboxed = buildMoonlightQuitArgv(flatpak, "935B1F5B-D2EC-E720-6600-5EB7986004EC");
+    assert(quitSandboxed.valid && joined(quitSandboxed.argv) == "flatpak-spawn --host --env=WAYLAND_DISPLAY=wayland-1 --env=QT_QPA_PLATFORM=wayland;xcb --env=DISPLAY=:0 flatpak run com.moonlight_stream.Moonlight quit 935B1F5B-D2EC-E720-6600-5EB7986004EC");
+    flatpak.forwardedEnvironment = {};
+    flatpak.novaInsideFlatpak = false;
 
     request.appName = "bad\nname";
     assert(!buildMoonlightStreamArgv(flatpak, request).valid);
@@ -141,9 +224,10 @@ void testStreamArgvShapes() {
     DeckMoonlightInstall none;
     assert(!buildMoonlightStreamArgv(none, request).valid);
 
+    flatpak.novaInsideFlatpak = true;
     const auto quit = buildMoonlightQuitArgv(flatpak, "935B1F5B-D2EC-E720-6600-5EB7986004EC");
     assert(quit.valid);
-    assert(joined(quit.argv) == "flatpak-spawn --host flatpak run com.moonlight_stream.Moonlight quit 935B1F5B-D2EC-E720-6600-5EB7986004EC");
+    assert(joined(quit.argv) == "flatpak-spawn --host flatpak run com.moonlight_stream.Moonlight quit 935B1F5B-D2EC-E720-6600-5EB7986004EC" && "no display environment: nothing forwarded");
     assert(!buildMoonlightQuitArgv(flatpak, "x\ty").valid);
 }
 
@@ -253,6 +337,8 @@ int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     testPlainTokens();
     testDetectionPrefersOverrideThenPathThenFlatpak();
+    testForwardedDisplayEnvironmentShapes();
+    testHostWaylandDisplayNameUndoesTheFlatpakRename();
     testStreamArgvShapes();
     testRealChildProcessAgainstAFakeMoonlight();
     testQuitRunsTheQuitCommandWhileRunning();

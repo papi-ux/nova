@@ -14,7 +14,7 @@ data class StreamPolicyUiState(
     val displayLabel: String,
     val hostCaptureLabel: String = ""
 ) {
-    val autoQualityEnabled get() = adaptiveEnabled || aiEnabled
+    val autoQualityEnabled get() = adaptiveEnabled
     val hasAdaptiveCap get() = adaptiveEnabled &&
         adaptiveTargetBitrateKbps > 0 &&
         qualityLimitBitrateKbps > 0 &&
@@ -51,26 +51,28 @@ data class StreamPolicyUiState(
             fallbackBitrateKbps: Int = 0,
             fallbackTargetFps: Double = 0.0
         ): StreamPolicyUiState {
-            val adaptiveEnabled = status?.tuning?.adaptiveBitrateEnabled == true ||
-                status?.adaptiveBitrateEnabled == true
+            val live = status?.liveTuning
+            val invalid = status?.liveTuningPresent == true && live == null
+            val adaptiveEnabled = !invalid && (live?.enabled ?: (status?.tuning?.adaptiveBitrateEnabled == true ||
+                status?.adaptiveBitrateEnabled == true))
             val aiEnabled = status?.tuning?.aiOptimizerEnabled == true ||
                 status?.aiOptimizerEnabled == true
             val autoPolicy = status?.autoQuality
-            val adaptiveTarget = firstPositive(
+            val adaptiveTarget = if (invalid) 0 else live?.appliedBitrateKbps ?: firstPositive(
                 autoPolicy?.liveBitrateKbps,
                 status?.syncStatus?.effective?.adaptiveTargetBitrateKbps,
                 status?.syncStatus?.applied?.adaptiveTargetBitrateKbps,
                 status?.tuning?.adaptiveTargetBitrateKbps,
                 status?.adaptiveTargetBitrateKbps
             )
-            val qualityLimit = firstPositive(
+            val qualityLimit = live?.qualityLimitKbps ?: firstPositive(
                 autoPolicy?.qualityCapKbps,
                 status?.syncStatus?.effective?.targetBitrateKbps,
                 status?.syncStatus?.applied?.targetBitrateKbps,
                 status?.encoder?.bitrateKbps,
                 fallbackBitrateKbps
             )
-            val effectiveBitrate = when {
+            val effectiveBitrate = if (invalid) 0 else live?.appliedBitrateKbps ?: when {
                 adaptiveEnabled &&
                     adaptiveTarget > 0 &&
                     (qualityLimit <= 0 || adaptiveTarget <= qualityLimit) -> adaptiveTarget
@@ -99,7 +101,7 @@ data class StreamPolicyUiState(
                 effectiveBitrateKbps = effectiveBitrate,
                 qualityLimitBitrateKbps = qualityLimit,
                 adaptiveTargetBitrateKbps = adaptiveTarget,
-                adaptiveBaseBitrateKbps = status?.tuning?.adaptiveBaseBitrateKbps ?: 0,
+                adaptiveBaseBitrateKbps = live?.qualityLimitKbps ?: status?.tuning?.adaptiveBaseBitrateKbps ?: 0,
                 adaptiveEnabled = adaptiveEnabled,
                 aiEnabled = aiEnabled,
                 codecLabel = normalizeCodec(status?.encoder?.codec.orEmpty()),
