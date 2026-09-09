@@ -23,6 +23,8 @@ data class PolarisSessionStatus(
     val screenLocked: Boolean = false,
     val cursorVisible: Boolean = false,
     val dynamicRange: Int = 0,
+    val liveTuning: LiveTuningStatus? = null,
+    val liveTuningPresent: Boolean = false,
     val adaptiveBitrateEnabled: Boolean = false,
     val adaptiveTargetBitrateKbps: Int = 0,
     val aiAutoQualityEnabled: Boolean = false,

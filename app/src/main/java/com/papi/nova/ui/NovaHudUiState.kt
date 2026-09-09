@@ -72,6 +72,7 @@ data class NovaHudUiState(
     val autopilotLabel: String,
     val autopilotHudLabel: String,
     val autopilotCompactLabel: String,
+    val tuningTone: NovaHudTone = NovaHudTone.MUTED,
     val fpsTone: NovaHudTone,
     val latencyTone: NovaHudTone,
     val statusTone: NovaHudTone,
@@ -198,7 +199,8 @@ data class NovaHudUiState(
                 autopilotCompactLabel = autoQuality.compactLabel,
                 fpsTone = toneForFps(fps, status),
                 latencyTone = toneForLatency(latencyMs),
-                statusTone = if (healthReason.second == NovaHudTone.WARNING || healthReason.second == NovaHudTone.DANGER) healthReason.second else autoQuality.tone.toHudTone(),
+                statusTone = healthReason.second,
+                tuningTone = autoQuality.tone.toHudTone(),
                 healthReasonLabel = healthReason.first,
                 healthReasonTone = healthReason.second,
                 streamTruthLabel = buildStreamTruth(status, targetFps, codec, height),
@@ -554,40 +556,7 @@ data class NovaHudUiState(
         private fun buildSessionModeShortLabel(status: PolarisSessionStatus): String =
             status.sessionModeLabel.substringBefore(" (").trim()
 
-        private fun AutoQualityUiState.hudLabel(): String = when (state) {
-            AutoQualityUiState.State.OFF -> "Live Tune Off"
-            AutoQualityUiState.State.WATCHING -> "Doctor Check"
-            AutoQualityUiState.State.OPTIMIZING -> "Launch Setup"
-            AutoQualityUiState.State.STABLE -> when {
-                manualOverride -> "Quality Preset"
-                label.contains("cap", ignoreCase = true) -> "At Quality Cap"
-                else -> "Stream Ready"
-            }
-            AutoQualityUiState.State.RECOVERING -> when {
-                compactLabel == "HOST" -> "Host Recovery"
-                label.contains("safe", ignoreCase = true) -> "Auto Safe"
-                label.contains("cap", ignoreCase = true) -> "Auto Safe"
-                label.contains("bitrate", ignoreCase = true) -> "Bitrate Recovery"
-                label.contains("FPS", ignoreCase = true) -> "FPS Recovery"
-                else -> "Recovering"
-            }
-            AutoQualityUiState.State.BLOCKED -> when {
-                label.contains("host", ignoreCase = true) -> "Host Limited"
-                label.contains("network", ignoreCase = true) -> "Network Limited"
-                label.contains("encoder", ignoreCase = true) -> "Encoder Limited"
-                label.contains("decoder", ignoreCase = true) -> "Decoder Limited"
-                else -> "Holding"
-            }
-            AutoQualityUiState.State.UPGRADE_AVAILABLE -> "Quality Ready"
-            AutoQualityUiState.State.MANUAL_OVERRIDE -> "Manual"
-            AutoQualityUiState.State.NEEDS_ATTENTION -> when {
-                label.contains("sync", ignoreCase = true) -> "Sync Attention"
-                label.contains("decoder", ignoreCase = true) -> "Decoder Pressure"
-                label.contains("pacing", ignoreCase = true) -> "Pacing Watch"
-                label.contains("bitrate", ignoreCase = true) -> "Bitrate Adjusted"
-                else -> "Attention"
-            }
-        }
+        private fun AutoQualityUiState.hudLabel(): String = compactLabel
 
         private fun AutoQualityUiState.Tone.toHudTone(): NovaHudTone = when (this) {
             AutoQualityUiState.Tone.MUTED -> NovaHudTone.MUTED

@@ -79,6 +79,7 @@ data class NovaQuickMenuCallbacks(
     val onDisconnect: () -> Unit = {},
     val onEndStream: () -> Unit = {},
     val onStability: () -> Unit = {},
+    val onLiveTuning: () -> Unit = {},
     val onSyncStatus: () -> Unit = {},
     val onToggleAdvanced: () -> Unit = {},
     val onClearGameProfile: () -> Unit = {},
@@ -98,6 +99,7 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.DISCONNECT -> onDisconnect()
             NovaQuickMenuActionId.END_STREAM -> onEndStream()
             NovaQuickMenuActionId.STABILITY -> onStability()
+            NovaQuickMenuActionId.LIVE_TUNING -> onLiveTuning()
             NovaQuickMenuActionId.SYNC_STATUS -> onSyncStatus()
             NovaQuickMenuActionId.ADVANCED_TUNING -> onToggleAdvanced()
             NovaQuickMenuActionId.CLEAR_GAME_PROFILE -> onClearGameProfile()
@@ -332,6 +334,7 @@ fun NovaQuickMenuContent(
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp)
         ) {
             NovaQuickMenuSessionStrip(state, initialFocusRequester)
+            NovaQuickMenuRow(state.liveTuningAction, callbacks)
             // The keys a handheld cannot press any other way stay one reach from the top;
             // the full keyboard grid lives further down with the rest of the panels.
             if (state.pinnedQuickKeys.isNotEmpty()) {

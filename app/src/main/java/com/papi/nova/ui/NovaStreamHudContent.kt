@@ -115,7 +115,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
             ) {
                 Text(
                     text = state.autopilotHudLabel,
-                    color = state.statusTone.hudColor(),
+                    color = state.tuningTone.hudColor(),
                     fontSize = 10.sp,
                     lineHeight = 12.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -221,7 +221,7 @@ private fun HudPerformancePrimaryRow(state: NovaHudUiState) {
         HudStatusDot(state.statusTone, height = 20.dp)
         Text(
             text = state.autopilotCompactLabel,
-            color = state.statusTone.hudColor(),
+            color = state.tuningTone.hudColor(),
             fontSize = 9.sp,
             lineHeight = 11.sp,
             fontWeight = FontWeight.SemiBold,
@@ -334,7 +334,7 @@ private fun NovaStreamHudMinimal(state: NovaHudUiState, modifier: Modifier) {
                 HudCompactText(state.latencyLabel, state.latencyTone, minWidth = 34.dp)
                 Text(
                     text = state.autopilotCompactLabel,
-                    color = state.statusTone.hudColor(),
+                    color = state.tuningTone.hudColor(),
                     fontSize = 8.sp,
                     lineHeight = 10.sp,
                     fontWeight = FontWeight.SemiBold,

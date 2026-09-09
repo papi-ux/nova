@@ -1,133 +1,122 @@
 package com.papi.nova.api
 
 import com.papi.nova.LimeLog
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
-/**
- * Server-Sent Events (SSE) client for Polaris session lifecycle events.
- * Connects to /api/polaris/events and dispatches events to a listener.
- *
- * Runs on a background thread. Auto-reconnects on connection loss.
- */
+/** Session events from the selected host's authenticated, advertised endpoint. */
 class PolarisEventSource(
-    private val baseUrl: String,
+    private val endpoint: String,
     private val listener: EventListener,
-    sharedClient: OkHttpClient? = null
+    sharedClient: OkHttpClient
 ) {
     interface EventListener {
         fun onSessionEvent(event: String, state: String, message: String)
         fun onStateUpdate(sessionState: String, cageRunning: Boolean, screenLocked: Boolean)
         fun onConnectionLost()
+        fun onResyncNeeded() {}
+        fun onLiveTuning(state: LiveTuningStatus) {}
+        fun onInvalidLiveTuning() {}
     }
-
-    private val running = AtomicBoolean(false)
+    private val generation = AtomicLong(0)
     private var thread: Thread? = null
+    @Volatile private var activeCall: Call? = null
+    private val client = sharedClient.newBuilder().connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .followRedirects(false).followSslRedirects(false).build()
 
-    // Derive from shared client to reuse connection pool and TLS config,
-    // but override read timeout for SSE long-polling
-    private val client = (sharedClient?.newBuilder() ?: OkHttpClient.Builder())
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS) // No read timeout for SSE
-        .build()
-
-    fun start() {
-        if (running.getAndSet(true)) return
-
+    @Synchronized fun start() {
+        if (thread != null) return
+        val epoch = generation.incrementAndGet()
         thread = Thread({
-            while (running.get()) {
-                try {
-                    connect()
-                } catch (e: Exception) {
-                    LimeLog.warning("Nova SSE: Connection error: ${e.message}")
-                }
-
-                if (running.get()) {
-                    listener.onConnectionLost()
-                    // Reconnect after 2 seconds
-                    try { Thread.sleep(2000) } catch (_: InterruptedException) { break }
-                }
+            var delay = 1000L
+            while (generation.get() == epoch) {
+                try { connect(epoch); delay = 1000L }
+                catch (e: Exception) { if (generation.get() == epoch) LimeLog.warning("Nova SSE: ${e.javaClass.simpleName}") }
+                if (generation.get() != epoch) break
+                deliver(epoch) { listener.onConnectionLost() }
+                try { Thread.sleep(delay) } catch (_: InterruptedException) { break }
+                delay = (delay * 2).coerceAtMost(15000L)
             }
         }, "nova-sse").apply { isDaemon = true; start() }
-
-        LimeLog.info("Nova SSE: Started")
     }
+    val isRunning: Boolean @Synchronized get() = thread != null
 
-    fun stop() {
-        running.set(false)
+    @Synchronized fun stop() {
+        generation.incrementAndGet()
+        activeCall?.cancel() // Interrupt a blocked socket read, not just the Java thread.
+        activeCall = null
         thread?.interrupt()
         thread = null
-        LimeLog.info("Nova SSE: Stopped")
     }
-
-    private fun connect() {
-        // Use the web UI port (47990) for SSE, not nvhttp
-        val url = "https://$baseUrl:${PolarisApiClient.WEB_UI_HTTPS_PORT}/api/polaris/events"
-        val request = Request.Builder()
-            .url(url)
-            .header("Accept", "text/event-stream")
-            .build()
-
-        val response: Response = client.newCall(request).execute()
-        if (response.code != 200) {
-            LimeLog.warning("Nova SSE: HTTP ${response.code}")
-            response.close()
-            return
+    private inline fun deliver(epoch: Long, callback: () -> Unit) = synchronized(this) {
+        if (generation.get() == epoch) callback()
+    }
+    private fun connect(epoch: Long) {
+        val call = client.newCall(Request.Builder().url(endpoint).header("Accept", "text/event-stream").build())
+        synchronized(this) {
+            if (generation.get() != epoch) return
+            activeCall = call
         }
-
-        LimeLog.info("Nova SSE: Connected to $url")
-        val reader = BufferedReader(InputStreamReader(response.body!!.byteStream()))
-
-        var eventType = ""
-        val dataBuffer = StringBuilder()
-
-        while (running.get()) {
-            val line = reader.readLine() ?: break
-
-            when {
-                line.startsWith("event: ") -> {
-                    eventType = line.substring(7).trim()
-                }
-                line.startsWith("data: ") -> {
-                    dataBuffer.append(line.substring(6))
-                }
-                line.isEmpty() -> {
-                    // End of event — dispatch
-                    if (dataBuffer.isNotEmpty()) {
-                        try {
-                            val json = org.json.JSONObject(dataBuffer.toString())
-                            when (eventType) {
-                                "session" -> {
-                                    listener.onSessionEvent(
-                                        json.optString("event", ""),
-                                        json.optString("state", ""),
-                                        json.optString("message", "")
-                                    )
+        try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) return
+                if (generation.get() != epoch) return
+                // The server sends snapshots, not a retained replay log.
+                deliver(epoch) { listener.onResyncNeeded() }
+                val source = response.body?.source() ?: return
+                var event = ""
+                var id = ""
+                var lastId = ""
+                val data = StringBuilder()
+                while (generation.get() == epoch && !source.exhausted()) {
+                    val line = source.readUtf8LineStrict(65536)
+                    if (generation.get() != epoch) break
+                    when {
+                        line.startsWith("event:") -> event = line.substring(6).trim()
+                        line.startsWith("id:") -> id = line.substring(3).trim()
+                        line.startsWith("data:") -> {
+                            if (data.length + line.length > 65536) throw java.io.IOException("SSE event too large")
+                            if (data.isNotEmpty()) data.append('\n')
+                            data.append(line.substring(5).removePrefix(" "))
+                        }
+                        line.isEmpty() -> {
+                            if (data.isNotEmpty()) {
+                                if (id.isNotEmpty() && lastId.isNotEmpty() && !consecutiveEventIds(lastId, id)) deliver(epoch) { listener.onResyncNeeded() }
+                                val json = JSONObject(data.toString())
+                                when (event) {
+                                    "session" -> deliver(epoch) { listener.onSessionEvent(json.optString("event"), json.optString("state"), json.optString("message")) }
+                                    "state" -> {
+                                        deliver(epoch) {
+                                            listener.onStateUpdate(json.optString("session_state", "idle"), json.optBoolean("cage_running"), json.optBoolean("screen_locked"))
+                                        }
+                                        val live = LiveTuningStatus.parse(json.optJSONObject("live_tuning"))
+                                        deliver(epoch) {
+                                            if (live != null) listener.onLiveTuning(live)
+                                            else listener.onInvalidLiveTuning()
+                                        }
+                                    }
                                 }
-                                "state" -> {
-                                    listener.onStateUpdate(
-                                        json.optString("session_state", "idle"),
-                                        json.optBoolean("cage_running", false),
-                                        json.optBoolean("screen_locked", false)
-                                    )
-                                }
+                                if (id.isNotEmpty()) lastId = id
                             }
-                        } catch (e: Exception) {
-                            LimeLog.warning("Nova SSE: Parse error: ${e.message}")
+                            event = ""; id = ""; data.clear()
                         }
                     }
-                    eventType = ""
-                    dataBuffer.clear()
                 }
             }
+        } finally { synchronized(this) { if (activeCall === call) activeCall = null } }
+    }
+    companion object {
+        fun consecutiveEventIds(previous: String, next: String): Boolean {
+            val a = previous.substringBeforeLast(':', "")
+            val b = next.substringBeforeLast(':', "")
+            val x = previous.substringAfterLast(':').toLongOrNull()
+            val y = next.substringAfterLast(':').toLongOrNull()
+            return a.isNotEmpty() && a == b && x != null && x < Long.MAX_VALUE && y == x + 1
         }
-
-        reader.close()
-        response.close()
     }
 }

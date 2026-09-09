@@ -151,7 +151,37 @@ class PolarisApiClient @JvmOverloads constructor(
     private var apiTrustManager: X509TrustManager? = null
     private val resolvedHttpsPort = if (httpsPort > 0) httpsPort else 47984
     private val baseUrl = "https://$serverAddress:$resolvedHttpsPort/polaris/v1"
-    private val webBaseUrl = "https://$serverAddress:$WEB_UI_HTTPS_PORT"
+    private val webBaseUrl = "https://$serverAddress:${resolvedHttpsPort + 6}"
+    @Volatile private var advertisedEventsPort: Int? = null
+    val sessionEventsUrl: String? get() = advertisedEventsPort?.let { port ->
+        okhttp3.HttpUrl.Builder().scheme("https").host(serverAddress.removeSurrounding("[", "]"))
+            .port(port).addPathSegments("api/polaris/events").build().toString()
+    }
+    // Read the immutable snapshot before invoking UI code; never hold the API monitor through a consumer.
+    fun <T> withCurrentSessionStatus(consumer: (PolarisSessionStatus?) -> T): T = consumer(mutableSessionStatus.value)
+    @Synchronized fun invalidateLiveTuningEvent() {
+        val current = mutableSessionStatus.value ?: return
+        if (current.liveTuningPresent) publishStatus(current.copy(liveTuning = null, liveTuningPresent = true))
+    }
+    @Synchronized fun acceptLiveTuningEvent(live: LiveTuningStatus) {
+        val current = mutableSessionStatus.value ?: return
+        if (current.liveTuning?.hostInstance == live.hostInstance &&
+            current.sessionGeneration == live.sessionGeneration && current.appSessionId == live.appSessionId) {
+            publishStatus(current.copy(liveTuning = live, liveTuningPresent = true))
+        }
+    }
+    // Status reads are authoritative resync boundaries. Serializing their I/O
+    // prevents a delayed, previously unseen old host from replacing a new one.
+    private val statusObservationLock = Any()
+    private val liveTuningReducer = LiveTuningReducer()
+    private val mutableSessionStatus = kotlinx.coroutines.flow.MutableStateFlow<PolarisSessionStatus?>(null)
+    val sessionStatusUpdates: kotlinx.coroutines.flow.StateFlow<PolarisSessionStatus?> = mutableSessionStatus
+    @Synchronized private fun publishStatus(status: PolarisSessionStatus?): PolarisSessionStatus? {
+        if (status == null) { mutableSessionStatus.value = null; return null }
+        if (status.liveTuning != null && liveTuningReducer.accept(status.liveTuning) == null) return mutableSessionStatus.value
+        mutableSessionStatus.value = status
+        return status
+    }
     private val artworkDiskCache = PolarisArtworkDiskCache(context.applicationContext, serverAddress, resolvedHttpsPort)
     private val artworkResolveOnce = ArtworkResolveOnce<PolarisGame.ArtworkManifest>()
     private val imageScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(3))
@@ -1724,6 +1754,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 screenLocked = json.optBoolean("screen_locked", false),
                 cursorVisible = json.optBoolean("cursor_visible", false),
                 dynamicRange = json.optInt("dynamic_range", 0),
+                liveTuning = LiveTuningStatus.parse(json.optJSONObject("live_tuning")),
+                liveTuningPresent = json.has("live_tuning"),
                 adaptiveBitrateEnabled = json.optBoolean("adaptive_bitrate_enabled", false),
                 adaptiveTargetBitrateKbps = json.optInt("adaptive_target_bitrate_kbps", 0),
                 aiAutoQualityEnabled = json.optBoolean(
@@ -2278,16 +2310,19 @@ class PolarisApiClient @JvmOverloads constructor(
      * Query the current session state. Used by ConnectionResilienceManager
      * to determine if the server session is still alive after a stream drop.
      */
-    fun getSessionStatus(): PolarisSessionStatus? {
-        return try {
+    fun getSessionStatus(): PolarisSessionStatus? = synchronized(statusObservationLock) {
+        try {
             val request = Request.Builder().url("$baseUrl/session/status").build()
             executeGetWithRetry(request).use { response ->
-                if (response.code != 200) return null
-                parseSessionStatusResponse(JSONObject(response.body?.string() ?: return null))
+                if (response.code != 200) return publishStatus(null)
+                val json = JSONObject(response.body?.string() ?: return publishStatus(null))
+                val port = json.optInt("events_https_port", 0)
+                advertisedEventsPort = port.takeIf { it in 1..65535 }
+                publishStatus(parseSessionStatusResponse(json))
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Session status query failed: ${errorMessage(e)}")
-            null
+            publishStatus(null)
         }
     }
 
@@ -2974,41 +3009,46 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     /**
-     * Compatibility API for older Polaris hosts. Current Polaris maps this to AI Auto Quality.
+     * Compatibility name for Live Tuning; AI explanation readiness is independent.
      */
-    fun setAdaptiveBitrateEnabled(enabled: Boolean): Boolean {
+    fun setAdaptiveBitrateEnabled(enabled: Boolean): Boolean =
+        setLiveTuningEnabled(enabled, mutableSessionStatus.value ?: getSessionStatus())
+
+    fun setLiveTuningEnabled(enabled: Boolean, observed: PolarisSessionStatus?): Boolean = synchronized(statusObservationLock) {
+        val status = observed?.takeIf {
+            it.canAdjustHostTuning && it.appSessionId.isNotBlank() && it.sessionGeneration > 0L
+        } ?: return false
+        if (status.liveTuningPresent && status.liveTuning == null) return false
         return try {
-            val status = getSessionStatus()?.takeIf {
-                it.canAdjustHostTuning && it.appSessionId.isNotBlank() && it.sessionGeneration > 0L
-            } ?: return false
-            val body = org.json.JSONObject().apply {
+            val body = JSONObject().apply {
                 put("enabled", enabled)
                 put("app_session_id", status.appSessionId)
                 put("session_generation", status.sessionGeneration)
+                status.liveTuning?.let { put("configuration_revision", it.configurationRevision) }
             }
-            val request = Request.Builder()
-                .url("$baseUrl/session/adaptive-bitrate")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            executeWithTransientRetry(request).use { response ->
-                response.code == 200
+            val request = Request.Builder().url("$baseUrl/session/adaptive-bitrate")
+                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), body.toString())).build()
+            // A lost response must refresh; never replay a stale operator decision.
+            executeNonRetryable(request).use { response ->
+                val result = JSONObject(response.body?.string().orEmpty())
+                val live = LiveTuningStatus.parse(result.optJSONObject("live_tuning"))
+                if (live != null && live.sessionGeneration == status.sessionGeneration && live.appSessionId == status.appSessionId) {
+                    acceptLiveTuningEvent(live)
+                }
+                response.code == 200 && result.optBoolean("status")
             }
         } catch (e: Exception) {
-            LimeLog.warning("Nova: Adaptive bitrate toggle failed: ${errorMessage(e)}")
+            LimeLog.warning("Nova: Live Tuning save failed: ${errorMessage(e)}")
+            publishStatus(null)
             false
         }
     }
 
     /**
-     * Toggle AI Auto Quality. Polaris maps this to optimizer decisions and adaptive bitrate.
+     * Legacy compatibility name for the host Live Tuning preference.
      */
     fun setAiAutoQualityEnabled(enabled: Boolean): Boolean {
-        val aiUpdated = setAiOptimizerEnabled(enabled)
-        val adaptiveUpdated = setAdaptiveBitrateEnabled(enabled)
-        return aiUpdated || adaptiveUpdated
+        return setAdaptiveBitrateEnabled(enabled)
     }
 
     /**

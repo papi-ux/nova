@@ -107,6 +107,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             }
         }
         overlay.setOnDismissListener {
+            game.cancelRuntimeTask("NovaQuickMenuLiveTuning")
             if (doctorMenuRefreshRegistry.close(menuValidationGeneration)) {
                 synchronized(doctorActionLock) {
                     doctorReceiptValidatedScopeId = null
@@ -162,20 +163,15 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         var advancedTuningVisible = false
         var profileClearInProgress = false
         var hostStateUnavailable = false
+        var liveTuningPending = false
         lateinit var scheduleDoctorVerification: (DoctorActionReceipt?) -> Unit
 
         fun menuValidationIsCurrent(): Boolean =
             doctorMenuRefreshRegistry.isCurrent(menuValidationGeneration)
 
         fun syncSessionDerivedState() {
-            adaptiveEnabled = sessionStatus?.tuning?.adaptiveBitrateEnabled == true ||
-                sessionStatus?.adaptiveBitrateEnabled == true
-            aiEnabled = sessionStatus?.autoQuality?.enabled == true ||
-                sessionStatus?.tuning?.aiAutoQualityEnabled == true ||
-                sessionStatus?.aiAutoQualityEnabled == true ||
-                sessionStatus?.tuning?.aiOptimizerEnabled == true ||
-                sessionStatus?.aiOptimizerEnabled == true ||
-                adaptiveEnabled
+            adaptiveEnabled = sessionStatus?.liveTuning?.enabled ?: (sessionStatus?.tuning?.adaptiveBitrateEnabled == true || sessionStatus?.adaptiveBitrateEnabled == true)
+            aiEnabled = adaptiveEnabled
             mangoHudEnabled = sessionStatus?.tuning?.mangohudConfigured == true ||
                 sessionStatus?.mangohudConfigured == true
         }
@@ -226,14 +222,23 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             }
         }
 
-        fun acceptRefreshedSessionStatus(refreshed: PolarisSessionStatus?): Boolean {
-            if (refreshed == null) return false
+        // All menu/receipt publication runs on Main. Async completions resolve
+        // the current store there, so an earlier GET cannot replay old state.
+        fun publishCurrentSessionStatus(): Boolean {
             return doctorMenuRefreshRegistry.runIfCurrent(menuValidationGeneration) {
-                sessionStatus = refreshed
-                syncSessionDerivedState()
-                syncDoctorReceiptScope()
-                true
+                apiClient?.withCurrentSessionStatus { current ->
+                    sessionStatus = current
+                    syncSessionDerivedState()
+                    syncDoctorReceiptScope()
+                    current != null
+                } ?: false
             } ?: false
+        }
+
+        suspend fun acceptRefreshedSessionStatus(@Suppress("UNUSED_PARAMETER") refreshed: PolarisSessionStatus?): Boolean {
+            var accepted = false
+            game.runOnMainIfRuntimeActive { accepted = publishCurrentSessionStatus() }
+            return accepted
         }
 
         fun canExecuteDoctorAction(
@@ -464,6 +469,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 status = sessionStatus,
                 apiAvailable = apiClient != null,
                 hostStateUnavailable = hostStateUnavailable,
+                liveTuningPending = liveTuningPending,
                 adaptiveSupported = adaptiveSupported,
                 aiSupported = aiSupported,
                 adaptiveEnabled = adaptiveEnabled,
@@ -497,7 +503,13 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         var uiState by mutableStateOf(buildState())
         fun refreshState() {
-            uiState = buildState()
+            if (apiClient != null) apiClient.withCurrentSessionStatus { current ->
+                sessionStatus = current
+                hostStateUnavailable = current == null
+                syncSessionDerivedState()
+                syncDoctorReceiptScope()
+                uiState = buildState()
+            } else uiState = buildState()
         }
 
         fun sendQuickKey(actionId: NovaQuickMenuActionId) {
@@ -850,7 +862,25 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     game.launchRuntimeIo("NovaQuickMenuSyncStatus") {
                         acceptRefreshedSessionStatus(apiClient.getSessionStatus())
                         game.runOnMainIfRuntimeActive {
-                            hostStateUnavailable = false
+                            refreshState()
+                        }
+                    }
+                }
+            },
+            onLiveTuning = {
+                val observed = sessionStatus
+                if (apiClient != null && observed?.canAdjustHostTuning == true && !hostStateUnavailable && !liveTuningPending) {
+                    val desired = !(observed.liveTuning?.enabled ?: adaptiveEnabled)
+                    liveTuningPending = true
+                    refreshState()
+                    game.launchRuntimeIo("NovaLiveTuningSave") {
+                        val success = apiClient.setLiveTuningEnabled(desired, observed)
+                        apiClient.getSessionStatus()
+                        game.runOnMainIfRuntimeActive {
+                            if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
+                            liveTuningPending = false
+                            hostStateUnavailable = !publishCurrentSessionStatus()
+                            if (!success) NovaSnackbar.showError(game, "Settings changed or could not be confirmed. Review Live Tuning and try again.", anchor = composeView)
                             refreshState()
                         }
                     }
@@ -1066,30 +1096,28 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         }
 
         if (apiClient != null) {
+            game.launchReplacingRuntimeIo("NovaQuickMenuLiveTuning") {
+                apiClient.sessionStatusUpdates.collect {
+                    game.runOnMainIfRuntimeActive {
+                        if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
+                        hostStateUnavailable = !publishCurrentSessionStatus()
+                        refreshState()
+                    }
+                }
+            }
             game.launchReplacingRuntimeIo("NovaQuickMenuStateRefresh") {
                 try {
                     // Capabilities do not change inside a stream; one fetch per session,
                     // not one per open.
                     val refreshedCapabilities = capabilities ?: apiClient.getCapabilities()
-                    val refreshedSessionStatus = apiClient.getSessionStatus()
-                    val accepted = doctorMenuRefreshRegistry.runIfCurrent(menuValidationGeneration) {
-                        synchronized(doctorActionLock) {
-                            capabilities = refreshedCapabilities
-                            sessionStatus = refreshedSessionStatus
-                            val polarisSessionApiAvailable = sessionStatus != null
-                            adaptiveSupported = capabilities?.features?.adaptiveBitrateControl == true || polarisSessionApiAvailable
-                            aiSupported = capabilities?.features?.aiAutoQualityControl == true ||
-                                capabilities?.features?.aiOptimizerControl == true
-                            hostStateUnavailable = false
-                            syncSessionDerivedState()
-                            syncDoctorReceiptScope()
-                            true
-                        }
-                    } ?: false
-                    if (!accepted) return@launchReplacingRuntimeIo
-
+                    apiClient.getSessionStatus()
                     game.runOnMainIfRuntimeActive {
                         if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
+                        capabilities = refreshedCapabilities
+                        adaptiveSupported = capabilities?.features?.adaptiveBitrateControl == true
+                        aiSupported = capabilities?.features?.aiAutoQualityControl == true ||
+                            capabilities?.features?.aiOptimizerControl == true
+                        publishCurrentSessionStatus()
                         scheduleDoctorVerification(doctorReceipt)
                         refreshState()
                     }
@@ -1097,16 +1125,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     throw e
                 } catch (e: Exception) {
                     LimeLog.warning("Nova: Quick menu state refresh failed: ${e.message}")
-                    val accepted = doctorMenuRefreshRegistry.runIfCurrent(menuValidationGeneration) {
-                        synchronized(doctorActionLock) {
-                            hostStateUnavailable = true
-                            true
-                        }
-                    } ?: false
-                    if (accepted) {
-                        game.runOnMainIfRuntimeActive {
-                            if (menuValidationIsCurrent()) refreshState()
-                        }
+                    game.runOnMainIfRuntimeActive {
+                        if (menuValidationIsCurrent()) refreshState()
                     }
                 }
             }
