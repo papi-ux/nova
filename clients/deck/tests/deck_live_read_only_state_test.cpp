@@ -2,7 +2,11 @@
 // sanitized DTOs out, with the cached Moonlight app list as the offline fallback.
 #include "backend/deck_live_read_only_state.h"
 
+#include <atomic>
 #include <cassert>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <string>
 #include <string_view>
 
@@ -63,7 +67,7 @@ void assertNoPrivateMaterial(const DeckPublicReadOnlyHostLibraryState& state) {
 
 void testLivePolarisLibraryWins() {
     const auto identity = pairedIdentity();
-    int calls = 0;
+    std::atomic<int> calls{0};
     const auto snapshot = buildLiveSnapshot(identity, [&calls](const identity::DeckMoonlightHostRecord& host, const bool wantLibrary) {
         ++calls;
         assert(wantLibrary == (host.uuid == "home-uuid") && "only the first reachable host is asked for its library");
@@ -202,7 +206,7 @@ void testMissingIdentityAndMissingCertificates() {
     auto unpinned = pairedIdentity();
     unpinned.hosts[0].serverCertificatePem.clear();
     unpinned.hosts.resize(1);
-    int calls = 0;
+    std::atomic<int> calls{0};
     const auto snapshot = buildLiveSnapshot(unpinned, [&calls](const identity::DeckMoonlightHostRecord&, bool) {
         ++calls;
         return DeckLivePolarisFetch{};
@@ -216,14 +220,25 @@ void testMissingIdentityAndMissingCertificates() {
 void testSelectedHostLeadsEvenWhenMoonlightListsItSecond() {
     auto identity = pairedIdentity();
     std::swap(identity.hosts[0], identity.hosts[1]);  // Office first in Moonlight's order, no cached apps
-    const auto snapshot = buildLiveSnapshot(identity, [](const identity::DeckMoonlightHostRecord& host, bool) {
+    std::atomic<int> homeLibraryAsks{0};
+    std::atomic<int> homeProbes{0};
+    const auto snapshot = buildLiveSnapshot(identity, [&](const identity::DeckMoonlightHostRecord& host, const bool wantLibrary) {
         DeckLivePolarisFetch fetch;
         if (host.uuid == "home-uuid") {
+            (wantLibrary ? homeLibraryAsks : homeProbes)++;
             fetch.status = DeckPolarisRequestStatus::Ok;
-            fetch.games = {game("g1", "Portal 2")};
+            if (wantLibrary) {
+                fetch.games = {game("g1", "Portal 2")};
+            }
+        } else {
+            assert(wantLibrary && "the first host in Moonlight's order is asked for the library up front");
         }
         return fetch;
     });
+    // Office was asked for the library first and did not answer, so Home was
+    // probed for capabilities in the same round and then asked once more.
+    assert(homeProbes == 1 && homeLibraryAsks == 1);
+    assert(snapshot.library.games.size() == 1);
     assert(snapshot.selectedHostId == "home-uuid");
     assert(snapshot.hosts[0].id == "office-uuid" && "snapshot keeps Moonlight's order");
     const auto ordered = hostsSelectedFirst(snapshot);
@@ -254,6 +269,77 @@ void testReachableHostWithoutMoonlightCacheStillHasApps() {
     assert(snapshot.hosts[0].standardAppListAvailable && "a live library counts as an app list");
 }
 
+void testLibraryFailureTriesTheNextReachableHost() {
+    auto identity = pairedIdentity();
+    auto garage = identity.hosts[1];
+    garage.uuid = "garage-uuid";
+    identity.hosts.push_back(garage);
+    std::atomic<int> officeLibraryAsks{0};
+    std::atomic<int> garageLibraryAsks{0};
+    const auto snapshot = buildLiveSnapshot(identity, [&](const identity::DeckMoonlightHostRecord& host, const bool wantLibrary) {
+        DeckLivePolarisFetch fetch;
+        fetch.status = DeckPolarisRequestStatus::Ok;
+        if (host.uuid == "home-uuid") {
+            fetch.status = DeckPolarisRequestStatus::Timeout;
+        } else if (host.uuid == "office-uuid" && wantLibrary) {
+            ++officeLibraryAsks;
+            fetch.status = DeckPolarisRequestStatus::Unauthorized;
+        } else if (host.uuid == "garage-uuid" && wantLibrary) {
+            ++garageLibraryAsks;
+            fetch.games = {game("garage-game", "Portal 2")};
+        }
+        return fetch;
+    });
+    assert(officeLibraryAsks == 1 && garageLibraryAsks == 1);
+    assert(snapshot.selectedHostId == "garage-uuid");
+    assert(snapshot.library.games.size() == 1);
+    assert(snapshot.library.games[0].id == "garage-game");
+    assert(snapshot.probes[1].status == DeckPolarisRequestStatus::Unauthorized);
+    assert(snapshot.hosts[1].state == DeckHostState::AuthRejected);
+    assert(snapshot.probes[2].librarySource == "polaris-live");
+}
+
+void testHostsAreProbedConcurrently() {
+    // Three paired hosts whose probes each wait for the other two before
+    // answering. A builder that probed one host at a time would never let the
+    // second probe start while the first is waiting, so the wait below would
+    // hit its bound; a concurrent builder releases all three at once.
+    auto identity = pairedIdentity();
+    identity::DeckMoonlightHostRecord garage;
+    garage.uuid = "garage-uuid";
+    garage.hostname = "garage";
+    garage.localAddress = "garage.lan";
+    garage.serverCertificatePem = "srv3";
+    identity.hosts.push_back(garage);
+    const int hostCount = static_cast<int>(identity.hosts.size());
+
+    std::mutex mutex;
+    std::condition_variable allStarted;
+    int started = 0;
+    std::atomic<bool> waitedOut{false};
+    const auto snapshot = buildLiveSnapshot(identity, [&](const identity::DeckMoonlightHostRecord& host, bool) {
+        {
+            std::unique_lock lock(mutex);
+            ++started;
+            allStarted.notify_all();
+            if (!allStarted.wait_for(lock, std::chrono::seconds(2), [&] { return started >= hostCount; })) {
+                waitedOut = true;
+            }
+        }
+        DeckLivePolarisFetch fetch;
+        fetch.status = host.uuid == "office-uuid" ? DeckPolarisRequestStatus::Ok : DeckPolarisRequestStatus::Timeout;
+        if (fetch.status == DeckPolarisRequestStatus::Ok) {
+            fetch.games = {game("g1", "Portal 2")};
+        }
+        return fetch;
+    });
+    assert(!waitedOut && "hosts must be probed concurrently, not one after another");
+    assert(snapshot.hosts.size() == 3 && "results keep Moonlight's order");
+    assert(snapshot.hosts[0].id == "home-uuid" && snapshot.hosts[1].id == "office-uuid" && snapshot.hosts[2].id == "garage-uuid");
+    assert(snapshot.selectedHostId == "office-uuid" && "the first reachable host still wins");
+    assert(snapshot.library.games.size() == 1);
+}
+
 void testTerminalSummaryIsSanitized() {
     const auto identity = pairedIdentity();
     const auto snapshot = buildLiveSnapshot(identity, [](const identity::DeckMoonlightHostRecord&, bool) {
@@ -281,6 +367,8 @@ int main() {
     testMissingIdentityAndMissingCertificates();
     testSelectedHostLeadsEvenWhenMoonlightListsItSecond();
     testReachableHostWithoutMoonlightCacheStillHasApps();
+    testLibraryFailureTriesTheNextReachableHost();
+    testHostsAreProbedConcurrently();
     testTerminalSummaryIsSanitized();
     return 0;
 }

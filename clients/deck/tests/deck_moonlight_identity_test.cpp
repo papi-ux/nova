@@ -199,6 +199,43 @@ void testPortDerivation() {
     assert(polarisHttpsPortForMoonlightHttpPort(0) == 47984);
 }
 
+// The other tests write their INI with QSettings from this side, which pins
+// what we assumed Moonlight-Qt writes. This one reads a file Moonlight-Qt
+// 6.1.0 itself wrote (fixtures/moonlight_qt_6_1_flatpak_pairing.conf, secrets
+// and addresses redacted in place), so the reader is held to the real shape:
+// `customname` is a bool and the display name lives in `hostname`, app names
+// with commas come back quoted, `mac` is a byte array, and the key that is
+// present but unreadable still counts as an identity for the loader.
+void testReadsAFileMoonlightQtWrote() {
+    const auto path = std::filesystem::path(NOVA_DECK_FIXTURE_SOURCE_DIR) / "moonlight_qt_6_1_flatpak_pairing.conf";
+    const auto identity = loadMoonlightIdentity(path, "moonlight-flatpak");
+    assert(identity.has_value());
+    assert(identity->hasClientIdentity());
+    assert(identity->clientCertificateFingerprintSha256().size() == 64 && "the redacted stand-in certificate still parses");
+
+    assert(identity->hosts.size() == 1);
+    const auto& host = identity->hosts[0];
+    assert(host.uuid == "11111111-2222-4333-8444-555555555555");
+    assert(host.hostname == "example-host.invalid");
+    assert(host.displayName() == "example-host.invalid" && "customname=false is a flag, never a name");
+    assert(host.preferredAddress() == "127.0.0.1" && "the manual address Moonlight recorded comes first");
+    assert(host.preferredHttpPort() == 47989);
+    assert(host.hasServerCertificate());
+    assert(host.ipv6Address.empty() && host.ipv6Port == 0);
+
+    assert(host.apps.size() == 25);
+    bool sawQuotedName = false;
+    bool sawSteamBigPicture = false;
+    for (const auto& app : host.apps) {
+        assert(app.id > 0 && !app.name.empty());
+        sawQuotedName = sawQuotedName || app.name == "No, I'm not a Human";
+        sawSteamBigPicture = sawSteamBigPicture || app.name == "Steam Big Picture";
+    }
+    assert(sawQuotedName && "QSettings quotes a name with a comma; the reader must unquote it");
+    assert(sawSteamBigPicture);
+    assert(identity->hostById("11111111-2222-4333-8444-555555555555") == &host);
+}
+
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -207,6 +244,7 @@ int main(int argc, char* argv[]) {
     testMissingFileAndMissingIdentity();
     testCandidateOrderPrefersOverride();
     testHostsBackupIsReadWhenHostsIsEmpty();
+    testReadsAFileMoonlightQtWrote();
     testPortDerivation();
     return 0;
 }

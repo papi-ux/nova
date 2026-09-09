@@ -6,6 +6,9 @@
 
 #include <cassert>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 namespace {
@@ -76,6 +79,61 @@ void testParsesGamesPageFromHostShape() {
     assert(!parseGamesPage(R"({"total": 1})").has_value());
 }
 
+std::string readFixture(const char* name) {
+    std::ifstream in(std::filesystem::path(NOVA_DECK_FIXTURE_SOURCE_DIR) / name);
+    assert(in && "fixture must exist");
+    std::ostringstream body;
+    body << in.rdbuf();
+    return body.str();
+}
+
+// The hand-written bodies above encode what we assumed Polaris serves. These
+// two preserve recorded Polaris 1.4.4 response shapes, with synthetic host
+// identifiers and usage metadata (fixtures/polaris_1_4_4_*.json), and pin the three
+// things the assumed shape got wrong the first time: `app_id` is a string,
+// `total` counts the page, not the library, and ids are dashed UUIDs.
+void testParsesBodiesPolarisActuallyServed() {
+    const auto capabilities = parseCapabilities(readFixture("polaris_1_4_4_capabilities.json"));
+    assert(capabilities.has_value());
+    assert(capabilities->server == "polaris" && "lowercase on the wire");
+    assert(capabilities->version == "1.4.4");
+    assert(capabilities->gameLibrary && capabilities->sessionLifecycle && capabilities->clientSettings);
+    assert(capabilities->captureBackend == "portal");
+    assert(capabilities->codecs.size() == 1 && capabilities->codecs[0] == "h264");
+
+    const auto page = parseGamesPage(readFixture("polaris_1_4_4_games_limit2_offset0.json"));
+    assert(page.has_value());
+    assert(page->games.size() == 2);
+    assert(page->total == 2 && "limit=2 on a bigger library: total is the page, so paging must not stop on it");
+
+    const auto& bigPicture = page->games[0];
+    assert(bigPicture.id == "11111111-2222-4333-8444-555555555555");
+    assert(bigPicture.appId == 1000000001 && "served as the string \"1000000001\"");
+    assert(bigPicture.name == "Steam Big Picture");
+    assert(bigPicture.source == "manual");
+    assert(bigPicture.steamAppid.empty());
+    assert(bigPicture.installed && !bigPicture.hdrSupported);
+    assert(bigPicture.platform.empty() && bigPicture.runtime.empty() && "not served for manual entries");
+    assert(bigPicture.lastLaunched == 1700000000LL);
+    assert(bigPicture.launchPreferredMode == "headless_stream");
+    assert(bigPicture.launchRecommendedMode == "headless_stream");
+    assert(bigPicture.launchAllowedModes.size() == 6);
+    assert(!bigPicture.launchModeReason.empty());
+    assert(!bigPicture.steamLaunchAvailable && bigPicture.steamLaunchAllowedModes.empty());
+    assert(bigPicture.genres.empty());
+
+    const auto& indy = page->games[1];
+    assert(indy.appId == 1000000002);
+    assert(indy.name == "Indiana Jones and the Great Circle");
+    assert(indy.source == "steam" && indy.steamAppid == "2677660");
+    assert(indy.category == "fast_action");
+    assert(indy.launchPreferredMode == "host_virtual_display");
+    assert(indy.launchRecommendedMode == "headless_stream");
+    assert(indy.steamLaunchAvailable && indy.steamLaunchMode == "direct" && indy.steamLaunchRecommendedMode == "direct");
+    assert(indy.steamLaunchAllowedModes.size() == 2);
+    assert(indy.genres.size() == 2 && indy.genres[0] == "Action");
+}
+
 void testParsesSessionStatus() {
     const auto status = parseSessionStatus(R"({
         "state": "streaming", "streaming_active": true, "game": "Portal 2", "game_uuid": "abc",
@@ -104,10 +162,16 @@ void testParsesServerInfoHttpsPort() {
     assert(!parseServerInfoHttpsPort("<root><HttpsPort>47a84</HttpsPort></root>").has_value());
     assert(!parseServerInfoHttpsPort("<root><HttpsPort>99999</HttpsPort></root>").has_value());
     assert(!resolveHttpsPortFromServerInfo("", 47989, std::chrono::milliseconds(50)).has_value());
+    const auto unaddressed = probeServerInfoHttpsPort("", 47989, std::chrono::milliseconds(50));
+    assert(!unaddressed.httpsPort.has_value() && !unaddressed.timedOut);
+    // A refusal answers at once and must not be mistaken for an HTTP timeout.
+    // Neither result prevents the live route from trying pinned HTTPS.
+    const auto refused = probeServerInfoHttpsPort("127.0.0.1", 1, std::chrono::milliseconds(2000));
+    assert(!refused.httpsPort.has_value() && !refused.timedOut);
 }
 
 void testSplitsPathAndQueryForQUrl() {
-    // Field bug from the first pc-papi probe: the games page went out as
+    // Field bug from the first host probe: the games page went out as
     // /polaris/v1/games%3Flimit=100 and the host answered 404.
     const auto paged = splitRequestTarget("/polaris/v1/games?limit=100&offset=0");
     assert(paged.path == "/polaris/v1/games");
@@ -142,6 +206,7 @@ int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     testParsesCapabilities();
     testParsesGamesPageFromHostShape();
+    testParsesBodiesPolarisActuallyServed();
     testParsesSessionStatus();
     testParsesServerInfoHttpsPort();
     testSplitsPathAndQueryForQUrl();

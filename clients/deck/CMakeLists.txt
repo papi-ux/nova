@@ -74,6 +74,8 @@ target_compile_definitions(nova_deck_core
         NOVA_DECK_SAMPLE_GAME_FIXTURE=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures/sample_polaris_game.json\"
         NOVA_DECK_SAMPLE_LIBRARY_FIXTURE=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures/sample_polaris_library.json\"
         NOVA_DECK_INSTALL_FIXTURE_DIR=\"${CMAKE_INSTALL_FULL_DATADIR}/nova-deck/fixtures\"
+        # Recorded real-writer fixtures (a Moonlight-Qt pairing file, Polaris API bodies) for the tests.
+        NOVA_DECK_FIXTURE_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures\"
 )
 
 include(CTest)
@@ -129,6 +131,14 @@ if(BUILD_TESTING)
     )
     target_link_libraries(nova_deck_live_read_only_state_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_live_read_only_state_test COMMAND nova_deck_live_read_only_state_test)
+
+    find_program(NOVA_DECK_TEST_OPENSSL openssl REQUIRED)
+    add_executable(nova_deck_live_network_test tests/deck_live_network_test.cpp)
+    target_link_libraries(nova_deck_live_network_test PRIVATE nova_deck_core)
+    target_compile_definitions(nova_deck_live_network_test PRIVATE
+        NOVA_DECK_TEST_OPENSSL="${NOVA_DECK_TEST_OPENSSL}")
+    add_test(NAME nova_deck_live_network_test COMMAND nova_deck_live_network_test)
+    set_tests_properties(nova_deck_live_network_test PROPERTIES TIMEOUT 45)
 
     add_executable(nova_deck_moonlight_launcher_test
         tests/deck_moonlight_launcher_test.cpp

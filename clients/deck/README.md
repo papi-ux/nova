@@ -24,15 +24,15 @@ Planned role:
 
 ## Runnable smoke paths
 
-Fallback native core and controller/library placeholder, no Qt required:
+Native core and controller/library tests with the QML shell disabled (Qt and Linux media development dependencies are still required):
 
-    cmake -S clients/deck -B build/deck-smoke-core -DNOVA_DECK_BUILD_QT_SHELL=OFF
+    cmake -S clients/deck -B build/deck-smoke-core -DNOVA_DECK_BUILD_QT_SHELL=OFF -DCMAKE_BUILD_TYPE=Debug
     cmake --build build/deck-smoke-core
     ctest --test-dir build/deck-smoke-core --output-on-failure
 
 Full Qt shell smoke, when Qt deps are present:
 
-    cmake -S clients/deck -B build/deck-smoke-qt
+    cmake -S clients/deck -B build/deck-smoke-qt -DCMAKE_BUILD_TYPE=Debug
     cmake --build build/deck-smoke-qt
     ctest --test-dir build/deck-smoke-qt --output-on-failure
 
@@ -62,7 +62,7 @@ How it works:
 
 - `src/identity/deck_moonlight_identity.*` reads Moonlight-Qt's own settings file: the Flatpak copy under `~/.var/app/com.moonlight_stream.Moonlight/config/`, the native copy under `~/.config/`, or the file named by `NOVA_DECK_MOONLIGHT_CONF`. That file holds the client certificate and key, every paired host with its pinned server certificate, and the cached app list per host. The private key stays inside the identity object; no public DTO or log line carries it, and host addresses never reach the shell either.
 - `src/polaris/deck_polaris_client.*` learns the HTTPS port from the host's plain-HTTP serverinfo the way Moonlight does, then calls `/polaris/v1/capabilities` and `/polaris/v1/games` with that client certificate. The server certificate Moonlight pinned at pairing is the only trust anchor: the handshake fails against any other certificate before the request is sent, and the host is reported as a certificate mismatch. Network failures are reported with fixed wording, never with the address.
-- `src/backend/deck_live_read_only_state.*` turns the probes into the same sanitized read-only DTOs the fixture route produces. A reachable Polaris host supplies the library; an unreachable one falls back to the apps Moonlight cached, labelled as such.
+- `src/backend/deck_live_read_only_state.*` turns the probes into the same sanitized read-only DTOs the fixture route produces. Every paired host is probed at the same time, so the wait before the shell appears is the slowest host's timeouts, not the sum over hosts. The first reachable Polaris host supplies the library; when none answers, the apps Moonlight cached stand in, labelled as such.
 
 On the host side, any paired certificate that calls `/polaris/v1` is promoted to the `nova` client family, so after the first live run Polaris sees the Deck's Moonlight pairing as a Nova client. That is the intended shape: one pairing, one identity, two apps on the Deck until the media slice lands.
 
@@ -102,11 +102,11 @@ The skeleton intentionally exposes adapter seams for renderer/presentation, audi
 
 ## Fedora or SteamOS dependency notes
 
-The fallback smoke needs CMake, C/C++ compilers, OpenSSL crypto development headers, and the checked-out moonlight-common-c submodule.
+The native tests need CMake, C/C++ compilers, OpenSSL crypto development headers, Qt, the Linux media libraries required by CMake, and the checked-out moonlight-common-c submodule. The network regression also needs the `openssl` executable to create ephemeral test certificates in a temporary directory.
 
 For the Qt shell on Fedora, install the Qt 6 development packages if CMake warns that Qt6 Quick or QuickControls2 is missing:
 
-    sudo dnf install cmake gcc-c++ qt6-qtbase-devel qt6-qtdeclarative-devel
+    sudo dnf install cmake gcc-c++ openssl qt6-qtbase-devel qt6-qtdeclarative-devel
 
 On Fedora, qt6-qtdeclarative-devel provides cmake(Qt6QuickControls2). SteamOS package names may differ; the required CMake components are Qt6 Core, Qt6 Gui, Qt6 Qml, Qt6 Quick, and Qt6 QuickControls2.
 
