@@ -6270,6 +6270,8 @@ internal fun launchRuntimeIo(name:String, block:suspend kotlinx.coroutines.Corou
 runtimeTasks.launchIo(name, block)
 }
 
+internal fun cancelRuntimeTask(name:String) { runtimeTasks.cancel(name) }
+
 internal fun launchReplacingRuntimeIo(name:String, block:suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {
 runtimeTasks.launchIoReplacing(name, block)
 }
@@ -6336,58 +6338,60 @@ if (!connected && !isStreamActive)
 {
 novaProgressOverlay?.show()
 }
-novaEventSource = com.papi.nova.api.PolarisEventSource(host ?: "",
-object : com.papi.nova.api.PolarisEventSource.EventListener {
-override fun onSessionEvent(event:String, state:String, message:String) {
-LimeLog.info("Nova SSE: " + event + " [" + state + "] " + message)
-if (PolarisSessionEvents.isCurrentSessionEvent(event, state))
-{
-polarisSseSawCurrentSessionEvent = true
+val sourceClient = novaApiClient ?: return
+val eventsEndpoint = sourceClient.sessionEventsUrl ?: return
+lateinit var source: com.papi.nova.api.PolarisEventSource
+var previousSessionState = ""
+fun deliverToCurrentSession(action: () -> Unit) {
+runOnUiThread {
+if (novaEventSource === source && novaApiClient === sourceClient && source.isRunning &&
+    !isFinishing && !isDestroyed) action()
 }
-novaProgressOverlay!!.updateState(state, message)
-if (PolarisSessionEvents.shouldFinishGameActivity(event, state, polarisSseSawCurrentSessionEvent))
-{
+}
+source = com.papi.nova.api.PolarisEventSource(eventsEndpoint,
+object : com.papi.nova.api.PolarisEventSource.EventListener {
+override fun onSessionEvent(event:String, state:String, message:String) = deliverToCurrentSession {
+if (PolarisSessionEvents.isCurrentSessionEvent(event, state)) polarisSseSawCurrentSessionEvent = true
+novaProgressOverlay?.updateState(state, message)
+if (PolarisSessionEvents.shouldFinishGameActivity(event, state, polarisSseSawCurrentSessionEvent)) {
 handlePolarisHostSessionEnded()
 }
 }
-override fun onStateUpdate(sessionState:String, cageRunning:Boolean, screenLocked:Boolean) {
-if (PolarisSessionEvents.isCurrentSessionEvent("", sessionState))
-{
-polarisSseSawCurrentSessionEvent = true
+override fun onStateUpdate(sessionState:String, cageRunning:Boolean, screenLocked:Boolean) = deliverToCurrentSession {
+if (PolarisSessionEvents.isCurrentSessionEvent("", sessionState)) polarisSseSawCurrentSessionEvent = true
+novaProgressOverlay?.updateState(sessionState, "")
+// State heartbeats already carry tuning. Refresh full status on transitions only.
+if (sessionState == "streaming" && previousSessionState != sessionState) {
+schedulePolarisLiveSessionStatusRefresh(true)
+} else if (PolarisSessionEvents.shouldFinishGameActivity("", sessionState, polarisSseSawCurrentSessionEvent)) {
+handlePolarisHostSessionEnded()
 }
-novaProgressOverlay!!.updateState(sessionState, "")
-if ("streaming".equals(sessionState))
-{
+previousSessionState = sessionState
+if (novaHasLockScreenControl()) {
+if (shouldShowPolarisLockOverlay(screenLocked, cageRunning)) novaLockScreenOverlay?.show()
+else novaLockScreenOverlay?.dismiss()
+}
+}
+override fun onConnectionLost() = deliverToCurrentSession {
 schedulePolarisLiveSessionStatusRefresh(true)
 }
-else if (PolarisSessionEvents.shouldFinishGameActivity("", sessionState, polarisSseSawCurrentSessionEvent))
-{
-handlePolarisHostSessionEnded()
+override fun onResyncNeeded() = deliverToCurrentSession { schedulePolarisLiveSessionStatusRefresh(true) }
+override fun onInvalidLiveTuning() = deliverToCurrentSession {
+sourceClient.invalidateLiveTuningEvent()
+lastPolarisSessionStatus = sourceClient.sessionStatusUpdates.value
+novaHud?.applySessionStatus(lastPolarisSessionStatus)
+schedulePolarisLiveSessionStatusRefresh(true)
 }
-if (novaHasLockScreenControl())
-{
-var shouldShowLockOverlay:Boolean = shouldShowPolarisLockOverlay(screenLocked, cageRunning)
-if (shouldShowLockOverlay && cageRunning)
-{
-LimeLog.info("Nova SSE: host lock flag received while stream compositor is running; showing unlock overlay")
+override fun onLiveTuning(state:com.papi.nova.api.LiveTuningStatus) = deliverToCurrentSession {
+sourceClient.acceptLiveTuningEvent(state)
+val current = sourceClient.sessionStatusUpdates.value
+lastPolarisSessionStatus = current
+novaHud?.applySessionStatus(current)
+updateCompanionCommandDeck()
 }
-if (shouldShowLockOverlay)
-{
-novaLockScreenOverlay!!.show()
-}
-else
-{
-novaLockScreenOverlay!!.dismiss()
-}
-}
-}
-override fun onConnectionLost() {
-LimeLog.warning("Nova SSE: Connection lost")
-}
-},
-novaApiClient!!.client
-)
-novaEventSource!!.start()
+}, sourceClient.client)
+novaEventSource = source
+source.start()
 }
 
 private fun schedulePolarisLiveSessionStatusRefresh(immediate:Boolean) {
@@ -6659,22 +6663,32 @@ if (novaApiClient == null || !polarisSessionStatusRefreshInFlight.compareAndSet(
 return
 }
 
+val statusClient = novaApiClient ?: return
 runtimeTasks.launchIo("NovaSessionStatus") { try
 {
-var status:com.papi.nova.api.PolarisSessionStatus? = novaApiClient!!.getSessionStatus()
+val status = statusClient.getSessionStatus()
 if (status != null)
 {
-lastPolarisSessionStatus = status
 runtimeTasks.runOnMainIfActive {
-if (isFinishing || isDestroyed)
+if (novaApiClient !== statusClient || isFinishing || isDestroyed)
 {
 return@runOnMainIfActive
 }
-novaHud?.applySessionStatus(status)
-maybeShowDisplayModeWarning(status)
+val current = statusClient.sessionStatusUpdates.value
+lastPolarisSessionStatus = current
+startNovaEventSourceIfSupported()
+novaHud?.applySessionStatus(current)
+current?.let { maybeShowDisplayModeWarning(it) }
 updateCompanionCommandDeck()
 }
 reportClientPresentationIfNeeded(status)
+} else {
+runtimeTasks.runOnMainIfActive {
+if (novaApiClient === statusClient) {
+lastPolarisSessionStatus = statusClient.sessionStatusUpdates.value
+novaHud?.applySessionStatus(lastPolarisSessionStatus)
+}
+}
 }
 }
 catch (e:kotlinx.coroutines.CancellationException) {
