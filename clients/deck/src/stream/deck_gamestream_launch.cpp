@@ -80,6 +80,7 @@ std::string buildLaunchTarget(const DeckLaunchRequest& request, const DeckStream
     appendParam(out, first, "remoteControllersBitmap", std::to_string(request.gamepadMask));
     appendParam(out, first, "gcmap", std::to_string(request.gamepadMask));
     appendParam(out, first, "gcpersist", request.persistGamepads ? "1" : "0");
+    out += request.extraQuery;
     return out;
 }
 

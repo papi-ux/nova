@@ -49,6 +49,11 @@ struct DeckLaunchRequest {
     int gamepadMask = 0;          ///< remoteControllersBitmap and gcmap
     bool persistGamepads = false; ///< gcpersist
     bool resume = false;          ///< false = /launch, true = /resume
+    /// Extra query the host wants appended verbatim (it already begins with `&`).
+    /// Production passes moonlight-common-c's LiGetLaunchUrlQueryParameters(),
+    /// which enables extended Sunshine handshake features; kept as a caller
+    /// string so this module needs no moonlight dependency.
+    std::string extraQuery;
 };
 
 /// Build the request target (path plus query) for the launch or resume GET.

@@ -48,7 +48,10 @@ struct DeckStreamConnectionInfo {
     std::string rtspSessionUrl;
     int serverCodecModeSupport = 0;
     DeckStreamKeys keys;
-    int encryptionFlags = ENCFLG_AUDIO;   ///< the launch negotiates the rest
+    // Encrypt everything the host supports. moonlight-common-c recommends
+    // ENCFLG_ALL and negotiates down to what the host offers; the Android client
+    // uses it whenever the platform has fast AES, which the Deck's AMD APU does.
+    int encryptionFlags = ENCFLG_ALL;
     int colorSpace = COLORSPACE_REC_709;
     int colorRange = COLOR_RANGE_LIMITED;
 };

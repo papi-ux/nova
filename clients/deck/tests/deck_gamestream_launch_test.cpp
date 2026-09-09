@@ -73,6 +73,12 @@ void testLaunchTarget() {
         "&remoteControllersBitmap=0&gcmap=0&gcpersist=0";
     assert(buildLaunchTarget(request, keys) == expected);
 
+    // A host extra query is appended verbatim after the built parameters.
+    DeckLaunchRequest withExtra = request;
+    withExtra.extraQuery = "&corever=5&somefeature=1";
+    const std::string built = buildLaunchTarget(withExtra, keys);
+    assert(built == expected + "&corever=5&somefeature=1");
+
     // With an app uuid and resume verb.
     request.appUuid = "e720-6600";
     request.resume = true;
