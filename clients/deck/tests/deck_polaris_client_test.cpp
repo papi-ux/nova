@@ -88,8 +88,8 @@ std::string readFixture(const char* name) {
 }
 
 // The hand-written bodies above encode what we assumed Polaris serves. These
-// two were recorded from Polaris 1.4.4 on pc-papi with a paired Moonlight
-// certificate (fixtures/polaris_1_4_4_*.json, verbatim), and pin the three
+// two preserve recorded Polaris 1.4.4 response shapes, with synthetic host
+// identifiers and usage metadata (fixtures/polaris_1_4_4_*.json), and pin the three
 // things the assumed shape got wrong the first time: `app_id` is a string,
 // `total` counts the page, not the library, and ids are dashed UUIDs.
 void testParsesBodiesPolarisActuallyServed() {
@@ -107,14 +107,14 @@ void testParsesBodiesPolarisActuallyServed() {
     assert(page->total == 2 && "limit=2 on a bigger library: total is the page, so paging must not stop on it");
 
     const auto& bigPicture = page->games[0];
-    assert(bigPicture.id == "CDEAD7A8-D05B-3E2C-F20B-C6D58352A19D");
-    assert(bigPicture.appId == 1231570251 && "served as the string \"1231570251\"");
+    assert(bigPicture.id == "11111111-2222-4333-8444-555555555555");
+    assert(bigPicture.appId == 1000000001 && "served as the string \"1000000001\"");
     assert(bigPicture.name == "Steam Big Picture");
     assert(bigPicture.source == "manual");
     assert(bigPicture.steamAppid.empty());
     assert(bigPicture.installed && !bigPicture.hdrSupported);
     assert(bigPicture.platform.empty() && bigPicture.runtime.empty() && "not served for manual entries");
-    assert(bigPicture.lastLaunched == 1787198388LL);
+    assert(bigPicture.lastLaunched == 1700000000LL);
     assert(bigPicture.launchPreferredMode == "headless_stream");
     assert(bigPicture.launchRecommendedMode == "headless_stream");
     assert(bigPicture.launchAllowedModes.size() == 6);
@@ -123,7 +123,7 @@ void testParsesBodiesPolarisActuallyServed() {
     assert(bigPicture.genres.empty());
 
     const auto& indy = page->games[1];
-    assert(indy.appId == 1630208108);
+    assert(indy.appId == 1000000002);
     assert(indy.name == "Indiana Jones and the Great Circle");
     assert(indy.source == "steam" && indy.steamAppid == "2677660");
     assert(indy.category == "fast_action");
@@ -164,14 +164,14 @@ void testParsesServerInfoHttpsPort() {
     assert(!resolveHttpsPortFromServerInfo("", 47989, std::chrono::milliseconds(50)).has_value());
     const auto unaddressed = probeServerInfoHttpsPort("", 47989, std::chrono::milliseconds(50));
     assert(!unaddressed.httpsPort.has_value() && !unaddressed.timedOut);
-    // A refusal answers at once and must not be mistaken for a silent address:
-    // the live route skips the HTTPS probe only for the latter.
+    // A refusal answers at once and must not be mistaken for an HTTP timeout.
+    // Neither result prevents the live route from trying pinned HTTPS.
     const auto refused = probeServerInfoHttpsPort("127.0.0.1", 1, std::chrono::milliseconds(2000));
     assert(!refused.httpsPort.has_value() && !refused.timedOut);
 }
 
 void testSplitsPathAndQueryForQUrl() {
-    // Field bug from the first pc-papi probe: the games page went out as
+    // Field bug from the first host probe: the games page went out as
     // /polaris/v1/games%3Flimit=100 and the host answered 404.
     const auto paged = splitRequestTarget("/polaris/v1/games?limit=100&offset=0");
     assert(paged.path == "/polaris/v1/games");

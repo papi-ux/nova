@@ -181,17 +181,17 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
     // library; its latest answer is the one the snapshot reports.
     std::optional<std::size_t> polarisIndex;
     for (std::size_t index = 0; index < probed.fetches.size(); ++index) {
-        if (probed.fetches[index] && probed.fetches[index]->status == DeckPolarisRequestStatus::Ok) {
+        auto& fetch = probed.fetches[index];
+        if (!fetch || fetch->status != DeckPolarisRequestStatus::Ok) continue;
+        if (probed.libraryAskedIndex != index) {
+            fetch = fetcher(identity.hosts[index], true);
+        }
+        if (fetch->status == DeckPolarisRequestStatus::Ok) {
             polarisIndex = index;
             break;
         }
-    }
-    if (polarisIndex && probed.libraryAskedIndex != polarisIndex) {
-        auto& fetch = *probed.fetches[*polarisIndex];
-        fetch = fetcher(identity.hosts[*polarisIndex], true);
-        if (fetch.status != DeckPolarisRequestStatus::Ok) {
-            polarisIndex.reset();
-        }
+        // A capabilities response does not guarantee the subsequent library
+        // request succeeds. Continue to the next reachable host in order.
     }
 
     for (std::size_t index = 0; index < identity.hosts.size(); ++index) {
@@ -337,16 +337,8 @@ DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdenti
         const auto httpPort = host.preferredHttpPort();
         const auto serverInfo = polaris::probeServerInfoHttpsPort(host.preferredAddress(), httpPort, timeout);
         fetch.httpsPort = serverInfo.httpsPort.value_or(identity::polarisHttpsPortForMoonlightHttpPort(httpPort));
-        if (serverInfo.timedOut) {
-            // The HTTPS port lives on the same address: a black hole on the
-            // pairing port is a black hole there too, and waiting out a second
-            // full timeout per unreachable host is what kept the Deck on a blank
-            // window away from home. A refusal or a non-GameStream answer still
-            // gets the HTTPS probe, since a host may block plain HTTP on purpose.
-            fetch.status = DeckPolarisRequestStatus::Timeout;
-            fetch.detail = "no answer within the timeout";
-            return fetch;
-        }
+        // HTTP and HTTPS can have different firewall policies. Even after an
+        // HTTP timeout, try the paired HTTPS fallback with certificate pinning.
         const auto client = polarisClientForHost(identity, host, fetch.httpsPort, timeout);
         const auto capabilities = client.fetchCapabilities();
         fetch.status = capabilities.status;

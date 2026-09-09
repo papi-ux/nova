@@ -269,6 +269,36 @@ void testReachableHostWithoutMoonlightCacheStillHasApps() {
     assert(snapshot.hosts[0].standardAppListAvailable && "a live library counts as an app list");
 }
 
+void testLibraryFailureTriesTheNextReachableHost() {
+    auto identity = pairedIdentity();
+    auto garage = identity.hosts[1];
+    garage.uuid = "garage-uuid";
+    identity.hosts.push_back(garage);
+    std::atomic<int> officeLibraryAsks{0};
+    std::atomic<int> garageLibraryAsks{0};
+    const auto snapshot = buildLiveSnapshot(identity, [&](const identity::DeckMoonlightHostRecord& host, const bool wantLibrary) {
+        DeckLivePolarisFetch fetch;
+        fetch.status = DeckPolarisRequestStatus::Ok;
+        if (host.uuid == "home-uuid") {
+            fetch.status = DeckPolarisRequestStatus::Timeout;
+        } else if (host.uuid == "office-uuid" && wantLibrary) {
+            ++officeLibraryAsks;
+            fetch.status = DeckPolarisRequestStatus::Unauthorized;
+        } else if (host.uuid == "garage-uuid" && wantLibrary) {
+            ++garageLibraryAsks;
+            fetch.games = {game("garage-game", "Portal 2")};
+        }
+        return fetch;
+    });
+    assert(officeLibraryAsks == 1 && garageLibraryAsks == 1);
+    assert(snapshot.selectedHostId == "garage-uuid");
+    assert(snapshot.library.games.size() == 1);
+    assert(snapshot.library.games[0].id == "garage-game");
+    assert(snapshot.probes[1].status == DeckPolarisRequestStatus::Unauthorized);
+    assert(snapshot.hosts[1].state == DeckHostState::AuthRejected);
+    assert(snapshot.probes[2].librarySource == "polaris-live");
+}
+
 void testHostsAreProbedConcurrently() {
     // Three paired hosts whose probes each wait for the other two before
     // answering. A builder that probed one host at a time would never let the
@@ -337,6 +367,7 @@ int main() {
     testMissingIdentityAndMissingCertificates();
     testSelectedHostLeadsEvenWhenMoonlightListsItSecond();
     testReachableHostWithoutMoonlightCacheStillHasApps();
+    testLibraryFailureTriesTheNextReachableHost();
     testHostsAreProbedConcurrently();
     testTerminalSummaryIsSanitized();
     return 0;

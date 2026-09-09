@@ -132,6 +132,14 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_live_read_only_state_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_live_read_only_state_test COMMAND nova_deck_live_read_only_state_test)
 
+    find_program(NOVA_DECK_TEST_OPENSSL openssl REQUIRED)
+    add_executable(nova_deck_live_network_test tests/deck_live_network_test.cpp)
+    target_link_libraries(nova_deck_live_network_test PRIVATE nova_deck_core)
+    target_compile_definitions(nova_deck_live_network_test PRIVATE
+        NOVA_DECK_TEST_OPENSSL="${NOVA_DECK_TEST_OPENSSL}")
+    add_test(NAME nova_deck_live_network_test COMMAND nova_deck_live_network_test)
+    set_tests_properties(nova_deck_live_network_test PROPERTIES TIMEOUT 45)
+
     add_executable(nova_deck_moonlight_launcher_test
         tests/deck_moonlight_launcher_test.cpp
     )
