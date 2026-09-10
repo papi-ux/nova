@@ -435,7 +435,10 @@ data class NovaQuickMenuUiState(
                     caption = if (liveTuningPending) "Saving…" else if (hostStateUnavailable) "Reconnecting — state not confirmed" else
                         "${autoQuality.label}. Host setting. ${autoQuality.detail}",
                     chip = NovaQuickMenuChip(if (hostStateUnavailable || status == null || (status.liveTuningPresent && status.liveTuning == null)) "Unknown" else if (autoQuality.enabled) "On" else "Off", if (autoQuality.enabled) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE),
-                    enabled = !liveTuningPending && !hostStateUnavailable && canAdjustHostTuning &&
+                    // The row stays enabled while a save is pending: the caption already says
+                    // Saving, onLiveTuning ignores a second press, and disabling the row under a
+                    // controller cursor drops focus mid-press.
+                    enabled = !hostStateUnavailable && canAdjustHostTuning &&
                         (status?.liveTuning != null || (status?.liveTuningPresent != true && adaptiveSupported))
                 ),
                 title = context.getString(R.string.nova_quick_menu_command_center_title),

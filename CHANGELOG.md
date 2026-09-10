@@ -6,12 +6,11 @@
 
 Matched client for Polaris 1.4.5: Live Tuning that follows the host, a Launch button that says what it will do, a library card whose focus you cannot miss, and a Steam Deck shell that reads real hosts and hands games to Moonlight-Qt.
 
-- Live Tuning is one host setting now. Command Center and NovaHUD show the state the host confirmed, tell the requested bitrate from the applied one, and say Saving while a change is on its way instead of guessing. (#293)
+- Live Tuning is one host setting now. Command Center and NovaHUD show the state the host confirmed, tell the requested bitrate from the applied one, and say Saving while a change is on its way instead of guessing. The row stays under your controller cursor while it saves; disabling it mid-press used to wash the whole screen until the menu closed. (#293, #296)
 - The Launch button on a game's page now reads the frame rate you chose in Play Setup, so a 120 FPS choice says 120 FPS before you press it. The A badge is gone from that button, and the focused button gets a clearer ring and fill so the controller highlight is easy to see.
 - The library's Review & Launch button drops its A badge and lights up clearly when focused, the same treatment the game page's Launch button got.
 - Launching on a Sunshine host works again. Since 1.4.0 the launch gate identified the host by probing a Polaris-only route and treating anything it could not read as a reason to refuse with "Update Polaris before launching". Sunshine answers an unknown route with a malformed reply that Android reads as a protocol error, so every Sunshine host was blocked. Nova now reads the host family from GameStream serverinfo, the route every host answers the same way, and launches a stock host with local settings. Polaris hosts are identified exactly as before. (#291)
 - Steam Deck shell (Linux, experimental): reads your paired hosts and the Polaris library through Moonlight's own pairing, hands the highlighted game to Moonlight-Qt from the launch card, ships as a Flatpak that registers itself with Steam for Game Mode, forwards the display it is on when launching from inside the sandbox, probes hosts concurrently, and keeps an authenticated fallback when a probe fails. (#287, #288, #289, #290, #294)
-- Heads up: toggling Live Tuning with the controller in the Command Center can wash the whole screen until the menu closes; tap beside the panel or press B to clear it. Tracked as #296.
 
 ## 1.4.4 - 2026-09-06
 

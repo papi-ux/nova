@@ -952,9 +952,21 @@ class NovaQuickMenuUiStateTest {
         assertEquals(NovaMenuPreferences.OPACITY_PRESETS, state.menuOpacity.presets)
     }
 
+    @Test
+    fun pendingLiveTuningSaveKeepsTheRowUnderTheCursor() {
+        // Disabling the row while its save was pending dropped controller focus mid-press,
+        // and the Command Center washed white until it closed (#296). The caption says
+        // Saving and onLiveTuning ignores a second press; the row itself stays enabled.
+        val state = quickState(status = status(), liveTuningPending = true)
+
+        assertEquals("Saving…", state.liveTuningAction.caption)
+        assertTrue(state.liveTuningAction.enabled)
+    }
+
     private fun quickState(
         status: PolarisSessionStatus?,
         apiAvailable: Boolean = true,
+        liveTuningPending: Boolean = false,
         adaptiveSupported: Boolean = true,
         aiSupported: Boolean = true,
         adaptiveEnabled: Boolean = false,
@@ -975,6 +987,7 @@ class NovaQuickMenuUiStateTest {
         context = context,
         status = status,
         apiAvailable = apiAvailable,
+        liveTuningPending = liveTuningPending,
         adaptiveSupported = adaptiveSupported,
         aiSupported = aiSupported,
         adaptiveEnabled = adaptiveEnabled,
