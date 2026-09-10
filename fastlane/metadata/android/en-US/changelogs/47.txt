@@ -1,0 +1,2 @@
+Nova 1.4.5
+Live Tuning follows the host: Command Center and NovaHUD show the confirmed state, requested versus applied bitrate, and Saving while a change lands. The Launch button reads the frame rate you chose in Play Setup, the library's Review & Launch button loses its A badge and lights up when focused, and launching on a Sunshine host works again. Experimental Steam Deck shell with Moonlight pairing and Moonlight-Qt hand-off. Matched client for Polaris 1.4.5.
