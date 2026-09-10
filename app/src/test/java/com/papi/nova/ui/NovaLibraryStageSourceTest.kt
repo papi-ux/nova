@@ -630,19 +630,19 @@ class NovaLibraryStageSourceTest {
         assertTrue(start >= 0 && end > start)
         val action = stage.substring(start, end)
 
-        // The accessible target keeps its size; the emphasized variant widens only to seat
-        // the controller glyph, and the visible surface always stays inside the target.
-        assertTrue(action.contains("largeText -> 140.dp"))
-        assertTrue(action.contains("showGlyph -> 138.dp"))
-        assertTrue(action.contains("else -> 116.dp"))
+        // The accessible target keeps its size, the visible surface always stays inside
+        // it, and the CTA carries only its label: the controller glyph is gone for good.
+        assertTrue(action.contains(".width(if (largeText) 140.dp else 116.dp)"))
         assertTrue(action.contains(".height(if (largeText) 42.dp else 40.dp)"))
-        assertTrue(action.contains("largeText -> 132.dp"))
-        assertTrue(action.contains("showGlyph -> 130.dp"))
-        assertTrue(action.contains("else -> 108.dp"))
+        assertTrue(action.contains(".width(if (largeText) 132.dp else 108.dp)"))
+        assertFalse("Stage CTA must not seat a controller glyph", action.contains("nova_controller_hint_a"))
+        assertFalse(action.contains("showGlyph"))
         assertTrue(action.contains(".height(if (largeText) 34.dp else 28.dp)"))
         assertTrue(action.contains(".testTag(\"${'$'}{testTag}-surface\")"))
         assertTrue(action.contains(".testTag(\"${'$'}{testTag}-label\")"))
-        assertTrue(action.contains("val focusedScale = if (focused) 1.02f else 1f"))
+        // Focus reads as a scale and a brighter accent fill, never an outline.
+        assertTrue(action.contains("val focusedScale = if (focused) 1.06f else 1f"))
+        assertTrue(action.contains("emphasized && focused -> lerp(colors.accent, Color.White, 0.42f)"))
         assertTrue(action.contains("colors.accent"))
         assertTrue(action.contains("maxLines = 1"))
         assertTrue(action.contains("overflow = TextOverflow.Ellipsis"))

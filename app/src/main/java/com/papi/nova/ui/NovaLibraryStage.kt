@@ -32,7 +32,6 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
@@ -53,6 +52,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalDensity
@@ -683,8 +683,14 @@ private fun NovaStageHeroAction(
     val surfaces = LocalNovaLibrarySurfaces.current
     val opacityScale = LocalNovaMenuOpacityScale.current
     val shape = RoundedCornerShape(NovaRadius.hero)
-    val focusedScale = if (focused) 1.02f else 1f
-    val baseColor = if (emphasized) colors.accent else surfaces.focusedArtworkScrim
+    val focusedScale = if (focused) 1.06f else 1f
+    // Focus is a scale and a brighter fill, never an outline: the emphasized CTA lifts its
+    // accent toward white so the selected state reads from across the room.
+    val baseColor = when {
+        emphasized && focused -> lerp(colors.accent, Color.White, 0.42f)
+        emphasized -> colors.accent
+        else -> surfaces.focusedArtworkScrim
+    }
     // The hero's primary action is not menu chrome. Folding the menu-opacity preference
     // (64% by default) into its fill composited the accent down against the backdrop until
     // the on-accent label sat at 2:1 against it, which is below the large-text floor.
@@ -713,17 +719,9 @@ private fun NovaStageHeroAction(
         else -> 16.sp
     }
 
-    // The glyph is dropped at large font scales so the label keeps the width it needs.
-    val showGlyph = emphasized && !largeText
     Box(
         modifier = modifier
-            .width(
-                when {
-                    largeText -> 140.dp
-                    showGlyph -> 138.dp
-                    else -> 116.dp
-                },
-            )
+            .width(if (largeText) 140.dp else 116.dp)
             .height(if (largeText) 42.dp else 40.dp)
             .onFocusChanged { focusState ->
                 focused = focusState.isFocused || focusState.hasFocus
@@ -736,13 +734,7 @@ private fun NovaStageHeroAction(
     ) {
         Box(
             modifier = Modifier
-                .width(
-                    when {
-                        largeText -> 132.dp
-                        showGlyph -> 130.dp
-                        else -> 108.dp
-                    },
-                )
+                .width(if (largeText) 132.dp else 108.dp)
                 .height(if (largeText) 34.dp else 28.dp)
                 .graphicsLayer {
                     scaleX = focusedScale
@@ -757,25 +749,6 @@ private fun NovaStageHeroAction(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (showGlyph) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(emphasizedLabelColor.copy(alpha = 0.86f))
-                            .testTag("${testTag}-glyph"),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.nova_controller_hint_a),
-                            color = baseColor,
-                            fontSize = 9.sp,
-                            lineHeight = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            maxLines = 1,
-                        )
-                    }
-                }
                 Text(
                     text = label,
                     color = if (emphasized) emphasizedLabelColor else colors.textPrimary,
