@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The Launch button on a game's page now reads the frame rate you chose in Play Setup, so a 120 FPS choice says 120 FPS before you press it. The A badge is gone from that button, and the focused button gets a clearer ring and fill so the controller highlight is easy to see.
 - Launching on a Sunshine host works again. Since 1.4.0 the launch gate identified the host by probing a Polaris-only route and treating anything it could not read as a reason to refuse with "Update Polaris before launching". Sunshine answers an unknown route with a malformed reply that Android reads as a protocol error, so every Sunshine host was blocked. Nova now reads the host family from GameStream serverinfo, the route every host answers the same way, and launches a stock host with local settings. Polaris hosts are identified exactly as before. (#291)
 
 ## 1.4.4 - 2026-09-06

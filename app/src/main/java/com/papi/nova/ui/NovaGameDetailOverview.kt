@@ -446,7 +446,6 @@ private fun NovaGameDetailActions(
             onClick = if (activeSession != null) onResumeSession else onPrimaryLaunch,
             enabled = uiState.playEnabled || activeSession != null,
             primary = activeSession?.watchOnly != true,
-            glyph = stringResource(R.string.nova_controller_hint_a),
             modifier = actionModifier
                 .focusRequester(playFocusRequester)
                 .testTag("nova-game-detail-primary"),
@@ -810,8 +809,8 @@ private fun Modifier.novaFadeToGround(ground: Color): Modifier = drawWithContent
 }
 
 /**
- * One action in the lane. The primary carries the button it is bound to and an accent
- * gradient; the rest are quiet, hairline-bordered and marked. Focus is a ring and a
+ * One action in the lane. The primary uses an accent gradient; the rest are quiet,
+ * hairline-bordered and marked. Focus is a contrasting ring and a brighter fill,
  * tint — never a scale or an offset, which is the contract the poster cards settled on.
  */
 @Composable
@@ -821,7 +820,6 @@ private fun NovaGameDetailAction(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     primary: Boolean = false,
-    glyph: String? = null,
     mark: String? = null,
     iconRes: Int? = null,
     iconOnly: Boolean = false,
@@ -834,14 +832,18 @@ private fun NovaGameDetailAction(
 
     val background = if (primary && enabled) {
         Brush.linearGradient(
-            listOf(
+            if (focused) listOf(
+                lerp(colors.accent, Color.White, 0.48f),
+                lerp(colors.accent, Color.White, 0.68f),
+                lerp(colors.accent, Color.White, 0.82f),
+            ) else listOf(
                 colors.accent,
                 lerp(colors.accent, Color.White, 0.28f),
                 lerp(colors.accent, Color.White, 0.62f),
             ),
         )
     } else {
-        SolidColor(surfaces.control.copy(alpha = 1f))
+        SolidColor((if (focused) surfaces.selectedControl else surfaces.control).copy(alpha = 1f))
     }
     val label = when {
         primary && enabled -> colors.onAccent
@@ -867,8 +869,12 @@ private fun NovaGameDetailAction(
             .clip(shape)
             .background(background, shape)
             .border(
-                width = if (focused) 2.dp else 1.dp,
-                color = if (focused) colors.accent else surfaces.tileBorder,
+                width = if (focused) 3.dp else 1.dp,
+                color = when {
+                    focused && primary && enabled -> colors.onAccent
+                    focused -> colors.accent
+                    else -> surfaces.tileBorder
+                },
                 shape = shape,
             )
             .onFocusChanged { focused = it.isFocused }
@@ -884,22 +890,6 @@ private fun NovaGameDetailAction(
                 vertical = 10.dp,
             ),
     ) {
-        if (glyph != null) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(20.dp)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(colors.window.copy(alpha = 0.88f)),
-            ) {
-                Text(
-                    text = glyph,
-                    color = colors.textPrimary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
         if (mark != null) {
             Text(text = mark, color = label.copy(alpha = 0.62f), fontSize = 13.sp)
         }

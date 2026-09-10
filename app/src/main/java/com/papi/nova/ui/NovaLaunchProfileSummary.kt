@@ -12,6 +12,14 @@ enum class NovaLaunchProfileNoticeTone {
 
 private const val HEALTHY_PROFILE_TARGET_TOLERANCE_FPS = 0.5
 
+/** Refresh presentation after a local choice without changing host preflight authority. */
+internal fun NovaGameDetailOptimizationState.withLaunchProfileSummary(
+    launchOptimization: JSONObject?,
+    clientAskedFps: Double,
+): NovaGameDetailOptimizationState = copy(
+    profileSummary = buildNovaLaunchProfileSummary(launchOptimization, clientAskedFps = clientAskedFps),
+)
+
 data class NovaLaunchProfileSummary(
     val primaryLaunchLabel: String,
     val requestedLine: String,

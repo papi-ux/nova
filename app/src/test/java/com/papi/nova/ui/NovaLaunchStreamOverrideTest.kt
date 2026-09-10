@@ -57,6 +57,47 @@ class NovaLaunchStreamOverrideTest {
     }
 
     @Test
+    fun launchSummaryFollowsFrameRateChoiceAndReturningToAuto() {
+        val raw = deterministicBlob()
+        val state = NovaGameDetailOptimizationState(
+            rawOptimization = raw,
+            profileSummary = buildNovaLaunchProfileSummary(raw),
+            preflightFailed = true,
+            reviewRequired = true,
+        )
+        for (fps in listOf(120, 90, 60, null)) {
+            val composed = NovaLaunchStreamOverride.compose(raw, null, fps, 1920, 1080, 60)
+            val preview = state.withLaunchProfileSummary(composed, (fps ?: 60).toDouble())
+            val summary = requireNotNull(preview.profileSummary)
+            val expected = fps ?: 60
+            assertEquals("Launch Quality profile · $expected FPS", summary.primaryLaunchLabel)
+            assertTrue(summary.selectedLine.contains("1920×1080 @ $expected FPS"))
+            assertTrue(preview.preflightFailed)
+            assertTrue(preview.reviewRequired)
+            assertSame(raw, preview.rawOptimization)
+        }
+        assertEquals(60, raw.getJSONObject("resolved_profile").getJSONObject("fields")
+            .getJSONObject("target_fps").getInt("value"))
+    }
+
+    @Test
+    fun launchSummaryUsesExplicitRateOverHighFpsAndCurrentResolution() {
+        val raw = deterministicBlob()
+        val chosenFps = effectiveFpsPin(60, "high_fps", 120f)
+        val composed = NovaLaunchStreamOverride.compose(raw, choice("1280x720x120"), chosenFps, 1920, 1080, 120)
+        val summary = requireNotNull(NovaGameDetailOptimizationState(rawOptimization = raw)
+            .withLaunchProfileSummary(composed, 60.0).profileSummary)
+        assertEquals("Launch Quality profile · 60 FPS", summary.primaryLaunchLabel)
+        assertTrue(summary.selectedLine.contains("1280×720 @ 60 FPS"))
+    }
+
+    @Test
+    fun absentLaunchPlanDoesNotRetainAnOldFrameRatePromise() {
+        val state = NovaGameDetailOptimizationState(profileSummary = buildNovaLaunchProfileSummary(deterministicBlob()))
+        assertNull(state.withLaunchProfileSummary(null, 120.0).profileSummary)
+    }
+
+    @Test
     fun resolutionPickPreservesOnlyTypedDeterministicFields() {
         val composed = NovaLaunchStreamOverride.compose(
             deterministicBlob(), choice("1440x810x60"), null, 1920, 1080, 120

@@ -10,6 +10,7 @@ import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.utils.GameShortcutPinState
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -131,6 +132,9 @@ class NovaGameDetailComposeTest {
                         modePicker = null,
                         onPickMode = {},
                         onPickHostDefault = {},
+                        shortcutPinState = GameShortcutPinState.UNSUPPORTED,
+                        shortcutPinRequestPending = false,
+                        onPinShortcut = {},
                     )
                 }
             }
