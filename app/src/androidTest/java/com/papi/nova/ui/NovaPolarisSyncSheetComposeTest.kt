@@ -166,7 +166,6 @@ class NovaPolarisSyncSheetComposeTest {
             onSendNova = {},
             onUsePolaris = {},
             onClearProfile = {},
-            onAutoQuality = {},
             onKeepInStep = {},
         ),
     )
