@@ -1439,6 +1439,12 @@ class NovaGameDetailActivity : NovaActivity() {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                 setContent {
             NovaComposeTheme {
+                val launchPreferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+                val launchPreview = optimizationState.withLaunchProfileSummary(
+                    launchOptimization(),
+                    clientAskedFps = (effectiveFpsPin(chosenFps, profilePreference, launchPreferences.fps)
+                        ?: launchPreferences.fps.toInt()).toDouble(),
+                )
                 NovaGameDetailContent(
                     uiState = uiState,
                     launchIntro = buildLaunchIntro(uiState),
@@ -1463,7 +1469,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     steamLaunchLabel = getString(R.string.nova_steam_launch_detail_label),
                     steamLaunchModeLabel = steamLaunchModeLabel(uiState.steamLaunchMode),
                     steamLaunchCaption = steamLaunchCaption(uiState),
-                    optimizationState = optimizationState,
+                    optimizationState = launchPreview,
                     playSetupRows = buildPlaySetupRows(),
                     explainedPlaySetupRow = explainedRow,
                     playSetupScope = playSetupScope,
@@ -1540,8 +1546,8 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else if (optimizationState.reviewRequired) {
                         getString(R.string.nova_library_review_and_launch)
                     } else {
-                        // Pin-aware in the summary itself now, so the button just reads it.
-                        optimizationState.profileSummary
+                        // Describe the same composed choices attemptLaunch() will send.
+                        launchPreview.profileSummary
                             ?.primaryLaunchLabel
                             ?.takeIf { it.isNotBlank() }
                             ?: primaryPlayLabel(uiState)
