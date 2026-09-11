@@ -4,6 +4,9 @@
 #include <QString>
 #include <QXmlStreamReader>
 
+#include <chrono>
+#include <thread>
+
 namespace nova::deck::stream {
 
 namespace {
@@ -69,6 +72,28 @@ std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
     return info;
 }
 
+DeckHttpFetcher fetcherOverPolarisClient(const polaris::DeckPolarisClient& client) {
+    return [&client](const std::string& target) -> DeckHttpResponse {
+        const auto reply = client.get(target);
+        DeckHttpResponse response;
+        switch (reply.status) {
+        case polaris::DeckPolarisRequestStatus::Unreachable:
+        case polaris::DeckPolarisRequestStatus::Timeout:
+        case polaris::DeckPolarisRequestStatus::InvalidIdentity:
+            response.transportOk = false;
+            break;
+        default:
+            response.transportOk = true;
+            break;
+        }
+        response.status = reply.httpStatus;
+        if (reply.value) {
+            response.body = *reply.value;
+        }
+        return response;
+    };
+}
+
 DeckSessionBuildResult buildStreamConnection(
     const DeckHttpFetcher& fetch,
     const std::string& serverAddress,
@@ -97,15 +122,21 @@ DeckSessionBuildResult buildStreamConnection(
         return result;
     }
     if (launchReply.status != 200) {
+        result.launchRefused = true;
+        result.launchStatusCode = launchReply.status;
         result.error = "host launch returned an unexpected status";
         return result;
     }
     const DeckLaunchResult launch = parseLaunchResponse(request.resume, launchReply.body);
+    result.launchStatusCode = launch.statusCode;
+    result.launchStatusMessage = launch.statusMessage;
     if (!launch.started) {
+        result.launchRefused = true;
         result.error = "the host did not start the session";
         return result;
     }
     if (launch.rtspSessionUrl.empty()) {
+        result.launchRefused = true;
         result.error = "the host started the session without an RTSP url";
         return result;
     }
@@ -117,7 +148,47 @@ DeckSessionBuildResult buildStreamConnection(
     result.connectionInfo.rtspSessionUrl = launch.rtspSessionUrl;
     result.connectionInfo.serverCodecModeSupport = serverInfo->serverCodecModeSupport;
     result.connectionInfo.keys = keys;
+    result.connectionInfo.hostSessionToken = launch.sessionToken;
     return result;
+}
+
+DeckHostCancelOutcome requestHostSessionCancel(const DeckHttpFetcher& fetch, const std::string& sessionToken) {
+    DeckHostCancelOutcome outcome;
+    if (!fetch) {
+        outcome.summary = "host cancel not requested: no host fetcher";
+        return outcome;
+    }
+    const std::string target = buildCancelTarget(sessionToken);
+    // The host refuses (409) while it still counts a session as attached; the
+    // RTSP teardown lands a moment after LiStopConnection returns.
+    constexpr int kAttempts = 4;
+    for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+        const DeckHttpResponse reply = fetch(target);
+        outcome.requested = true;
+        outcome.transportOk = reply.transportOk;
+        outcome.httpStatus = reply.status;
+        if (!reply.transportOk) {
+            outcome.summary = "host cancel requested but the host could not be reached";
+            return outcome;
+        }
+        const DeckCancelResult parsed = parseCancelResponse(reply.body);
+        outcome.cancelled = reply.status == 200 && parsed.cancelled;
+        outcome.hostStatusCode = parsed.statusCode;
+        outcome.hostStatusMessage = parsed.statusMessage;
+        if (outcome.cancelled) {
+            outcome.summary = "host confirmed the app ended (attempt " + std::to_string(attempt) + ")";
+            return outcome;
+        }
+        const bool retryable = reply.status == 200 && parsed.statusCode == 409 && attempt < kAttempts;
+        if (!retryable) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    outcome.summary = "host did not confirm the app ended (http " + std::to_string(outcome.httpStatus) +
+        ", host status " + std::to_string(outcome.hostStatusCode) +
+        (outcome.hostStatusMessage.empty() ? std::string{} : ": " + outcome.hostStatusMessage) + ")";
+    return outcome;
 }
 
 }  // namespace nova::deck::stream

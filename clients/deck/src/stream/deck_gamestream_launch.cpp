@@ -1,5 +1,6 @@
 #include "stream/deck_gamestream_launch.h"
 
+#include <QUrl>
 #include <QXmlStreamReader>
 
 #include <array>
@@ -28,6 +29,46 @@ void appendParam(std::string& out, bool& first, std::string_view key, const std:
     out += key;
     out += '=';
     out += value;
+}
+
+// Percent-encode one query key or value so it stays a single parameter.
+std::string percentEncoded(std::string_view value) {
+    return QUrl::toPercentEncoding(QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()))).toStdString();
+}
+
+// Re-emit a caller-supplied "&k=v&k2=v2" tail with every key and value
+// encoded. Empty pieces are dropped; a piece without '=' is kept as a bare key.
+void appendEncodedExtraQuery(std::string& out, std::string_view extraQuery) {
+    std::size_t position = 0;
+    while (position <= extraQuery.size()) {
+        const std::size_t next = extraQuery.find('&', position);
+        const std::string_view piece = extraQuery.substr(position, next == std::string_view::npos ? std::string_view::npos : next - position);
+        if (!piece.empty()) {
+            const std::size_t equals = piece.find('=');
+            out += '&';
+            out += percentEncoded(piece.substr(0, equals));
+            if (equals != std::string_view::npos) {
+                out += '=';
+                out += percentEncoded(piece.substr(equals + 1));
+            }
+        }
+        if (next == std::string_view::npos) {
+            break;
+        }
+        position = next + 1;
+    }
+}
+
+// Read the root element's status attributes; shared by every host answer.
+void readRootStatus(const QXmlStreamReader& reader, int& statusCode, std::string& statusMessage) {
+    const auto status = reader.attributes().value(QStringLiteral("status_code"));
+    if (!status.isEmpty()) {
+        statusCode = status.toInt();
+    }
+    const auto message = reader.attributes().value(QStringLiteral("status_message"));
+    if (!message.isEmpty()) {
+        statusMessage = message.toString().toStdString();
+    }
 }
 
 }  // namespace
@@ -72,7 +113,7 @@ std::string buildLaunchTarget(const DeckLaunchRequest& request, const DeckStream
     bool first = true;
     appendParam(out, first, "appid", std::to_string(request.appId));
     if (!request.appUuid.empty()) {
-        appendParam(out, first, "appuuid", request.appUuid);
+        appendParam(out, first, "appuuid", percentEncoded(request.appUuid));
     }
     appendParam(out, first, "mode",
                 std::to_string(request.width) + "x" + std::to_string(request.height) + "x" +
@@ -86,7 +127,7 @@ std::string buildLaunchTarget(const DeckLaunchRequest& request, const DeckStream
     appendParam(out, first, "remoteControllersBitmap", std::to_string(request.gamepadMask));
     appendParam(out, first, "gcmap", std::to_string(request.gamepadMask));
     appendParam(out, first, "gcpersist", request.persistGamepads ? "1" : "0");
-    out += request.extraQuery;
+    appendEncodedExtraQuery(out, request.extraQuery);
     return out;
 }
 
@@ -100,10 +141,7 @@ DeckLaunchResult parseLaunchResponse(bool resume, std::string_view xml) {
         if (token == QXmlStreamReader::StartElement) {
             current = reader.name().toString();
             if (current == QStringLiteral("root")) {
-                const auto status = reader.attributes().value(QStringLiteral("status_code"));
-                if (!status.isEmpty()) {
-                    result.statusCode = status.toInt();
-                }
+                readRootStatus(reader, result.statusCode, result.statusMessage);
             }
         } else if (token == QXmlStreamReader::Characters && !reader.isWhitespace()) {
             const QString text = reader.text().toString();
@@ -120,6 +158,41 @@ DeckLaunchResult parseLaunchResponse(bool resume, std::string_view xml) {
     }
     if (reader.hasError()) {
         return DeckLaunchResult{};
+    }
+    return result;
+}
+
+std::string buildCancelTarget(std::string_view sessionToken) {
+    std::string out = "/cancel";
+    if (!sessionToken.empty()) {
+        out += "?sessiontoken=";
+        out += percentEncoded(sessionToken);
+    }
+    return out;
+}
+
+DeckCancelResult parseCancelResponse(std::string_view xml) {
+    DeckCancelResult result;
+    QXmlStreamReader reader(QByteArray(xml.data(), static_cast<int>(xml.size())));
+    QString current;
+    while (!reader.atEnd()) {
+        const auto token = reader.readNext();
+        if (token == QXmlStreamReader::StartElement) {
+            current = reader.name().toString();
+            if (current == QStringLiteral("root")) {
+                readRootStatus(reader, result.statusCode, result.statusMessage);
+            }
+        } else if (token == QXmlStreamReader::Characters && !reader.isWhitespace()) {
+            if (current == QStringLiteral("cancel")) {
+                const QString text = reader.text().toString().trimmed();
+                result.cancelled = !text.isEmpty() && text != QStringLiteral("0");
+            }
+        } else if (token == QXmlStreamReader::EndElement) {
+            current.clear();
+        }
+    }
+    if (reader.hasError()) {
+        return DeckCancelResult{};
     }
     return result;
 }

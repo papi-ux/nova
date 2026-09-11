@@ -58,12 +58,15 @@ struct DeckLaunchRequest {
 
 /// Build the request target (path plus query) for the launch or resume GET.
 /// The host is never named here; the caller sends it over its own connection.
+/// Caller-supplied values (the app uuid, the extra query's keys and values) are
+/// percent-encoded so they cannot smuggle extra parameters into the query.
 std::string buildLaunchTarget(const DeckLaunchRequest& request, const DeckStreamKeys& keys);
 
 /// The outcome of a launch or resume response.
 struct DeckLaunchResult {
     bool started = false;         ///< gamesession (launch) or resume element was non-zero
     int statusCode = 0;           ///< the root element's status_code attribute
+    std::string statusMessage;    ///< the root element's status_message attribute, when present
     std::string rtspSessionUrl;   ///< sessionUrl0, the RTSP URL for the session
     std::string sessionToken;     ///< sessionToken, when the host returns one
 };
@@ -71,5 +74,21 @@ struct DeckLaunchResult {
 /// Parse a launch or resume XML response. `resume` selects which element proves
 /// the session started. Pure; a malformed body yields a not-started result.
 DeckLaunchResult parseLaunchResponse(bool resume, std::string_view xml);
+
+/// Build the request target that asks the host to end the app this client
+/// started. The session token the launch returned rides along when known, so a
+/// host that tracks sessions by token can match it; the paired identity is
+/// what authorizes the request either way.
+std::string buildCancelTarget(std::string_view sessionToken);
+
+/// The outcome of a cancel response.
+struct DeckCancelResult {
+    bool cancelled = false;       ///< the cancel element was non-zero
+    int statusCode = 0;           ///< the root element's status_code attribute
+    std::string statusMessage;    ///< the root element's status_message attribute, when present
+};
+
+/// Parse a cancel XML response. Pure; a malformed body yields a not-cancelled result.
+DeckCancelResult parseCancelResponse(std::string_view xml);
 
 }  // namespace nova::deck::stream
