@@ -80,6 +80,13 @@ jobs:
           # configure time without both.
           submodules: recursive
 
+      # actions/checkout writes the tree as the runner user while steps in a
+      # container run as root, so git refuses the repository as dubiously
+      # owned. One of the client's own tests shells out to git, and reads that
+      # refusal as uncommitted changes.
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Configure
         run: cmake -S clients/deck -B build-deck -G Ninja
 
