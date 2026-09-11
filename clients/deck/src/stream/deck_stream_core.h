@@ -2,10 +2,13 @@
 
 #include <Limelight.h>
 
+#include <atomic>
 #include <cstdint>
 #include <cstddef>
 #include <string>
 #include <string_view>
+
+#include "stream/deck_gamestream_launch.h"
 
 namespace nova::deck::stream {
 
@@ -27,13 +30,51 @@ struct DeckStreamRequest {
     int height = 800;
     int fps = 60;
     int bitrateKbps = 20000;
+    /// The moonlight audio layout the session decodes; the launch tells the
+    /// host the same layout, so both sides are derived from this one value.
+    int audioConfiguration = AUDIO_CONFIGURATION_STEREO;
 };
 
 struct DeckStreamTransition {
     DeckStreamSessionState state = DeckStreamSessionState::Idle;
     std::string reason;
     bool networkStarted = false;
+    /// True when this transition tore down a live host connection.
+    bool hostConnectionTornDown = false;
 };
+
+/// The host launch parameters for a stream request: the same size, rate and
+/// audio layout the session is prepared with, taken from the one request so the
+/// host's encoder and the client's decoder cannot drift apart. The extra query
+/// is what moonlight-common-c wants appended for this protocol version.
+DeckLaunchRequest launchRequestForStream(const DeckStreamRequest& request, int appId, std::string appUuid = {});
+
+/// Everything a real connection needs beyond the request: the host address, the
+/// version strings and codec support the host reports in serverinfo, the RTSP
+/// session URL the launch handshake returned, and the AES stream keys. The
+/// caller assembles this from deck_gamestream_launch plus a serverinfo read.
+struct DeckStreamConnectionInfo {
+    std::string serverAddress;
+    std::string appVersion;
+    std::string gfeVersion;          ///< empty when the host omits it
+    std::string rtspSessionUrl;
+    /// The host's token for this session, when it returns one; rides the
+    /// cancel request so the host can match the session it started for us.
+    std::string hostSessionToken;
+    int serverCodecModeSupport = 0;
+    DeckStreamKeys keys;
+    // Encrypt everything the host supports. moonlight-common-c recommends
+    // ENCFLG_ALL and negotiates down to what the host offers; the Android client
+    // uses it whenever the platform has fast AES, which the Deck's AMD APU does.
+    int encryptionFlags = ENCFLG_ALL;
+    int colorSpace = COLORSPACE_REC_709;
+    int colorRange = COLOR_RANGE_LIMITED;
+};
+
+/// Copy the AES key and IV and the encryption and color choices from a
+/// connection descriptor into a stream configuration. Pure, so tests can pin
+/// the exact bytes without opening a connection.
+void applyConnectionStreamConfig(STREAM_CONFIGURATION& config, const DeckStreamConnectionInfo& info);
 
 struct DeckMoonlightBoundary {
     const CONNECTION_LISTENER_CALLBACKS* listenerCallbacks = nullptr;
@@ -43,6 +84,36 @@ struct DeckMoonlightBoundary {
     void* callbackContext = nullptr;
     bool networkStartAllowed = false;
 };
+
+/// What moonlight-common-c reported about the connection, gathered from the
+/// listener callbacks. Readable from any thread after the fact.
+struct DeckMoonlightConnectionStatus {
+    bool connectionStarted = false;   ///< the connectionStarted callback fired
+    bool terminated = false;          ///< the connectionTerminated callback fired
+    int terminationErrorCode = 0;     ///< its ML_ERROR_* code; 0 is graceful
+    int lastStage = -1;               ///< the last STAGE_* reported, -1 when none
+    int failedStage = -1;             ///< the STAGE_* that failed, -1 when none
+    int failedStageErrorCode = 0;     ///< the error code that stage reported
+};
+
+/// The two moonlight-common-c calls that open and close its single global
+/// connection, behind a seam so the session's teardown paths can be exercised
+/// without a host. Production uses the built-in driver; tests inject a fake.
+class DeckMoonlightConnectionDriver {
+public:
+    virtual ~DeckMoonlightConnectionDriver() = default;
+    virtual int start(
+        SERVER_INFORMATION& serverInfo,
+        STREAM_CONFIGURATION& streamConfig,
+        CONNECTION_LISTENER_CALLBACKS& listenerCallbacks,
+        DECODER_RENDERER_CALLBACKS& videoCallbacks,
+        AUDIO_RENDERER_CALLBACKS& audioCallbacks,
+        void* callbackContext) = 0;
+    virtual void stop() = 0;
+};
+
+/// The driver that calls moonlight-common-c for real.
+DeckMoonlightConnectionDriver& defaultMoonlightConnectionDriver();
 
 class DeckStreamRenderer {
 public:
@@ -88,6 +159,13 @@ public:
         DeckStreamAudio& audio,
         DeckStreamInput& input,
         DeckStreamSessionEvents& events);
+    /// As above, with the connection driver injected. `driver` must outlive the session.
+    DeckStreamSession(
+        DeckStreamRenderer& renderer,
+        DeckStreamAudio& audio,
+        DeckStreamInput& input,
+        DeckStreamSessionEvents& events,
+        DeckMoonlightConnectionDriver& driver);
     ~DeckStreamSession();
     DeckStreamSession(const DeckStreamSession&) = delete;
     DeckStreamSession& operator=(const DeckStreamSession&) = delete;
@@ -96,9 +174,19 @@ public:
 
     DeckStreamSessionState state() const;
     const DeckMoonlightBoundary& moonlightBoundary() const;
+    /// A copy of what the listener callbacks reported so far.
+    DeckMoonlightConnectionStatus connectionStatus() const;
 
     DeckStreamTransition prepare(const DeckStreamRequest& request);
     DeckStreamTransition startNoNetwork();
+    /// Open the real host session: fill SERVER_INFORMATION and the AES fields
+    /// from `info`, authorize this session's boundary, and call LiStartConnection.
+    /// Only reachable after prepare(); a failure tears the attempt down and
+    /// fails the session closed.
+    DeckStreamTransition startNetwork(const DeckStreamConnectionInfo& info);
+    /// End the session. A live host connection is torn down with
+    /// LiStopConnection; that also holds after the host ended the connection,
+    /// because moonlight-common-c still owes a stop call for its threads.
     DeckStreamTransition stop();
     DeckStreamTransition cancel(std::string_view reason);
     DeckStreamTransition fail(std::string_view reason);
@@ -133,6 +221,9 @@ private:
     void installCallbackThunks();
     bool hasCallbackSlot() const;
     void noteSessionEvent(std::string_view reason);
+    /// Call the driver's stop when a start is still owed one; true when it was.
+    bool teardownHostConnection();
+    void clearHostStrings();
 
     static int videoSetup0(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags);
     static void videoStart0();
@@ -428,7 +519,9 @@ private:
     DeckStreamAudio& audio_;
     DeckStreamInput& input_;
     DeckStreamSessionEvents& events_;
-    DeckStreamSessionState state_ = DeckStreamSessionState::Idle;
+    DeckMoonlightConnectionDriver& driver_;
+    // Written by the moonlight callback threads as well as the caller's thread.
+    std::atomic<DeckStreamSessionState> state_ = DeckStreamSessionState::Idle;
     DeckStreamRequest request_;
     std::size_t callbackSlot_ = kInvalidCallbackSlot;
     void* callbackContext_ = nullptr;
@@ -437,6 +530,24 @@ private:
     DECODER_RENDERER_CALLBACKS videoCallbacks_{};
     AUDIO_RENDERER_CALLBACKS audioCallbacks_{};
     DeckMoonlightBoundary moonlightBoundary_{};
+    // SERVER_INFORMATION holds raw pointers, so the session owns the backing
+    // strings for the connection's lifetime.
+    std::string serverAddress_;
+    std::string serverAppVersion_;
+    std::string serverGfeVersion_;
+    std::string rtspSessionUrl_;
+    /// The host connection is live: the start succeeded and the host has not ended it.
+    std::atomic<bool> networkStarted_ = false;
+    /// The driver's stop call is owed: a start succeeded and no stop has run
+    /// since. Stays true after the host ends the connection, because
+    /// moonlight-common-c still needs the stop to release its threads.
+    std::atomic<bool> stopConnectionOwed_ = false;
+    std::atomic<bool> connectionStartedSeen_ = false;
+    std::atomic<bool> connectionTerminatedSeen_ = false;
+    std::atomic<int> terminationErrorCode_ = 0;
+    std::atomic<int> lastStage_ = -1;
+    std::atomic<int> failedStage_ = -1;
+    std::atomic<int> failedStageErrorCode_ = 0;
 };
 
 } // namespace nova::deck::stream

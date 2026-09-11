@@ -1,10 +1,12 @@
 #pragma once
 
+#include "stream/deck_gamestream_session_builder.h"
 #include "stream/deck_stream_core.h"
 
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -369,13 +371,17 @@ public:
     void cleanup() override;
     int submitDecodeUnit(PDECODE_UNIT decodeUnit) override;
 
-    const DeckRendererLifecycle& lifecycle() const;
+    /// A snapshot of the counters. The callbacks above run on moonlight's
+    /// decoder thread while a caller reads from its own, so this copies under
+    /// the lock instead of handing out a reference.
+    DeckRendererLifecycle lifecycle() const;
     DeckQrhiVaapiPresentationHandoff& presentationHandoff();
     const DeckQrhiVaapiPresentationHandoff& presentationHandoff() const;
 
 private:
     void resetDecoder();
 
+    mutable std::mutex lifecycleMutex_;
     DeckRendererLifecycle lifecycle_{};
     bool ready_ = false;
     AVBufferRef* hardwareDevice_ = nullptr;
@@ -415,9 +421,11 @@ public:
     void cleanup() override;
     void decodeAndPlaySample(char* sampleData, int sampleLength) override;
 
-    const DeckAudioLifecycle& lifecycle() const;
+    /// A snapshot of the counters; see DeckVaapiFfmpegRenderer::lifecycle.
+    DeckAudioLifecycle lifecycle() const;
 
 private:
+    mutable std::mutex lifecycleMutex_;
     DeckAudioLifecycle lifecycle_{};
     bool ready_ = false;
 };
@@ -425,6 +433,8 @@ private:
 class DeckGuardedStreamSessionPreviewProducer final : private DeckStreamSessionEvents {
 public:
     DeckGuardedStreamSessionPreviewProducer();
+    /// As above, with the connection driver injected; `driver` must outlive the producer.
+    explicit DeckGuardedStreamSessionPreviewProducer(DeckMoonlightConnectionDriver& driver);
     ~DeckGuardedStreamSessionPreviewProducer() override;
     DeckGuardedStreamSessionPreviewProducer(const DeckGuardedStreamSessionPreviewProducer&) = delete;
     DeckGuardedStreamSessionPreviewProducer& operator=(const DeckGuardedStreamSessionPreviewProducer&) = delete;
@@ -434,12 +444,20 @@ public:
     void attachProductPreviewPipeline(DeckProductPreviewPipeline& pipeline);
     DeckStreamTransition prepareNoNetwork(const DeckStreamRequest& request);
     DeckStreamTransition startNoNetwork();
+    /// Open the real host session. Only the guarded gate's authorized lane calls
+    /// this; it forwards to the stream session, which owns the connection call.
+    DeckStreamTransition startNetwork(const DeckStreamConnectionInfo& info);
     DeckStreamTransition stop();
+    DeckStreamTransition cancel(std::string_view reason);
 
     const DeckMoonlightBoundary& moonlightBoundary() const;
     DeckVaapiFfmpegRenderer& decodedFrameProducer();
-    const DeckRendererLifecycle& rendererLifecycle() const;
-    const std::vector<DeckStreamTransition>& transitions() const;
+    DeckStreamSessionState sessionState() const;
+    DeckMoonlightConnectionStatus connectionStatus() const;
+    DeckRendererLifecycle rendererLifecycle() const;
+    DeckAudioLifecycle audioLifecycle() const;
+    /// A copy: the session reports events from moonlight's threads too.
+    std::vector<DeckStreamTransition> transitions() const;
 
 private:
     class NoopInput final : public DeckStreamInput {
@@ -456,6 +474,7 @@ private:
     DeckPipeWireAudio audio_{};
     NoopInput input_{};
     DeckStreamSession session_;
+    mutable std::mutex transitionsMutex_;
     std::vector<DeckStreamTransition> transitions_{};
 };
 
@@ -477,6 +496,12 @@ struct DeckGuardedPreviewLifecycleReport {
     std::string operatorAuthorizationState = "blocked";
     bool networkStartAllowed = false;
     bool networkStarted = false;
+    /// The report's transition tore down a live host connection.
+    bool hostConnectionTornDown = false;
+    /// The host was asked to end the app after the stream came down.
+    bool hostCancelRequested = false;
+    bool hostCancelled = false;
+    std::string hostCancelSummary;
     std::size_t transitionCount = 0;
 };
 
@@ -522,10 +547,26 @@ public:
         const DeckStreamRequest& request);
     DeckGuardedPreviewLifecycleReport requestOperatorAuthorizedHostNetworkStart(
         const DeckOperatorStartAuthorizationSnapshot& authorization);
+    /// The approved real-start lane: with an operator start authorization and an
+    /// assembled host connection, prepare the session and open the host stream.
+    /// Without either, it stays report-only, so a real start is reachable only
+    /// through this lane with both in hand. `hostFetcher` is the connection the
+    /// launch went through; the gate keeps it to ask the host to end the app
+    /// when the session stops or is cancelled, whatever the stream did.
+    DeckGuardedPreviewLifecycleReport startAuthorizedHostSession(
+        const DeckOperatorStartAuthorizationSnapshot& authorization,
+        const DeckStreamRequest& request,
+        const DeckStreamConnectionInfo& connection,
+        DeckHttpFetcher hostFetcher = {});
     DeckGuardedPreviewLifecycleReport stop();
+    DeckGuardedPreviewLifecycleReport cancel(std::string reason);
 
     const DeckGuardedPreviewLifecycleReport& lastReport() const;
-    const std::vector<DeckStreamTransition>& transitions() const;
+    std::vector<DeckStreamTransition> transitions() const;
+    DeckStreamSessionState sessionState() const;
+    DeckMoonlightConnectionStatus connectionStatus() const;
+    DeckRendererLifecycle rendererLifecycle() const;
+    DeckAudioLifecycle audioLifecycle() const;
 
 private:
     DeckGuardedPreviewLifecycleReport reportForTransition(
@@ -534,9 +575,15 @@ private:
         bool prepared,
         bool armed,
         const DeckStreamRequest* request = nullptr) const;
+    /// After the stream is down: ask the host to end the app it launched for
+    /// this session, once, and record the outcome in `report`.
+    void settleHostSession(DeckGuardedPreviewLifecycleReport& report);
 
     DeckGuardedStreamSessionPreviewProducer& producer_;
     DeckGuardedPreviewLifecycleReport lastReport_{};
+    DeckHttpFetcher hostFetcher_{};
+    std::string hostSessionToken_;
+    bool hostSessionPending_ = false;
 };
 
 } // namespace nova::deck::stream

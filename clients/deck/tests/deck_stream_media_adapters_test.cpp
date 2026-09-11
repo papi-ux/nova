@@ -257,8 +257,12 @@ int main(int argc, char** argv) {
     using nova::deck::stream::DeckProductPreviewPipeline;
     using nova::deck::stream::DeckGuardedPreviewLifecycleGate;
     using nova::deck::stream::DeckGuardedStreamSessionPreviewProducer;
+    using nova::deck::stream::DeckHttpFetcher;
+    using nova::deck::stream::DeckHttpResponse;
+    using nova::deck::stream::DeckMoonlightConnectionDriver;
     using nova::deck::stream::DeckOperatorStartAuthorizationMode;
     using nova::deck::stream::DeckOperatorStartAuthorizationPolicy;
+    using nova::deck::stream::DeckStreamConnectionInfo;
     using nova::deck::stream::DeckStreamRequest;
     using nova::deck::stream::DeckStreamSession;
     using nova::deck::stream::DeckStreamSessionState;
@@ -670,6 +674,49 @@ int main(int argc, char** argv) {
     NOVA_TEST_REQUIRE(!lifecycleStopped.networkStarted);
     NOVA_TEST_REQUIRE(guardedLifecycleGate.transitions().size() >= 4);
 
+    // The approved real-start lane refuses without authorization or without an
+    // assembled connection, and never reaches the connection call in those cases.
+    {
+        DeckGuardedStreamSessionPreviewProducer realStartProducer;
+        DeckGuardedPreviewLifecycleGate realStartGate(realStartProducer);
+        const DeckStreamRequest realStartRequest{
+            .hostId = "host-real-start",
+            .gameId = "game-real-start",
+            .width = 1280,
+            .height = 800,
+            .fps = 60,
+            .bitrateKbps = 20000,
+        };
+
+        DeckOperatorStartAuthorizationPolicy blockedPolicy;
+        const auto blockedStart = realStartGate.startAuthorizedHostSession(
+            blockedPolicy.snapshot(), realStartRequest, DeckStreamConnectionInfo{});
+        NOVA_TEST_REQUIRE(blockedStart.statusCode == std::string("host-network-start-blocked"));
+        NOVA_TEST_REQUIRE(!blockedStart.networkStartAllowed);
+        NOVA_TEST_REQUIRE(!blockedStart.networkStarted);
+        NOVA_TEST_REQUIRE(realStartProducer.rendererLifecycle().setupCalls == 0);
+
+        DeckOperatorStartAuthorizationPolicy approvedPolicy;
+        approvedPolicy.authorizeStart("local-real-start-ok");
+        const auto notReady = realStartGate.startAuthorizedHostSession(
+            approvedPolicy.snapshot(), realStartRequest, DeckStreamConnectionInfo{});
+        NOVA_TEST_REQUIRE(notReady.statusCode == std::string("operator-start-not-ready"));
+        NOVA_TEST_REQUIRE(notReady.hostStartContractAuthorized);
+        NOVA_TEST_REQUIRE(!notReady.networkStartAllowed);
+        NOVA_TEST_REQUIRE(!notReady.networkStarted);
+
+        // An address without an RTSP url is still not ready, and stops before the
+        // session's own connection call is reached.
+        DeckStreamConnectionInfo addressWithoutRtsp;
+        addressWithoutRtsp.serverAddress = "192.0.2.10";
+        const auto stillNotReady = realStartGate.startAuthorizedHostSession(
+            approvedPolicy.snapshot(), realStartRequest, addressWithoutRtsp);
+        NOVA_TEST_REQUIRE(stillNotReady.statusCode == std::string("operator-start-not-ready"));
+        NOVA_TEST_REQUIRE(!stillNotReady.networkStartAllowed);
+        NOVA_TEST_REQUIRE(!stillNotReady.networkStarted);
+        NOVA_TEST_REQUIRE(realStartProducer.rendererLifecycle().setupCalls == 0);
+    }
+
     DeckGuardedStreamSessionPreviewProducer idempotentLifecycleProducer;
     DeckGuardedPreviewLifecycleGate idempotentLifecycleGate(idempotentLifecycleProducer);
     const auto idempotentFirstArm = idempotentLifecycleGate.armNoNetwork(DeckStreamRequest{
@@ -705,6 +752,181 @@ int main(int argc, char** argv) {
     NOVA_TEST_REQUIRE(!idempotentSecondStop.armed);
     NOVA_TEST_REQUIRE(!idempotentSecondStop.networkStarted);
     NOVA_TEST_REQUIRE(idempotentLifecycleGate.transitions().size() == idempotentTransitionCountAfterStop);
+
+    // The real-start lane with a fake connection driver and a recording host
+    // fetcher: stop and cancel tear the connection down and then ask the host
+    // to end the app, naming the session the launch returned.
+    {
+        class FakeDriver final : public DeckMoonlightConnectionDriver {
+        public:
+            int start(
+                SERVER_INFORMATION& serverInfo,
+                STREAM_CONFIGURATION& streamConfig,
+                CONNECTION_LISTENER_CALLBACKS& listenerCallbacks,
+                DECODER_RENDERER_CALLBACKS& videoCallbacks,
+                AUDIO_RENDERER_CALLBACKS& audioCallbacks,
+                void* callbackContext) override {
+                (void)serverInfo;
+                (void)listenerCallbacks;
+                (void)videoCallbacks;
+                (void)audioCallbacks;
+                (void)callbackContext;
+                ++startCalls;
+                lastConfig = streamConfig;
+                return startResult;
+            }
+            void stop() override { ++stopCalls; }
+            int startResult = 0;
+            int startCalls = 0;
+            int stopCalls = 0;
+            STREAM_CONFIGURATION lastConfig{};
+        };
+        FakeDriver driver;
+        std::vector<std::string> hostTargets;
+        const DeckHttpFetcher hostFetcher = [&hostTargets](const std::string& target) {
+            hostTargets.push_back(target);
+            return DeckHttpResponse{true, 200, "<root status_code=\"200\"><cancel>1</cancel></root>"};
+        };
+        DeckGuardedStreamSessionPreviewProducer realProducer(driver);
+        DeckGuardedPreviewLifecycleGate realGate(realProducer);
+        DeckOperatorStartAuthorizationPolicy approvedPolicy;
+        approvedPolicy.authorizeStart("local-real-start-ok");
+        const DeckStreamRequest realRequest{
+            .hostId = "host-real",
+            .gameId = "game-real",
+            .width = 1920,
+            .height = 1080,
+            .fps = 90,
+            .bitrateKbps = 30000,
+            .audioConfiguration = AUDIO_CONFIGURATION_51_SURROUND,
+        };
+        DeckStreamConnectionInfo connection;
+        connection.serverAddress = "192.0.2.10";
+        connection.appVersion = "7.1.431.-1";
+        connection.rtspSessionUrl = "rtsp://192.0.2.10:48010";
+        connection.hostSessionToken = "tok-1";
+        connection.keys = nova::deck::stream::generateStreamKeys();
+
+        const auto started = realGate.startAuthorizedHostSession(approvedPolicy.snapshot(), realRequest, connection, hostFetcher);
+        NOVA_TEST_REQUIRE(started.statusCode == std::string("host-network-started"));
+        NOVA_TEST_REQUIRE(started.state == DeckStreamSessionState::Active);
+        NOVA_TEST_REQUIRE(started.networkStarted);
+        NOVA_TEST_REQUIRE(started.networkStartAllowed);
+        NOVA_TEST_REQUIRE(started.hostStartContractAuthorized);
+        NOVA_TEST_REQUIRE(driver.startCalls == 1 && driver.stopCalls == 0);
+        NOVA_TEST_REQUIRE(hostTargets.empty());
+        NOVA_TEST_REQUIRE(realGate.sessionState() == DeckStreamSessionState::Active);
+        // The stream configuration the driver saw is the request the gate got,
+        // and the launch built from that request says the same thing.
+        NOVA_TEST_REQUIRE(driver.lastConfig.width == 1920 && driver.lastConfig.height == 1080 && driver.lastConfig.fps == 90);
+        NOVA_TEST_REQUIRE(driver.lastConfig.bitrate == 30000);
+        NOVA_TEST_REQUIRE(driver.lastConfig.audioConfiguration == AUDIO_CONFIGURATION_51_SURROUND);
+        const auto launchFromRequest = nova::deck::stream::launchRequestForStream(realRequest, 7);
+        NOVA_TEST_REQUIRE(launchFromRequest.width == driver.lastConfig.width);
+        NOVA_TEST_REQUIRE(launchFromRequest.height == driver.lastConfig.height);
+        NOVA_TEST_REQUIRE(launchFromRequest.fps == driver.lastConfig.fps);
+        NOVA_TEST_REQUIRE(launchFromRequest.surroundAudioInfo == SURROUNDAUDIOINFO_FROM_AUDIO_CONFIGURATION(driver.lastConfig.audioConfiguration));
+
+        const auto stopped = realGate.stop();
+        NOVA_TEST_REQUIRE(stopped.statusCode == std::string("stopped-host-session"));
+        NOVA_TEST_REQUIRE(stopped.state == DeckStreamSessionState::Stopped);
+        NOVA_TEST_REQUIRE(stopped.hostConnectionTornDown);
+        NOVA_TEST_REQUIRE(!stopped.networkStartAllowed);
+        NOVA_TEST_REQUIRE(driver.stopCalls == 1);
+        NOVA_TEST_REQUIRE(stopped.hostCancelRequested && stopped.hostCancelled);
+        NOVA_TEST_REQUIRE(hostTargets.size() == 1);
+        NOVA_TEST_REQUIRE(hostTargets[0] == std::string("/cancel?sessiontoken=tok-1"));
+        NOVA_TEST_REQUIRE(stopped.hostCancelSummary.find("confirmed") != std::string::npos);
+        const auto stoppedAgain = realGate.stop();
+        NOVA_TEST_REQUIRE(stoppedAgain.statusCode == std::string("already-stopped-no-network"));
+        NOVA_TEST_REQUIRE(hostTargets.size() == 1 && driver.stopCalls == 1);
+
+        // cancel forwards through the gate and the producer, tears the
+        // connection down and ends the host app the same way.
+        const auto startedAgain = realGate.startAuthorizedHostSession(approvedPolicy.snapshot(), realRequest, connection, hostFetcher);
+        NOVA_TEST_REQUIRE(startedAgain.statusCode == std::string("host-network-started"));
+        NOVA_TEST_REQUIRE(driver.startCalls == 2);
+        const auto cancelled = realGate.cancel("operator backed out");
+        NOVA_TEST_REQUIRE(cancelled.statusCode == std::string("cancelled-host-session"));
+        NOVA_TEST_REQUIRE(cancelled.state == DeckStreamSessionState::Cancelled);
+        NOVA_TEST_REQUIRE(cancelled.reason == std::string("operator backed out"));
+        NOVA_TEST_REQUIRE(cancelled.hostConnectionTornDown);
+        NOVA_TEST_REQUIRE(driver.stopCalls == 2);
+        NOVA_TEST_REQUIRE(cancelled.hostCancelRequested && cancelled.hostCancelled);
+        NOVA_TEST_REQUIRE(hostTargets.size() == 2 && hostTargets[1] == std::string("/cancel?sessiontoken=tok-1"));
+        NOVA_TEST_REQUIRE(realGate.transitions().size() >= 6);
+        // The transitions log carries the real-session reasons, not the
+        // no-network wording.
+        bool sawHostStop = false;
+        for (const auto& transition : realGate.transitions()) {
+            if (transition.reason == std::string("stopped host session")) {
+                sawHostStop = true;
+            }
+        }
+        NOVA_TEST_REQUIRE(sawHostStop);
+    }
+
+    // When the connection itself fails to come up the host app was still
+    // launched, so stop() settles it with the host even though there is no
+    // stream to stop.
+    {
+        class FailingDriver final : public DeckMoonlightConnectionDriver {
+        public:
+            int start(SERVER_INFORMATION&, STREAM_CONFIGURATION&, CONNECTION_LISTENER_CALLBACKS&,
+                      DECODER_RENDERER_CALLBACKS&, AUDIO_RENDERER_CALLBACKS&, void*) override {
+                ++startCalls;
+                return -1;
+            }
+            void stop() override { ++stopCalls; }
+            int startCalls = 0;
+            int stopCalls = 0;
+        };
+        FailingDriver driver;
+        std::vector<std::string> hostTargets;
+        const DeckHttpFetcher hostFetcher = [&hostTargets](const std::string& target) {
+            hostTargets.push_back(target);
+            return DeckHttpResponse{true, 200, "<root status_code=\"200\"><cancel>1</cancel></root>"};
+        };
+        DeckGuardedStreamSessionPreviewProducer failingProducer(driver);
+        DeckGuardedPreviewLifecycleGate failingGate(failingProducer);
+        DeckOperatorStartAuthorizationPolicy approvedPolicy;
+        approvedPolicy.authorizeStart("local-real-start-ok");
+        DeckStreamConnectionInfo connection;
+        connection.serverAddress = "192.0.2.10";
+        connection.rtspSessionUrl = "rtsp://192.0.2.10:48010";
+        connection.keys = nova::deck::stream::generateStreamKeys();
+        const auto failed = failingGate.startAuthorizedHostSession(
+            approvedPolicy.snapshot(),
+            DeckStreamRequest{.hostId = "host-real", .gameId = "game-real"},
+            connection,
+            hostFetcher);
+        NOVA_TEST_REQUIRE(failed.statusCode == std::string("host-network-start-failed"));
+        NOVA_TEST_REQUIRE(failed.state == DeckStreamSessionState::Failed);
+        NOVA_TEST_REQUIRE(!failed.networkStarted && !failed.networkStartAllowed);
+        NOVA_TEST_REQUIRE(failed.hostConnectionTornDown);
+        NOVA_TEST_REQUIRE(driver.startCalls == 1 && driver.stopCalls == 1);
+        NOVA_TEST_REQUIRE(hostTargets.empty());
+        const auto settled = failingGate.stop();
+        NOVA_TEST_REQUIRE(settled.statusCode == std::string("stop-settled-host-session"));
+        NOVA_TEST_REQUIRE(settled.hostCancelRequested && settled.hostCancelled);
+        NOVA_TEST_REQUIRE(hostTargets.size() == 1 && hostTargets[0] == std::string("/cancel"));
+        NOVA_TEST_REQUIRE(driver.stopCalls == 1);
+    }
+
+    // cancel on a no-network preview stays local: no driver, no host request.
+    {
+        DeckGuardedStreamSessionPreviewProducer localProducer;
+        DeckGuardedPreviewLifecycleGate localGate(localProducer);
+        const auto armed = localGate.armNoNetwork(DeckStreamRequest{.hostId = "offline-host", .gameId = "offline-game"});
+        NOVA_TEST_REQUIRE(armed.statusCode == std::string("active-no-network"));
+        const auto cancelled = localGate.cancel("preview dismissed");
+        NOVA_TEST_REQUIRE(cancelled.statusCode == std::string("cancelled-no-network"));
+        NOVA_TEST_REQUIRE(cancelled.state == DeckStreamSessionState::Cancelled);
+        NOVA_TEST_REQUIRE(!cancelled.hostConnectionTornDown);
+        NOVA_TEST_REQUIRE(!cancelled.hostCancelRequested && !cancelled.hostCancelled);
+        NOVA_TEST_REQUIRE(cancelled.hostCancelSummary == std::string("no host session to end"));
+        NOVA_TEST_REQUIRE(localGate.sessionState() == DeckStreamSessionState::Cancelled);
+    }
 
     AVFrame* fakeVaapiFrame = av_frame_alloc();
     if (!require(fakeVaapiFrame != nullptr, "expected test VAAPI frame allocation")) {

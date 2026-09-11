@@ -27,6 +27,8 @@ add_library(nova_deck_core STATIC
     src/polaris_game_fixture.cpp
     src/backend/deck_backend_interfaces.cpp
     src/stream/deck_stream_core.cpp
+    src/stream/deck_gamestream_launch.cpp
+    src/stream/deck_gamestream_session_builder.cpp
     src/stream/deck_stream_media_adapters.cpp
     src/stream/deck_moonlight_handoff_preflight.cpp
     src/identity/deck_moonlight_identity.cpp
@@ -95,6 +97,18 @@ if(BUILD_TESTING)
     )
     target_link_libraries(nova_deck_stream_core_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_stream_core_test COMMAND nova_deck_stream_core_test)
+
+    add_executable(nova_deck_gamestream_launch_test
+        tests/deck_gamestream_launch_test.cpp
+    )
+    target_link_libraries(nova_deck_gamestream_launch_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_gamestream_launch_test COMMAND nova_deck_gamestream_launch_test)
+
+    add_executable(nova_deck_gamestream_session_builder_test
+        tests/deck_gamestream_session_builder_test.cpp
+    )
+    target_link_libraries(nova_deck_gamestream_session_builder_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_gamestream_session_builder_test COMMAND nova_deck_gamestream_session_builder_test)
 
     add_executable(nova_deck_stream_media_adapters_test
         tests/deck_stream_media_adapters_test.cpp

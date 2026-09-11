@@ -2,8 +2,10 @@
 
 #include <Limelight.h>
 
+#include <array>
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -11,9 +13,15 @@
 
 namespace {
 
+using nova::deck::stream::applyConnectionStreamConfig;
+using nova::deck::stream::buildStreamKeys;
+using nova::deck::stream::DeckMoonlightConnectionDriver;
+using nova::deck::stream::DeckStreamConnectionInfo;
 using nova::deck::stream::DeckStreamRequest;
 using nova::deck::stream::DeckStreamSession;
 using nova::deck::stream::DeckStreamSessionState;
+using nova::deck::stream::generateStreamKeys;
+using nova::deck::stream::launchRequestForStream;
 
 struct RendererCall {
     int videoFormat = 0;
@@ -130,6 +138,57 @@ public:
     std::vector<InputCall> leds;
 };
 
+// Stands in for moonlight-common-c's start and stop: records what it was
+// handed, answers with a fixed result, and can report a failed stage the way
+// the real start does before returning non-zero.
+class FakeDriver final : public DeckMoonlightConnectionDriver {
+public:
+    int start(
+        SERVER_INFORMATION& serverInfo,
+        STREAM_CONFIGURATION& streamConfig,
+        CONNECTION_LISTENER_CALLBACKS& listenerCallbacks,
+        DECODER_RENDERER_CALLBACKS& videoCallbacks,
+        AUDIO_RENDERER_CALLBACKS& audioCallbacks,
+        void* callbackContext) override {
+        (void)videoCallbacks;
+        (void)audioCallbacks;
+        ++startCalls;
+        lastAddress = serverInfo.address == nullptr ? "" : serverInfo.address;
+        lastRtspUrl = serverInfo.rtspSessionUrl == nullptr ? "" : serverInfo.rtspSessionUrl;
+        lastConfig = streamConfig;
+        lastContext = callbackContext;
+        listener = &listenerCallbacks;
+        if (startResult != 0 && failStage >= 0) {
+            listenerCallbacks.stageStarting(failStage);
+            listenerCallbacks.stageFailed(failStage, failStageErrorCode);
+        }
+        return startResult;
+    }
+
+    void stop() override { ++stopCalls; }
+
+    int startResult = 0;
+    int failStage = -1;
+    int failStageErrorCode = 0;
+    int startCalls = 0;
+    int stopCalls = 0;
+    std::string lastAddress;
+    std::string lastRtspUrl;
+    STREAM_CONFIGURATION lastConfig{};
+    void* lastContext = nullptr;
+    CONNECTION_LISTENER_CALLBACKS* listener = nullptr;
+};
+
+DeckStreamConnectionInfo validConnection() {
+    DeckStreamConnectionInfo info;
+    info.serverAddress = "192.0.2.10";
+    info.appVersion = "7.1.431.-1";
+    info.rtspSessionUrl = "rtsp://192.0.2.10:48010";
+    info.serverCodecModeSupport = 65793;
+    info.keys = generateStreamKeys();
+    return info;
+}
+
 DeckStreamRequest validRequest(std::string gameId = "game-123") {
     return DeckStreamRequest{
         .hostId = "host-gaming-pc",
@@ -243,6 +302,14 @@ int main() {
     sessionListenerCallbacks->setMotionEventState(0, 1, 120);
     sessionListenerCallbacks->setControllerLED(0, 8, 16, 32);
     sessionListenerCallbacks->connectionTerminated(ML_ERROR_GRACEFUL_TERMINATION);
+    // Without a live host connection the callbacks are only noted, and the
+    // notes describe what happened rather than a no-network adapter.
+    assert(session.state() == DeckStreamSessionState::Preparing);
+    for (const auto& reason : events.reasons) {
+        assert(reason.find("no-network adapter") == std::string::npos);
+    }
+    assert(events.reasons.back() == "moonlight connection terminated callback received without a live host connection (error 0)");
+    assert(session.connectionStatus().terminated);
     assert((input.rumbles == std::vector<InputCall>{InputCall{0, 100, 200, 0}}));
     assert((input.motionStates == std::vector<InputCall>{InputCall{0, 1, 120, 0}}));
     assert((input.leds == std::vector<InputCall>{InputCall{0, 8, 16, 32}}));
@@ -386,6 +453,240 @@ int main() {
         const auto preparedSequential = sequential.prepare(validRequest("game-sequential-" + std::to_string(i)));
         assert(preparedSequential.state == DeckStreamSessionState::Preparing);
         sequential.cancel("sequential owner release");
+    }
+
+    // The connection config helper copies the AES material and the encryption
+    // and color choices into a stream configuration, byte for byte.
+    {
+        STREAM_CONFIGURATION cfg;
+        LiInitializeStreamConfiguration(&cfg);
+        std::array<std::uint8_t, 16> key{};
+        for (std::size_t i = 0; i < key.size(); ++i) {
+            key[i] = static_cast<std::uint8_t>(0xA0 + i);
+        }
+        DeckStreamConnectionInfo info;
+        info.keys = buildStreamKeys(key, 0x0A0B0C0D);
+        info.encryptionFlags = ENCFLG_AUDIO;
+        info.colorSpace = COLORSPACE_REC_709;
+        info.colorRange = COLOR_RANGE_LIMITED;
+        applyConnectionStreamConfig(cfg, info);
+        assert(std::memcmp(cfg.remoteInputAesKey, key.data(), key.size()) == 0);
+        assert(static_cast<unsigned char>(cfg.remoteInputAesIv[0]) == 0x0A);
+        assert(static_cast<unsigned char>(cfg.remoteInputAesIv[1]) == 0x0B);
+        assert(static_cast<unsigned char>(cfg.remoteInputAesIv[2]) == 0x0C);
+        assert(static_cast<unsigned char>(cfg.remoteInputAesIv[3]) == 0x0D);
+        assert(cfg.remoteInputAesIv[4] == 0);
+        assert(cfg.encryptionFlags == ENCFLG_AUDIO);
+        assert(cfg.colorSpace == COLORSPACE_REC_709);
+        assert(cfg.colorRange == COLOR_RANGE_LIMITED);
+    }
+
+    // startNetwork before prepare fails closed and never authorizes the boundary,
+    // so no connection is attempted.
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        DeckStreamSession s(r, a, in, ev);
+        DeckStreamConnectionInfo info;
+        info.serverAddress = "192.0.2.10";
+        info.rtspSessionUrl = "rtsp://192.0.2.10:48010";
+        info.keys = generateStreamKeys();
+        const auto beforePrepare = s.startNetwork(info);
+        assert(beforePrepare.state == DeckStreamSessionState::Failed);
+        assert(beforePrepare.reason == "network start requested before prepare");
+        assert(!s.moonlightBoundary().networkStartAllowed);
+    }
+
+    // A prepared session still refuses to start without an address or RTSP URL,
+    // before LiStartConnection is ever reached.
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        FakeDriver driver;
+        DeckStreamSession s(r, a, in, ev, driver);
+        s.prepare(validRequest("game-net-guard"));
+        DeckStreamConnectionInfo missingUrl;
+        missingUrl.serverAddress = "192.0.2.10";
+        missingUrl.keys = generateStreamKeys();
+        const auto refusedUrl = s.startNetwork(missingUrl);
+        assert(refusedUrl.state == DeckStreamSessionState::Failed);
+        assert(refusedUrl.reason == "network start requires a host address and an RTSP session URL");
+        assert(!s.moonlightBoundary().networkStartAllowed);
+        assert(driver.startCalls == 0 && driver.stopCalls == 0);
+    }
+
+    // The launch parameters and the session's stream configuration come from
+    // the one request, so the host encodes what the client prepared to decode.
+    {
+        DeckStreamRequest request = validRequest("game-one-request");
+        request.width = 1920;
+        request.height = 1080;
+        request.fps = 90;
+        request.audioConfiguration = AUDIO_CONFIGURATION_51_SURROUND;
+        const auto launch = launchRequestForStream(request, 4242, "uuid-1");
+        assert(launch.appId == 4242 && launch.appUuid == "uuid-1");
+        assert(launch.width == 1920 && launch.height == 1080 && launch.fps == 90);
+        assert(launch.surroundAudioInfo == SURROUNDAUDIOINFO_FROM_AUDIO_CONFIGURATION(AUDIO_CONFIGURATION_51_SURROUND));
+        assert(!launch.extraQuery.empty() && launch.extraQuery.front() == '&');
+        const auto stereo = launchRequestForStream(validRequest(), 1);
+        assert(stereo.surroundAudioInfo == SURROUNDAUDIOINFO_FROM_AUDIO_CONFIGURATION(AUDIO_CONFIGURATION_STEREO));
+        // The wire value the host reads: the channel mask sits in the high 16
+        // bits and the channel count in the low ones, so stereo is 0x3 << 16 | 2.
+        // Polaris uses the same 196610 as its own default.
+        assert(stereo.surroundAudioInfo == 196610);
+
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        DeckStreamSession s(r, a, in, ev);
+        assert(s.prepare(request).state == DeckStreamSessionState::Preparing);
+        const auto* config = s.moonlightBoundary().streamConfig;
+        assert(config->width == 1920 && config->height == 1080 && config->fps == 90);
+        assert(config->audioConfiguration == AUDIO_CONFIGURATION_51_SURROUND);
+        s.cancel("one-request probe complete");
+    }
+
+    // A real start hands the driver the connection descriptor, and when the
+    // host ends the connection the session leaves Active with the error code,
+    // while the stop the driver is owed still happens on stop().
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        FakeDriver driver;
+        DeckStreamSession s(r, a, in, ev, driver);
+        s.prepare(validRequest("game-terminated"));
+        const auto info = validConnection();
+        const auto started = s.startNetwork(info);
+        assert(started.state == DeckStreamSessionState::Active && started.networkStarted);
+        assert(s.moonlightBoundary().networkStartAllowed);
+        assert(driver.startCalls == 1 && driver.stopCalls == 0);
+        assert(driver.lastAddress == info.serverAddress && driver.lastRtspUrl == info.rtspSessionUrl);
+        assert(driver.lastContext == s.moonlightBoundary().callbackContext);
+        assert(std::memcmp(driver.lastConfig.remoteInputAesKey, info.keys.aesKey.data(), info.keys.aesKey.size()) == 0);
+        assert(driver.lastConfig.width == 1280 && driver.lastConfig.fps == 60);
+
+        driver.listener->connectionStarted();
+        assert(s.connectionStatus().connectionStarted);
+        driver.listener->connectionTerminated(-100);
+        assert(s.state() == DeckStreamSessionState::Failed);
+        assert(ev.states.back() == DeckStreamSessionState::Failed);
+        assert(ev.reasons.back() == "moonlight connection terminated (error -100)");
+        const auto status = s.connectionStatus();
+        assert(status.terminated && status.terminationErrorCode == -100);
+        // The callback never calls the driver's stop; that would deadlock on
+        // moonlight's own thread. It stays owed until stop().
+        assert(driver.stopCalls == 0);
+
+        const auto stopped = s.stop();
+        assert(stopped.state == DeckStreamSessionState::Stopped);
+        assert(stopped.hostConnectionTornDown);
+        assert(stopped.reason == "stopped host session after moonlight termination (error -100)");
+        assert(driver.stopCalls == 1);
+        assert(!s.moonlightBoundary().networkStartAllowed);
+        // Nothing is owed any more: a second stop is the usual guard failure.
+        assert(s.stop().state == DeckStreamSessionState::Failed);
+        assert(driver.stopCalls == 1);
+    }
+
+    // A graceful end by the host lands in Stopped, and stop() still settles the driver.
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        FakeDriver driver;
+        DeckStreamSession s(r, a, in, ev, driver);
+        s.prepare(validRequest("game-graceful"));
+        assert(s.startNetwork(validConnection()).networkStarted);
+        driver.listener->connectionTerminated(ML_ERROR_GRACEFUL_TERMINATION);
+        assert(s.state() == DeckStreamSessionState::Stopped);
+        assert(ev.reasons.back() == "moonlight connection terminated gracefully by the host");
+        const auto stopped = s.stop();
+        assert(stopped.state == DeckStreamSessionState::Stopped && stopped.hostConnectionTornDown);
+        assert(driver.stopCalls == 1);
+    }
+
+    // fail() and cancel() on a live host connection tear it down first.
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        FakeDriver driver;
+        DeckStreamSession s(r, a, in, ev, driver);
+        s.prepare(validRequest("game-fail"));
+        assert(s.startNetwork(validConnection()).networkStarted);
+        const auto failed = s.fail("renderer adapter died mid-stream");
+        assert(failed.state == DeckStreamSessionState::Failed && failed.hostConnectionTornDown);
+        assert(failed.reason == "renderer adapter died mid-stream");
+        assert(driver.stopCalls == 1);
+        assert(!s.moonlightBoundary().networkStartAllowed);
+        assert(!s.fail("again").hostConnectionTornDown);
+        assert(driver.stopCalls == 1);
+    }
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        FakeDriver driver;
+        DeckStreamSession s(r, a, in, ev, driver);
+        s.prepare(validRequest("game-cancel"));
+        assert(s.startNetwork(validConnection()).networkStarted);
+        const auto cancelled = s.cancel("operator backed out");
+        assert(cancelled.state == DeckStreamSessionState::Cancelled && cancelled.hostConnectionTornDown);
+        assert(driver.stopCalls == 1);
+        assert(!s.moonlightBoundary().networkStartAllowed);
+    }
+
+    // A failed start is followed by the driver's stop so moonlight-common-c
+    // unwinds the stages that came up, and the reason names the failed stage.
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        FakeDriver driver;
+        driver.startResult = -1;
+        driver.failStage = STAGE_RTSP_HANDSHAKE;
+        driver.failStageErrorCode = -5;
+        DeckStreamSession s(r, a, in, ev, driver);
+        s.prepare(validRequest("game-start-failed"));
+        const auto failed = s.startNetwork(validConnection());
+        assert(failed.state == DeckStreamSessionState::Failed);
+        assert(!failed.networkStarted && failed.hostConnectionTornDown);
+        assert(failed.reason.find("result -1") != std::string::npos);
+        assert(failed.reason.find("failed stage") != std::string::npos);
+        assert(failed.reason.find("error -5") != std::string::npos);
+        assert(driver.startCalls == 1 && driver.stopCalls == 1);
+        assert(!s.moonlightBoundary().networkStartAllowed);
+        const auto status = s.connectionStatus();
+        assert(status.failedStage == STAGE_RTSP_HANDSHAKE && status.failedStageErrorCode == -5);
+        // No stop is owed after the failed start settled itself.
+        assert(s.stop().state == DeckStreamSessionState::Failed);
+        assert(driver.stopCalls == 1);
+    }
+
+    // A session dropped while streaming still tears the connection down.
+    {
+        StubRenderer r;
+        StubAudio a;
+        StubInput in;
+        RecordingEvents ev;
+        FakeDriver driver;
+        {
+            DeckStreamSession s(r, a, in, ev, driver);
+            s.prepare(validRequest("game-dropped"));
+            assert(s.startNetwork(validConnection()).networkStarted);
+        }
+        assert(driver.stopCalls == 1);
     }
 
     return 0;
