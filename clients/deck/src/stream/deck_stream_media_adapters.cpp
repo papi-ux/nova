@@ -1453,6 +1453,7 @@ int DeckVaapiFfmpegRenderer::setup(
     const int drFlags) {
     (void)context;
     (void)drFlags;
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.setupCalls;
     lifecycle_.videoFormat = videoFormat;
     lifecycle_.width = width;
@@ -1527,19 +1528,23 @@ int DeckVaapiFfmpegRenderer::setup(
 }
 
 void DeckVaapiFfmpegRenderer::start() {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.startCalls;
 }
 
 void DeckVaapiFfmpegRenderer::stop() {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.stopCalls;
 }
 
 void DeckVaapiFfmpegRenderer::cleanup() {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.cleanupCalls;
     resetDecoder();
 }
 
 int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.submitCalls;
     lifecycle_.lastFrameWasHardwareBacked = false;
     if (!ready_ || decodeUnit == nullptr) {
@@ -1607,7 +1612,8 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
     return DR_NEED_IDR;
 }
 
-const DeckRendererLifecycle& DeckVaapiFfmpegRenderer::lifecycle() const {
+DeckRendererLifecycle DeckVaapiFfmpegRenderer::lifecycle() const {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     return lifecycle_;
 }
 
@@ -1656,6 +1662,7 @@ int DeckPipeWireAudio::init(
     const int arFlags) {
     (void)context;
     (void)arFlags;
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.initCalls;
     lifecycle_.audioConfiguration = audioConfiguration;
     lifecycle_.samplesPerFrame = opusConfig == nullptr ? 0 : opusConfig->samplesPerFrame;
@@ -1667,19 +1674,23 @@ int DeckPipeWireAudio::init(
 }
 
 void DeckPipeWireAudio::start() {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.startCalls;
 }
 
 void DeckPipeWireAudio::stop() {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.stopCalls;
 }
 
 void DeckPipeWireAudio::cleanup() {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.cleanupCalls;
     ready_ = false;
 }
 
 void DeckPipeWireAudio::decodeAndPlaySample(char* sampleData, const int sampleLength) {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     if (!ready_ || sampleData == nullptr || sampleLength <= 0) {
         return;
     }
@@ -1687,12 +1698,16 @@ void DeckPipeWireAudio::decodeAndPlaySample(char* sampleData, const int sampleLe
     lifecycle_.lastSampleLength = sampleLength;
 }
 
-const DeckAudioLifecycle& DeckPipeWireAudio::lifecycle() const {
+DeckAudioLifecycle DeckPipeWireAudio::lifecycle() const {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     return lifecycle_;
 }
 
 DeckGuardedStreamSessionPreviewProducer::DeckGuardedStreamSessionPreviewProducer()
     : session_(renderer_, audio_, input_, *this) {}
+
+DeckGuardedStreamSessionPreviewProducer::DeckGuardedStreamSessionPreviewProducer(DeckMoonlightConnectionDriver& driver)
+    : session_(renderer_, audio_, input_, *this, driver) {}
 
 DeckGuardedStreamSessionPreviewProducer::~DeckGuardedStreamSessionPreviewProducer() = default;
 
@@ -1716,6 +1731,10 @@ DeckStreamTransition DeckGuardedStreamSessionPreviewProducer::stop() {
     return session_.stop();
 }
 
+DeckStreamTransition DeckGuardedStreamSessionPreviewProducer::cancel(const std::string_view reason) {
+    return session_.cancel(reason);
+}
+
 const DeckMoonlightBoundary& DeckGuardedStreamSessionPreviewProducer::moonlightBoundary() const {
     return session_.moonlightBoundary();
 }
@@ -1724,11 +1743,24 @@ DeckVaapiFfmpegRenderer& DeckGuardedStreamSessionPreviewProducer::decodedFramePr
     return renderer_;
 }
 
-const DeckRendererLifecycle& DeckGuardedStreamSessionPreviewProducer::rendererLifecycle() const {
+DeckStreamSessionState DeckGuardedStreamSessionPreviewProducer::sessionState() const {
+    return session_.state();
+}
+
+DeckMoonlightConnectionStatus DeckGuardedStreamSessionPreviewProducer::connectionStatus() const {
+    return session_.connectionStatus();
+}
+
+DeckRendererLifecycle DeckGuardedStreamSessionPreviewProducer::rendererLifecycle() const {
     return renderer_.lifecycle();
 }
 
-const std::vector<DeckStreamTransition>& DeckGuardedStreamSessionPreviewProducer::transitions() const {
+DeckAudioLifecycle DeckGuardedStreamSessionPreviewProducer::audioLifecycle() const {
+    return audio_.lifecycle();
+}
+
+std::vector<DeckStreamTransition> DeckGuardedStreamSessionPreviewProducer::transitions() const {
+    const std::lock_guard<std::mutex> lock(transitionsMutex_);
     return transitions_;
 }
 
@@ -1768,6 +1800,8 @@ void DeckGuardedStreamSessionPreviewProducer::NoopInput::setControllerLed(
 void DeckGuardedStreamSessionPreviewProducer::onSessionEvent(
     const DeckStreamSessionState state,
     const std::string_view reason) {
+    // Called from the session on whichever thread moonlight reports on.
+    const std::lock_guard<std::mutex> lock(transitionsMutex_);
     transitions_.push_back(DeckStreamTransition{
         .state = state,
         .reason = std::string(reason),
@@ -1970,7 +2004,8 @@ DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::requestOperat
 DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::startAuthorizedHostSession(
     const DeckOperatorStartAuthorizationSnapshot& authorization,
     const DeckStreamRequest& request,
-    const DeckStreamConnectionInfo& connection) {
+    const DeckStreamConnectionInfo& connection,
+    DeckHttpFetcher hostFetcher) {
     lastReport_.hostId = request.hostId;
     lastReport_.gameId = request.gameId;
     lastReport_.width = request.width;
@@ -1996,10 +2031,18 @@ DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::startAuthoriz
         return lastReport_;
     }
 
+    // From here on the host has an app running for this session (the launch is
+    // what produced the RTSP url), so it is owed a cancel when this ends,
+    // whether or not the stream comes up.
+    hostFetcher_ = std::move(hostFetcher);
+    hostSessionToken_ = connection.hostSessionToken;
+    hostSessionPending_ = true;
+
     const auto prepared = producer_.prepareNoNetwork(request);
     if (prepared.state != DeckStreamSessionState::Preparing) {
         lastReport_ = reportForTransition(prepared, "host-start-prepare-denied", false, false, &request);
         lastReport_.operatorAuthorizationState = operatorAuthorizationStateLabel(authorization.mode);
+        settleHostSession(lastReport_);
         return lastReport_;
     }
 
@@ -2016,7 +2059,7 @@ DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::startAuthoriz
 }
 
 DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::stop() {
-    if (lastReport_.state == DeckStreamSessionState::Stopped) {
+    if (lastReport_.state == DeckStreamSessionState::Stopped && !hostSessionPending_) {
         lastReport_.statusCode = "already-stopped-no-network";
         lastReport_.reason = "guarded product preview is already stopped; duplicate stop request stayed local and idempotent";
         lastReport_.prepared = false;
@@ -2029,20 +2072,67 @@ DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::stop() {
     }
 
     const auto stopped = producer_.stop();
+    std::string statusCode;
+    if (stopped.state == DeckStreamSessionState::Stopped) {
+        statusCode = stopped.hostConnectionTornDown ? "stopped-host-session" : "stopped-no-network";
+    } else if (hostSessionPending_) {
+        // The stream never came up or had already failed; only the host app was left to end.
+        statusCode = "stop-settled-host-session";
+    } else {
+        statusCode = "stop-denied-no-network";
+    }
+    lastReport_ = reportForTransition(stopped, std::move(statusCode), false, false);
+    settleHostSession(lastReport_);
+    return lastReport_;
+}
+
+DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::cancel(std::string reason) {
+    const auto cancelled = producer_.cancel(reason);
     lastReport_ = reportForTransition(
-        stopped,
-        stopped.state == DeckStreamSessionState::Stopped ? "stopped-no-network" : "stop-denied-no-network",
+        cancelled,
+        cancelled.hostConnectionTornDown ? "cancelled-host-session" : "cancelled-no-network",
         false,
         false);
+    settleHostSession(lastReport_);
     return lastReport_;
+}
+
+void DeckGuardedPreviewLifecycleGate::settleHostSession(DeckGuardedPreviewLifecycleReport& report) {
+    if (!hostSessionPending_) {
+        report.hostCancelSummary = "no host session to end";
+        return;
+    }
+    const DeckHostCancelOutcome outcome = requestHostSessionCancel(hostFetcher_, hostSessionToken_);
+    report.hostCancelRequested = outcome.requested;
+    report.hostCancelled = outcome.cancelled;
+    report.hostCancelSummary = outcome.summary;
+    hostSessionPending_ = false;
+    hostFetcher_ = {};
+    hostSessionToken_.clear();
 }
 
 const DeckGuardedPreviewLifecycleReport& DeckGuardedPreviewLifecycleGate::lastReport() const {
     return lastReport_;
 }
 
-const std::vector<DeckStreamTransition>& DeckGuardedPreviewLifecycleGate::transitions() const {
+std::vector<DeckStreamTransition> DeckGuardedPreviewLifecycleGate::transitions() const {
     return producer_.transitions();
+}
+
+DeckStreamSessionState DeckGuardedPreviewLifecycleGate::sessionState() const {
+    return producer_.sessionState();
+}
+
+DeckMoonlightConnectionStatus DeckGuardedPreviewLifecycleGate::connectionStatus() const {
+    return producer_.connectionStatus();
+}
+
+DeckRendererLifecycle DeckGuardedPreviewLifecycleGate::rendererLifecycle() const {
+    return producer_.rendererLifecycle();
+}
+
+DeckAudioLifecycle DeckGuardedPreviewLifecycleGate::audioLifecycle() const {
+    return producer_.audioLifecycle();
 }
 
 DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::reportForTransition(
@@ -2077,6 +2167,7 @@ DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::reportForTran
         .operatorAuthorizationState = lastReport_.operatorAuthorizationState,
         .networkStartAllowed = producer_.moonlightBoundary().networkStartAllowed,
         .networkStarted = transition.networkStarted,
+        .hostConnectionTornDown = transition.hostConnectionTornDown,
         .transitionCount = producer_.transitions().size(),
     };
 }

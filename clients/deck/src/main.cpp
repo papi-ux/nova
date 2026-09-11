@@ -5,6 +5,7 @@
 #include "backend/deck_live_read_only_state.h"
 #include "runtime/deck_moonlight_launcher.h"
 #include "runtime/deck_steam_shortcuts.h"
+#include "stream/deck_gamestream_session_builder.h"
 #include "stream/deck_stream_media_adapters.h"
 
 #include <QClipboard>
@@ -637,11 +638,6 @@ public:
         return updateLastReport(lifecycleGate_.stop());
     }
 
-signals:
-    void lastReportChanged();
-    void operatorAuthorizationChanged();
-
-private:
     static QString lifecycleStateLabel(const nova::deck::stream::DeckStreamSessionState state) {
         using nova::deck::stream::DeckStreamSessionState;
         switch (state) {
@@ -665,6 +661,11 @@ private:
         return QStringLiteral("unknown");
     }
 
+signals:
+    void lastReportChanged();
+    void operatorAuthorizationChanged();
+
+private:
     static QString requestSummaryForReport(const nova::deck::stream::DeckGuardedPreviewLifecycleReport& report) {
         if (report.hostId.empty() && report.gameId.empty()) {
             return QStringLiteral("No selected request has been armed yet.");
@@ -1201,6 +1202,244 @@ void writeExpandedDiagnosticsFrameSmokeArtifact(QObject* rootObject, const QStri
 
     qInfo().noquote() << "Nova Deck expanded-diagnostics-frame-smoke artifact" << artifactPath;
 }
+
+struct NativeLaunchOptions {
+    QString title;
+    int appIdOverride = 0;
+    int waitMs = 15000;
+    int bitrateKbps = 20000;
+    int width = 1280;
+    int height = 800;
+    int fps = 60;
+    bool modeValid = true;
+};
+
+NativeLaunchOptions parseNativeLaunchOptions(const QStringList& arguments) {
+    NativeLaunchOptions options;
+    options.title = stringArgumentAfter(arguments, QStringLiteral("--native-launch"));
+    options.appIdOverride = intArgumentAfter(arguments, QStringLiteral("--native-app-id"), 0);
+    options.waitMs = intArgumentAfter(arguments, QStringLiteral("--native-wait-ms"), 15000);
+    options.bitrateKbps = intArgumentAfter(arguments, QStringLiteral("--native-bitrate-kbps"), 20000);
+    const QString mode = stringArgumentAfter(arguments, QStringLiteral("--native-mode"));
+    if (!mode.isEmpty()) {
+        const QStringList parts = mode.split(QLatin1Char('x'));
+        bool wOk = false;
+        bool hOk = false;
+        bool fOk = false;
+        if (parts.size() == 3) {
+            options.width = parts[0].toInt(&wOk);
+            options.height = parts[1].toInt(&hOk);
+            options.fps = parts[2].toInt(&fOk);
+        }
+        options.modeValid = wOk && hOk && fOk && options.width > 0 && options.height > 0 && options.fps > 0;
+    }
+    return options;
+}
+
+std::string nativeStateLabel(const nova::deck::stream::DeckStreamSessionState state) {
+    return QtPreviewLifecycleBridge::lifecycleStateLabel(state).toStdString();
+}
+
+void printNativeReportLine(const char* phase, const nova::deck::stream::DeckGuardedPreviewLifecycleReport& report) {
+    std::cout << "nova-deck native: " << phase
+              << " statusCode=" << report.statusCode
+              << " state=" << nativeStateLabel(report.state)
+              << " networkStarted=" << (report.networkStarted ? "true" : "false")
+              << " reason=\"" << report.reason << "\"" << std::endl;
+}
+
+/**
+ * --native-launch "<title>" is the headless proof of the Deck's own stream
+ * path: ask the selected live host to start the title, open the
+ * moonlight-common-c session through the guarded gate with an operator start
+ * authorization, count decoded hardware frames for a while, then stop the
+ * stream and ask the host to end the app. One line per phase, then a summary.
+ * Nothing here names the host address or the session material; the
+ * transition reasons and counters are the whole story.
+ * Exit codes: 0 streamed and decoded at least one hardware frame; 2 could not
+ * ask (no identity, no selected host, unknown title, host unreachable);
+ * 3 the host refused the launch; 4 the connection failed or ended early;
+ * 5 the stream ran but no hardware frame was decoded.
+ */
+int nativeLaunchCommand(
+    const QStringList& arguments,
+    const std::optional<nova::deck::identity::DeckMoonlightIdentity>& identity,
+    const std::optional<nova::deck::backend::DeckLiveHostLibrarySnapshot>& snapshot,
+    nova::deck::stream::DeckGuardedPreviewLifecycleGate& gate) {
+    using nova::deck::stream::DeckStreamSessionState;
+    const NativeLaunchOptions options = parseNativeLaunchOptions(arguments);
+    if (!options.modeValid) {
+        std::cout << "nova-deck native: --native-mode must look like 1280x800x60" << std::endl;
+        return 2;
+    }
+    if (!identity || !snapshot || snapshot->selectedHostId.empty()) {
+        std::cout << "nova-deck native: no live host selected; Moonlight identity or a reachable Polaris host is missing" << std::endl;
+        return 2;
+    }
+    const auto* host = identity->hostById(snapshot->selectedHostId);
+    if (host == nullptr || !host->hasServerCertificate()) {
+        std::cout << "nova-deck native: the selected host has no pinned server certificate in Moonlight's identity" << std::endl;
+        return 2;
+    }
+    int httpsPort = 0;
+    for (const auto& probe : snapshot->probes) {
+        if (probe.hostId == host->stableId()) {
+            httpsPort = probe.resolvedHttpsPort;
+        }
+    }
+    if (httpsPort <= 0) {
+        httpsPort = nova::deck::identity::polarisHttpsPortForMoonlightHttpPort(host->preferredHttpPort());
+    }
+    const auto client = nova::deck::backend::polarisClientForHost(*identity, *host, httpsPort, std::chrono::milliseconds(4000));
+
+    // Resolve the title against the live library first, then Moonlight's cached
+    // app list, unless an app id was given outright.
+    int appId = options.appIdOverride;
+    std::string resolvedTitle = options.title.toStdString();
+    std::string gameId;
+    if (appId == 0) {
+        const auto games = client.fetchAllGames();
+        if (games.ok()) {
+            for (const auto& game : *games.value) {
+                if (QString::fromStdString(game.name).compare(options.title, Qt::CaseInsensitive) == 0) {
+                    appId = game.appId;
+                    resolvedTitle = game.name;
+                    gameId = game.id;
+                    break;
+                }
+            }
+        }
+        if (appId == 0) {
+            for (const auto& app : host->apps) {
+                if (QString::fromStdString(app.name).compare(options.title, Qt::CaseInsensitive) == 0) {
+                    appId = app.id;
+                    resolvedTitle = app.name;
+                    break;
+                }
+            }
+        }
+        if (appId == 0) {
+            std::cout << "nova-deck native: title \"" << options.title.toStdString() << "\" was not found in the live library"
+                      << " (polaris " << (games.ok() ? std::to_string(games.value->size()) : std::string("unavailable"))
+                      << ", cached " << host->apps.size() << ")" << std::endl;
+            return 2;
+        }
+    }
+    if (gameId.empty()) {
+        gameId = "app-" + std::to_string(appId);
+    }
+    std::cout << "nova-deck native: host=\"" << host->displayName() << "\" [" << host->stableId() << "]"
+              << " title=\"" << resolvedTitle << "\" appId=" << appId
+              << " mode=" << options.width << "x" << options.height << "x" << options.fps
+              << " bitrateKbps=" << options.bitrateKbps << " waitMs=" << options.waitMs << std::endl;
+
+    // One request feeds both the launch and the session, so the host encodes
+    // exactly what the client prepared to decode.
+    const nova::deck::stream::DeckStreamRequest request{
+        .hostId = host->stableId(),
+        .gameId = gameId,
+        .width = options.width,
+        .height = options.height,
+        .fps = options.fps,
+        .bitrateKbps = options.bitrateKbps,
+    };
+    const auto launch = nova::deck::stream::launchRequestForStream(request, appId);
+    const auto keys = nova::deck::stream::generateStreamKeys();
+    const auto fetcher = nova::deck::stream::fetcherOverPolarisClient(client);
+    std::cout << "nova-deck native: session keys generated; asking the host to start the title" << std::endl;
+    const auto build = nova::deck::stream::buildStreamConnection(fetcher, host->preferredAddress(), launch, keys);
+    if (!build.ok) {
+        std::cout << "nova-deck native: host session not assembled: " << build.error
+                  << " (launchRefused=" << (build.launchRefused ? "true" : "false")
+                  << " hostStatus=" << build.launchStatusCode
+                  << (build.launchStatusMessage.empty() ? std::string{} : " \"" + build.launchStatusMessage + "\"") << ")" << std::endl;
+        return build.launchRefused ? 3 : 2;
+    }
+    std::cout << "nova-deck native: host session assembled: rtsp url received, hostToken="
+              << (build.connectionInfo.hostSessionToken.empty() ? "none" : "received")
+              << " codecModeSupport=" << build.connectionInfo.serverCodecModeSupport << std::endl;
+
+    nova::deck::stream::DeckOperatorStartAuthorizationPolicy operatorPolicy;
+    operatorPolicy.authorizeStart("deck-cli-native-launch-operator-approved");
+    const auto started = gate.startAuthorizedHostSession(operatorPolicy.snapshot(), request, build.connectionInfo, fetcher);
+    printNativeReportLine("start", started);
+
+    bool connectionEndedEarly = false;
+    if (started.statusCode == "host-network-started") {
+        QElapsedTimer deadline;
+        deadline.start();
+        qint64 nextProgressMs = 2000;
+        // The connection's own threads deliver frames; this loop only watches.
+        // The timed processEvents overload never waits, so sleep between passes.
+        while (deadline.elapsed() < options.waitMs) {
+            QCoreApplication::processEvents();
+            QThread::msleep(100);
+            if (gate.sessionState() != DeckStreamSessionState::Active) {
+                connectionEndedEarly = true;
+                std::cout << "nova-deck native: the session left the active state after " << deadline.elapsed() << " ms" << std::endl;
+                break;
+            }
+            if (deadline.elapsed() >= nextProgressMs) {
+                const auto renderer = gate.rendererLifecycle();
+                const auto audio = gate.audioLifecycle();
+                std::cout << "nova-deck native: t=" << deadline.elapsed() << "ms"
+                          << " decodedHardwareFrames=" << renderer.decodedHardwareFrames
+                          << " submitCalls=" << renderer.submitCalls
+                          << " audioSampleCalls=" << audio.sampleCalls << std::endl;
+                nextProgressMs += 2000;
+            }
+        }
+    }
+
+    const auto stopped = gate.stop();
+    printNativeReportLine("stop", stopped);
+
+    const auto renderer = gate.rendererLifecycle();
+    const auto audio = gate.audioLifecycle();
+    const auto moonlight = gate.connectionStatus();
+    const auto transitions = gate.transitions();
+    std::cout << "nova-deck native summary: statusCode=" << stopped.statusCode
+              << " state=" << nativeStateLabel(stopped.state)
+              << " startStatusCode=" << started.statusCode
+              << " hostConnectionTornDown=" << (stopped.hostConnectionTornDown ? "true" : "false")
+              << " transitions=" << transitions.size() << std::endl;
+    for (const auto& transition : transitions) {
+        std::cout << "  - " << nativeStateLabel(transition.state) << ": " << transition.reason << std::endl;
+    }
+    std::cout << "nova-deck native renderer: setupCalls=" << renderer.setupCalls
+              << " startCalls=" << renderer.startCalls
+              << " submitCalls=" << renderer.submitCalls
+              << " decodedHardwareFrames=" << renderer.decodedHardwareFrames
+              << " presentedHardwareFrames=" << renderer.presentedHardwareFrames
+              << " stopCalls=" << renderer.stopCalls
+              << " cleanupCalls=" << renderer.cleanupCalls
+              << " videoFormat=" << renderer.videoFormat
+              << " size=" << renderer.width << "x" << renderer.height << "@" << renderer.redrawRate
+              << " runtimeStatus=\"" << renderer.runtimeStatus << "\""
+              << " lastRuntimeError=\"" << renderer.lastRuntimeError << "\"" << std::endl;
+    std::cout << "nova-deck native audio: initCalls=" << audio.initCalls
+              << " sampleCalls=" << audio.sampleCalls
+              << " lastSampleLength=" << audio.lastSampleLength
+              << " audioConfiguration=" << audio.audioConfiguration << std::endl;
+    std::cout << "nova-deck native moonlight: connectionStarted=" << (moonlight.connectionStarted ? "true" : "false")
+              << " terminated=" << (moonlight.terminated ? "true" : "false")
+              << " terminationErrorCode=" << moonlight.terminationErrorCode
+              << " lastStage=" << moonlight.lastStage
+              << " failedStage=" << moonlight.failedStage
+              << " failedStageErrorCode=" << moonlight.failedStageErrorCode << std::endl;
+    std::cout << "nova-deck native host cancel: requested=" << (stopped.hostCancelRequested ? "true" : "false")
+              << " cancelled=" << (stopped.hostCancelled ? "true" : "false")
+              << " summary=\"" << stopped.hostCancelSummary << "\"" << std::endl;
+
+    int exitCode = 0;
+    if (started.statusCode != "host-network-started" || connectionEndedEarly) {
+        exitCode = 4;
+    } else if (renderer.decodedHardwareFrames == 0) {
+        exitCode = 5;
+    }
+    std::cout << "nova-deck native: exit=" << exitCode << std::endl;
+    return exitCode;
+}
 } // namespace
 
 /**
@@ -1271,9 +1510,10 @@ int main(int argc, char *argv[]) {
     // keep proving the shell without a host.
     const bool liveRoute = appArguments.contains(QStringLiteral("--live")) || qEnvironmentVariableIntValue("NOVA_DECK_LIVE") == 1;
     const bool printLiveState = appArguments.contains(QStringLiteral("--print-live-state"));
+    const bool nativeLaunch = appArguments.contains(QStringLiteral("--native-launch"));
     std::optional<nova::deck::backend::DeckLiveHostLibrarySnapshot> liveSnapshot;
     std::optional<nova::deck::identity::DeckMoonlightIdentity> liveIdentity;
-    if (liveRoute || printLiveState) {
+    if (liveRoute || printLiveState || nativeLaunch) {
         liveIdentity = nova::deck::identity::loadDefaultMoonlightIdentity();
         liveSnapshot = nova::deck::backend::buildLiveSnapshotFromDefaultIdentity(std::chrono::milliseconds(4000));
         // Plain stdout on purpose: Qt routes qInfo to journald when stderr is
@@ -1361,6 +1601,11 @@ int main(int argc, char *argv[]) {
     DeckGuardedPreviewLifecycleGate productPreviewLifecycleGate(productPreviewProducer);
     productPreviewLifecycleGate.attachProductPreviewPipeline(productPreviewPipeline);
     QtPreviewLifecycleBridge previewLifecycle(productPreviewLifecycleGate);
+    // --native-launch runs the headless stream proof through the same gate the
+    // shell uses and exits before any window exists.
+    if (nativeLaunch) {
+        return nativeLaunchCommand(appArguments, liveIdentity, liveSnapshot, productPreviewLifecycleGate);
+    }
     const auto mediaProbe = nova::deck::stream::DeckLinuxMediaProbe::detect();
     const auto presenterReadiness = nova::deck::stream::DeckVaapiEglImagePresenter::readinessReportForPlan(
         nova::deck::stream::DeckQrhiVaapiImportPlan{
