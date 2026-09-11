@@ -54,8 +54,24 @@ jobs:
   deck:
     name: Deck client build and tests
     runs-on: ubuntu-latest
+    # The Deck client ships to SteamOS, which is Arch based. Ubuntu's Qt is 6.4
+    # and the client uses QSGRenderNode APIs that are not in it, so building
+    # here on Ubuntu would be testing a platform nothing ships to. Arch is the
+    # closest widely available stand-in for the target.
+    container: archlinux:latest
 
     steps:
+      # Installed before checkout on purpose: without git in the container,
+      # actions/checkout falls back to a REST download and silently skips
+      # submodules, which this build requires.
+      - name: Install Deck client build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git cmake ninja pkgconf \
+            qt6-base qt6-declarative \
+            ffmpeg libva libdrm mesa \
+            libpulse pipewire openssl
+
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
@@ -63,17 +79,6 @@ jobs:
           # carries enet as a submodule of its own. The Deck build fails at
           # configure time without both.
           submodules: recursive
-
-      - name: Install Deck client build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build pkg-config \
-            qt6-base-dev qt6-declarative-dev \
-            libavcodec-dev libavutil-dev \
-            libva-dev libdrm-dev libegl-dev libgles-dev \
-            libpipewire-0.3-dev libpulse-dev \
-            libssl-dev
 
       - name: Configure
         run: cmake -S clients/deck -B build-deck -G Ninja
