@@ -12,6 +12,11 @@ pkg_check_modules(NOVA_DECK_FFMPEG_VAAPI REQUIRED IMPORTED_TARGET
     libavutil
     libva
     libva-drm
+    # deck_stream_media_adapters.cpp includes <libdrm/drm_fourcc.h> for the
+    # DMA-BUF format codes. Fedora pulls those headers in transitively through
+    # mesa, so the omission was invisible on the development host and only
+    # appeared once the client was built on a distribution that does not.
+    libdrm
     egl
     glesv2
 )

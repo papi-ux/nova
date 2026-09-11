@@ -71,7 +71,7 @@ jobs:
             cmake ninja-build pkg-config \
             qt6-base-dev qt6-declarative-dev \
             libavcodec-dev libavutil-dev \
-            libva-dev libegl-dev libgles-dev \
+            libva-dev libdrm-dev libegl-dev libgles-dev \
             libpipewire-0.3-dev libpulse-dev \
             libssl-dev
 
