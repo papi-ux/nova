@@ -1,8 +1,21 @@
 #include "stream/deck_stream_core.h"
 
 #include <cstring>
+#include <string>
 
 namespace nova::deck::stream {
+
+DeckLaunchRequest launchRequestForStream(const DeckStreamRequest& request, const int appId, std::string appUuid) {
+    DeckLaunchRequest launch;
+    launch.appId = appId;
+    launch.appUuid = std::move(appUuid);
+    launch.width = request.width;
+    launch.height = request.height;
+    launch.fps = request.fps;
+    launch.surroundAudioInfo = SURROUNDAUDIOINFO_FROM_AUDIO_CONFIGURATION(request.audioConfiguration);
+    launch.extraQuery = LiGetLaunchUrlQueryParameters();
+    return launch;
+}
 
 void applyConnectionStreamConfig(STREAM_CONFIGURATION& config, const DeckStreamConnectionInfo& info) {
     static_assert(sizeof(config.remoteInputAesKey) == 16, "remoteInputAesKey is 16 bytes");
@@ -47,10 +60,34 @@ void* nextOpaqueCallbackContext() {
 }
 
 bool isValidStreamRequest(const DeckStreamRequest& request) {
-    return request.width > 0 && request.height > 0 && request.fps > 0 && request.bitrateKbps > 0;
+    return request.width > 0 && request.height > 0 && request.fps > 0 && request.bitrateKbps > 0 &&
+        request.audioConfiguration != 0;
 }
 
+class DefaultMoonlightConnectionDriver final : public DeckMoonlightConnectionDriver {
+public:
+    int start(
+        SERVER_INFORMATION& serverInfo,
+        STREAM_CONFIGURATION& streamConfig,
+        CONNECTION_LISTENER_CALLBACKS& listenerCallbacks,
+        DECODER_RENDERER_CALLBACKS& videoCallbacks,
+        AUDIO_RENDERER_CALLBACKS& audioCallbacks,
+        void* callbackContext) override {
+        return LiStartConnection(&serverInfo, &streamConfig, &listenerCallbacks, &videoCallbacks,
+                                 &audioCallbacks, callbackContext, 0, callbackContext, 0);
+    }
+
+    void stop() override {
+        LiStopConnection();
+    }
+};
+
 } // namespace
+
+DeckMoonlightConnectionDriver& defaultMoonlightConnectionDriver() {
+    static DefaultMoonlightConnectionDriver driver;
+    return driver;
+}
 
 DeckStreamSession* DeckStreamSession::ownerFromContext(void* context) {
     if (context == nullptr) {
@@ -125,11 +162,63 @@ void DeckStreamSession::audioStopForSlot(const std::size_t slot) { if (auto* own
 void DeckStreamSession::audioCleanupForSlot(const std::size_t slot) { if (auto* owner = ownerForSlot(slot)) { owner->audio_.cleanup(); } }
 void DeckStreamSession::audioDecodeAndPlaySampleForSlot(const std::size_t slot, char* sampleData, const int sampleLength) { if (auto* owner = ownerForSlot(slot)) { owner->audio_.decodeAndPlaySample(sampleData, sampleLength); } }
 
-void DeckStreamSession::listenerStageStartingForSlot(const std::size_t slot, const int stage) { (void)stage; if (auto* owner = ownerForSlot(slot)) { owner->noteSessionEvent("moonlight stage starting"); } }
-void DeckStreamSession::listenerStageCompleteForSlot(const std::size_t slot, const int stage) { (void)stage; if (auto* owner = ownerForSlot(slot)) { owner->noteSessionEvent("moonlight stage complete"); } }
-void DeckStreamSession::listenerStageFailedForSlot(const std::size_t slot, const int stage, const int errorCode) { (void)stage; (void)errorCode; if (auto* owner = ownerForSlot(slot)) { owner->noteSessionEvent("moonlight stage failed"); } }
-void DeckStreamSession::listenerConnectionStartedForSlot(const std::size_t slot) { if (auto* owner = ownerForSlot(slot)) { owner->noteSessionEvent("moonlight connection started callback received in no-network adapter"); } }
-void DeckStreamSession::listenerConnectionTerminatedForSlot(const std::size_t slot, const int errorCode) { (void)errorCode; if (auto* owner = ownerForSlot(slot)) { owner->noteSessionEvent("moonlight connection terminated callback received in no-network adapter"); } }
+void DeckStreamSession::listenerStageStartingForSlot(const std::size_t slot, const int stage) {
+    if (auto* owner = ownerForSlot(slot)) {
+        owner->lastStage_ = stage;
+        owner->noteSessionEvent("moonlight stage starting: " + std::string(LiGetStageName(stage)));
+    }
+}
+
+void DeckStreamSession::listenerStageCompleteForSlot(const std::size_t slot, const int stage) {
+    if (auto* owner = ownerForSlot(slot)) {
+        owner->lastStage_ = stage;
+        owner->noteSessionEvent("moonlight stage complete: " + std::string(LiGetStageName(stage)));
+    }
+}
+
+void DeckStreamSession::listenerStageFailedForSlot(const std::size_t slot, const int stage, const int errorCode) {
+    if (auto* owner = ownerForSlot(slot)) {
+        owner->failedStage_ = stage;
+        owner->failedStageErrorCode_ = errorCode;
+        owner->noteSessionEvent("moonlight stage failed: " + std::string(LiGetStageName(stage)) + " (error " + std::to_string(errorCode) + ")");
+    }
+}
+
+void DeckStreamSession::listenerConnectionStartedForSlot(const std::size_t slot) {
+    if (auto* owner = ownerForSlot(slot)) {
+        owner->connectionStartedSeen_ = true;
+        owner->noteSessionEvent("moonlight connection started");
+    }
+}
+
+// Runs on moonlight-common-c's termination thread, once per connection, only
+// when the host or the network ended it (a stop this side requested never
+// reaches here). The connection is gone, so the session leaves Active; the
+// driver's stop is still owed and stays owed, because moonlight-common-c
+// releases its threads only in that call, and calling it from this thread
+// would deadlock on the very thread it joins. stop() settles it later.
+void DeckStreamSession::listenerConnectionTerminatedForSlot(const std::size_t slot, const int errorCode) {
+    auto* owner = ownerForSlot(slot);
+    if (owner == nullptr) {
+        return;
+    }
+    owner->connectionTerminatedSeen_ = true;
+    owner->terminationErrorCode_ = errorCode;
+    owner->networkStarted_ = false;
+    if (!owner->stopConnectionOwed_.load()) {
+        // No host connection is live (a synthetic call, or one that raced a
+        // finished teardown); there is nothing to leave.
+        owner->noteSessionEvent("moonlight connection terminated callback received without a live host connection (error " + std::to_string(errorCode) + ")");
+        return;
+    }
+    if (errorCode == ML_ERROR_GRACEFUL_TERMINATION) {
+        owner->transitionTo(DeckStreamSessionState::Stopped, "moonlight connection terminated gracefully by the host");
+        return;
+    }
+    owner->transitionTo(
+        DeckStreamSessionState::Failed,
+        "moonlight connection terminated (error " + std::to_string(errorCode) + ")");
+}
 void DeckStreamSession::listenerRumbleForSlot(const std::size_t slot, const unsigned short controllerNumber, const unsigned short lowFreqMotor, const unsigned short highFreqMotor) { if (auto* owner = ownerForSlot(slot)) { owner->input_.rumble(controllerNumber, lowFreqMotor, highFreqMotor); } }
 void DeckStreamSession::listenerSetMotionEventStateForSlot(const std::size_t slot, const uint16_t controllerNumber, const uint8_t motionType, const uint16_t reportRateHz) { if (auto* owner = ownerForSlot(slot)) { owner->input_.setMotionEventState(controllerNumber, motionType, reportRateHz); } }
 void DeckStreamSession::listenerSetControllerLedForSlot(const std::size_t slot, const uint16_t controllerNumber, const uint8_t r, const uint8_t g, const uint8_t b) { if (auto* owner = ownerForSlot(slot)) { owner->input_.setControllerLed(controllerNumber, r, g, b); } }
@@ -764,10 +853,19 @@ DeckStreamSession::DeckStreamSession(
     DeckStreamAudio& audio,
     DeckStreamInput& input,
     DeckStreamSessionEvents& events)
+    : DeckStreamSession(renderer, audio, input, events, defaultMoonlightConnectionDriver()) {}
+
+DeckStreamSession::DeckStreamSession(
+    DeckStreamRenderer& renderer,
+    DeckStreamAudio& audio,
+    DeckStreamInput& input,
+    DeckStreamSessionEvents& events,
+    DeckMoonlightConnectionDriver& driver)
     : renderer_(renderer)
     , audio_(audio)
     , input_(input)
-    , events_(events) {
+    , events_(events)
+    , driver_(driver) {
     LiInitializeStreamConfiguration(&streamConfig_);
     LiInitializeConnectionCallbacks(&listenerCallbacks_);
     LiInitializeVideoCallbacks(&videoCallbacks_);
@@ -796,25 +894,34 @@ DeckStreamSession::~DeckStreamSession() {
     // moonlight-common-c has one global connection; a live one must be torn down
     // or the next LiStartConnection fails. stop() does it on the normal path;
     // this covers a session dropped while still streaming.
-    if (networkStarted_) {
-        LiStopConnection();
-        networkStarted_ = false;
-    }
+    teardownHostConnection();
     clearCallbackOwner(*this);
     releaseCallbackSlot(callbackSlot_);
     callbackSlot_ = kInvalidCallbackSlot;
 }
 
 DeckStreamSessionState DeckStreamSession::state() const {
-    return state_;
+    return state_.load();
 }
 
 const DeckMoonlightBoundary& DeckStreamSession::moonlightBoundary() const {
     return moonlightBoundary_;
 }
 
+DeckMoonlightConnectionStatus DeckStreamSession::connectionStatus() const {
+    return DeckMoonlightConnectionStatus{
+        .connectionStarted = connectionStartedSeen_.load(),
+        .terminated = connectionTerminatedSeen_.load(),
+        .terminationErrorCode = terminationErrorCode_.load(),
+        .lastStage = lastStage_.load(),
+        .failedStage = failedStage_.load(),
+        .failedStageErrorCode = failedStageErrorCode_.load(),
+    };
+}
+
 DeckStreamTransition DeckStreamSession::prepare(const DeckStreamRequest& request) {
-    if (state_ != DeckStreamSessionState::Idle && state_ != DeckStreamSessionState::Stopped) {
+    const auto state = state_.load();
+    if (state != DeckStreamSessionState::Idle && state != DeckStreamSessionState::Stopped) {
         return fail("prepare requested while stream session is not idle");
     }
     if (!isValidStreamRequest(request)) {
@@ -833,12 +940,19 @@ DeckStreamTransition DeckStreamSession::prepare(const DeckStreamRequest& request
     streamConfig_.height = request.height;
     streamConfig_.fps = request.fps;
     streamConfig_.bitrate = request.bitrateKbps;
+    streamConfig_.audioConfiguration = request.audioConfiguration;
     streamConfig_.packetSize = 1024;
+    connectionStartedSeen_ = false;
+    connectionTerminatedSeen_ = false;
+    terminationErrorCode_ = 0;
+    lastStage_ = -1;
+    failedStage_ = -1;
+    failedStageErrorCode_ = 0;
     return transitionTo(DeckStreamSessionState::Preparing, "prepared no-network moonlight-common-c boundary");
 }
 
 DeckStreamTransition DeckStreamSession::startNoNetwork() {
-    if (state_ != DeckStreamSessionState::Preparing) {
+    if (state_.load() != DeckStreamSessionState::Preparing) {
         return fail("start requested before prepare");
     }
 
@@ -847,7 +961,7 @@ DeckStreamTransition DeckStreamSession::startNoNetwork() {
 }
 
 DeckStreamTransition DeckStreamSession::startNetwork(const DeckStreamConnectionInfo& info) {
-    if (state_ != DeckStreamSessionState::Preparing) {
+    if (state_.load() != DeckStreamSessionState::Preparing) {
         return fail("network start requested before prepare");
     }
     if (info.serverAddress.empty() || info.rtspSessionUrl.empty()) {
@@ -870,28 +984,48 @@ DeckStreamTransition DeckStreamSession::startNetwork(const DeckStreamConnectionI
     serverInfo.serverCodecModeSupport = info.serverCodecModeSupport;
 
     transitionTo(DeckStreamSessionState::Starting, "starting host session via moonlight-common-c");
-    const int rc = LiStartConnection(&serverInfo, &streamConfig_, &listenerCallbacks_, &videoCallbacks_,
-                                     &audioCallbacks_, callbackContext_, 0, callbackContext_, 0);
+    const int rc = driver_.start(serverInfo, streamConfig_, listenerCallbacks_, videoCallbacks_, audioCallbacks_, callbackContext_);
     if (rc != 0) {
+        // A failed LiStartConnection already unwound its own stages, and a
+        // second stop is a no-op there because every unwind step is guarded by
+        // the stage counter. Calling it anyway keeps one rule for the seam:
+        // exactly one stop follows every start, whoever the driver is.
+        driver_.stop();
         moonlightBoundary_.networkStartAllowed = false;
+        clearHostStrings();
+        const auto status = connectionStatus();
+        std::string reason = "LiStartConnection did not establish the host session (result " + std::to_string(rc);
+        if (status.failedStage >= 0) {
+            reason += ", failed stage " + std::string(LiGetStageName(status.failedStage)) + " error " + std::to_string(status.failedStageErrorCode);
+        }
+        reason += ")";
+        auto failed = transitionTo(DeckStreamSessionState::Failed, reason);
+        failed.hostConnectionTornDown = true;
         clearCallbackOwner(*this);
-        return fail("LiStartConnection did not establish the host session");
+        return failed;
     }
     networkStarted_ = true;
+    stopConnectionOwed_ = true;
     return transitionTo(DeckStreamSessionState::Active, "active host session streaming via moonlight-common-c", true);
 }
 
 DeckStreamTransition DeckStreamSession::stop() {
-    if (state_ != DeckStreamSessionState::Starting && state_ != DeckStreamSessionState::Active) {
+    const auto state = state_.load();
+    const bool hostConnectionOwed = stopConnectionOwed_.load();
+    if (!hostConnectionOwed && state != DeckStreamSessionState::Starting && state != DeckStreamSessionState::Active) {
         return fail("stop requested before active stream");
     }
 
-    if (networkStarted_) {
-        transitionTo(DeckStreamSessionState::Stopping, "stopping host session; calling LiStopConnection");
-        LiStopConnection();
-        networkStarted_ = false;
-        moonlightBoundary_.networkStartAllowed = false;
-        auto stopped = transitionTo(DeckStreamSessionState::Stopped, "stopped host session");
+    if (hostConnectionOwed) {
+        const bool hostEndedIt = connectionTerminatedSeen_.load();
+        transitionTo(DeckStreamSessionState::Stopping, hostEndedIt
+            ? "stopping host session after the host ended the connection; calling LiStopConnection to release moonlight-common-c"
+            : "stopping host session; calling LiStopConnection");
+        teardownHostConnection();
+        auto stopped = transitionTo(DeckStreamSessionState::Stopped, hostEndedIt
+            ? "stopped host session after moonlight termination (error " + std::to_string(terminationErrorCode_.load()) + ")"
+            : "stopped host session");
+        stopped.hostConnectionTornDown = true;
         clearCallbackOwner(*this);
         return stopped;
     }
@@ -905,24 +1039,43 @@ DeckStreamTransition DeckStreamSession::stop() {
 DeckStreamTransition DeckStreamSession::cancel(const std::string_view reason) {
     // cancel() has no state guard, so it can arrive on a network-active session;
     // tear the host connection down before leaving it.
-    if (networkStarted_) {
-        LiStopConnection();
-        networkStarted_ = false;
-        moonlightBoundary_.networkStartAllowed = false;
-    }
+    const bool tornDown = teardownHostConnection();
     auto cancelled = transitionTo(DeckStreamSessionState::Cancelled, reason.empty() ? "cancelled" : reason);
+    cancelled.hostConnectionTornDown = tornDown;
     clearCallbackOwner(*this);
     return cancelled;
 }
 
 DeckStreamTransition DeckStreamSession::fail(const std::string_view reason) {
+    // A failure on a session with a live host connection must not leave the
+    // connection running underneath a Failed state.
+    const bool tornDown = teardownHostConnection();
     auto failed = transitionTo(DeckStreamSessionState::Failed, reason.empty() ? "stream skeleton failed before network start" : reason);
+    failed.hostConnectionTornDown = tornDown;
     clearCallbackOwner(*this);
     return failed;
 }
 
+bool DeckStreamSession::teardownHostConnection() {
+    if (!stopConnectionOwed_.exchange(false)) {
+        return false;
+    }
+    driver_.stop();
+    networkStarted_ = false;
+    moonlightBoundary_.networkStartAllowed = false;
+    clearHostStrings();
+    return true;
+}
+
+void DeckStreamSession::clearHostStrings() {
+    serverAddress_.clear();
+    serverAppVersion_.clear();
+    serverGfeVersion_.clear();
+    rtspSessionUrl_.clear();
+}
+
 void DeckStreamSession::noteSessionEvent(const std::string_view reason) {
-    events_.onSessionEvent(state_, reason);
+    events_.onSessionEvent(state_.load(), reason);
 }
 
 DeckStreamTransition DeckStreamSession::transitionTo(
@@ -930,9 +1083,9 @@ DeckStreamTransition DeckStreamSession::transitionTo(
     const std::string_view reason,
     const bool networkStarted) {
     state_ = state;
-    events_.onSessionEvent(state_, reason);
+    events_.onSessionEvent(state, reason);
     return DeckStreamTransition{
-        .state = state_,
+        .state = state,
         .reason = std::string(reason),
         .networkStarted = networkStarted,
     };
