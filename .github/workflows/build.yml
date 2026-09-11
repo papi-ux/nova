@@ -51,6 +51,54 @@ jobs:
       - name: Run helper and onboarding tests
         run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight
 
+  deck:
+    name: Deck client build and tests
+    runs-on: ubuntu-latest
+    # The Deck client ships to SteamOS, which is Arch based. Ubuntu's Qt is 6.4
+    # and the client uses QSGRenderNode APIs that are not in it, so building
+    # here on Ubuntu would be testing a platform nothing ships to. Arch is the
+    # closest widely available stand-in for the target.
+    container: archlinux:latest
+
+    steps:
+      # Installed before checkout on purpose: without git in the container,
+      # actions/checkout falls back to a REST download and silently skips
+      # submodules, which this build requires.
+      - name: Install Deck client build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git gcc cmake ninja pkgconf \
+            qt6-base qt6-declarative \
+            ffmpeg libva libdrm mesa \
+            libpulse pipewire openssl
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          # moonlight-common-c lives under app/src/main/jni/moonlight-core and
+          # carries enet as a submodule of its own. The Deck build fails at
+          # configure time without both.
+          submodules: recursive
+
+      # actions/checkout writes the tree as the runner user while steps in a
+      # container run as root, so git refuses the repository as dubiously
+      # owned. One of the client's own tests shells out to git, and reads that
+      # refusal as uncommitted changes.
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Configure
+        run: cmake -S clients/deck -B build-deck -G Ninja
+
+      - name: Build
+        run: cmake --build build-deck
+
+      - name: Test
+        env:
+          # The client is a Qt Quick application and the runner has no display.
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build-deck --output-on-failure
+
   android-smoke:
     name: Emulator smoke test
     needs: verify

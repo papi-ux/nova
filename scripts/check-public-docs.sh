@@ -114,7 +114,12 @@ steps = (
 positions = [workflow.find(f"      - name: {step}\n") for step in steps]
 if -1 in positions or positions != sorted(positions):
     raise SystemExit("Release source, notes, assets, and publication steps must stay ordered")
-if workflow.count("ref: ${{ github.sha }}") != 3:
+# The rule is that every lane pins the event source, not that there are three
+# lanes. Counting checkouts instead of hardcoding a number keeps the invariant
+# true when a lane is added, and still fails the moment one checks out a
+# floating ref instead of the exact commit.
+checkout_steps = workflow.count("- uses: actions/checkout@")
+if checkout_steps == 0 or workflow.count("ref: ${{ github.sha }}") != checkout_steps:
     raise SystemExit("Every Nova build lane must check out the exact event source")
 
 stage_start = positions[1]
