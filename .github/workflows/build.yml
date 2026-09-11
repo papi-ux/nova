@@ -67,7 +67,7 @@ jobs:
       - name: Install Deck client build dependencies
         run: |
           pacman -Syu --noconfirm --needed \
-            git cmake ninja pkgconf \
+            git gcc cmake ninja pkgconf \
             qt6-base qt6-declarative \
             ffmpeg libva libdrm mesa \
             libpulse pipewire openssl

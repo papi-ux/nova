@@ -177,8 +177,13 @@ class NovaReleaseMetadataTest {
 
         assertTrue(positions.all { it >= 0 })
         assertTrue(positions == positions.sorted())
-        assertTrue(workflow.lines().count { it == "      - uses: actions/checkout@v5" } == 3)
-        assertTrue(workflow.lines().count { it == "          ref: \${{ github.sha }}" } == 3)
+        // The rule is that every lane pins the event source, not that there are
+        // three lanes. Comparing the two counts keeps the invariant true when a
+        // lane is added, and still fails the moment one checks out a floating
+        // ref instead of the exact commit.
+        val checkouts = workflow.lines().count { it == "      - uses: actions/checkout@v5" }
+        assertTrue(checkouts > 0)
+        assertTrue(workflow.lines().count { it == "          ref: \${{ github.sha }}" } == checkouts)
         assertTrue(workflow.lines().count {
             it == "      source_commit: \${{ steps.source.outputs.commit }}"
         } == 1)
