@@ -51,6 +51,42 @@ jobs:
       - name: Run helper and onboarding tests
         run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight
 
+  deck:
+    name: Deck client build and tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          # moonlight-common-c lives under app/src/main/jni/moonlight-core and
+          # carries enet as a submodule of its own. The Deck build fails at
+          # configure time without both.
+          submodules: recursive
+
+      - name: Install Deck client build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build pkg-config \
+            qt6-base-dev qt6-declarative-dev \
+            libavcodec-dev libavutil-dev \
+            libva-dev libegl-dev libgles-dev \
+            libpipewire-0.3-dev libpulse-dev \
+            libssl-dev
+
+      - name: Configure
+        run: cmake -S clients/deck -B build-deck -G Ninja
+
+      - name: Build
+        run: cmake --build build-deck
+
+      - name: Test
+        env:
+          # The client is a Qt Quick application and the runner has no display.
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build-deck --output-on-failure
+
   android-smoke:
     name: Emulator smoke test
     needs: verify
