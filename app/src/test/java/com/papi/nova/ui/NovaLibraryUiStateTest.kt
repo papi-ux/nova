@@ -740,10 +740,14 @@ class NovaLibraryUiStateTest {
 
     @Test
     fun compactRetroidLandscapeChromeBudgetLeavesGameWallPrimaryAboveFooter() {
+        // Everything the shell spends before the grid gets a single dp. The toolbar
+        // was missing from this sum, which let the largest single item in it grow
+        // while the guard kept passing. Landscape now draws one strip instead of a
+        // toolbar above a hero, so the strip is counted and the hero is not.
         val persistentChromeBudget =
             (NovaLibraryUiStateMapper.screenPaddingDp(isLandscape = true) * 2) +
-                (NovaLibraryUiStateMapper.landscapeContentSpacingDp() * 2) +
-                NovaLibraryUiStateMapper.heroHeightDp(compact = true) +
+                NovaLibraryUiStateMapper.landscapeContentSpacingDp() +
+                NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp() +
                 NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true)
 
         assertTrue(
@@ -755,8 +759,9 @@ class NovaLibraryUiStateTest {
             NovaLibraryUiStateMapper.landscapeContentSpacingDp() <= 6
         )
         assertTrue(
-            "Retroid landscape footer reserve should clear the full controller hint bar plus breathing room so poster rows do not sit underneath it",
-            NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true) in 44..52
+            "Retroid landscape must still clear the full controller hint bar plus breathing room so poster rows do not sit underneath it, but it buys that clearance from the grid's own bottom inset instead of a shell slab the grid could never draw into",
+            NovaLibraryUiStateMapper.landscapeHintClearanceDp() >=
+                NovaLibraryUiStateMapper.controllerHintBarMinHeightDp() + 8
         )
         assertEquals(
             "portrait footer reserve should stay unchanged while the compact landscape shell is tightened",
@@ -780,7 +785,19 @@ class NovaLibraryUiStateTest {
         )
         assertTrue(
             "compact landscape persistent chrome should leave the game grid as the visual primary surface",
-            persistentChromeBudget <= 156
+            persistentChromeBudget <= 96
+        )
+        // The point of all of the above, stated once in the terms a person would use:
+        // on the RP6 the wall of games gets most of the screen. It used to get 178dp
+        // of 390, which is one poster row and a sliver of the next.
+        val gridSharePercent =
+            NovaLibraryUiStateMapper.landscapeGridViewportHeightDp(
+                screenHeightDp = 390,
+                safeVerticalInsetsDp = 0,
+            ) * 100 / 390
+        assertTrue(
+            "the game wall should be the majority of the screen, had ${'$'}gridSharePercent%",
+            gridSharePercent >= 70
         )
     }
 

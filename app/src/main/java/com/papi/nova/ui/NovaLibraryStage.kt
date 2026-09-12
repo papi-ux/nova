@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -231,6 +232,82 @@ internal fun NovaLibraryPortraitToolbarContent(
                 onClick = onOpenSystemMenu,
             )
         }
+    }
+}
+
+/**
+ * Landscape draws identity, the continue action, the result count and the two
+ * menu buttons in one row.
+ *
+ * A toolbar stacked above a continue card spent the width twice. The toolbar
+ * carried an empty gap almost two thirds of the screen wide between the host
+ * name and the count, and the card stopped at the halfway mark, so two
+ * full-width strips were each about half empty and the poster grid was left with
+ * one row. The continue slot sits in the gap the toolbar already had.
+ *
+ * When there is nothing to continue the slot is absent rather than blank, and
+ * identity and metadata reflow across the space instead of holding it open.
+ */
+@Composable
+internal fun NovaLibraryLandscapeShowcaseStripContent(
+    hostLabel: String,
+    resultCount: Int,
+    layoutLabel: String,
+    polarisReady: Boolean,
+    onOpenOptions: () -> Unit,
+    onOpenSystemMenu: () -> Unit,
+    continueSlot: (@Composable RowScope.() -> Unit)? = null,
+) {
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val largeText = LocalDensity.current.fontScale >= 1.5f
+    val shape = RoundedCornerShape(NovaRadius.row)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText).dp)
+            .clip(shape)
+            .background(surfaces.panel.copy(alpha = 0.34f * LocalNovaMenuOpacityScale.current))
+            .border(1.dp, surfaces.tileBorder, shape)
+            .padding(horizontal = 10.dp, vertical = 5.5.dp)
+            .testTag("nova-library-landscape-toolbar"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        NovaLibraryToolbarIdentity(
+            hostLabel = hostLabel,
+            cinematic = true,
+            modifier = Modifier.widthIn(min = 104.dp, max = 168.dp),
+            statusContent = {
+                if (polarisReady) {
+                    Text(
+                        text = stringResource(R.string.nova_system_menu_status_polaris_ready),
+                        color = LocalNovaComposeColors.current.textSecondary,
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            },
+        )
+        if (continueSlot != null) {
+            continueSlot()
+        } else {
+            Spacer(modifier = Modifier.weight(1f))
+        }
+        NovaLibraryResultAndLayoutMeta(
+            resultCount = resultCount,
+            layoutLabel = layoutLabel,
+            cinematic = true,
+        )
+        NovaLibraryToolbarOptionsAction(
+            largeText = largeText,
+            primary = false,
+            onClick = onOpenOptions,
+        )
+        NovaLibraryToolbarSystemAction(
+            onClick = onOpenSystemMenu,
+        )
     }
 }
 

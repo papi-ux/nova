@@ -273,9 +273,8 @@ class NovaComposeSourceGuardTest {
                 portraitHeader.contains("NovaLibraryPrimaryFilter.entries.forEach")
         )
         assertTrue(
-            "landscape should keep the compact hero + full-width grid stack after the slim toolbar",
-            screen.contains("NovaLibraryLandscapeToolbar(") &&
-                screen.contains("NovaLibraryHomeHero(") &&
+            "landscape should keep one showcase strip above a full-width grid. The toolbar and the continue card used to be two strips, and the grid was left with a single poster row because of it.",
+            screen.contains("NovaLibraryLandscapeShowcaseStripContent(") &&
                 screen.contains("NovaLibraryContent(")
         )
     }
@@ -569,8 +568,10 @@ class NovaComposeSourceGuardTest {
         val landscape = screen.blockStartingAt("if (isLandscape) {")
 
         assertTrue(
-            "landscape library should promote the hero before grid content so the picker remains visible on Retroid",
-            landscape.indexOf("NovaLibraryHomeHero(") in 0 until landscape.indexOf("NovaLibraryContent(")
+            "landscape library should promote the continue action before grid content so the picker remains visible on Retroid. It is a slot inside the one showcase strip rather than a card of its own, because two stacked full-width strips were each about half empty.",
+            landscape.indexOf("NovaLibraryLandscapeShowcaseStripContent(") in
+                0 until landscape.indexOf("NovaLibraryContent(") &&
+                landscape.contains("NovaLibraryShowcaseContinue(")
         )
         assertTrue(
             "landscape library should restore the recent rail after picker/grid content, not between hero and picker",
@@ -696,14 +697,15 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "landscape shell should reserve a mapper-owned footer gutter for the overlaid controller hints instead of letting poster rows render under the bar",
+            "landscape should keep a mapper-owned clearance for the overlaid controller hints instead of letting poster rows settle under the bar. The shell used to hold that back as a slab the grid could never draw into, and the grid paid for it a second time in its own inset; the inset alone buys the clearance now, so the mapper has to own the rule that says so.",
             screen.contains("NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp") &&
-                mapper.contains("private const val LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP = 48")
+                mapper.contains("fun landscapeHintClearanceDp(): Int") &&
+                mapper.contains("fun controllerHintBarMinHeightDp(): Int")
         )
         assertTrue(
             "game grid should use mapper-owned inner padding with extra bottom scroll room so the final poster row can settle above the footer",
             content.contains("contentPadding = PaddingValues(") &&
-                content.contains("NovaLibraryUiStateMapper.gridContentPaddingDp().dp") &&
+                content.contains("NovaLibraryUiStateMapper.gridContentPaddingDp()") &&
                 content.contains("bottom = NovaLibraryUiStateMapper.gridBottomContentPaddingDp(isLandscape).dp") &&
                 mapper.contains("fun gridBottomContentPaddingDp(isLandscape: Boolean): Int")
         )
@@ -1859,7 +1861,7 @@ class NovaComposeSourceGuardTest {
                 libraryScreen.contains("val controllerHintBarBottomPadding = NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp") &&
                 libraryScreen.contains("val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()") &&
                 libraryScreen.contains("if (isLandscape) {") &&
-                libraryScreen.contains("NovaLibraryLandscapeToolbar(") &&
+                libraryScreen.contains("NovaLibraryLandscapeShowcaseStripContent(") &&
                 libraryScreen.contains(".padding(bottom = controllerHintBarBottomPadding)") &&
                 libraryScreen.contains("NovaLibraryCinematicControllerHints(") &&
                 libraryScreen.contains("hints = visibleControllerHints") &&
@@ -3082,7 +3084,11 @@ class NovaComposeSourceGuardTest {
         assertTrue(focusLookup >= 0 && focusedItem > focusLookup)
         assertTrue(focusedItem < heroFallback && heroFallback < filteredFallback && filteredFallback < recentFallback)
         assertTrue(backdropCall >= 0 && backdropCall < particles && backdropCall < windowContent)
-        assertTrue(activity.windowed("onGameFocused = onGameFocused".length).count { it == "onGameFocused = onGameFocused" } >= 7)
+        assertTrue(
+            "every surface that can focus a game has to report it so the backdrop follows. The count dropped by one when the standalone continue card became a slot in the showcase strip, which has a button rather than a focusable card.",
+            activity.windowed("onGameFocused = onGameFocused".length)
+                .count { it == "onGameFocused = onGameFocused" } >= 6,
+        )
     }
 
     private fun readNovaLibraryActivity(): String =
