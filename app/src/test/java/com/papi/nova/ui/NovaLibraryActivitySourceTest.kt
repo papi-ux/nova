@@ -22,14 +22,14 @@ class NovaLibraryActivitySourceTest {
         val source = readLibraryActivitySource()
 
         assertTrue(source.contains("val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()"))
-        assertTrue(source.contains("NovaLibraryLandscapeToolbar("))
+        assertTrue(source.contains("NovaLibraryLandscapeShowcaseStripContent("))
         assertFalse(source.contains("controllerHintBarLandscapeStartPadding"))
         assertTrue(source.contains("NovaLibraryCinematicControllerHints("))
         val landscapeBranch = source.substring(
             source.indexOf("if (isLandscape) {"),
             source.indexOf("} else {", source.indexOf("if (isLandscape) {"))
         )
-        assertTrue(landscapeBranch.contains("NovaLibraryLandscapeToolbar("))
+        assertTrue(landscapeBranch.contains("NovaLibraryLandscapeShowcaseStripContent("))
     }
 
     @Test

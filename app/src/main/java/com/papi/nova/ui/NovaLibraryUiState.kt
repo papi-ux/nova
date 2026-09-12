@@ -47,6 +47,20 @@ internal data class NovaPortraitPosterSize(
     val heightDp: Int,
 )
 
+/**
+ * What the poster grid resolves to once its real viewport is known: how many
+ * columns, the exact 2:3 poster those columns give, and how much of the next row
+ * is left showing.
+ */
+data class NovaLibraryGridViewportSpec(
+    val columns: Int,
+    val posterWidthDp: Int,
+    val posterHeightDp: Int,
+    val rowPitchDp: Int,
+    val fullRows: Int,
+    val peekDp: Int,
+)
+
 internal data class NovaPosterPresentationSpec(
     val focusedScale: Float,
     val unfocusedAlpha: Float,
@@ -267,7 +281,19 @@ object NovaLibraryUiStateMapper {
     private const val RECENT_RAIL_HORIZONTAL_PADDING_DP = 24
     private const val GAME_CARD_GAP_DP = 10
     private const val GRID_CONTENT_PADDING_DP = 10
-    private const val LANDSCAPE_GRID_BOTTOM_CONTENT_PADDING_DP = 24
+    private const val GRID_ITEM_SPACING_DP = 6
+    private const val MIN_GRID_POSTER_WIDTH_DP = 72
+    private const val MAX_EXTRA_GRID_COLUMNS = 3
+    private const val MIN_GRID_PEEK_DP = 16
+
+    /**
+     * Clearance for the overlaid hint bar at the end of a scroll. The bar used to
+     * be paid for twice: once as a shell slab the grid could never draw into, and
+     * again here. Only this one is needed, because a row sliding under a scrim
+     * mid-scroll reads as more content, not as a clipped row.
+     */
+    private const val LANDSCAPE_GRID_BOTTOM_CONTENT_PADDING_DP = 44
+    private const val CONTROLLER_HINT_BAR_MIN_HEIGHT_DP = 34
     private const val MIN_RECENT_RAIL_CARD_WIDTH_DP = 72
     private const val RAIL_SCROLL_BOTTOM_PADDING_DP = 96
     private const val RAIL_VERTICAL_SPACING_DP = 4
@@ -281,7 +307,13 @@ object NovaLibraryUiStateMapper {
     private const val LANDSCAPE_SCREEN_PADDING_DP = 8
     private const val PORTRAIT_SCREEN_PADDING_DP = 8
     private const val LANDSCAPE_CONTENT_SPACING_DP = 6
-    private const val LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP = 48
+
+    /**
+     * Zero because the landscape hint bar is an overlay. Its clearance lives in
+     * LANDSCAPE_GRID_BOTTOM_CONTENT_PADDING_DP instead, so the 48dp this used to
+     * hold back is returned to the poster grid.
+     */
+    private const val LANDSCAPE_CONTROLLER_HINT_BOTTOM_PADDING_DP = 0
 
     /**
      * The cinematic stage reserves less than the grid/compact shells. Those lay poster
@@ -900,20 +932,10 @@ object NovaLibraryUiStateMapper {
             widthDp >= 1280 -> NovaLibraryWindowClass.TV_LANDSCAPE
             else -> NovaLibraryWindowClass.HANDHELD_LANDSCAPE
         }
-        val gridColumns = when (windowClass) {
-            NovaLibraryWindowClass.PHONE_PORTRAIT -> when (layoutMode) {
-                NovaLibraryLayoutMode.COMPACT -> 4
-                else -> 3
-            }
-            NovaLibraryWindowClass.HANDHELD_LANDSCAPE -> when (layoutMode) {
-                NovaLibraryLayoutMode.COMPACT -> 6
-                else -> 5
-            }
-            NovaLibraryWindowClass.TV_LANDSCAPE -> when (layoutMode) {
-                NovaLibraryLayoutMode.COMPACT -> 9
-                else -> 7
-            }
-        }
+        // One ladder. This file already carried a second, unused one in
+        // gridColumnsForScreen, and the grid's viewport solver needs the same
+        // starting point, so the count lives in baseGridColumns and nowhere else.
+        val gridColumns = baseGridColumns(layoutMode, windowClass)
         val gameCardHeightDp = when (windowClass) {
             NovaLibraryWindowClass.PHONE_PORTRAIT -> if (layoutMode == NovaLibraryLayoutMode.COMPACT) 104 else 168
             NovaLibraryWindowClass.HANDHELD_LANDSCAPE -> if (layoutMode == NovaLibraryLayoutMode.COMPACT) 88 else 112
@@ -1086,6 +1108,102 @@ object NovaLibraryUiStateMapper {
 
     fun gridContentPaddingDp(): Int = GRID_CONTENT_PADDING_DP
 
+    /**
+     * Space between posters. The old 10dp sat on top of each card's own focus
+     * gutter, so neighbouring artwork was 22dp apart against a 112dp poster,
+     * about a fifth of the poster itself. The gutter keeps its job of giving the
+     * focus scale somewhere to grow; this is the part that was simply wide.
+     */
+    fun gridItemSpacingDp(): Int = GRID_ITEM_SPACING_DP
+
+    /**
+     * The grid's own viewport in landscape: what is left after the screen padding
+     * and the one strip above it. GRID and COMPACT had no viewport arithmetic at
+     * all, they took fixed dp and let Modifier.weight absorb the rest, which is
+     * why the second row landed a few dp short and read as clipped.
+     */
+    fun landscapeGridViewportHeightDp(
+        screenHeightDp: Int,
+        safeVerticalInsetsDp: Int,
+        largeText: Boolean = false,
+    ): Int = (
+        screenHeightDp -
+            safeVerticalInsetsDp.coerceAtLeast(0) -
+            screenPaddingDp(isLandscape = true) * 2 -
+            landscapeShowcaseStripHeightDp(largeText) -
+            landscapeContentSpacingDp()
+        ).coerceAtLeast(0)
+
+    /**
+     * Choose the column count that shows the rows a mode is meant to show.
+     *
+     * COMPACT calls itself "a materially denser readable browser for fast
+     * controller sweeps" but only ever added one column, so it showed the same
+     * single row GRID did. It earns the name here by fitting two whole rows.
+     * GRID keeps the larger artwork and takes a deliberate peek of the next row
+     * instead, which is what tells you the grid scrolls.
+     */
+    fun gridViewportSpec(
+        contentWidthDp: Int,
+        viewportHeightDp: Int,
+        layoutMode: NovaLibraryLayoutMode,
+        windowClass: NovaLibraryWindowClass,
+    ): NovaLibraryGridViewportSpec {
+        val spacing = gridItemSpacingDp()
+        val gutter = posterPresentationSpec(layoutMode).focusGutterDp
+        val baseColumns = baseGridColumns(layoutMode, windowClass)
+        val targetRows = if (layoutMode == NovaLibraryLayoutMode.COMPACT) 2 else 1
+
+        var fallback: NovaLibraryGridViewportSpec? = null
+        var rowsOnly: NovaLibraryGridViewportSpec? = null
+        for (columns in baseColumns..(baseColumns + MAX_EXTRA_GRID_COLUMNS)) {
+            val cellWidthDp = (contentWidthDp - spacing * (columns - 1)) / columns
+            val posterWidthDp = cellWidthDp - gutter * 2
+            if (posterWidthDp < MIN_GRID_POSTER_WIDTH_DP) break
+            val poster = portraitPosterSizeForWidth(posterWidthDp)
+            val rowPitchDp = poster.heightDp + spacing
+            val fullRows = if (rowPitchDp <= 0) {
+                0
+            } else {
+                ((viewportHeightDp + spacing) / rowPitchDp).coerceAtLeast(0)
+            }
+            val candidate = NovaLibraryGridViewportSpec(
+                columns = columns,
+                posterWidthDp = poster.widthDp,
+                posterHeightDp = poster.heightDp,
+                rowPitchDp = rowPitchDp,
+                fullRows = fullRows,
+                peekDp = (viewportHeightDp - (fullRows * rowPitchDp - spacing)).coerceAtLeast(0),
+            )
+            if (fallback == null) fallback = candidate
+            if (fullRows >= targetRows) {
+                // A row count that exactly fills the viewport leaves nothing showing
+                // of the next one, and a grid with no peek does not look like it
+                // scrolls. Prefer the first candidate that fits the rows and still
+                // shows a sliver; fall back to rows alone if none does.
+                if (candidate.peekDp >= MIN_GRID_PEEK_DP) return candidate
+                if (rowsOnly == null) rowsOnly = candidate
+            }
+        }
+        return rowsOnly ?: fallback ?: NovaLibraryGridViewportSpec(
+            columns = baseColumns,
+            posterWidthDp = MIN_GRID_POSTER_WIDTH_DP,
+            posterHeightDp = MIN_GRID_POSTER_WIDTH_DP * 3 / 2,
+            rowPitchDp = MIN_GRID_POSTER_WIDTH_DP * 3 / 2 + spacing,
+            fullRows = 0,
+            peekDp = viewportHeightDp.coerceAtLeast(0),
+        )
+    }
+
+    private fun baseGridColumns(
+        layoutMode: NovaLibraryLayoutMode,
+        windowClass: NovaLibraryWindowClass,
+    ): Int = when (windowClass) {
+        NovaLibraryWindowClass.PHONE_PORTRAIT -> if (layoutMode == NovaLibraryLayoutMode.COMPACT) 4 else 3
+        NovaLibraryWindowClass.HANDHELD_LANDSCAPE -> if (layoutMode == NovaLibraryLayoutMode.COMPACT) 6 else 5
+        NovaLibraryWindowClass.TV_LANDSCAPE -> if (layoutMode == NovaLibraryLayoutMode.COMPACT) 9 else 7
+    }
+
     fun gridBottomContentPaddingDp(isLandscape: Boolean): Int {
         return if (isLandscape) LANDSCAPE_GRID_BOTTOM_CONTENT_PADDING_DP else GRID_CONTENT_PADDING_DP
     }
@@ -1116,6 +1234,28 @@ object NovaLibraryUiStateMapper {
     fun landscapeContentSpacingDp(): Int = LANDSCAPE_CONTENT_SPACING_DP
 
     fun landscapeToolbarHeightDp(largeText: Boolean = false): Int = if (largeText) 74 else 60
+
+    /**
+     * Landscape draws identity, the continue action, the result count and the two
+     * menu buttons in one strip. Stacking a toolbar above a continue card spent
+     * the width twice: the toolbar carried a gap almost two thirds of the screen
+     * wide between the host name and the count, and the card stopped at the
+     * halfway mark. The height is the toolbar's, because the floor is two 48dp
+     * touch targets rather than anything the text needs.
+     */
+    fun landscapeShowcaseStripHeightDp(largeText: Boolean = false): Int =
+        landscapeToolbarHeightDp(largeText)
+
+    fun controllerHintBarMinHeightDp(): Int = CONTROLLER_HINT_BAR_MIN_HEIGHT_DP
+
+    /**
+     * What a poster row actually clears at the end of a scroll. The shell no
+     * longer reserves a slab, so this is the one number that keeps rows out from
+     * under the hint bar, and it is what the contract test should hold.
+     */
+    fun landscapeHintClearanceDp(): Int =
+        controllerHintBarBottomPaddingDp(isLandscape = true) +
+            gridBottomContentPaddingDp(isLandscape = true)
 
     fun stageRailVerticalContentPaddingDp(): Int = 4
 

@@ -279,10 +279,15 @@ class NovaLibraryLayoutV2Test {
         // The stage reserves less than the grid/compact shells: those lay poster rows out
         // beneath an overlaid hint bar, while the stage anchors one rail above a light
         // three-hint footer.
+        //
+        // The grid shells now clear that bar through their own bottom content padding
+        // rather than a shell slab the grid could never draw into, so the comparison is
+        // against the clearance a poster row actually gets. Reading the shell padding
+        // alone stopped meaning anything the moment it became zero.
         assertTrue(NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp() in 36..44)
         assertTrue(
             NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp() <
-                NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true),
+                NovaLibraryUiStateMapper.landscapeHintClearanceDp(),
         )
         assertEquals(
             540 - 16 - NovaLibraryUiStateMapper.screenPaddingDp(true) * 2 -
@@ -421,4 +426,73 @@ class NovaLibraryLayoutV2Test {
             }
         }
     }
+
+    /**
+     * The showcase used to spend 212dp of the RP6's 390 on chrome and leave the
+     * grid 178dp, which is one 168dp poster row and a 9dp sliver of the next. Six
+     * covers from a 24 game library, with the second row reading as clipped.
+     */
+    @Test
+    fun rp6LandscapeGivesTheGridItsScreenBackAndFitsWholeRows() {
+        val viewportDp = NovaLibraryUiStateMapper.landscapeGridViewportHeightDp(
+            screenHeightDp = 390,
+            safeVerticalInsetsDp = 0,
+            largeText = false,
+        )
+        assertEquals(308, viewportDp)
+
+        val chromeDp = 390 - viewportDp
+        assertTrue(
+            "one strip plus padding should cost well under a third of the screen, was $chromeDp",
+            chromeDp <= 120,
+        )
+
+        val gridPadding = NovaLibraryUiStateMapper.gridContentPaddingDp()
+        val contentWidthDp = 833 - NovaLibraryUiStateMapper.screenPaddingDp(isLandscape = true) * 2 -
+            gridPadding * 2
+        val rowsHeightDp = viewportDp - gridPadding
+
+        val compact = NovaLibraryUiStateMapper.gridViewportSpec(
+            contentWidthDp = contentWidthDp,
+            viewportHeightDp = rowsHeightDp,
+            layoutMode = NovaLibraryLayoutMode.COMPACT,
+            windowClass = NovaLibraryWindowClass.HANDHELD_LANDSCAPE,
+        )
+        assertTrue(
+            "compact calls itself materially denser, so it has to show more than one row",
+            compact.fullRows >= 2,
+        )
+        assertTrue("compact should still look scrollable", compact.peekDp >= 16)
+        assertEquals(compact.posterWidthDp * 3, compact.posterHeightDp * 2)
+        assertTrue(
+            "compact covers visible went from 6, was ${compact.columns * compact.fullRows}",
+            compact.columns * compact.fullRows >= 14,
+        )
+
+        val grid = NovaLibraryUiStateMapper.gridViewportSpec(
+            contentWidthDp = contentWidthDp,
+            viewportHeightDp = rowsHeightDp,
+            layoutMode = NovaLibraryLayoutMode.GRID,
+            windowClass = NovaLibraryWindowClass.HANDHELD_LANDSCAPE,
+        )
+        assertTrue("grid keeps the larger artwork", grid.posterWidthDp > compact.posterWidthDp)
+        assertTrue("grid shows a real peek of the next row, not a sliver", grid.peekDp >= 48)
+        assertEquals(grid.posterWidthDp * 3, grid.posterHeightDp * 2)
+    }
+
+    /**
+     * The hint bar is drawn over the grid now, so the shell reserves nothing for
+     * it. The guarantee that a poster row never ends up under the bar moved into
+     * the grid's own bottom content padding, and that is what has to hold.
+     */
+    @Test
+    fun overlaidHintBarStillClearsTheLastPosterRow() {
+        assertEquals(0, NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape = true))
+        assertTrue(
+            "clearance must still cover the bar plus breathing room",
+            NovaLibraryUiStateMapper.landscapeHintClearanceDp() >=
+                NovaLibraryUiStateMapper.controllerHintBarMinHeightDp() + 8,
+        )
+    }
+
 }

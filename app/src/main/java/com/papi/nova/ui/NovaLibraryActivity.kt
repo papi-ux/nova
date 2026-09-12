@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -101,6 +102,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -1338,48 +1340,50 @@ class NovaLibraryActivity : NovaActivity() {
                             modifier = Modifier.fillMaxSize(),
                             reserveControllerHintSpace = true,
                         ) {
-                            NovaLibraryLandscapeToolbar(
-                                serverName = serverName,
-                                serverHost = serverHost,
-                                model = model,
-                                clientSettings = clientSettings,
-                                onOpenOptions = onOpenOptions,
-                                onOpenSystemMenu = onOpenSystemMenu
+                            val showContinue = NovaLibraryUiStateMapper.showStandaloneHomeHero(
+                                layoutMode = model.optionsState.layoutMode,
+                                hasActiveSession = activeSession != null,
                             )
-                            if (
-                                NovaLibraryUiStateMapper.showStandaloneHomeHero(
-                                    layoutMode = model.optionsState.layoutMode,
-                                    hasActiveSession = activeSession != null,
-                                )
-                            ) {
-                                NovaLibraryHomeHero(
-                                    hero = model.hero,
-                                    compact = true,
-                                    apiClient = apiClient,
-                                    onPrimaryAction = {
-                                        when (model.hero.primaryAction) {
-                                            NovaLibraryHeroPrimaryAction.RESUME,
-                                            NovaLibraryHeroPrimaryAction.WATCH -> activeSession?.let(onResumeSession)
-                                            NovaLibraryHeroPrimaryAction.OPEN_DETAIL -> model.hero.game?.let(onOpenDetail)
-                                            NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY -> onManageServer()
-                                            NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
-                                        }
-                                    },
-                                    onSecondaryAction = {
-                                        when (model.hero.secondaryAction) {
-                                            NovaLibraryHeroSecondaryAction.END_SESSION -> activeSession?.let(onEndSession)
-                                            null -> Unit
-                                        }
-                                    },
-                                    onOpenDetail = model.hero.game?.let { game -> { onOpenDetail(game) } },
-                                    onGameFocused = onGameFocused
-                                )
-                            }
+                            NovaLibraryLandscapeShowcaseStripContent(
+                                hostLabel = serverName?.takeIf { it.isNotBlank() } ?: serverHost,
+                                resultCount = model.resultCount,
+                                layoutLabel = layoutModeLabel(model.optionsState.layoutMode),
+                                polarisReady = clientSettings != null,
+                                onOpenOptions = onOpenOptions,
+                                onOpenSystemMenu = onOpenSystemMenu,
+                                continueSlot = if (showContinue) {
+                                    {
+                                        NovaLibraryShowcaseContinue(
+                                            hero = model.hero,
+                                            apiClient = apiClient,
+                                            onPrimaryAction = {
+                                                when (model.hero.primaryAction) {
+                                                    NovaLibraryHeroPrimaryAction.RESUME,
+                                                    NovaLibraryHeroPrimaryAction.WATCH ->
+                                                        activeSession?.let(onResumeSession)
+                                                    NovaLibraryHeroPrimaryAction.OPEN_DETAIL ->
+                                                        model.hero.game?.let(onOpenDetail)
+                                                    NovaLibraryHeroPrimaryAction.MANAGE_LIBRARY -> onManageServer()
+                                                    NovaLibraryHeroPrimaryAction.CLEAR_FILTERS -> onClearFilters()
+                                                }
+                                            },
+                                            onSecondaryAction = when (model.hero.secondaryAction) {
+                                                NovaLibraryHeroSecondaryAction.END_SESSION ->
+                                                    { { activeSession?.let(onEndSession) } }
+                                                null -> null
+                                            },
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                            )
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
                                 filterState = filterState,
                                 columns = columns,
+                                windowClass = layoutSpec.windowClass,
                                 isLandscape = true,
                                 isInitialLoading = isInitialLoading,
                                 isRefreshing = isRefreshing,
@@ -1469,6 +1473,7 @@ class NovaLibraryActivity : NovaActivity() {
                                 model = model,
                                 filterState = filterState,
                                 columns = columns,
+                                windowClass = layoutSpec.windowClass,
                                 isLandscape = false,
                                 isInitialLoading = isInitialLoading,
                                 isRefreshing = isRefreshing,
@@ -1900,6 +1905,103 @@ class NovaLibraryActivity : NovaActivity() {
         )
     }
 
+    /**
+     * The continue action as it appears inside the landscape strip: cover, what
+     * it is, and the verb. The old standalone card carried an eyebrow, a title,
+     * a subtitle, a caption and badges across a full-width panel whose right half
+     * was empty; at strip height only the first three earn their place.
+     */
+    @Composable
+    private fun RowScope.NovaLibraryShowcaseContinue(
+        hero: NovaLibraryHeroState,
+        apiClient: PolarisApiClient,
+        onPrimaryAction: () -> Unit,
+        onSecondaryAction: (() -> Unit)?,
+    ) {
+        val colors = LocalNovaComposeColors.current
+        val surfaces = LocalNovaLibrarySurfaces.current
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(start = 4.dp)
+                .testTag("nova-library-showcase-continue"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            val game = hero.game
+            if (game != null) {
+                val shape = RoundedCornerShape(NovaRadius.chip)
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .fillMaxHeight()
+                        .clip(shape)
+                        .background(surfaces.mediaPlaceholder)
+                        .border(
+                            1.dp,
+                            surfaces.tileBorder.copy(alpha = 0.74f * LocalNovaMenuOpacityScale.current),
+                            shape,
+                        ),
+                ) {
+                    key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER)) {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { context ->
+                                ImageView(context).apply {
+                                    scaleType = ImageView.ScaleType.CENTER_CROP
+                                    setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
+                                    contentDescription = context.getString(R.string.nova_a11y_game_cover)
+                                    apiClient.loadCoverInto(this, game)
+                                }
+                            },
+                            update = { apiClient.loadCoverInto(it, game) },
+                        )
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                Text(
+                    text = hero.eyebrow.uppercase(),
+                    style = NovaChromeType.label(fontSize = 8.sp),
+                    color = colors.accent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = hero.title,
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            NovaActionButton(
+                text = hero.actionLabel,
+                onClick = onPrimaryAction,
+                modifier = Modifier.widthIn(min = 88.dp),
+                minHeight = 30.dp,
+                fontSize = 10.sp,
+            )
+            val secondaryLabel = hero.secondaryActionLabel
+            if (secondaryLabel != null && onSecondaryAction != null) {
+                NovaActionButton(
+                    text = secondaryLabel,
+                    onClick = onSecondaryAction,
+                    modifier = Modifier.widthIn(min = 72.dp),
+                    primary = false,
+                    minHeight = 30.dp,
+                    fontSize = 10.sp,
+                )
+            }
+        }
+    }
+
     @Composable
     private fun NovaLibraryTopHeader(
         serverName: String?,
@@ -2321,6 +2423,7 @@ class NovaLibraryActivity : NovaActivity() {
         model: NovaLibraryUiModel,
         filterState: NovaLibraryFilterState,
         columns: Int,
+        windowClass: NovaLibraryWindowClass,
         isLandscape: Boolean,
         isInitialLoading: Boolean,
         isRefreshing: Boolean,
@@ -2338,7 +2441,6 @@ class NovaLibraryActivity : NovaActivity() {
         onOpenDetail: (PolarisGame) -> Unit
     ) {
         val layoutMode = model.optionsState.layoutMode
-        val gridColumns = columns
         val stablePosterLoader = remember(apiClient) {
             { view: ImageView, targetGame: PolarisGame -> apiClient.loadCoverInto(view, targetGame) }
         }
@@ -2461,18 +2563,35 @@ class NovaLibraryActivity : NovaActivity() {
                             posterLoader = stablePosterLoader
                         )
                     } else {
-                        Box(modifier = Modifier.fillMaxSize()) {
+                        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        // Measure the grid's real viewport and pick the columns that fit
+                        // whole rows in it. Taking a fixed column count and letting the
+                        // remainder fall where it may is how the second row came to land
+                        // a few dp short and read as clipped rather than as more below.
+                        val gridPaddingDp = NovaLibraryUiStateMapper.gridContentPaddingDp()
+                        val viewportSpec = NovaLibraryUiStateMapper.gridViewportSpec(
+                            contentWidthDp = (maxWidth.value.toInt() - gridPaddingDp * 2)
+                                .coerceAtLeast(1),
+                            viewportHeightDp = (maxHeight.value.toInt() - gridPaddingDp)
+                                .coerceAtLeast(1),
+                            layoutMode = layoutMode,
+                            windowClass = windowClass,
+                        )
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(gridColumns),
+                            columns = GridCells.Fixed(viewportSpec.columns),
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
-                                start = NovaLibraryUiStateMapper.gridContentPaddingDp().dp,
-                                top = NovaLibraryUiStateMapper.gridContentPaddingDp().dp,
-                                end = NovaLibraryUiStateMapper.gridContentPaddingDp().dp,
+                                start = gridPaddingDp.dp,
+                                top = gridPaddingDp.dp,
+                                end = gridPaddingDp.dp,
                                 bottom = NovaLibraryUiStateMapper.gridBottomContentPaddingDp(isLandscape).dp
                             ),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(
+                                NovaLibraryUiStateMapper.gridItemSpacingDp().dp,
+                            ),
+                            horizontalArrangement = Arrangement.spacedBy(
+                                NovaLibraryUiStateMapper.gridItemSpacingDp().dp,
+                            ),
                         ) {
                             items(
                                 model.filteredGames,
@@ -2505,9 +2624,10 @@ class NovaLibraryActivity : NovaActivity() {
                                 .height(NovaLibraryGridScrollFadeHeight)
                                 .background(
                                     Brush.verticalGradient(
-                                        colors = listOf(
-                                            androidx.compose.ui.graphics.Color.Transparent,
-                                            LocalNovaComposeColors.current.window.copy(alpha = 0.85f),
+                                        colorStops = arrayOf(
+                                            0.0f to androidx.compose.ui.graphics.Color.Transparent,
+                                            0.45f to LocalNovaComposeColors.current.window.copy(alpha = 0.62f),
+                                            1.0f to LocalNovaComposeColors.current.window.copy(alpha = 0.95f),
                                         ),
                                     ),
                                 ),
@@ -3797,8 +3917,15 @@ class NovaLibraryActivity : NovaActivity() {
          *  as atmosphere behind it rather than competing with twenty covers. */
         private const val NovaLibraryGridBackdropStrength = 0.45f
 
-        /** Height of the fade at the foot of the scrolling poster grid. */
-        private val NovaLibraryGridScrollFadeHeight = 44.dp
+        /**
+         * Height of the fade at the foot of the scrolling poster grid. It reads as
+         * more content below, and since the hint bar is drawn over the grid rather
+         * than on a slab of its own, it is also the ground those hints are read
+         * against. It has to clear the bar with room to ramp, or the wash ends in a
+         * line and the seam becomes the most visible edge on the screen.
+         */
+        private val NovaLibraryGridScrollFadeHeight =
+            (NovaLibraryUiStateMapper.controllerHintBarMinHeightDp() + 38).dp
 
         private val LARGE_TEXT_HINT_INDICES = setOf(0, 1, 3)
         private val PRIMARY_HINT_INDICES = setOf(0, 1, 2)
