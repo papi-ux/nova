@@ -1,0 +1,5 @@
+Nova 1.4.7
+
+The landscape library gives its screen back to the games. The host name, your last played game and the menu buttons share one strip instead of two half-empty bars, and the controller hints sit over the grid.
+
+The grid measures the space it has and fits whole rows into it. Compact shows two full rows where it showed one, which on a handheld is fourteen covers instead of six. Grid keeps the larger artwork and shows a real peek of the next row.

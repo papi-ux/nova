@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.4.7 - 2026-09-12
+
+Matched client for Polaris 1.4.7: the landscape library gives its screen back to the games.
+
+- The library in landscape was spending more than half its height on chrome, and the wall of games got one row and a sliver of the next. The host name, the game you were last playing and the menu buttons now share one strip instead of two stacked bars that were each about half empty, and the controller hints are drawn over the grid rather than on a slab of their own.
+- The grid measures the space it actually has and picks a column count that fits whole rows in it, instead of taking a fixed number and letting the leftover fall where it may. Compact shows two full rows and a peek of the third where it used to show one row; Grid keeps larger artwork and takes a real peek instead. On a Retroid Pocket 6 that is fourteen covers where there were six. (#300)
+- Compact means something now. It described itself as a materially denser browser while only ever adding a single column, so it showed the same one row Grid did.
+
 ## 1.4.5 - 2026-09-10
 
 Matched client for Polaris 1.4.5: Live Tuning that follows the host, a Launch button that says what it will do, a library card whose focus you cannot miss, and a Steam Deck shell that reads real hosts and hands games to Moonlight-Qt.
