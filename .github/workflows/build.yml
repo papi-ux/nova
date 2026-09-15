@@ -38,6 +38,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          # Only cmdline-tools: the obsolete tools package the action installs by
+          # default is gone from the repository and the step dies before Gradle.
+          packages: ''
 
       - name: Install NDK
         run: sdkmanager "ndk;27.0.12077973"
@@ -120,6 +124,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          # Only cmdline-tools: the obsolete tools package the action installs by
+          # default is gone from the repository and the step dies before Gradle.
+          packages: ''
 
       - name: Enable KVM
         run: |
