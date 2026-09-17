@@ -77,7 +77,7 @@ if (
             "found ${actualNettyBuildscriptConstraints}"
     )
 }
-def patchedWireVersion = '6.3.0'
+def patchedWireVersion = '6.4.7'
 def patchedWireModules = ['wire-runtime', 'wire-runtime-jvm'] as Set
 
 allprojects { project ->
