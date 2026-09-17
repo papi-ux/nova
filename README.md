@@ -34,7 +34,7 @@ Moonlight-compatible hosts remain supported too.
 > the supported client boundary; Nova is not a Windows, macOS, iOS, or native
 > Linux client.
 
-![Nova Polaris Aurora Library in Compact layout with Control Ultimate Edition ready to continue above a grid of twenty entries](docs/screenshots/nova-library-control-aurora-v1.3.6.webp)
+![Nova Polaris Aurora Library with Big Walk selected in a grid of cover art, beside the connected host and its Desktop entry](docs/screenshots/nova-library-aurora-v1.4.9.webp)
 
 ## Built for the whole player loop
 
@@ -74,7 +74,7 @@ metadata and controls.
 
 ### Browse
 
-![Nova Polaris Aurora Game Detail for Big Walk with its landscape artwork, ready state, and play actions](docs/screenshots/nova-game-detail-bigwalk-aurora-v1.3.6.webp)
+![Nova Polaris Aurora Game Detail for Big Walk, showing hours played against a completion estimate, the resolved launch line, and the play actions](docs/screenshots/nova-game-detail-bigwalk-aurora-v1.4.9.webp)
 
 Stage view puts the selected title into its landscape artwork while keeping the
 row controller-readable. Control Ultimate Edition leads the Aurora showcase;
@@ -96,7 +96,7 @@ may fall back, a host-only mode links back to Polaris instead of posing as a
 per-game choice, and a session-scoped choice does not silently rewrite the host
 default.
 
-![Nova Polaris Aurora Play Setup for Control Ultimate Edition, showing Private Stream and session choices](docs/screenshots/nova-play-setup-control-aurora-v1.3.6.webp)
+![Nova Polaris Aurora Play Setup for Big Walk on a Gamescope Stream session with Vulkan Video required for this launch, marking that this game overrides the host default](docs/screenshots/nova-play-setup-bigwalk-aurora-v1.4.9.webp)
 
 ### <img src="docs/screenshots/pulse-ready.svg" width="14" height="14" alt=""> Control
 
@@ -104,7 +104,7 @@ During a stream, Command Center brings session health, Doctor guidance, tuning,
 NovaHUD, input helpers, safe disconnect, and protected end-session actions into
 a controller-first drawer.
 
-![Nova Polaris Aurora Command Center over a live private stream, showing runtime truth and Doctor guidance](docs/screenshots/nova-command-center-live-aurora-v1.3.6.webp)
+![Nova Polaris Aurora Command Center over a live private stream, showing the resolved encoder, Live Tuning, and Doctor guidance](docs/screenshots/nova-command-center-live-aurora-v1.4.9.webp)
 
 Every capture above and across [papi-ux.com](https://papi-ux.com/nova/) comes from the tagged public release; the [pixel-level provenance manifest](https://papi-ux.com/images/products/showcase-v1.3.8-v1.3.6-provenance.json) ships with the site.
 
