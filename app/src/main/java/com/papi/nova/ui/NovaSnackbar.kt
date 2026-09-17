@@ -88,6 +88,39 @@ object NovaSnackbar {
         )
     }
 
+    /**
+     * A snackbar that stays up while something is about to happen, carrying the
+     * cancel that stops it.
+     *
+     * Indefinite on purpose: the caller's countdown decides when the window
+     * closes, and a snackbar that timed out first would take the undo away
+     * while the thing it undoes has not happened yet.
+     */
+    fun showPendingWithCancel(
+        activity: Activity,
+        message: String,
+        cancelLabel: String,
+        anchor: View? = null,
+        onCancel: () -> Unit
+    ) {
+        showStyled(
+            activity = activity,
+            message = message,
+            duration = Snackbar.LENGTH_INDEFINITE,
+            textColor = NovaThemeManager.getTextPrimaryColor(activity),
+            surfaceAlpha = SurfaceAlpha,
+            anchor = anchor,
+            actionLabel = cancelLabel,
+            onAction = onCancel
+        )
+    }
+
+    /** Dismiss whatever is showing, for a caller whose own timer has run out. */
+    fun dismissActive() {
+        activeSnackbar?.dismiss()
+        activeSnackbar = null
+    }
+
     private fun showStyled(
         activity: Activity,
         message: String,

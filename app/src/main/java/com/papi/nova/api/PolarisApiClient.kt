@@ -59,6 +59,13 @@ import javax.net.ssl.X509KeyManager
 import javax.net.ssl.X509TrustManager
 import androidx.collection.LruCache
 
+/** What the host said when a client asked it to sleep. */
+data class PolarisHostSleepResult(
+    val accepted: Boolean,
+    val code: String = "",
+    val message: String = "",
+)
+
 data class PolarisApiRejection(
     val httpStatus: Int,
     val code: String,
@@ -1094,6 +1101,22 @@ class PolarisApiClient @JvmOverloads constructor(
         fun parseUnlockResponse(json: JSONObject): Boolean =
             json.optBoolean("success", false)
 
+        /**
+         * The host_power block, from the capabilities response or from
+         * /polaris/v1/host/power. A host that serves neither reads as a host
+         * that cannot sleep, which is the safe answer.
+         */
+        @JvmStatic
+        fun parseHostPower(json: JSONObject): PolarisCapabilities.HostPower =
+            PolarisCapabilities.HostPower(
+                sleepSupported = json.optBoolean("sleep_supported", false),
+                sleepEnabled = json.optBoolean("sleep_enabled", false),
+                sleepPermitted = json.optBoolean("sleep_permitted", false),
+                sleepBlockedReason = json.optString("sleep_blocked_reason", ""),
+                sleepBlockedMessage = json.optString("sleep_blocked_message", ""),
+                sleepEndpoint = json.optString("sleep_endpoint", ""),
+            )
+
         @JvmStatic
         fun parseCapabilitiesResponse(json: JSONObject): PolarisCapabilities {
             val features = json.optJSONObject("features")
@@ -1138,7 +1161,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     doctorV2Shadow = features?.optBoolean("doctor_v2_shadow_v1") ?: false,
                     doctorV2ShadowEnabled = features?.optBoolean("doctor_v2_shadow_enabled") ?: false,
                     doctorTrials = features?.optBoolean("doctor_trials_v1") ?: false,
-                    doctorTrialsEnabled = features?.optBoolean("doctor_trials_enabled") ?: false
+                    doctorTrialsEnabled = features?.optBoolean("doctor_trials_enabled") ?: false,
+                    hostSleep = features?.optBoolean("host_sleep_v1") ?: false
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
@@ -1148,7 +1172,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     codecs = capture?.optJSONArray("codecs")?.let { arr ->
                         (0 until arr.length()).map { arr.getString(it) }
                     } ?: emptyList()
-                )
+                ),
+                hostPower = parseHostPower(json.optJSONObject("host_power") ?: JSONObject())
             )
         }
 
@@ -2207,6 +2232,51 @@ class PolarisApiClient @JvmOverloads constructor(
         } catch (e: Exception) {
             LimeLog.warning("Nova: could not send the support report to the host: ${errorMessage(e)}")
             false
+        }
+    }
+
+    /**
+     * Ask the host to sleep.
+     *
+     * Never retried. A repeat of a request that may already have landed would
+     * sleep a host somebody has since woken up, and the client cannot tell the
+     * two apart from a dropped answer.
+     */
+    fun sleepHost(): PolarisHostSleepResult {
+        return try {
+            val request = Request.Builder().url("$baseUrl/host/sleep")
+                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), "{}"))
+                .build()
+            executeNonRetryable(request).use { response ->
+                val json = runCatching { JSONObject(response.body?.string().orEmpty()) }.getOrNull()
+                if (response.code == 200 && json?.optBoolean("status", false) == true) {
+                    PolarisHostSleepResult(accepted = true)
+                } else {
+                    // Prefer the host's own sentence. It knows whether this was
+                    // polkit, a running stream or a setting nobody turned on.
+                    PolarisHostSleepResult(
+                        accepted = false,
+                        code = json?.optString("code").orEmpty(),
+                        message = json?.optString("error").orEmpty(),
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: host sleep request failed: ${errorMessage(e)}")
+            PolarisHostSleepResult(accepted = false, code = "unreachable", message = "")
+        }
+    }
+
+    fun getHostPower(): PolarisCapabilities.HostPower? {
+        return try {
+            val request = Request.Builder().url("$baseUrl/host/power").build()
+            executeGetWithRetry(request).use { response ->
+                if (response.code != 200) return null
+                parseHostPower(JSONObject(response.body?.string() ?: return null))
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: host power probe failed: ${errorMessage(e)}")
+            null
         }
     }
 

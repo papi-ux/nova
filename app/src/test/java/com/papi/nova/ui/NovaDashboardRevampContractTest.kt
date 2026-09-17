@@ -54,9 +54,10 @@ class NovaDashboardRevampContractTest {
         val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
 
         assertTrue(
-            "Start Polaris should be explicit and still launch the Polaris startup flow",
+            "the top action should be explicit and its wake path still reach the Polaris startup flow",
             source.contains("val startPolarisAction = findViewById<View>(R.id.actionStartPolaris)") &&
-                source.contains("startPolarisAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }")
+                source.contains("bindHostPowerAction(startPolarisAction)") &&
+                source.contains("launchPolarisStartupForPreferredHost()")
         )
         assertFalse("Old polarisSyncAction local should be gone", source.contains("polarisSyncAction"))
         assertTrue(

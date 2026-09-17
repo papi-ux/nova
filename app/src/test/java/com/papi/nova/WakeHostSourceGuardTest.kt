@@ -22,6 +22,44 @@ class WakeHostSourceGuardTest {
     }
 
     @Test
+    fun theHostPowerButtonOnlyOffersSleepWhereItWillWork() {
+        val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val policy = File("src/main/java/com/papi/nova/manager/HostPower.kt").readText()
+
+        assertTrue(
+            "the button asks the host what it can do instead of assuming; a control that is going to fail is worse than no control",
+            pcView.contains("HostPowerPolicy.resolve(")
+        )
+        assertTrue(
+            "three separate gates decide sleep: the host's own answer, its owner's opt in, and this client's permission",
+            policy.contains("power.sleepSupported && power.sleepEnabled && power.sleepPermitted")
+        )
+        assertTrue(
+            "a host that does not speak host power at all, Sunshine or an older Polaris, keeps the wake button",
+            policy.contains("if (!caps.features.hostSleep)")
+        )
+    }
+
+    @Test
+    fun sleepIsHeldRatherThanTapped() {
+        val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val strings = File("src/main/res/values/strings.xml").readText()
+
+        assertTrue(
+            "wake and sleep share one button in one spot, so a stray tap on the way into the library must not be able to complete sleep",
+            pcView.contains("startHostSleepHold(") && pcView.contains("hostSleepHold.isComplete(")
+        )
+        assertTrue(
+            "the undo sits in front of the request, because a host that is already down cannot be woken from the couch",
+            pcView.contains("HoldToConfirm.SLEEP_GRACE_MILLIS") && pcView.contains("showPendingWithCancel(")
+        )
+        assertTrue(
+            "a tap on a hold-only control says what to do instead of doing nothing",
+            strings.contains("name=\"pcview_sleep_hold_hint\"")
+        )
+    }
+
+    @Test
     fun wakeHostTellsASleepingHostFromOneWithPolarisDown() {
         val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val strings = File("src/main/res/values/strings.xml").readText()

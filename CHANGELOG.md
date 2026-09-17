@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The host tile's power button reads the host instead of only waking it. A host that is awake, running a Polaris that can sleep, with sleep turned on and this client allowed to ask, now offers **Sleep Host**; everything else keeps **Wake Host**, so the button is never one that will fail. Sleep is press and hold rather than a tap, and the request only goes out after a few seconds of snackbar with a Cancel in it, because a host that is already down cannot be woken from the couch. When the host refuses, Nova shows the host's own sentence.
+
 ## 1.4.9 - 2026-09-16
 
 A calmer library and a Play Setup that says where your game opens. Nova 1.4.9 is matched with Polaris 1.4.9, bringing a tidier top bar, Steam Big Picture that moves with you between Desktop and your Spaces, and more room for your posters.

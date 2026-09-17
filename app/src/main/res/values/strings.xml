@@ -80,6 +80,13 @@
     <string name="pcview_quick_scan_pair">Scan Pair</string>
     <string name="pcview_quick_polaris_sync">Wake Host</string>
     <string name="pcview_quick_start_polaris">Wake Host</string>
+    <string name="pcview_quick_sleep_host">Sleep Host</string>
+    <string name="pcview_sleep_hold_hint">Hold Sleep Host to put it to sleep</string>
+    <string name="pcview_sleep_pending">Putting the host to sleep…</string>
+    <string name="pcview_sleep_cancel">Cancel</string>
+    <string name="pcview_sleep_cancelled">Left the host awake</string>
+    <string name="pcview_sleep_requested">The host is going to sleep</string>
+    <string name="pcview_sleep_failed">The host would not go to sleep</string>
     <string name="pcview_quick_profiles">Streaming Presets</string>
     <string name="pcview_quick_presets_short">Presets</string>
     <string name="pcview_quick_theme">Theme</string>

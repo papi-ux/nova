@@ -4,7 +4,8 @@ data class PolarisCapabilities(
     val server: String,
     val version: String,
     val features: Features,
-    val capture: CaptureInfo
+    val capture: CaptureInfo,
+    val hostPower: HostPower = HostPower()
 ) {
     data class Features(
         val aiOptimizer: Boolean = false,
@@ -27,7 +28,8 @@ data class PolarisCapabilities(
         val doctorV2Shadow: Boolean = false,
         val doctorV2ShadowEnabled: Boolean = false,
         val doctorTrials: Boolean = false,
-        val doctorTrialsEnabled: Boolean = false
+        val doctorTrialsEnabled: Boolean = false,
+        val hostSleep: Boolean = false
     ) {
         constructor(
             aiOptimizer: Boolean,
@@ -51,6 +53,22 @@ data class PolarisCapabilities(
             cursorVisibilityControl = cursorVisibilityControl
         )
     }
+
+    /**
+     * Whether this host will let this client put it to sleep, and why not when
+     * it will not. All three of supported, enabled and permitted have to be
+     * true before a sleep control is worth showing: they are the host's own
+     * answer, its owner's opt in, and whether this client may control the host
+     * rather than only watch it.
+     */
+    data class HostPower(
+        val sleepSupported: Boolean = false,
+        val sleepEnabled: Boolean = false,
+        val sleepPermitted: Boolean = false,
+        val sleepBlockedReason: String = "",
+        val sleepBlockedMessage: String = "",
+        val sleepEndpoint: String = ""
+    )
 
     data class CaptureInfo(
         val backend: String = "",

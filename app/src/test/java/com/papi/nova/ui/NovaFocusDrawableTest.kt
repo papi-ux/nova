@@ -223,8 +223,9 @@ class NovaFocusDrawableTest {
             )
         }
         assertTrue(
-            "Top action should still launch the Polaris startup flow",
-            source.contains("startPolarisAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }")
+            "the top action's wake path should still launch the Polaris startup flow",
+            source.contains("bindHostPowerAction(startPolarisAction)") &&
+                source.contains("launchPolarisStartupForPreferredHost()")
         )
     }
 

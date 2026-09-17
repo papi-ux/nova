@@ -1,6 +1,7 @@
 package com.papi.nova
 
 import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.app.Service
 import android.content.ComponentName
@@ -10,6 +11,8 @@ import android.content.ServiceConnection
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Typeface
+import android.graphics.drawable.ClipDrawable
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.opengl.GLSurfaceView
@@ -23,6 +26,7 @@ import android.text.InputFilter
 import android.text.InputType
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
@@ -46,11 +50,16 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.papi.nova.PcViewModel.ComputerObject
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisCapabilities
+import com.papi.nova.api.PolarisHostSleepResult
 import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.binding.crypto.AndroidCryptoProvider
 import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.grid.PcGridAdapter
 import com.papi.nova.grid.assets.DiskAssetLoader
+import com.papi.nova.manager.HoldToConfirm
+import com.papi.nova.manager.HostPowerAction
+import com.papi.nova.manager.HostPowerPolicy
 import com.papi.nova.manager.PolarisStartupCoordinator
 import com.papi.nova.manager.PolarisStartupStatus
 import com.papi.nova.manager.TcpHostReachabilityProbe
@@ -131,6 +140,16 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val polarisStartupInFlight: MutableSet<String> =
         Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+    private val hostPowerCapabilities: MutableMap<String, PolarisCapabilities> = ConcurrentHashMap()
+    private val hostPowerProbedAtMs: MutableMap<String, Long> = ConcurrentHashMap()
+    private val hostPowerProbeInFlight: MutableSet<String> =
+        Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+    private val hostSleepHold = HoldToConfirm()
+    private val hostSleepHandler = Handler(Looper.getMainLooper())
+    private var hostSleepHoldTicker: Runnable? = null
+    private var hostSleepPending: Runnable? = null
+    private var hostSleepHoldConsumed = false
+    private var hostSleepHoldFill: ClipDrawable? = null
     private var appliedTheme: String? = null
     private var spaceParticleView: SpaceParticleView? = null
     private enum class DashboardUpdatePillStatus { CURRENT, AVAILABLE, CHECKING, ERROR }
@@ -405,7 +424,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             startActivity(Intent(this@PcView, AddComputerManually::class.java))
         }
         scanPairAction?.setOnClickListener { launchQrScanner() }
-        startPolarisAction?.setOnClickListener { launchPolarisStartupForPreferredHost() }
+        bindHostPowerAction(startPolarisAction)
         updateAction?.setOnClickListener { checkNovaUpdateFromDashboard() }
         themeAction?.setOnClickListener { v ->
             showThemePicker(v)
@@ -1614,6 +1633,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         viewModel.computersLiveData.observe(this) { newList ->
             if (!freezeUpdates) {
                 syncComputerList()
+                refreshHostPowerState()
                 if (newList != null) {
                     maybeRunPendingQrPairing(newList)
                     checkAutoNavigation(newList)
@@ -1861,6 +1881,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     public override fun onDestroy() {
         serverGridView?.adapter = null
         serverGridView = null
+        // The pending sleep's Cancel lives in a snackbar on this screen. Once
+        // the screen is gone there is nothing left to stop it with, so a
+        // request nobody can call off must not still be waiting to fire.
+        cancelPendingHostSleep()
+        hostSleepHoldTicker?.let { hostSleepHandler.removeCallbacks(it) }
+        hostSleepHoldTicker = null
         super.onDestroy()
 
         runtimeTasks.cancelAll()
@@ -2449,6 +2475,315 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             runtimeTasks.runOnMainIfActive {
                 polarisStartupInFlight.remove(uuid)
                 handlePolarisStartupResult(result)
+            }
+        }
+    }
+
+    /**
+     * The dashboard's power control.
+     *
+     * Wake stays an ordinary tap, it is harmless. Sleep is a press and hold:
+     * the two share this button in the same spot, so muscle memory on the way
+     * into the library would eventually take the host down, and nothing about
+     * a stray tap can complete a hold.
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun bindHostPowerAction(button: View?) {
+        if (button == null) {
+            return
+        }
+        button.setOnClickListener {
+            if (hostSleepHoldConsumed) {
+                // The hold already fired; this is the click that follows it.
+                hostSleepHoldConsumed = false
+                return@setOnClickListener
+            }
+            if (currentHostPowerAction() == HostPowerAction.SLEEP) {
+                NovaSnackbar.showQuiet(this, getString(R.string.pcview_sleep_hold_hint))
+            } else {
+                launchPolarisStartupForPreferredHost()
+            }
+        }
+        button.setOnTouchListener { view, event ->
+            if (currentHostPowerAction() != HostPowerAction.SLEEP) {
+                cancelHostSleepHold(view)
+                return@setOnTouchListener false
+            }
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> startHostSleepHold(view)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> cancelHostSleepHold(view)
+            }
+            // Never consume: the click listener still owns the tap, which is
+            // what shows the hint instead of silently doing nothing.
+            false
+        }
+        button.setOnKeyListener { view, keyCode, event ->
+            if (keyCode != KeyEvent.KEYCODE_DPAD_CENTER && keyCode != KeyEvent.KEYCODE_ENTER) {
+                return@setOnKeyListener false
+            }
+            if (currentHostPowerAction() != HostPowerAction.SLEEP) {
+                cancelHostSleepHold(view)
+                return@setOnKeyListener false
+            }
+            when (event.action) {
+                KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) startHostSleepHold(view)
+                KeyEvent.ACTION_UP -> cancelHostSleepHold(view)
+            }
+            false
+        }
+        updateHostPowerAction()
+    }
+
+    private fun currentHostPowerAction(): HostPowerAction {
+        val details = preferredHostPowerComputer() ?: return HostPowerAction.WAKE
+        return HostPowerPolicy.resolve(
+            reachable = details.state == ComputerDetails.State.ONLINE,
+            capabilities = hostPowerCapabilities[details.uuid],
+        )
+    }
+
+    private fun preferredHostPowerComputer(): ComputerDetails? {
+        if (!::viewModel.isInitialized) {
+            return null
+        }
+        return selectPreferredPolarisStartupComputer(viewModel.computersLiveData.value)?.details
+    }
+
+    private fun updateHostPowerAction() {
+        val button = findViewById<View>(R.id.actionStartPolaris) ?: return
+        val action = currentHostPowerAction()
+        val label = if (action == HostPowerAction.SLEEP) {
+            R.string.pcview_quick_sleep_host
+        } else {
+            R.string.pcview_quick_start_polaris
+        }
+        (button as? MaterialButton)?.setText(label)
+        button.contentDescription = getString(label)
+        if (action != HostPowerAction.SLEEP) {
+            cancelHostSleepHold(button)
+            hostSleepHoldConsumed = false
+        }
+    }
+
+    /**
+     * Ask the preferred host what it can do, at most once a minute. The answer
+     * is what decides whether the button offers sleep, so a host Nova has not
+     * heard from keeps the wake button rather than a guess.
+     */
+    private fun refreshHostPowerState() {
+        val details = preferredHostPowerComputer()
+        if (details == null) {
+            updateHostPowerAction()
+            return
+        }
+        val uuid = details.uuid
+        if (uuid == null || details.state != ComputerDetails.State.ONLINE) {
+            updateHostPowerAction()
+            return
+        }
+        val probedAt = hostPowerProbedAtMs[uuid] ?: 0L
+        val now = SystemClock.elapsedRealtime()
+        if (probedAt != 0L && now - probedAt < HoldToConfirm.POWER_PROBE_INTERVAL_MILLIS) {
+            updateHostPowerAction()
+            return
+        }
+        if (!hostPowerProbeInFlight.add(uuid)) {
+            return
+        }
+        runtimeTasks.launchIo("NovaHostPower") {
+            val known = hostPowerCapabilities[uuid]
+            // Whether the host speaks host power at all only changes when it
+            // restarts, so once Nova has that, later passes ask the small
+            // endpoint instead of pulling the whole capabilities payload.
+            val capabilities = if (known != null) {
+                hostPowerFor(details)?.let { known.copy(hostPower = it) }
+            } else {
+                polarisCapabilitiesFor(details)
+            }
+            runtimeTasks.runOnMainIfActive {
+                hostPowerProbeInFlight.remove(uuid)
+                hostPowerProbedAtMs[uuid] = SystemClock.elapsedRealtime()
+                if (capabilities == null) {
+                    hostPowerCapabilities.remove(uuid)
+                } else {
+                    hostPowerCapabilities[uuid] = capabilities
+                }
+                updateHostPowerAction()
+            }
+        }
+    }
+
+    private fun hostPowerFor(computer: ComputerDetails): PolarisCapabilities.HostPower? {
+        val activeAddress = computer.activeAddress ?: return null
+        val serverCert = computer.serverCert ?: return null
+        val httpsPort = if (computer.httpsPort > 0) computer.httpsPort else 47984
+        return try {
+            PolarisApiClient(this@PcView, activeAddress.address, httpsPort, serverCert).getHostPower()
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: host power refresh failed for ${computer.name}: " + e.message)
+            null
+        }
+    }
+
+    private fun polarisCapabilitiesFor(computer: ComputerDetails): PolarisCapabilities? {
+        val activeAddress = computer.activeAddress ?: return null
+        val serverCert = computer.serverCert ?: return null
+        val httpsPort = if (computer.httpsPort > 0) computer.httpsPort else 47984
+        return try {
+            PolarisApiClient(this@PcView, activeAddress.address, httpsPort, serverCert).getCapabilities()
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: host power probe failed for ${computer.name}: " + e.message)
+            null
+        }
+    }
+
+    private fun startHostSleepHold(button: View) {
+        cancelHostSleepHold(button)
+        // A finger that slid off after the hold completed leaves the flag set
+        // with no click behind it to spend it. A new press is the end of that.
+        hostSleepHoldConsumed = false
+        hostSleepHold.press(SystemClock.uptimeMillis())
+        val ticker = object : Runnable {
+            override fun run() {
+                val now = SystemClock.uptimeMillis()
+                setHostSleepHoldProgress(button, hostSleepHold.progress(now))
+                if (hostSleepHold.isComplete(now)) {
+                    hostSleepHold.cancel()
+                    setHostSleepHoldProgress(button, 0f)
+                    hostSleepHoldTicker = null
+                    hostSleepHoldConsumed = true
+                    beginHostSleep()
+                    return
+                }
+                hostSleepHandler.postDelayed(this, HoldToConfirm.HOLD_TICK_MILLIS)
+            }
+        }
+        hostSleepHoldTicker = ticker
+        hostSleepHandler.post(ticker)
+    }
+
+    private fun cancelHostSleepHold(button: View) {
+        hostSleepHoldTicker?.let { hostSleepHandler.removeCallbacks(it) }
+        hostSleepHoldTicker = null
+        hostSleepHold.cancel()
+        setHostSleepHoldProgress(button, 0f)
+    }
+
+    /**
+     * The fill behind the label while a hold is in progress, so the press shows
+     * how far along it is. A foreground drawable needs API 23; below that the
+     * hold still works and dims instead.
+     */
+    private fun setHostSleepHoldProgress(button: View, progress: Float) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            button.alpha = if (progress > 0f) 0.7f else 1f
+            return
+        }
+        if (progress <= 0f) {
+            // Only clear what this put there. A style is free to own the
+            // button's foreground and must get it back untouched.
+            if (button.foreground === hostSleepHoldFill) {
+                button.foreground = null
+            }
+            hostSleepHoldFill = null
+            return
+        }
+        val fill = hostSleepHoldFill?.takeIf { button.foreground === it } ?: ClipDrawable(
+            ColorDrawable(
+                ColorUtils.setAlphaComponent(NovaThemeManager.getAccentColor(this), 0x66)
+            ),
+            Gravity.START,
+            ClipDrawable.HORIZONTAL
+        ).also {
+            button.foreground = it
+            hostSleepHoldFill = it
+        }
+        fill.level = (progress * 10000f).toInt().coerceIn(0, 10000)
+    }
+
+    /**
+     * The hold is done, so the request is coming. It does not go out yet: once
+     * the host is down there is nothing on the couch that can wake it, so the
+     * undo has to sit in front of the request rather than after it.
+     */
+    private fun beginHostSleep() {
+        val details = preferredHostPowerComputer()
+        if (details == null) {
+            NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_no_server))
+            return
+        }
+        cancelPendingHostSleep()
+        NovaSnackbar.showPendingWithCancel(
+            this,
+            getString(R.string.pcview_sleep_pending),
+            getString(R.string.pcview_sleep_cancel),
+        ) {
+            cancelPendingHostSleep()
+            NovaSnackbar.showQuiet(this, getString(R.string.pcview_sleep_cancelled))
+        }
+        val pending = Runnable {
+            hostSleepPending = null
+            NovaSnackbar.dismissActive()
+            requestHostSleep(details)
+        }
+        hostSleepPending = pending
+        hostSleepHandler.postDelayed(pending, HoldToConfirm.SLEEP_GRACE_MILLIS)
+    }
+
+    private fun cancelPendingHostSleep() {
+        hostSleepPending?.let { hostSleepHandler.removeCallbacks(it) }
+        hostSleepPending = null
+    }
+
+    private fun requestHostSleep(computer: ComputerDetails) {
+        val activeAddress = computer.activeAddress
+        val serverCert = computer.serverCert
+        if (activeAddress == null || serverCert == null) {
+            NovaSnackbar.showError(this, getString(R.string.pcview_sleep_failed))
+            return
+        }
+        val httpsPort = if (computer.httpsPort > 0) computer.httpsPort else 47984
+        runtimeTasks.launchIo("NovaHostSleep") {
+            val result = try {
+                PolarisApiClient(this@PcView, activeAddress.address, httpsPort, serverCert).sleepHost()
+            } catch (e: Exception) {
+                LimeLog.warning("Nova: host sleep failed for ${computer.name}: " + e.message)
+                PolarisHostSleepResult(accepted = false)
+            }
+            if (result.accepted) {
+                awaitHostAsleep(computer)
+            }
+            runtimeTasks.runOnMainIfActive {
+                computer.uuid?.let {
+                    hostPowerCapabilities.remove(it)
+                    hostPowerProbedAtMs.remove(it)
+                }
+                updateHostPowerAction()
+                if (result.accepted) {
+                    NovaSnackbar.show(this@PcView, getString(R.string.pcview_sleep_requested))
+                } else {
+                    // The host knows whether this was polkit, a running stream
+                    // or a setting nobody turned on. Prefer its sentence.
+                    NovaSnackbar.showError(
+                        this@PcView,
+                        result.message.ifBlank { getString(R.string.pcview_sleep_failed) },
+                    )
+                }
+            }
+        }
+    }
+
+    private fun awaitHostAsleep(computer: ComputerDetails) {
+        val probe = TcpHostReachabilityProbe()
+        repeat(HoldToConfirm.SLEEP_CONFIRM_ATTEMPTS) {
+            if (!probe.isAwake(computer)) {
+                return
+            }
+            try {
+                Thread.sleep(HoldToConfirm.SLEEP_CONFIRM_INTERVAL_MILLIS)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return
             }
         }
     }
