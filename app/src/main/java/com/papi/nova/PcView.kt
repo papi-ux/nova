@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.res.ColorStateList
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.ColorDrawable
@@ -27,8 +28,10 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.TouchDelegate
 import android.view.View
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -37,6 +40,7 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
+import androidx.core.view.ViewCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
@@ -60,6 +64,8 @@ import com.papi.nova.grid.assets.DiskAssetLoader
 import com.papi.nova.manager.HoldToConfirm
 import com.papi.nova.manager.HostPowerAction
 import com.papi.nova.manager.HostPowerPolicy
+import com.papi.nova.manager.HostSleepSequence
+import com.papi.nova.manager.HostSleepUnavailable
 import com.papi.nova.manager.PolarisStartupCoordinator
 import com.papi.nova.manager.PolarisStartupStatus
 import com.papi.nova.manager.TcpHostReachabilityProbe
@@ -150,6 +156,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private var hostSleepPending: Runnable? = null
     private var hostSleepHoldConsumed = false
     private var hostSleepHoldFill: ClipDrawable? = null
+    private val hostSleepSequence = HostSleepSequence()
+    private var hostSleepCancelledByLeaving = false
+    private var hostSleepAccessibilityActionId = View.NO_ID
     private var appliedTheme: String? = null
     private var spaceParticleView: SpaceParticleView? = null
     private enum class DashboardUpdatePillStatus { CURRENT, AVAILABLE, CHECKING, ERROR }
@@ -1914,6 +1923,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         inForeground = true
         spaceParticleView?.resume()
         startComputerUpdates()
+        if (hostSleepCancelledByLeaving) {
+            hostSleepCancelledByLeaving = false
+            NovaSnackbar.showQuiet(this, getString(R.string.pcview_sleep_cancelled_on_leave))
+        }
     }
 
     override fun onPause() {
@@ -1922,6 +1935,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         inForeground = false
         spaceParticleView?.pause()
         stopComputerUpdates(false)
+        // The pending sleep's Cancel is a snackbar on this screen. A player who
+        // has left the screen can no longer reach it, so leaving calls the sleep
+        // off, and coming back says so.
+        findViewById<View>(R.id.actionStartPolaris)?.let { cancelHostSleepHold(it) }
+        if (cancelPendingHostSleep()) {
+            NovaSnackbar.dismissActive()
+            hostSleepCancelledByLeaving = true
+        }
     }
 
     override fun onStop() {
@@ -2498,14 +2519,34 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 hostSleepHoldConsumed = false
                 return@setOnClickListener
             }
+            if (hostSleepSequence.isBusy) {
+                // Locked on Sleeping... until the host answers.
+                return@setOnClickListener
+            }
             if (currentHostPowerAction() == HostPowerAction.SLEEP) {
-                NovaSnackbar.showQuiet(this, getString(R.string.pcview_sleep_hold_hint))
+                val hint = if (isTouchExplorationEnabled()) {
+                    R.string.pcview_sleep_hold_hint_accessibility
+                } else {
+                    R.string.pcview_sleep_hold_hint
+                }
+                NovaSnackbar.showQuiet(this, getString(hint))
             } else {
                 launchPolarisStartupForPreferredHost()
             }
         }
+        // Holding Wake Host, the way Sleep Host is held, says why the host is
+        // not offering sleep. Nothing else on the dashboard does, and a player
+        // who knows the host can sleep will look for it here.
+        button.setOnLongClickListener {
+            if (hostSleepSequence.isBusy || currentHostPowerAction() == HostPowerAction.SLEEP) {
+                return@setOnLongClickListener false
+            }
+            val reason = hostSleepUnavailableMessage() ?: return@setOnLongClickListener false
+            NovaSnackbar.showQuiet(this, reason)
+            true
+        }
         button.setOnTouchListener { view, event ->
-            if (currentHostPowerAction() != HostPowerAction.SLEEP) {
+            if (hostSleepSequence.isBusy || currentHostPowerAction() != HostPowerAction.SLEEP) {
                 cancelHostSleepHold(view)
                 return@setOnTouchListener false
             }
@@ -2518,10 +2559,18 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             false
         }
         button.setOnKeyListener { view, keyCode, event ->
-            if (keyCode != KeyEvent.KEYCODE_DPAD_CENTER && keyCode != KeyEvent.KEYCODE_ENTER) {
+            if (keyCode != KeyEvent.KEYCODE_DPAD_CENTER &&
+                keyCode != KeyEvent.KEYCODE_ENTER &&
+                keyCode != KeyEvent.KEYCODE_BUTTON_A
+            ) {
                 return@setOnKeyListener false
             }
-            if (currentHostPowerAction() != HostPowerAction.SLEEP) {
+            // Most controllers send A twice: as itself, then, since it is left
+            // unhandled for the click, as a fallback center press. One hold.
+            if (event.flags and KeyEvent.FLAG_FALLBACK != 0) {
+                return@setOnKeyListener false
+            }
+            if (hostSleepSequence.isBusy || currentHostPowerAction() != HostPowerAction.SLEEP) {
                 cancelHostSleepHold(view)
                 return@setOnKeyListener false
             }
@@ -2531,7 +2580,55 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             }
             false
         }
+        widenHostPowerTouchTarget(button)
         updateHostPowerAction()
+    }
+
+    /**
+     * Sleep is held, and a thumb that drifts off a small target ends the hold.
+     * The landscape rail draws its pills 34dp tall; this counts touches up to
+     * 48dp around the button as the button, without changing how it looks.
+     */
+    private fun widenHostPowerTouchTarget(button: View) {
+        val parent = button.parent as? View ?: return
+        val minimum = resources.getDimensionPixelSize(R.dimen.nova_min_touch_target)
+        button.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            val bounds = Rect()
+            view.getHitRect(bounds)
+            val growX = ((minimum - bounds.width() + 1) / 2).coerceAtLeast(0)
+            val growY = ((minimum - bounds.height() + 1) / 2).coerceAtLeast(0)
+            if (growX == 0 && growY == 0) {
+                if (parent.touchDelegate?.let { it is HostPowerTouchDelegate } == true) {
+                    parent.touchDelegate = null
+                }
+                return@addOnLayoutChangeListener
+            }
+            bounds.inset(-growX, -growY)
+            parent.touchDelegate = HostPowerTouchDelegate(bounds, view)
+        }
+    }
+
+    private class HostPowerTouchDelegate(bounds: Rect, delegate: View) : TouchDelegate(bounds, delegate)
+
+    private fun isTouchExplorationEnabled(): Boolean =
+        (getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager)?.isTouchExplorationEnabled == true
+
+    /** What holding Wake Host says, or null when there is nothing to explain. */
+    private fun hostSleepUnavailableMessage(): String? {
+        val details = preferredHostPowerComputer() ?: return null
+        val reason = HostPowerPolicy.unavailableReason(
+            reachable = details.state == ComputerDetails.State.ONLINE,
+            capabilities = details.uuid?.let { hostPowerCapabilities[it] },
+        ) ?: return null
+        return when (reason) {
+            HostSleepUnavailable.TurnedOff -> getString(R.string.pcview_sleep_unavailable_off)
+            HostSleepUnavailable.WatchOnly -> getString(R.string.pcview_sleep_unavailable_watch_only)
+            is HostSleepUnavailable.HostCannot -> if (reason.message.isBlank()) {
+                getString(R.string.pcview_sleep_unavailable_host)
+            } else {
+                getString(R.string.pcview_sleep_unavailable_host_says, reason.message)
+            }
+        }
     }
 
     private fun currentHostPowerAction(): HostPowerAction {
@@ -2552,27 +2649,65 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private fun updateHostPowerAction() {
         val button = findViewById<View>(R.id.actionStartPolaris) ?: return
         val action = currentHostPowerAction()
-        val label = if (action == HostPowerAction.SLEEP) {
-            R.string.pcview_quick_sleep_host
-        } else {
-            R.string.pcview_quick_start_polaris
+        // A request counting down or out holds the button on Sleeping... until
+        // the host answers, even as the host drops off the network and would
+        // otherwise turn the button back into Wake Host mid-check.
+        val busy = hostSleepSequence.isBusy
+        val label = when {
+            busy -> R.string.pcview_sleep_in_progress
+            action == HostPowerAction.SLEEP -> R.string.pcview_quick_sleep_host
+            else -> R.string.pcview_quick_start_polaris
         }
         // The icon follows the label, as an open and closed pair rather than two
         // unrelated glyphs: a play arrow next to Sleep Host read as though the
         // button started something, and one icon cannot carry both states.
-        val icon = if (action == HostPowerAction.SLEEP) {
+        val icon = if (busy || action == HostPowerAction.SLEEP) {
             R.drawable.ic_eye_closed
         } else {
             R.drawable.ic_eye_open
         }
+        // A collapsed rail shows icons only and puts each label back on the way
+        // out, so the label goes where it will be put back from.
+        val text = getString(label)
+        dashboardRailButtonText[R.id.actionStartPolaris] = text
         (button as? MaterialButton)?.let {
-            it.setText(label)
+            it.text = if (dashboardRailCollapsed) "" else text
             it.setIconResource(icon)
         }
-        button.contentDescription = getString(label)
-        if (action != HostPowerAction.SLEEP) {
+        button.contentDescription = text
+        updateHostSleepAccessibilityAction(button, offer = !busy && action == HostPowerAction.SLEEP)
+        if (busy || action != HostPowerAction.SLEEP) {
             cancelHostSleepHold(button)
-            hostSleepHoldConsumed = false
+            // The click that follows a completed hold still has to be spent.
+            if (!busy) {
+                hostSleepHoldConsumed = false
+            }
+        }
+    }
+
+    /**
+     * TalkBack cannot perform a timed hold, so Sleep Host is also a named
+     * action in its actions menu. It goes through the same countdown with
+     * Cancel as the hold does.
+     */
+    private fun updateHostSleepAccessibilityAction(button: View, offer: Boolean) {
+        // The dashboard refreshes often; only an actual change is worth an
+        // accessibility event.
+        if (offer == (hostSleepAccessibilityActionId != View.NO_ID)) {
+            return
+        }
+        if (hostSleepAccessibilityActionId != View.NO_ID) {
+            ViewCompat.removeAccessibilityAction(button, hostSleepAccessibilityActionId)
+            hostSleepAccessibilityActionId = View.NO_ID
+        }
+        if (offer) {
+            hostSleepAccessibilityActionId = ViewCompat.addAccessibilityAction(
+                button,
+                getString(R.string.pcview_quick_sleep_host),
+            ) { _, _ ->
+                beginHostSleep()
+                true
+            }
         }
     }
 
@@ -2723,17 +2858,26 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_no_server))
             return
         }
-        cancelPendingHostSleep()
+        // One request at a time: a second hold, or the TalkBack action, while
+        // one is counting down or out does nothing.
+        if (!hostSleepSequence.startCountdown()) {
+            return
+        }
+        updateHostPowerAction()
         NovaSnackbar.showPendingWithCancel(
             this,
             getString(R.string.pcview_sleep_pending),
             getString(R.string.pcview_sleep_cancel),
         ) {
-            cancelPendingHostSleep()
-            NovaSnackbar.showQuiet(this, getString(R.string.pcview_sleep_cancelled))
+            if (cancelPendingHostSleep()) {
+                NovaSnackbar.showQuiet(this, getString(R.string.pcview_sleep_cancelled))
+            }
         }
         val pending = Runnable {
             hostSleepPending = null
+            if (!hostSleepSequence.countdownElapsed()) {
+                return@Runnable
+            }
             NovaSnackbar.dismissActive()
             requestHostSleep(details)
         }
@@ -2741,15 +2885,23 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         hostSleepHandler.postDelayed(pending, HoldToConfirm.SLEEP_GRACE_MILLIS)
     }
 
-    private fun cancelPendingHostSleep() {
+    /** @return true when a countdown was running and is now stopped. */
+    private fun cancelPendingHostSleep(): Boolean {
         hostSleepPending?.let { hostSleepHandler.removeCallbacks(it) }
         hostSleepPending = null
+        val stopped = hostSleepSequence.cancelCountdown()
+        if (stopped) {
+            updateHostPowerAction()
+        }
+        return stopped
     }
 
     private fun requestHostSleep(computer: ComputerDetails) {
         val activeAddress = computer.activeAddress
         val serverCert = computer.serverCert
         if (activeAddress == null || serverCert == null) {
+            hostSleepSequence.finish()
+            updateHostPowerAction()
             NovaSnackbar.showError(this, getString(R.string.pcview_sleep_failed))
             return
         }
@@ -2775,6 +2927,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     hostPowerCapabilities.remove(it)
                     hostPowerProbedAtMs.remove(it)
                 }
+                hostSleepSequence.finish()
                 updateHostPowerAction()
                 if (result.accepted && !wentDown) {
                     NovaSnackbar.showError(

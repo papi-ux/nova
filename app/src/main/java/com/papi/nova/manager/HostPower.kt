@@ -36,6 +36,99 @@ object HostPowerPolicy {
         val allowed = power.sleepSupported && power.sleepEnabled && power.sleepPermitted
         return if (allowed) HostPowerAction.SLEEP else HostPowerAction.WAKE
     }
+
+    /**
+     * Why a host that speaks host power is not offering sleep, for a player who
+     * wonders where Sleep Host went. Null when there is nothing to explain: the
+     * host can sleep, Nova has not heard from it, it is not answering (Wake is
+     * the whole story then), or it does not speak host power at all.
+     */
+    @JvmStatic
+    fun unavailableReason(reachable: Boolean, capabilities: PolarisCapabilities?): HostSleepUnavailable? {
+        if (!reachable) {
+            return null
+        }
+        val caps = capabilities ?: return null
+        if (!caps.features.hostSleep) {
+            return null
+        }
+        val power = caps.hostPower
+        return when {
+            // The owner's choice first: nothing else matters until it is on, and
+            // the console says whether the host could sleep right under it.
+            !power.sleepEnabled -> HostSleepUnavailable.TurnedOff
+            !power.sleepSupported -> HostSleepUnavailable.HostCannot(power.sleepBlockedMessage.trim())
+            !power.sleepPermitted -> HostSleepUnavailable.WatchOnly
+            else -> null
+        }
+    }
+}
+
+/** Why a reachable host that speaks host power offers Wake rather than Sleep. */
+sealed interface HostSleepUnavailable {
+    /** The owner has not turned on Allow Clients To Sleep This Host. */
+    data object TurnedOff : HostSleepUnavailable
+
+    /** The host cannot suspend for Polaris; its own sentence says why, and may be blank. */
+    data class HostCannot(val message: String) : HostSleepUnavailable
+
+    /** This device was paired to watch, not to control. */
+    data object WatchOnly : HostSleepUnavailable
+}
+
+/**
+ * One sleep request at a time, from the finished hold until the host has
+ * answered. A second hold during the grace used to restart the countdown, and
+ * one while Nova waited for the host to go down could send a second request
+ * to a host already on its way. The control stays locked for the whole run.
+ * Plain Kotlin, like HoldToConfirm, so the rule is tested rather than
+ * demonstrated.
+ */
+class HostSleepSequence {
+    enum class Phase {
+        IDLE,
+        COUNTING_DOWN,
+        REQUESTING,
+    }
+
+    var phase: Phase = Phase.IDLE
+        private set
+
+    /** Counting down or waiting on the host. */
+    val isBusy: Boolean
+        get() = phase != Phase.IDLE
+
+    /** @return false when a request is already counting down or out. */
+    fun startCountdown(): Boolean {
+        if (phase != Phase.IDLE) {
+            return false
+        }
+        phase = Phase.COUNTING_DOWN
+        return true
+    }
+
+    /** The grace ran out. @return false when it was called off first, so nothing may be sent. */
+    fun countdownElapsed(): Boolean {
+        if (phase != Phase.COUNTING_DOWN) {
+            return false
+        }
+        phase = Phase.REQUESTING
+        return true
+    }
+
+    /** The player cancelled, or left the screen. @return true when a countdown was stopped. */
+    fun cancelCountdown(): Boolean {
+        if (phase != Phase.COUNTING_DOWN) {
+            return false
+        }
+        phase = Phase.IDLE
+        return true
+    }
+
+    /** The host answered, or the request could not be sent at all. */
+    fun finish() {
+        phase = Phase.IDLE
+    }
 }
 
 /**

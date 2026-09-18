@@ -12,6 +12,7 @@ class HostPowerPolicyTest {
         supported: Boolean = true,
         enabled: Boolean = true,
         permitted: Boolean = true,
+        blockedMessage: String = "",
     ) = PolarisCapabilities(
         server = "polaris",
         version = "1.4.9",
@@ -21,6 +22,7 @@ class HostPowerPolicyTest {
             sleepSupported = supported,
             sleepEnabled = enabled,
             sleepPermitted = permitted,
+            sleepBlockedMessage = blockedMessage,
         ),
     )
 
@@ -80,6 +82,108 @@ class HostPowerPolicyTest {
             HostPowerAction.WAKE,
             HostPowerPolicy.resolve(reachable = true, capabilities = null),
         )
+    }
+}
+
+class HostSleepUnavailableTest {
+    private fun capabilities(
+        hostSleep: Boolean = true,
+        supported: Boolean = true,
+        enabled: Boolean = true,
+        permitted: Boolean = true,
+        blockedMessage: String = "",
+    ) = PolarisCapabilities(
+        server = "polaris",
+        version = "1.4.9",
+        features = PolarisCapabilities.Features(hostSleep = hostSleep),
+        capture = PolarisCapabilities.CaptureInfo(),
+        hostPower = PolarisCapabilities.HostPower(
+            sleepSupported = supported,
+            sleepEnabled = enabled,
+            sleepPermitted = permitted,
+            sleepBlockedMessage = blockedMessage,
+        ),
+    )
+
+    private fun reason(reachable: Boolean = true, capabilities: PolarisCapabilities? = capabilities()) =
+        HostPowerPolicy.unavailableReason(reachable = reachable, capabilities = capabilities)
+
+    @Test
+    fun nothingToExplainWhenTheHostCanSleepOrNovaCannotTell() {
+        assertEquals(null, reason())
+        // Unreachable: Wake is the whole story. Not asked yet: nothing is known.
+        assertEquals(null, reason(reachable = false, capabilities = capabilities(enabled = false)))
+        assertEquals(null, reason(capabilities = null))
+        // Sunshine or an older Polaris has no Sleep Host to explain.
+        assertEquals(null, reason(capabilities = capabilities(hostSleep = false, enabled = false)))
+    }
+
+    @Test
+    fun theOwnersSwitchComesFirst() {
+        assertEquals(
+            HostSleepUnavailable.TurnedOff,
+            reason(capabilities = capabilities(enabled = false, supported = false, permitted = false)),
+        )
+    }
+
+    @Test
+    fun aHostThatCannotSuspendSaysWhyInItsOwnWords() {
+        assertEquals(
+            HostSleepUnavailable.HostCannot("polkit wants interactive authentication"),
+            reason(capabilities = capabilities(supported = false, blockedMessage = "  polkit wants interactive authentication ")),
+        )
+        assertEquals(HostSleepUnavailable.HostCannot(""), reason(capabilities = capabilities(supported = false)))
+    }
+
+    @Test
+    fun aWatchOnlyDeviceIsToldItMayOnlyWatch() {
+        assertEquals(HostSleepUnavailable.WatchOnly, reason(capabilities = capabilities(permitted = false)))
+    }
+
+    @Test
+    fun everyReasonMeansTheButtonOffersWake() {
+        listOf(
+            capabilities(enabled = false),
+            capabilities(supported = false),
+            capabilities(permitted = false),
+        ).forEach { caps ->
+            assertEquals(HostPowerAction.WAKE, HostPowerPolicy.resolve(reachable = true, capabilities = caps))
+            assertTrue(reason(capabilities = caps) != null)
+        }
+    }
+}
+
+class HostSleepSequenceTest {
+    @Test
+    fun aSecondRequestIsRefusedWhileOneCountsDownOrIsOut() {
+        val sequence = HostSleepSequence()
+        assertFalse(sequence.isBusy)
+        assertTrue(sequence.startCountdown())
+        assertTrue(sequence.isBusy)
+        assertFalse(sequence.startCountdown())
+
+        assertTrue(sequence.countdownElapsed())
+        assertEquals(HostSleepSequence.Phase.REQUESTING, sequence.phase)
+        assertTrue(sequence.isBusy)
+        assertFalse(sequence.startCountdown())
+        // A request already out cannot be called off; only the host's answer ends it.
+        assertFalse(sequence.cancelCountdown())
+
+        sequence.finish()
+        assertFalse(sequence.isBusy)
+        assertTrue(sequence.startCountdown())
+    }
+
+    @Test
+    fun aCancelledCountdownSendsNothing() {
+        val sequence = HostSleepSequence()
+        assertTrue(sequence.startCountdown())
+        assertTrue(sequence.cancelCountdown())
+        assertFalse(sequence.isBusy)
+        // The countdown's callback firing late must not send the request.
+        assertFalse(sequence.countdownElapsed())
+        assertEquals(HostSleepSequence.Phase.IDLE, sequence.phase)
+        assertFalse(sequence.cancelCountdown())
     }
 }
 

@@ -71,6 +71,58 @@ class WakeHostSourceGuardTest {
     }
 
     @Test
+    fun sleepHostIsOneRequestAtATimeAndReachableWithoutATouchscreenHold() {
+        val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val strings = File("src/main/res/values/strings.xml").readText()
+        val onPause = pcView.substringAfter("override fun onPause() {").substringBefore("override fun onStop()")
+
+        assertTrue(
+            "the Cancel for a pending sleep is on this screen, so leaving the screen must call the sleep off rather than let it fire unseen",
+            onPause.contains("cancelPendingHostSleep()") && strings.contains("name=\"pcview_sleep_cancelled_on_leave\"")
+        )
+        assertTrue(
+            "a second hold during the countdown or the check must not restart it or send a second request",
+            pcView.contains("if (!hostSleepSequence.startCountdown()) {") &&
+                pcView.contains("if (!hostSleepSequence.countdownElapsed()) {") &&
+                pcView.contains("hostSleepSequence.finish()")
+        )
+        assertTrue(
+            "the button stays on Sleeping... until the host answers, not Wake Host the moment the host drops off",
+            pcView.contains("busy -> R.string.pcview_sleep_in_progress") && strings.contains("name=\"pcview_sleep_in_progress\"")
+        )
+        assertTrue(
+            "a controller's A holds the button like the D-pad center does, counted once even when Android adds a fallback press",
+            pcView.contains("keyCode != KeyEvent.KEYCODE_BUTTON_A") && pcView.contains("KeyEvent.FLAG_FALLBACK")
+        )
+        assertTrue(
+            "TalkBack cannot perform a timed hold, so Sleep Host is also a named accessibility action",
+            pcView.contains("ViewCompat.addAccessibilityAction(") && strings.contains("name=\"pcview_sleep_hold_hint_accessibility\"")
+        )
+        assertTrue(
+            "a held control answers to at least 48dp even where the rail draws it smaller",
+            pcView.contains("R.dimen.nova_min_touch_target") &&
+                File("src/main/res/values/dimens.xml").readText().contains("<dimen name=\"nova_min_touch_target\">48dp</dimen>")
+        )
+    }
+
+    @Test
+    fun wakeHostSaysWhySleepIsNotOffered() {
+        val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val strings = File("src/main/res/values/strings.xml").readText()
+
+        assertTrue(
+            "holding Wake Host, as Sleep Host is held, explains a host that could sleep but is not offering to",
+            pcView.contains("button.setOnLongClickListener {") && pcView.contains("HostPowerPolicy.unavailableReason(")
+        )
+        assertTrue(
+            "the host's own sentence is shown when it gave one; the owner's switch and a watch-only pairing get Nova's",
+            strings.contains("name=\"pcview_sleep_unavailable_host_says\"") &&
+                strings.contains("name=\"pcview_sleep_unavailable_off\"") &&
+                strings.contains("name=\"pcview_sleep_unavailable_watch_only\"")
+        )
+    }
+
+    @Test
     fun wakeHostTellsASleepingHostFromOneWithPolarisDown() {
         val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val strings = File("src/main/res/values/strings.xml").readText()
