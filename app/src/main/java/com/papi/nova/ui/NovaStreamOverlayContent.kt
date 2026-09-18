@@ -16,21 +16,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 
 data class NovaReconnectOverlayState(
     val attempt: Int,
     val maxAttempts: Int,
-    val title: String = "Reconnecting stream…",
-    val subtitle: String = "Nova is checking with the host and will resume the stream if it can."
-) {
-    val attemptLabel: String = "Attempt $attempt of $maxAttempts"
-}
+)
 
 data class NovaSessionProgressUiState(
     val state: String,
@@ -230,7 +228,7 @@ fun NovaReconnectOverlayContent(
 ) {
     StreamOverlayScaffold(modifier = modifier, scrimAlpha = 0.86f) {
         Text(
-            text = state.title,
+            text = stringResource(R.string.nova_reconnect_title),
             color = Color.White,
             fontSize = 22.sp,
             fontWeight = FontWeight.SemiBold,
@@ -245,13 +243,13 @@ fun NovaReconnectOverlayContent(
             trackColor = Color.White.copy(alpha = 0.18f)
         )
         Text(
-            text = state.subtitle,
+            text = stringResource(R.string.nova_reconnect_subtitle),
             color = Color.White.copy(alpha = 0.72f),
             fontSize = 14.sp,
             textAlign = TextAlign.Center
         )
         Text(
-            text = state.attemptLabel,
+            text = stringResource(R.string.nova_reconnect_attempt, state.attempt, state.maxAttempts),
             color = Color.White.copy(alpha = 0.56f),
             fontSize = 12.sp,
             textAlign = TextAlign.Center,

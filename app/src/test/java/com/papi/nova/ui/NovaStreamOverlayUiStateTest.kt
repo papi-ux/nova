@@ -1,6 +1,8 @@
 package com.papi.nova.ui
 
+import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,12 +20,26 @@ class NovaStreamOverlayUiStateTest {
         assertEquals("Waiting For Picture", NovaSessionProgressUiState.fromSpace("input_ready")!!.title)
     }
     @Test
-    fun reconnectStateFormatsAttemptText() {
+    fun reconnectOverlayReadsItsWordsFromStringResources() {
         val state = NovaReconnectOverlayState(attempt = 2, maxAttempts = 5)
+        assertEquals(2, state.attempt)
+        assertEquals(5, state.maxAttempts)
 
-        assertEquals("Reconnecting stream…", state.title)
-        assertEquals("Nova is checking with the host and will resume the stream if it can.", state.subtitle)
-        assertEquals("Attempt 2 of 5", state.attemptLabel)
+        val strings = File("src/main/res/values/strings.xml").readText()
+        assertTrue(strings.contains("<string name=\"nova_reconnect_title\">Reconnecting stream…</string>"))
+        assertTrue(
+            strings.contains(
+                "<string name=\"nova_reconnect_subtitle\">Nova is checking with the host and will resume the stream if it can.</string>"
+            )
+        )
+        assertTrue(strings.contains("<string name=\"nova_reconnect_attempt\">Attempt %1\$d of %2\$d</string>"))
+
+        val source = File("src/main/java/com/papi/nova/ui/NovaStreamOverlayContent.kt").readText()
+        val overlay = source.substringAfter("fun NovaReconnectOverlayContent(").substringBefore("fun NovaSessionProgressOverlayContent(")
+        assertTrue(overlay.contains("stringResource(R.string.nova_reconnect_title)"))
+        assertTrue(overlay.contains("stringResource(R.string.nova_reconnect_subtitle)"))
+        assertTrue(overlay.contains("stringResource(R.string.nova_reconnect_attempt, state.attempt, state.maxAttempts)"))
+        assertFalse("the overlay carries no English of its own", overlay.contains("text = \""))
     }
 
     @Test

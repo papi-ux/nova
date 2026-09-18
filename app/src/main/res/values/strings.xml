@@ -1567,6 +1567,9 @@
     <string name="title_checkbox_full_screen">Enable Full Screen</string>
     <string name="summary_checkbox_full_screen">Hide system bars with immersive mode</string>
     <string name="nova_stream_surface_accessibility_label">Nova game stream surface</string>
+    <string name="nova_reconnect_title">Reconnecting stream…</string>
+    <string name="nova_reconnect_subtitle">Nova is checking with the host and will resume the stream if it can.</string>
+    <string name="nova_reconnect_attempt">Attempt %1$d of %2$d</string>
 
     <!-- Companion command deck -->
     <string name="companion_deck_touchpad">Touchpad</string>
