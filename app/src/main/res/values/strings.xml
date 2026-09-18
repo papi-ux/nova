@@ -87,6 +87,7 @@
     <string name="pcview_sleep_cancelled">Left the host awake</string>
     <string name="pcview_sleep_requested">The host is going to sleep</string>
     <string name="pcview_sleep_failed">The host would not go to sleep</string>
+    <string name="pcview_sleep_did_not_sleep">The host took the request but is still awake</string>
     <string name="pcview_quick_profiles">Streaming Presets</string>
     <string name="pcview_quick_presets_short">Presets</string>
     <string name="pcview_quick_theme">Theme</string>

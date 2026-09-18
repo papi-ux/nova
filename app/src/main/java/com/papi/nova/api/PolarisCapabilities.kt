@@ -67,7 +67,14 @@ data class PolarisCapabilities(
         val sleepPermitted: Boolean = false,
         val sleepBlockedReason: String = "",
         val sleepBlockedMessage: String = "",
-        val sleepEndpoint: String = ""
+        val sleepEndpoint: String = "",
+        // What became of the last request, which is a different fact from
+        // whether the host accepted it: a suspend can be aborted after logind
+        // has said yes, and then the host is still awake.
+        val lastSleepOutcome: String = "",
+        val lastSleepReason: String = "",
+        val lastSleepMessage: String = "",
+        val lastSleepAt: Long = 0L
     )
 
     data class CaptureInfo(

@@ -54,6 +54,11 @@ class WakeHostSourceGuardTest {
             pcView.contains("HoldToConfirm.SLEEP_GRACE_MILLIS") && pcView.contains("showPendingWithCancel(")
         )
         assertTrue(
+            "a host that accepted the request but stayed awake must not leave 'going to sleep' on screen; the host is asked why",
+            pcView.contains("val wentDown =") && pcView.contains("lastSleepMessage") &&
+                strings.contains("name=\"pcview_sleep_did_not_sleep\"")
+        )
+        assertTrue(
             "a tap on a hold-only control says what to do instead of doing nothing",
             strings.contains("name=\"pcview_sleep_hold_hint\"")
         )

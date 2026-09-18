@@ -1115,6 +1115,10 @@ class PolarisApiClient @JvmOverloads constructor(
                 sleepBlockedReason = json.optString("sleep_blocked_reason", ""),
                 sleepBlockedMessage = json.optString("sleep_blocked_message", ""),
                 sleepEndpoint = json.optString("sleep_endpoint", ""),
+                lastSleepOutcome = json.optString("last_sleep_outcome", ""),
+                lastSleepReason = json.optString("last_sleep_reason", ""),
+                lastSleepMessage = json.optString("last_sleep_message", ""),
+                lastSleepAt = json.optLong("last_sleep_at", 0L),
             )
 
         @JvmStatic

@@ -2761,8 +2761,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 LimeLog.warning("Nova: host sleep failed for ${computer.name}: " + e.message)
                 PolarisHostSleepResult(accepted = false)
             }
-            if (result.accepted) {
-                awaitHostAsleep(computer)
+            // Accepted is not asleep. Only say the host is going to sleep once
+            // it has actually stopped answering, and when it has not, ask the
+            // host why rather than leaving a false promise on screen.
+            val wentDown = if (result.accepted) awaitHostAsleep(computer) else false
+            val stillAwakeReason = if (result.accepted && !wentDown) {
+                hostPowerFor(computer)?.lastSleepMessage.orEmpty()
+            } else {
+                ""
             }
             runtimeTasks.runOnMainIfActive {
                 computer.uuid?.let {
@@ -2770,7 +2776,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     hostPowerProbedAtMs.remove(it)
                 }
                 updateHostPowerAction()
-                if (result.accepted) {
+                if (result.accepted && !wentDown) {
+                    NovaSnackbar.showError(
+                        this@PcView,
+                        stillAwakeReason.ifBlank { getString(R.string.pcview_sleep_did_not_sleep) },
+                    )
+                } else if (result.accepted) {
                     NovaSnackbar.show(this@PcView, getString(R.string.pcview_sleep_requested))
                 } else {
                     // The host knows whether this was polkit, a running stream
@@ -2784,19 +2795,26 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
     }
 
-    private fun awaitHostAsleep(computer: ComputerDetails) {
+    /**
+     * @return true once the host has stopped answering, false if it is still up
+     *   when the attempts run out. The host accepting a sleep request is not the
+     *   same as the host sleeping: a task that will not freeze aborts a suspend
+     *   after logind has agreed to it, and then the machine is still running.
+     */
+    private fun awaitHostAsleep(computer: ComputerDetails): Boolean {
         val probe = TcpHostReachabilityProbe()
         repeat(HoldToConfirm.SLEEP_CONFIRM_ATTEMPTS) {
             if (!probe.isAwake(computer)) {
-                return
+                return true
             }
             try {
                 Thread.sleep(HoldToConfirm.SLEEP_CONFIRM_INTERVAL_MILLIS)
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
-                return
+                return false
             }
         }
+        return false
     }
 
     private fun probePolarisGameLibrary(computer: ComputerDetails): Boolean {
