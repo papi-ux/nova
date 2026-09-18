@@ -57,6 +57,12 @@ class WakeHostSourceGuardTest {
             "a tap on a hold-only control says what to do instead of doing nothing",
             strings.contains("name=\"pcview_sleep_hold_hint\"")
         )
+        assertTrue(
+            "the icon follows the label as an open and closed pair; a play arrow next to Sleep Host read as though the button started something",
+            pcView.contains("R.drawable.ic_eye_closed") && pcView.contains("R.drawable.ic_eye_open") &&
+                File("src/main/res/drawable/ic_eye_closed.xml").exists() &&
+                File("src/main/res/drawable/ic_eye_open.xml").exists()
+        )
     }
 
     @Test

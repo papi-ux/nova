@@ -111,7 +111,7 @@
                     app:backgroundTint="?attr/colorControlHighlight"
                     app:cornerRadius="17dp"
                     app:elevation="0dp"
-                    app:icon="@drawable/ic_play"
+                    app:icon="@drawable/ic_eye_open"
                     app:iconGravity="textStart"
                     app:iconPadding="6dp"
                     app:iconTint="?attr/colorOnSurface" />

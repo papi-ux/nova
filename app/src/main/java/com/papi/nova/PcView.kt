@@ -2557,7 +2557,18 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         } else {
             R.string.pcview_quick_start_polaris
         }
-        (button as? MaterialButton)?.setText(label)
+        // The icon follows the label, as an open and closed pair rather than two
+        // unrelated glyphs: a play arrow next to Sleep Host read as though the
+        // button started something, and one icon cannot carry both states.
+        val icon = if (action == HostPowerAction.SLEEP) {
+            R.drawable.ic_eye_closed
+        } else {
+            R.drawable.ic_eye_open
+        }
+        (button as? MaterialButton)?.let {
+            it.setText(label)
+            it.setIconResource(icon)
+        }
         button.contentDescription = getString(label)
         if (action != HostPowerAction.SLEEP) {
             cancelHostSleepHold(button)

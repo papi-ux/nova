@@ -89,7 +89,7 @@
                         app:backgroundTint="?attr/colorControlHighlight"
                         app:cornerRadius="@dimen/nova_dashboard_top_action_radius"
                         app:elevation="0dp"
-                        app:icon="@drawable/ic_play"
+                        app:icon="@drawable/ic_eye_open"
                         app:iconGravity="textStart"
                         app:iconPadding="@dimen/nova_dashboard_top_action_icon_gap"
                         app:iconTint="?attr/colorOnSurface" />
