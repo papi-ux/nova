@@ -711,6 +711,59 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun aDisplayModeOverrideReachesTheDoctorCardUnderAHealthyVerdict() {
+        val override = "Last launch: This client's pairing has a Display Mode Override of 2560x1440x120, so Polaris used " +
+            "that instead of the 1920x1080x60 the client asked for. Clear Display Mode Override for this client on the " +
+            "Devices page to let the client choose."
+        fun healthyWith(vararg items: PolarisSessionStatus.DoctorStatus.EvidenceItem) = status(
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                resultId = "doctor-green-display-mode",
+                status = "ok",
+                severity = "info",
+                trafficLight = "green",
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(id = "streaming", status = "pass", source = "stream_stats"),
+                ) + items
+            )
+        )
+
+        // Polaris grades the decision watch only when the override replaced what the
+        // client asked for: that is why the player cannot choose their mode, and the
+        // detail says where to clear it, so a green verdict must not hide it.
+        val replaced = healthyWith(
+            PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                id = "display_mode_decision",
+                status = "watch",
+                source = "launch",
+                detail = override
+            )
+        )
+        assertTrue(replaced.authoritativeDoctorVerdictIsHealthy)
+        assertTrue(replaced.hasActionableDoctorEvidence)
+        assertEquals(override, quickState(status = replaced).diagnosis.evidenceHighlight)
+
+        // An override that matches the request, or none at all, is graded info: nothing to say.
+        val matched = healthyWith(
+            PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                id = "display_mode_decision",
+                status = "info",
+                source = "launch",
+                detail = "Polaris used the display mode the client asked for."
+            )
+        )
+        assertFalse(matched.hasActionableDoctorEvidence)
+        assertEquals("", quickState(status = matched).diagnosis.evidenceHighlight)
+
+        // Other informational watches under a green verdict stay informational.
+        val capabilityWatch = healthyWith(
+            PolarisSessionStatus.DoctorStatus.EvidenceItem(id = "live_bitrate_retune", status = "watch", source = "encoder")
+        )
+        assertFalse(capabilityWatch.hasActionableDoctorEvidence)
+    }
+
+    @Test
     fun doctorCardHidesThePassingStreamCheckAndTheStreamCardDoesNotRepeatTheVerdict() {
         val state = quickState(
             status = status(

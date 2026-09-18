@@ -762,6 +762,12 @@ data class PolarisSessionStatus(
         }
         if (!isSubstantive) return false
 
+        // Polaris grades the display mode decision watch only when a Display Mode
+        // Override replaced the mode the client asked for, which is why a player
+        // cannot choose 1080p. It says where to clear the override, so it counts
+        // even under a healthy verdict.
+        if (item.id.equals("display_mode_decision", ignoreCase = true)) return true
+
         // A healthy v2 envelope can carry informational capability watches, such as an
         // encoder that cannot retune bitrate live. Hard or contradictory evidence must
         // still fail closed even when the envelope itself says ok/info/green.
