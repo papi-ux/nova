@@ -95,8 +95,8 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionName "1.4.9"
-        versionCode = 50
+        versionName "1.4.10"
+        versionCode = 51
 
         buildConfigField "boolean", "FDROID_BUILD", fdroidBuild.toString()
 

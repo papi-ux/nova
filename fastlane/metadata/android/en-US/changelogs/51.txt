@@ -1,0 +1,7 @@
+Nova 1.4.10
+
+Sleep Host: with Polaris 1.4.10, press and hold to put your host to sleep, with a countdown you can cancel. Nova tells you why when sleep is not offered.
+
+A dropped connection reconnects by itself, a USB or Bluetooth mouse controls the game again, and an open library picks up host changes such as a new cover.
+
+The Doctor shows when a Display Mode Override on the host replaced the resolution you asked for.

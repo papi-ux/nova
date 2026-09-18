@@ -1,8 +1,35 @@
 # Changelog
 
-## Unreleased
+## 1.4.10 - 2026-09-18
 
-- The host tile's power button reads the host instead of only waking it. A host that is awake, running a Polaris that can sleep, with sleep turned on and this client allowed to ask, now offers **Sleep Host**; everything else keeps **Wake Host**, so the button is never one that will fail. Sleep is press and hold rather than a tap, and the request only goes out after a few seconds of snackbar with a Cancel in it, because a host that is already down cannot be woken from the couch. When the host refuses, Nova shows the host's own sentence.
+Sleep your host from the couch, and stay in the game when the connection hiccups. Nova 1.4.10 is matched with Polaris 1.4.10.
+
+**Sleep Host**
+
+- The host power button reads the host now. A host that can sleep offers Sleep Host, and you press and hold to use it.
+- A short countdown with Cancel runs before anything is sent, and leaving the screen during it calls the sleep off.
+- The button reads Sleeping… until the host answers, and only one request goes out.
+- Nova says the host is asleep only once it really is, and shows the host's own reason when it stayed awake.
+- Hold Wake Host on a host that is not offering sleep, and Nova tells you why and where to change it.
+- Sleep Host works with a controller's A button and as a TalkBack action. The button shows an open eye to wake and a closed eye to sleep.
+
+**Stay in the Game**
+
+- A dropped connection reconnects by itself instead of freezing on the last frame.
+- A USB or Bluetooth mouse controls the game again.
+- An open library picks up host changes, such as a new cover saved in the Polaris console, within about half a minute.
+
+**Clearer Answers**
+
+- Command Center's Doctor says when a Display Mode Override on the host replaced the resolution you asked for, and where to clear it.
+- Touch targets on the dashboard's top buttons are larger, and the collapsed rail shows icons only.
+
+**Steam Deck Preview**
+
+- The D-pad works again, touch can pick a game, long libraries fit on screen, and focus is easy to see.
+- A launches, B goes back, and the host picker moves into the top bar.
+
+Sleep Host and the Display Mode Override notice need Polaris 1.4.10 with Allow Clients To Sleep This Host turned on for sleep. Automatic reconnect needs a Polaris host, and the library refresh works with Polaris 1.4.9 too. The mouse fix works with any host, Sunshine included.
 
 ## 1.4.9 - 2026-09-16
 

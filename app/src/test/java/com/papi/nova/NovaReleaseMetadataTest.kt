@@ -81,13 +81,13 @@ class NovaReleaseMetadataTest {
         val releaseWorkflow = File(root, ".github/workflows/build.yml").readText()
         val storeNotes = File(
             root,
-            "fastlane/metadata/android/en-US/changelogs/50.txt"
+            "fastlane/metadata/android/en-US/changelogs/51.txt"
         )
         val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
-        assertTrue(build.contains("versionName \"1.4.9\""))
-        assertTrue(build.contains("versionCode = 50"))
-        assertTrue(changelog.contains("## 1.4.9 - 2026-09-16"))
+        assertTrue(build.contains("versionName \"1.4.10\""))
+        assertTrue(build.contains("versionCode = 51"))
+        assertTrue(changelog.contains("## 1.4.10 - 2026-09-18"))
         assertTrue(changelog.contains("Steam Input remains manual and read-only."))
         assertTrue(changelog.contains("Polaris owns encoder probing, fallback, and launch policy"))
         assertTrue(releaseWorkflow.contains("python3 scripts/extract_release_notes.py"))
@@ -108,7 +108,7 @@ class NovaReleaseMetadataTest {
             "Google Play release notes must be at most 500 Unicode characters",
             storeNotesBody.codePointCount(0, storeNotesBody.length) <= 500,
         )
-        assertTrue(storeNotesBody.startsWith("Nova 1.4.9"))
+        assertTrue(storeNotesBody.startsWith("Nova 1.4.10"))
     }
 
     @Test
