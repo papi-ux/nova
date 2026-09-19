@@ -140,62 +140,10 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
-            <LinearLayout
+            <include
+                layout="@layout/nova_welcome_actions"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/welcome_discover_btn"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_weight="1"
-                    android:focusable="true"
-                    android:nextFocusRight="@id/welcome_add_manual_btn"
-                    android:text="Discover hosts"
-                    android:textAllCaps="false"
-                    android:textColor="@android:color/white"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    app:backgroundTint="?attr/colorAccent"
-                    app:cornerRadius="25dp"
-                    app:strokeColor="@color/nova_focus_stroke_selector"
-                    app:strokeWidth="2dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/welcome_add_manual_btn"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:focusable="true"
-                    android:nextFocusLeft="@id/welcome_discover_btn"
-                    android:nextFocusRight="@id/welcome_scan_qr_btn"
-                    android:text="Add manually"
-                    android:textAllCaps="false"
-                    android:textColor="?android:attr/textColorPrimary"
-                    app:cornerRadius="25dp"
-                    app:strokeColor="@color/nova_focus_stroke_selector"
-                    app:strokeWidth="2dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/welcome_scan_qr_btn"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:focusable="true"
-                    android:nextFocusLeft="@id/welcome_add_manual_btn"
-                    android:text="Scan QR"
-                    android:textAllCaps="false"
-                    android:textColor="?android:attr/textColorPrimary"
-                    app:cornerRadius="25dp"
-                    app:strokeColor="@color/nova_focus_stroke_selector"
-                    app:strokeWidth="2dp" />
-            </LinearLayout>
+                android:layout_height="wrap_content" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

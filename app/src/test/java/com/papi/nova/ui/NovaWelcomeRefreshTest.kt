@@ -8,9 +8,16 @@ import org.junit.Test
 class NovaWelcomeRefreshTest {
     @Test
     fun welcomeLayoutsExposeThreeControllerActions() {
+        // Landscape takes its action row from nova_welcome_actions, which has a variant
+        // for screens with the height to stack it; every variant carries all three.
         val layouts = arrayOf(
             "src/main/res/layout/activity_nova_welcome.xml",
-            "src/main/res/layout-land/activity_nova_welcome.xml",
+            "src/main/res/layout/nova_welcome_actions.xml",
+            "src/main/res/layout-h420dp/nova_welcome_actions.xml",
+        )
+        assertTrue(
+            "landscape welcome should take its actions from nova_welcome_actions",
+            readFile("src/main/res/layout-land/activity_nova_welcome.xml").contains("@layout/nova_welcome_actions"),
         )
 
         for (layout in layouts) {
@@ -22,6 +29,21 @@ class NovaWelcomeRefreshTest {
             assertTrue("$layout manual action should be D-pad focusable", buttonBlock(xml, "welcome_add_manual_btn").contains("android:focusable=\"true\""))
             assertTrue("$layout QR action should be D-pad focusable", buttonBlock(xml, "welcome_scan_qr_btn").contains("android:focusable=\"true\""))
         }
+    }
+
+    @Test
+    fun narrowWelcomeGivesThePrimaryActionTheFullWidth() {
+        val stacked = readFile("src/main/res/layout-h420dp/nova_welcome_actions.xml")
+        assertTrue(
+            "on the 4:3 Retroid Pocket Nova three buttons in one row left each about 100dp and " +
+                "Discover hosts wrapped onto three lines, the last clipped",
+            buttonBlock(stacked, "welcome_discover_btn").contains("android:layout_width=\"match_parent\""),
+        )
+        assertTrue(
+            "the row under Discover hosts reaches back up to it with the D-pad",
+            buttonBlock(stacked, "welcome_add_manual_btn").contains("android:nextFocusUp=\"@id/welcome_discover_btn\"") &&
+                buttonBlock(stacked, "welcome_scan_qr_btn").contains("android:nextFocusUp=\"@id/welcome_discover_btn\""),
+        )
     }
 
     @Test
