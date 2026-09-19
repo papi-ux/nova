@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -156,7 +154,6 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min)
                 .padding(top = 8.dp)
         ) {
             // The host's own latency, what it sends and how: encode time, the mode, the codec
@@ -505,14 +502,18 @@ private fun HudFact(label: String, value: String, tone: NovaHudTone = NovaHudTon
     }
 }
 
+// A fixed height, the header and four facts: a rule that stretched to its row asked the row to
+// measure every column twice on each tick, and Debug missed frames Slim did not.
+private val HUD_COLUMN_RULE_HEIGHT = 66.dp
+
 @Composable
 private fun HudColumnRule() {
     val hudOpacityScale = LocalNovaHudOpacityScale.current
     Box(
         modifier = Modifier
-            .padding(horizontal = 6.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
             .width(1.dp)
-            .fillMaxHeight()
+            .height(HUD_COLUMN_RULE_HEIGHT)
             .background(
                 LocalNovaComposeColors.current.accent.copy(
                     alpha = NovaInGameOverlayAlpha.AccentDivider * hudOpacityScale

@@ -2749,6 +2749,17 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun gamePageNamesThePlaceThisLaunchRuns() {
+        val overview = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt")
+        val status = overview.section("private fun novaGameDetailStatusText(", "@Composable")
+        assertTrue(
+            "picked Host Virtual for Control, the game page still read Private Stream: the line names the launch's own mode, not the host's default",
+            status.contains("PolarisStreamDisplayMode.labelForMode(uiState.playMode)") &&
+                !status.contains("uiState.hostStreamDisplayModeLabel")
+        )
+    }
+
+    @Test
     fun streamHudTranslucentPanelCastsNoShadow() {
         val source = readNovaStreamHudContent()
         val panel = source.section(

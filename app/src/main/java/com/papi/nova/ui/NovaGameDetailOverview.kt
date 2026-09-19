@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
@@ -1029,7 +1030,9 @@ private fun novaGameDetailStatusText(
     summary: NovaLaunchProfileSummary?,
 ): String {
     return listOf(
-        uiState.hostStreamDisplayModeLabel.takeIf { uiState.playUsesVirtualDisplay },
+        // A Host Virtual launch adds a screen to the desk, which is worth saying before Play.
+        // This named the host's default instead, so a Host Virtual launch read Private Stream.
+        PolarisStreamDisplayMode.labelForMode(uiState.playMode).takeIf { uiState.playUsesVirtualDisplay },
         summary?.selectedLine,
         summary?.limitingLine?.takeIf { it.isNotBlank() } ?: summary?.freshnessLine,
     ).filter { !it.isNullOrBlank() }.joinToString("  ·  ")
