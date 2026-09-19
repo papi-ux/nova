@@ -21,6 +21,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import android.graphics.drawable.ColorDrawable
 
 @RunWith(RobolectricTestRunner::class)
 class NovaThemeManagerTest {
@@ -141,8 +142,11 @@ class NovaThemeManagerTest {
                 windowSurface.data
             }
             assertEquals(expectedSurface, NovaThemeManager.getActivityWindowSurfaceColor(activity))
-            assertEquals(expectedSurface, activity.window.statusBarColor)
-            assertEquals(expectedSurface, activity.window.navigationBarColor)
+            // The bars are transparent on every API level, over a window painted the
+            // surface, so they still read as the surface where no artwork sits behind.
+            assertEquals(Color.TRANSPARENT, activity.window.statusBarColor)
+            assertEquals(Color.TRANSPARENT, activity.window.navigationBarColor)
+            assertEquals(expectedSurface, (activity.window.decorView.background as ColorDrawable).color)
         }
     }
 
@@ -217,8 +221,7 @@ class NovaThemeManagerTest {
         val surface = resolveActivityWindowSurface(activity)
         val systemBars = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
         assertTrue("Material You must use a light surface in system light mode", ColorUtils.calculateLuminance(surface) > 0.5)
-        assertEquals(surface, activity.window.statusBarColor)
-        assertEquals(surface, activity.window.navigationBarColor)
+        assertBarsShowTheSurface(activity, surface)
         assertTrue("Light Material You surfaces need dark status-bar icons", systemBars.isAppearanceLightStatusBars)
         assertTrue("Light Material You surfaces need dark navigation-bar icons", systemBars.isAppearanceLightNavigationBars)
         controller.destroy()
@@ -236,8 +239,7 @@ class NovaThemeManagerTest {
         val surface = resolveActivityWindowSurface(activity)
         val systemBars = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
         assertTrue("Material You must use a dark surface in system dark mode", ColorUtils.calculateLuminance(surface) < 0.5)
-        assertEquals(surface, activity.window.statusBarColor)
-        assertEquals(surface, activity.window.navigationBarColor)
+        assertBarsShowTheSurface(activity, surface)
         assertTrue("Dark Material You surfaces need light status-bar icons", !systemBars.isAppearanceLightStatusBars)
         assertTrue("Dark Material You surfaces need light navigation-bar icons", !systemBars.isAppearanceLightNavigationBars)
         controller.destroy()
@@ -320,5 +322,44 @@ class NovaThemeManagerTest {
         val value = TypedValue()
         check(activity.theme.resolveAttribute(android.R.attr.colorBackground, value, true))
         return if (value.resourceId != 0) activity.getColor(value.resourceId) else value.data
+    }
+
+    /**
+     * Below Android 15 the bars used to be painted the surface, which covered the
+     * artwork a Retroid showed behind the status bar. They are transparent now, over
+     * a window painted the surface.
+     */
+    private fun assertBarsShowTheSurface(activity: Activity, surface: Int) {
+        assertEquals("the status bar lets the screen behind it show", Color.TRANSPARENT, activity.window.statusBarColor)
+        assertEquals("the navigation bar lets the screen behind it show", Color.TRANSPARENT, activity.window.navigationBarColor)
+        assertEquals(
+            "the window behind the bars is the surface",
+            surface,
+            (activity.window.decorView.background as ColorDrawable).color,
+        )
+    }
+
+    @Test
+    @Config(sdk = [33])
+    fun artworkShowsBehindTheStatusBarBelowAndroid15() {
+        // A Retroid Pocket 6 runs Android 13. The Pixel showed hero art under its
+        // clock only because Android 15 ignores a status bar color; Nova painted one
+        // over it everywhere else.
+        for (theme in listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+        )) {
+            val controller = Robolectric.buildActivity(Activity::class.java)
+            val activity = controller.get()
+            NovaThemeManager.setTheme(activity, theme)
+            NovaThemeManager.applyTheme(activity)
+            controller.setup()
+            assertEquals(theme, Color.TRANSPARENT, activity.window.statusBarColor)
+            assertEquals(theme, Color.TRANSPARENT, activity.window.navigationBarColor)
+            controller.destroy()
+        }
     }
 }

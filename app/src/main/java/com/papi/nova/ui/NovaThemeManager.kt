@@ -68,13 +68,12 @@ object NovaThemeManager {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.decorView.setBackgroundColor(surfaceColor)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            window.statusBarColor = Color.TRANSPARENT
-            window.navigationBarColor = Color.TRANSPARENT
-        } else {
-            window.statusBarColor = surfaceColor
-            window.navigationBarColor = surfaceColor
-        }
+        // Transparent on every API level, as Android 15 and later force anyway. The
+        // window behind the bars is the surface, so a plain screen reads the same;
+        // a screen with artwork shows it under the status bar on a Retroid too, where
+        // a surface-colored bar used to be painted over it.
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }

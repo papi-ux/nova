@@ -8,6 +8,7 @@ import com.papi.nova.NovaActivity
 import com.papi.nova.PcView
 import com.papi.nova.R
 import com.papi.nova.preferences.AddComputerManually
+import com.papi.nova.utils.UiHelper
 
 /**
  * First-launch welcome screen. Shows once, then never again.
@@ -18,6 +19,7 @@ class NovaWelcomeActivity : NovaActivity() {
         NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_nova_welcome)
+        UiHelper.padContentForSystemBars(this)
 
         findViewById<View>(R.id.welcome_discover_btn).setOnClickListener {
             finishWelcome(Intent(this, PcView::class.java))

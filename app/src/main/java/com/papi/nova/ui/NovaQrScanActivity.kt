@@ -6,6 +6,7 @@ import com.journeyapps.barcodescanner.CaptureManager
 import com.journeyapps.barcodescanner.DecoratedBarcodeView
 import com.papi.nova.R
 import com.papi.nova.NovaActivity
+import com.papi.nova.utils.UiHelper
 
 /**
  * Nova-themed QR code scanner activity.
@@ -20,6 +21,7 @@ class NovaQrScanActivity : NovaActivity() {
         NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.nova_qr_scanner)
+        UiHelper.padContentForSystemBars(this)
 
         barcodeView = findViewById(R.id.zxing_barcode_scanner)
         capture = CaptureManager(this, barcodeView)

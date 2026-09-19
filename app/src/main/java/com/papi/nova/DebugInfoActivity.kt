@@ -18,6 +18,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.DeviceUtils
+import com.papi.nova.utils.UiHelper
 
 @Suppress("DEPRECATION")
 class DebugInfoActivity : NovaActivity(), View.OnClickListener {
@@ -33,6 +34,7 @@ class DebugInfoActivity : NovaActivity(), View.OnClickListener {
         NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_axitest)
+        UiHelper.padContentForSystemBars(this)
 
         gamepadInfoText = findViewById(R.id.tx_game_pad_info)
         val contentText = findViewById<TextView>(R.id.tx_content)

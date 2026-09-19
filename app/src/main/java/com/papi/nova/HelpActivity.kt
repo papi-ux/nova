@@ -11,6 +11,7 @@ import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.SpinnerDialog
+import com.papi.nova.utils.UiHelper
 
 @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
 class HelpActivity : NovaActivity() {
@@ -33,6 +34,7 @@ class HelpActivity : NovaActivity() {
 
         webView = WebView(this)
         setContentView(webView)
+        UiHelper.padContentForSystemBars(this)
 
         webView.settings.builtInZoomControls = true
         webView.settings.displayZoomControls = false
