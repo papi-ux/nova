@@ -3377,6 +3377,28 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun gameDetailGaugeHandsDownToLaunchNotWhateverSitsUnderIt() {
+        val detail = readNovaGameDetail()
+        val gauge = detail.section("private fun NovaGameDetailBeatGauge(", "/**\n * Whether two titles are the same game")
+        assertTrue(
+            "the estimate chip sits right of Launch, so the default search sent Down to Play Setup " +
+                "and Up came back; Down must name the next control",
+            gauge.contains("down = if (showCorrection) correctionFocus else exitDown") &&
+                gauge.contains(".focusProperties { down = exitDown }"),
+        )
+        assertFalse(
+            "clickable already makes the control a focus target; a nested .focusable() is a second " +
+                "target the Down redirect does not cover",
+            gauge.contains(".focusable()"),
+        )
+        assertTrue(
+            "a Launch that cannot act holds no focus, so Down falls back to the ordinary search " +
+                "instead of dead-ending",
+            detail.contains("FocusRequester.Default"),
+        )
+    }
+
+    @Test
     fun gameDetailGaugeSurfacesAWrongMatchAndLeadsToItsFix() {
         val detail = readNovaGameDetail()
         val gauge = detail.section(
