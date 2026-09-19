@@ -349,7 +349,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private fun initializeViews(prefs: PreferenceConfiguration) {
         setContentView(R.layout.activity_pc_view)
 
-        UiHelper.notifyNewRootView(this)
+        // The particle field and the background run under the system bars; only the
+        // dashboard's controls are kept clear of them.
+        UiHelper.notifyNewRootView(
+            this,
+            findViewById<View>(R.id.dashboardCockpit)
+                ?: findViewById<View>(R.id.dashboardContent)
+                ?: findViewById<View>(android.R.id.content),
+        )
 
         val header = findViewById<View>(R.id.pcViewHeader)
         if (header != null) {

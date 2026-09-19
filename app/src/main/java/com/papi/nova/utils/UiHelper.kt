@@ -156,8 +156,17 @@ object UiHelper {
         }
     }
 
+    /**
+     * Sets up a legacy screen's root view. [insetTarget] is the view padded clear of
+     * the system bars; a screen whose background should run under them passes its
+     * content layout, so only the controls move.
+     */
     @JvmStatic
-    fun notifyNewRootView(activity: Activity) {
+    @JvmOverloads
+    fun notifyNewRootView(
+        activity: Activity,
+        insetTarget: View = activity.findViewById(android.R.id.content),
+    ) {
         val rootView = activity.findViewById<View>(android.R.id.content)
         val modeMgr = activity.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
 
@@ -180,7 +189,7 @@ object UiHelper {
                 verticalPaddingPixels,
             )
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            activity.findViewById<View>(android.R.id.content).setOnApplyWindowInsetsListener {
+            insetTarget.setOnApplyWindowInsetsListener {
                     view: View,
                     windowInsets: WindowInsets,
                 ->
@@ -206,7 +215,7 @@ object UiHelper {
         } else {
             // Below Android 10 nothing padded this content, and the surface-colored bars
             // hid what sat under them. The bars are transparent now, so keep it clear.
-            padContentForSystemBars(activity)
+            padForSystemBars(insetTarget)
         }
     }
 
@@ -217,13 +226,18 @@ object UiHelper {
      */
     @JvmStatic
     fun padContentForSystemBars(activity: Activity) {
-        val content = activity.findViewById<View>(android.R.id.content) ?: return
-        ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
+        padForSystemBars(activity.findViewById(android.R.id.content) ?: return)
+    }
+
+    /** Pads [target] clear of the status and navigation bars and any cutout. */
+    @JvmStatic
+    fun padForSystemBars(target: View) {
+        ViewCompat.setOnApplyWindowInsetsListener(target) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
         }
-        ViewCompat.requestApplyInsets(content)
+        ViewCompat.requestApplyInsets(target)
     }
 
     /**

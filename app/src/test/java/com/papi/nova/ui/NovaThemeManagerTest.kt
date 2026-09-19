@@ -22,6 +22,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import android.graphics.drawable.ColorDrawable
+import android.view.WindowManager
 
 @RunWith(RobolectricTestRunner::class)
 class NovaThemeManagerTest {
@@ -359,6 +360,11 @@ class NovaThemeManagerTest {
             controller.setup()
             assertEquals(theme, Color.TRANSPARENT, activity.window.statusBarColor)
             assertEquals(theme, Color.TRANSPARENT, activity.window.navigationBarColor)
+            assertEquals(
+                "$theme backdrops fill a display cutout, as on Android 15",
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS,
+                activity.window.attributes.layoutInDisplayCutoutMode,
+            )
             controller.destroy()
         }
     }
