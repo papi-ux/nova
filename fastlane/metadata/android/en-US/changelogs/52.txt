@@ -1,0 +1,7 @@
+Nova 1.4.11
+
+Retroid handhelds look and play like a console: no system bars, art edge to edge, the D-pad right after a touch, and layouts that fit 4:3.
+
+NovaHUD reads at a glance in every layout, and no longer shows a faint box behind each number when transparent.
+
+Players in Command Center shows who is player 1 and 2 for couch co-op, and Reassign sets the order again.

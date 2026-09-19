@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.4.11 - 2026-09-19
+
+Retroid handhelds look and play like a console, NovaHUD reads at a glance in every layout, and couch co-op shows who is who. Nova 1.4.11 is matched with Polaris 1.4.11.
+
+**Handhelds**
+
+- Hide System Bars takes the clock and navigation bar away from Nova's screens, on by default on gaming handhelds. Sheets and dialogs keep them hidden too, and so does End Session over a game.
+- Artwork runs edge to edge behind the status bar.
+- The Retroid D-pad works right after a touch, without pressing A first.
+- 4:3 screens get layouts that fit: the game page action row, the welcome screen and the game details.
+
+**NovaHUD**
+
+- Minimal, Performance and Debug read the way Slim does: each number glued to its label, and nothing boxed.
+- Made transparent, the HUD no longer shows a faint box behind each number.
+- Debug groups its numbers under HOST, NET and CLIENT, each headed by that layer's health, so the part that went amber and the numbers that explain it line up. It takes half the height it did.
+
+**Couch Co-op**
+
+- Players in Command Center lists who is player 1, 2 and so on, and names a controller that has not pressed a button yet.
+- Reassign lets everyone press a button again in the order you want, without ending the stream.
+- On a handheld whose own controls are built in, those controls stay player 1, and a paired controller becomes player 2 instead of merging with them.
+
+**Clearer Answers**
+
+- Play Setup describes the place you picked for a game, not the host's reason for its default.
+
+Players and Reassign work with any host. The rest of couch co-op on the host side, and Host Virtual Display on KDE Plasma, need Polaris 1.4.11.
+
 ## 1.4.10 - 2026-09-18
 
 Sleep your host from the couch, and stay in the game when the connection hiccups. Nova 1.4.10 is matched with Polaris 1.4.10.
