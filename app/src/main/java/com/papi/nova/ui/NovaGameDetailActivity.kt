@@ -1805,22 +1805,7 @@ class NovaGameDetailActivity : NovaActivity() {
                                     },
                                 ),
                                 hostDefaultOnlyDetail = getString(R.string.nova_play_setup_mode_host_default_only),
-                                plainModeDetails = mapOf(
-                                    PolarisClientSettings.MODE_HEADLESS_STREAM to
-                                        getString(R.string.nova_play_setup_mode_private_detail),
-                                    PolarisClientSettings.MODE_GPU_NATIVE_TEST to
-                                        getString(R.string.nova_play_setup_mode_gpu_detail),
-                                    PolarisClientSettings.MODE_GAMESCOPE_STREAM to
-                                        getString(R.string.nova_play_setup_mode_gamescope_detail),
-                                    PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY to
-                                        getString(R.string.nova_play_setup_mode_virtual_detail),
-                                    PolarisClientSettings.MODE_HEADLESS_DONGLE to
-                                        getString(R.string.nova_play_setup_mode_dongle_detail),
-                                    PolarisClientSettings.MODE_DESKTOP_DISPLAY to
-                                        getString(R.string.nova_play_setup_mode_mirror_detail),
-                                    PolarisClientSettings.MODE_DESKTOP_TAKEOVER to
-                                        getString(R.string.nova_play_setup_mode_takeover_detail),
-                                ),
+                                plainModeDetails = playSetupModeDetails(),
                             )
                         }
                     } else {
@@ -2413,6 +2398,24 @@ class NovaGameDetailActivity : NovaActivity() {
     private fun launchSpaceName(): String =
         spaceGame?.let { game -> game.space?.name?.takeIf { it.isNotBlank() } ?: game.name }.orEmpty()
 
+    /** One plain sentence per place a game can run, shared by the picker and the plan. */
+    private fun playSetupModeDetails(): Map<String, String> = mapOf(
+        PolarisClientSettings.MODE_HEADLESS_STREAM to
+            getString(R.string.nova_play_setup_mode_private_detail),
+        PolarisClientSettings.MODE_GPU_NATIVE_TEST to
+            getString(R.string.nova_play_setup_mode_gpu_detail),
+        PolarisClientSettings.MODE_GAMESCOPE_STREAM to
+            getString(R.string.nova_play_setup_mode_gamescope_detail),
+        PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY to
+            getString(R.string.nova_play_setup_mode_virtual_detail),
+        PolarisClientSettings.MODE_HEADLESS_DONGLE to
+            getString(R.string.nova_play_setup_mode_dongle_detail),
+        PolarisClientSettings.MODE_DESKTOP_DISPLAY to
+            getString(R.string.nova_play_setup_mode_mirror_detail),
+        PolarisClientSettings.MODE_DESKTOP_TAKEOVER to
+            getString(R.string.nova_play_setup_mode_takeover_detail),
+    )
+
     private fun buildLaunchIntro(uiState: NovaGameDetailUiState): String {
         // A Space game runs in its Space, with that Space's Steam sign-in and saves, whatever the
         // host's default mode is. Said once and plainly: the host default is not what this launch
@@ -2457,6 +2460,11 @@ class NovaGameDetailActivity : NovaActivity() {
                     }
                 unavailableParts.joinToString(" ")
             }
+            // A place picked for this game speaks for itself. The host's reason explains its
+            // own default: picked Host Virtual, the plan still said the game ran in a private
+            // labwc compositor.
+            uiState.hasExplicitOverride ->
+                playSetupModeDetails()[PolarisStreamDisplayMode.normalize(uiState.playMode)].orEmpty()
             uiState.launchChoice.hostModeReason.isNotBlank() -> uiState.launchChoice.hostModeReason
             uiState.game.launchMode?.modeReason?.isNotBlank() == true -> uiState.game.launchMode?.modeReason.orEmpty()
             uiState.recommendedMode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_intro_virtual_default)

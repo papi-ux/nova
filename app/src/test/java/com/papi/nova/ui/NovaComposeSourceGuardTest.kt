@@ -2736,6 +2736,19 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
+    fun playSetupPlanDescribesThePlaceChosenForTheGame() {
+        val activity = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val intro = activity.section("private fun buildLaunchIntro(", "private fun lastPlayedText(")
+        val chosen = intro.indexOf("uiState.hasExplicitOverride ->")
+        val hostReason = intro.indexOf("uiState.launchChoice.hostModeReason.isNotBlank() ->")
+        assertTrue(
+            "picked Host Virtual for Control, Play Setup still said the game ran in a private labwc compositor: a place chosen for the game speaks before the host's reason for its own default",
+            chosen in 0 until hostReason &&
+                intro.contains("playSetupModeDetails()[PolarisStreamDisplayMode.normalize(uiState.playMode)]")
+        )
+    }
+
+    @Test
     fun streamHudTranslucentPanelCastsNoShadow() {
         val source = readNovaStreamHudContent()
         val panel = source.section(

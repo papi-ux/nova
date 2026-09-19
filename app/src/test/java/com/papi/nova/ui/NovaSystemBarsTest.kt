@@ -158,6 +158,31 @@ class NovaSystemBarsTest {
     }
 
     @Test
+    fun theStreamsDialogsHideTheBarsWhateverTheSetting() {
+        NovaSystemBars.seedDefault(context, hiddenByDefault = false)
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        assertFalse(NovaSystemBars.isStream(activity))
+        NovaSystemBars.markStream(activity)
+        assertTrue(NovaSystemBars.isStream(activity))
+        assertFalse("the stream is not one of Nova's themed screens", NovaSystemBars.isManaged(activity))
+        controller.destroy()
+
+        fun source(path: String) = String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
+        assertTrue(
+            "End Session showed the clock, the battery and the navigation bar over the game: the stream marks itself",
+            source("src/main/java/com/papi/nova/Game.kt").contains("NovaSystemBars.markStream(this)")
+        )
+        val windows = source("src/main/java/com/papi/nova/ui/NovaDialogWindows.kt")
+        val stream = windows.indexOf("NovaSystemBars.isStream(host)")
+        val managed = windows.indexOf("NovaSystemBars.isManaged(host)")
+        assertTrue(
+            "a dialog over the stream hides the bars whatever the setting says, before the themed-screen check turns it away",
+            stream in 0 until managed && windows.contains("NovaSystemBars.applyToStreamDialog(window)")
+        )
+    }
+
+    @Test
     fun aScreenThatNeverTookNovasThemeIsLeftAlone() {
         val controller = Robolectric.buildActivity(Activity::class.java).setup()
         assertFalse("the stream never takes Nova's theme, so it keeps its own full screen", NovaSystemBars.isManaged(controller.get()))

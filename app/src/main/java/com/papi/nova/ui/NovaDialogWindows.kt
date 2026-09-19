@@ -14,11 +14,16 @@ import androidx.compose.ui.window.DialogWindowProvider
  * A sheet or dialog is a window of its own, so what a Nova screen does for its window
  * stopped at the dialog's edge: the bars came back over a screen that had hidden them,
  * and after a touch the Retroid D-pad stayed dead inside the dialog. Adopting the
- * dialog's window gives it both. Dialogs the stream opens are left as they were.
+ * dialog's window gives it both. A dialog over the stream hides the bars as the stream
+ * does, and leaves the D-pad alone: in the stream it is the host's controller input.
  */
 object NovaDialogWindows {
     fun adopt(context: Context, window: Window) {
         val host = context.findActivity() ?: return
+        if (NovaSystemBars.isStream(host)) {
+            NovaSystemBars.applyToStreamDialog(window)
+            return
+        }
         if (!NovaSystemBars.isManaged(host)) return
         NovaSystemBars.applyToDialog(context, window)
         NovaControllerTouchMode.install(window)

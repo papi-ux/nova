@@ -87,6 +87,14 @@ object NovaSystemBars {
     fun isManaged(activity: Activity): Boolean =
         activity.window?.decorView?.getTag(R.id.nova_system_bars_managed) == true
 
+    /** Marks the stream, which runs full screen whatever the setting says. */
+    fun markStream(activity: Activity) {
+        activity.window.decorView.setTag(R.id.nova_system_bars_stream, true)
+    }
+
+    fun isStream(activity: Activity): Boolean =
+        activity.window?.decorView?.getTag(R.id.nova_system_bars_stream) == true
+
     /**
      * Hides the bars for a Nova screen when the setting is on. Turned off, it shows
      * again only the bars this screen hid, so with the setting off a screen is never
@@ -113,6 +121,17 @@ object NovaSystemBars {
      */
     fun applyToDialog(context: Context, window: Window) {
         if (!isHidden(context)) return
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(BARS)
+    }
+
+    /**
+     * A sheet or dialog over the stream. The stream is full screen whatever the setting
+     * says, so a dialog that said nothing about the bars brought them back over the game:
+     * End Session showed the clock, the battery and the navigation bar above Control.
+     */
+    fun applyToStreamDialog(window: Window) {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller.hide(BARS)

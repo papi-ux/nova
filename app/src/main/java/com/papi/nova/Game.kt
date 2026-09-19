@@ -817,6 +817,8 @@ getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
 
  // Inflate the content
         setContentView(R.layout.activity_game)
+        // The stream is full screen, and so are the sheets and dialogs it opens.
+        com.papi.nova.ui.NovaSystemBars.markStream(this)
 
 clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
