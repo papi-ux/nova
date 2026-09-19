@@ -2,8 +2,10 @@ package com.papi.nova
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.view.MotionEvent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
+import com.papi.nova.ui.NovaControllerTouchMode
 import com.papi.nova.ui.NovaFontScalePreferences
 import kotlin.math.abs
 
@@ -48,6 +50,14 @@ open class NovaActivity : AppCompatActivity() {
     }
 
     protected open fun shouldRecreateForFontScaleChange(): Boolean = true
+
+    /** Whether a controller's hat press may be spent taking this screen out of touch mode. */
+    protected open val hatPressLeavesTouchMode: Boolean = true
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (hatPressLeavesTouchMode && NovaControllerTouchMode.leaveTouchMode(window, event)) return true
+        return super.dispatchGenericMotionEvent(event)
+    }
 
     private fun requestRecreateIfScaleChanged() {
         val currentScalePercent = NovaFontScalePreferences.readScalePercent(this)

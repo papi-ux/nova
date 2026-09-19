@@ -5261,6 +5261,9 @@ aTouchContext!!.cancelTouch()
 aTouchContext!!.setPointerCount(0)
 }
 }
+// The hat is controller input for the host here, never a press to spend on focus.
+override val hatPressLeavesTouchMode: Boolean = false
+
 override fun onGenericMotionEvent(event:MotionEvent?):Boolean {
 return handleMotionEvent(null, event) || super.onGenericMotionEvent(event)
 
