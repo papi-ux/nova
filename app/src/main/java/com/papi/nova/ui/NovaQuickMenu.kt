@@ -489,6 +489,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 perfOverlayEnabled = game.prefConfig.enablePerfOverlay,
                 onscreenControllerEnabled = game.prefConfig.onscreenController,
                 keyboardVisible = game.isKeyboardLayoutVisible,
+                players = game.currentPlayers(),
+                waitingGamepads = game.waitingGamepads(),
+                multiController = game.prefConfig.multiController,
                 mouseModeLabel = game.currentMouseModeLabel ?: "",
                 allowChangeMouseMode = game.allowChangeMouseMode,
                 isOnExternalDisplay = game.isOnExternalDisplay,
@@ -1050,6 +1053,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         NovaQuickMenuActionId.KEYBOARD -> {
                             dismiss()
                             game.toggleFullKeyboard()
+                        }
+                        NovaQuickMenuActionId.PLAYERS -> {
+                            // Stays open, so the row can say who has joined as each pad presses.
+                            game.reassignPlayers()
+                            refreshState()
                         }
                         else -> Unit
                     }

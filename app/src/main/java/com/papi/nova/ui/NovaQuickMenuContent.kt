@@ -120,7 +120,8 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.DOCTOR_UNDO -> onDoctorUndo()
             NovaQuickMenuActionId.MOUSE_MODE,
             NovaQuickMenuActionId.CONTROLLER,
-            NovaQuickMenuActionId.KEYBOARD -> onControlAction(action.id)
+            NovaQuickMenuActionId.KEYBOARD,
+            NovaQuickMenuActionId.PLAYERS -> onControlAction(action.id)
             NovaQuickMenuActionId.PASTE_CLIPBOARD,
             NovaQuickMenuActionId.ROTATE_SCREEN,
             NovaQuickMenuActionId.MORE_KEYS -> onSessionAction(action.id)

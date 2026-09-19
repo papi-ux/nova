@@ -6848,6 +6848,15 @@ touchContextMap[i] = TrackpadContext(conn!!, i)
         isZoomModeEnabled = false
 updateZoomButtonAppearance()
 }
+/** Who is which player now, for the Command Center. */
+fun currentPlayers(): List<com.papi.nova.binding.input.NovaPlayerSlot> = controllerHandler?.players().orEmpty()
+
+fun waitingGamepads(): List<String> = controllerHandler?.waitingGamepads().orEmpty()
+
+fun reassignPlayers() {
+controllerHandler?.reassignPlayers()
+}
+
 fun isNovaHudShowing():Boolean {
 return novaHud?.isShowing == true
 }

@@ -1122,6 +1122,14 @@
     <string name="nova_quick_menu_mouse">Mouse</string>
     <string name="nova_quick_menu_controller">Touch Controls</string>
     <string name="nova_quick_menu_touch_controls_caption">On-screen overlay; physical gamepad stays active.</string>
+    <string name="nova_quick_menu_players">Players</string>
+    <string name="nova_quick_menu_players_reassign">Reassign</string>
+    <string name="nova_quick_menu_players_one_chip">One Player</string>
+    <string name="nova_quick_menu_players_player_format">P%1$d %2$s</string>
+    <string name="nova_quick_menu_players_unnamed">Controller</string>
+    <string name="nova_quick_menu_players_waiting_format">Press a button to join: %1$s</string>
+    <string name="nova_quick_menu_players_nobody">Press a button on a controller to join.</string>
+    <string name="nova_quick_menu_players_one_player">Every controller is player 1 while Automatic Gamepad Presence Detection is off in Settings.</string>
     <string name="nova_quick_menu_keyboard">Keyboard</string>
     <string name="nova_quick_menu_paste_clipboard">Paste</string>
     <string name="nova_quick_menu_rotate_screen">Rotate</string>

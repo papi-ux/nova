@@ -39,6 +39,7 @@ enum class NovaQuickMenuActionId {
     MOUSE_MODE,
     CONTROLLER,
     KEYBOARD,
+    PLAYERS,
     PASTE_CLIPBOARD,
     ROTATE_SCREEN,
     MORE_KEYS
@@ -194,6 +195,9 @@ data class NovaQuickMenuUiState(
             perfOverlayEnabled: Boolean,
             onscreenControllerEnabled: Boolean,
             keyboardVisible: Boolean,
+            players: List<com.papi.nova.binding.input.NovaPlayerSlot> = emptyList(),
+            waitingGamepads: List<String> = emptyList(),
+            multiController: Boolean = true,
             mouseModeLabel: String,
             allowChangeMouseMode: Boolean,
             isOnExternalDisplay: Boolean,
@@ -400,6 +404,28 @@ data class NovaQuickMenuUiState(
                     caption = context.getString(R.string.nova_quick_menu_touch_controls_caption),
                     chip = onOffChip(context, onscreenControllerEnabled),
                     enabled = ownerInputAllowed
+                ),
+                // Couch co-op: who plays as whom, in the order they pressed a button, and a
+                // way to set that order again without ending the stream.
+                NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.PLAYERS,
+                    label = context.getString(R.string.nova_quick_menu_players),
+                    caption = com.papi.nova.binding.input.NovaPlayers.caption(
+                        players = players,
+                        waiting = waitingGamepads,
+                        multiController = multiController,
+                        playerFormat = context.getString(R.string.nova_quick_menu_players_player_format),
+                        unnamedPad = context.getString(R.string.nova_quick_menu_players_unnamed),
+                        waitingFormat = context.getString(R.string.nova_quick_menu_players_waiting_format),
+                        nobodyYet = context.getString(R.string.nova_quick_menu_players_nobody),
+                        onePlayer = context.getString(R.string.nova_quick_menu_players_one_player),
+                    ),
+                    chip = if (multiController) {
+                        chip(context.getString(R.string.nova_quick_menu_players_reassign), NovaQuickMenuTone.INFO)
+                    } else {
+                        chip(context.getString(R.string.nova_quick_menu_players_one_chip), NovaQuickMenuTone.INACTIVE)
+                    },
+                    enabled = ownerInputAllowed && multiController && players.isNotEmpty()
                 ),
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.KEYBOARD,
