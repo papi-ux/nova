@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.view.InputDevice
+import android.view.Window
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -93,6 +94,18 @@ object NovaSystemBars {
             controller.show(WindowInsetsCompat.Type.systemBars())
             decorView.setTag(R.id.nova_system_bars_hidden, null)
         }
+    }
+
+    /**
+     * A sheet or dialog is a window of its own, and a window that says nothing about the
+     * bars brings them back over the screen under it. With the setting on it hides them
+     * as well; with it off the window is left as it was.
+     */
+    fun applyToDialog(context: Context, window: Window) {
+        if (!isHidden(context)) return
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
     }
 
     private fun defaultHidden(context: Context): Boolean {

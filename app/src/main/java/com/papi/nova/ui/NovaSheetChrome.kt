@@ -78,6 +78,7 @@ object NovaSheetChrome {
             window.setDimAmount(getSheetScrimAlpha(context))
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            NovaSystemBars.applyToDialog(context, window)
         }
 
         val sheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) ?: return
@@ -155,6 +156,7 @@ object NovaSheetChrome {
                 window.setDimAmount(getSheetScrimAlpha(context))
                 window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                 window.setBackgroundDrawable(createAlertDialogBackground(context))
+                NovaSystemBars.applyToDialog(context, window)
             }
             val alertTitleId = context.resources.getIdentifier("alertTitle", "id", "android")
             dialog.findViewById<TextView>(alertTitleId)?.setTextColor(NovaThemeManager.getTextPrimaryColor(context))
@@ -177,6 +179,7 @@ object NovaSheetChrome {
                 window.setDimAmount(getSheetScrimAlpha(context))
                 window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                 window.setBackgroundDrawable(createAlertDialogBackground(context))
+                NovaSystemBars.applyToDialog(context, window)
             }
             val alertTitleId = context.resources.getIdentifier("alertTitle", "id", "android")
             dialog.findViewById<TextView>(alertTitleId)?.setTextColor(NovaThemeManager.getTextPrimaryColor(context))

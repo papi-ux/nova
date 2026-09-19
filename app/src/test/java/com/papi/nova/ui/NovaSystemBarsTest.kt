@@ -120,6 +120,30 @@ class NovaSystemBarsTest {
     }
 
     @Test
+    fun sheetsAndDialogsKeepTheBarsHiddenToo() {
+        val chrome = String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt")), StandardCharsets.UTF_8)
+        assertEquals(
+            "a host's Pair menu brought the status and navigation bars back over a screen that had hidden them; " +
+                "the bottom sheet and both alert chromes pass their window to NovaSystemBars",
+            3,
+            Regex("NovaSystemBars\\.applyToDialog\\(context, window\\)").findAll(chrome).count(),
+        )
+    }
+
+    @Test
+    fun composeDialogsKeepTheBarsHiddenToo() {
+        fun source(path: String) = String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
+        val library = source("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        val dialogs = Regex("\\bDialog\\(\\n|ModalBottomSheet\\(\\n").findAll(library).count()
+        assertEquals(
+            "Library Options brought the navigation bar back: every Compose dialog and sheet in the library calls NovaDialogSystemBars",
+            dialogs,
+            Regex("NovaDialogSystemBars\\(\\)").findAll(library).count(),
+        )
+        assertTrue(source("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").contains("NovaDialogSystemBars()"))
+    }
+
+    @Test
     fun aScreenThatNeverTookNovasThemeIsLeftAlone() {
         val controller = Robolectric.buildActivity(Activity::class.java).setup()
         assertFalse("the stream never takes Nova's theme, so it keeps its own full screen", NovaSystemBars.isManaged(controller.get()))

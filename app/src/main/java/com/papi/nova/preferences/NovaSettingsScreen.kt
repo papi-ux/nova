@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import com.papi.nova.ui.NovaDialogSystemBars
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudPreferences
 import com.papi.nova.ui.NovaHudUiState
@@ -1021,6 +1022,7 @@ internal fun NovaSelectDialogShell(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        NovaDialogSystemBars()
         NovaDialogContrastBackdrop()
         Column(
             modifier = Modifier

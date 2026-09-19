@@ -3397,6 +3397,7 @@ class NovaLibraryActivity : NovaActivity() {
             onDismissRequest = onDismiss,
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
+            NovaDialogSystemBars()
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
@@ -3694,6 +3695,7 @@ class NovaLibraryActivity : NovaActivity() {
             onDismissRequest = onDismiss,
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
+            NovaDialogSystemBars()
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val drawerWidthFraction = if (maxWidth < 520.dp) 0.94f else 0.50f
                 Box(
@@ -4067,6 +4069,7 @@ class NovaLibraryActivity : NovaActivity() {
                 )
             )
         ) {
+            NovaDialogSystemBars()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
