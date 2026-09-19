@@ -8,10 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -71,9 +71,13 @@ private fun rememberHudOpacityScale(opacityScale: Float): Float {
     return remember(opacityScale) { opacityScale.coerceIn(NovaHudPreferences.MIN_OPACITY_PERCENT / 100f, 1f) }
 }
 
+// Debug is Slim's line with the whole stream under it. The facts sit under the layer they
+// belong to, HOST, NET and CLIENT, each headed by that layer's health, so the layer that went
+// amber and the numbers that explain it line up. Label and value share a line and nothing
+// has a box of its own: at a low opacity a box per fact outlived the panel it sat on.
 @Composable
 private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
-    // 256dp: three metric tiles across need to hold "1920×1080" at 10sp with room left.
+    // 256dp: three columns hold "RES 1920×1080" at 10sp with room left.
     HudPanel(
         modifier = modifier.width(256.dp),
         cornerRadius = NovaRadius.hero,
@@ -83,31 +87,38 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            HudStatusDot(state.statusTone, height = 40.dp)
+            HudStatusDot(state.statusTone, height = 30.dp)
             Column(
                 modifier = Modifier
-                    .padding(start = 9.dp)
+                    .padding(start = 8.dp)
                     .weight(1f)
             ) {
-                HudTinyLabel("STREAM")
                 Row(verticalAlignment = Alignment.Bottom) {
                     HudValueText(
                         text = state.fpsLabel,
                         tone = state.fpsTone,
-                        size = 24
+                        size = 20
                     )
                     if (state.targetFpsLabel.isNotBlank()) {
                         Text(
                             text = state.targetFpsLabel,
-                            color = LocalNovaComposeColors.current.textSecondary,
-                            fontSize = 10.sp,
-                            lineHeight = 12.sp,
+                            color = LocalNovaComposeColors.current.textMuted,
+                            fontSize = 9.sp,
+                            lineHeight = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 3.dp, bottom = 2.dp),
+                            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
                             maxLines = 1
                         )
                     }
                 }
+                NovaHudSparkline(
+                    samples = state.sparklineSamples,
+                    tone = state.fpsTone,
+                    modifier = Modifier
+                        .padding(top = 3.dp)
+                        .width(96.dp)
+                        .height(12.dp)
+                )
             }
             Column(
                 modifier = Modifier.widthIn(max = 96.dp),
@@ -116,8 +127,8 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 Text(
                     text = state.autopilotHudLabel,
                     color = state.tuningTone.hudColor(),
-                    fontSize = 10.sp,
-                    lineHeight = 12.sp,
+                    fontSize = 9.sp,
+                    lineHeight = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.widthIn(max = 96.dp),
                     maxLines = 1,
@@ -131,71 +142,58 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                         lineHeight = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 3.dp)
                     )
                 }
             }
         }
 
-        NovaHudSparkline(
-            samples = state.sparklineSamples,
-            tone = state.fpsTone,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(22.dp)
-                .padding(top = 7.dp)
-        )
         HudDiagnosticStrip(state.healthReasonLabel, state.healthReasonTone, state.streamTruthLabel)
-        HudLayerHealthRow(state.layerHealth)
-        HudEventBreadcrumb(state.eventBreadcrumbLabel)
 
+        val host = state.layerHealth.getOrNull(0)
+        val net = state.layerHealth.getOrNull(1)
+        val client = state.layerHealth.getOrNull(2)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 7.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                .height(IntrinsicSize.Min)
+                .padding(top = 8.dp)
         ) {
-            HudMetric("1% LOW", state.lowOnePercentLabel, Modifier.weight(1f))
-            HudMetric("RTT", state.latencyLabel, Modifier.weight(1f), valueTone = state.latencyTone)
-            HudMetric("BIT", state.bitrateLabel, Modifier.weight(1f))
+            // The host's own latency, what it sends and how: encode time, the mode, the codec
+            // and the bitrate it holds.
+            HudLayerColumn(host?.label ?: "HOST", host?.tone ?: NovaHudTone.MUTED, Modifier.weight(1f)) {
+                HudFact("HOST", state.hostLatencyLabel)
+                HudFact("RES", state.resolutionLabel)
+                HudFact("CODEC", state.codecLabel.ifBlank { "--" })
+                HudFact("BIT", state.bitrateLabel)
+            }
+            HudColumnRule()
+            // What the link does to it: the round trip and how much it wobbles, loss in the
+            // current window graded so zero is the only green, and the frames that arrived.
+            HudLayerColumn(net?.label ?: "NET", net?.tone ?: NovaHudTone.MUTED, Modifier.weight(1f)) {
+                HudFact("RTT", state.latencyLabel, state.latencyTone)
+                HudFact("JIT", state.jitterLabel)
+                HudFact("LOSS", state.packetLossLabel, state.packetLossTone)
+                HudFact("IN", state.incomingFpsLabel)
+            }
+            HudColumnRule()
+            // What this device does with it: decode time graded against the frame budget, the
+            // frames drawn, the worst one percent, and the frames the session lost.
+            HudLayerColumn(client?.label ?: "CLIENT", client?.tone ?: NovaHudTone.MUTED, Modifier.weight(1f)) {
+                HudFact("DEC", state.decodeTimeLabel, state.decodeTone)
+                HudFact("OUT", state.renderedFpsLabel)
+                HudFact("1% LOW", state.lowOnePercentLabel)
+                HudFact("DROPS", state.framesLostLabel)
+            }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            HudMetric("CODEC", state.codecLabel.ifBlank { "--" }, Modifier.weight(1f))
-            HudMetric("RES", state.resolutionLabel, Modifier.weight(1f))
-            HudMetric("DEC", state.decodeTimeLabel, Modifier.weight(1f), valueTone = state.decodeTone)
-        }
-        // Where the frame's time goes and where its frames go: host encode latency next to
-        // the decode tile above it, then what arrived against what was drawn.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            HudMetric("HOST", state.hostLatencyLabel, Modifier.weight(1f))
-            HudMetric("IN", state.incomingFpsLabel, Modifier.weight(1f))
-            HudMetric("OUT", state.renderedFpsLabel, Modifier.weight(1f))
-        }
-        // The network row: what the link is doing to frames right now, how much the round
-        // trip wobbles, and how many frames the whole session has lost.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            HudMetric("LOSS", state.packetLossLabel, Modifier.weight(1f), valueTone = state.packetLossTone)
-            HudMetric("JIT", state.jitterLabel, Modifier.weight(1f))
-            HudMetric("DROPS", state.framesLostLabel, Modifier.weight(1f))
-        }
+        HudEventBreadcrumb(state.eventBreadcrumbLabel)
     }
 }
 
+// Performance is Slim's line in two: the frame rate with its target and its last minute drawn
+// beside it, then the four facts it is pinned to, each glued to its label the way Slim's are.
+// The panel wraps what it holds rather than spreading four columns across 320 dp. Live Tuning
+// stays in Debug: its label ("Tuning: On") was cut to 42 dp here and said nothing at a glance.
 @Composable
 private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
@@ -214,137 +212,88 @@ private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) 
 private fun HudPerformancePrimaryRow(state: NovaHudUiState) {
     Row(
         modifier = Modifier
-            .fillMaxWidth()
+            .padding(start = 2.dp, end = 4.dp)
             .testTag(NOVA_HUD_PERFORMANCE_PRIMARY_TAG),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        HudStatusDot(state.statusTone, height = 20.dp)
-        Text(
-            text = state.autopilotCompactLabel,
-            color = state.tuningTone.hudColor(),
-            fontSize = 9.sp,
-            lineHeight = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .padding(start = 5.dp)
-                .widthIn(min = 28.dp, max = 42.dp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+        HudStatusDot(state.statusTone, height = 16.dp)
+        HudValueText(
+            text = state.fpsLabel,
+            tone = state.fpsTone,
+            size = 15,
+            modifier = Modifier.padding(start = 6.dp)
         )
-        HudDivider(horizontalPadding = 5.dp)
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            HudValueText(state.fpsLabel, state.fpsTone, size = 15)
-            if (state.targetFpsLabel.isNotBlank()) {
-                Text(
-                    text = state.targetFpsLabel,
-                    color = LocalNovaComposeColors.current.textMuted,
-                    fontSize = 9.sp,
-                    lineHeight = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 1.dp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+        if (state.targetFpsLabel.isNotBlank()) {
+            Text(
+                text = state.targetFpsLabel,
+                color = LocalNovaComposeColors.current.textMuted,
+                fontSize = 9.sp,
+                lineHeight = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 3.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         NovaHudSparkline(
             samples = state.sparklineSamples,
             tone = state.fpsTone,
             modifier = Modifier
                 .padding(start = 8.dp)
-                .width(48.dp)
-                .height(15.dp)
+                .width(64.dp)
+                .height(14.dp)
         )
     }
 }
 
 @Composable
 private fun HudPerformanceDetailRow(state: NovaHudUiState) {
+    // Starts under the frame rate, past the health bar, so the two lines read as one block.
     Row(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 5.dp)
+            .padding(start = 12.dp, top = 4.dp, end = 4.dp)
             .testTag(NOVA_HUD_PERFORMANCE_DETAILS_TAG),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        HudCompactText(
-            state.latencyLabel,
-            state.latencyTone,
-            modifier = Modifier.weight(1f),
-            startPadding = 0.dp
-        )
-        HudCompactText(
-            state.bitrateLabel,
-            NovaHudTone.MUTED,
-            modifier = Modifier.weight(1f),
-            startPadding = 0.dp
-        )
-        HudCompactText(
-            state.resolutionLabel,
-            NovaHudTone.MUTED,
-            modifier = Modifier.weight(1f),
-            startPadding = 0.dp
-        )
-        HudCompactText(
-            state.codecLabel,
-            NovaHudTone.MUTED,
-            modifier = Modifier.weight(1f),
-            startPadding = 0.dp
-        )
+        HudSlimStat("RTT", state.latencyLabel, state.latencyTone, startPadding = 0.dp)
+        HudSlimStat("BIT", state.bitrateLabel, NovaHudTone.MUTED)
+        HudSlimStat("RES", state.resolutionLabel, NovaHudTone.MUTED)
+        HudSlimStat("CODEC", state.codecLabel.ifBlank { "--" }, NovaHudTone.MUTED)
     }
 }
 
+// Minimal is the smallest glance: Slim's pill with the frame rate, its target and the round
+// trip, and nothing that needs reading. The health bar's color says whether all is well.
 @Composable
 private fun NovaStreamHudMinimal(state: NovaHudUiState, modifier: Modifier) {
     HudPanel(
-        modifier = modifier.width(148.dp),
-        cornerRadius = NovaRadius.hero,
-        padding = 7.dp
+        modifier = modifier,
+        cornerRadius = NovaRadius.pill,
+        padding = 5.dp
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            HudStatusDot(state.statusTone, height = 32.dp)
-            Column(
-                modifier = Modifier
-                    .padding(start = 7.dp)
-                    .width(54.dp)
-            ) {
-                HudTinyLabel("FPS")
-                Row(verticalAlignment = Alignment.Bottom) {
-                    HudValueText(state.fpsLabel, state.fpsTone, size = 19)
-                    if (state.targetFpsLabel.isNotBlank()) {
-                        Text(
-                            text = state.targetFpsLabel,
-                            color = LocalNovaComposeColors.current.textMuted,
-                            fontSize = 8.sp,
-                            lineHeight = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 1.dp, bottom = 2.dp)
-                        )
-                    }
-                }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.End
-            ) {
-                HudCompactText(state.latencyLabel, state.latencyTone, minWidth = 34.dp)
+        Row(
+            modifier = Modifier.padding(start = 4.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HudStatusDot(state.statusTone, height = 16.dp)
+            HudValueText(
+                text = state.fpsLabel,
+                tone = state.fpsTone,
+                size = 15,
+                modifier = Modifier.padding(start = 6.dp)
+            )
+            if (state.targetFpsLabel.isNotBlank()) {
                 Text(
-                    text = state.autopilotCompactLabel,
-                    color = state.tuningTone.hudColor(),
+                    text = state.targetFpsLabel,
+                    color = LocalNovaComposeColors.current.textMuted,
                     fontSize = 8.sp,
                     lineHeight = 10.sp,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    modifier = Modifier.padding(top = 3.dp)
+                    modifier = Modifier.padding(start = 2.dp),
+                    maxLines = 1
                 )
             }
-        }
-        if (state.eventBreadcrumbLabel.isNotBlank()) {
-            HudEventBreadcrumb(state.eventBreadcrumbLabel)
+            HudSlimStat("RTT", state.latencyLabel, state.latencyTone)
         }
     }
 }
@@ -398,7 +347,9 @@ private fun HudPanel(
     val panelShape = RoundedCornerShape(cornerRadius)
     Column(
         modifier = modifier
-            .shadow(16.dp * hudOpacityScale, panelShape, clip = false)
+            // Android draws an elevation shadow under the whole outline, and through a panel
+            // that is not opaque it showed as a dark box. Only a solid panel casts one.
+            .then(if (hudOpacityScale >= 1f) Modifier.shadow(16.dp, panelShape, clip = false) else Modifier)
             .clip(panelShape)
             .background(surfaces.panel.copy(alpha = hudOpacityScale))
             .border(
@@ -412,11 +363,11 @@ private fun HudPanel(
 }
 
 // Slim's inline fact: a 7 sp label glued to its value, so two millisecond numbers in one
-// line read apart without the stacked tile Debug uses.
+// line read apart without a stacked tile.
 @Composable
-private fun HudSlimStat(label: String, value: String, tone: NovaHudTone) {
+private fun HudSlimStat(label: String, value: String, tone: NovaHudTone, startPadding: Dp = 8.dp) {
     Row(
-        modifier = Modifier.padding(start = 8.dp),
+        modifier = Modifier.padding(start = startPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -431,9 +382,9 @@ private fun HudSlimStat(label: String, value: String, tone: NovaHudTone) {
     }
 }
 
-// The strips and chips take only the strings and tones they draw. Handed the whole state,
-// they recomposed on every sample because the fps changed, even when their own text
-// had not; with plain parameters Compose skips them until their words actually change.
+// The strips take only the strings and tones they draw. Handed the whole state, they
+// recomposed on every sample because the fps changed, even when their own text had not;
+// with plain parameters Compose skips them until their words actually change.
 @Composable
 private fun HudDiagnosticStrip(
     healthReasonLabel: String,
@@ -441,15 +392,10 @@ private fun HudDiagnosticStrip(
     streamTruthLabel: String
 ) {
     if (healthReasonLabel.isBlank() && streamTruthLabel.isBlank()) return
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val hudOpacityScale = LocalNovaHudOpacityScale.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 7.dp)
-            .clip(RoundedCornerShape(NovaRadius.row))
-            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * hudOpacityScale))
-            .padding(horizontal = 7.dp, vertical = 5.dp),
+            .padding(top = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -489,47 +435,90 @@ private fun HudCompactDiagnosticStrip(
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.padding(top = 5.dp)
+        modifier = Modifier.padding(start = 12.dp, top = 4.dp)
     )
 }
 
+// A Debug column: the layer's health as a dot and its name, then its facts. The column takes
+// an immutable label and tone, so it skips while the layer holds, as the chips it replaced did.
 @Composable
-private fun HudLayerHealthRow(layers: List<NovaHudLayerHealth>) {
-    // The row itself re-runs each tick (a List parameter is never provably stable), but
-    // each chip takes an immutable value and skips while its label and tone hold.
+private fun HudLayerColumn(
+    label: String,
+    tone: NovaHudTone,
+    modifier: Modifier = Modifier,
+    facts: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .clip(RoundedCornerShape(NovaRadius.pill))
+                    .background(tone.hudColor())
+            )
+            Text(
+                text = label,
+                color = tone.hudColor(),
+                fontSize = 8.sp,
+                lineHeight = 9.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
+        facts()
+    }
+}
+
+// One Debug fact: the label at the left of its column and the value at the right, on one
+// baseline, like a row of MangoHud's table.
+@Composable
+private fun HudFact(label: String, value: String, tone: NovaHudTone = NovaHudTone.MUTED) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(5.dp)
+            .padding(top = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        layers.forEach { layer ->
-            HudLayerChip(layer, Modifier.weight(1f))
-        }
+        Text(
+            text = label,
+            color = LocalNovaComposeColors.current.textMuted,
+            fontSize = 7.sp,
+            lineHeight = 8.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline()
+        )
+        Text(
+            text = value,
+            color = tone.hudColor(),
+            fontSize = 10.sp,
+            lineHeight = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .alignByBaseline()
+        )
     }
 }
 
 @Composable
-private fun HudLayerChip(layer: NovaHudLayerHealth, modifier: Modifier = Modifier) {
-    val surfaces = LocalNovaLibrarySurfaces.current
+private fun HudColumnRule() {
     val hudOpacityScale = LocalNovaHudOpacityScale.current
     Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(NovaRadius.chip))
-            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * hudOpacityScale))
-            .padding(horizontal = 6.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = layer.label,
-            color = layer.tone.hudColor(),
-            fontSize = 8.sp,
-            lineHeight = 9.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
+        modifier = Modifier
+            .padding(horizontal = 6.dp)
+            .width(1.dp)
+            .fillMaxHeight()
+            .background(
+                LocalNovaComposeColors.current.accent.copy(
+                    alpha = NovaInGameOverlayAlpha.AccentDivider * hudOpacityScale
+                )
+            )
+    )
 }
 
 @Composable
@@ -544,49 +533,6 @@ private fun HudEventBreadcrumb(label: String) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.padding(top = 5.dp)
-    )
-}
-
-@Composable
-private fun HudMetric(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    valueTone: NovaHudTone = NovaHudTone.MUTED
-) {
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val hudOpacityScale = LocalNovaHudOpacityScale.current
-    Column(
-        modifier = modifier
-            .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(NovaRadius.row))
-            .background(surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * hudOpacityScale))
-            .padding(horizontal = 7.dp, vertical = 5.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
-        HudTinyLabel(label)
-        Text(
-            text = value,
-            color = valueTone.hudColor(),
-            fontSize = 10.sp,
-            lineHeight = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun HudTinyLabel(text: String) {
-    Text(
-        text = text,
-        color = LocalNovaComposeColors.current.textMuted,
-        fontSize = 7.sp,
-        lineHeight = 8.sp,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
     )
 }
 
@@ -635,22 +581,6 @@ private fun HudStatusDot(tone: NovaHudTone, height: Dp) {
             .height(height)
             .clip(RoundedCornerShape(NovaRadius.pill))
             .background(tone.hudColor())
-    )
-}
-
-@Composable
-private fun HudDivider(horizontalPadding: Dp = 8.dp) {
-    val hudOpacityScale = LocalNovaHudOpacityScale.current
-    Spacer(
-        modifier = Modifier
-            .padding(horizontal = horizontalPadding)
-            .width(1.dp)
-            .height(16.dp)
-            .background(
-                LocalNovaComposeColors.current.accent.copy(
-                    alpha = NovaInGameOverlayAlpha.AccentDivider * hudOpacityScale
-                )
-            )
     )
 }
 

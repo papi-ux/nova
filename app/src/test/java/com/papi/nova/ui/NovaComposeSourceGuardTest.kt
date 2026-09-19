@@ -1961,13 +1961,9 @@ class NovaComposeSourceGuardTest {
     @Test
     fun streamHudCompactTextDoesNotInheritBodyLineHeight() {
         val source = readNovaStreamHudContent()
-        val metric = source.section(
-            "private fun HudMetric(",
-            "@Composable\nprivate fun HudTinyLabel("
-        )
-        val tinyLabel = source.section(
-            "private fun HudTinyLabel(",
-            "@Composable\nprivate fun HudValueText("
+        val fact = source.section(
+            "private fun HudFact(",
+            "@Composable\nprivate fun HudColumnRule("
         )
         val valueText = source.section(
             "private fun HudValueText(",
@@ -1979,16 +1975,16 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "metric tiles should have a minimum height instead of clipping text to a fixed row",
-            metric.contains(".heightIn(min = 40.dp)")
+            "a Debug fact keeps its label and value on one baseline, so a 7 sp label and a 10 sp value line up instead of the value sitting low",
+            fact.split(".alignByBaseline()").size == 3
         )
         assertTrue(
-            "metric values should not inherit Material body line height",
-            metric.contains("lineHeight = 12.sp")
+            "Debug fact values should not inherit Material body line height",
+            fact.contains("lineHeight = 12.sp")
         )
         assertTrue(
-            "tiny labels should not inherit Material body line height",
-            tinyLabel.contains("lineHeight = 8.sp")
+            "Debug fact labels should not inherit Material body line height",
+            fact.contains("lineHeight = 8.sp")
         )
         assertTrue(
             "large HUD values should use a line height sized to their font",
@@ -2202,11 +2198,16 @@ class NovaComposeSourceGuardTest {
                 commandCenter.contains("NovaInGameOverlayAlpha.AccentHandle")
         )
         assertTrue(
-            "NovaHUD should use its own literal outer opacity plus the same nested control/border token family",
+            "NovaHUD should use its own literal outer opacity plus the same border and divider tokens",
             hud.contains(".background(surfaces.panel.copy(alpha = hudOpacityScale))") &&
-                hud.contains("NovaInGameOverlayAlpha.NestedControl") &&
                 hud.contains("NovaInGameOverlayAlpha.Border") &&
                 hud.contains("NovaInGameOverlayAlpha.AccentDivider")
+        )
+        assertFalse(
+            "NovaHUD draws no box inside its panel: each fact's own fill stayed visible as a faint box when the HUD was made transparent, long after the panel under it had faded",
+            hud.contains("NovaInGameOverlayAlpha.NestedControl") ||
+                hud.contains("NovaInGameOverlayAlpha.NestedTile") ||
+                hud.contains("surfaces.control")
         )
         assertFalse(
             "old local overlay alpha literals should be replaced by shared named tokens in the in-game overlay files",
@@ -2518,9 +2519,14 @@ class NovaComposeSourceGuardTest {
             "performance HUD should cap its overlay width while allowing narrow parents to constrain it",
             performanceHud.contains("modifier = modifier.widthIn(max = 320.dp)")
         )
+        assertFalse(
+            "performance leaves Live Tuning to Debug: its label (\"Tuning: On\") was cut to 42 dp there and said nothing at a glance",
+            performanceHud.contains("state.autopilot")
+        )
         assertTrue(
-            "performance compact status should be horizontally bounded",
-            performanceHud.contains(".widthIn(min = 28.dp, max = 42.dp)")
+            "performance glues each fact to its label the way Slim does, instead of spreading four unlabeled columns across the panel",
+            performanceHud.contains("HudSlimStat(\"RTT\", state.latencyLabel") &&
+                !performanceHud.contains("Modifier.weight(1f)")
         )
         assertTrue(
             "performance HUD should use explicit compact line height for the status chip",
@@ -2533,6 +2539,13 @@ class NovaComposeSourceGuardTest {
         assertFalse(
             "minimal HUD should avoid sparkline density during casual play",
             minimalHud.contains("NovaHudSparkline")
+        )
+        assertTrue(
+            "minimal HUD is Slim's pill with the frame rate and round trip: no tuning word, whose meaning the health bar's color already carries, and no fixed width with an empty middle",
+            minimalHud.contains("cornerRadius = NovaRadius.pill") &&
+                minimalHud.contains("HudSlimStat(\"RTT\", state.latencyLabel, state.latencyTone)") &&
+                !minimalHud.contains("state.autopilot") &&
+                !minimalHud.contains(".width(148.dp)")
         )
         assertTrue(
             "slim HUD is one pill that reads like MangoHud's bar: the health bar, the frame rate with its last minute drawn beside it, then decode, round trip, and bitrate with inline labels; no target, no autopilot text, no breadcrumb, no stacked tiles",
@@ -2563,22 +2576,30 @@ class NovaComposeSourceGuardTest {
         )
 
         assertTrue(
-            "Debug answers 'how long does my panel take to decode' beside codec and resolution, graded against the frame budget rather than a fixed number",
-            debugHud.contains("HudMetric(\"DEC\", state.decodeTimeLabel") &&
-                debugHud.contains("valueTone = state.decodeTone")
+            "Debug answers 'how long does my panel take to decode', graded against the frame budget rather than a fixed number",
+            debugHud.contains("HudFact(\"DEC\", state.decodeTimeLabel, state.decodeTone)")
         )
         assertTrue(
             "Debug shows host encode latency and incoming against rendered fps, the legacy text's remaining facts, so the legacy overlay can retire later",
-            debugHud.contains("HudMetric(\"HOST\", state.hostLatencyLabel") &&
-                debugHud.contains("HudMetric(\"IN\", state.incomingFpsLabel") &&
-                debugHud.contains("HudMetric(\"OUT\", state.renderedFpsLabel")
+            debugHud.contains("HudFact(\"HOST\", state.hostLatencyLabel)") &&
+                debugHud.contains("HudFact(\"IN\", state.incomingFpsLabel)") &&
+                debugHud.contains("HudFact(\"OUT\", state.renderedFpsLabel)")
         )
         assertTrue(
-            "Debug's last row is the network: loss in the current window graded so zero is the only green, round-trip jitter, and the session's lost-frame count",
-            debugHud.contains("HudMetric(\"LOSS\", state.packetLossLabel") &&
-                debugHud.contains("valueTone = state.packetLossTone") &&
-                debugHud.contains("HudMetric(\"JIT\", state.jitterLabel") &&
-                debugHud.contains("HudMetric(\"DROPS\", state.framesLostLabel")
+            "Debug keeps the network's facts: loss in the current window graded so zero is the only green, round-trip jitter, and the session's lost-frame count",
+            debugHud.contains("HudFact(\"LOSS\", state.packetLossLabel, state.packetLossTone)") &&
+                debugHud.contains("HudFact(\"JIT\", state.jitterLabel)") &&
+                debugHud.contains("HudFact(\"DROPS\", state.framesLostLabel)")
+        )
+        val hostColumn = debugHud.indexOf("HudLayerColumn(host?.label")
+        val netColumn = debugHud.indexOf("HudLayerColumn(net?.label")
+        val clientColumn = debugHud.indexOf("HudLayerColumn(client?.label")
+        assertTrue(
+            "Debug puts each fact under the layer it belongs to, headed by that layer's health, so the layer that went amber and the numbers that explain it line up",
+            hostColumn in 0 until netColumn && netColumn < clientColumn &&
+                debugHud.indexOf("HudFact(\"HOST\"") in hostColumn until netColumn &&
+                debugHud.indexOf("HudFact(\"RTT\"") in netColumn until clientColumn &&
+                debugHud.indexOf("HudFact(\"DEC\"") > clientColumn
         )
         assertFalse(
             "Performance stays the four-metric row it is pinned to",
@@ -2715,20 +2736,20 @@ class NovaComposeSourceGuardTest {
     }
 
     @Test
-    fun streamHudZeroOpacityRemovesPanelShadowChrome() {
+    fun streamHudTranslucentPanelCastsNoShadow() {
         val source = readNovaStreamHudContent()
         val panel = source.section(
             "private fun HudPanel(",
-            "@Composable\nprivate fun HudDiagnosticStrip("
+            "@Composable\nprivate fun HudSlimStat("
         )
 
         assertTrue(
-            "0% NovaHUD opacity should remove the panel shadow instead of leaving faint ghost boxes",
-            panel.contains(".shadow(16.dp * hudOpacityScale, panelShape, clip = false)")
+            "only a solid NovaHUD casts a shadow: Android draws it under the whole panel, and at any opacity below 100% it showed through as a faint box",
+            panel.contains(".then(if (hudOpacityScale >= 1f) Modifier.shadow(16.dp, panelShape, clip = false) else Modifier)")
         )
         assertFalse(
-            "NovaHUD panel shadow must not remain fully opaque when glass opacity is 0%",
-            panel.contains(".shadow(16.dp, panelShape, clip = false)")
+            "a shadow scaled by opacity still showed through a translucent panel",
+            panel.contains(".shadow(16.dp * hudOpacityScale")
         )
     }
 
