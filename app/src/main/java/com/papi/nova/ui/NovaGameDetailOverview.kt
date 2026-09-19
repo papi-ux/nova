@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -93,6 +94,9 @@ internal enum class NovaGameDetailDestination { OVERVIEW, PLAY_SETUP, ARTWORK }
 
 /** Content insets shared by the Overview and the destinations that sit beside it. */
 internal val NovaGameDetailInset = 28.dp
+
+/** Below this the landscape actions no longer fit one row and take two. */
+private val NOVA_GAME_DETAIL_ONE_ROW_MIN_WIDTH = 600.dp
 internal val NovaGameDetailFloor = 58.dp
 
 /** Every focusable control clears the accessible target floor. */
@@ -568,18 +572,48 @@ private fun NovaGameDetailActions(
             }
         }
     } else {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = modifier,
-        ) {
-            primaryAction(Modifier)
-            if (showEnd) endAction(Modifier)
-            if (showRetry) retryAction(Modifier)
-            if (!reviewExpanded) playSetupAction(Modifier)
-            if (supportsHostCustomization) resetAction(Modifier)
-            if (pinVisible) pinAction(Modifier)
-            if (!reviewExpanded && supportsHostCustomization) artworkAction(Modifier)
+        val showArtwork = !reviewExpanded && supportsHostCustomization
+        val showSetupRow = showEnd || showRetry || !reviewExpanded || supportsHostCustomization
+        BoxWithConstraints(modifier = modifier.testTag("nova-game-detail-actions")) {
+            if (maxWidth < NOVA_GAME_DETAIL_ONE_ROW_MIN_WIDTH) {
+                // A 4:3 handheld such as the Retroid Pocket Nova leaves about 520dp here, too
+                // little for one row: Artwork sat clipped past the right edge, and letting the
+                // row wrap stranded it alone on a second line. Launch keeps the two quick icons
+                // beside it, and the setup actions take the row below.
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        primaryAction(Modifier)
+                        if (pinVisible) pinAction(Modifier)
+                        if (showArtwork) artworkAction(Modifier)
+                    }
+                    if (showSetupRow) FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (showEnd) endAction(Modifier)
+                        if (showRetry) retryAction(Modifier)
+                        if (!reviewExpanded) playSetupAction(Modifier)
+                        if (supportsHostCustomization) resetAction(Modifier)
+                    }
+                }
+            } else {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    primaryAction(Modifier)
+                    if (showEnd) endAction(Modifier)
+                    if (showRetry) retryAction(Modifier)
+                    if (!reviewExpanded) playSetupAction(Modifier)
+                    if (supportsHostCustomization) resetAction(Modifier)
+                    if (pinVisible) pinAction(Modifier)
+                    if (showArtwork) artworkAction(Modifier)
+                }
+            }
         }
     }
 }
