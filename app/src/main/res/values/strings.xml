@@ -1124,6 +1124,7 @@
     <string name="nova_quick_menu_touch_controls_caption">On-screen overlay; physical gamepad stays active.</string>
     <string name="nova_quick_menu_players">Players</string>
     <string name="nova_quick_menu_players_reassign">Reassign</string>
+    <string name="nova_quick_menu_players_reassigned">Press a button on each controller, player 1 first.</string>
     <string name="nova_quick_menu_players_one_chip">One Player</string>
     <string name="nova_quick_menu_players_player_format">P%1$d %2$s</string>
     <string name="nova_quick_menu_players_unnamed">Controller</string>

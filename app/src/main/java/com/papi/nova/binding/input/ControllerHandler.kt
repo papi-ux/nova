@@ -279,6 +279,17 @@ class ControllerHandler(
                     if (prefConfig.multiController && context.hasJoystickAxes && !builtInHoldsPlayerOne) {
                         LimeLog.info("Players were reassigned; the built-in pad joins in press order")
                         reserveNextControllerNumber(context)
+                    } else if (prefConfig.multiController && !builtInHoldsPlayerOne &&
+                        builtInSticksContext()?.takeIf { it !== context } != null
+                    ) {
+                        // A built-in pad can arrive as two devices, its sticks and its buttons.
+                        // After Reassign the buttons play as whoever the sticks became, not as
+                        // player 1, or they merged into whichever pad took player 1.
+                        val sticks = builtInSticksContext()!!
+                        if (!sticks.assignedControllerNumber) {
+                            assignControllerNumberIfNeeded(sticks)
+                        }
+                        context.controllerNumber = sticks.controllerNumber
                     } else {
                         LimeLog.info("Built-in buttons hardcoded as controller 0")
                         context.controllerNumber = 0
@@ -368,14 +379,8 @@ class ControllerHandler(
      * button is player 1, the one after it player 2, so a couch sets its own order.
      */
     fun reassignPlayers() {
-        fun release(context: GenericControllerContext) {
-            if (!context.assignedControllerNumber) return
-            releaseControllerNumber(context)
-            context.assignedControllerNumber = false
-            context.reservedControllerNumber = false
-        }
-        for (i in 0 until inputDeviceContexts.size()) release(inputDeviceContexts.valueAt(i))
-        for (i in 0 until usbDeviceContexts.size()) release(usbDeviceContexts.valueAt(i))
+        for (i in 0 until inputDeviceContexts.size()) forgetPlayer(inputDeviceContexts.valueAt(i))
+        for (i in 0 until usbDeviceContexts.size()) forgetPlayer(usbDeviceContexts.valueAt(i))
         currentControllers = 0
         initialControllers = 0
         builtInHoldsPlayerOne = false
@@ -383,6 +388,47 @@ class ControllerHandler(
         // still listed while it released the others.
         conn.sendControllerInput(0, getActiveControllerMask(), 0, 0, 0, 0, 0, 0, 0)
         LimeLog.info("Players reassigned; the next pad to press a button is player 1")
+    }
+
+    /**
+     * A pad gives up its player and everything tied to that number. Rumble, motion and LED
+     * requests find their pad by number alone, so a pad that kept its old number after
+     * Reassign shook with, and fed its gyro to, whoever took that player next.
+     */
+    private fun forgetPlayer(context: InputDeviceContext) {
+        if (!context.assignedControllerNumber) return
+        releaseControllerNumber(context)
+        if (context is UsbDeviceContext) {
+            context.device.rumble(0, 0)
+        } else {
+            val vm = context.vibratorManager
+            val vib = context.vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && vm != null) {
+                vm.cancel()
+            } else {
+                vib?.cancel()
+            }
+        }
+        context.lowFreqMotor = 0
+        context.highFreqMotor = 0
+        context.disableSensors()
+        context.accelReportRateHz = 0
+        context.gyroReportRateHz = 0
+        backgroundThreadHandler.removeCallbacks(context.batteryStateUpdateRunnable)
+        context.assignedControllerNumber = false
+        context.reservedControllerNumber = false
+        context.controllerNumber = UNASSIGNED_CONTROLLER_NUMBER
+    }
+
+    /** The built-in pad's stick device, the one that holds the handheld's player. */
+    private fun builtInSticksContext(): InputDeviceContext? {
+        for (id in InputDevice.getDeviceIds()) {
+            val device = InputDevice.getDevice(id) ?: continue
+            if (!hasJoystickAxes(device) || isExternal(device)) continue
+            return inputDeviceContexts[id]
+                ?: createInputDeviceContextForDevice(device).also { inputDeviceContexts.put(id, it) }
+        }
+        return null
     }
 
     private fun reserveNextControllerNumber(context: GenericControllerContext) {
@@ -2768,6 +2814,8 @@ class ControllerHandler(
             )
 
             if (prefConfig.enableBatteryReport) {
+                // A pad that joins again after Reassign already has a loop running.
+                backgroundThreadHandler.removeCallbacks(batteryStateUpdateRunnable)
                 backgroundThreadHandler.post(batteryStateUpdateRunnable)
             }
         }
@@ -2862,6 +2910,9 @@ class ControllerHandler(
     }
 
     companion object {
+        /** No player on the host uses it, so no request for a player reaches a pad parked on it. */
+        private const val UNASSIGNED_CONTROLLER_NUMBER: Short = -1
+
         private const val VALVE_VENDOR_ID = 0x28de
         private const val STEAM_CONTROLLER_BLUETOOTH_PRODUCT_ID = 0x1303
         private val STEAM_CONTROLLER_DEVICE_NAME_TOKENS =

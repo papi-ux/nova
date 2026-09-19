@@ -1055,9 +1055,18 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             game.toggleFullKeyboard()
                         }
                         NovaQuickMenuActionId.PLAYERS -> {
-                            // Stays open, so the row can say who has joined as each pad presses.
+                            // The menu takes every pad's buttons while it is open, so nobody
+                            // could join; it closes and says what to do instead.
+                            dismiss()
                             game.reassignPlayers()
-                            refreshState()
+                            // Shown after the menu is gone: its view is detached by then, so
+                            // the snackbar lands on the stream instead of leaving with the menu.
+                            NovaSnackbar.show(
+                                game,
+                                game.getString(R.string.nova_quick_menu_players_reassigned),
+                                com.google.android.material.snackbar.Snackbar.LENGTH_LONG,
+                                anchor = composeView
+                            )
                         }
                         else -> Unit
                     }

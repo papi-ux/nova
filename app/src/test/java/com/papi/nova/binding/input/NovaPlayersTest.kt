@@ -70,5 +70,21 @@ class NovaPlayersTest {
             "after Reassign the handheld's pad joins in press order like any other, instead of taking 0 back and merging with whoever pressed first",
             handler.contains("prefConfig.multiController && context.hasJoystickAxes && !builtInHoldsPlayerOne")
         )
+        val forget = handler.substring(handler.indexOf("private fun forgetPlayer("), handler.indexOf("private fun builtInSticksContext("))
+        assertTrue(
+            "a pad that gives up its player stops its rumble and sensors and leaves the number, or the next player's rumble and gyro requests still found it",
+            forget.contains("context.disableSensors()") &&
+                forget.contains("context.controllerNumber = UNASSIGNED_CONTROLLER_NUMBER") &&
+                forget.contains("removeCallbacks(context.batteryStateUpdateRunnable)")
+        )
+        val menu = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt")),
+            StandardCharsets.UTF_8
+        )
+        val players = menu.substring(menu.indexOf("NovaQuickMenuActionId.PLAYERS ->"))
+        assertTrue(
+            "Command Center takes every pad's buttons while open, so Reassign closes it before anyone can join",
+            players.indexOf("dismiss()") in 0 until players.indexOf("game.reassignPlayers()")
+        )
     }
 }
