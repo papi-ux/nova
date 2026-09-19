@@ -95,6 +95,11 @@ object NovaThemeManager {
             isAppearanceLightStatusBars = useDarkIcons
             isAppearanceLightNavigationBars = useDarkIcons
         }
+
+        // Hide System Bars: applied now so the first frame is already edge to edge,
+        // and again on every resume from NovaApplication, for screens marked here.
+        NovaSystemBars.markManaged(activity)
+        NovaSystemBars.apply(activity)
     }
 
     fun getTheme(context: Context): String {

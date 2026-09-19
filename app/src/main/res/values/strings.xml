@@ -1566,6 +1566,8 @@
 
     <string name="title_checkbox_full_screen">Enable Full Screen</string>
     <string name="summary_checkbox_full_screen">Hide system bars with immersive mode</string>
+    <string name="title_nova_hide_system_bars">Hide System Bars</string>
+    <string name="summary_nova_hide_system_bars">Hide the status and navigation bars in Nova\'s screens, so the art runs to every edge. Swipe from an edge to see them. On by default on gaming handhelds.</string>
     <string name="nova_stream_surface_accessibility_label">Nova game stream surface</string>
     <string name="nova_reconnect_title">Reconnecting stream…</string>
     <string name="nova_reconnect_subtitle">Nova is checking with the host and will resume the stream if it can.</string>

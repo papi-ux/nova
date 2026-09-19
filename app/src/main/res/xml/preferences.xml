@@ -694,6 +694,12 @@
             seekbar:min="80"
             seekbar:step="1" />
         <CheckBoxPreference
+            android:key="nova_hide_system_bars"
+            android:title="@string/title_nova_hide_system_bars"
+            android:summary="@string/summary_nova_hide_system_bars"
+            android:defaultValue="false"
+            app:iconSpaceReserved="false" />
+        <CheckBoxPreference
             android:key="nova_compose_settings_beta"
             android:title="Modern Settings"
             android:summary="Controller-first settings dashboard"
