@@ -9,6 +9,7 @@ import android.widget.TextView
 import com.papi.nova.R
 import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.NovaDialogWindows
 
 class SpinnerDialog private constructor(
     private val activity: Activity,
@@ -57,6 +58,7 @@ class SpinnerDialog private constructor(
             synchronized(rundownDialogs) {
                 rundownDialogs.add(this)
                 createdDialog.show()
+                createdDialog.window?.let { NovaDialogWindows.adopt(createdDialog.context, it) }
             }
         } else {
             synchronized(rundownDialogs) {

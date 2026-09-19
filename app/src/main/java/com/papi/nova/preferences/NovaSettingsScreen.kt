@@ -66,7 +66,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
-import com.papi.nova.ui.NovaDialogSystemBars
+import com.papi.nova.ui.NovaDialogWindow
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudPreferences
 import com.papi.nova.ui.NovaHudUiState
@@ -1022,7 +1022,7 @@ internal fun NovaSelectDialogShell(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        NovaDialogSystemBars()
+        NovaDialogWindow()
         NovaDialogContrastBackdrop()
         Column(
             modifier = Modifier
@@ -1276,6 +1276,7 @@ private fun NovaSliderDialog(
         },
         title = { Text(definition.title) },
         text = {
+            NovaDialogWindow()
             Column {
                 Text(state.formatSliderValue(definition, value.roundToInt()))
                 Spacer(Modifier.height(16.dp))
@@ -1318,6 +1319,7 @@ private fun NovaTextDialog(
         },
         title = { Text(definition.title) },
         text = {
+            NovaDialogWindow()
             Column {
                 if (definition.risk != NovaSettingRisk.Normal) {
                     NovaRiskWarning(definition)

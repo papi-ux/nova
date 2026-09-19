@@ -23,6 +23,8 @@ import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.NovaDialogWindows
+import com.papi.nova.ui.NovaSystemBars
 import java.util.Locale
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -212,6 +214,8 @@ object UiHelper {
 
             activity.window.decorView.systemUiVisibility =
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            // Assigning the flags clears the ones Hide System Bars set, so take it again.
+            if (NovaSystemBars.isManaged(activity)) NovaSystemBars.apply(activity)
         } else {
             // Below Android 10 nothing padded this content, and the surface-colored bars
             // hid what sat under them. The bars are transparent now, so keep it clear.
@@ -330,6 +334,7 @@ object UiHelper {
         }
         val dialog = builder.create()
         dialog.show()
+        dialog.window?.let { NovaDialogWindows.adopt(dialog.context, it) }
         dialog.findViewById<TextView>(android.R.id.message)
             ?.movementMethod = LinkMovementMethod.getInstance()
     }

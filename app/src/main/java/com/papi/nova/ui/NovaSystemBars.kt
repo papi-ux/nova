@@ -27,6 +27,9 @@ import com.papi.nova.R
 object NovaSystemBars {
     const val KEY_HIDE_SYSTEM_BARS = "nova_hide_system_bars"
 
+    /** The status and navigation bars; a window's caption bar in desktop windowing stays. */
+    private val BARS = WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars()
+
     /** What Android says about one input device, reduced to what the default needs. */
     data class InputProbe(
         val sources: Int,
@@ -59,7 +62,14 @@ object NovaSystemBars {
         !television && (builtInGamepad || knownHandheld)
 
     /** Writes the device's default once; a stored choice is never replaced. */
-    fun seedDefault(context: Context, hiddenByDefault: Boolean = defaultHidden(context)) {
+    fun seedDefault(context: Context) {
+        // The probe asks Android about every input device, so it runs only when there is
+        // no default yet.
+        if (PreferenceManager.getDefaultSharedPreferences(context).contains(KEY_HIDE_SYSTEM_BARS)) return
+        seedDefault(context, defaultHidden(context))
+    }
+
+    fun seedDefault(context: Context, hiddenByDefault: Boolean) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         if (!prefs.contains(KEY_HIDE_SYSTEM_BARS)) {
             prefs.edit().putBoolean(KEY_HIDE_SYSTEM_BARS, hiddenByDefault).apply()
@@ -88,10 +98,10 @@ object NovaSystemBars {
         val controller = WindowCompat.getInsetsController(window, decorView)
         if (isHidden(activity)) {
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.hide(BARS)
             decorView.setTag(R.id.nova_system_bars_hidden, true)
         } else if (decorView.getTag(R.id.nova_system_bars_hidden) == true) {
-            controller.show(WindowInsetsCompat.Type.systemBars())
+            controller.show(BARS)
             decorView.setTag(R.id.nova_system_bars_hidden, null)
         }
     }
@@ -105,7 +115,7 @@ object NovaSystemBars {
         if (!isHidden(context)) return
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.hide(BARS)
     }
 
     private fun defaultHidden(context: Context): Boolean {

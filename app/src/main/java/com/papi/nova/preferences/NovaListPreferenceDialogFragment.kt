@@ -8,6 +8,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceDialogFragmentCompat
 import com.papi.nova.R
+import com.papi.nova.ui.NovaDialogWindows
 
 class NovaListPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
     private var clickedDialogEntryIndex = 0
@@ -30,6 +31,11 @@ class NovaListPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
             entries = savedInstanceState.getCharSequenceArray(SAVE_STATE_ENTRIES)
             entryValues = savedInstanceState.getCharSequenceArray(SAVE_STATE_ENTRY_VALUES)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        dialog?.window?.let { NovaDialogWindows.adopt(requireContext(), it) }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

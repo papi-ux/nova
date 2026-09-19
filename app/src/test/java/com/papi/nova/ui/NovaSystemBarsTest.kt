@@ -91,6 +91,7 @@ class NovaSystemBarsTest {
         controller.setup()
 
         assertTrue("a screen that took Nova's theme is managed", NovaSystemBars.isManaged(activity))
+        assertTrue("the setting is on, so the screen hid its bars", activity.window.decorView.getTag(R.id.nova_system_bars_hidden) == true)
         assertEquals(
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE,
             WindowCompat.getInsetsController(activity.window, activity.window.decorView).systemBarsBehavior,
@@ -126,7 +127,7 @@ class NovaSystemBarsTest {
             "a host's Pair menu brought the status and navigation bars back over a screen that had hidden them; " +
                 "the bottom sheet and both alert chromes pass their window to NovaSystemBars",
             3,
-            Regex("NovaSystemBars\\.applyToDialog\\(context, window\\)").findAll(chrome).count(),
+            Regex("NovaDialogWindows\\.adopt\\(context, window\\)").findAll(chrome).count(),
         )
     }
 
@@ -136,11 +137,24 @@ class NovaSystemBarsTest {
         val library = source("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val dialogs = Regex("\\bDialog\\(\\n|ModalBottomSheet\\(\\n").findAll(library).count()
         assertEquals(
-            "Library Options brought the navigation bar back: every Compose dialog and sheet in the library calls NovaDialogSystemBars",
+            "Library Options brought the navigation bar back: every Compose dialog and sheet in the library calls NovaDialogWindow",
             dialogs,
-            Regex("NovaDialogSystemBars\\(\\)").findAll(library).count(),
+            Regex("NovaDialogWindow\\(\\)").findAll(library).count(),
         )
-        assertTrue(source("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").contains("NovaDialogSystemBars()"))
+        val settings = source("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt")
+        assertEquals(
+            "Nova Text Size and the other settings dialogs brought both bars back; every dialog in Modern Settings calls NovaDialogWindow",
+            Regex("\\b(Alert)?Dialog\\(\\n").findAll(settings).count(),
+            Regex("NovaDialogWindow\\(\\)").findAll(settings).count(),
+        )
+        for (path in listOf(
+            "src/main/java/com/papi/nova/utils/UiHelper.kt",
+            "src/main/java/com/papi/nova/utils/SpinnerDialog.kt",
+            "src/main/java/com/papi/nova/PcView.kt",
+            "src/main/java/com/papi/nova/preferences/NovaListPreferenceDialogFragment.kt",
+        )) {
+            assertTrue("$path builds a shared dialog outside the sheet chrome and adopts its window", source(path).contains("NovaDialogWindows.adopt("))
+        }
     }
 
     @Test
