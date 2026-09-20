@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Updates the BouncyCastle crypto library to 1.85. It signs the certificate Nova pairs with and runs the pairing challenge, and 1.85 closes a certificate name check that could be slipped past and an ASN.1 depth guard that could be reset.
+
 ## 1.4.11 - 2026-09-19
 
 Retroid handhelds look and play like a console, NovaHUD reads at a glance in every layout, and couch co-op shows who is who. Nova 1.4.11 is matched with Polaris 1.4.11.
