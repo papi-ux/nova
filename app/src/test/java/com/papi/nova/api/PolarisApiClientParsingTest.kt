@@ -2513,12 +2513,36 @@ class PolarisApiClientParsingTest {
 
     @Test fun spaceArtworkUsesThePairedHostAndExactSpaceIdentity() {
         val game = PolarisGame(id = "space.alex.870780", name = "Control",
+            coverUrl = "/polaris/v1/games/space.alex.870780/space-artwork/poster",
             space = PolarisGame.SpaceContext("alex", "Alex", "870780"))
         assertEquals("https://polaris.lan:47984/polaris/v1/games/space.alex.870780/space-artwork/hero",
             PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, game, "hero"))
         assertNull(PolarisApiClient.selectArtworkUrl("polaris.lan", 47984,
             game.copy(id = "space.sam.870780"), "poster"))
         assertNull(PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, game, "../private"))
+    }
+
+    @Test fun aSpaceEntryTheHostListsWithNoArtworkIsNeverAskedFor() {
+        // A host names a cover only where one can exist. A Lutris title has none today, so the
+        // host lists it bare, and asking anyway was a request per tile that could only be a 404.
+        val bare = PolarisGame(id = "space.alex.id.2", name = "GL Gears", source = "lutris",
+            space = PolarisGame.SpaceContext("alex", "Alex", "id.2"))
+        assertTrue(PolarisApiClient.hostHasNoArtworkFor(bare))
+        listOf("poster", "hero", "logo", "icon").forEach {
+            assertNull(it, PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, bare, it))
+        }
+        // The launcher's own entry is asked for once the host gives it a poster.
+        val launcher = PolarisGame(id = "space.alex.library-v1", name = "Lutris", source = "lutris",
+            coverUrl = "/polaris/v1/games/space.alex.library-v1/space-artwork/poster",
+            space = PolarisGame.SpaceContext("alex", "Alex", "library-v1"))
+        assertFalse(PolarisApiClient.hostHasNoArtworkFor(launcher))
+        assertEquals("https://polaris.lan:47984/polaris/v1/games/space.alex.library-v1/space-artwork/poster",
+            PolarisApiClient.selectArtworkUrl("polaris.lan", 47984, launcher, "poster"))
+        // Steam Big Picture is listed bare by older hosts and draws the mark bundled here, so it
+        // is not a title to print a name over. Neither is anything on the Desktop.
+        assertFalse(PolarisApiClient.hostHasNoArtworkFor(PolarisGame(id = "space.alex.big-picture-v1",
+            name = "Steam Big Picture", space = PolarisGame.SpaceContext("alex", "Alex", "big-picture-v1"))))
+        assertFalse(PolarisApiClient.hostHasNoArtworkFor(PolarisGame(id = "desktop-game", name = "Control")))
     }
 
 }

@@ -527,6 +527,17 @@ class PolarisApiClient @JvmOverloads constructor(
             }
         }
 
+        /**
+         * The host listed this Space entry with no cover and no artwork at all, which is how it
+         * says none exists: a Heroic or Lutris title today, or a launcher it ships no poster for.
+         * Steam Big Picture is listed the same way by older hosts and draws a mark bundled here.
+         */
+        @JvmStatic
+        fun hostHasNoArtworkFor(game: PolarisGame): Boolean {
+            val space = game.space ?: return false
+            return space.target != "big-picture-v1" && game.coverUrl.isBlank() && game.artwork == null
+        }
+
         @JvmStatic
         fun selectArtworkUrl(
             host: String,
@@ -540,6 +551,10 @@ class PolarisApiClient @JvmOverloads constructor(
                 val identity = com.papi.nova.manager.WorkerLaunchContract.libraryIdentity(game.id) ?: return null
                 if (identity.first != space.id || identity.second != space.target ||
                     identity.second == "big-picture-v1" || normalizedKind !in setOf("poster", "hero", "logo", "icon")) return null
+                // A host names a cover only where one can exist. A title from a launcher it has
+                // no artwork source for carries none, and asking anyway is a request per tile
+                // that can only answer 404.
+                if (hostHasNoArtworkFor(game)) return null
                 return resolveManifestPath(host, port, "/polaris/v1/games/${game.id}/space-artwork/$normalizedKind")
             }
             game.artworkAsset(normalizedKind)
@@ -2968,6 +2983,15 @@ class PolarisApiClient @JvmOverloads constructor(
             (view.getTag(R.id.nova_artwork_job) as? Job)?.cancel()
             view.setTag(R.id.nova_artwork_job, null)
             view.setImageResource(R.drawable.nova_steam_big_picture)
+            return
+        }
+        // A title the host has no artwork for gets a poster of its own: the placeholder with its
+        // name on it. Without one, every such title was the same blank tile.
+        if (kind.trim().lowercase() == PolarisGame.ARTWORK_KIND_POSTER && hostHasNoArtworkFor(game)) {
+            view.setTag(R.id.nova_artwork_request_key, "title-card:${game.id}:${game.name}")
+            (view.getTag(R.id.nova_artwork_job) as? Job)?.cancel()
+            view.setTag(R.id.nova_artwork_job, null)
+            view.setImageDrawable(com.papi.nova.ui.NovaTitleCardDrawable(view.context, game.name))
             return
         }
         val spec = buildArtworkLoadSpec(game, kind)
