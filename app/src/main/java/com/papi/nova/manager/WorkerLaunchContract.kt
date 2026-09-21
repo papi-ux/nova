@@ -14,11 +14,38 @@ object WorkerLaunchContract {
     data class Contract(val id: String, val width: Int, val height: Int, val fps: Int, val bitrateKbps: Int,
         val target: String = "", val gameIdentity: String = "")
 
-    fun validTarget(target: String): Boolean = target == "big-picture-v1" ||
-        (Regex("[1-9][0-9]{0,9}").matches(target) && (target.toLongOrNull() ?: Long.MAX_VALUE) <= 4294967295L)
+    private val steamAppId = Regex("[1-9][0-9]{0,9}")
+    private val heroicRunners = setOf("epic", "gog", "amazon", "sideload")
+    private val heroicAppName = Regex("[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}")
+
+    /**
+     * What a Space launcher accepts as a target. Every family has a sentinel
+     * that opens the launcher itself and a grammar for one title:
+     *
+     *   steam   big-picture-v1 | <decimal appid>
+     *   heroic  library-v1     | <runner>.<appName>, runner in epic gog amazon sideload
+     *   lutris  library-v1     | id.<decimal>
+     *
+     * Nova carries a target it is given and hands it back; which family may use
+     * which grammar is the host's rule, checked where the Space is launched. So
+     * this accepts any of them rather than pretending to know the family from
+     * an identity that does not carry one.
+     */
+    fun validTarget(target: String): Boolean = when {
+        target == "big-picture-v1" || target == "library-v1" -> true
+        target.startsWith("id.") -> validSteamAppId(target.removePrefix("id."))
+        target.contains('.') -> target.substringBefore('.') in heroicRunners &&
+            heroicAppName.matches(target.substringAfter('.'))
+        else -> validSteamAppId(target)
+    }
+
+    private fun validSteamAppId(value: String): Boolean =
+        steamAppId.matches(value) && (value.toLongOrNull() ?: Long.MAX_VALUE) <= 4294967295L
 
     fun libraryIdentity(identity: String?): Pair<String, String>? {
-        val parts = identity?.split('.') ?: return null
+        // A target may carry dots of its own, so only the first two separators
+        // divide the identity: space, the Space it belongs to, then the rest.
+        val parts = identity?.split('.', limit = 3) ?: return null
         if (parts.size != 3 || parts[0] != "space" || !profileId.matches(parts[1]) || !validTarget(parts[2])) return null
         return parts[1] to parts[2]
     }
