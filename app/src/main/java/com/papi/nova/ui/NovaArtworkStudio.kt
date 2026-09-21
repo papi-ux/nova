@@ -20,14 +20,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +39,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,6 +49,8 @@ import com.papi.nova.R
 import com.papi.nova.api.PolarisArtworkChoice
 import com.papi.nova.api.PolarisArtworkMatchCandidate
 import com.papi.nova.shared.polaris.model.PolarisGame
+import kotlinx.coroutines.delay
+import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaActionButton
@@ -724,13 +731,29 @@ private fun NovaArtworkIdentityPicker(
         fontSize = 11.sp,
         modifier = Modifier.padding(top = 2.dp),
     )
+    // The field was the studio's first focusable, so opening the studio handed it focus, and a
+    // focused text field raises the keyboard: in landscape that is a full screen of typing over a
+    // studio nobody had seen yet. It sits out the panel's first-focus pass, which then lands on
+    // Search below it, and takes focus like anything else from then on.
+    var fieldTakesFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(NOVA_FIRST_FOCUS_SETTLE_MS * 4)
+        fieldTakesFocus = true
+    }
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChanged,
         label = { Text(stringResource(R.string.nova_artwork_search_title)) },
         singleLine = true,
         enabled = !state.working,
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        // Walking the cursor onto the field does not raise the keyboard either; a press or a
+        // tap does, and its action key runs the search.
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = false),
+        keyboardActions = KeyboardActions(onSearch = { if (!state.working && query.isNotBlank()) onSearch() }),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .focusProperties { canFocus = fieldTakesFocus },
     )
     NovaActionButton(
         text = stringResource(
