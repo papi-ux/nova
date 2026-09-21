@@ -20,11 +20,11 @@ class NovaWatchProfileTest {
     @Test
     fun theRefusalNamesTheModeToTake() {
         assertEquals(
-            NovaWatchProfile(1280, 800, 90000, tenBit = false),
+            NovaWatchProfile(1280, 800, 90000, tenBit = false, codec = "hevc"),
             NovaWatchProfile.parse("Watch mode must match the active stream profile (1280x800@90 HEVC 8-bit 8000kbps)"),
         )
         val fractional = NovaWatchProfile.parse("Watch mode must match the active stream profile (3840x2160@59.940 AV1 10-bit 80000kbps)")
-        assertEquals(NovaWatchProfile(3840, 2160, 59940, tenBit = true), fractional)
+        assertEquals(NovaWatchProfile(3840, 2160, 59940, tenBit = true, codec = "av1"), fractional)
         assertEquals(59.94f, fractional!!.fps, 0.001f)
         assertEquals(60f, NovaWatchProfile.parse("(1920x1080@60 H264 8-bit 20000kbps)")!!.fps, 0f)
     }
@@ -39,6 +39,52 @@ class NovaWatchProfileTest {
     }
 
     @Test
+    fun aHostsFieldsAreAModeOnlyWhenTheyArePlainlyOne() {
+        assertEquals(
+            NovaWatchProfile(1280, 800, 90000, tenBit = false, codec = "hevc"),
+            NovaWatchProfile.fromFields("1280", "800", "90000", "8", "HEVC"),
+        )
+        assertEquals(
+            NovaWatchProfile(3840, 2160, 59940, tenBit = true, codec = "av1"),
+            NovaWatchProfile.fromFields(" 3840 ", "2160", "59940", "10", "av1"),
+        )
+        assertNull("a codec nobody has heard of is not said", NovaWatchProfile.fromFields("1280", "800", "90000", "8", "vvc")!!.codec)
+        assertNull("an older host sends none of them", NovaWatchProfile.fromFields(null, null, null, null, null))
+        assertNull(NovaWatchProfile.fromFields("1280", "800", null, "8", "hevc"))
+        assertNull(NovaWatchProfile.fromFields("8", "8", "60000", "8", "h264"))
+        assertNull("a rate given in whole frames is not this field", NovaWatchProfile.fromFields("1280", "800", "90", "8", "hevc"))
+        assertNull(NovaWatchProfile.fromFields("1280", "800", "90000", "12", "hevc"))
+        assertNull(NovaWatchProfile.fromFields("1280x", "800", "90000", "8", "hevc"))
+        // The sentence says the codec too, in the host's lower case.
+        assertEquals("hevc", NovaWatchProfile.parse("(1280x800@90 hevc 8-bit 8000kbps)")!!.codec)
+    }
+
+    @Test
+    fun aWatcherAsksForTheStreamsModeTheFirstTimeWhenTheHostHasSaidIt() {
+        val connection = File("src/main/java/com/papi/nova/nvstream/NvConnection.kt").readText()
+        val before = connection.substringAfter("if (context.watchOnlyRequested) {\n                        if (hostSaysWatchable == false) {")
+            .substringBefore("if (shouldReplaceCurrentSession(")
+        assertTrue(
+            "a host that has just said nobody is streaming is not asked for the 409 that says so again",
+            before.contains("listener.displayMessage(nobodyIsStreaming)") && before.contains("return false")
+        )
+        assertTrue(
+            "the mode from serverinfo is taken before the request, so there is no refusal to recover from",
+            before.contains("if (hostWatchProfile != null && !adoptWatchProfile(context, hostWatchProfile)) {")
+        )
+        val adopt = connection.substringAfter("private fun adoptWatchProfile(").substringBefore("protected fun quitAndLaunch(")
+        assertTrue(
+            "a codec this device cannot decode is said in so many words, like HDR",
+            adopt.contains("\"av1\" -> MoonBridge.VIDEO_FORMAT_MASK_AV1") &&
+                adopt.contains("if (codecMask != 0 && (streamConfig.getSupportedVideoFormats() and codecMask) == 0) {")
+        )
+        assertTrue(
+            "an id is never put on screen as the owner's name",
+            connection.contains("context.currentGameOwnerName = NvHTTP.parseCurrentGameOwnerDeviceName(serverInfo)")
+        )
+    }
+
+    @Test
     fun aRefusedWatcherTakesTheModeAndAsksOnce() {
         val connection = File("src/main/java/com/papi/nova/nvstream/NvConnection.kt").readText()
         val join = connection.substringAfter("private fun resumeOrJoin(").substringBefore("private fun adoptWatchProfile(")
@@ -46,7 +92,7 @@ class NovaWatchProfileTest {
         assertTrue(
             "only a watcher, only the 412, and only when the refusal names a mode",
             join.contains("if (!context.watchOnlyRequested || e.getErrorCode() != 412) {") &&
-                join.contains("val profile = NovaWatchProfile.parse(e.getErrorMessage()) ?: throw e")
+                join.contains("val profile = e.getWatchProfile() ?: NovaWatchProfile.parse(e.getErrorMessage()) ?: throw e")
         )
         assertEquals("one request, and one more after taking the mode", 2, join.split("h.launchApp(context, \"resume\"").size - 1)
         assertTrue(

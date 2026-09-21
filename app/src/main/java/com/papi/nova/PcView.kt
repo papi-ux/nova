@@ -63,7 +63,9 @@ import com.papi.nova.computers.HostForget
 import com.papi.nova.grid.NovaHostPlaySurface
 import com.papi.nova.grid.NovaHostRowFocusMove
 import com.papi.nova.grid.PcGridAdapter
+import com.papi.nova.grid.novaHostInUse
 import com.papi.nova.grid.novaHostPlaySurface
+import com.papi.nova.grid.novaWatchRate
 import com.papi.nova.grid.novaHostRowFocusMove
 import com.papi.nova.grid.assets.DiskAssetLoader
 import com.papi.nova.manager.HoldToConfirm
@@ -1400,6 +1402,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             runningGame = computer.runningGameId != 0,
             ownedByThisDevice = computer.currentGameOwnedByClient,
             library = computer.libraryState,
+            watchable = computer.currentGameWatchable,
         )
         when (surface) {
             NovaHostPlaySurface.RESUME, NovaHostPlaySurface.WATCH -> resumeOrWatchRunningGame(computer)
@@ -2056,7 +2059,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 runningGame = details.runningGameId != 0,
                 ownedByThisDevice = details.currentGameOwnedByClient,
                 library = details.libraryState,
-            ) == NovaHostPlaySurface.LIBRARY
+                watchable = details.currentGameWatchable,
+            ).let { it != NovaHostPlaySurface.RESUME && it != NovaHostPlaySurface.WATCH }
             val offerLibrary = {
                 if (details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
                     menu.play(action("open_library", R.string.pcview_menu_nova_library, R.string.pcview_sheet_caption_open_library, R.drawable.ic_play)) {
@@ -2072,9 +2076,19 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (libraryFirst) offerLibrary()
             if (details.runningGameId != 0) {
                 if (details.currentGameOwnedByClient == false) {
-                    menu.play(action("watch", R.string.applist_menu_watch, R.string.pcview_sheet_caption_watch, R.drawable.ic_eye_open)) {
-                        val binder = managerBinder ?: return@play
-                        ServerHelper.doWatch(this, createWatchTargetApp(details), details, binder)
+                    // A host that says nobody is streaming the game has nothing to watch, and a
+                    // tile that can only answer "there is nothing to watch" is not an offer.
+                    if (novaHostInUse(details.currentGameOwnerDeviceName, details.currentGameWatchable).offersWatch) {
+                        val mode = details.currentGameWatchProfile
+                        val caption = if (mode != null) {
+                            getString(R.string.pcview_sheet_caption_watch_mode, mode.width, mode.height, novaWatchRate(mode.fps))
+                        } else {
+                            getString(R.string.pcview_sheet_caption_watch)
+                        }
+                        menu.play(NovaHostSheetAction("watch", getString(R.string.applist_menu_watch), caption, R.drawable.ic_eye_open)) {
+                            val binder = managerBinder ?: return@play
+                            ServerHelper.doWatch(this, createWatchTargetApp(details), details, binder)
+                        }
                     }
                 } else {
                     menu.play(action("resume", R.string.applist_menu_resume, R.string.pcview_sheet_caption_resume, R.drawable.ic_play)) {
@@ -2130,7 +2144,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             ?: getString(R.string.pcview_card_status_local_network)
         val state = NovaHostSheetState(
             name = details.name.orEmpty(),
-            status = novaBreakAtDots(getString(copy.statusRes, address)),
+            status = novaBreakAtDots(getString(copy.statusRes, copy.statusArg ?: address)),
             tone = copy.tone,
             hint = getString(copy.hintRes),
             primary = menu.primary,

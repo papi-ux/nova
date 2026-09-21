@@ -14,6 +14,7 @@ class HostHttpResponseException(
     private val errorMsg: String,
     private val hostCode: String? = null,
     private val hostAction: String? = null,
+    private val watchProfile: com.papi.nova.nvstream.NovaWatchProfile? = null,
 ) : IOException() {
     fun getErrorCode(): Int = errorCode
 
@@ -24,6 +25,9 @@ class HostHttpResponseException(
 
     /** The host's one-line fix; null when the host sent none. */
     fun getHostAction(): String? = hostAction
+
+    /** The mode a refused watcher should ask for instead; null when the host named none as fields. */
+    fun getWatchProfile(): com.papi.nova.nvstream.NovaWatchProfile? = watchProfile
 
     override val message: String
         get() = "Host PC returned error: $errorMsg (Error code: $errorCode)"

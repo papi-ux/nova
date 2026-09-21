@@ -255,6 +255,9 @@ class NvHTTP @Throws(IOException::class) constructor(
         details.currentGameOwnedByClient = getCurrentGameOwned(serverInfo)
         details.currentGameOwnerName = getCurrentGameOwner(serverInfo)
         details.currentGameViewerCount = getCurrentGameViewerCount(serverInfo)
+        details.currentGameWatchable = parseCurrentGameWatchable(serverInfo)
+        details.currentGameOwnerDeviceName = parseCurrentGameOwnerDeviceName(serverInfo)
+        details.currentGameWatchProfile = parseCurrentGameWatchProfile(serverInfo)
         details.serverMaxLaunchRefreshRate = getServerMaxLaunchRefreshRate(serverInfo)
         details.nvidiaServer = getXmlString(serverInfo, "state", true)!!.contains("MJOLNIR")
         details.state = ComputerDetails.State.ONLINE
@@ -1037,7 +1040,16 @@ class NvHTTP @Throws(IOException::class) constructor(
                 // Polaris says why it refused, as attributes Moonlight ignores.
                 val hostCode = xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "error_code")?.trim()?.takeIf { it.isNotEmpty() }
                 val hostAction = xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "error_action")?.trim()?.takeIf { it.isNotEmpty() }
-                throw HostHttpResponseException(statusCode, statusMsg, hostCode, hostAction)
+                // And, for a refused watcher, the mode to ask for instead. Attributes, because this
+                // throws at the root tag, before any element under it has been read.
+                val watchProfile = com.papi.nova.nvstream.NovaWatchProfile.fromFields(
+                    xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "watch_width"),
+                    xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "watch_height"),
+                    xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "watch_fps_x1000"),
+                    xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "watch_bit_depth"),
+                    xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "watch_codec"),
+                )
+                throw HostHttpResponseException(statusCode, statusMsg, hostCode, hostAction, watchProfile)
             }
         }
 
@@ -1070,6 +1082,36 @@ class NvHTTP @Throws(IOException::class) constructor(
             val str = getXmlString(serverInfo, "currentgameowned", false) ?: return null
             return str != "0" && !str.equals("false", ignoreCase = true)
         }
+
+        /**
+         * Whether someone is streaming the running game, so there is a stream to join. Null is a
+         * host that does not say, which is every host before Polaris 1.4.12 and every host that
+         * is not Polaris: watching stays on offer there, as it always was.
+         */
+        @JvmStatic
+        @Throws(XmlPullParserException::class, IOException::class)
+        fun parseCurrentGameWatchable(serverInfo: String): Boolean? {
+            val str = getXmlString(serverInfo, "currentgamewatchable", false)?.trim() ?: return null
+            return str != "0" && !str.equals("false", ignoreCase = true)
+        }
+
+        /** The owner's device as its host names it. currentgameowner is an id, not a name. */
+        @JvmStatic
+        @Throws(XmlPullParserException::class, IOException::class)
+        fun parseCurrentGameOwnerDeviceName(serverInfo: String): String? =
+            com.papi.nova.grid.novaHostOwnerLabel(getXmlString(serverInfo, "currentgameownername", false))
+
+        /** The mode of the stream there is to watch, so a watcher asks for it the first time. */
+        @JvmStatic
+        @Throws(XmlPullParserException::class, IOException::class)
+        fun parseCurrentGameWatchProfile(serverInfo: String): com.papi.nova.nvstream.NovaWatchProfile? =
+            com.papi.nova.nvstream.NovaWatchProfile.fromFields(
+                getXmlString(serverInfo, "currentgamewatchwidth", false),
+                getXmlString(serverInfo, "currentgamewatchheight", false),
+                getXmlString(serverInfo, "currentgamewatchfpsx1000", false),
+                getXmlString(serverInfo, "currentgamewatchbitdepth", false),
+                getXmlString(serverInfo, "currentgamewatchcodec", false),
+            )
 
         @JvmStatic
         @Throws(XmlPullParserException::class, IOException::class)

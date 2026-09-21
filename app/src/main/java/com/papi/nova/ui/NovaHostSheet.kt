@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.papi.nova.R
 import com.papi.nova.grid.NovaHostPlaySurface
+import com.papi.nova.grid.novaHostInUse
 import com.papi.nova.grid.novaHostPlaySurface
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager
@@ -85,6 +86,8 @@ internal data class NovaHostSheetCopy(
     @param:StringRes val statusRes: Int,
     @param:StringRes val hintRes: Int,
     val tone: NovaHostSheetTone,
+    /** What the status is about when that is not the host's address: the device whose game is open. */
+    val statusArg: String? = null,
 )
 
 /**
@@ -128,14 +131,16 @@ internal fun novaHostSheetCopy(details: ComputerDetails): NovaHostSheetCopy {
             tone = NovaHostSheetTone.ATTENTION,
         )
         details.runningGameId != 0 -> if (
-            novaHostPlaySurface(true, details.currentGameOwnedByClient, details.libraryState) ==
-            NovaHostPlaySurface.LIBRARY
+            novaHostPlaySurface(true, details.currentGameOwnedByClient, details.libraryState, details.currentGameWatchable)
+                .let { it != NovaHostPlaySurface.RESUME && it != NovaHostPlaySurface.WATCH }
         ) {
+            val inUse = novaHostInUse(details.currentGameOwnerDeviceName, details.currentGameWatchable)
             NovaHostSheetCopy(
-                statusRes = R.string.pcview_card_status_in_use,
+                statusRes = inUse.statusRes,
                 // The card's advice points at Manage, and this is Manage.
-                hintRes = R.string.pcview_sheet_hint_in_use,
+                hintRes = inUse.sheetHintRes,
                 tone = NovaHostSheetTone.READY,
+                statusArg = inUse.owner,
             )
         } else {
             NovaHostSheetCopy(

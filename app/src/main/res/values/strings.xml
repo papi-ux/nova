@@ -100,6 +100,7 @@
     <string name="pcview_sheet_caption_checking_library">Ask the host again whether its library is ready.</string>
     <string name="pcview_sheet_caption_resume">Go back to the game this device left running.</string>
     <string name="pcview_sheet_caption_watch">Watch the game another device is playing.</string>
+    <string name="pcview_sheet_caption_watch_mode">Watch at the stream\'s own %1$dx%2$d, %3$s fps.</string>
     <string name="pcview_sheet_caption_end_session">Close the game that is running on the host.</string>
     <string name="pcview_sheet_caption_wake">Send a wake signal and wait for the host to answer.</string>
     <string name="pcview_sheet_caption_send_wol">Send the wake packet and nothing else.</string>
@@ -168,6 +169,9 @@
     <string name="pcview_card_status_repair_pair">Repair pair</string>
     <string name="pcview_card_status_streaming">Streaming</string>
     <string name="pcview_card_status_in_use">Another device has a game open</string>
+    <string name="pcview_card_status_in_use_named">%1$s has a game open</string>
+    <string name="pcview_card_status_watchable">Another device is streaming a game</string>
+    <string name="pcview_card_status_watchable_named">%1$s is streaming a game</string>
     <string name="pcview_card_status_library_ready_format">Library ready · %1$s</string>
     <string name="pcview_card_status_checking_library">Checking library</string>
     <string name="pcview_card_status_compatibility_format">Compatibility mode · %1$s</string>
@@ -181,6 +185,8 @@
     <string name="pcview_card_hint_streaming">Resume or watch the active stream.</string>
     <string name="pcview_card_hint_in_use">Your library is still yours to open. Watch the other game from Manage.</string>
     <string name="pcview_sheet_hint_in_use">Your library is still yours to open. You can also watch the other game.</string>
+    <string name="pcview_card_hint_in_use_idle">Your library is still yours to open. Nobody is streaming the other game, so there is nothing to watch.</string>
+    <string name="pcview_sheet_hint_in_use_idle">Your library is still yours to open. Nobody is streaming the other game.</string>
     <string name="pcview_card_hint_open_library">Open the Polaris game library.</string>
     <string name="pcview_card_hint_checking_library">Waiting for Polaris library readiness.</string>
     <string name="pcview_card_hint_open_apps">Open the standard Moonlight-compatible app list for Apollo, Sunshine, and other compatible hosts.</string>

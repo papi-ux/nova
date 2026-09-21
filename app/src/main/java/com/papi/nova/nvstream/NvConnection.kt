@@ -47,6 +47,9 @@ class NvConnection(
     @Volatile
     var lastHostRefusal: HostRefusal? = null
 
+    private val nobodyIsStreaming =
+        "A game is open on this host, but nobody is streaming it, so there is nothing to watch."
+
     /** Set when a watch was given up with its own reason on screen, so the general one is not put over it. */
     private var watchRefusalExplained = false
         private set
@@ -199,7 +202,12 @@ class NvConnection(
         context.serverCodecModeSupport = h.getServerCodecModeSupport(serverInfo).toInt()
         context.sessionToken = h.getCurrentGameSessionToken(serverInfo)
         context.currentGameOwnedByClient = h.getCurrentGameOwned(serverInfo)
-        context.currentGameOwnerName = h.getCurrentGameOwner(serverInfo)
+        // currentgameowner is the owner's id on a Desktop session, which is nothing to show
+        // anybody. A host that names the device is believed; an id is never put on screen.
+        context.currentGameOwnerName = NvHTTP.parseCurrentGameOwnerDeviceName(serverInfo)
+            ?: com.papi.nova.grid.novaHostOwnerLabel(h.getCurrentGameOwner(serverInfo))
+        val hostSaysWatchable = NvHTTP.parseCurrentGameWatchable(serverInfo)
+        val hostWatchProfile = NvHTTP.parseCurrentGameWatchProfile(serverInfo)
 
         context.negotiatedHdr = (streamConfig.getSupportedVideoFormats() and MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0
         if ((context.serverCodecModeSupport and 0x20200) == 0 && context.negotiatedHdr) {
@@ -282,6 +290,19 @@ class NvConnection(
                         listener.displayMessage("This stream is already owned by this device. Resume it instead of watching.")
                         return false
                     }
+                    if (context.watchOnlyRequested) {
+                        if (hostSaysWatchable == false) {
+                            // The host has just said nobody is streaming this game. Asking anyway
+                            // only fetches the 409 that says the same thing.
+                            listener.displayMessage(nobodyIsStreaming)
+                            return false
+                        }
+                        // The host has said what the stream is, so ask for that the first time
+                        // rather than for this device's own mode and be refused.
+                        if (hostWatchProfile != null && !adoptWatchProfile(context, hostWatchProfile)) {
+                            return false
+                        }
+                    }
                     if (shouldReplaceCurrentSession(streamConfig.getForceFreshLaunch(), context.watchOnlyRequested)) {
                         LimeLog.info("Nova: Auto Safe requested fresh launch; replacing paused session instead of resuming")
                         return quitAndLaunch(h, context)
@@ -342,7 +363,7 @@ class NvConnection(
                 } else if (e.getErrorCode() == 409 && context.watchOnlyRequested) {
                     // A game can be open on the host with nobody streaming it: its owner left it
                     // running, or its launch never reached a picture. There is nothing to watch.
-                    listener.displayMessage("A game is open on this host, but nobody is streaming it, so there is nothing to watch.")
+                    listener.displayMessage(nobodyIsStreaming)
                     return false
                 } else {
                     throw e
@@ -374,7 +395,8 @@ class NvConnection(
             if (!context.watchOnlyRequested || e.getErrorCode() != 412) {
                 throw e
             }
-            val profile = NovaWatchProfile.parse(e.getErrorMessage()) ?: throw e
+            // Fields first; the sentence is what a released host sends and nothing else.
+            val profile = e.getWatchProfile() ?: NovaWatchProfile.parse(e.getErrorMessage()) ?: throw e
             if (!adoptWatchProfile(context, profile)) {
                 return false
             }
@@ -390,6 +412,24 @@ class NvConnection(
             watchRefusalExplained = true
             listener.displayMessage("That stream is HDR, which this device cannot decode, so it cannot be watched here.")
             return false
+        }
+        val codecMask = when (profile.codec) {
+            "h264" -> MoonBridge.VIDEO_FORMAT_MASK_H264
+            "hevc" -> MoonBridge.VIDEO_FORMAT_MASK_H265
+            "av1" -> MoonBridge.VIDEO_FORMAT_MASK_AV1
+            else -> 0
+        }
+        if (codecMask != 0 && (streamConfig.getSupportedVideoFormats() and codecMask) == 0) {
+            watchRefusalExplained = true
+            listener.displayMessage(
+                "That stream is " + profile.codec!!.uppercase() + ", which this device cannot decode, so it cannot be watched here.",
+            )
+            return false
+        }
+        if (profile.width == context.negotiatedWidth && profile.height == context.negotiatedHeight &&
+            profile.fps == context.negotiatedLaunchRefreshRate && profile.tenBit == context.negotiatedHdr
+        ) {
+            return true
         }
         LimeLog.info(
             "Nova: watching takes the active stream's mode " + profile.width + "x" + profile.height + "@" + profile.fps +

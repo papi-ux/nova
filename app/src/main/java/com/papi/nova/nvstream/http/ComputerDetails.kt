@@ -107,6 +107,15 @@ class ComputerDetails {
     @JvmField var currentGameOwnedByClient: Boolean? = null
     @JvmField var currentGameOwnerName: String? = null
     @JvmField var currentGameViewerCount: Int = 0
+
+    /** Whether the running game is being streamed, so it can be watched; null when the host does not say. */
+    @JvmField var currentGameWatchable: Boolean? = null
+
+    /** The device that owns the running game, by the name its host gives it. */
+    @JvmField var currentGameOwnerDeviceName: String? = null
+
+    /** The mode of the stream there is to watch, when the host says it. */
+    @JvmField var currentGameWatchProfile: com.papi.nova.nvstream.NovaWatchProfile? = null
     @JvmField var rawAppList: String? = null
     @JvmField var appListLoadError: String? = null
     @JvmField var nvidiaServer: Boolean = false
@@ -218,6 +227,9 @@ class ComputerDetails {
         currentGameOwnedByClient = details.currentGameOwnedByClient
         currentGameOwnerName = details.currentGameOwnerName
         currentGameViewerCount = details.currentGameViewerCount
+        currentGameWatchable = details.currentGameWatchable
+        currentGameOwnerDeviceName = details.currentGameOwnerDeviceName
+        currentGameWatchProfile = details.currentGameWatchProfile
         nvidiaServer = details.nvidiaServer
         rawAppList = details.rawAppList
         appListLoadError = details.appListLoadError
@@ -318,6 +330,9 @@ class ComputerDetails {
             "Current Game Owned By Client: " + currentGameOwnedByClient + "\n" +
             "Current Game Owner: " + currentGameOwnerName + "\n" +
             "Current Game Viewer Count: " + currentGameViewerCount + "\n" +
+            "Current Game Watchable: " + currentGameWatchable + "\n" +
+            "Current Game Owner Device: " + currentGameOwnerDeviceName + "\n" +
+            "Current Game Watch Profile: " + currentGameWatchProfile + "\n" +
             "Server Max Launch Refresh Rate: " + serverMaxLaunchRefreshRate + "\n" +
             "HTTPS Port: " + httpsPort + "\n"
     }

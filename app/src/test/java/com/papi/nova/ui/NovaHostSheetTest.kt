@@ -135,7 +135,7 @@ class NovaHostSheetTest {
     fun everyActionSaysWhatItDoes() {
         val strings = File("src/main/res/values/strings.xml").readText()
         val captions = Regex("<string name=\"(pcview_sheet_caption_[a-z_]+)\">([^<]+)</string>").findAll(strings).toList()
-        assertEquals(16, captions.size)
+        assertEquals(17, captions.size)
         captions.forEach { caption ->
             val text = caption.groupValues[2].replace("\\'", "'")
             assertTrue("${caption.groupValues[1]} is a sentence: $text", text.endsWith("."))

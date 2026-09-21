@@ -199,4 +199,75 @@ class NvHttpServerInfoParsingTest {
             assertNull(e.getHostAction())
         }
     }
+
+    /**
+     * Polaris 1.4.12 says whether the running game is being streamed, whose it is and at what mode,
+     * so a watcher asks for that mode the first time. The owner field that was there before is an id.
+     */
+    @Test
+    fun serverinfoSaysWhatThereIsToWatch() {
+        val streaming = """
+            <root status_code="200">
+              <currentgame>7</currentgame>
+              <currentgameowner>028454EC-5E39-B32D-2B87-83132A127653</currentgameowner>
+              <currentgameowned>0</currentgameowned>
+              <currentgameownername>Steam Deck</currentgameownername>
+              <currentgamewatchable>1</currentgamewatchable>
+              <currentgamewatchwidth>1280</currentgamewatchwidth>
+              <currentgamewatchheight>800</currentgamewatchheight>
+              <currentgamewatchfpsx1000>90000</currentgamewatchfpsx1000>
+              <currentgamewatchbitdepth>8</currentgamewatchbitdepth>
+              <currentgamewatchcodec>hevc</currentgamewatchcodec>
+            </root>
+        """.trimIndent()
+        assertEquals(true, NvHTTP.parseCurrentGameWatchable(streaming))
+        assertEquals("Steam Deck", NvHTTP.parseCurrentGameOwnerDeviceName(streaming))
+        assertEquals(
+            com.papi.nova.nvstream.NovaWatchProfile(1280, 800, 90000, tenBit = false, codec = "hevc"),
+            NvHTTP.parseCurrentGameWatchProfile(streaming),
+        )
+
+        val leftOpen = """
+            <root status_code="200"><currentgame>7</currentgame><currentgameownername>Steam Deck</currentgameownername><currentgamewatchable>0</currentgamewatchable></root>
+        """.trimIndent()
+        assertEquals(false, NvHTTP.parseCurrentGameWatchable(leftOpen))
+        assertNull("no stream, so no mode", NvHTTP.parseCurrentGameWatchProfile(leftOpen))
+
+        val olderHost = """<root status_code="200"><currentgame>7</currentgame><currentgameowned>0</currentgameowned></root>"""
+        assertNull("a host that does not say is not read as saying no", NvHTTP.parseCurrentGameWatchable(olderHost))
+        assertNull(NvHTTP.parseCurrentGameOwnerDeviceName(olderHost))
+        assertNull(NvHTTP.parseCurrentGameWatchProfile(olderHost))
+    }
+
+    @Test
+    fun aRefusedWatchCarriesTheModeToAskForOnItsRootTag() {
+        val refusal = """
+            <root status_code="412" status_message="Watch mode must match the active stream profile (1280x800@90 hevc 8-bit 8000kbps)"
+                  watch_width="1280" watch_height="800" watch_fps_x1000="90000" watch_bit_depth="8" watch_codec="hevc">
+              <resume>0</resume>
+            </root>
+        """.trimIndent()
+        try {
+            NvHTTP.getXmlString(refusal, "resume", true)
+            org.junit.Assert.fail("a 412 is a refusal")
+        } catch (e: HostHttpResponseException) {
+            assertEquals(412, e.getErrorCode())
+            assertEquals(
+                com.papi.nova.nvstream.NovaWatchProfile(1280, 800, 90000, tenBit = false, codec = "hevc"),
+                e.getWatchProfile(),
+            )
+        }
+
+        val released = """<root status_code="412" status_message="Watch mode must match the active stream profile (1280x800@90 hevc 8-bit 8000kbps)"><resume>0</resume></root>"""
+        try {
+            NvHTTP.getXmlString(released, "resume", true)
+            org.junit.Assert.fail("a 412 is a refusal")
+        } catch (e: HostHttpResponseException) {
+            assertNull("a released host names the mode only in its sentence, which is read as the fallback", e.getWatchProfile())
+            assertEquals(
+                com.papi.nova.nvstream.NovaWatchProfile(1280, 800, 90000, tenBit = false, codec = "hevc"),
+                com.papi.nova.nvstream.NovaWatchProfile.parse(e.getErrorMessage()),
+            )
+        }
+    }
 }

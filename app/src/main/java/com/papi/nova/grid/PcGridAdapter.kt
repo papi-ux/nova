@@ -299,13 +299,20 @@ class PcGridAdapter(
                         runningGame = true,
                         ownedByThisDevice = obj.details.currentGameOwnedByClient,
                         library = obj.details.libraryState,
+                        watchable = obj.details.currentGameWatchable,
                     )
-                    if (surface == NovaHostPlaySurface.LIBRARY) {
-                        statusText.setText(R.string.pcview_card_status_in_use)
+                    if (surface != NovaHostPlaySurface.RESUME && surface != NovaHostPlaySurface.WATCH) {
+                        // Someone else's game, and this device's own way in is not through it.
+                        val inUse = novaHostInUse(obj.details.currentGameOwnerDeviceName, obj.details.currentGameWatchable)
+                        statusText.text = if (inUse.owner != null) {
+                            context.getString(inUse.statusRes, inUse.owner)
+                        } else {
+                            context.getString(inUse.statusRes)
+                        }
                         statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
-                        primaryAction?.setText(R.string.pcview_card_action_open_library)
-                        setPrimaryActionReady(primaryAction, true)
-                        setStatusHint(statusHint, R.string.pcview_card_hint_in_use)
+                        primaryAction?.setText(novaHostOwnWayInLabel(surface))
+                        setPrimaryActionReady(primaryAction, surface != NovaHostPlaySurface.CHECK_LIBRARY)
+                        setStatusHint(statusHint, inUse.cardHintRes)
                     } else {
                         statusText.setText(R.string.pcview_card_status_streaming)
                         statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_success))
