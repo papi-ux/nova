@@ -49,6 +49,7 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaControllerHint
+import com.papi.nova.ui.compose.novaKeyChipSize
 
 /**
  * What the backdrop crossfades between. Two targets are the same backdrop when they draw the
@@ -260,7 +261,7 @@ internal fun NovaLibraryCinematicControllerHints(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(if (hint.key.length <= 2) 20.dp else 28.dp)
+                            .size(novaKeyChipSize(if (hint.key.length <= 2) 20.dp else 28.dp))
                             .clip(CircleShape)
                             .background(colors.accent.copy(alpha = 0.72f * opacityScale)),
                         contentAlignment = Alignment.Center,

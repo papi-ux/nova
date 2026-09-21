@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,8 +25,10 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
@@ -58,6 +61,8 @@ fun NovaRevealingText(
     minLines: Int = 1,
     passes: Int = Int.MAX_VALUE,
     fontWeight: FontWeight? = null,
+    /** A face, tracking or figure style the size and weight above do not carry. */
+    style: TextStyle? = null,
     /**
      * Its turn is over: it played its [passes], or it had nothing hidden to play, which is what
      * the argument says. For a caller that highlights several texts one after another and needs
@@ -67,6 +72,7 @@ fun NovaRevealingText(
 ) {
     // Whether the cut text lost anything. Only the cut text can say; it is kept across the swap.
     var overflows by remember(text, maxLines) { mutableStateOf(false) }
+    val textStyle = style ?: LocalTextStyle.current
     // Unbounded text has nothing cut, and no height to scroll inside.
     if (!highlighted || !overflows || maxLines == Int.MAX_VALUE) {
         if (highlighted && onPlayed != null) {
@@ -86,6 +92,7 @@ fun NovaRevealingText(
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { overflows = it.hasVisualOverflow },
+            style = textStyle,
             modifier = modifier,
         )
         return
@@ -93,7 +100,10 @@ fun NovaRevealingText(
 
     val scroll = rememberScrollState()
     val density = LocalDensity.current
-    val room = with(density) { (lineHeight * maxLines).toDp() }
+    // A line at a time, then counted. Above a font scale of one Android scales large sizes
+    // less than small ones, so two lines converted as one 32sp figure came out shorter than
+    // two 16sp lines: the room shrank under the text and everything below it moved.
+    val room = with(density) { novaRevealRoom(lineHeight.toDp(), maxLines) }
     val linePx = with(density) { lineHeight.toPx() }
     LaunchedEffect(text, maxLines) {
         // The distance is known once the full text has been laid out.
@@ -147,9 +157,19 @@ fun NovaRevealingText(
             // Driven from here only: a finger on the text still belongs to whatever the tile is in.
             .verticalScroll(scroll, enabled = false),
     ) {
-        Text(text = text, color = color, fontSize = fontSize, fontWeight = fontWeight, lineHeight = lineHeight)
+        Text(
+            text = text,
+            color = color,
+            fontSize = fontSize,
+            fontWeight = fontWeight,
+            lineHeight = lineHeight,
+            style = textStyle,
+        )
     }
 }
+
+/** The height [maxLines] lines stand in: the height of one, that many times. */
+internal fun novaRevealRoom(line: Dp, maxLines: Int): Dp = line * maxLines
 
 /**
  * Where the text stops on its way to [distancePx], one line of [linePx] at a time, ending exactly

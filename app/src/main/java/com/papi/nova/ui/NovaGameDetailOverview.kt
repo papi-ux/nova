@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import android.widget.ImageView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,12 +24,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContent
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -39,6 +42,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
@@ -59,6 +63,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -80,6 +85,8 @@ import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.NovaRevealingText
+import com.papi.nova.ui.compose.novaKeyChipSize
 import com.papi.nova.utils.GameShortcutPinState
 import kotlinx.coroutines.delay
 
@@ -95,6 +102,12 @@ internal enum class NovaGameDetailDestination { OVERVIEW, PLAY_SETUP, ARTWORK }
 
 /** Content insets shared by the Overview and the destinations that sit beside it. */
 internal val NovaGameDetailInset = 28.dp
+
+/**
+ * What the floor keeps under it. With the bars hidden the window ends at the glass, and the
+ * library's own hints stand this far off it.
+ */
+private val NOVA_GAME_DETAIL_FLOOR_GAP = 14.dp
 
 /** Below this the landscape actions no longer fit one row and take two. */
 private val NOVA_GAME_DETAIL_ONE_ROW_MIN_WIDTH = 600.dp
@@ -158,6 +171,9 @@ internal fun NovaGameDetailOverview(
 ) {
     val colors = LocalNovaComposeColors.current
     val game = uiState.game
+    val inset = novaGameDetailWindowInset()
+    // The status line says what Launch will do, so it is Launch that shows the rest of it.
+    var primaryFocused by remember { mutableStateOf(false) }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize().testTag("nova-game-detail-overview")) {
         val portrait = maxHeight > maxWidth
@@ -185,8 +201,12 @@ internal fun NovaGameDetailOverview(
                 .graphicsLayer { alpha = chromeAlpha }
                 .fillMaxWidth()
                 .then(if (portrait) Modifier.padding(top = 176.dp) else Modifier)
-                .windowInsetsPadding(WindowInsets.safeContent)
-                .padding(start = NovaGameDetailInset, end = NovaGameDetailInset, bottom = 10.dp),
+                // Cutouts and bars, not gesture zones, and the library's margin: the page stands
+                // where the grid it opened from stands. safeContent plus a 28dp inset started the
+                // title 58dp in on a handheld, which cost the status line and the action row 80dp
+                // of width and put that much more of the artwork under text.
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(start = inset, end = inset, bottom = NOVA_GAME_DETAIL_FLOOR_GAP),
         ) {
             NovaGameDetailTitle(
                 game = game,
@@ -197,10 +217,12 @@ internal fun NovaGameDetailOverview(
             )
 
             Text(
-                text = novaGameDetailIdentityLine(sourceLabel, lastPlayedText, game, spaceLabel = game.space?.let { stringResource(R.string.nova_space_in_format, it.name) }).let { if (game.space == null) it.uppercase() else it },
+                text = novaBreakAtDots(novaGameDetailIdentityLine(sourceLabel, lastPlayedText, game, spaceLabel = game.space?.let { stringResource(R.string.nova_space_in_format, it.name) }).let { if (game.space == null) it.uppercase() else it }),
                 color = colors.textSecondary,
                 style = NovaChromeType.label(fontSize = 11.sp, letterSpacing = 0.17.em),
-                maxLines = 1,
+                // Nothing points at this line, so it cannot wait for a cursor to be read: on a
+                // narrow screen it takes a second line, broken at a dot, instead of an ellipsis.
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 11.dp),
             )
@@ -244,6 +266,8 @@ internal fun NovaGameDetailOverview(
             if (game.space == null) NovaGameDetailStatusLine(
                 uiState = uiState,
                 optimizationState = optimizationState,
+                maxLines = if (portrait) 3 else 2,
+                revealing = primaryFocused,
                 modifier = Modifier.padding(top = 11.dp),
             )
 
@@ -269,6 +293,7 @@ internal fun NovaGameDetailOverview(
                 reviewExpanded = reviewExpanded,
                 showLaunchModeAction = showLaunchModeAction,
                 playFocusRequester = playFocusRequester,
+                onPrimaryFocus = { primaryFocused = it },
                 onPrimaryLaunch = onPrimaryLaunch,
                 onRetryHighFps = onRetryHighFps,
                 onResetProfile = onResetProfile,
@@ -293,8 +318,8 @@ internal fun NovaGameDetailOverview(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.safeContent)
-                    .padding(horizontal = NovaGameDetailInset, vertical = 10.dp),
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = inset, vertical = NOVA_GAME_DETAIL_FLOOR_GAP),
             )
         }
 
@@ -309,6 +334,9 @@ internal fun NovaGameDetailOverview(
 @Composable
 private fun NovaGameDetailFooter(modifier: Modifier = Modifier) {
     val colors = LocalNovaComposeColors.current
+    // The chip holds a letter, so it grows with the letter: at a large font scale a fixed
+    // 20dp circle cut the B in half.
+    val chip = novaKeyChipSize(20.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.testTag("nova-game-detail-footer"),
@@ -322,7 +350,7 @@ private fun NovaGameDetailFooter(modifier: Modifier = Modifier) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(20.dp)
+                        .size(chip)
                         .clip(RoundedCornerShape(percent = 50))
                         .background(colors.accent.copy(alpha = 0.22f)),
                 ) {
@@ -373,9 +401,20 @@ private fun NovaGameDetailTitle(
         Text(
             text = game.name,
             color = LocalNovaComposeColors.current.textPrimary,
-            fontSize = 38.sp,
+            // A name is the one thing here that cannot end in an ellipsis, and nothing points at
+            // it to show the rest. It steps down until two lines hold it; only a name too long
+            // for the smallest step is still cut.
+            autoSize = TextAutoSize.StepBased(
+                minFontSize = NOVA_GAME_DETAIL_TITLE_MIN,
+                maxFontSize = NOVA_GAME_DETAIL_TITLE_MAX,
+                stepSize = 2.sp,
+            ),
             fontWeight = FontWeight.Bold,
             letterSpacing = (-0.03).em,
+            // In em, so it follows whichever step was chosen. Left alone the title took the
+            // body text's 24sp line under a 38sp face, and a name on two lines ran its second
+            // line into its first.
+            lineHeight = 1.08.em,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.testTag("nova-game-detail-title"),
@@ -391,6 +430,8 @@ private fun NovaGameDetailTitle(
 private fun NovaGameDetailStatusLine(
     uiState: NovaGameDetailUiState,
     optimizationState: NovaGameDetailOptimizationState,
+    maxLines: Int,
+    revealing: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
@@ -403,20 +444,38 @@ private fun NovaGameDetailStatusLine(
         else -> colors.accent
     }
 
+    // The lamp belongs to the first line, not to the middle of however many there are.
+    val lampDrop = with(LocalDensity.current) { (NOVA_GAME_DETAIL_STATUS_LINE.toDp() - NOVA_GAME_DETAIL_LAMP) / 2 }
     Row(
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(9.dp),
         modifier = modifier.testTag("nova-game-detail-status"),
     ) {
-        Box(modifier = Modifier.size(7.dp).clip(RoundedCornerShape(percent = 50)).background(lamp))
-        Text(
-            text = novaGameDetailStatusText(uiState, summary).uppercase(),
+        Box(
+            modifier = Modifier
+                .padding(top = lampDrop.coerceAtLeast(0.dp))
+                .size(NOVA_GAME_DETAIL_LAMP)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(lamp),
+        )
+        // This was one line ending in an ellipsis, and the end it lost is the part that says
+        // what limited the launch. A Host Virtual launch on a 16:9 handheld already ran past
+        // the edge. It takes the lines it needs, breaking only at a dot, and past that the
+        // rest shows while Launch holds the cursor.
+        NovaRevealingText(
+            text = novaBreakAtDots(novaGameDetailStatusText(uiState, summary).uppercase()),
+            highlighted = revealing,
+            // Launch holds the cursor from the moment the page opens and may hold it for as
+            // long as the page is left open, so the line plays twice and rests. Coming back
+            // to Launch plays it again.
+            passes = 2,
+            maxLines = maxLines,
             color = colors.textPrimary,
+            fontSize = 11.sp,
+            lineHeight = NOVA_GAME_DETAIL_STATUS_LINE,
             // Measurements, so the digits line up rather than dance. Space Grotesk's
             // digits are proportional by default, so this is load-bearing here.
             style = NovaChromeType.label(fontSize = 11.sp).copy(fontFeatureSettings = "tnum"),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -435,6 +494,7 @@ private fun NovaGameDetailActions(
     reviewExpanded: Boolean,
     showLaunchModeAction: Boolean,
     playFocusRequester: FocusRequester,
+    onPrimaryFocus: (Boolean) -> Unit,
     onPrimaryLaunch: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
@@ -467,6 +527,7 @@ private fun NovaGameDetailActions(
             primary = activeSession?.watchOnly != true,
             modifier = actionModifier
                 .focusRequester(playFocusRequester)
+                .onFocusChanged { onPrimaryFocus(it.isFocused) }
                 .testTag("nova-game-detail-primary"),
         )
     }
@@ -666,10 +727,22 @@ private fun NovaGameDetailBeatGauge(
     val figures = NovaChromeType.label(fontSize = 10.sp).copy(fontFeatureSettings = "tnum")
     var estimateFocused by remember { mutableStateOf(false) }
 
+    // The hairline's width until the figures need more. Fixed at 330dp, a large font scale
+    // pushed the estimates off the end of the row with nothing to say they were gone, and the
+    // 100% figure is the one the bar is drawn against. The column now takes the width its
+    // figures ask for, and where the screen cannot give it the estimates drop to a line of
+    // their own. The bar and the correction under it follow the figures' width, not the
+    // other way round: a long matched name must not stretch the bar.
+    val density = LocalDensity.current
+    var figuresWidth by remember { mutableStateOf(NOVA_GAUGE_WIDTH) }
     Column(modifier = Modifier.padding(top = 10.dp).testTag("nova-game-detail-played")) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.width(NOVA_GAUGE_WIDTH),
+        FlowRow(
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .widthIn(min = NOVA_GAUGE_WIDTH)
+                .onSizeChanged { figuresWidth = with(density) { it.width.toDp() } },
         ) {
             Text(
                 text = if (playedSeconds > 0L) {
@@ -685,9 +758,9 @@ private fun NovaGameDetailBeatGauge(
                 color = colors.textPrimary,
                 maxLines = 1,
                 style = figures.copy(letterSpacing = 0.12.em),
+                // What keeps the two readouts apart when the row is exactly as wide as they are.
+                modifier = Modifier.padding(end = 12.dp),
             )
-
-            Spacer(modifier = Modifier.weight(1f))
 
             val parts = listOfNotNull(
                 beatTime?.mainSeconds?.takeIf { it > 0 }
@@ -766,7 +839,7 @@ private fun NovaGameDetailBeatGauge(
             Canvas(
                 modifier = Modifier
                     .padding(top = 6.dp)
-                    .width(NOVA_GAUGE_WIDTH)
+                    .width(figuresWidth)
                     .height(NOVA_GAUGE_BAR + NOVA_GAUGE_NOTCH_OVERHANG * 2),
             ) {
                 val barTop = NOVA_GAUGE_NOTCH_OVERHANG.toPx()
@@ -819,14 +892,17 @@ private fun NovaGameDetailBeatGauge(
                 fontSize = 10.sp,
                 letterSpacing = 0.06.em,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                // The name it found is the whole message, and a long one lost its end. Under
+                // the cursor it runs past instead; it moves only when it does not fit.
+                overflow = if (correctionFocused) TextOverflow.Clip else TextOverflow.Ellipsis,
                 modifier = Modifier
                     .padding(top = 5.dp)
                     .focusRequester(correctionFocus)
                     .focusProperties { down = exitDown }
                     .onFocusChanged { correctionFocused = it.isFocused || it.hasFocus }
                     .clickable(role = Role.Button, onClick = onCorrectMatch)
-                    .width(NOVA_GAUGE_WIDTH),
+                    .width(figuresWidth)
+                    .then(if (correctionFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier),
             )
         }
     }
@@ -966,7 +1042,11 @@ private fun NovaGameDetailAction(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                // Two actions share a row on a phone held upright, and "Reset Game Profile" did
+                // not fit its half. Under the cursor a label runs past rather than ending in an
+                // ellipsis, the way a Play Setup row's does; it moves only when it does not fit.
+                overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis,
+                modifier = if (focused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier,
             )
         }
     }
@@ -1013,6 +1093,25 @@ private fun LaunchProfileReviewNotice(
         )
     }
 }
+
+/**
+ * An instrument line that may wrap, but only after one of its dots.
+ *
+ * Left to itself a wrapped line breaks wherever the width runs out, "SDR (HDR NOT" over
+ * "REQUESTED)", which reads as damage. Every space becomes a no-break space except the last
+ * one after a dot, so a second line always starts on a whole reading. The dot stays at the end
+ * of the line it closes, the way a list carries its comma.
+ */
+internal fun novaBreakAtDots(line: String): String = line
+    .replace(' ', NOVA_NO_BREAK_SPACE)
+    .replace(Regex("·($NOVA_NO_BREAK_SPACE*)$NOVA_NO_BREAK_SPACE"), "·\$1 ")
+
+private const val NOVA_NO_BREAK_SPACE = '\u00A0'
+
+private val NOVA_GAME_DETAIL_STATUS_LINE = 16.sp
+private val NOVA_GAME_DETAIL_LAMP = 7.dp
+private val NOVA_GAME_DETAIL_TITLE_MAX = 38.sp
+private val NOVA_GAME_DETAIL_TITLE_MIN = 24.sp
 
 /** Source, when it was last played, and its primary genre — who the game is. */
 private fun novaGameDetailIdentityLine(

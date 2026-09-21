@@ -1,5 +1,6 @@
 package com.papi.nova.ui.compose
 
+import androidx.compose.ui.unit.dp
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -38,7 +39,7 @@ class NovaRevealingTextTest {
         )
         assertTrue(
             "the scrolling text stands in exactly the lines the cut text had, so nothing around it moves",
-            source.contains("val room = with(density) { (lineHeight * maxLines).toDp() }") &&
+            source.contains("val room = with(density) { novaRevealRoom(lineHeight.toDp(), maxLines) }") &&
                 source.contains(".height(room)")
         )
         assertTrue(
@@ -67,6 +68,19 @@ class NovaRevealingTextTest {
                 .contains("focusableWhenDisabled = true,") &&
                 read("main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
                     .contains(".focusable(enabled = actionable || focusableWhenDisabled)")
+        )
+    }
+
+    @Test
+    fun theRoomIsOneLineCountedNotOneBigSizeConverted() {
+        assertEquals(32.dp, novaRevealRoom(16.dp, maxLines = 2))
+        assertEquals(48.dp, novaRevealRoom(16.dp, maxLines = 3))
+        val source = read("main/java/com/papi/nova/ui/compose/NovaRevealingText.kt")
+        assertTrue(
+            "above a font scale of one Android scales 32sp less than it scales 16sp, so the room came out " +
+                "shorter than the two lines it replaced and the page moved under a reveal",
+            source.contains("novaRevealRoom(lineHeight.toDp(), maxLines)") &&
+                !source.contains("(lineHeight * maxLines).toDp()")
         )
     }
 

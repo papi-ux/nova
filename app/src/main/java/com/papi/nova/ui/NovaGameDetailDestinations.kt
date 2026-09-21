@@ -462,7 +462,7 @@ private fun novaGameDetailSelfInset(selfInset: Boolean): Modifier = if (!selfIns
  * at the very edge of a TV can be off the glass.
  */
 @Composable
-private fun novaGameDetailWindowInset(): Dp {
+internal fun novaGameDetailWindowInset(): Dp {
     val television = (LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
         Configuration.UI_MODE_TYPE_TELEVISION
     return if (television) NovaGameDetailInset else NOVA_DETAIL_WINDOW_INSET

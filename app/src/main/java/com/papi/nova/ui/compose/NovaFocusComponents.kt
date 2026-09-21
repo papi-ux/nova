@@ -52,6 +52,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -139,6 +140,19 @@ fun NovaBadge(
         overflow = TextOverflow.Ellipsis
     )
 }
+
+/**
+ * The side of a round key chip: [base] at an ordinary font scale, growing with its letter.
+ *
+ * The chips were a fixed 20dp around text set in sp, so at a large font scale the letter grew
+ * and the circle did not: A, B and Y sat with their lower halves cut off. Small text scales in
+ * a straight line, so the chip does too. It never shrinks, because the circle is also what
+ * the hint row lines up on.
+ */
+@Composable
+fun novaKeyChipSize(base: Dp): Dp = novaKeyChipSize(base, LocalDensity.current.fontScale)
+
+internal fun novaKeyChipSize(base: Dp, fontScale: Float): Dp = base * fontScale.coerceAtLeast(1f)
 
 data class NovaControllerHint(
     val key: String,
