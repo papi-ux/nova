@@ -2588,13 +2588,22 @@ class PolarisApiClient @JvmOverloads constructor(
             try {
                 val gamesArray = org.json.JSONObject(body).optJSONArray("games")
                     ?: throw IOException("invalid game library response")
-                (0 until gamesArray.length()).map {
-                    PolarisGameJsonAdapter.fromJson(gamesArray.getJSONObject(it))
+                (0 until gamesArray.length()).map { index ->
+                    val entry = gamesArray.getJSONObject(index)
+                    try {
+                        PolarisGameJsonAdapter.fromJson(entry)
+                    } catch (e: Exception) {
+                        // Which entry, and why. "invalid game library response"
+                        // on its own leaves a player with a library that will
+                        // not load and nothing to report but that it did not.
+                        throw IOException("invalid game library entry " +
+                            entry.optString("id", "#$index") + ": " + (e.message ?: e.javaClass.simpleName))
+                    }
                 }
             } catch (e: IOException) {
                 throw e
-            } catch (_: Exception) {
-                throw IOException("invalid game library response")
+            } catch (e: Exception) {
+                throw IOException("invalid game library response: " + (e.message ?: e.javaClass.simpleName))
             }
         }
     }
