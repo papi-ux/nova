@@ -156,7 +156,16 @@ class NovaLibraryOpenGridTest {
         assertNull("a desktop hero not cached yet is not drawn", NovaLibraryUiStateMapper.cinematicBackdropArtworkKind(game(listedHero)))
         assertNull("a poster alone never fills the screen", NovaLibraryUiStateMapper.cinematicBackdropArtworkKind(game(null)))
         assertEquals(PolarisGame.ARTWORK_KIND_HERO, NovaLibraryUiStateMapper.cinematicBackdropArtworkKind(game(listedHero, space)))
-        assertNull(NovaLibraryUiStateMapper.cinematicBackdropArtworkKind(game(null, space)))
+        assertEquals(
+            "the host fetches a Space title's hero the first time it is asked and lists only what it has fetched, so a " +
+                "hero that waits to be listed is never asked for: Portal 2's page was a name on an empty screen",
+            PolarisGame.ARTWORK_KIND_HERO,
+            NovaLibraryUiStateMapper.cinematicBackdropArtworkKind(game(null, space)),
+        )
+        assertNull(
+            "a Space title the host lists with no artwork at all, a Heroic or Lutris one today, has none to ask for",
+            NovaLibraryUiStateMapper.cinematicBackdropArtworkKind(PolarisGame(id = "g", space = space)),
+        )
         assertNull("Big Picture's bundled mark is no hero", NovaLibraryUiStateMapper.cinematicBackdropArtworkKind(game(cachedHero, bigPicture)))
         assertNull(NovaLibraryUiStateMapper.cinematicBackdropArtworkKind(null))
     }

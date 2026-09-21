@@ -1203,15 +1203,24 @@ object NovaLibraryUiStateMapper {
 
     /**
      * The artwork the cinematic backdrop may draw for a game, or null for the ambient field.
-     * Only a real hero: a cached one for a desktop title, a listed one for a Space title
-     * (its route resolves on the host). A 2:3 poster stretched across a landscape screen
-     * crops to a slice of its wordmark, which is how a giant "VIRTUAL DESKTOP" came to run
-     * behind the whole library, and a launcher's own mark is no hero either.
+     * Only a real hero. A 2:3 poster stretched across a landscape screen crops to a slice of
+     * its wordmark, which is how a giant "VIRTUAL DESKTOP" came to run behind the whole
+     * library, and a launcher's own mark is no hero either.
+     *
+     * A desktop title's hero has to be cached, because the host resolves those ahead of time.
+     * A Space title's is asked for whether or not it is listed. The host fetches a Space
+     * title's artwork from Steam the first time a kind is asked for and lists only what it
+     * has fetched, so waiting for a hero to be listed meant never asking: every Space title
+     * the grid had drawn a poster for had a poster and nothing else, and its page was a name
+     * on an empty screen. A title with no hero on Steam answers 404 and stays the ambient field.
      */
     fun cinematicBackdropArtworkKind(game: PolarisGame?): String? {
         if (game == null || com.papi.nova.manager.WorkerLaunchContract.isLauncherEntry(game.space?.target)) return null
+        if (game.space != null) {
+            return if (com.papi.nova.api.PolarisApiClient.hostHasNoArtworkFor(game)) null else PolarisGame.ARTWORK_KIND_HERO
+        }
         val hero = game.artworkAsset(PolarisGame.ARTWORK_KIND_HERO) ?: return null
-        return if (hero.cached || game.space != null) PolarisGame.ARTWORK_KIND_HERO else null
+        return if (hero.cached) PolarisGame.ARTWORK_KIND_HERO else null
     }
 
     /**
