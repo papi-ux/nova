@@ -1,5 +1,7 @@
 package com.papi.nova.ui
 
+import android.content.res.Configuration
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -49,6 +52,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -64,6 +68,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.papi.nova.ui.compose.NovaRevealingText
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
@@ -156,11 +161,15 @@ internal fun NovaGameDetailPanel(
  * ground: the panel is translucent, and a solid band would stripe window colour across
  * the artwork showing through it.
  */
-private fun Modifier.novaFadeAtCut(active: Boolean = true): Modifier = if (!active) this else this
+internal fun Modifier.novaFadeAtCut(
+    active: Boolean = true,
+    /** How tall the dissolve is. A short list of rows wants a slim one; see Play Setup's rows. */
+    band: Dp = NOVA_DETAIL_BOTTOM_FADE,
+): Modifier = if (!active) this else this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithContent {
         drawContent()
-        val fade = NOVA_DETAIL_BOTTOM_FADE.toPx().coerceAtMost(size.height)
+        val fade = band.toPx().coerceAtMost(size.height)
         drawRect(
             brush = Brush.verticalGradient(
                 colors = listOf(Color.Black, Color.Transparent),
@@ -222,9 +231,13 @@ internal fun NovaGameDetailWidePanel(
                 .background(NovaGameDetailScrim.copy(alpha = NOVA_DETAIL_SCRIM_ALPHA))
                 .background(colors.window.copy(alpha = NOVA_DETAIL_WIDE_PANEL_ALPHA))
                 .background(surfaces.panel)
-                .windowInsetsPadding(WindowInsets.safeContent)
+                // Cutouts and bars, not gesture zones: the same ground the library stands on.
+                // safeContent also keeps clear of the back-swipe edges and the home gesture,
+                // which cost this window about 30dp a side and as much at the bottom on a
+                // handheld, for controls a swipe would not have reached anyway.
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(
-                    horizontal = NovaGameDetailInset,
+                    horizontal = novaGameDetailWindowInset(),
                     vertical = if (shortViewport) 10.dp else 20.dp,
                 )
                 .testTag("nova-game-detail-wide-panel"),
@@ -236,6 +249,7 @@ internal fun NovaGameDetailWidePanel(
                 compact = shortViewport,
                 onDismiss = onDismiss,
                 accessory = headerAccessory,
+                selfInset = false,
             )
             // The scroll stays as the fallback for a font scale or an inset that makes the
             // content genuinely taller than the window. Measuring outside it is what lets
@@ -251,7 +265,7 @@ internal fun NovaGameDetailWidePanel(
                     content = { content(bodyHeight) },
                 )
             }
-            NovaGameDetailDestinationHints()
+            NovaGameDetailDestinationHints(selfInset = false)
         }
     }
 }
@@ -279,9 +293,13 @@ internal fun NovaGameDetailFullScreen(
                 // Overview through the studio rather than reveal anything new.
                 .background(colors.window)
                 .background(surfaces.panel)
-                .windowInsetsPadding(WindowInsets.safeContent)
+                // Cutouts and bars, not gesture zones: the same ground the library stands on.
+                // safeContent also keeps clear of the back-swipe edges and the home gesture,
+                // which cost this window about 30dp a side and as much at the bottom on a
+                // handheld, for controls a swipe would not have reached anyway.
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(
-                    horizontal = NovaGameDetailInset,
+                    horizontal = novaGameDetailWindowInset(),
                     vertical = if (shortViewport) 10.dp else 20.dp,
                 )
                 .testTag("nova-game-detail-fullscreen"),
@@ -292,6 +310,7 @@ internal fun NovaGameDetailFullScreen(
                 readout = "",
                 compact = shortViewport,
                 onDismiss = onDismiss,
+                selfInset = false,
             )
             Column(
                 modifier = Modifier
@@ -302,14 +321,17 @@ internal fun NovaGameDetailFullScreen(
                     .verticalScroll(scrollState),
                 content = { content() },
             )
-            NovaGameDetailDestinationHints()
+            NovaGameDetailDestinationHints(selfInset = false)
         }
     }
 }
 
 /** Every destination says how to act and how to get back. */
 @Composable
-private fun NovaGameDetailDestinationHints() {
+private fun NovaGameDetailDestinationHints(
+    /** False inside a panel that already pads its sides; see [NovaGameDetailDestinationHeader]. */
+    selfInset: Boolean = true,
+) {
     NovaControllerHintBar(
         hints = listOf(
             NovaControllerHint(
@@ -324,8 +346,7 @@ private fun NovaGameDetailDestinationHints() {
         compact = true,
         modifier = Modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Horizontal))
-            .padding(horizontal = NovaGameDetailInset)
+            .then(novaGameDetailSelfInset(selfInset))
             .padding(top = 10.dp),
     )
 }
@@ -338,14 +359,20 @@ private fun NovaGameDetailDestinationHeader(
     compact: Boolean = false,
     onDismiss: () -> Unit = {},
     accessory: (@Composable () -> Unit)? = null,
+    /**
+     * Pad its own sides. The lane pads only top and bottom, so its rows can reach the edge they
+     * are drawn against, and leaves each child to keep its text clear of a cutout. The panels
+     * that fill the window pad all four sides themselves, and padded again the header and the
+     * hint bar stood 28dp and an inset inside the body they belong to.
+     */
+    selfInset: Boolean = true,
 ) {
     val colors = LocalNovaComposeColors.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Horizontal))
-            .padding(horizontal = NovaGameDetailInset)
+            .then(novaGameDetailSelfInset(selfInset))
             .padding(bottom = if (compact) 6.dp else 14.dp),
     ) {
     Column(modifier = Modifier.weight(1f)) {
@@ -409,6 +436,26 @@ private fun NovaGameDetailCloseControl(onDismiss: () -> Unit) {
             fontWeight = FontWeight.SemiBold,
         )
     }
+}
+
+/** The side padding a lane child gives itself, or nothing inside a panel that already has it. */
+@Composable
+private fun novaGameDetailSelfInset(selfInset: Boolean): Modifier = if (!selfInset) Modifier else Modifier
+    .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Horizontal))
+    .padding(horizontal = NovaGameDetailInset)
+
+/**
+ * The side margin of a panel that fills the window.
+ *
+ * On a handheld or a phone it is the library's margin, so Play Setup opens to the width the
+ * grid behind it has. A television keeps the wider one: nothing reports its overscan, and text
+ * at the very edge of a TV can be off the glass.
+ */
+@Composable
+private fun novaGameDetailWindowInset(): Dp {
+    val television = (LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+        Configuration.UI_MODE_TYPE_TELEVISION
+    return if (television) NovaGameDetailInset else NOVA_DETAIL_WINDOW_INSET
 }
 
 /**
@@ -550,6 +597,18 @@ internal fun NovaSteamChoiceRow(
      * cannot be chosen, and a row whose caption only restates its label keeps it quiet.
      */
     describeCaption: Boolean = false,
+    /**
+     * A press on this row while it does not hold focus only takes focus. Play Setup's rows
+     * change a value on a press and show the alternatives in a legend that follows focus, so a
+     * finger needs one press to see them and the next to choose. See [novaPlaySetupPressActs].
+     */
+    firstPressFocuses: Boolean = false,
+    /**
+     * Let the cursor stop on this row while it cannot be chosen. A place a game cannot open in
+     * says why in its caption, and the caption is cut to two lines: with no way to stand on the
+     * card there was no way to read the reason. A press still does nothing.
+     */
+    focusableWhenDisabled: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -570,6 +629,8 @@ internal fun NovaSteamChoiceRow(
     )
 
     val ringing = focused && actionable
+    // Under the cursor but not choosable: a quieter ring, so it reads as here and not as ready.
+    val resting = focused && !actionable
     // A tap has to move the focus ring as well as act, or the row you pressed and the row
     // the panel says you are on are two different rows.
     val focusRequester = remember { FocusRequester() }
@@ -594,9 +655,21 @@ internal fun NovaSteamChoiceRow(
             }
             .then(
                 if (actionable) {
-                    Modifier.clickable(role = Role.Button) {
+                    Modifier.clickable(
+                        role = Role.Button,
+                        // What the press will do, for a screen reader: it differs by whether
+                        // this row is the one the legend is showing.
+                        onClickLabel = if (!firstPressFocuses) {
+                            null
+                        } else if (focused) {
+                            stringResource(R.string.nova_play_setup_press_change)
+                        } else {
+                            stringResource(R.string.nova_play_setup_press_show)
+                        },
+                    ) {
+                        val heldFocus = focused
                         runCatching { focusRequester.requestFocus() }
-                        onClick?.invoke()
+                        if (novaPlaySetupPressActs(firstPressFocuses, heldFocus)) onClick?.invoke()
                     }
                 } else {
                     Modifier
@@ -604,7 +677,7 @@ internal fun NovaSteamChoiceRow(
             )
             // Explicit, like every other focusable in the app: clickable alone did not
             // register the row as a focus target and the d-pad had nothing to reach.
-            .focusable(enabled = actionable)
+            .focusable(enabled = actionable || focusableWhenDisabled)
             .clip(shape)
             .background(if (selected) tint else surfaces.tile)
             .border(
@@ -618,6 +691,7 @@ internal fun NovaSteamChoiceRow(
                 }
             }
             .then(if (ringing) Modifier.border(NOVA_DETAIL_FOCUS_RING, surfaces.focusRing, shape) else Modifier)
+            .then(if (resting) Modifier.border(NOVA_DETAIL_FOCUS_RING, surfaces.focusRing.copy(alpha = 0.45f), shape) else Modifier)
             // 6dp, so a row with a caption lands exactly on the 48dp accessible floor
             // rather than 6dp above it. Four rows plus a legend has to clear a 325dp
             // landscape viewport, and four times six is most of the difference.
@@ -637,16 +711,22 @@ internal fun NovaSteamChoiceRow(
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                // Under the cursor a name too long for its card runs past rather than ending in
+                // an ellipsis: "papi - s…" was every Space on a narrow card. It moves only when
+                // it does not fit.
+                overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis,
+                modifier = if (focused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier,
             )
             if (caption.isNotBlank()) {
-                Text(
+                // The caption is where a card says why it cannot be chosen, and it was cut at two
+                // lines with no way to read the rest. Under the cursor it shows all of itself.
+                NovaRevealingText(
                     text = caption,
+                    highlighted = focused,
+                    maxLines = 2,
                     color = colors.textMuted,
                     fontSize = 11.sp,
                     lineHeight = 14.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -722,6 +802,9 @@ private const val NOVA_DETAIL_FOCUS_SETTLE_MS = 75L
 
 /** Below this a phone in landscape has no height to spare for chrome. */
 private val NOVA_DETAIL_SHORT_VIEWPORT = 500.dp
+
+/** The library's side margin, for the panels that fill the window over it. */
+private val NOVA_DETAIL_WINDOW_INSET = 18.dp
 
 /** Long enough to land after novaHoldsFirstFocus rather than race it. */
 private const val NOVA_DETAIL_FIRST_ROW_FOCUS_DELAY_MS = 140L

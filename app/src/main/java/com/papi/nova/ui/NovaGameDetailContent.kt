@@ -415,11 +415,9 @@ internal fun NovaGameDetailContent(
                     val settingRows = playSetupRows.filter { it.row != NovaPlaySetupRow.PLAY_IN }
                     // Spend the room that is there rather than a number picked in advance:
                     // each advertised launch control leaves less room for the legend.
-                    val consequenceLines = novaPlaySetupConsequenceLines(
-                        bodyHeight,
-                        settingRows.size,
-                        destinations = destinationsRow != null,
-                    )
+                    // The legend is pinned under the rows, so it is budgeted against the few
+                    // rows kept in view above it rather than against every row the host added.
+                    val consequenceLines = novaPlaySetupPinnedLegendLines(bodyHeight, settingRows.size)
                     NovaPlaySetupBody(
                         plan = novaPlaySetupPlan(
                             // The resolved mode, not the name of the control that sets
@@ -528,6 +526,16 @@ internal fun NovaGameDetailContent(
                                     selected = rowState.overridden,
                                     onClick = { onAdvancePlaySetupRow(rowState.row) },
                                     onFocused = { onExplainPlaySetupRow(rowState.row) },
+                                    firstPressFocuses = true,
+                                )
+                            }
+                            // After the choices and inside their scroll, so it cannot stand
+                            // between the rows and the legend that explains them.
+                            if (mangoHudEnabled) {
+                                MangoHudPassiveStatus(
+                                    label = mangoHudStatusLabel,
+                                    caption = mangoHudStatusCaption,
+                                    warning = mangoHudWarning
                                 )
                             }
                         },
@@ -547,13 +555,6 @@ internal fun NovaGameDetailContent(
                             }
                         },
                     )
-                    if (mangoHudEnabled) {
-                        MangoHudPassiveStatus(
-                            label = mangoHudStatusLabel,
-                            caption = mangoHudStatusCaption,
-                            warning = mangoHudWarning
-                        )
-                    }
                 }
 
                 // No sheets. Every one of these choices is made in the strip above,

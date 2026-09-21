@@ -328,6 +328,8 @@
     <string name="nova_play_setup_scope_this_game">This Game</string>
     <string name="nova_play_setup_scope_key">Y</string>
     <string name="nova_play_setup_scope_cd">Play Setup scope. %1$s selected.</string>
+    <string name="nova_play_setup_press_show">show its choices</string>
+    <string name="nova_play_setup_press_change">change it</string>
     <string name="nova_play_setup_host_read_title">What the host defaults to</string>
     <string name="nova_play_setup_host_intro">Every game that doesn\'t choose for itself gets this.</string>
     <string name="nova_play_setup_fact_desired">Desired</string>
@@ -1735,7 +1737,7 @@
     <string name="nova_space_your_space">Your Space</string>
     <string name="nova_space_open">Open Space</string>
     <string name="nova_space_host_settings_required">Check Stream Settings</string>
-    <string name="nova_space_host_constraint">Polaris is offering %1$d × %2$d at %3$d FPS for this device. Choose Auto for Frame Rate and Device Settings for Resolution, or update this device’s display settings in Polaris.</string>
+    <string name="nova_space_host_constraint">Polaris is offering %1$d × %2$d at %3$d FPS for this device. Choose Auto for Frame Rate and This Device for Resolution, or update this device’s display settings in Polaris.</string>
     <string name="nova_space_resume">Resume Space</string>
     <string name="nova_space_stream_settings">Stream Settings</string>
     <string name="nova_space_opening">Opening Space</string>

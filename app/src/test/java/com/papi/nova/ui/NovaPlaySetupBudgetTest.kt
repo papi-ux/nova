@@ -43,6 +43,26 @@ class NovaPlaySetupBudgetTest {
     }
 
     @Test
+    fun aPinnedLegendIsNotChargedForRowsThatScroll() {
+        // Seven rows is what a host with a display planner, an encoder choice and a Steam
+        // launch gives the Retroid. Unpinned, the fourth took the legend's second line and the
+        // fifth took the legend off the screen. Pinned, the rows past the third scroll.
+        val three = novaPlaySetupPinnedLegendLines(retroidBody, rowCount = 3)
+        assertTrue(three >= 2)
+        for (rows in 3..8) {
+            assertEquals("a row that scrolls must not cost the legend a line", three, novaPlaySetupPinnedLegendLines(retroidBody, rows))
+        }
+        assertEquals(1, novaPlaySetupConsequenceLines(retroidBody, rowCount = 7))
+    }
+
+    @Test
+    fun aShortListIsBudgetedAsItIs() {
+        for (rows in 0..3) {
+            assertEquals(novaPlaySetupConsequenceLines(retroidBody, rows), novaPlaySetupPinnedLegendLines(retroidBody, rows))
+        }
+    }
+
+    @Test
     fun anUnmeasuredBodyFallsBackRatherThanCollapsing() {
         assertEquals(2, novaPlaySetupConsequenceLines(0.dp, rowCount = 3))
         assertEquals(2, novaPlaySetupIntroLines(0.dp, factCount = 4))

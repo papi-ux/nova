@@ -54,6 +54,7 @@ internal fun NovaHostSetupRowList(
             selected = rowState.overridden,
             onClick = { onAdvance(rowState.row) },
             onFocused = { onExplain(rowState.row) },
+            firstPressFocuses = true,
         )
     }
 }
@@ -66,17 +67,20 @@ internal fun NovaHostSetupComparison(
 ) {
     val explained = rows.firstOrNull { it.row == explainedRow } ?: rows.firstOrNull()
     if (explained != null && explained.options.size > 1) {
+        // 2x2 for the classic four; three per row once a six-mode catalog
+        // would otherwise stack three rows.
+        val perRow = if (explained.row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY) {
+            if (explained.options.size > 4) 3 else 2
+        } else {
+            Int.MAX_VALUE
+        }
         NovaPlaySetupComparison(
             title = explained.stripTitle,
             options = explained.options,
-            consequenceMaxLines = consequenceMaxLines,
-            // 2x2 for the classic four; three per row once a six-mode catalog
-            // would otherwise stack three rows.
-            perRow = if (explained.row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY) {
-                if (explained.options.size > 4) 3 else 2
-            } else {
-                Int.MAX_VALUE
-            },
+            // A legend that stacks rows of cards is already tall, and it sits under the rows it
+            // explains. One line each keeps those rows on the screen.
+            consequenceMaxLines = if (explained.options.size > perRow) 1 else consequenceMaxLines,
+            perRow = perRow,
         )
     }
 }

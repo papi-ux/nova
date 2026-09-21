@@ -474,7 +474,7 @@ class NovaLaunchSourceGuardTest {
                 plannerFor.contains("device = NovaDisplayResolutionPlanner.DeviceMode(")
         )
         assertTrue(
-            "Device Settings means nothing chosen. Saved as a choice it would freeze today's size into " +
+            "This Device means nothing chosen. Saved as a choice it would freeze today's size into " +
                 "the launch and stop following the setting",
             choose.contains("choice.id == NovaDisplayResolutionPlanner.DEVICE_SETTINGS_ID") &&
                 choose.contains("chosenResolution = null") &&

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -45,12 +48,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaChromeType
+import com.papi.nova.ui.compose.NovaRevealingText
 import com.papi.nova.ui.compose.NovaRadius
 
 /**
@@ -93,14 +98,26 @@ internal fun NovaPlaySetupBody(
         // A phone in portrait has no room for two columns, and stacking them keeps the
         // same reading order: read the plan, then act on it.
         val stacked = maxWidth < NOVA_PLAY_SETUP_TWO_COLUMN_MIN
-        if (stacked) {
+        // Given its height, the body keeps the legend in sight and scrolls the rows above it.
+        val pinned = fitHeight != Dp.Unspecified && fitHeight > 0.dp
+        if (stacked && pinned) {
+            Column(modifier = Modifier.fillMaxWidth().height(fitHeight)) {
+                NovaPlaySetupRowsRegion {
+                    NovaPlaySetupReadColumn(plan, introMaxLines, Modifier.fillMaxWidth(), readTitle)
+                    Spacer(modifier = Modifier.height(18.dp))
+                    NovaPlaySetupColumnHead(stringResource(R.string.nova_play_setup_what_you_can_change))
+                    rows()
+                }
+                NovaPlaySetupPinnedLegend(comparison, novaPlaySetupLegendCap(fitHeight, columnHead = false))
+            }
+        } else if (stacked) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 NovaPlaySetupReadColumn(plan, introMaxLines, Modifier.fillMaxWidth(), readTitle)
                 Spacer(modifier = Modifier.height(18.dp))
                 NovaPlaySetupActColumn(rows, comparison, Modifier.fillMaxWidth())
             }
         } else {
-            Row(modifier = Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth().then(if (pinned) Modifier.height(fitHeight) else Modifier)) {
                 NovaPlaySetupReadColumn(
                     plan = plan,
                     introMaxLines = introMaxLines,
@@ -109,7 +126,13 @@ internal fun NovaPlaySetupBody(
                     fitHeight = fitHeight,
                 )
                 Spacer(modifier = Modifier.width(NOVA_PLAY_SETUP_GUTTER))
-                NovaPlaySetupActColumn(rows, comparison, Modifier.weight(1f))
+                NovaPlaySetupActColumn(
+                    rows = rows,
+                    comparison = comparison,
+                    modifier = Modifier.weight(1f),
+                    pinned = pinned,
+                    legendCap = novaPlaySetupLegendCap(fitHeight, columnHead = true),
+                )
             }
         }
     }
@@ -226,20 +249,87 @@ private fun rememberNovaPlaySetupReadFit(
     }
 }
 
-/** The few real choices, and what the alternatives to the focused one would mean. */
+/**
+ * The few real choices, and what the alternatives to the focused one would mean.
+ *
+ * [pinned] keeps the legend in sight. The legend explains the row under the cursor, and it was
+ * drawn after the last row, inside the one scroll the whole panel shares. That was built for four
+ * rows. With Frame Rate, Encoder, Face Buttons and the places a game can open above them there
+ * are seven and a row of cards, so on the Retroid the legend sat a screen below the row it
+ * explained: the scroll follows focus, and focus never goes to a legend. A press on Resolution
+ * changed the value with its alternatives never shown. So the rows scroll by themselves and the
+ * legend is drawn under them, outside that scroll, where no number of rows can push it away.
+ */
 @Composable
 private fun NovaPlaySetupActColumn(
     rows: @Composable () -> Unit,
     comparison: (@Composable () -> Unit)?,
     modifier: Modifier = Modifier,
+    pinned: Boolean = false,
+    legendCap: Dp = Dp.Unspecified,
 ) {
     Column(modifier = modifier) {
         NovaPlaySetupColumnHead(stringResource(R.string.nova_play_setup_what_you_can_change))
-        rows()
-        if (comparison != null) {
-            Spacer(modifier = Modifier.height(4.dp))
-            comparison()
+        if (pinned) {
+            NovaPlaySetupRowsRegion { rows() }
+            NovaPlaySetupPinnedLegend(comparison, legendCap)
+        } else {
+            rows()
+            if (comparison != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                comparison()
+            }
         }
+    }
+}
+
+/**
+ * The part of the body that scrolls: the rows, and on a narrow screen the plan above them.
+ *
+ * It takes what its content needs and no more, so a short list keeps its legend directly under
+ * it rather than across a gap at the bottom of the panel. Focus brings a row into view here the
+ * way it does in the panel's own scroll.
+ */
+@Composable
+private fun ColumnScope.NovaPlaySetupRowsRegion(content: @Composable () -> Unit) {
+    val scroll = rememberScrollState()
+    // More than the gap under the last row. Focus brings a row's own bounds into view and not
+    // the gap below it, so at the last row the scroll could still move by that gap, and "can
+    // scroll" kept the dissolve drawn over the final row as if another followed.
+    val slack = with(LocalDensity.current) { NOVA_PLAY_SETUP_ROWS_FADE.toPx() }
+    val moreBelow = scroll.maxValue - scroll.value > slack
+    Column(
+        modifier = Modifier
+            .weight(1f, fill = false)
+            .fillMaxWidth()
+            // A slim band. The panel's own is as tall as a row, and focus brings a row to the
+            // bottom edge of this region, so the full band dissolved the row under the cursor.
+            .novaFadeAtCut(moreBelow, band = NOVA_PLAY_SETUP_ROWS_FADE)
+            .verticalScroll(scroll)
+            .testTag("nova-play-setup-rows"),
+    ) {
+        content()
+    }
+}
+
+/**
+ * The legend, under the rows and outside their scroll.
+ *
+ * It is laid out before the rows, which take what is left, so it is held to [cap]. Every Game's
+ * Default Display is seven modes in three rows of cards, and uncapped it took the whole body and
+ * left the rows it explains a few pixels tall.
+ */
+@Composable
+private fun NovaPlaySetupPinnedLegend(comparison: (@Composable () -> Unit)?, cap: Dp) {
+    if (comparison == null) return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = NOVA_PLAY_SETUP_LEGEND_GAP)
+            .then(if (cap != Dp.Unspecified) Modifier.heightIn(max = cap).clipToBounds() else Modifier)
+            .testTag("nova-play-setup-legend"),
+    ) {
+        comparison()
     }
 }
 
@@ -359,12 +449,17 @@ internal fun NovaPlaySetupComparison(
             if (chunkIndex > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                // One height for the row, so a card whose label wrapped does not stand taller
+                // than its neighbours.
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            ) {
                 chunk.forEach { option ->
                     NovaPlaySetupComparisonCard(
                         option = option,
                         consequenceMaxLines = consequenceMaxLines,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
                 }
             }
@@ -412,7 +507,9 @@ private fun NovaPlaySetupComparisonCard(
             )
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .semantics {
-                contentDescription = "${'$'}{option.label}. ${'$'}{option.consequence}"
+                // This was an escaped template, so a screen reader was read the source text,
+                // "dollar brace option dot label", for every card.
+                contentDescription = novaPlaySetupOptionDescription(option)
                 if (option.current) selected = true
             },
     ) {
@@ -421,22 +518,68 @@ private fun NovaPlaySetupComparisonCard(
             color = if (option.enabled) colors.textPrimary else colors.textMuted,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
+            // Two, because four cards across a handheld leave a label about eleven characters,
+            // and a name cut short names nothing. The host's titles and a translation can both
+            // run longer than that.
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
+        NovaRevealingText(
             text = option.consequence,
+            // The cursor never stops on a legend card, so its highlight is being the current
+            // choice. That one plays its whole sentence twice and rests; the others are a press
+            // of A or a tap away from being it.
+            highlighted = option.current,
+            passes = 2,
             color = if (option.active && !option.current) colors.accent else colors.textMuted,
             fontSize = 11.sp,
             lineHeight = 14.sp,
             // Bounded, so a long consequence cannot push the card past the cut.
-            // The sentence is a hint at what a choice means, not the contract.
+            // And held at that height: the legend changes with the row under the cursor, and a
+            // legend that grew and shrank would resize the rows above it on every move.
+            minLines = consequenceMaxLines,
             maxLines = consequenceMaxLines,
-            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp),
         )
     }
 }
+
+/** What a legend card says to a screen reader: its name, then what choosing it would mean. */
+internal fun novaPlaySetupOptionDescription(option: NovaPlaySetupOption): String =
+    listOf(option.label, option.consequence).filter { it.isNotBlank() }.joinToString(". ")
+
+/**
+ * Whether a press on a row acts, or only moves the legend to it.
+ *
+ * A row's alternatives are shown in the legend, and the legend follows focus. With a controller
+ * the row under the cursor is always the one being explained, so A changes a value whose
+ * alternatives are on screen. A finger has no cursor: it lands on a row the legend is not
+ * showing, and the press used to change that row's value unseen. So the first press on a row
+ * that does not hold focus brings the legend to it, and a press on the row that does changes it.
+ */
+internal fun novaPlaySetupPressActs(firstPressFocuses: Boolean, heldFocus: Boolean): Boolean =
+    !firstPressFocuses || heldFocus
+
+/**
+ * The most a pinned legend may take of a body [fitHeight] tall: all of it but the room a row and
+ * a half need, so the row under the cursor is always there to see.
+ */
+internal fun novaPlaySetupLegendCap(fitHeight: Dp, columnHead: Boolean): Dp {
+    if (fitHeight == Dp.Unspecified || fitHeight <= 0.dp) return Dp.Unspecified
+    val kept = NOVA_PLAY_SETUP_ROWS_FLOOR + NOVA_PLAY_SETUP_LEGEND_GAP +
+        (if (columnHead) NOVA_PLAY_SETUP_COLUMN_HEAD else 0.dp)
+    return (fitHeight - kept).coerceAtLeast(0.dp)
+}
+
+/**
+ * How many lines a legend card may use once the legend is pinned under scrolling rows.
+ *
+ * Pinned, the legend no longer competes with every row, only with the rows that should stay in
+ * view above it. Three is what the panel keeps: past that the rows scroll, so a fourth, fifth or
+ * seventh row costs the legend nothing, where unpinned each one took a line and then the legend.
+ */
+internal fun novaPlaySetupPinnedLegendLines(availableHeight: Dp, rowCount: Int): Int =
+    novaPlaySetupConsequenceLines(availableHeight, rowCount.coerceAtMost(NOVA_PLAY_SETUP_ROWS_KEPT_IN_VIEW))
 
 /** The resolved plan, as one readable statement plus the facts behind it. */
 internal data class NovaPlaySetupPlan(
@@ -646,6 +789,8 @@ internal fun NovaPlaySetupDestinations(
                     selected = option.current,
                     autoFocus = autoFocus && index == focusIndex,
                     describeCaption = true,
+                    // A place the game cannot open in still has a reason to read.
+                    focusableWhenDisabled = true,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
@@ -768,6 +913,15 @@ internal fun novaPlaySetupFitReadColumn(
         detailMaxLines = detailMax.map { if (it <= 0) Int.MAX_VALUE else it },
     )
 }
+
+/** The rows a pinned legend leaves room for; the rest are a scroll away. */
+private const val NOVA_PLAY_SETUP_ROWS_KEPT_IN_VIEW = 3
+
+/** The dissolve at the bottom of the scrolling rows: enough to say more follows, less than a row. */
+private val NOVA_PLAY_SETUP_ROWS_FADE = 18.dp
+
+/** What the rows keep however tall the legend is: a row and a half, so the list reads as a list. */
+private val NOVA_PLAY_SETUP_ROWS_FLOOR = 80.dp
 
 /** Drawn heights, kept beside the drawing so the two cannot drift apart unnoticed. */
 private val NOVA_PLAY_SETUP_COLUMN_HEAD = 16.dp

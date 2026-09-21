@@ -71,9 +71,9 @@ class NovaDisplayResolutionPlannerTest {
     fun aDeviceSetToItsOwnSizeSeesThatSizeFirstAndNoHostCustom() {
         val planner = plannedFor(1340, 800)
 
-        // Native is this device's own size, so Device Settings is that row and it is not offered twice.
+        // Native is this device's own size, so This Device is that row and it is not offered twice.
         assertEquals(
-            listOf("Device Settings", "Balanced", "Sharp / Supersampled", "Performance"),
+            listOf("This Device", "Balanced", "Sharp", "Performance"),
             planner.visibleChoices.map { it.title },
         )
         assertEquals(
@@ -102,7 +102,7 @@ class NovaDisplayResolutionPlannerTest {
 
     @Test
     fun aPresetThatLandsOnTheDevicesOwnSizeIsNotOfferedTwice() {
-        // Native is the device's size by definition, so Device Settings already is that row.
+        // Native is the device's size by definition, so This Device already is that row.
         val planner = plannedFor(1920, 1080)
 
         assertEquals(listOf("device_settings", "balanced", "sharp", "performance"), planner.visibleChoices.map { it.id })

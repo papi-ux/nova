@@ -50,7 +50,7 @@ internal object NovaSpaceUiState {
     fun resolutionPlanner(width: Int, height: Int, fps: Float): NovaDisplayResolutionPlanner {
         val deviceMode = "${width}x${height}x${fps.toInt()}"
         val choices = listOf(
-            NovaDisplayResolutionChoice("space_device", "Device Settings", deviceMode, "", "Use this device's saved resolution.", false, false, true, true),
+            NovaDisplayResolutionChoice("space_device", "This Device", deviceMode, "", "Use this device's saved resolution.", false, false, true, true),
             NovaDisplayResolutionChoice("space_720p", "1280 × 720", "1280x720x${fps.toInt()}", "", "Use a smaller stream to reduce bandwidth.", false, false, true, false),
             NovaDisplayResolutionChoice("space_1080p", "1920 × 1080", "1920x1080x${fps.toInt()}", "", "Use a sharper picture when your connection allows it.", false, false, true, false),
         )

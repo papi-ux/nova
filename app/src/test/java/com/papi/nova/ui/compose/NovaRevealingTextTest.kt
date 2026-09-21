@@ -1,0 +1,80 @@
+package com.papi.nova.ui.compose
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * A description that is cut has to be readable somewhere, or it is not worth printing. papi,
+ * 2026-09-21: "if theres a description and its running off, theres no point if the user cant
+ * view the detail". The highlighted tile shows all of its text, inside the room it already has.
+ */
+class NovaRevealingTextTest {
+
+    @Test
+    fun theRevealRunsAtAReadingPaceAndNeverFlicksPast() {
+        // 21 px a second is the Retroid's 9dp. Three hidden lines of 32px take about four and a half seconds.
+        assertEquals(4571, novaRevealMillis(distancePx = 96, pixelsPerSecond = 21f))
+        // One hidden line would be a second and a half; nothing is shorter than the floor.
+        assertEquals(1523, novaRevealMillis(distancePx = 32, pixelsPerSecond = 21f))
+        assertEquals(1200, novaRevealMillis(distancePx = 4, pixelsPerSecond = 21f))
+        assertEquals(1200, novaRevealMillis(distancePx = 0, pixelsPerSecond = 21f))
+        assertEquals(1200, novaRevealMillis(distancePx = 96, pixelsPerSecond = 0f))
+    }
+
+    @Test
+    fun textThatFitsNeverMovesAndTheTileKeepsItsHeight() {
+        val source = read("main/java/com/papi/nova/ui/compose/NovaRevealingText.kt")
+        assertTrue(
+            "only text the cut actually shortened is swapped for the scrolling one",
+            source.contains("onTextLayout = { overflows = it.hasVisualOverflow }") &&
+                source.contains("if (!highlighted || !overflows) {")
+        )
+        assertTrue(
+            "the scrolling text stands in exactly the lines the cut text had, so nothing around it moves",
+            source.contains("val room = with(density) { (lineHeight * maxLines).toDp() }") &&
+                source.contains(".height(room)")
+        )
+        assertTrue(
+            "it is driven, not dragged: a finger on the text still belongs to the list the tile is in",
+            source.contains(".verticalScroll(scroll, enabled = false)")
+        )
+    }
+
+    @Test
+    fun theTilesThatCutTheirTextRevealItWhenHighlighted() {
+        val row = read("main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
+            .section("internal fun NovaSteamChoiceRow(", "if (value.isNotBlank()) {")
+        assertTrue(
+            "a row or a card under the cursor shows its whole caption, and a name too long for it runs past",
+            row.contains("NovaRevealingText(") && row.contains("highlighted = focused,") &&
+                row.contains("Modifier.basicMarquee(iterations = Int.MAX_VALUE)")
+        )
+        val setup = read("main/java/com/papi/nova/ui/NovaPlaySetup.kt")
+        assertTrue(
+            "the cursor never stops on a legend card, so the current choice is the one that plays, twice",
+            setup.contains("highlighted = option.current,") && setup.contains("passes = 2,")
+        )
+        assertTrue(
+            "a place the game cannot open in says why in a caption, so the cursor may stand on it to read it",
+            setup.section("internal fun NovaPlaySetupDestinations(", "internal fun novaPlaySetupConsequenceLines(")
+                .contains("focusableWhenDisabled = true,") &&
+                read("main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
+                    .contains(".focusable(enabled = actionable || focusableWhenDisabled)")
+        )
+    }
+
+    private fun read(path: String): String =
+        String(Files.readAllBytes(Path.of("src/$path")), StandardCharsets.UTF_8)
+
+    private fun String.section(startMarker: String, endMarker: String): String {
+        val start = indexOf(startMarker)
+        require(start >= 0) { "Missing start marker: $startMarker" }
+        val end = indexOf(endMarker, start)
+        require(end >= 0) { "Missing end marker: $endMarker" }
+        return substring(start, end)
+    }
+}

@@ -98,7 +98,9 @@ data class NovaDisplayResolutionPlanner(
         ): NovaDisplayResolutionPlanner {
             val deviceChoice = NovaDisplayResolutionChoice(
                 id = DEVICE_SETTINGS_ID,
-                title = "Device Settings",
+                // Eleven characters: what one line of a legend card holds with four cards
+                // across a handheld. "Device Settings" wrapped, and cost the legend a line.
+                title = "This Device",
                 targetMode = device.mode,
                 badge = "",
                 reason = "Use this device's saved resolution.",
@@ -117,7 +119,10 @@ data class NovaDisplayResolutionPlanner(
                     if (!safeMode(width, height)) return@mapNotNull null
                     NovaDisplayResolutionChoice(
                         id = choice.id,
-                        title = choice.title.ifBlank { choice.id.replaceFirstChar { it.titlecase(Locale.US) } },
+                        // "Sharp / Supersampled" is the console's heading. A card a quarter of a
+                        // handheld wide has room for the name, and its sentence says the rest.
+                        title = choice.title.substringBefore(" / ").trim()
+                            .ifBlank { choice.id.replaceFirstChar { it.titlecase(Locale.US) } },
                         targetMode = "${width}x${height}x${device.fps}",
                         badge = choice.badge.takeUnless { it.equals("Press A", ignoreCase = true) }.orEmpty(),
                         reason = presetReason(choice),
