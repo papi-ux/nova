@@ -40,10 +40,21 @@ object NovaFontScalePreferences {
     fun wrapContext(
         context: Context,
         systemFontScale: Float = readSystemFontScale(context),
-    ): Context {
-        val configuration = Configuration(context.resources.configuration).apply {
-            fontScale = resolveFontScale(systemFontScale, readScalePercent(context))
-        }
-        return context.createConfigurationContext(configuration)
-    }
+    ): Context = context.createConfigurationContext(
+        fontScaleOverride(resolveFontScale(systemFontScale, readScalePercent(context)))
+    )
+
+    /**
+     * What a Nova screen overrides: the font scale and nothing else.
+     *
+     * This was a copy of the whole configuration the screen launched with, font scale changed.
+     * An override pins every field it sets, so the orientation and the screen size were pinned
+     * too, and a screen that handles its own configuration changes instead of restarting kept
+     * resolving resources for the shape it was launched in. The Hosts screen opened upright and
+     * then turned on its side inflated its upright layout again, which gave the host list no
+     * height at all; launched on its side and turned upright it kept the rail and lost the
+     * host's name. Every field left unset follows the device.
+     */
+    fun fontScaleOverride(fontScale: Float): Configuration =
+        Configuration().apply { this.fontScale = fontScale }
 }

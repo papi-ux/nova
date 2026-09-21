@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Looper
 import android.provider.Settings
@@ -63,6 +64,23 @@ class NovaFontScalePreferencesTest {
         val wrapped = NovaFontScalePreferences.wrapContext(context, systemFontScale = 1.25f)
 
         assertEquals(1.0f, wrapped.resources.configuration.fontScale, 0.001f)
+    }
+
+    @Test
+    fun theOverrideCarriesTheFontScaleAndLeavesTheScreensShapeToTheDevice() {
+        val override = NovaFontScalePreferences.fontScaleOverride(1.15f)
+
+        assertEquals(1.15f, override.fontScale, 0.001f)
+        // A field an override sets is pinned for the life of the screen. These were copied from the
+        // launch configuration, so a screen that does not restart on rotation kept the layout of
+        // the shape it was opened in: the Hosts screen lost its host list when turned on its side.
+        assertEquals(Configuration.ORIENTATION_UNDEFINED, override.orientation)
+        assertEquals(Configuration.SCREEN_WIDTH_DP_UNDEFINED, override.screenWidthDp)
+        assertEquals(Configuration.SCREEN_HEIGHT_DP_UNDEFINED, override.screenHeightDp)
+        assertEquals(Configuration.SMALLEST_SCREEN_WIDTH_DP_UNDEFINED, override.smallestScreenWidthDp)
+        assertEquals(Configuration.DENSITY_DPI_UNDEFINED, override.densityDpi)
+        assertEquals(Configuration.UI_MODE_TYPE_UNDEFINED, override.uiMode and Configuration.UI_MODE_TYPE_MASK)
+        assertTrue(override.locales.isEmpty)
     }
 
     @Test
