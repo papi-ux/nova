@@ -582,9 +582,34 @@ class NvHTTP @Throws(IOException::class) constructor(
         )
     }
 
+    /**
+     * Clears a half-finished pairing session. This goes over plain HTTP, where a host has no
+     * proof of who is asking, so it never revokes a paired client. [forgetThisDevice] does that.
+     */
     @Throws(IOException::class)
     fun unpair() {
         openHttpConnectionToString(httpClientLongConnectTimeout, baseUrlHttp, "unpair")
+    }
+
+    /**
+     * Asks the host to take this device off its list of paired clients.
+     *
+     * A host only does that for a request that arrives over HTTPS with the client's own
+     * certificate, which is the proof that the caller is the device being removed. Without this
+     * call a PC deleted here stays paired over there, and pairing it again adds a second entry.
+     * Never throws: removing a PC must not depend on the PC being awake.
+     */
+    fun forgetThisDevice(): HostForgetResult {
+        val response = try {
+            openHttpConnectionToString(httpClientShortConnectTimeout, getHttpsUrl(false), "unpair")
+        } catch (e: FileNotFoundException) {
+            return HostForgetResult.UNSUPPORTED
+        } catch (e: HostHttpResponseException) {
+            return HostForgetResult.REFUSED
+        } catch (e: IOException) {
+            return HostForgetResult.UNREACHABLE
+        }
+        return parseForgetResponse(response)
     }
 
     @Throws(IOException::class)
@@ -852,6 +877,25 @@ class NvHTTP @Throws(IOException::class) constructor(
             }
 
             return trimmedHost
+        }
+
+        /**
+         * Reads a host's answer to an HTTPS unpair. Only a well-formed answer that says this
+         * device is no longer paired counts; anything else leaves the claim unmade.
+         */
+        @JvmStatic
+        fun parseForgetResponse(response: String): HostForgetResult {
+            return try {
+                if (getXmlString(response, "paired", true) == "0") {
+                    HostForgetResult.FORGOTTEN
+                } else {
+                    HostForgetResult.REFUSED
+                }
+            } catch (e: XmlPullParserException) {
+                HostForgetResult.REFUSED
+            } catch (e: IOException) {
+                HostForgetResult.REFUSED
+            }
         }
 
         private fun isKnownNvHttpPath(path: String?): Boolean {

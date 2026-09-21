@@ -21,6 +21,7 @@ import android.view.WindowManager
 import android.widget.TextView
 import com.papi.nova.LimeLog
 import com.papi.nova.R
+import com.papi.nova.computers.HostForget
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.NovaDialogWindows
@@ -385,7 +386,13 @@ object UiHelper {
         displayConfirmationDialog(
             parent,
             computer.name,
-            parent.resources.getString(R.string.delete_pc_msg),
+            parent.resources.getString(
+                if (HostForget.canAsk(computer)) {
+                    R.string.delete_pc_msg_paired
+                } else {
+                    R.string.delete_pc_msg
+                },
+            ),
             parent.resources.getString(R.string.yes),
             parent.resources.getString(R.string.no),
             onYes,

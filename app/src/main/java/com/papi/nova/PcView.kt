@@ -59,6 +59,7 @@ import com.papi.nova.api.PolarisHostSleepResult
 import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.binding.crypto.AndroidCryptoProvider
 import com.papi.nova.computers.ComputerManagerService
+import com.papi.nova.computers.HostForget
 import com.papi.nova.grid.PcGridAdapter
 import com.papi.nova.grid.assets.DiskAssetLoader
 import com.papi.nova.manager.HoldToConfirm
@@ -3129,6 +3130,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
                 serverRemovalScope.launch {
                     try {
+                        // Asked first: the pinned certificate that proves to the host who is
+                        // asking goes away with the PC.
+                        val forgotten = HostForget.ask(details, binder.uniqueId, appContext)
+
                         val removed = runCatching {
                             binder.removeComputer(details)
                         }.onFailure { error ->
@@ -3162,6 +3167,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                             }
                             if (!isFinishing && !isDestroyed) {
                                 syncComputerList()
+                            }
+                            HostForget.stillListedMessage(forgotten)?.let { message ->
+                                Toast.makeText(appContext, appContext.getString(message, details.name), Toast.LENGTH_LONG).show()
                             }
                         }
                     } finally {
