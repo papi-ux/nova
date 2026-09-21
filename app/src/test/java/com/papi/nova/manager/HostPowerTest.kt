@@ -27,6 +27,20 @@ class HostPowerPolicyTest {
     )
 
     @Test
+    fun theControlIsNamedForWhatTheMachineIsDoing() {
+        // papi, 2026-09-21: "Wake Host should be Sleep Host if the machine is already awake".
+        assertEquals(HostPowerAction.SLEEP, HostPowerPolicy.label(reachable = true))
+        assertEquals(HostPowerAction.WAKE, HostPowerPolicy.label(reachable = false))
+        // The name and the permission are separate answers. A device assigned to a Space is told
+        // nothing about host power, so its awake host is named Sleep Host and a press explains.
+        assertEquals(
+            HostPowerAction.WAKE,
+            HostPowerPolicy.resolve(reachable = true, capabilities = capabilities(hostSleep = false)),
+        )
+        assertEquals(HostPowerAction.WAKE, HostPowerPolicy.resolve(reachable = true, capabilities = null))
+    }
+
+    @Test
     fun anUnreachableHostOffersWake() {
         assertEquals(
             HostPowerAction.WAKE,

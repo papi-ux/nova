@@ -38,6 +38,22 @@ object HostPowerPolicy {
     }
 
     /**
+     * What the control is called, which is a different question from what it may do.
+     *
+     * It was named for the action, so every host that did not offer sleep read Wake Host, and
+     * that includes hosts that were plainly awake: a Sunshine host, an older Polaris, and, since
+     * the host leaves host power out of what it tells a device assigned to a Space, every
+     * handheld that plays in one. papi, 2026-09-21: "Wake Host should be Sleep Host if the
+     * machine is already awake". A machine that answers is awake and the only thing left to
+     * ask of it is sleep; one that does not answer can only be woken. Whether sleep will work
+     * is still [resolve]'s answer, and where it will not the control says why instead of
+     * trying.
+     */
+    @JvmStatic
+    fun label(reachable: Boolean): HostPowerAction =
+        if (reachable) HostPowerAction.SLEEP else HostPowerAction.WAKE
+
+    /**
      * Why a host that speaks host power is not offering sleep, for a player who
      * wonders where Sleep Host went. Null when there is nothing to explain: the
      * host can sleep, Nova has not heard from it, it is not answering (Wake is

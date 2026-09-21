@@ -68,6 +68,9 @@ class NovaDashboardRevampContractTest {
         assertTrue(
             "Top focus label should include all pilled global actions",
             source.contains("profilesButton to R.string.pcview_quick_profiles") &&
+                // papi, 2026-09-21: "Streaming Presets should just change to Presets since its kind of redundant".
+                File("src/main/res/values/strings.xml").readText()
+                    .contains("<string name=\"pcview_quick_profiles\">Presets</string>") &&
                 source.contains("updateAction to R.string.pcview_quick_update_check") &&
                 source.contains("startPolarisAction to R.string.pcview_quick_start_polaris") &&
                 source.contains("themeAction to R.string.pcview_quick_theme") &&

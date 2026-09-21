@@ -36,28 +36,9 @@ class NovaHostsScreenLayoutTest {
                 chrome.contains("val landscapeWidth = landscapeSheetWidth(context, widthFraction, minLandscapeWidthDp, maxLandscapeWidthDp)")
         )
         assertTrue(
-            "every action goes through the one builder, Delete PC included, and the last row is closed",
-            pcView.contains("menu.action(getString(R.string.pcview_menu_delete_pc), destructive = true) {") &&
-                pcView.contains("        menu.finish()\n") &&
+            "every action goes through the one menu, Delete PC included",
+            pcView.contains("menu.remove(action(\"delete\", R.string.pcview_menu_delete_pc") &&
                 !pcView.contains("addPcSheetAction(")
-        )
-    }
-
-    @Test
-    fun aLoneActionKeepsItsRowStanding() {
-        val actions = File("src/main/java/com/papi/nova/PcView.kt").readText()
-            .substringAfter("private inner class PcSheetActions(")
-            .substringBefore("private fun launchQrScanner()")
-        assertTrue(
-            "a row takes its height from its children only while every one of them fills it: with a spacer of " +
-                "no height beside it, Open Library, alone in its section, measured to nothing and disappeared",
-            actions.contains("LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { marginStart = gap },") &&
-                !actions.contains("LinearLayout.LayoutParams(0, 0, 1f)")
-        )
-        assertTrue(
-            "a label that wraps makes its row taller, and its neighbour grows to match",
-            actions.contains("opened.isBaselineAligned = false") &&
-                actions.contains("LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {\n                    if (filled > 0) marginStart = gap")
         )
     }
 

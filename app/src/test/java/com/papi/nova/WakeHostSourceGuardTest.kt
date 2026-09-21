@@ -106,6 +106,29 @@ class WakeHostSourceGuardTest {
     }
 
     @Test
+    fun anAwakeHostIsNeverOfferedWaking() {
+        val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val strings = File("src/main/res/values/strings.xml").readText()
+
+        assertTrue(
+            "the control is named for what the machine is doing: every host that did not offer sleep read Wake " +
+                "Host while plainly awake, and that was every handheld that plays in a Space",
+            pcView.contains("val named = HostPowerPolicy.label(preferredHostIsReachable())") &&
+                pcView.contains("named == HostPowerAction.SLEEP -> R.string.pcview_quick_sleep_host")
+        )
+        assertTrue(
+            "a press on an awake host that will not sleep says why, instead of waking what is awake",
+            pcView.contains("} else if (preferredHostIsReachable()) {") &&
+                pcView.contains("NovaSnackbar.showQuiet(this, hostSleepRefusal())") &&
+                strings.contains("name=\"pcview_sleep_unavailable_not_offered\"")
+        )
+        assertTrue(
+            "what a hold may do is still the host's answer: only its yes starts the countdown",
+            pcView.contains("if (currentHostPowerAction() == HostPowerAction.SLEEP) {")
+        )
+    }
+
+    @Test
     fun wakeHostSaysWhySleepIsNotOffered() {
         val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val strings = File("src/main/res/values/strings.xml").readText()
