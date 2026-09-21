@@ -685,9 +685,10 @@
     <string name="help">Help</string>
     <string name="delete_pc_msg">Are you sure you want to delete this PC?</string>
     <string name="delete_pc_msg_paired">Delete this PC? Nova will also ask it to forget this device, so bringing it back means pairing again.</string>
-    <string name="delete_pc_host_unreachable">%1$s is removed here. It could not be reached, so it still lists this device as paired. You can remove it there.</string>
-    <string name="delete_pc_host_refused">%1$s is removed here, but it would not forget this device. You can remove it there.</string>
-    <string name="delete_pc_host_unsupported">%1$s is removed here. This kind of host cannot be asked to forget a device, so it still lists this one as paired.</string>
+    <string name="delete_pc_msg_paired_running">Delete this PC? Nova will also ask it to forget this device, so bringing it back means pairing again. A game is running on it, and forgetting this device can close that game.</string>
+    <string name="delete_pc_host_unreachable">%1$s could not be reached, so it still lists this device as paired.</string>
+    <string name="delete_pc_host_refused">%1$s would not forget this device. Remove it on that PC.</string>
+    <string name="delete_pc_host_unsupported">%1$s cannot be asked to forget a device, so it still lists this one.</string>
     <string name="slow_connection_msg">Slow connection to PC\nReduce your bitrate</string>
     <string name="poor_connection_msg">Poor connection to PC</string>
     <string name="perf_overlay_streamdetails">Video stream: %1$s %2$.2f FPS</string>

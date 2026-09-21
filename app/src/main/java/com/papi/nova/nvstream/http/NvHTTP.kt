@@ -608,6 +608,9 @@ class NvHTTP @Throws(IOException::class) constructor(
             return HostForgetResult.REFUSED
         } catch (e: IOException) {
             return HostForgetResult.UNREACHABLE
+        } catch (e: RuntimeException) {
+            // A port that does not parse or a TLS setup that throws: the host was not told.
+            return HostForgetResult.UNREACHABLE
         }
         return parseForgetResponse(response)
     }

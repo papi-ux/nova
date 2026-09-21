@@ -52,7 +52,11 @@ class PolarisSpacesTest {
             "a launcher this build has never heard of must not cost the whole list",
             "brand_new", requireNotNull(PolarisSpaces.parse(body.replace("heroic", "brand_new"))).spaces[0].launcher,
         )
-        assertEquals("a launcher is a word, never a number", null, PolarisSpaces.parse(body.replace("\"heroic\"", "7")))
+        for (unusable in listOf("7", "\"two words\"", "null", "[\"heroic\"]")) {
+            val parsed = requireNotNull(PolarisSpaces.parse(body.replace("\"heroic\"", unusable))) { "a label cost the whole list: $unusable" }
+            assertEquals(null, parsed.spaces[0].launcher)
+            assertEquals("Alex", parsed.spaces[0].name)
+        }
     }
     @Test fun derivesCanOpenForHostsThatDoNotSayAndRejectsTheWrongTypes() {
         val parsed = requireNotNull(PolarisSpaces.parse(valid))

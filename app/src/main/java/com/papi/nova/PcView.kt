@@ -94,6 +94,7 @@ import com.papi.nova.ui.NovaLibraryActivity
 import com.papi.nova.ui.NovaServerGridLayoutManager
 import com.papi.nova.ui.NovaQrScanActivity
 import com.papi.nova.ui.NovaSheetChrome
+import com.google.android.material.snackbar.Snackbar
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaWelcomeActivity
@@ -3169,7 +3170,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                                 syncComputerList()
                             }
                             HostForget.stillListedMessage(forgotten)?.let { message ->
-                                Toast.makeText(appContext, appContext.getString(message, details.name), Toast.LENGTH_LONG).show()
+                                val text = appContext.getString(message, details.name)
+                                // A toast is cut at two lines, and this is the only word the player gets about
+                                // the host. The snackbar wraps; the toast is for an activity that is gone.
+                                if (!isFinishing && !isDestroyed) {
+                                    NovaSnackbar.show(this@PcView, text, Snackbar.LENGTH_LONG)
+                                } else {
+                                    Toast.makeText(appContext, text, Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                     } finally {

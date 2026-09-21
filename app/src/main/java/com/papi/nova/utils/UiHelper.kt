@@ -387,10 +387,10 @@ object UiHelper {
             parent,
             computer.name,
             parent.resources.getString(
-                if (HostForget.canAsk(computer)) {
-                    R.string.delete_pc_msg_paired
-                } else {
-                    R.string.delete_pc_msg
+                when {
+                    HostForget.mayCloseRunningGame(computer) -> R.string.delete_pc_msg_paired_running
+                    HostForget.canAsk(computer) -> R.string.delete_pc_msg_paired
+                    else -> R.string.delete_pc_msg
                 },
             ),
             parent.resources.getString(R.string.yes),

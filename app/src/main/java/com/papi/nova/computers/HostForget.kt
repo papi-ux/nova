@@ -6,8 +6,6 @@ import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.HostForgetResult
 import com.papi.nova.nvstream.http.NvHTTP
-import com.papi.nova.nvstream.http.PairingManager.PairState
-import java.io.IOException
 
 /**
  * Deleting a PC here used to leave this device paired over there, and pairing the PC again then
@@ -15,13 +13,17 @@ import java.io.IOException
  */
 object HostForget {
     /**
-     * Whether there is anything to ask. A PC that was never paired from this device has nothing
-     * to forget, and one whose pinned certificate is gone cannot be reached over HTTPS, which is
-     * the only road a host takes a revocation on.
+     * Whether there is anything to ask: a PC this device paired with. The pinned certificate is
+     * the proof, because it is saved with the PC. The pair state is not, and is only known once
+     * the PC has answered in this session, so going by it a PC that was switched off when Nova
+     * started was deleted without the host being asked and without a word about it.
      */
     @JvmStatic
-    fun canAsk(details: ComputerDetails): Boolean =
-        details.pairState == PairState.PAIRED && details.serverCert != null
+    fun canAsk(details: ComputerDetails): Boolean = details.serverCert != null
+
+    /** A game running on the PC can be closed by this: a host with no paired device left ends it. */
+    @JvmStatic
+    fun mayCloseRunningGame(details: ComputerDetails): Boolean = canAsk(details) && details.runningGameId != 0
 
     /**
      * Asks, before the PC is deleted: the pinned certificate goes away with it. Null when there
@@ -33,10 +35,13 @@ object HostForget {
             return null
         }
         val address = details.activeAddress ?: return HostForgetResult.UNREACHABLE
+        // Nothing here may stop the PC from being deleted. Building the client can throw more than
+        // IOException (a key that will not load, an address that will not parse), and whatever it
+        // is, the host was not told.
         return try {
             NvHTTP(address, details.httpsPort, uniqueId, details.serverCert, PlatformBinding.getCryptoProvider(context))
                 .forgetThisDevice()
-        } catch (error: IOException) {
+        } catch (error: Exception) {
             HostForgetResult.UNREACHABLE
         }
     }

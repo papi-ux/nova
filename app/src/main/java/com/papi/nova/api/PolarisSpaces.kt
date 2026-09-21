@@ -91,7 +91,7 @@ data class PolarisSpaces(
                     id, name, state, entry.getBoolean("selected"), entry.optBoolean("library_enabled", false),
                     canOpen = if (entry.has("can_open")) entry.getBoolean("can_open") else state == "ready" || state == "running",
                     blockedReason = optionalWord(entry, "blocked_reason"),
-                    launcher = optionalWord(entry, "launcher"),
+                    launcher = decoration(entry, "launcher"),
                 )
             }
             require(spaces.map { it.id }.toSet().size == spaces.size)
@@ -119,6 +119,13 @@ data class PolarisSpaces(
                 capacity = capacity,
             )
         }.getOrNull()
+
+        /**
+         * A word that only decorates a row. Anything the client cannot use, whether missing, not
+         * a string, or not a plain word, reads as nothing: a label must never cost the list.
+         */
+        private fun decoration(source: JSONObject, key: String): String? =
+            (source.opt(key) as? String)?.takeIf { wordPattern.matches(it) }
 
         /**
          * An optional wire word. Absent, null or empty reads as null; a value the client has
