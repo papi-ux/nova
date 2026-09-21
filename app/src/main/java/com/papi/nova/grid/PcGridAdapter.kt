@@ -519,7 +519,12 @@ class PcGridAdapter(
             badge.visibility = if (badges.spaces) View.VISIBLE else View.GONE
             if (badges.spaces) {
                 dress(badge, tinted = true)
-                badge.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_spaces_planet, 0, 0, 0)
+                // The planet is drawn at the size of the badge's own type. At its intrinsic 24dp it
+                // set the badge's height, and Spaces stood half again as tall as Polaris beside it.
+                val planetSize = (badge.textSize * NOVA_HOST_BADGE_ICON_EM).toInt()
+                val planet = ContextCompat.getDrawable(context, R.drawable.ic_spaces_planet)?.mutate()
+                planet?.setBounds(0, 0, planetSize, planetSize)
+                badge.setCompoundDrawablesRelative(planet, null, null, null)
                 badge.compoundDrawablePadding = (4 * density).toInt()
                 TextViewCompat.setCompoundDrawableTintList(badge, ColorStateList.valueOf(accent))
                 // No leading margin when it stands alone, so the row still starts on the text's edge.
@@ -616,6 +621,9 @@ internal const val NOVA_HOST_CARD_SIDE_BY_SIDE_MIN_DP = 500f
 
 /** The corner nova_chip_default gives Manage, so the filled pill beside it is the same shape. */
 private const val NOVA_HOST_CARD_PILL_RADIUS_DP = 12f
+
+/** A badge's icon, in ems of the badge's type, so it grows with the text and never past it. */
+private const val NOVA_HOST_BADGE_ICON_EM = 1.2f
 
 /** How far the accent washes into an online host's card from its leading edge. */
 private const val NOVA_HOST_CARD_ACCENT_WASH = 0.20f

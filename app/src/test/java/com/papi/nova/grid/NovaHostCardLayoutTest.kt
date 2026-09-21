@@ -180,8 +180,41 @@ class NovaHostCardLayoutTest {
         val adapter = File("src/main/java/com/papi/nova/grid/PcGridAdapter.kt").readText()
         assertTrue(
             "the planet is the Spaces badge's now, and the hint under it is left to be a sentence",
-            adapter.contains("badge.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_spaces_planet, 0, 0, 0)") &&
+            adapter.contains("val planet = ContextCompat.getDrawable(context, R.drawable.ic_spaces_planet)?.mutate()") &&
                 !adapter.contains("statusHint?.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_spaces_planet")
+        )
+    }
+
+    /**
+     * papi, 2026-09-21: "the pills are different sizes - Polaris and Spaces pills within the host
+     * card". Spaces carried its planet at the icon's own 24dp, which set that badge's height, so
+     * it stood 51px beside Polaris at 36px on a Retroid Pocket 6.
+     */
+    @Test
+    fun theBadgesAreOneHeightWhateverTheyCarry() {
+        val style = File("src/main/res/values/styles.xml").readText()
+            .substringAfter("<style name=\"NovaHostBadge\">").substringBefore("</style>")
+        assertTrue(
+            "both badges take the one style, and the style sets the height they share",
+            style.contains("<item name=\"android:minHeight\">@dimen/nova_host_badge_min_height</item>") &&
+                style.contains("<item name=\"android:includeFontPadding\">false</item>")
+        )
+        val card = views("src/main/res/layout/pc_grid_item.xml")
+        listOf("host_badge_kind", "host_badge_spaces").forEach { id ->
+            val badge = card.getValue(id)
+            assertEquals("@style/NovaHostBadge", badge.getAttribute("style"))
+            listOf("android:layout_height", "android:minHeight", "android:textSize", "android:paddingTop", "android:paddingBottom")
+                .forEach { attribute ->
+                    assertEquals("$id sets no $attribute of its own, or the two part ways again", "", badge.getAttribute(attribute))
+                }
+        }
+        val adapter = File("src/main/java/com/papi/nova/grid/PcGridAdapter.kt").readText()
+        assertTrue(
+            "the planet is sized from the badge's type, so it cannot be what sets the badge's height",
+            adapter.contains("val planetSize = (badge.textSize * NOVA_HOST_BADGE_ICON_EM).toInt()") &&
+                adapter.contains("planet?.setBounds(0, 0, planetSize, planetSize)") &&
+                adapter.contains("badge.setCompoundDrawablesRelative(planet, null, null, null)") &&
+                !adapter.contains("badge.setCompoundDrawablesRelativeWithIntrinsicBounds(")
         )
     }
 

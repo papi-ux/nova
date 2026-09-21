@@ -52,5 +52,6 @@
     <dimen name="nova_icon_server_container">56dp</dimen>
     <dimen name="nova_icon_overlay">22dp</dimen>
     <dimen name="nova_icon_status_dot">12dp</dimen>
+    <dimen name="nova_host_badge_min_height">20dp</dimen>
 
 </resources>
