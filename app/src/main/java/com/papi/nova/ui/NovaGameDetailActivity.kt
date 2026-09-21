@@ -1112,8 +1112,16 @@ class NovaGameDetailActivity : NovaActivity() {
          * says so.
          */
         fun chooseResolution(choice: NovaDisplayResolutionChoice) {
-            chosenResolution = choice
-            saveResolutionOverride(currentGame, choice.id)
+            if (choice.id == NovaDisplayResolutionPlanner.DEVICE_SETTINGS_ID) {
+                // The device's own setting is what a launch uses with nothing chosen, so going
+                // back to it is clearing the choice. Stored as a choice it would freeze today's
+                // size into the launch and stop following the setting.
+                chosenResolution = null
+                clearResolutionOverride(currentGame)
+            } else {
+                chosenResolution = choice
+                saveResolutionOverride(currentGame, choice.id)
+            }
             if (spaceGame != null) loadOptimization(profilePreference)
         }
 
@@ -2260,10 +2268,16 @@ class NovaGameDetailActivity : NovaActivity() {
             ?.takeIf { it.isNotBlank() }
             ?: clientSettings?.effective?.displayMode
             ?: ""
+        // Planned from what this device is set to stream at, which is what a launch uses with
+        // nothing chosen, so the row and the launch cannot disagree.
+        val preferences = PreferenceConfiguration.readPreferences(this)
         return NovaDisplayResolutionPlanner.from(
             contract = game.displayPlanner,
             fallbackMode = fallbackMode,
-            includeAdvanced = true
+            includeAdvanced = true,
+            device = NovaDisplayResolutionPlanner.DeviceMode(
+                preferences.width, preferences.height, preferences.fps.toInt(),
+            )
         )
     }
 

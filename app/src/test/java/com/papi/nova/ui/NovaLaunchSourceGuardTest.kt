@@ -462,6 +462,27 @@ class NovaLaunchSourceGuardTest {
     }
 
     @Test
+    fun playSetupPlansResolutionsFromThisDeviceAndNeverStoresTheDeviceSettingAsAChoice() {
+        val detail = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val plannerFor = detail.section("private fun resolutionPlanner(", "private fun optionLabel(")
+        val choose = detail.section("fun chooseResolution(", "fun chooseFrameRate(")
+
+        assertTrue(
+            "nova#302: the row planned from the host's fallback display mode, so a device set to 1340x800 was " +
+                "offered 1920x1080 sizes and the row's value was not what a launch would use",
+            plannerFor.contains("PreferenceConfiguration.readPreferences(this)") &&
+                plannerFor.contains("device = NovaDisplayResolutionPlanner.DeviceMode(")
+        )
+        assertTrue(
+            "Device Settings means nothing chosen. Saved as a choice it would freeze today's size into " +
+                "the launch and stop following the setting",
+            choose.contains("choice.id == NovaDisplayResolutionPlanner.DEVICE_SETTINGS_ID") &&
+                choose.contains("chosenResolution = null") &&
+                choose.contains("clearResolutionOverride(currentGame)")
+        )
+    }
+
+    @Test
     fun streamStartupOverlayWaitsForNativeConnectionStartedBeforeDismissal() {
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val overlay = readSource("src/main/java/com/papi/nova/ui/SessionProgressOverlay.kt")

@@ -17,11 +17,23 @@ data class NovaDisplayResolutionPlanner(
     val visibleChoices: List<NovaDisplayResolutionChoice>,
     val hasAdvancedChoices: Boolean
 ) {
+    /** The resolution this device is set to stream at: what a launch uses when nothing is chosen. */
+    data class DeviceMode(val width: Int, val height: Int, val fps: Int) {
+        val mode: String get() = "${width}x${height}x$fps"
+    }
+
     companion object {
+        /**
+         * The choice that stands for "whatever this device is set to". It is the default, and
+         * choosing it is the same as choosing nothing, so it is never stored as an override.
+         */
+        const val DEVICE_SETTINGS_ID = "device_settings"
+
         fun from(
             contract: PolarisGame.DisplayPlannerContract?,
             fallbackMode: String,
-            includeAdvanced: Boolean
+            includeAdvanced: Boolean,
+            device: DeviceMode? = null
         ): NovaDisplayResolutionPlanner {
             if (contract?.available != true) {
                 return NovaDisplayResolutionPlanner(
@@ -32,6 +44,10 @@ data class NovaDisplayResolutionPlanner(
                     visibleChoices = emptyList(),
                     hasAdvancedChoices = false
                 )
+            }
+
+            if (device != null && device.width > 0 && device.height > 0) {
+                return forDevice(contract, device, includeAdvanced)
             }
 
             val recommended = contract.recommendedId.ifBlank { "balanced" }
@@ -58,6 +74,90 @@ data class NovaDisplayResolutionPlanner(
                 visibleChoices = choices.filter { includeAdvanced || !it.advanced },
                 hasAdvancedChoices = choices.any { it.advanced }
             )
+        }
+
+        /**
+         * The host's presets, planned from this device rather than from the host.
+         *
+         * The host plans from its own fallback display mode, the same for every client, while
+         * its wording is about the client: "Match the client panel exactly", "Best for this
+         * device". On a handheld set to 1340x800 against a 1920x1080 host every line of that
+         * was false, and the row's value was too: with nothing chosen a launch uses this
+         * device's saved resolution, not the host's recommendation. So the presets keep their
+         * scale factors and are applied to the device's resolution, the default is the device's
+         * own setting, and it is what the row reads until something else is chosen.
+         *
+         * The host's Custom preset is left out. It is the web console's hand-typed scale
+         * factor, which reaches a client as 1, so it was a second copy of Native under a name
+         * that reads as this device's Custom resolution.
+         */
+        private fun forDevice(
+            contract: PolarisGame.DisplayPlannerContract,
+            device: DeviceMode,
+            includeAdvanced: Boolean
+        ): NovaDisplayResolutionPlanner {
+            val deviceChoice = NovaDisplayResolutionChoice(
+                id = DEVICE_SETTINGS_ID,
+                title = "Device Settings",
+                targetMode = device.mode,
+                badge = "",
+                reason = "Use this device's saved resolution.",
+                advanced = false,
+                custom = false,
+                safe = true,
+                recommended = true
+            )
+            val presets = contract.choices
+                .filter { it.id.isNotBlank() && it.id != DEVICE_SETTINGS_ID && !it.custom }
+                .mapNotNull { choice ->
+                    val width = roundToEven(device.width * choice.scaleFactor)
+                    val height = roundToEven(device.height * choice.scaleFactor)
+                    // A preset that lands on the device's own size is the default again.
+                    if (width == device.width && height == device.height) return@mapNotNull null
+                    if (!safeMode(width, height)) return@mapNotNull null
+                    NovaDisplayResolutionChoice(
+                        id = choice.id,
+                        title = choice.title.ifBlank { choice.id.replaceFirstChar { it.titlecase(Locale.US) } },
+                        targetMode = "${width}x${height}x${device.fps}",
+                        badge = choice.badge.takeUnless { it.equals("Press A", ignoreCase = true) }.orEmpty(),
+                        reason = presetReason(choice),
+                        advanced = choice.advanced,
+                        custom = false,
+                        safe = true,
+                        recommended = false
+                    )
+                }
+                .distinctBy { it.targetMode }
+            return NovaDisplayResolutionPlanner(
+                available = true,
+                sourceMode = device.mode,
+                recommendedId = DEVICE_SETTINGS_ID,
+                recommendedMode = device.mode,
+                visibleChoices = listOf(deviceChoice) + presets.filter { includeAdvanced || !it.advanced },
+                hasAdvancedChoices = presets.any { it.advanced }
+            )
+        }
+
+        /** The host's rounding, so a preset lands on the size the host would have planned. */
+        private fun roundToEven(value: Double): Int {
+            if (!value.isFinite()) return 0
+            val rounded = maxOf(2L, Math.round(value))
+            return (if (rounded % 2L == 0L) rounded else rounded + 1).toInt()
+        }
+
+        /** The host's safe-mode envelope: nothing past 8K, and nothing degenerate. */
+        private fun safeMode(width: Int, height: Int): Boolean =
+            width in 2..7680 && height in 2..4320 && width.toLong() * height <= 7680L * 4320L
+
+        /**
+         * The host opens Balanced with "Best for this device:". Here the default is the
+         * device's own setting, so the sentence starts after that claim.
+         */
+        private fun presetReason(choice: PolarisGame.DisplayPlannerChoice): String {
+            val reason = choice.reason.ifBlank { choice.intent }
+            val claim = "Best for this device:"
+            if (!reason.startsWith(claim, ignoreCase = true)) return reason
+            return reason.substring(claim.length).trim().replaceFirstChar { it.titlecase(Locale.US) }
         }
 
         /**
