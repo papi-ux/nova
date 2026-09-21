@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import kotlinx.coroutines.delay
@@ -37,9 +38,10 @@ import kotlinx.coroutines.flow.first
  * Cards and rows hold their text to a line or two so a screen of them lines up, and an ellipsis
  * says there is more. With a controller there was then no way to read the more: nothing opens, and
  * nothing scrolls. A description nobody can finish is not worth printing. So while [highlighted],
- * under the cursor or the current choice, text that does not fit scrolls up slowly inside the
- * room it already has, rests at its end, and returns. Nothing moves when it fits, and the tile
- * keeps its height either way.
+ * under the cursor or the current choice, text that does not fit moves up a line at a time inside
+ * the room it already has, holds each line long enough to read, rests at its end, and returns.
+ * A line at a time because a steady crawl through a one line room shows two half lines for most
+ * of the trip. Nothing moves when it fits, and the tile keeps its height either way.
  *
  * @param passes how many times it plays while highlighted. A tile under the cursor keeps going
  *   for as long as it is looked at; a card that is only the current choice plays twice and rests.
@@ -55,14 +57,30 @@ fun NovaRevealingText(
     modifier: Modifier = Modifier,
     minLines: Int = 1,
     passes: Int = Int.MAX_VALUE,
+    fontWeight: FontWeight? = null,
+    /**
+     * Its turn is over: it played its [passes], or it had nothing hidden to play, which is what
+     * the argument says. For a caller that highlights several texts one after another and needs
+     * to know when to move on, and whether anything was worth the turn.
+     */
+    onPlayed: ((revealed: Boolean) -> Unit)? = null,
 ) {
     // Whether the cut text lost anything. Only the cut text can say; it is kept across the swap.
     var overflows by remember(text, maxLines) { mutableStateOf(false) }
-    if (!highlighted || !overflows) {
+    // Unbounded text has nothing cut, and no height to scroll inside.
+    if (!highlighted || !overflows || maxLines == Int.MAX_VALUE) {
+        if (highlighted && onPlayed != null) {
+            // Long enough for the layout above to have said whether anything is cut.
+            LaunchedEffect(text, maxLines) {
+                delay(NOVA_REVEAL_SETTLE_MS)
+                if (!overflows || maxLines == Int.MAX_VALUE) onPlayed(false)
+            }
+        }
         Text(
             text = text,
             color = color,
             fontSize = fontSize,
+            fontWeight = fontWeight,
             lineHeight = lineHeight,
             minLines = minLines,
             maxLines = maxLines,
@@ -76,18 +94,22 @@ fun NovaRevealingText(
     val scroll = rememberScrollState()
     val density = LocalDensity.current
     val room = with(density) { (lineHeight * maxLines).toDp() }
-    val pixelsPerSecond = with(density) { NOVA_REVEAL_DP_PER_SECOND * this.density }
+    val linePx = with(density) { lineHeight.toPx() }
     LaunchedEffect(text, maxLines) {
         // The distance is known once the full text has been laid out.
         val distance = snapshotFlow { scroll.maxValue }.first { it > 0 && it != Int.MAX_VALUE }
+        val stops = novaRevealStops(distance, linePx)
         var played = 0
         while (played < passes) {
             delay(NOVA_REVEAL_REST_MS)
-            scroll.animateScrollTo(distance, tween(novaRevealMillis(distance, pixelsPerSecond), easing = LinearEasing))
-            delay(NOVA_REVEAL_REST_MS)
+            for (stop in stops) {
+                scroll.animateScrollTo(stop, tween(NOVA_REVEAL_STEP_MS, easing = LinearEasing))
+                delay(NOVA_REVEAL_LINE_MS)
+            }
             scroll.animateScrollTo(0, tween(NOVA_REVEAL_RETURN_MS))
             played++
         }
+        onPlayed?.invoke(true)
     }
     val edge = with(density) { NOVA_REVEAL_EDGE_DP.dp.toPx() }
     Box(
@@ -98,6 +120,9 @@ fun NovaRevealingText(
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawWithContent {
                 drawContent()
+                // Only while it moves. At rest a line sits exactly in the room, and a fade
+                // across the top of it would dim the text it was stopped to show.
+                if (!scroll.isScrollInProgress) return@drawWithContent
                 if (scroll.value > 0) {
                     drawRect(
                         brush = Brush.verticalGradient(listOf(Color.Transparent, Color.Black), startY = 0f, endY = edge),
@@ -122,19 +147,32 @@ fun NovaRevealingText(
             // Driven from here only: a finger on the text still belongs to whatever the tile is in.
             .verticalScroll(scroll, enabled = false),
     ) {
-        Text(text = text, color = color, fontSize = fontSize, lineHeight = lineHeight)
+        Text(text = text, color = color, fontSize = fontSize, fontWeight = fontWeight, lineHeight = lineHeight)
     }
 }
 
-/** How long one reveal takes: a reading pace, never so brief that a single hidden line flicks past. */
-internal fun novaRevealMillis(distancePx: Int, pixelsPerSecond: Float): Int {
-    if (distancePx <= 0 || pixelsPerSecond <= 0f) return NOVA_REVEAL_MIN_MS
-    return ((distancePx / pixelsPerSecond) * 1000f).toInt().coerceAtLeast(NOVA_REVEAL_MIN_MS)
+/**
+ * Where the text stops on its way to [distancePx], one line of [linePx] at a time, ending exactly
+ * at the end. A last step shorter than a third of a line is folded into the one before it, so the
+ * text does not twitch a few pixels to finish.
+ */
+internal fun novaRevealStops(distancePx: Int, linePx: Float): List<Int> {
+    if (distancePx <= 0) return emptyList()
+    if (linePx <= 0f || distancePx <= linePx) return listOf(distancePx)
+    val stops = mutableListOf<Int>()
+    var next = linePx
+    while (next < distancePx - linePx / 3f) {
+        stops += next.toInt()
+        next += linePx
+    }
+    stops += distancePx
+    return stops
 }
 
-/** About a line of small text every second and a half. */
-private const val NOVA_REVEAL_DP_PER_SECOND = 9f
-private const val NOVA_REVEAL_MIN_MS = 1200
+/** A line slides in quickly and then holds still to be read. */
+private const val NOVA_REVEAL_STEP_MS = 320
+private const val NOVA_REVEAL_LINE_MS = 1500L
 private const val NOVA_REVEAL_REST_MS = 1600L
 private const val NOVA_REVEAL_RETURN_MS = 420
 private const val NOVA_REVEAL_EDGE_DP = 5
+private const val NOVA_REVEAL_SETTLE_MS = 120L

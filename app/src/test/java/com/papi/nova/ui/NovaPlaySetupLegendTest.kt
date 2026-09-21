@@ -154,6 +154,29 @@ class NovaPlaySetupLegendTest {
         )
     }
 
+    @Test
+    fun theReadColumnsCutTextTakesTurnsAndAColumnThatFitsNeverStirs() {
+        // Six texts: each hands on to the next.
+        assertEquals(1, novaPlaySetupNextTurn(index = 0, items = 6, revealedThisRound = false))
+        assertEquals(5, novaPlaySetupNextTurn(index = 4, items = 6, revealedThisRound = true))
+        // After the last: another round only if this one had something hidden to show.
+        assertEquals(NOVA_PLAY_SETUP_TURN_REST, novaPlaySetupNextTurn(index = 5, items = 6, revealedThisRound = true))
+        assertEquals(NOVA_PLAY_SETUP_TURN_DONE, novaPlaySetupNextTurn(index = 5, items = 6, revealedThisRound = false))
+        assertEquals(NOVA_PLAY_SETUP_TURN_DONE, novaPlaySetupNextTurn(index = 0, items = 1, revealedThisRound = false))
+
+        val column = read("NovaPlaySetup.kt").section("private fun NovaPlaySetupReadColumn(", "private fun rememberNovaPlaySetupReadFit(")
+        assertTrue(
+            "nothing in the read column takes the cursor, so what the fit cut off could not be read at all; " +
+                "its lines and its facts' details show the rest of themselves one at a time",
+            column.contains("highlighted = turn == index,") && column.contains("revealing = turn == item,") &&
+                column.contains("passes = 1,") && column.contains("novaPlaySetupNextTurn(index, items, revealedThisRound)")
+        )
+        assertTrue(
+            "a change to the plan starts the turns again from the top",
+            column.contains("var turn by remember(plan, fit) { mutableIntStateOf(-1) }")
+        )
+    }
+
     private fun read(name: String): String =
         String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/$name")), StandardCharsets.UTF_8)
 

@@ -15,14 +15,17 @@ import org.junit.Test
 class NovaRevealingTextTest {
 
     @Test
-    fun theRevealRunsAtAReadingPaceAndNeverFlicksPast() {
-        // 21 px a second is the Retroid's 9dp. Three hidden lines of 32px take about four and a half seconds.
-        assertEquals(4571, novaRevealMillis(distancePx = 96, pixelsPerSecond = 21f))
-        // One hidden line would be a second and a half; nothing is shorter than the floor.
-        assertEquals(1523, novaRevealMillis(distancePx = 32, pixelsPerSecond = 21f))
-        assertEquals(1200, novaRevealMillis(distancePx = 4, pixelsPerSecond = 21f))
-        assertEquals(1200, novaRevealMillis(distancePx = 0, pixelsPerSecond = 21f))
-        assertEquals(1200, novaRevealMillis(distancePx = 96, pixelsPerSecond = 0f))
+    fun theRevealMovesALineAtATimeAndEndsExactlyAtTheEnd() {
+        // Three hidden lines of 32px: one stop per line, the last one the end itself.
+        assertEquals(listOf(32, 64, 96), novaRevealStops(distancePx = 96, linePx = 32f))
+        // One hidden line is one move.
+        assertEquals(listOf(32), novaRevealStops(distancePx = 32, linePx = 32f))
+        assertEquals(listOf(20), novaRevealStops(distancePx = 20, linePx = 32f))
+        // A remainder too small to be worth a move of its own rides with the step before it.
+        assertEquals(listOf(32, 70), novaRevealStops(distancePx = 70, linePx = 32f))
+        assertEquals(listOf(32, 64, 80), novaRevealStops(distancePx = 80, linePx = 32f))
+        assertEquals(emptyList<Int>(), novaRevealStops(distancePx = 0, linePx = 32f))
+        assertEquals(listOf(96), novaRevealStops(distancePx = 96, linePx = 0f))
     }
 
     @Test
@@ -31,7 +34,7 @@ class NovaRevealingTextTest {
         assertTrue(
             "only text the cut actually shortened is swapped for the scrolling one",
             source.contains("onTextLayout = { overflows = it.hasVisualOverflow }") &&
-                source.contains("if (!highlighted || !overflows) {")
+                source.contains("if (!highlighted || !overflows || maxLines == Int.MAX_VALUE) {")
         )
         assertTrue(
             "the scrolling text stands in exactly the lines the cut text had, so nothing around it moves",

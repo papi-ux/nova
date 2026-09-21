@@ -19,6 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.delay
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
@@ -158,6 +161,30 @@ private fun NovaPlaySetupReadColumn(
     val colors = LocalNovaComposeColors.current
     BoxWithConstraints(modifier = modifier) {
         val fit = rememberNovaPlaySetupReadFit(plan, introMaxLines, maxWidth, fitHeight)
+        // The column fits itself by cutting lines, and nothing in it takes the cursor, so what it
+        // cut could not be read at all. Its texts take turns instead: one at a time, top to
+        // bottom, each shows the rest of itself once and hands on. A round in which nothing had
+        // anything hidden is the last; otherwise the column rests and goes round again.
+        val items = plan.lines.size + plan.facts.size
+        var turn by remember(plan, fit) { mutableIntStateOf(-1) }
+        var round by remember(plan, fit) { mutableIntStateOf(0) }
+        var revealedThisRound by remember(plan, fit) { mutableStateOf(false) }
+        LaunchedEffect(plan, fit, round) {
+            if (items == 0) return@LaunchedEffect
+            delay(if (round == 0) NOVA_PLAY_SETUP_READ_FIRST_TURN_MS else NOVA_PLAY_SETUP_READ_REST_MS)
+            revealedThisRound = false
+            turn = 0
+        }
+        val played: (Int, Boolean) -> Unit = { index, revealed ->
+            if (turn == index) {
+                if (revealed) revealedThisRound = true
+                when (val next = novaPlaySetupNextTurn(index, items, revealedThisRound)) {
+                    NOVA_PLAY_SETUP_TURN_REST -> { turn = -1; round++ }
+                    NOVA_PLAY_SETUP_TURN_DONE -> turn = -1
+                    else -> turn = next
+                }
+            }
+        }
         Column(modifier = Modifier.fillMaxWidth()) {
             NovaPlaySetupColumnHead(readTitle ?: stringResource(R.string.nova_play_setup_what_will_happen))
             Text(
@@ -170,8 +197,11 @@ private fun NovaPlaySetupReadColumn(
                 overflow = TextOverflow.Ellipsis,
             )
             plan.lines.forEachIndexed { index, line ->
-                Text(
+                NovaRevealingText(
                     text = line,
+                    highlighted = turn == index,
+                    passes = 1,
+                    onPlayed = { revealed -> played(index, revealed) },
                     // The last line is the part nobody asked for but everyone wants to know:
                     // whether anything outside this game is about to be touched.
                     color = if (index == plan.lines.lastIndex) colors.textMuted else colors.textSecondary,
@@ -179,7 +209,6 @@ private fun NovaPlaySetupReadColumn(
                     lineHeight = 19.sp,
                     modifier = Modifier.padding(top = 6.dp),
                     maxLines = fit.lineMaxLines.getOrElse(index) { introMaxLines },
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
 
@@ -187,7 +216,13 @@ private fun NovaPlaySetupReadColumn(
                 Spacer(modifier = Modifier.height(20.dp))
                 NovaPlaySetupRule()
                 plan.facts.forEachIndexed { index, fact ->
-                    NovaPlaySetupFact(fact, detailMaxLines = fit.detailMaxLines.getOrElse(index) { Int.MAX_VALUE })
+                    val item = plan.lines.size + index
+                    NovaPlaySetupFact(
+                        fact = fact,
+                        detailMaxLines = fit.detailMaxLines.getOrElse(index) { Int.MAX_VALUE },
+                        revealing = turn == item,
+                        onPlayed = { revealed -> played(item, revealed) },
+                    )
                 }
             }
         }
@@ -340,7 +375,13 @@ private fun NovaPlaySetupPinnedLegend(comparison: (@Composable () -> Unit)?, cap
  * down one edge instead of hunting for where each one starts.
  */
 @Composable
-private fun NovaPlaySetupFact(fact: NovaPlaySetupFact, detailMaxLines: Int = Int.MAX_VALUE) {
+private fun NovaPlaySetupFact(
+    fact: NovaPlaySetupFact,
+    detailMaxLines: Int = Int.MAX_VALUE,
+    /** It is this fact's turn to show the part of its detail the fit cut off. */
+    revealing: Boolean = false,
+    onPlayed: ((revealed: Boolean) -> Unit)? = null,
+) {
     val colors = LocalNovaComposeColors.current
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
         Text(
@@ -367,15 +408,20 @@ private fun NovaPlaySetupFact(fact: NovaPlaySetupFact, detailMaxLines: Int = Int
                 fontWeight = FontWeight.Medium,
             )
             if (fact.detail.isNotBlank()) {
-                Text(
+                NovaRevealingText(
                     text = fact.detail,
+                    highlighted = revealing,
+                    passes = 1,
+                    onPlayed = onPlayed,
                     color = colors.textMuted,
                     fontSize = 11.sp,
                     lineHeight = 15.sp,
                     maxLines = detailMaxLines,
-                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 4.dp),
                 )
+            } else if (revealing) {
+                // Nothing to show, so the turn passes straight on.
+                LaunchedEffect(Unit) { onPlayed?.invoke(false) }
             }
         }
     }
@@ -559,6 +605,24 @@ internal fun novaPlaySetupOptionDescription(option: NovaPlaySetupOption): String
  */
 internal fun novaPlaySetupPressActs(firstPressFocuses: Boolean, heldFocus: Boolean): Boolean =
     !firstPressFocuses || heldFocus
+
+/** The column rests and goes round again. */
+internal const val NOVA_PLAY_SETUP_TURN_REST = -1
+
+/** Nothing in the column was cut, so there is nothing to go round for. */
+internal const val NOVA_PLAY_SETUP_TURN_DONE = -2
+
+/**
+ * Whose turn it is after [index] has had its own, among [items] texts in the read column.
+ *
+ * The next one down; after the last, a rest and another round if anything this round actually
+ * had text hidden, and an end if nothing did, so a column that fits never stirs.
+ */
+internal fun novaPlaySetupNextTurn(index: Int, items: Int, revealedThisRound: Boolean): Int = when {
+    index + 1 < items -> index + 1
+    revealedThisRound -> NOVA_PLAY_SETUP_TURN_REST
+    else -> NOVA_PLAY_SETUP_TURN_DONE
+}
 
 /**
  * The most a pinned legend may take of a body [fitHeight] tall: all of it but the room a row and
@@ -913,6 +977,12 @@ internal fun novaPlaySetupFitReadColumn(
         detailMaxLines = detailMax.map { if (it <= 0) Int.MAX_VALUE else it },
     )
 }
+
+/** Long enough to have read what is on the screen before any of it moves. */
+private const val NOVA_PLAY_SETUP_READ_FIRST_TURN_MS = 2600L
+
+/** Between rounds. The column is for reading; it should mostly be still. */
+private const val NOVA_PLAY_SETUP_READ_REST_MS = 9000L
 
 /** The rows a pinned legend leaves room for; the rest are a scroll away. */
 private const val NOVA_PLAY_SETUP_ROWS_KEPT_IN_VIEW = 3
