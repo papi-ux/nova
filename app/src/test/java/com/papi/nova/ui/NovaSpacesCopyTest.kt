@@ -59,6 +59,20 @@ class NovaSpacesCopyTest {
     }
 
     @Test
+    fun aSpaceRowSaysWhichLauncherItOpens() {
+        assertEquals("Steam", NovaSpacesCopy.launcherName("steam"))
+        assertEquals("Heroic", NovaSpacesCopy.launcherName("heroic"))
+        assertEquals("Lutris", NovaSpacesCopy.launcherName("lutris"))
+        assertNull("a word this build does not know is shown as nothing, not as a raw token", NovaSpacesCopy.launcherName("brand_new"))
+        assertNull(NovaSpacesCopy.launcherName(null))
+
+        assertEquals("Heroic \u00B7 Current Space", NovaSpacesCopy.chooserCaption("heroic", "Current Space"))
+        assertEquals("Lutris", NovaSpacesCopy.chooserCaption("lutris", null))
+        assertEquals("an older host still gets its note", "Current Space", NovaSpacesCopy.chooserCaption(null, "Current Space"))
+        assertEquals("", NovaSpacesCopy.chooserCaption(null, null))
+    }
+
+    @Test
     fun oneWordPerWireState() {
         assertEquals(R.string.nova_space_state_ready, NovaSpacesCopy.stateLabel("ready"))
         assertEquals(R.string.nova_space_state_starting, NovaSpacesCopy.stateLabel("starting"))

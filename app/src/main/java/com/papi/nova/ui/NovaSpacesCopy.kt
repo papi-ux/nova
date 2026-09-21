@@ -42,6 +42,24 @@ internal object NovaSpacesCopy {
         else -> R.string.nova_space_state_unknown
     }
 
+    /**
+     * The name a player knows a launcher by. These are product names, so they are not translated.
+     * A word this build has never seen is shown as nothing: a raw wire token on a row helps nobody.
+     */
+    fun launcherName(launcher: String?): String? = when (launcher) {
+        "steam" -> "Steam"
+        "heroic" -> "Heroic"
+        "lutris" -> "Lutris"
+        else -> null
+    }
+
+    /**
+     * What sits under a Space's name in the chooser: the launcher first, so the eye finds it in the
+     * same place on every row, then whatever else the row has to say.
+     */
+    fun chooserCaption(launcher: String?, note: String?): String =
+        listOfNotNull(launcherName(launcher), note?.takeIf { it.isNotBlank() }).joinToString(" \u00B7 ")
+
     /** Why the host cannot offer Spaces, or null while it can. */
     @StringRes
     fun unavailableReason(snapshot: PolarisSpaces): Int? {

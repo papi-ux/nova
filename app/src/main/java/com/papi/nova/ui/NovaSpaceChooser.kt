@@ -114,11 +114,14 @@ internal fun NovaSpaceChooser(
                 val reason = NovaSpacesCopy.openBlockedReason(space)
                 NovaSteamChoiceRow(
                     label = space.name,
-                    caption = when {
-                        space.selected -> stringResource(R.string.nova_space_current)
-                        reason != null -> stringResource(reason)
-                        else -> ""
-                    },
+                    caption = NovaSpacesCopy.chooserCaption(
+                        space.launcher,
+                        when {
+                            space.selected -> stringResource(R.string.nova_space_current)
+                            reason != null -> stringResource(reason)
+                            else -> null
+                        },
+                    ),
                     enabled = snapshot.canSwitch && space.state != "unavailable",
                     onClick = { onChoose(space.id) },
                     selected = space.selected,

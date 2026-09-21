@@ -10,6 +10,10 @@ import java.io.StringReader
  *
  * [canOpen] and [blockedReason] arrived after nova#308 as optional keys. A host that does not
  * send them gets the answer the older client derived from [state] alone.
+ *
+ * [launcher] is the launcher the Space opens, as the host's word for it (steam, heroic, lutris).
+ * A Space is named by its owner, so the name says nothing about what is inside; null when the
+ * host does not say.
  */
 data class PolarisSpace(
     val id: String,
@@ -19,6 +23,7 @@ data class PolarisSpace(
     val libraryEnabled: Boolean = false,
     val canOpen: Boolean = state == "ready" || state == "running",
     val blockedReason: String? = null,
+    val launcher: String? = null,
 ) {
     /** Open or resume: the host's answer, plus a Space that is already running for this device. */
     val openable: Boolean get() = canOpen || state == "running"
@@ -86,6 +91,7 @@ data class PolarisSpaces(
                     id, name, state, entry.getBoolean("selected"), entry.optBoolean("library_enabled", false),
                     canOpen = if (entry.has("can_open")) entry.getBoolean("can_open") else state == "ready" || state == "running",
                     blockedReason = optionalWord(entry, "blocked_reason"),
+                    launcher = optionalWord(entry, "launcher"),
                 )
             }
             require(spaces.map { it.id }.toSet().size == spaces.size)
