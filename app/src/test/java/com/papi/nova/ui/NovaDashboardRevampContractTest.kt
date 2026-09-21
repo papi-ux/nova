@@ -278,7 +278,16 @@ class NovaDashboardRevampContractTest {
         assertTrue("landscape rail should reserve a collapsed icon width token", dimens.contains("nova_dashboard_rail_collapsed_width"))
         assertTrue("landscape rail top padding should be visually tighter than the current gappy 12dp", railXml.contains("""android:paddingTop="6dp"""))
         val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
-        assertTrue("landscape header padding should not add the full status-bar inset", source.contains("headerTopPadding") && source.contains("ORIENTATION_LANDSCAPE") && source.contains("UiHelper.dpToPx(this, 4f).toInt()") && source.contains("topInset + UiHelper.dpToPx(this, 16f).toInt()"))
+        assertTrue("landscape header padding should not add the full status-bar inset", source.contains("headerTopPadding") && source.contains("ORIENTATION_LANDSCAPE") && source.contains("UiHelper.dpToPx(this, 4f).toInt()"))
+        assertTrue(
+            "nor should the upright header: the root already keeps the dashboard clear of the status bar, and adding " +
+                "its height again left 80dp of a Pixel 10 Pro empty above the title",
+            source.contains("UiHelper.dpToPx(this, 16f).toInt()") &&
+                !source.contains("topInset + UiHelper.dpToPx(this, 16f).toInt()") &&
+                !source.substringAfter("val header = findViewById<View>(R.id.pcViewHeader)")
+                    .substringBefore("spaceParticleView = findViewById(R.id.space_particles)")
+                    .contains("setOnApplyWindowInsetsListener")
+        )
 
         val expectedOrder = listOf(
             "@+id/actionStartPolaris",

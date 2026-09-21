@@ -97,11 +97,7 @@ object NovaSheetChrome {
             val maxHeight = (displayHeight * if (isLandscape) maxHeightLandscape else maxHeightPortrait).toInt()
             val measuredHeight = measuredView.measuredHeight.takeIf { it > 0 } ?: sheet.measuredHeight
             val desiredHeight = measuredHeight.takeIf { it > 0 }?.coerceAtMost(maxHeight) ?: maxHeight
-            val minWidth = dp(context, minLandscapeWidthDp)
-            val maxWidth = dp(context, maxLandscapeWidthDp)
-            val landscapeWidth = (displayWidth * widthFraction).toInt()
-                .coerceIn(minWidth.coerceAtMost(displayWidth), maxWidth.coerceAtMost(displayWidth))
-                .coerceAtMost(displayWidth - dp(context, 36))
+            val landscapeWidth = landscapeSheetWidth(context, widthFraction, minLandscapeWidthDp, maxLandscapeWidthDp)
             val desiredWidth = if (isLandscape) landscapeWidth else ViewGroup.LayoutParams.MATCH_PARENT
             val horizontalMargin = if (isLandscape) {
                 ((displayWidth - landscapeWidth) / 2).coerceAtLeast(dp(context, 18))
@@ -139,6 +135,24 @@ object NovaSheetChrome {
         }
     }
 
+
+    /**
+     * How wide a sheet stands in landscape, in pixels. Here rather than inside the chrome so a
+     * sheet that lays its content out by width can ask before it is shown and get the same answer.
+     */
+    fun landscapeSheetWidth(
+        context: Context,
+        widthFraction: Float = LANDSCAPE_WIDTH_FRACTION,
+        minLandscapeWidthDp: Int = 660,
+        maxLandscapeWidthDp: Int = 1120,
+    ): Int {
+        val displayWidth = context.resources.displayMetrics.widthPixels
+        val minWidth = dp(context, minLandscapeWidthDp)
+        val maxWidth = dp(context, maxLandscapeWidthDp)
+        return (displayWidth * widthFraction).toInt()
+            .coerceIn(minWidth.coerceAtMost(displayWidth), maxWidth.coerceAtMost(displayWidth))
+            .coerceAtMost(displayWidth - dp(context, 36))
+    }
 
     fun applyMenuOpacityToLegacyAlert(dialog: AlertDialog, destructivePositive: Boolean = false) {
         applyAlertDialogChrome(dialog, destructivePositive)

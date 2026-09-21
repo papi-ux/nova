@@ -196,7 +196,7 @@ object UiHelper {
                     view: View,
                     windowInsets: WindowInsets,
                 ->
-                val tappableInsets: Insets = windowInsets.tappableElementInsets
+                val tappableInsets: Insets = rootInsets(activity, windowInsets)
                 view.setPadding(
                     tappableInsets.left,
                     tappableInsets.top,
@@ -221,6 +221,26 @@ object UiHelper {
             // Below Android 10 nothing padded this content, and the surface-colored bars
             // hid what sat under them. The bars are transparent now, so keep it clear.
             padForSystemBars(insetTarget)
+        }
+    }
+
+    /**
+     * What a screen's root keeps clear of.
+     *
+     * The tappable insets are reported as if the bars were showing even when Hide System Bars has
+     * taken them away, so every screen built on this kept an empty band the height of the status
+     * bar along its top: 24dp of a handheld's 468, above a rail that then had to scroll. With the
+     * bars hidden the root keeps clear of whatever is really on screen, the bars if the system
+     * refused to hide them and a cutout if there is one, and of nothing otherwise. A swipe brings
+     * the bars back over the content for a moment, which moves nothing.
+     */
+    private fun rootInsets(activity: Activity, windowInsets: WindowInsets): Insets {
+        val barsHidden = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            NovaSystemBars.isManaged(activity) && NovaSystemBars.isHidden(activity)
+        return if (barsHidden) {
+            windowInsets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+        } else {
+            windowInsets.tappableElementInsets
         }
     }
 

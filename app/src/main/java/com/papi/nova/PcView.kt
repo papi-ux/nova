@@ -125,6 +125,18 @@ import org.xmlpull.v1.XmlPullParserException
 internal fun dashboardSetupActionHeight(collapsed: Boolean, compactHeight: Int): Int =
     if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT
 
+/**
+ * How many columns a host's sheet lays its actions in.
+ *
+ * Two when the sheet is wide enough for the longest label, "Test Network Connection", to keep one
+ * line in half of it, which a landscape sheet is on every handheld Nova runs on. One upright, and
+ * one when larger type would push the labels onto second lines.
+ */
+internal fun novaHostSheetColumns(landscape: Boolean, sheetWidthDp: Float, fontScale: Float): Int =
+    if (landscape && sheetWidthDp >= NOVA_HOST_SHEET_TWO_COLUMN_MIN_DP * fontScale.coerceAtLeast(1f)) 2 else 1
+
+internal const val NOVA_HOST_SHEET_TWO_COLUMN_MIN_DP = 520f
+
 class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private val THEME_PICKER_GRID_GAP_DP = 8
     private var noPcFoundLayout: View? = null
@@ -363,30 +375,21 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
         val header = findViewById<View>(R.id.pcViewHeader)
         if (header != null) {
-            header.setOnApplyWindowInsetsListener { v, insets ->
-                val topInset =
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        insets.getInsets(android.view.WindowInsets.Type.statusBars()).top
-                    } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
-                        insets.systemWindowInsetTop
-                    } else {
-                        0
-                    }
-                val headerTopPadding =
-                    if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
-                        UiHelper.dpToPx(this, 4f).toInt()
-                    } else {
-                        topInset + UiHelper.dpToPx(this, 16f).toInt()
-                    }
-                v.setPadding(
-                    v.paddingLeft,
-                    headerTopPadding,
-                    v.paddingRight,
-                    v.paddingBottom,
-                )
-                insets
-            }
-            header.requestApplyInsets()
+            // Breathing room only. The root above already keeps the dashboard clear of the status
+            // bar, and the header used to add the bar's height a second time when upright: on a
+            // Pixel 10 Pro that is 80dp, so "Nova" started 180dp down a screen with nothing over it.
+            val headerTopPadding =
+                if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+                    UiHelper.dpToPx(this, 4f).toInt()
+                } else {
+                    UiHelper.dpToPx(this, 16f).toInt()
+                }
+            header.setPadding(
+                header.paddingLeft,
+                headerTopPadding,
+                header.paddingRight,
+                header.paddingBottom,
+            )
         }
 
         spaceParticleView = findViewById(R.id.space_particles)
@@ -1989,35 +1992,44 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             sheet.show()
             return
         }
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val menu = PcSheetActions(
+            container = actions,
+            columns = novaHostSheetColumns(
+                landscape = landscape,
+                sheetWidthDp = NovaSheetChrome.landscapeSheetWidth(this) / resources.displayMetrics.density,
+                fontScale = resources.configuration.fontScale,
+            ),
+        )
 
         if (computer.details.state == ComputerDetails.State.OFFLINE ||
             computer.details.state == ComputerDetails.State.UNKNOWN
         ) {
             if (!needsPairing(computer.details)) {
-                addPcSheetAction(actions, getString(R.string.pcview_menu_start_polaris)) {
+                menu.action(getString(R.string.pcview_menu_start_polaris)) {
                     sheet.dismiss()
                     startPolarisFromNova(computer.details)
                 }
             }
-            addPcSheetAction(actions, getString(R.string.pcview_menu_send_wol)) {
+            menu.action(getString(R.string.pcview_menu_send_wol)) {
                 sheet.dismiss()
                 doWakeOnLan(computer.details)
             }
         } else if (needsPairing(computer.details)) {
-            addPcSheetAction(actions, getString(R.string.pcview_menu_pair_pc)) {
+            menu.action(getString(R.string.pcview_menu_pair_pc)) {
                 sheet.dismiss()
                 doPair(computer.details, null, null)
             }
-            addPcSheetAction(actions, getString(R.string.pcview_menu_pair_pc_otp)) {
+            menu.action(getString(R.string.pcview_menu_pair_pc_otp)) {
                 sheet.dismiss()
                 doOTPPair(computer.details)
             }
-            addPcSheetAction(actions, getString(R.string.pcview_menu_scan_qr)) {
+            menu.action(getString(R.string.pcview_menu_scan_qr)) {
                 sheet.dismiss()
                 launchQrScanner()
             }
             if (!computer.details.nvidiaServer) {
-                addPcSheetAction(actions, getString(R.string.pcview_menu_open_management_page)) {
+                menu.action(getString(R.string.pcview_menu_open_management_page)) {
                     sheet.dismiss()
                     val url = computer.guessManagementUrl()
                     if (url != null) {
@@ -2028,24 +2040,24 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 }
             }
         } else {
-            addPcSheetSection(actions, getString(R.string.pcview_menu_section_play))
+            menu.section(getString(R.string.pcview_menu_section_play))
             if (computer.details.runningGameId != 0) {
                 if (computer.details.currentGameOwnedByClient == false) {
-                    addPcSheetAction(actions, getString(R.string.applist_menu_watch)) {
+                    menu.action(getString(R.string.applist_menu_watch)) {
                         sheet.dismiss()
-                        val binder = managerBinder ?: return@addPcSheetAction
+                        val binder = managerBinder ?: return@action
                         ServerHelper.doWatch(this, createWatchTargetApp(computer.details), computer.details, binder)
                     }
                 } else {
-                    addPcSheetAction(actions, getString(R.string.applist_menu_resume)) {
+                    menu.action(getString(R.string.applist_menu_resume)) {
                         sheet.dismiss()
                         resumeOrWatchRunningGame(computer.details)
                     }
-                    addPcSheetAction(actions, getString(R.string.applist_menu_quit)) {
+                    menu.action(getString(R.string.applist_menu_quit)) {
                         sheet.dismiss()
                         val runningApp = NvApp()
                         runningApp.appId = computer.details.runningGameId
-                        val binder = managerBinder ?: return@addPcSheetAction
+                        val binder = managerBinder ?: return@action
                         UiHelper.displayQuitConfirmationDialog(
                             this,
                             { ServerHelper.doQuit(this, computer.details, runningApp, binder, null) },
@@ -2055,28 +2067,28 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 }
             }
             if (computer.details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
-                addPcSheetAction(actions, getString(R.string.pcview_menu_nova_library)) {
+                menu.action(getString(R.string.pcview_menu_nova_library)) {
                     sheet.dismiss()
                     doNovaLibrary(computer.details)
                 }
             } else if (computer.details.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
-                addPcSheetAction(actions, getString(R.string.pcview_library_checking)) {
+                menu.action(getString(R.string.pcview_library_checking)) {
                     sheet.dismiss()
                     maybeProbeLibraryReadiness(computer)
                 }
             }
 
-            addPcSheetSection(actions, getString(R.string.pcview_menu_section_manage))
-            addPcSheetAction(actions, getString(R.string.pcview_menu_start_polaris)) {
+            menu.section(getString(R.string.pcview_menu_section_manage))
+            menu.action(getString(R.string.pcview_menu_start_polaris)) {
                 sheet.dismiss()
                 startPolarisFromNova(computer.details)
             }
-            addPcSheetAction(actions, getString(R.string.pcview_menu_app_list)) {
+            menu.action(getString(R.string.pcview_menu_app_list)) {
                 sheet.dismiss()
                 doAppList(computer.details, false, false)
             }
             if (!computer.details.nvidiaServer) {
-                addPcSheetAction(actions, getString(R.string.pcview_menu_open_management_page)) {
+                menu.action(getString(R.string.pcview_menu_open_management_page)) {
                     sheet.dismiss()
                     val url = computer.guessManagementUrl()
                     if (url != null) {
@@ -2088,24 +2100,16 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             }
         }
 
-        addPcSheetAction(actions, getString(R.string.pcview_menu_test_network)) {
+        menu.action(getString(R.string.pcview_menu_test_network)) {
             sheet.dismiss()
             ServerHelper.doNetworkTest(this)
         }
-        addPcSheetAction(actions, getString(R.string.pcview_menu_details)) {
+        menu.action(getString(R.string.pcview_menu_details)) {
             sheet.dismiss()
             Dialog.displayDialog(this, getString(R.string.title_details), computer.details.toString(), false)
         }
 
-        val deleteItem = TextView(this)
-        deleteItem.text = getString(R.string.pcview_menu_delete_pc)
-        deleteItem.textSize = 15f
-        NovaSheetChrome.styleSheetAction(deleteItem, destructive = true)
-        val pad = UiHelper.dpToPx(this, 24f).toInt()
-        val padV = UiHelper.dpToPx(this, 14f).toInt()
-        deleteItem.setPadding(pad, padV, pad, padV)
-        UiHelper.applyTvFocusStyle(deleteItem)
-        deleteItem.setOnClickListener {
+        menu.action(getString(R.string.pcview_menu_delete_pc), destructive = true) {
             sheet.dismiss()
             UiHelper.displayDeletePcConfirmationDialog(
                 this,
@@ -2114,7 +2118,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 null,
             )
         }
-        actions.addView(deleteItem)
+        menu.finish()
 
         sheet.show()
     }
@@ -2144,29 +2148,88 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         ServerHelper.doStart(this, runningApp, computer, binder, false)
     }
 
-    private fun addPcSheetAction(container: LinearLayout, label: String, action: Runnable) {
-        val item = TextView(this)
-        item.text = label
-        item.textSize = 15f
-        NovaSheetChrome.styleSheetAction(item)
-        val pad = UiHelper.dpToPx(this, 24f).toInt()
-        val padV = UiHelper.dpToPx(this, 14f).toInt()
-        item.setPadding(pad, padV, pad, padV)
-        UiHelper.applyTvFocusStyle(item)
-        item.setOnClickListener { action.run() }
-        container.addView(item)
-    }
+    /**
+     * A host's actions, laid into the sheet.
+     *
+     * They were one column of rows as wide as the sheet, each holding a label a quarter of its
+     * width, and on a landscape handheld the seventh and eighth, View Details and Delete PC, sat
+     * below the fold behind a scroll nothing announced. In [columns] of two every action a host
+     * can have fits on the screen at once. Upright the sheet is as wide as the phone and the
+     * actions stay in one column.
+     */
+    private inner class PcSheetActions(private val container: LinearLayout, private val columns: Int) {
+        private val gap = UiHelper.dpToPx(this@PcView, 6f).toInt()
+        private val side = UiHelper.dpToPx(this@PcView, 12f).toInt()
+        private var row: LinearLayout? = null
+        private var filled = 0
 
-    private fun addPcSheetSection(container: LinearLayout, label: String) {
-        val item = TextView(this)
-        item.text = label
-        item.textSize = 11f
-        item.setAllCaps(true)
-        item.letterSpacing = 0.05f
-        item.setTextColor(NovaThemeManager.getTextMutedColor(this))
-        val pad = UiHelper.dpToPx(this, 24f).toInt()
-        item.setPadding(pad, UiHelper.dpToPx(this, 14f).toInt(), pad, UiHelper.dpToPx(this, 4f).toInt())
-        container.addView(item)
+        fun section(label: String) {
+            closeRow()
+            val item = TextView(this@PcView)
+            item.text = label
+            item.textSize = 11f
+            item.setAllCaps(true)
+            item.letterSpacing = 0.05f
+            item.setTextColor(NovaThemeManager.getTextMutedColor(this@PcView))
+            val pad = UiHelper.dpToPx(this@PcView, 24f).toInt()
+            item.setPadding(pad, UiHelper.dpToPx(this@PcView, 14f).toInt(), pad, UiHelper.dpToPx(this@PcView, 2f).toInt())
+            container.addView(item)
+        }
+
+        fun action(label: String, destructive: Boolean = false, onChosen: Runnable) {
+            val item = TextView(this@PcView)
+            item.text = label
+            item.textSize = 15f
+            item.gravity = Gravity.CENTER_VERTICAL
+            NovaSheetChrome.styleSheetAction(item, destructive = destructive)
+            // With the row's own margin the label starts on the sheet's 24dp line, under the title.
+            val pad = UiHelper.dpToPx(this@PcView, 12f).toInt()
+            val padV = UiHelper.dpToPx(this@PcView, 14f).toInt()
+            item.setPadding(pad, padV, pad, padV)
+            UiHelper.applyTvFocusStyle(item)
+            item.setOnClickListener { onChosen.run() }
+
+            val target = row ?: LinearLayout(this@PcView).also { opened ->
+                opened.orientation = LinearLayout.HORIZONTAL
+                // A label that wraps makes its row taller, and its neighbour grows to match.
+                opened.isBaselineAligned = false
+                container.addView(
+                    opened,
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        topMargin = gap
+                        marginStart = side
+                        marginEnd = side
+                    },
+                )
+                row = opened
+                filled = 0
+            }
+            target.addView(
+                item,
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
+                    if (filled > 0) marginStart = gap
+                },
+            )
+            filled++
+            if (filled >= columns) row = null
+        }
+
+        /** Closes the last row. A lone action keeps its column's width rather than spanning the sheet. */
+        fun finish() = closeRow()
+
+        private fun closeRow() {
+            val open = row ?: return
+            repeat(columns - filled) {
+                // As tall as the row, like the action beside it. A row takes its height from its
+                // children only while every one of them fills it, and a spacer of no height made
+                // the row measure to nothing: Open Library, alone in its section, disappeared.
+                open.addView(
+                    View(this@PcView),
+                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { marginStart = gap },
+                )
+            }
+            row = null
+        }
     }
 
     private fun launchQrScanner() {

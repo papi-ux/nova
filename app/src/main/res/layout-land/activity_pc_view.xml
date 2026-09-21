@@ -491,7 +491,8 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:paddingStart="@dimen/nova_dashboard_rail_gap">
+            android:paddingStart="@dimen/nova_dashboard_rail_gap"
+            android:paddingEnd="10dp">
             <TextView
                 android:id="@+id/pcViewHostsLabel"
                 android:layout_width="match_parent"
@@ -564,9 +565,7 @@
             <RelativeLayout
                 android:id="@+id/pcFragmentContainer"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp">
+                android:layout_height="match_parent">
 
                 <LinearLayout
                     android:id="@+id/no_pc_found_layout"

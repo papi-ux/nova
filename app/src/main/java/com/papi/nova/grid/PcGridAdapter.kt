@@ -6,6 +6,7 @@ import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.RelativeLayout
 import android.widget.TextView
@@ -20,6 +21,7 @@ import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.novaBreakAtDots
 import java.util.IdentityHashMap
 import java.util.Locale
 
@@ -170,6 +172,12 @@ class PcGridAdapter(
         var statusHint: TextView? = null
         var primaryAction: TextView? = null
         var serverActions: View? = null
+        var body: LinearLayout? = null
+        var identity: View? = null
+        var actions: View? = null
+        var watchesWidth = false
+        /** Null until the card has been arranged once, so the first arrangement always applies. */
+        var stacked: Boolean? = null
     }
 
     private fun getPcHolder(parentView: View): PcViewHolder {
@@ -184,6 +192,9 @@ class PcGridAdapter(
         holder.statusHint = parentView.findViewById(R.id.status_hint_text)
         holder.primaryAction = parentView.findViewById(R.id.primary_action_text)
         holder.serverActions = parentView.findViewById(R.id.server_actions_button)
+        holder.body = parentView.findViewById(R.id.server_card_body)
+        holder.identity = parentView.findViewById(R.id.server_card_identity)
+        holder.actions = parentView.findViewById(R.id.server_card_actions)
         parentView.setTag(TAG_PC_HOLDER, holder)
         return holder
     }
@@ -199,6 +210,7 @@ class PcGridAdapter(
     ) {
         val pcHolder = getPcHolder(parentView)
         applyCardTheme(parentView, imgView, prgView!!, txtView, pcHolder)
+        fitCardToWidth(parentView, pcHolder)
         pcHolder.serverActions?.apply {
             isActivated = true
             setOnClickListener { serverActionListener?.invoke(obj) }
@@ -263,10 +275,10 @@ class PcGridAdapter(
                     setPrimaryActionReady(primaryAction, true)
                     setStatusHint(statusHint, R.string.pcview_card_hint_streaming)
                 } else if (obj.details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
-                    statusText.text = context.getString(
+                    statusText.text = novaBreakAtDots(context.getString(
                         R.string.pcview_card_status_library_ready_format,
                         formatAddressSuffix(obj.details.activeAddress?.address)
-                    )
+                    ))
                     statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
                     primaryAction?.setText(R.string.pcview_card_action_open_library)
                     setPrimaryActionReady(primaryAction, true)
@@ -286,10 +298,10 @@ class PcGridAdapter(
                     primaryAction?.setText(R.string.pcview_card_action_checking_library)
                     setStatusHint(statusHint, R.string.pcview_card_hint_checking_library)
                 } else {
-                    statusText.text = context.getString(
+                    statusText.text = novaBreakAtDots(context.getString(
                         R.string.pcview_card_status_compatibility_format,
                         formatAddressSuffix(obj.details.activeAddress?.address)
-                    )
+                    ))
                     statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
                     primaryAction?.setText(R.string.pcview_card_action_open_apps)
                     setPrimaryActionReady(primaryAction, true)
@@ -355,6 +367,59 @@ class PcGridAdapter(
         primaryAction?.isSelected = false
     }
 
+    /**
+     * Arranges the card for the width it has, now and whenever that changes.
+     *
+     * The width is usually known when the card is bound, from the list it sits in, so the
+     * first frame is already right. The listener is what keeps it right when the window is
+     * resized or the rail folds away and the list gets wider.
+     */
+    private fun fitCardToWidth(parentView: View, holder: PcViewHolder) {
+        val body = holder.body ?: return
+        if (!holder.watchesWidth) {
+            holder.watchesWidth = true
+            body.addOnLayoutChangeListener { view, left, _, right, _, oldLeft, _, oldRight, _ ->
+                if (right - left != oldRight - oldLeft) {
+                    // This runs inside a layout pass, and a change of layout has to wait for the next.
+                    view.post { applyCardArrangement(holder, right - left) }
+                }
+            }
+        }
+        val known = body.width.takeIf { it > 0 }
+            ?: (parentView.parent as? View)?.let { it.width - it.paddingLeft - it.paddingRight }?.takeIf { it > 0 }
+            ?: return
+        applyCardArrangement(holder, known)
+    }
+
+    private fun applyCardArrangement(holder: PcViewHolder, widthPx: Int) {
+        val body = holder.body ?: return
+        val identity = holder.identity ?: return
+        val actions = holder.actions ?: return
+        val resources = context.resources
+        val stacked = novaHostCardStacks(
+            cardWidthDp = widthPx / resources.displayMetrics.density,
+            fontScale = resources.configuration.fontScale,
+        )
+        if (holder.stacked == stacked) return
+        holder.stacked = stacked
+
+        body.orientation = if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        identity.layoutParams = (identity.layoutParams as LinearLayout.LayoutParams).apply {
+            width = if (stacked) ViewGroup.LayoutParams.MATCH_PARENT else 0
+            weight = if (stacked) 0f else 1f
+        }
+        actions.layoutParams = (actions.layoutParams as LinearLayout.LayoutParams).apply {
+            // Under the text rather than under the icon: the actions belong to the lines above them.
+            marginStart = if (stacked) {
+                resources.getDimensionPixelSize(R.dimen.nova_icon_server_container) +
+                    resources.getDimensionPixelSize(R.dimen.nova_spacing_lg)
+            } else {
+                resources.getDimensionPixelSize(R.dimen.nova_spacing_md)
+            }
+            topMargin = if (stacked) resources.getDimensionPixelSize(R.dimen.nova_spacing_sm) else 0
+        }
+    }
+
     private fun setPrimaryActionReady(primaryAction: TextView?, ready: Boolean) {
         primaryAction ?: return
         primaryAction.isActivated = ready
@@ -408,6 +473,20 @@ class PcGridAdapter(
         private fun getLayoutIdForPreferences(prefs: PreferenceConfiguration): Int = R.layout.pc_grid_item
     }
 }
+
+/**
+ * Whether a host card puts its actions under its text rather than beside it.
+ *
+ * Beside it, "Open Library" and "Manage" take about 215dp and the icon 64dp, and what is left is
+ * the column the host's name, its status and a sentence of advice have to fit in. On a 16:9
+ * handheld that is about 310dp. At 4:3 it was 215dp and the advice read "Spaces availab…"; on a
+ * phone held upright it was under 120dp. Below this width the text takes the whole card and the
+ * actions sit under it. Larger type needs the room sooner, so the width scales with it.
+ */
+internal fun novaHostCardStacks(cardWidthDp: Float, fontScale: Float): Boolean =
+    cardWidthDp < NOVA_HOST_CARD_SIDE_BY_SIDE_MIN_DP * fontScale.coerceAtLeast(1f)
+
+internal const val NOVA_HOST_CARD_SIDE_BY_SIDE_MIN_DP = 500f
 
 private fun stableServerId(uuid: String): Long {
     var hash = -3750763034362895579L
