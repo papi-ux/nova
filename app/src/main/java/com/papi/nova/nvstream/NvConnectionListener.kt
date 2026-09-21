@@ -17,6 +17,12 @@ interface NvConnectionListener {
 
     fun displayTransientMessage(message: String)
 
+    /**
+     * The stream will not be the size this device asked for: it is watching someone else's.
+     * The screen fits its picture to the stream's shape, which it took from its own settings.
+     */
+    fun streamModeAdopted(width: Int, height: Int) {}
+
     fun rumble(controllerNumber: Short, lowFreqMotor: Short, highFreqMotor: Short)
 
     fun rumbleTriggers(controllerNumber: Short, leftTrigger: Short, rightTrigger: Short)

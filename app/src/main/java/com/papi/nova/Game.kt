@@ -210,6 +210,7 @@ private var keyBoardLayoutController:KeyBoardLayoutController? = null
  lateinit var prefConfig:PreferenceConfiguration
 private var tombstonePrefs:SharedPreferences? = null
 
+@Volatile private var lastConnectionMessage:String? = null
 private var displayWidth:Int = 0
 private var displayHeight:Int = 0
 private var currentOrientation:Int = 0
@@ -5449,6 +5450,13 @@ if (hostRefusal != null && errorCode != 0)
 {
 dialogText = hostRefusal.describe()
 }
+// A launch that Nova itself gave up on has no error code, only the sentence it gave up with:
+// "nobody is streaming it, so there is nothing to watch" beats "Failed to start Active Stream (error 0)".
+val givenUpWith = lastConnectionMessage
+if (errorCode == 0 && portFlags == 0 && !givenUpWith.isNullOrBlank())
+{
+dialogText = givenUpWith
+}
 
 when (errorCode) {
 403 -> {
@@ -5804,9 +5812,24 @@ syncPolarisCursorVisibility()
 schedulePolarisLiveSessionStatusRefresh(true)
 }
 override fun displayMessage(message:String) {
+// Kept for the failure sheet: a toast is gone in a moment, and the sheet that stays said only "error 0".
+lastConnectionMessage = message
 runOnUiThread(object : Runnable {
 override fun run() {
 Toast.makeText(this@Game, message, Toast.LENGTH_LONG).show()
+}
+})
+}
+override fun streamModeAdopted(width: Int, height: Int) {
+runOnUiThread(object : Runnable {
+override fun run() {
+// The picture was fitted to the shape this device asked for. A watched stream keeps its
+// owner's shape, and a 16:10 Deck stream drawn into a 16:9 box is stretched by a tenth.
+displayWidth = width
+displayHeight = height
+if (prefConfig!!.videoScaleMode != PreferenceConfiguration.ScaleMode.STRETCH) {
+streamContainer?.setDesiredAspectRatio(width.toDouble() / height.toDouble())
+}
 }
 })
 }

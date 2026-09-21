@@ -46,6 +46,9 @@ class NvConnection(
     /** The host's explanation for the last refused launch, for the launch sheet; null when it sent none. */
     @Volatile
     var lastHostRefusal: HostRefusal? = null
+
+    /** Set when a watch was given up with its own reason on screen, so the general one is not put over it. */
+    private var watchRefusalExplained = false
         private set
     private val isMonkey: Boolean
 
@@ -283,14 +286,16 @@ class NvConnection(
                         LimeLog.info("Nova: Auto Safe requested fresh launch; replacing paused session instead of resuming")
                         return quitAndLaunch(h, context)
                     }
-                    if (!h.launchApp(context, "resume", app.appUUID, app.appId, context.negotiatedHdr, context.watchOnlyRequested)) {
-                        listener.displayMessage(
-                            if (context.watchOnlyRequested) {
-                                "Failed to join active stream"
-                            } else {
-                                "Failed to resume existing session"
-                            },
-                        )
+                    if (!resumeOrJoin(h, context, app)) {
+                        if (!watchRefusalExplained) {
+                            listener.displayMessage(
+                                if (context.watchOnlyRequested) {
+                                    "Failed to join active stream"
+                                } else {
+                                    "Failed to resume existing session"
+                                },
+                            )
+                        }
                         return false
                     }
                     if (context.watchOnlyRequested) {
@@ -335,7 +340,9 @@ class NvConnection(
                     )
                     return false
                 } else if (e.getErrorCode() == 409 && context.watchOnlyRequested) {
-                    listener.displayMessage("No active stream is available to watch.")
+                    // A game can be open on the host with nobody streaming it: its owner left it
+                    // running, or its launch never reached a picture. There is nothing to watch.
+                    listener.displayMessage("A game is open on this host, but nobody is streaming it, so there is nothing to watch.")
                     return false
                 } else {
                     throw e
@@ -351,6 +358,51 @@ class NvConnection(
             }
             return launchNotRunningApp(h, context)
         }
+    }
+
+    /**
+     * Resumes this device's session, or joins someone else's to watch it.
+     *
+     * A watcher that asked for its own mode is refused with the stream's mode in the answer.
+     * It takes that mode and asks once more. A second refusal is the host's last word.
+     */
+    @Throws(IOException::class, XmlPullParserException::class)
+    private fun resumeOrJoin(h: NvHTTP, context: ConnectionContext, app: NvApp): Boolean {
+        try {
+            return h.launchApp(context, "resume", app.appUUID, app.appId, context.negotiatedHdr, context.watchOnlyRequested)
+        } catch (e: HostHttpResponseException) {
+            if (!context.watchOnlyRequested || e.getErrorCode() != 412) {
+                throw e
+            }
+            val profile = NovaWatchProfile.parse(e.getErrorMessage()) ?: throw e
+            if (!adoptWatchProfile(context, profile)) {
+                return false
+            }
+        }
+        return h.launchApp(context, "resume", app.appUUID, app.appId, context.negotiatedHdr, true)
+    }
+
+    private fun adoptWatchProfile(context: ConnectionContext, profile: NovaWatchProfile): Boolean {
+        val streamConfig = context.streamConfig!!
+        val listener = context.connListener!!
+        val decodesTenBit = (streamConfig.getSupportedVideoFormats() and MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0
+        if (profile.tenBit && !decodesTenBit) {
+            watchRefusalExplained = true
+            listener.displayMessage("That stream is HDR, which this device cannot decode, so it cannot be watched here.")
+            return false
+        }
+        LimeLog.info(
+            "Nova: watching takes the active stream's mode " + profile.width + "x" + profile.height + "@" + profile.fps +
+                (if (profile.tenBit) " 10-bit" else " 8-bit") + " in place of " +
+                context.negotiatedWidth + "x" + context.negotiatedHeight,
+        )
+        context.negotiatedWidth = profile.width
+        context.negotiatedHeight = profile.height
+        context.negotiatedLaunchRefreshRate = profile.fps
+        context.negotiatedHdr = profile.tenBit
+        streamConfig.adoptWatchMode(profile.width, profile.height, profile.fps)
+        listener.streamModeAdopted(profile.width, profile.height)
+        return true
     }
 
     @Throws(IOException::class, XmlPullParserException::class)

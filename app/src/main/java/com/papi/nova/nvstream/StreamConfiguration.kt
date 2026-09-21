@@ -223,6 +223,18 @@ class StreamConfiguration private constructor() {
         fun build(): StreamConfiguration = config
     }
 
+    /**
+     * Takes the mode of a stream this device is joining rather than starting. Everything that
+     * is set up after the launch request, the connection and the decoder, reads the mode from
+     * here, so it has to be the stream's and not the one this device would have asked for.
+     */
+    fun adoptWatchMode(width: Int, height: Int, refreshRate: Float) {
+        this.width = width
+        this.height = height
+        this.refreshRate = refreshRate
+        this.launchRefreshRate = refreshRate
+    }
+
     fun getWidth(): Int = width
 
     fun getHeight(): Int = height
