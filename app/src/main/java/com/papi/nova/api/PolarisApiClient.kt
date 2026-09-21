@@ -338,7 +338,7 @@ class PolarisApiClient @JvmOverloads constructor(
         internal fun artworkLibraryUpdatePath(gameId: String): String {
             if (gameId.startsWith("space.")) {
                 val identity = requireNotNull(com.papi.nova.manager.WorkerLaunchContract.libraryIdentity(gameId))
-                require(identity.second != "big-picture-v1")
+                require(!com.papi.nova.manager.WorkerLaunchContract.isLauncherEntry(identity.second))
                 return "/games/$gameId/space-artwork/resolve"
             }
             require(isSafeArtworkGameId(gameId))

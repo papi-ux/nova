@@ -70,6 +70,25 @@ class NovaArtworkLibraryUpdaterTest {
     }
 
     @Test
+    fun aLauncherThatIsNotSteamIsNeverLookedUpByName() = runBlocking {
+        // Heroic's own entry has no store page either. Its tile is the mark the host serves, and
+        // asking a provider for "Heroic" would count a failure against every library update.
+        val heroic = PolarisGame(id = "space.alex.library-v1",
+            space = PolarisGame.SpaceContext("alex", "Alex", "library-v1"))
+        val title = PolarisGame(id = "space.alex.epic.AlanWake2",
+            space = PolarisGame.SpaceContext("alex", "Alex", "epic.AlanWake2"))
+        val calls = CopyOnWriteArrayList<String>()
+        val summary = NovaArtworkLibraryUpdater().run(listOf(heroic, title)) {
+            calls.add(it.id)
+            result(PolarisArtworkUpdateStatus.UPDATED)
+        }
+        assertEquals(listOf(title.id), calls)
+        assertEquals(1, summary.progress.healthy)
+        assertEquals(1, summary.progress.updated)
+        assertTrue(summary.failedGameIds.isEmpty())
+    }
+
+    @Test
     fun boundsConcurrencyAndSkipsCustomArtwork() = runBlocking {
         val active = AtomicInteger(0)
         val maximumActive = AtomicInteger(0)

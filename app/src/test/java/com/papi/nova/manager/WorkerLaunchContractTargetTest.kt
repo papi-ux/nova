@@ -2,7 +2,9 @@ package com.papi.nova.manager
 
 import org.json.JSONArray
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -34,6 +36,14 @@ class WorkerLaunchContractTargetTest {
             assertEquals("${target}: ${vector.getString("why")}", true, WorkerLaunchContract.validTarget(target))
         }
         assertEquals("the vectors must carry targets to accept", true, accepted > 0)
+    }
+
+    @Test fun knowsTheEntryThatOpensALauncherItself() {
+        assertTrue(WorkerLaunchContract.isLauncherEntry("big-picture-v1"))
+        assertTrue(WorkerLaunchContract.isLauncherEntry("library-v1"))
+        for (title in listOf("620", "epic.AlanWake2", "id.12", "", "library-v2", null)) {
+            assertFalse("$title is one title, not a launcher", WorkerLaunchContract.isLauncherEntry(title))
+        }
     }
 
     @Test fun refusesWhatNoLauncherWouldEverSend() {

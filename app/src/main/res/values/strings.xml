@@ -1554,7 +1554,7 @@
     <string name="profile_manager_edit_profile_with">Edit Preset: %s</string>
     <string name="profile_manager_new_profile_with">New Preset: %s</string>
     <string name="profile_manager_no_profiles_yet">No presets yet</string>
-    <string name="profile_manager_profiles_description">Presets change picture quality and performance, such as resolution, frame rate, and bitrate. Spaces in Polaris keep separate Steam sign-ins, games, and saves.</string>
+    <string name="profile_manager_profiles_description">Presets change picture quality and performance, such as resolution, frame rate, and bitrate. Spaces in Polaris keep separate sign-ins, games, and saves.</string>
     <string name="profile_manager_preset_name">Preset: %s</string>
     <string name="profile_manager_tap_create_profile">Tap + to create your first preset</string>
     <string name="profile_manager_choose_profile">Choose Preset</string>
@@ -1757,7 +1757,7 @@
     <string name="nova_space_bar_spaces">Spaces</string>
     <string name="nova_space_bar_unavailable">Unavailable on the host</string>
     <string name="nova_space_bar_none">None assigned</string>
-    <string name="nova_space_chooser_intro">Pick the Space whose games, Steam sign-in and saves you want to use.</string>
+    <string name="nova_space_chooser_intro">Pick the Space whose games, sign-in and saves you want to use.</string>
     <string name="nova_space_chooser_only_one">%1$s is the only place this device can play right now.</string>
     <string name="nova_space_desktop_access_off">Desktop Access is off for this device. Turn it on from the Spaces page in Polaris.</string>
     <string name="nova_space_status_unknown_hint">The last Space check failed. Nova keeps trying; choosing still works.</string>
@@ -1794,11 +1794,11 @@
     <string name="nova_space_unavailable_title">Spaces unavailable on the host</string>
     <string name="nova_space_open_in_polaris">Open Spaces in Polaris</string>
     <string name="nova_space_retry_check">Retry Space Check</string>
-    <string name="nova_space_launch_intro">Runs in %1$s, with its own Steam sign-in and saves.</string>
+    <string name="nova_space_launch_intro">Runs in %1$s, with its own sign-in and saves.</string>
     <string name="nova_space_where_it_opens">Where this game opens</string>
     <string name="nova_space_option_desktop">Use this computer’s usual games and account.</string>
     <string name="nova_space_option_desktop_missing">Not in this computer’s Desktop library. Use Change Space in the Library to switch to Desktop.</string>
-    <string name="nova_space_option_use">Use the Steam sign-in and saves in %1$s.</string>
+    <string name="nova_space_option_use">Use the sign-in and saves in %1$s.</string>
     <string name="nova_space_option_no_library">This Space has no game library yet.</string>
     <string name="nova_space_option_missing">Not in %1$s. Use Change Space in the Library to open that Space.</string>
     <string name="nova_space_option_via_steam">Not installed in %1$s. Choosing it opens that Space’s Steam.</string>
@@ -1808,7 +1808,7 @@
     <string name="nova_space_play_blocked_in_use">Space in use</string>
     <string name="nova_space_play_blocked_unavailable">Space unavailable</string>
     <string name="nova_space_play_blocked_at_capacity">Host at capacity</string>
-    <string name="nova_space_open_big_picture">Open Steam Big Picture</string>
+    <string name="nova_space_open_launcher">Open %1$s</string>
     <string name="nova_space_play">Play</string>
     <string name="nova_space_profile_label_format">Space: %1$s</string>
     <string name="nova_space_in_format">In %1$s</string>
@@ -1820,7 +1820,7 @@
     <string name="nova_space_launch_issue_retry">Try Again</string>
     <string name="nova_space_launch_issue_back">Back to Library</string>
     <string name="nova_space_leave_title">Leave Space?</string>
-    <string name="nova_space_leave_message">Leaving ends this Space’s game session. Save in your game first. Installed games, saved progress and your Steam sign-in stay in this Space. Other Spaces keep running.</string>
+    <string name="nova_space_leave_message">Leaving ends this Space’s game session. Save in your game first. Installed games, saved progress and your sign-in stay in this Space. Other Spaces keep running.</string>
     <string name="nova_space_leave_action">Leave Space</string>
     <string name="nova_space_leave_caption">Ends this Space’s game session. Games, saves and sign-in stay in the Space.</string>
     <string name="pcview_card_hint_spaces">Spaces available. Change Space from the library.</string>

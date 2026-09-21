@@ -1206,10 +1206,10 @@ object NovaLibraryUiStateMapper {
      * Only a real hero: a cached one for a desktop title, a listed one for a Space title
      * (its route resolves on the host). A 2:3 poster stretched across a landscape screen
      * crops to a slice of its wordmark, which is how a giant "VIRTUAL DESKTOP" came to run
-     * behind the whole library, and Big Picture's bundled Steam mark is no hero either.
+     * behind the whole library, and a launcher's own mark is no hero either.
      */
     fun cinematicBackdropArtworkKind(game: PolarisGame?): String? {
-        if (game == null || game.space?.target == "big-picture-v1") return null
+        if (game == null || com.papi.nova.manager.WorkerLaunchContract.isLauncherEntry(game.space?.target)) return null
         val hero = game.artworkAsset(PolarisGame.ARTWORK_KIND_HERO) ?: return null
         return if (hero.cached || game.space != null) PolarisGame.ARTWORK_KIND_HERO else null
     }

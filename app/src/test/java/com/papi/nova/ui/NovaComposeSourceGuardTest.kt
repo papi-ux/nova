@@ -516,10 +516,11 @@ class NovaComposeSourceGuardTest {
             backdrop.contains("NovaLibraryUiStateMapper.cinematicBackdropArtworkKind(game) ?: return@let null")
         )
         assertTrue(
-            "only a real hero is drawn: cached for a desktop title, listed for a Space title, never Big Picture's bundled mark",
+            "only a real hero is drawn: cached for a desktop title, listed for a Space title, never a launcher's own mark, " +
+                "whether Steam Big Picture's bundled one or the one a host serves for Heroic",
             mapper.contains("fun cinematicBackdropArtworkKind(game: PolarisGame?): String?") &&
                 mapper.contains("hero.cached || game.space != null") &&
-                mapper.contains("game.space?.target == \"big-picture-v1\"")
+                mapper.contains("WorkerLaunchContract.isLauncherEntry(game.space?.target)")
         )
         assertTrue(backdrop.contains("apiClient.loadArtworkInto(view, target.game, PolarisGame.ARTWORK_KIND_HERO)"))
         assertFalse(

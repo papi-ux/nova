@@ -32,12 +32,19 @@ object WorkerLaunchContract {
      * an identity that does not carry one.
      */
     fun validTarget(target: String): Boolean = when {
-        target == "big-picture-v1" || target == "library-v1" -> true
+        isLauncherEntry(target) -> true
         target.startsWith("id.") -> validSteamAppId(target.removePrefix("id."))
         target.contains('.') -> target.substringBefore('.') in heroicRunners &&
             heroicAppName.matches(target.substringAfter('.'))
         else -> validSteamAppId(target)
     }
+
+    /**
+     * The entry that opens a Space's launcher itself rather than one title: Steam Big Picture, or
+     * the library of a launcher that has no such mode. It has no store page, no hero and no
+     * playtime, and nothing about it is looked up by a game's name.
+     */
+    fun isLauncherEntry(target: String?): Boolean = target == "big-picture-v1" || target == "library-v1"
 
     private fun validSteamAppId(value: String): Boolean =
         steamAppId.matches(value) && (value.toLongOrNull() ?: Long.MAX_VALUE) <= 4294967295L

@@ -1840,7 +1840,11 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else if (optimizationState.reviewRequired) {
                         getString(R.string.nova_library_review_and_launch)
                     } else if (currentGame.space != null) {
-                        getString(if (currentGame.space?.target == "big-picture-v1") R.string.nova_space_open_big_picture else R.string.nova_space_play)
+                        if (com.papi.nova.manager.WorkerLaunchContract.isLauncherEntry(currentGame.space?.target)) {
+                            getString(R.string.nova_space_open_launcher, currentGame.name)
+                        } else {
+                            getString(R.string.nova_space_play)
+                        }
                     } else {
                         // Describe the same composed choices attemptLaunch() will send.
                         launchPreview.profileSummary
