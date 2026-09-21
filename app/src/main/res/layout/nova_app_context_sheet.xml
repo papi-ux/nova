@@ -28,11 +28,22 @@
         android:paddingEnd="24dp"
         android:paddingBottom="16dp" />
 
-    <!-- Action items container — populated dynamically -->
-    <LinearLayout
-        android:id="@+id/sheet_actions"
+    <!-- Action items container, populated dynamically. It scrolls: the sheet chrome caps the
+         sheet at the screen's height, and on a landscape handheld six rows do not fit, which
+         used to clip the last ones (Details, Delete PC) out of reach of touch and D-pad alike. -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/sheet_actions_scroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical" />
+        android:overScrollMode="ifContentScrolls"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/sheet_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+    </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>
