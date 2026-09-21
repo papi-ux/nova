@@ -42,6 +42,13 @@ class PcGridAdapter(
         setHasStableIds(true)
     }
 
+    /**
+     * A host's row is as wide as its list, so the poster grid's focus zoom pushed both its ends,
+     * and the sides of its focus ring, past the list's edge, where they were cut off. The ring
+     * and the lift say it has focus; it does not grow.
+     */
+    override val focusedScale: Float get() = 1f
+
     override fun getItemId(i: Int): Long = itemIds[i]
 
     override fun setItems(items: List<PcViewModel.ComputerObject>?) {
@@ -263,17 +270,32 @@ class PcGridAdapter(
                     setPrimaryActionReady(primaryAction, true)
                     setStatusHint(statusHint, R.string.pcview_card_hint_pair)
                 } else if (obj.details.runningGameId != 0) {
-                    statusText.setText(R.string.pcview_card_status_streaming)
-                    statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_success))
-                    primaryAction?.setText(
-                        if (obj.details.currentGameOwnedByClient == false) {
-                            R.string.applist_menu_watch
-                        } else {
-                            R.string.pcview_card_action_resume
-                        }
+                    // The pill says where a press leads, and someone else's game does not lead
+                    // away from this device's library.
+                    val surface = novaHostPlaySurface(
+                        runningGame = true,
+                        ownedByThisDevice = obj.details.currentGameOwnedByClient,
+                        library = obj.details.libraryState,
                     )
-                    setPrimaryActionReady(primaryAction, true)
-                    setStatusHint(statusHint, R.string.pcview_card_hint_streaming)
+                    if (surface == NovaHostPlaySurface.LIBRARY) {
+                        statusText.setText(R.string.pcview_card_status_in_use)
+                        statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
+                        primaryAction?.setText(R.string.pcview_card_action_open_library)
+                        setPrimaryActionReady(primaryAction, true)
+                        setStatusHint(statusHint, R.string.pcview_card_hint_in_use)
+                    } else {
+                        statusText.setText(R.string.pcview_card_status_streaming)
+                        statusText.setTextColor(ContextCompat.getColor(context, R.color.nova_success))
+                        primaryAction?.setText(
+                            if (surface == NovaHostPlaySurface.WATCH) {
+                                R.string.applist_menu_watch
+                            } else {
+                                R.string.pcview_card_action_resume
+                            }
+                        )
+                        setPrimaryActionReady(primaryAction, true)
+                        setStatusHint(statusHint, R.string.pcview_card_hint_streaming)
+                    }
                 } else if (obj.details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
                     statusText.text = novaBreakAtDots(context.getString(
                         R.string.pcview_card_status_library_ready_format,

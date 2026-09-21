@@ -17,33 +17,37 @@ class PcViewFallbackRoutingSourceGuardTest {
             "private fun syncComputerList()"
         )
 
-        val resumeIndex = openBestPlaySurface.indexOf("resumeOrWatchRunningGame(computer)")
-        val libraryAvailableIndex = openBestPlaySurface.indexOf(
-            "computer.libraryState == ComputerDetails.LibraryState.AVAILABLE"
-        )
-        val libraryUnknownIndex = openBestPlaySurface.indexOf(
-            "computer.libraryState == ComputerDetails.LibraryState.UNKNOWN"
-        )
-        val appListFallbackIndex = openBestPlaySurface.indexOf("doAppList(computer, false, false)")
+        // The order these were checked in is decided in one place now, novaHostPlaySurface, which the card's
+        // pill and the host's sheet ask too; NovaHostPlaySurfaceTest holds the order itself.
+        val decision = readSource("src/main/java/com/papi/nova/grid/NovaHostPlaySurface.kt")
+            .section("internal fun novaHostPlaySurface(", "internal enum class NovaHostRowFocusMove")
 
         assertTrue(
-            "running sessions should still route to resume/watch before choosing a library or app-list surface",
-            resumeIndex >= 0 && resumeIndex < libraryAvailableIndex
+            "the press asks the one function and does what it answers",
+            openBestPlaySurface.contains("val surface = novaHostPlaySurface(")
+        )
+        assertTrue(
+            "this device's own running session still routes to resume before a library or app-list surface is chosen. " +
+                "Someone else's no longer does where there is a library to open: papi, 2026-09-21, with a game left " +
+                "open by his Deck, \"i also am stuck at Watch Stream it wont just go to the library\"",
+            openBestPlaySurface.contains("NovaHostPlaySurface.RESUME, NovaHostPlaySurface.WATCH -> resumeOrWatchRunningGame(computer)") &&
+                decision.indexOf("return NovaHostPlaySurface.RESUME") in 1 until decision.indexOf("return when (library) {")
         )
         assertTrue(
             "Polaris-capable hosts should open Nova Library only after the capability probe marks the library available",
-            libraryAvailableIndex >= 0 &&
-                openBestPlaySurface.contains("doNovaLibrary(computer)")
+            decision.contains("ComputerDetails.LibraryState.AVAILABLE -> NovaHostPlaySurface.LIBRARY") &&
+                openBestPlaySurface.contains("NovaHostPlaySurface.LIBRARY -> doNovaLibrary(computer)")
         )
         assertTrue(
             "unknown library capability should trigger the Polaris probe and stay on the dashboard instead of falling through to the app list",
-            libraryUnknownIndex > libraryAvailableIndex &&
+            openBestPlaySurface.contains("NovaHostPlaySurface.CHECK_LIBRARY -> {") &&
                 openBestPlaySurface.contains("maybeProbeLibraryReadiness(computerObject)") &&
                 openBestPlaySurface.contains("R.string.pcview_library_checking")
         )
         assertTrue(
             "Apollo/Sunshine/non-Polaris hosts must fall back to the standard app-list flow after the available/unknown library branches",
-            appListFallbackIndex > libraryUnknownIndex
+            openBestPlaySurface.contains("NovaHostPlaySurface.APP_LIST -> doAppList(computer, false, false)") &&
+                decision.indexOf("NovaHostPlaySurface.APP_LIST") > decision.indexOf("NovaHostPlaySurface.CHECK_LIBRARY")
         )
     }
 

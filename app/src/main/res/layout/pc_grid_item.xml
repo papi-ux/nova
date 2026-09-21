@@ -151,6 +151,7 @@
             android:layout_marginStart="@dimen/nova_spacing_sm"
             android:clickable="true"
             android:contentDescription="@string/nova_server_manage"
+            android:defaultFocusHighlightEnabled="false"
             android:focusable="true">
 
             <androidx.appcompat.widget.AppCompatTextView

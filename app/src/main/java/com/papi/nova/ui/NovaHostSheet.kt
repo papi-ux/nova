@@ -49,6 +49,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.papi.nova.R
+import com.papi.nova.grid.NovaHostPlaySurface
+import com.papi.nova.grid.novaHostPlaySurface
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.ui.compose.LocalNovaComposeColors
@@ -125,11 +127,23 @@ internal fun novaHostSheetCopy(details: ComputerDetails): NovaHostSheetCopy {
             hintRes = R.string.pcview_card_hint_pair,
             tone = NovaHostSheetTone.ATTENTION,
         )
-        details.runningGameId != 0 -> NovaHostSheetCopy(
-            statusRes = R.string.pcview_card_status_streaming,
-            hintRes = R.string.pcview_card_hint_streaming,
-            tone = NovaHostSheetTone.READY,
-        )
+        details.runningGameId != 0 -> if (
+            novaHostPlaySurface(true, details.currentGameOwnedByClient, details.libraryState) ==
+            NovaHostPlaySurface.LIBRARY
+        ) {
+            NovaHostSheetCopy(
+                statusRes = R.string.pcview_card_status_in_use,
+                // The card's advice points at Manage, and this is Manage.
+                hintRes = R.string.pcview_sheet_hint_in_use,
+                tone = NovaHostSheetTone.READY,
+            )
+        } else {
+            NovaHostSheetCopy(
+                statusRes = R.string.pcview_card_status_streaming,
+                hintRes = R.string.pcview_card_hint_streaming,
+                tone = NovaHostSheetTone.READY,
+            )
+        }
         details.libraryState == ComputerDetails.LibraryState.AVAILABLE -> NovaHostSheetCopy(
             statusRes = R.string.pcview_card_status_library_ready_format,
             hintRes = if (details.spacesAvailable) {

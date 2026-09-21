@@ -108,8 +108,11 @@ abstract class GenericGridAdapter<T>(
         }
     }
 
+    /** How much a focused item grows. A poster has room around it to grow into; not every item does. */
+    protected open val focusedScale: Float get() = FOCUSED_SCALE
+
     private fun applyFocusMotionState(view: View, hasFocus: Boolean, animate: Boolean) {
-        val scale = if (hasFocus) FOCUSED_SCALE else 1f
+        val scale = if (hasFocus) focusedScale else 1f
         val elevation = if (hasFocus) focusedTranslationZPx(view) else 0f
         view.animate().cancel()
         if (!animate) {

@@ -60,7 +60,11 @@ import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.binding.crypto.AndroidCryptoProvider
 import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.computers.HostForget
+import com.papi.nova.grid.NovaHostPlaySurface
+import com.papi.nova.grid.NovaHostRowFocusMove
 import com.papi.nova.grid.PcGridAdapter
+import com.papi.nova.grid.novaHostPlaySurface
+import com.papi.nova.grid.novaHostRowFocusMove
 import com.papi.nova.grid.assets.DiskAssetLoader
 import com.papi.nova.manager.HoldToConfirm
 import com.papi.nova.manager.HostPowerAction
@@ -192,6 +196,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private val dashboardRailButtonText = mutableMapOf<Int, CharSequence>()
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && moveFocusWithinHostRow(event.keyCode)) {
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN &&
             event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN
         ) {
@@ -204,6 +211,22 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    private fun moveFocusWithinHostRow(keyCode: Int): Boolean {
+        val focus = currentFocus ?: return false
+        val row = serverGridView?.findContainingItemView(focus) ?: return false
+        val move = novaHostRowFocusMove(
+            right = keyCode == KeyEvent.KEYCODE_DPAD_RIGHT,
+            left = keyCode == KeyEvent.KEYCODE_DPAD_LEFT,
+            onRow = focus === row,
+            onManage = focus.id == R.id.server_actions_button,
+        )
+        return when (move) {
+            NovaHostRowFocusMove.TO_MANAGE -> row.findViewById<View>(R.id.server_actions_button)?.requestFocus() == true
+            NovaHostRowFocusMove.TO_ROW -> row.requestFocus()
+            NovaHostRowFocusMove.NONE -> false
+        }
     }
 
     private fun isServerFilterFocus(focus: View?): Boolean {
@@ -1373,26 +1396,23 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     private fun openBestPlaySurface(computer: ComputerDetails) {
-        if (computer.runningGameId != 0) {
-            resumeOrWatchRunningGame(computer)
-            return
-        }
-
-        if (computer.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
-            doNovaLibrary(computer)
-            return
-        }
-
-        if (computer.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
-            val computerObject = findComputerObject(computer.uuid)
-            if (computerObject != null) {
-                maybeProbeLibraryReadiness(computerObject)
+        val surface = novaHostPlaySurface(
+            runningGame = computer.runningGameId != 0,
+            ownedByThisDevice = computer.currentGameOwnedByClient,
+            library = computer.libraryState,
+        )
+        when (surface) {
+            NovaHostPlaySurface.RESUME, NovaHostPlaySurface.WATCH -> resumeOrWatchRunningGame(computer)
+            NovaHostPlaySurface.LIBRARY -> doNovaLibrary(computer)
+            NovaHostPlaySurface.CHECK_LIBRARY -> {
+                val computerObject = findComputerObject(computer.uuid)
+                if (computerObject != null) {
+                    maybeProbeLibraryReadiness(computerObject)
+                }
+                NovaSnackbar.show(this, getString(R.string.pcview_library_checking))
             }
-            NovaSnackbar.show(this, getString(R.string.pcview_library_checking))
-            return
+            NovaHostPlaySurface.APP_LIST -> doAppList(computer, false, false)
         }
-
-        doAppList(computer, false, false)
     }
 
     private fun syncComputerList() {
@@ -2032,6 +2052,24 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 menu.manage(serverConfig(), openServerConfig)
             }
         } else {
+            val libraryFirst = novaHostPlaySurface(
+                runningGame = details.runningGameId != 0,
+                ownedByThisDevice = details.currentGameOwnedByClient,
+                library = details.libraryState,
+            ) == NovaHostPlaySurface.LIBRARY
+            val offerLibrary = {
+                if (details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
+                    menu.play(action("open_library", R.string.pcview_menu_nova_library, R.string.pcview_sheet_caption_open_library, R.drawable.ic_play)) {
+                        doNovaLibrary(details)
+                    }
+                } else if (details.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
+                    menu.play(action("checking_library", R.string.pcview_library_checking, R.string.pcview_sheet_caption_checking_library, R.drawable.ic_update)) {
+                        maybeProbeLibraryReadiness(computer)
+                    }
+                }
+            }
+            // The first thing offered is the sheet's primary, and it is the one the card leads to.
+            if (libraryFirst) offerLibrary()
             if (details.runningGameId != 0) {
                 if (details.currentGameOwnedByClient == false) {
                     menu.play(action("watch", R.string.applist_menu_watch, R.string.pcview_sheet_caption_watch, R.drawable.ic_eye_open)) {
@@ -2054,15 +2092,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     }
                 }
             }
-            if (details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
-                menu.play(action("open_library", R.string.pcview_menu_nova_library, R.string.pcview_sheet_caption_open_library, R.drawable.ic_play)) {
-                    doNovaLibrary(details)
-                }
-            } else if (details.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
-                menu.play(action("checking_library", R.string.pcview_library_checking, R.string.pcview_sheet_caption_checking_library, R.drawable.ic_update)) {
-                    maybeProbeLibraryReadiness(computer)
-                }
-            }
+            if (!libraryFirst) offerLibrary()
 
             // Only where a hold on the dashboard would work: the same host, and its own word that
             // this device may put it to sleep. An awake host has nothing to be woken for, so the

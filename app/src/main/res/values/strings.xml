@@ -167,6 +167,7 @@
     <string name="pcview_card_status_pair_required">Pair required</string>
     <string name="pcview_card_status_repair_pair">Repair pair</string>
     <string name="pcview_card_status_streaming">Streaming</string>
+    <string name="pcview_card_status_in_use">Another device has a game open</string>
     <string name="pcview_card_status_library_ready_format">Library ready · %1$s</string>
     <string name="pcview_card_status_checking_library">Checking library</string>
     <string name="pcview_card_status_compatibility_format">Compatibility mode · %1$s</string>
@@ -176,6 +177,8 @@
     <string name="pcview_card_hint_pair">Pair this host before library or stream actions.</string>
     <string name="pcview_card_hint_pair_repair">Repair pairing before library or stream actions.</string>
     <string name="pcview_card_hint_streaming">Resume or watch the active stream.</string>
+    <string name="pcview_card_hint_in_use">Your library is still yours to open. Watch the other game from Manage.</string>
+    <string name="pcview_sheet_hint_in_use">Your library is still yours to open. You can also watch the other game.</string>
     <string name="pcview_card_hint_open_library">Open the Polaris game library.</string>
     <string name="pcview_card_hint_checking_library">Waiting for Polaris library readiness.</string>
     <string name="pcview_card_hint_open_apps">Open the standard Moonlight-compatible app list for Apollo, Sunshine, and other compatible hosts.</string>
