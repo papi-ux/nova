@@ -18,7 +18,10 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="@drawable/nova_card_bg"
-        android:padding="@dimen/nova_spacing_md"
+        android:paddingStart="@dimen/nova_spacing_lg"
+        android:paddingTop="14dp"
+        android:paddingEnd="@dimen/nova_spacing_lg"
+        android:paddingBottom="14dp"
         android:foreground="@drawable/nova_ripple_accent">
 
       <LinearLayout
@@ -29,16 +32,17 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <!-- Server icon -->
+        <!-- The host's mark stands in a tinted well, with its state as a lamp on the well's
+             corner. The card was a bare outline icon and an 8dp dot beside a line of grey text,
+             and what state the host was in took reading to find. -->
         <FrameLayout
             android:layout_width="@dimen/nova_icon_server_container"
-            android:layout_height="@dimen/nova_icon_server_container"
-            android:gravity="center">
+            android:layout_height="@dimen/nova_icon_server_container">
 
             <RelativeLayout
                 android:id="@+id/grid_image_layout"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="@dimen/nova_icon_server_well"
+                android:layout_height="@dimen/nova_icon_server_well"
                 android:gravity="center">
 
                 <ImageView
@@ -62,6 +66,22 @@
                     android:layout_centerInParent="true"
                     android:indeterminate="true" />
             </RelativeLayout>
+
+            <!-- A ring in the card's colour keeps the lamp off the well it overlaps. -->
+            <FrameLayout
+                android:id="@+id/status_dot_ring"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="bottom|end">
+
+                <View
+                    android:id="@+id/status_dot"
+                    android:layout_width="@dimen/nova_icon_status_dot"
+                    android:layout_height="@dimen/nova_icon_status_dot"
+                    android:layout_gravity="center"
+                    android:background="@drawable/nova_status_connecting"
+                    android:contentDescription="@string/nova_a11y_server_status" />
+            </FrameLayout>
         </FrameLayout>
 
         <!-- Server info -->
@@ -70,54 +90,66 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:layout_marginStart="@dimen/nova_spacing_lg">
+            android:layout_marginStart="@dimen/nova_spacing_md">
 
             <TextView
                 android:id="@+id/grid_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="@dimen/nova_text_body"
+                android:textSize="18sp"
                 android:textColor="?android:textColorPrimary"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="2"
                 android:ellipsize="end" />
 
-            <!-- Status row -->
-            <LinearLayout
+            <!-- A label, set the way Nova sets its labels: the state is read before the address. -->
+            <TextView
+                android:id="@+id/status_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingTop="4dp">
+                android:layout_marginTop="3dp"
+                android:textSize="11sp"
+                android:textAllCaps="true"
+                android:letterSpacing="0.08"
+                android:textColor="?android:textColorSecondary"
+                android:fontFamily="sans-serif-medium"
+                android:text="Connecting..." />
 
-                <View
-                    android:id="@+id/status_dot"
-                    android:layout_width="@dimen/nova_icon_status_dot"
-                    android:layout_height="@dimen/nova_icon_status_dot"
-                    android:background="@drawable/nova_status_connecting"
-                    android:contentDescription="@string/nova_a11y_server_status" />
+            <!-- What kind of host this is, at a glance. Filled in by the adapter; gone when there
+                 is nothing true to say. -->
+            <LinearLayout
+                android:id="@+id/host_badges"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="7dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
 
                 <TextView
-                    android:id="@+id/status_text"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/nova_spacing_sm"
-                    android:textSize="@dimen/nova_text_label"
-                    android:textColor="?android:textColorSecondary"
-                    android:fontFamily="sans-serif"
-                    android:text="Connecting..." />
+                    android:id="@+id/host_badge_kind"
+                    style="@style/NovaHostBadge"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/host_badge_spaces"
+                    style="@style/NovaHostBadge"
+                    android:layout_marginStart="6dp"
+                    android:text="@string/pcview_card_badge_spaces"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/status_hint_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="6dp"
                 android:ellipsize="end"
                 android:fontFamily="sans-serif"
+                android:lineSpacingExtra="2dp"
                 android:maxLines="3"
                 android:textColor="?android:textColorSecondary"
-                android:textSize="11sp"
+                android:textSize="12sp"
                 android:visibility="gone" />
         </LinearLayout>
       </LinearLayout>
@@ -130,19 +162,24 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
+        <!-- The one thing a press on the card does, so once it is ready the adapter fills it
+             with the accent. It and Manage were two identical outlines, and nothing said which
+             of them the card was. -->
         <TextView
             android:id="@+id/primary_action_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/nova_chip_default"
             android:fontFamily="sans-serif-medium"
-            android:paddingStart="12dp"
+            android:gravity="center"
+            android:minHeight="40dp"
+            android:paddingStart="18dp"
             android:paddingTop="8dp"
-            android:paddingEnd="12dp"
+            android:paddingEnd="18dp"
             android:paddingBottom="8dp"
             android:text="Open Apps"
             android:textColor="?android:textColorPrimary"
-            android:textSize="12sp" />
+            android:textSize="13sp" />
 
         <FrameLayout
             android:id="@+id/server_actions_button"
@@ -162,15 +199,17 @@
                 android:background="@drawable/nova_chip_default"
                 android:duplicateParentState="true"
                 android:fontFamily="sans-serif-medium"
+                android:gravity="center"
                 android:importantForAccessibility="no"
-                android:paddingStart="12dp"
+                android:minHeight="40dp"
+                android:paddingStart="16dp"
                 android:paddingTop="8dp"
-                android:paddingEnd="12dp"
+                android:paddingEnd="16dp"
                 android:paddingBottom="8dp"
                 android:text="@string/nova_server_manage"
                 android:textAllCaps="false"
                 android:textColor="?android:textColorPrimary"
-                android:textSize="12sp" />
+                android:textSize="13sp" />
         </FrameLayout>
       </LinearLayout>
 

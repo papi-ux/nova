@@ -174,6 +174,8 @@
     <string name="pcview_card_status_offline">Offline</string>
     <string name="pcview_card_status_connecting">Connecting…</string>
     <string name="pcview_card_status_local_network">local network</string>
+    <string name="pcview_card_badge_polaris">Polaris</string>
+    <string name="pcview_card_badge_spaces">Spaces</string>
     <string name="pcview_card_hint_pair">Pair this host before library or stream actions.</string>
     <string name="pcview_card_hint_pair_repair">Repair pairing before library or stream actions.</string>
     <string name="pcview_card_hint_streaming">Resume or watch the active stream.</string>

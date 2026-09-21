@@ -381,6 +381,22 @@
         <item name="android:focusable">true</item>
     </style>
 
+    <!-- A fact about a host, not a control: small, set like a label, coloured by the adapter. -->
+    <style name="NovaHostBadge">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">7dp</item>
+        <item name="android:paddingEnd">7dp</item>
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:paddingBottom">2dp</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
     <style name="NovaMaterialChip" parent="Widget.MaterialComponents.Chip.Choice">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>

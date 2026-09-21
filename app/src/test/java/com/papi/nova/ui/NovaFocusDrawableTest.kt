@@ -282,6 +282,26 @@ class NovaFocusDrawableTest {
                 adapter.contains("private fun setPrimaryActionReady") &&
                 adapter.contains("setPrimaryActionReady(primaryAction, true)")
         )
+        // papi, 2026-09-21, of the host card: "seems kind of bland here". The primary action and
+        // Manage were the same outline twice, and nothing said which of them a press on the card
+        // runs. A ready primary is the card's one filled control now. It is still the shared
+        // chip until then, still the chip's shape when filled, and still has no focus state of
+        // its own, because the card is what holds focus.
+        val ready = adapter.substringAfter("private fun setPrimaryActionReady").substringBefore("private fun formatAddressSuffix")
+        assertTrue(
+            "a ready primary action is filled with the theme manager's accent, and its ink is the accent's own",
+            ready.contains("setColor(NovaThemeManager.getAccentColor(context))") &&
+                ready.contains("if (ready) NovaThemeManager.getOnAccentColor(context) else NovaThemeManager.getTextMutedColor(context),")
+        )
+        assertTrue(
+            "cards are recycled: one that is not ready goes back to the shared outline",
+            ready.contains("primaryAction.setBackgroundResource(R.drawable.nova_chip_default)")
+        )
+        assertTrue(
+            "the two pills are one pair: the fill takes the corner the shared chip has",
+            adapter.contains("private const val NOVA_HOST_CARD_PILL_RADIUS_DP = 12f") &&
+                chip.split("<corners ").size == chip.split("<corners android:radius=\"12dp\" />").size
+        )
         assertTrue(
             "server rows should keep the row/card as the single focus owner",
             genericAdapter.contains("open fun onItemFocusChanged(") &&

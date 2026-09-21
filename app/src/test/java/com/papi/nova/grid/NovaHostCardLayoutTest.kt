@@ -1,5 +1,6 @@
 package com.papi.nova.grid
 
+import com.papi.nova.nvstream.http.ComputerDetails.LibraryState
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
@@ -93,6 +94,94 @@ class NovaHostCardLayoutTest {
             "\"Library ready ·\" over \"10.0.0.232\" read as damage: both status formats break only after their dot",
             2,
             adapter.split("statusText.text = novaBreakAtDots(context.getString(").size - 1,
+        )
+    }
+
+    /**
+     * papi, 2026-09-21, of the card: "seems kind of bland here". It was an outline icon, an 8dp
+     * dot and three lines of grey beside two identical outlines, the same whatever the host was
+     * doing. What it says has not changed; how much of it can be read at a glance has.
+     */
+    @Test
+    fun theStateIsALampOnTheHostsMark() {
+        val card = views("src/main/res/layout/pc_grid_item.xml")
+        val ring = card.getValue("status_dot_ring")
+        assertEquals(
+            "the lamp stands on the corner of the well, inside a ring that keeps it off the well's colour",
+            listOf("status_dot"),
+            ring.childElements().map { it.getAttribute("android:id").substringAfter('/') },
+        )
+        assertEquals("bottom|end", ring.getAttribute("android:layout_gravity"))
+        assertEquals(
+            "the well is what the adapter tints, and the icon, overlay and spinner all stand in it",
+            listOf("grid_image", "grid_overlay", "grid_spinner"),
+            card.getValue("grid_image_layout").childElements().map { it.getAttribute("android:id").substringAfter('/') },
+        )
+        assertEquals(
+            "the status is set as a label, so it reads before the sentence under it",
+            "true",
+            card.getValue("status_text").getAttribute("android:textAllCaps"),
+        )
+
+        val adapter = File("src/main/java/com/papi/nova/grid/PcGridAdapter.kt").readText()
+        val pairing = adapter.substringAfter("statusDot?.setBackgroundResource(R.drawable.nova_status_online)")
+            .substringBefore("} else if (obj.details.runningGameId != 0) {")
+        assertEquals(
+            "a host that answers but wants pairing is not ready, and a green lamp said it was: both pairing states are amber",
+            2,
+            pairing.split("statusDot?.setBackgroundResource(R.drawable.nova_status_connecting)").size - 1,
+        )
+        assertTrue(
+            "an online host carries the accent in its card and its well; any other is the plain card",
+            adapter.contains("val leading = if (online) ColorUtils.blendARGB(cardColor, accent, NOVA_HOST_CARD_ACCENT_WASH) else cardColor") &&
+                adapter.contains("pcHolder.well?.background = GradientDrawable().apply {")
+        )
+    }
+
+    @Test
+    fun aBadgeSaysOnlyWhatIsKnownAndNotAlreadySaid() {
+        assertEquals(
+            NovaHostBadges(polaris = true, spaces = true),
+            novaHostBadges(online = true, paired = true, library = LibraryState.AVAILABLE, spacesAvailable = true),
+        )
+        assertEquals(
+            NovaHostBadges(polaris = true, spaces = false),
+            novaHostBadges(online = true, paired = true, library = LibraryState.AVAILABLE, spacesAvailable = false),
+        )
+        val none = NovaHostBadges(polaris = false, spaces = false)
+        assertEquals(
+            "a host in compatibility mode says so in its status line, so it wears nothing",
+            none,
+            novaHostBadges(online = true, paired = true, library = LibraryState.UNAVAILABLE, spacesAvailable = false),
+        )
+        assertEquals(
+            "not asked yet is not known",
+            none,
+            novaHostBadges(online = true, paired = true, library = LibraryState.UNKNOWN, spacesAvailable = true),
+        )
+        assertEquals(
+            "what a host was the last time it answered is not what it is now",
+            none,
+            novaHostBadges(online = false, paired = true, library = LibraryState.AVAILABLE, spacesAvailable = true),
+        )
+        assertEquals(
+            none,
+            novaHostBadges(online = true, paired = false, library = LibraryState.AVAILABLE, spacesAvailable = true),
+        )
+
+        val card = views("src/main/res/layout/pc_grid_item.xml")
+        listOf("host_badges", "host_badge_kind", "host_badge_spaces").forEach { id ->
+            assertEquals(
+                "cards are recycled, so $id is gone until a bind says otherwise",
+                "gone",
+                card.getValue(id).getAttribute("android:visibility"),
+            )
+        }
+        val adapter = File("src/main/java/com/papi/nova/grid/PcGridAdapter.kt").readText()
+        assertTrue(
+            "the planet is the Spaces badge's now, and the hint under it is left to be a sentence",
+            adapter.contains("badge.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_spaces_planet, 0, 0, 0)") &&
+                !adapter.contains("statusHint?.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_spaces_planet")
         )
     }
 
