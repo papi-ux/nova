@@ -43,6 +43,33 @@ class NovaHostsScreenLayoutTest {
     }
 
     @Test
+    fun aBottomSheetStandsOnTheBottomOfTheScreen() {
+        val chrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+        val release = chrome.substringAfter("private fun releaseRoomKeptForHiddenBars(").substringBefore("fun landscapeSheetWidth(")
+        val windows = File("src/main/java/com/papi/nova/ui/NovaDialogWindows.kt").readText()
+        assertTrue(
+            "measured on a Retroid Pocket 6: Material's container kept padB=55 for a navigation bar reported with " +
+                "vis=false, so every sheet stood 24dp above the glass with its square end showing",
+            release.contains("com.google.android.material.R.id.container") &&
+                release.contains("container.fitsSystemWindows = false") &&
+                release.contains("container.setPadding(0, 0, 0, 0)")
+        )
+        assertTrue(
+            "clearing the flag alone changed nothing twice: the container fits itself again on the next inset pass " +
+                "unless it is given a listener that does not",
+            release.contains("container.setOnApplyWindowInsetsListener { _, insets -> insets }")
+        )
+        assertTrue(
+            "it runs once the sheet is attached, which is when Material turns the fitting on, and only where the " +
+                "bars really are hidden: a sheet over the stream always, a Nova screen when the setting is on",
+            chrome.contains("        measuredView.post {\n            releaseRoomKeptForHiddenBars(dialog, barsHidden)") &&
+                chrome.contains("barsHidden = NovaDialogWindows.adopt(context, window)") &&
+                windows.contains("fun adopt(context: Context, window: Window): Boolean {") &&
+                windows.contains("return NovaSystemBars.isHidden(context)")
+        )
+    }
+
+    @Test
     fun aRootKeepsNoRoomForBarsNovaHasHidden() {
         val helper = File("src/main/java/com/papi/nova/utils/UiHelper.kt").readText()
         val insets = helper.substringAfter("private fun rootInsets(").substringBefore("fun padContentForSystemBars(")

@@ -18,15 +18,17 @@ import androidx.compose.ui.window.DialogWindowProvider
  * does, and leaves the D-pad alone: in the stream it is the host's controller input.
  */
 object NovaDialogWindows {
-    fun adopt(context: Context, window: Window) {
-        val host = context.findActivity() ?: return
+    /** Returns whether the bars are hidden in [window], so a sheet knows whether to keep room for them. */
+    fun adopt(context: Context, window: Window): Boolean {
+        val host = context.findActivity() ?: return false
         if (NovaSystemBars.isStream(host)) {
             NovaSystemBars.applyToStreamDialog(window)
-            return
+            return true
         }
-        if (!NovaSystemBars.isManaged(host)) return
+        if (!NovaSystemBars.isManaged(host)) return false
         NovaSystemBars.applyToDialog(context, window)
         NovaControllerTouchMode.install(window)
+        return NovaSystemBars.isHidden(context)
     }
 
     private tailrec fun Context.findActivity(): Activity? = when (this) {

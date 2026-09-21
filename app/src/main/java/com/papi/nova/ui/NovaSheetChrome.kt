@@ -74,11 +74,12 @@ object NovaSheetChrome {
     ) {
         val context = dialog.context
         NovaMenuBlur.attachBehindDialog(dialog, readMenuOpacityPercent(context))
+        var barsHidden = false
         dialog.window?.let { window ->
             window.setDimAmount(getSheetScrimAlpha(context))
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            NovaDialogWindows.adopt(context, window)
+            barsHidden = NovaDialogWindows.adopt(context, window)
         }
 
         val sheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) ?: return
@@ -90,6 +91,7 @@ object NovaSheetChrome {
 
         val measuredView = contentView ?: sheet
         measuredView.post {
+            releaseRoomKeptForHiddenBars(dialog, barsHidden)
             val resources = context.resources
             val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             val displayWidth = resources.displayMetrics.widthPixels
@@ -135,6 +137,27 @@ object NovaSheetChrome {
         }
     }
 
+
+    /**
+     * A bottom sheet stands on the bottom of the screen.
+     *
+     * Material fits the sheet's container to the system windows, and this window is told about the
+     * bars whether or not they are showing, so with Hide System Bars on the container still kept
+     * 55px for a navigation bar that was not there: every sheet stood 24dp above the bottom of a
+     * handheld with its square end showing and the screen behind it visible underneath. Measured
+     * on a Retroid Pocket 6, not guessed: container padB=55 with navigationBars vis=false. With
+     * the bars hidden the container fits nothing. A bar that is showing is still kept clear of.
+     */
+    private fun releaseRoomKeptForHiddenBars(dialog: BottomSheetDialog, barsHidden: Boolean) {
+        if (!barsHidden) return
+        val container = dialog.findViewById<View>(com.google.android.material.R.id.container) ?: return
+        container.fitsSystemWindows = false
+        // Without this the container fits itself again on the next inset pass, which is why
+        // clearing the flag alone changed nothing.
+        container.setOnApplyWindowInsetsListener { _, insets -> insets }
+        container.setPadding(0, 0, 0, 0)
+        container.requestLayout()
+    }
 
     /**
      * How wide a sheet stands in landscape, in pixels. Here rather than inside the chrome so a
