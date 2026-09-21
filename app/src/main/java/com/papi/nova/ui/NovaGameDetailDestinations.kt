@@ -9,6 +9,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -274,13 +276,15 @@ internal fun NovaGameDetailWidePanel(
  * A drill-in that needs the window. Used by Artwork, whose studio lays itself out as a
  * Row of weighted Columns and cannot fold into a panel.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun NovaGameDetailFullScreen(
     eyebrow: String,
     headline: String,
     scrollState: ScrollState,
     onDismiss: () -> Unit,
-    content: @Composable () -> Unit,
+    /** Given the height its body has, as the wide panel's is, so what fills it can fit to it. */
+    content: @Composable (bodyHeight: Dp) -> Unit,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -312,16 +316,22 @@ internal fun NovaGameDetailFullScreen(
                 onDismiss = onDismiss,
                 selfInset = false,
             )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .novaFadeAtCut(scrollState.canScrollForward)
-                    .novaHoldsFirstFocus()
-                    .verticalScroll(scrollState),
-                content = { content() },
-            )
-            NovaGameDetailDestinationHints(selfInset = false)
+            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                val bodyHeight = maxHeight
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .novaFadeAtCut(scrollState.canScrollForward)
+                        .novaHoldsFirstFocus()
+                        .verticalScroll(scrollState),
+                    content = { content(bodyHeight) },
+                )
+            }
+            // A keyboard in landscape leaves about a third of the screen. The hints are for a
+            // controller, which is not what is being used while it is up.
+            if (!WindowInsets.isImeVisible) {
+                NovaGameDetailDestinationHints(selfInset = false)
+            }
         }
     }
 }

@@ -569,9 +569,11 @@ internal fun NovaGameDetailContent(
                 headline = uiState.game.name,
                 scrollState = verticalScroll,
                 onDismiss = onDismissDestination,
-            ) {
+            ) { bodyHeight ->
                 NovaArtworkStudio(
                     initiallyExpanded = true,
+                    fillsDestination = true,
+                    fitHeight = bodyHeight,
                     state = artworkState,
                     initialQuery = uiState.game.name,
                     onRefresh = onRefreshArtwork,

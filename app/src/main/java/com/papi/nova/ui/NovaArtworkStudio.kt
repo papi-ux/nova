@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.widget.ImageView
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,6 +32,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +44,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -50,6 +53,8 @@ import com.papi.nova.api.PolarisArtworkChoice
 import com.papi.nova.api.PolarisArtworkMatchCandidate
 import com.papi.nova.shared.polaris.model.PolarisGame
 import kotlinx.coroutines.delay
+import com.papi.nova.ui.compose.NovaRevealingText
+import com.papi.nova.ui.compose.NovaInPlaceKeyboard
 import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
@@ -299,10 +304,20 @@ fun NovaArtworkStudio(
     currentArtworkLoader: (ImageView, String) -> Unit,
     /** True when the studio is the destination rather than a row inside one. */
     initiallyExpanded: Boolean = false,
+    /**
+     * The studio is the whole screen, not a card on one. The window already carries its title
+     * and its margins, so the card's own header, border and two layers of padding only took
+     * 28dp off each side and a row off the top, and said "Artwork Studio" twice. Without them
+     * the two columns run the width the window gives them.
+     */
+    fillsDestination: Boolean = false,
+    /** The height the destination's body has; the two previews size themselves to share it. */
+    fitHeight: Dp = Dp.Unspecified,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var expanded by remember(initialQuery) { mutableStateOf(initiallyExpanded) }
+    if (fillsDestination) expanded = true
     var query by remember(initialQuery) { mutableStateOf(initialQuery) }
     val title = stringResource(R.string.nova_artwork_studio_title)
     val summary = stringResource(R.string.nova_artwork_studio_summary)
@@ -311,14 +326,18 @@ fun NovaArtworkStudio(
     )
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = 12.dp)
-            .clip(RoundedCornerShape(NovaRadius.hero))
-            .background(surfaces.panel)
-            .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero)),
+        modifier = if (fillsDestination) {
+            Modifier.fillMaxWidth()
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 14.dp, top = 12.dp)
+                .clip(RoundedCornerShape(NovaRadius.hero))
+                .background(surfaces.panel)
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero))
+        },
     ) {
-        Row(
+        if (!fillsDestination) Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = toggleDescription }
@@ -354,11 +373,20 @@ fun NovaArtworkStudio(
             Text(if (expanded) "▴" else "▾", color = colors.textSecondary, fontSize = 18.sp)
         }
 
+        // As the destination there is no header to open it with, so it is simply open.
         if (expanded) {
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+                    .then(
+                        if (fillsDestination) {
+                            // Room for a focus ring, which is drawn outside its control and was
+                            // cut off at the edge of the scroll the moment nothing padded it.
+                            Modifier.padding(horizontal = NOVA_STUDIO_RING_ROOM)
+                        } else {
+                            Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp)
+                        }
+                    ),
             ) {
                 val twoColumn = maxWidth >= NOVA_STUDIO_TWO_COLUMN_MIN
 
@@ -420,6 +448,13 @@ fun NovaArtworkStudio(
                         currentArtworkPresentationKey = currentArtworkPresentationKey,
                         currentArtworkLoader = currentArtworkLoader,
                         choicePreviewLoader = choicePreviewLoader,
+                        // Beside the identity column the two start level; under it, a gap.
+                        topGap = if (twoColumn) 0.dp else 10.dp,
+                        compositionHeight = if (twoColumn) {
+                            novaStudioCompositionHeight(fitHeight)
+                        } else {
+                            NOVA_STUDIO_COMPOSITION_HEIGHT
+                        },
                     )
                     if (NovaArtworkKinds.LOGO in state.currentKinds) {
                         NovaArtworkLogoTransformControls(state, onTransform)
@@ -474,7 +509,9 @@ fun NovaArtworkStudio(
                                 text = stringResource(R.string.cancel),
                                 onClick = {
                                     onCancel(NovaArtworkStudioAction.EditingCancelled)
-                                    expanded = false
+                                    // A card folds away when its edit is dropped. The destination
+                                    // has nothing to fold into: it used to leave the window empty.
+                                    if (!fillsDestination) expanded = false
                                 },
                                 modifier = Modifier.weight(1f),
                                 enabled = !state.working,
@@ -491,6 +528,23 @@ fun NovaArtworkStudio(
 /** Below this there is no room for two, and stacking keeps the same reading order. */
 private val NOVA_STUDIO_TWO_COLUMN_MIN = 620.dp
 private val NOVA_STUDIO_GUTTER = 16.dp
+private val NOVA_STUDIO_RING_ROOM = 4.dp
+private val NOVA_STUDIO_COMPOSITION_HEIGHT = 156.dp
+/** What the pair needs besides its two heights: a label each, the gap between, and slack so it fits rather than just fits. */
+private val NOVA_STUDIO_COMPOSITION_CHROME = 68.dp
+
+/**
+ * How tall each of the two stacked previews is when the studio knows the height it has.
+ *
+ * They were a fixed 156dp, which on the Retroid ran the second one a few dp off the bottom of a
+ * screen with nothing else below it, and on a tablet or a television left half the column empty.
+ * They share what is there: never so short the composition stops reading, never so tall that a
+ * hero crop turns into a poster.
+ */
+internal fun novaStudioCompositionHeight(fitHeight: Dp): Dp {
+    if (fitHeight == Dp.Unspecified || fitHeight <= 0.dp) return NOVA_STUDIO_COMPOSITION_HEIGHT
+    return ((fitHeight - NOVA_STUDIO_COMPOSITION_CHROME) / 2).coerceIn(132.dp, 240.dp)
+}
 
 @Composable
 private fun NovaArtworkStudioMatchSummary(state: NovaArtworkStudioState) {
@@ -512,8 +566,9 @@ private fun NovaArtworkStudioMatchSummary(state: NovaArtworkStudioState) {
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
+            // Nothing here takes the cursor, so a title too long for the line shows the rest of
+            // itself twice and settles, rather than ending in an ellipsis nobody can open.
+            modifier = Modifier.weight(1f).basicMarquee(iterations = 2),
         )
         if (state.currentMatchSource.isNotBlank()) {
             NovaBadge(text = state.currentMatchSource, fontSize = 10.sp)
@@ -537,8 +592,10 @@ private fun NovaArtworkStudioComparison(
     currentArtworkPresentationKey: (String) -> String,
     currentArtworkLoader: (ImageView, String) -> Unit,
     choicePreviewLoader: (ImageView, PolarisArtworkChoice) -> Unit,
+    topGap: Dp = 10.dp,
+    compositionHeight: Dp = NOVA_STUDIO_COMPOSITION_HEIGHT,
 ) {
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = topGap)) {
         val wide = maxWidth >= 620.dp
         if (wide) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -550,6 +607,7 @@ private fun NovaArtworkStudioComparison(
                     currentArtworkLoader = currentArtworkLoader,
                     choicePreviewLoader = choicePreviewLoader,
                     modifier = Modifier.weight(1f),
+                    height = compositionHeight,
                 )
                 NovaArtworkComposition(
                     title = stringResource(R.string.nova_artwork_live_preview),
@@ -559,6 +617,7 @@ private fun NovaArtworkStudioComparison(
                     currentArtworkLoader = currentArtworkLoader,
                     choicePreviewLoader = choicePreviewLoader,
                     modifier = Modifier.weight(1f),
+                    height = compositionHeight,
                 )
             }
         } else {
@@ -571,6 +630,7 @@ private fun NovaArtworkStudioComparison(
                     currentArtworkLoader = currentArtworkLoader,
                     choicePreviewLoader = choicePreviewLoader,
                     modifier = Modifier.fillMaxWidth(),
+                    height = compositionHeight,
                 )
                 NovaArtworkComposition(
                     title = stringResource(R.string.nova_artwork_live_preview),
@@ -580,6 +640,7 @@ private fun NovaArtworkStudioComparison(
                     currentArtworkLoader = currentArtworkLoader,
                     choicePreviewLoader = choicePreviewLoader,
                     modifier = Modifier.fillMaxWidth(),
+                    height = compositionHeight,
                 )
             }
         }
@@ -595,6 +656,7 @@ private fun NovaArtworkComposition(
     currentArtworkLoader: (ImageView, String) -> Unit,
     choicePreviewLoader: (ImageView, PolarisArtworkChoice) -> Unit,
     modifier: Modifier,
+    height: Dp = NOVA_STUDIO_COMPOSITION_HEIGHT,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -603,7 +665,7 @@ private fun NovaArtworkComposition(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(156.dp)
+                .height(height)
                 .padding(top = 4.dp)
                 .clip(RoundedCornerShape(NovaRadius.row))
                 .background(colors.window)
@@ -740,6 +802,7 @@ private fun NovaArtworkIdentityPicker(
         delay(NOVA_FIRST_FOCUS_SETTLE_MS * 4)
         fieldTakesFocus = true
     }
+    NovaInPlaceKeyboard {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChanged,
@@ -755,6 +818,7 @@ private fun NovaArtworkIdentityPicker(
             .padding(top = 8.dp)
             .focusProperties { canFocus = fieldTakesFocus },
     )
+    }
     NovaActionButton(
         text = stringResource(
             if (state.working) R.string.nova_artwork_searching else R.string.nova_artwork_search,
@@ -765,8 +829,13 @@ private fun NovaArtworkIdentityPicker(
         contentDescription = stringResource(R.string.nova_artwork_search_description),
     )
     state.candidates.forEach { candidate ->
+        // The cursor stands on the row's button, so that is what highlights the row.
+        var underCursor by remember(candidate) { mutableStateOf(false) }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .onFocusChanged { underCursor = it.hasFocus },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StudioArtworkImage(
@@ -780,13 +849,14 @@ private fun NovaArtworkIdentityPicker(
                 scaleType = ImageView.ScaleType.CENTER_CROP,
             )
             Column(Modifier.weight(1f).padding(start = 9.dp)) {
-                Text(
-                    candidate.title,
+                NovaRevealingText(
+                    text = candidate.title,
+                    highlighted = underCursor,
+                    maxLines = 2,
                     color = colors.textPrimary,
                     fontSize = 13.sp,
+                    lineHeight = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 val metadata = listOfNotNull(
                     candidate.releaseYear?.takeIf { it > 0 }?.toString(),
@@ -836,7 +906,7 @@ private fun NovaArtworkChoicePicker(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee(iterations = 2),
             )
         }
         NovaActionButton(
