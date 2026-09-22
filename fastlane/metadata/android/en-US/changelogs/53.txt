@@ -1,0 +1,7 @@
+Nova 1.4.12
+
+Spaces open Heroic and Lutris beside Steam, and a game with no artwork gets a poster with its name.
+
+Watch works whatever size your screen is, and is offered only when there is a stream to watch.
+
+Host cards, Play Setup, Artwork Studio and the game page use the whole screen, and deleting a PC asks it to forget this device.

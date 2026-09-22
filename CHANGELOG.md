@@ -2,50 +2,49 @@
 
 ## Unreleased
 
+## 1.4.12 - 2026-09-22
+
+Nova comes to the Steam Deck as an Alpha, Spaces open Heroic and Lutris beside Steam, and Watch works whatever size your screen is. Nova 1.4.12 is matched with Polaris 1.4.12.
+
+**Nova for Steam Deck (Alpha)**
+
+- A native SteamOS client, attached to this release as `Nova-Deck-x86_64-alpha.flatpak`. It pairs on its own with a PIN or Trusted Pair, browses the Library with its artwork, runs Play Setup, and streams with native video and audio, Command Center and NovaHUD.
+- Controllers get players, rumble and deadzones, and keyboard and mouse work from the first build.
+- Add it to Game Mode once and launch it like any game. The [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) has the three commands.
+- It is an Alpha, for anyone who wants to try it early: the mouse follows the pointer on screen, relative aiming and touch modes are not in yet, and some Android features are still partial. Try it and tell us what breaks, on GitHub or in the Matrix room.
+
 **Spaces With Heroic and Lutris**
 
-- A Space can open Heroic Games Launcher or Lutris beside Steam. Its library loads, Change Space says which launcher each Space opens, and nothing promises a Steam sign-in any more.
-- A game with no artwork gets a poster with its name on it, so a Heroic or Lutris library is no longer a row of identical tiles, and a Space title's game page asks the host for its hero art.
+- A Space can open Heroic Games Launcher or Lutris beside Steam. Its library loads, and Change Space says which launcher each Space opens.
+- A game with no artwork gets a poster with its name on it, so a Heroic or Lutris library is no longer a row of identical tiles.
 - A library that cannot be read says which entry and what was wrong with it.
 
 **Watch Stream**
 
-- Watch works whatever resolution this device would ask for. Nova takes the running stream's mode, codec and depth before it asks, so the host does not refuse it. With Polaris 1.4.12 it knows the mode from the host up front; an older host's refusal is read and the watch asked again once.
-- Watch is offered only when there is a stream to watch. A game left open on the host with nobody streaming it no longer turns every card into Watch Stream, and the library stays one press away.
+- Watch works whatever resolution this device would ask for. Nova takes the running stream's mode, codec and depth before it asks, so the host does not refuse it.
+- Watch is offered only when there is a stream to watch, so a game left open on the host no longer turns every card into Watch Stream.
 - A watcher refused an HDR stream is told which reason holds: this device cannot decode it, or Request HDR is off in Settings.
 
 **Hosts**
 
 - A host's card has a state lamp and badges, uses the width of the screen, and no longer cuts what it says.
-- Manage opens a rebuilt sheet. Wake Host reads Sleep Host when the machine is already awake, and Streaming Presets is Presets.
-- Deleting a PC asks it to forget this device, so pairing again no longer leaves a second entry on the host. A PC that was off when Nova started is asked too, and a running game is warned about first.
-- Add Server takes the address with the keyboard in place instead of a full screen one, and Trusted Pair's caption says what it does.
-- A sheet's actions scroll, so Delete PC can be reached on a landscape handheld, and bottom sheets sit on the bottom of the screen when the system bars are hidden.
+- Manage opens a rebuilt sheet, and Wake Host reads Sleep Host when the machine is already awake.
+- Deleting a PC asks it to forget this device, so pairing again no longer leaves a second entry on the host.
+- A sheet's actions scroll, so Delete PC can be reached on a landscape handheld.
 
 **Play Setup, the Game Page and Artwork Studio**
 
-- Play Setup plans resolutions from this device rather than from the host (#302).
-- Play Setup keeps its legend in sight, shows a row's choices first, uses the screen, and shows text it had to cut when you ask for it.
-- Play Setup's legend explains the row the cursor is on. It opened on "If you changed where it runs" while the cursor sat on the Desktop card, and Host Virtual no longer says it needs a Windows driver.
-- Artwork Studio opens to the whole screen, and the keyboard stays down until you pick the search field.
-- The game page lines up with the library's margin and stops ending lines in an ellipsis.
+- Play Setup plans resolutions from this device rather than from the host.
+- Play Setup keeps its legend in sight and explains the row the cursor is on, and shows text it had to cut when you ask for it.
+- Artwork Studio and the game page use the whole screen, and the keyboard stays down until you pick a search field.
 - Every screen follows the device when it is turned or resized.
-
-**Command Center**
-
-- In a Space, the health line shows once instead of again as a Doctor card, and Live Tuning says Fixed, since a Space keeps the bitrate it started with.
-
-**Nova for Steam Deck (Alpha)**
-
-- Nova for Steam Deck arrives as an Alpha: a native SteamOS client, attached to this release as a Flatpak bundle, `Nova-Deck-x86_64-alpha.flatpak`. It pairs on its own with a PIN or Trusted Pair, browses the Library with its artwork, runs Play Setup, and streams with native video and audio, Command Center, NovaHUD, Doctor and session recovery.
-- Controllers get players, rumble and deadzones, and keyboard and mouse work from the first build. Ctrl+Alt+Shift+M opens Command Center.
-- `flatpak run com.papi_ux.Nova --register-steam-shortcut`, run once with Steam closed, adds Nova to Game Mode. The [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) has the whole install.
-- It is an Alpha: the mouse follows the pointer on screen, relative aiming and touch modes are not in yet, and some Android features are partial.
 
 **Under the Hood**
 
-- Updates the BouncyCastle crypto library to 1.85. It signs the certificate Nova pairs with and runs the pairing challenge, and 1.85 closes a certificate name check that could be slipped past and an ASN.1 depth guard that could be reset.
-- The decoder's stream fix-up notes are logged once per stream instead of with every keyframe.
+- BouncyCastle 1.85 closes two advisories in the library that signs Nova's pairing certificate.
+- A Space's Command Center shows its health line once, and Live Tuning says Fixed there.
+
+Spaces with Heroic and Lutris, and Watch knowing the mode up front, need Polaris 1.4.12. An older host's Watch refusal is read and the watch asked again once.
 
 ## 1.4.11 - 2026-09-19
 
