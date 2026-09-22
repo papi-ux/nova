@@ -44,6 +44,23 @@ class MediaCodecDecoderRendererStageTimingSourceGuardTest {
     }
 
     @Test
+    fun spsFixUpsAreSaidOncePerStreamNotOncePerKeyframe() {
+        val setup = source.substringAfter("override fun setup(format: Int, width: Int, height: Int, redrawRate: Int): Int {")
+            .substringBefore("\n    }")
+        assertFalse(
+            "A host that repeats the SPS with every keyframe made these lines most of logcat on a Space " +
+                "stream (4,994 of 8,675 in 42 minutes), so the SPS fix-ups go through logSpsPatchOnce.",
+            source.contains("LimeLog.info(\"Adding bitstream restrictions\")") ||
+                source.contains("LimeLog.info(\"Patching num_ref_frames in SPS\")")
+        )
+        assertTrue(
+            "Each stream says its fix-ups again, so a new setup forgets the ones already said.",
+            source.contains("logSpsPatchOnce(\"Adding bitstream restrictions\")") &&
+                setup.contains("loggedSpsPatches.clear()")
+        )
+    }
+
+    @Test
     fun stageTimingLogHasAStableGreppablePrefix() {
         assertTrue(
             "P0-5's bench harness needs a stable, greppable prefix to scrape T3->T4 samples from logcat.",

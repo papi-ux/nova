@@ -34,6 +34,7 @@ import java.util.Arrays
 import java.util.Collections
 import java.util.Locale
 import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
@@ -136,6 +137,17 @@ class MediaCodecDecoderRenderer(
     }
 
     private var t3t4LogCounter = 0
+
+    // Every IDR carries the SPS again and every copy is patched the same way, so a host that
+    // sends a keyframe twice a second wrote the same fix-up lines twice a second and pushed
+    // everything else out of logcat. Each fix-up is said once per stream.
+    private val loggedSpsPatches = ConcurrentHashMap.newKeySet<String>()
+
+    private fun logSpsPatchOnce(message: String) {
+        if (loggedSpsPatches.add(message)) {
+            LimeLog.info(message)
+        }
+    }
 
     // Nordstern T3->T4. presentationTimeUs is enqueueTimeMs (native - the
     // moment reassembly completed and the frame was queued for the decoder,
@@ -1018,6 +1030,7 @@ class MediaCodecDecoderRenderer(
 
     override fun setup(format: Int, width: Int, height: Int, redrawRate: Int): Int {
         resetRollingPerfStatsForNewStream("stream setup")
+        loggedSpsPatches.clear()
         targetFps = if (redrawRate > 0) redrawRate else 60
         initialWidth = if (invertResolution) height else width
         initialHeight = if (invertResolution) width else height
@@ -1804,19 +1817,19 @@ class MediaCodecDecoderRenderer(
 
                 if (!refFrameInvalidationActive) {
                     if (initialWidth <= 720 && initialHeight <= 480 && refreshRate <= 60) {
-                        LimeLog.info("Patching level_idc to 31")
+                        logSpsPatchOnce("Patching level_idc to 31")
                         sps.levelIdc = 31
                     } else if (initialWidth <= 1280 && initialHeight <= 720 && refreshRate <= 60) {
-                        LimeLog.info("Patching level_idc to 32")
+                        logSpsPatchOnce("Patching level_idc to 32")
                         sps.levelIdc = 32
                     } else if (initialWidth <= 1920 && initialHeight <= 1080 && refreshRate <= 60) {
-                        LimeLog.info("Patching level_idc to 42")
+                        logSpsPatchOnce("Patching level_idc to 42")
                         sps.levelIdc = 42
                     }
                 }
 
                 if (!refFrameInvalidationActive) {
-                    LimeLog.info("Patching num_ref_frames in SPS")
+                    logSpsPatchOnce("Patching num_ref_frames in SPS")
                     sps.numRefFrames = 1
                 }
 
@@ -1832,12 +1845,12 @@ class MediaCodecDecoderRenderer(
 
                 if (needsSpsBitstreamFixup || isExynos4 || Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     if (sps.vuiParams == null) {
-                        LimeLog.info("Adding VUI parameters")
+                        logSpsPatchOnce("Adding VUI parameters")
                         sps.vuiParams = VUIParameters()
                     }
 
                     if (sps.vuiParams.bitstreamRestriction == null) {
-                        LimeLog.info("Adding bitstream restrictions")
+                        logSpsPatchOnce("Adding bitstream restrictions")
                         sps.vuiParams.bitstreamRestriction = VUIParameters.BitstreamRestriction()
                         sps.vuiParams.bitstreamRestriction.motionVectorsOverPicBoundariesFlag = true
                         sps.vuiParams.bitstreamRestriction.maxBytesPerPicDenom = 2
@@ -1846,7 +1859,7 @@ class MediaCodecDecoderRenderer(
                         sps.vuiParams.bitstreamRestriction.log2MaxMvLengthVertical = 16
                         sps.vuiParams.bitstreamRestriction.numReorderFrames = 0
                     } else {
-                        LimeLog.info("Patching bitstream restrictions")
+                        logSpsPatchOnce("Patching bitstream restrictions")
                     }
 
                     sps.vuiParams.bitstreamRestriction.maxDecFrameBuffering = sps.numRefFrames
