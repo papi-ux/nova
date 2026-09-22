@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "result_id": "private-fixture-result",
+  "scope": "stream",
+  "status": "ok",
+  "severity": "info",
+  "traffic_light": "green",
+  "primary_issue": "none",
+  "summary": "Streaming telemetry looks ready.",
+  "confidence": {"level": "high", "score": 0.92},
+  "evidence": [
+    {"id":"streaming","status":"pass","source":"stream_stats","value":true},
+    {"id":"encoder","status":"pass","source":"stream_stats","value":"private-render-device"},
+    {"id":"display_mode_decision","status":"watch","source":"launch","value":"private-display-mode","detail":"A host override replaced the requested display mode."},
+    {"id":"packet_loss","status":"unknown","source":"unavailable","value":null},
+    {"id":"control_channel_packet_loss","status":"watch","source":"enet_control_channel","value":8.7},
+    {"id":"latency","status":"pass","source":"stream_stats","value":4},
+    {"id":"frame_pacing","status":"watch","source":"stream_stats","value":2.4},
+    {"id":"effective_quality_ceiling","status":"watch","source":"launch_policy","value":40000},
+    {"id":"presentation","status":"unknown","source":"client_telemetry","value":null}
+  ],
+  "safe_recovery_action": {"id":"unsupported-fixture-action","endpoint":"https://private.invalid/never-call"},
+  "advanced_evidence": {"private_path":"/tmp/private-user/private-file"}
+}

@@ -111,6 +111,33 @@ void testBuildOk() {
     assert(host.seen[1].find("rikeyid=7") != std::string::npos);
 }
 
+void testUnsupportedCodecNeverLaunches() {
+    for (const auto* value : {"256", "512", "262144", "broken", "-1", "2147483648"}) {
+        FakeHost host;
+        host.table["/serverinfo"] = DeckHttpResponse{true, 200,
+            std::string("<root status_code=\"200\"><appversion>7.1</appversion><ServerCodecModeSupport>") + value +
+            "</ServerCodecModeSupport></root>"};
+        const auto result = buildStreamConnection(host.fetcher(), "192.0.2.10", sampleRequest(), fixedKeys());
+        assert(!result.ok && !result.hostSessionStarted && host.seen == std::vector<std::string>{"/serverinfo"});
+    }
+}
+
+void testHevcAdmission() {
+    for (const auto* codec : {"h264", "hevc", "auto", "main10", "av1"}) for (int mask : {0, 1, 256, 257, 512, 768, 262144}) {
+        FakeHost host;
+        host.table["/serverinfo"] = DeckHttpResponse{true, 200,
+            std::string("<root status_code=\"200\"><appversion>7.1</appversion><ServerCodecModeSupport>") + std::to_string(mask) +
+            "</ServerCodecModeSupport></root>"};
+        host.table["/launch"] = DeckHttpResponse{true, 200, kLaunchOk};
+        auto request = sampleRequest(); request.videoCodec = codec;
+        const auto result = buildStreamConnection(host.fetcher(), "192.0.2.10", request, fixedKeys());
+        const bool expected = (request.videoCodec == "h264" && (mask == 0 || (mask & 1))) ||
+            (request.videoCodec == "hevc" && (mask & 256));
+        assert(result.ok == expected && result.hostSessionStarted == expected);
+        assert(host.seen.size() == (expected ? 2 : 1));
+    }
+}
+
 void testBuildFailures() {
     const auto keys = fixedKeys();
 
@@ -155,6 +182,83 @@ void testBuildFailures() {
         const auto r = buildStreamConnection(host.fetcher(), "192.0.2.10", sampleRequest(), keys);
         assert(!r.ok && r.error == "the host started the session without an RTSP url");
     }
+}
+
+std::string resumeInfo(std::string fields) {
+    return "<root status_code=\"200\"><appversion>7.1</appversion>" + fields + "</root>";
+}
+
+void testOwnedResumeSelection() {
+    const std::string identity = "<currentgame>881448767</currentgame><currentgameuuid>fixture-game</currentgameuuid>";
+    const std::string authority = "<PairStatus>1</PairStatus><currentgameowned>1</currentgameowned>"
+        "<currentgamesessiontoken>old-token</currentgamesessiontoken>";
+    auto request = sampleRequest();
+    request.appUuid = "fixture-game";
+    request.streamMode = "headless_stream";
+    for (const auto mode : {DeckSessionStartMode::PlayOrResume, DeckSessionStartMode::ResumeOnly}) {
+        FakeHost host;
+        host.table["/serverinfo"] = {true, 200, resumeInfo(identity + authority)};
+        host.table["/resume"] = {true, 200, "<root status_code=\"200\"><resume>1</resume>"
+            "<sessionUrl0>rtsp://192.0.2.10:48010</sessionUrl0><sessionToken>old-token</sessionToken></root>"};
+        const auto result = buildStreamConnection(host.fetcher(), "192.0.2.10", request, fixedKeys(), {}, mode, "old-token");
+        assert(result.ok && result.resumed && result.hostSessionStarted);
+        assert(host.seen.size() == 2 && host.seen[1].starts_with("/resume?"));
+        assert(host.seen[1].find("&sessiontoken=old-token") != std::string::npos);
+        assert(host.seen[1].find("streamMode=") == std::string::npos);
+        assert(result.connectionInfo.hostSessionToken == "old-token");
+    }
+    const std::vector<std::string> refused{
+        "<currentgame>7</currentgame><currentgameuuid>fixture-game</currentgameuuid>" + authority,
+        "<currentgame>881448767</currentgame><currentgameuuid>other-game</currentgameuuid>" + authority,
+        identity + "<PairStatus>1</PairStatus><currentgameowned>0</currentgameowned><currentgamesessiontoken>old-token</currentgamesessiontoken>",
+        identity + "<PairStatus>1</PairStatus><currentgameowned>1</currentgameowned>",
+        identity + "<PairStatus>0</PairStatus><currentgameowned>1</currentgameowned><currentgamesessiontoken>old-token</currentgamesessiontoken>",
+        identity + "<PairStatus>1</PairStatus>", // legacy has no exact ownership/token proof
+        identity + "<PairStatus>1</PairStatus><currentgameowned>1</currentgameowned><currentgamesessiontoken>new-token</currentgamesessiontoken>",
+        "<currentgame>0</currentgame>"
+    };
+    for (const auto& fields : refused) {
+        FakeHost host;
+        host.table["/serverinfo"] = {true, 200, resumeInfo(fields)};
+        const auto result = buildStreamConnection(host.fetcher(), "192.0.2.10", request, fixedKeys(), {},
+            DeckSessionStartMode::ResumeOnly, "old-token");
+        assert(!result.ok && result.sessionSelectionRejected && !result.hostSessionStarted);
+        assert(host.seen == std::vector<std::string>{"/serverinfo"});
+        assert(result.error.find("old-token") == std::string::npos && result.error.find("new-token") == std::string::npos);
+    }
+    for (const auto* fields : {
+        "<currentgame>1</currentgame><currentgame>2</currentgame>",
+        "<currentgameowned>0</currentgameowned><currentgameowned>1</currentgameowned>",
+        "<currentgamesessiontoken>a</currentgamesessiontoken><currentgamesessiontoken>b</currentgamesessiontoken>",
+        "<currentgame>-1</currentgame>", "<currentgame>2147483648</currentgame>",
+        "<currentgameowned>true</currentgameowned>", "<PairStatus>2</PairStatus>",
+        "<currentgame><nested>17</nested></currentgame>"})
+        assert(!parseServerInfo(resumeInfo(fields)));
+    // Plain Play may launch only when no active session was advertised.
+    FakeHost idle;
+    idle.table["/serverinfo"] = {true, 200, resumeInfo("<currentgame>0</currentgame><PairStatus>1</PairStatus>")};
+    idle.table["/launch"] = {true, 200, kLaunchOk};
+    const auto launched = buildStreamConnection(idle.fetcher(), "192.0.2.10", request, fixedKeys(), {}, DeckSessionStartMode::PlayOrResume);
+    assert(launched.ok && !launched.resumed && idle.seen[1].starts_with("/launch?"));
+    for (const auto& response : {
+        DeckHttpResponse{true, 200, "<root status_code=\"470\"><resume>1</resume></root>"},
+        DeckHttpResponse{true, 200, "<root status_code=\"200\"><resume>1</resume><sessionToken>changed</sessionToken><sessionUrl0>rtsp://192.0.2.10:48010</sessionUrl0></root>"},
+        DeckHttpResponse{true, 200, "<root status_code=\"200\"><resume>1</resume><sessionToken>old-token</sessionToken></root>"},
+        DeckHttpResponse{false, 0, ""}}) {
+        FakeHost host;
+        host.table["/serverinfo"] = {true, 200, resumeInfo(identity + authority)};
+        host.table["/resume"] = response;
+        const auto result = buildStreamConnection(host.fetcher(), "192.0.2.10", request, fixedKeys(), {}, DeckSessionStartMode::PlayOrResume);
+        assert(!result.ok && result.resumed && host.seen.size() == 2 && host.seen[1].starts_with("/resume?"));
+    }
+    bool cancelled = false;
+    FakeHost host;
+    host.table["/serverinfo"] = {true, 200, resumeInfo(identity + authority)};
+    const auto fetch = host.fetcher();
+    const auto stopped = buildStreamConnection([&](const auto& path) {
+        auto reply = fetch(path); cancelled = true; return reply;
+    }, "192.0.2.10", request, fixedKeys(), [&] { return cancelled; }, DeckSessionStartMode::PlayOrResume);
+    assert(!stopped.ok && host.seen.size() == 1);
 }
 
 void testHostCancel() {
@@ -216,9 +320,12 @@ void testFetcherOverPolarisClient() {
         nova::deck::polaris::DeckPolarisTlsIdentity{});
     const DeckHttpFetcher fetcher = fetcherOverPolarisClient(client);
     const auto reply = fetcher("/serverinfo");
-    assert(!reply.transportOk && reply.status == 0 && reply.body.empty());
+    assert(!reply.transportOk && reply.status == 0 && reply.body.empty() && !reply.retryableTransportFailure);
     const auto r = buildStreamConnection(fetcher, "192.0.2.10", sampleRequest(), fixedKeys());
-    assert(!r.ok && r.error == "could not reach the host for serverinfo");
+    assert(!r.ok && r.error == "could not reach the host for serverinfo" && !r.retryableTransportFailure);
+    const auto offline = buildStreamConnection([](const auto&) { return DeckHttpResponse{false, 0, {}, true}; },
+        "192.0.2.10", sampleRequest(), fixedKeys(), {}, DeckSessionStartMode::ResumeOnly, "expected");
+    assert(!offline.ok && offline.retryableTransportFailure && !offline.hostSessionStarted);
 }
 
 }  // namespace
@@ -227,8 +334,11 @@ int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     testServerInfoParse();
     testBuildOk();
+    testUnsupportedCodecNeverLaunches();
+    testHevcAdmission();
     testBuildFailures();
     testHostCancel();
+    testOwnedResumeSelection();
     testFetcherOverPolarisClient();
     return 0;
 }

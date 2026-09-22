@@ -33,7 +33,7 @@ class DeckMediaAssertGuardTest(unittest.TestCase):
         source = MEDIA_ADAPTER_SOURCE.read_text(encoding="utf-8")
 
         self.assertIn(
-            "renderPresenterTexture(presenterResource_, rect(), projectionMatrix())",
+            "DeckVaapiEglImagePresenter::composeOpenGlTexture(presenterResource_, *this, *state)",
             source,
             "render node must attempt shader composition from the QSG render call",
         )
@@ -251,7 +251,11 @@ class DeckMediaAssertGuardTest(unittest.TestCase):
     def test_product_preview_lifecycle_report_omits_credentials_and_host_start_tokens(self):
         main = DECK_MAIN_SOURCE.read_text(encoding="utf-8")
         qml = (DECK_ROOT / "qml" / "Main.qml").read_text(encoding="utf-8")
-        lifecycle_surface = main[main.index("class QtPreviewLifecycleBridge"):] + "\n" + qml
+        # Guard the lifecycle DTO bridge, not every unrelated function below
+        # it (the standalone setup controller is now wired in main as well).
+        bridge_start = main.index("class QtPreviewLifecycleBridge")
+        bridge_end = main.index("\n};", bridge_start) + len("\n};")
+        lifecycle_surface = main[bridge_start:bridge_end] + "\n" + qml
 
         forbidden_report_tokens = (
             "credential",

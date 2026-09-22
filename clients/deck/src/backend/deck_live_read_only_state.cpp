@@ -1,4 +1,5 @@
 #include "backend/deck_live_read_only_state.h"
+#include "stream/deck_gamestream_library.h"
 
 #include <future>
 #include <optional>
@@ -14,10 +15,10 @@ using polaris::DeckPolarisRequestStatus;
 /// Why a host cannot be asked anything, or nullopt when it can.
 std::optional<std::string> reasonNotProbeable(const identity::DeckMoonlightIdentity& identity, const identity::DeckMoonlightHostRecord& host) {
     if (!identity.hasClientIdentity()) {
-        return "Moonlight has no client certificate on this device";
+        return identity.sourceLabel == "nova-native" ? "Nova has no usable client certificate on this device" : "Moonlight has no client certificate on this device";
     }
     if (!host.hasServerCertificate()) {
-        return "Moonlight has not pinned this host's certificate";
+        return identity.sourceLabel == "nova-native" ? "Nova has not pinned this host's certificate" : "Moonlight has not pinned this host's certificate";
     }
     return std::nullopt;
 }
@@ -58,34 +59,38 @@ ParallelProbeResults probeHostsInParallel(const identity::DeckMoonlightIdentity&
     return results;
 }
 
-std::string hostStatusLabel(const DeckLiveHostProbe& probe) {
+std::string hostStatusLabel(const DeckLiveHostProbe& probe, bool native) {
+    const std::string owner = native ? "Nova" : "Moonlight";
     switch (probe.status) {
     case DeckPolarisRequestStatus::Ok:
-        return "Polaris " + (probe.serverVersion.empty() ? std::string{"host"} : probe.serverVersion) + " · paired through Moonlight";
+        if (probe.standardHost) return "GameStream host · paired through " + owner;
+        return "Polaris " + (probe.serverVersion.empty() ? std::string{"host"} : probe.serverVersion) + " · paired through " + owner;
     case DeckPolarisRequestStatus::Unauthorized:
-        return "Paired in Moonlight, but the host rejected this client";
+        return "Paired in " + owner + ", but the host rejected this client";
     case DeckPolarisRequestStatus::CertMismatch:
-        return "Host certificate changed since Moonlight paired";
+        return "Host certificate changed since " + owner + " paired";
     case DeckPolarisRequestStatus::InvalidIdentity:
-        return "Moonlight pairing incomplete on this device";
+        return owner + " pairing incomplete on this device";
     case DeckPolarisRequestStatus::MalformedBody:
     case DeckPolarisRequestStatus::HttpError:
-        return "Host answered, but not as a Polaris host";
+        return "Host answered, but its library could not be read";
     case DeckPolarisRequestStatus::Timeout:
     case DeckPolarisRequestStatus::Unreachable:
-        return "Offline right now · showing Moonlight's cached apps";
+        return native ? "Offline right now · check your PC" : "Offline right now · showing Moonlight's cached apps";
     }
     return "Unknown host state";
 }
 
-std::string hostSubtitle(const DeckLiveHostProbe& probe) {
+std::string hostSubtitle(const DeckLiveHostProbe& probe, bool native) {
     if (probe.status == DeckPolarisRequestStatus::Ok) {
+        if (probe.standardHost) return std::to_string(probe.gameCount) + " apps from the PC's live GameStream list.";
         return std::to_string(probe.gameCount) + " games from the Polaris library.";
     }
+    if (probe.spacesSupported) return "Check this PC's destination before loading games.";
     if (probe.cachedAppCount > 0) {
         return std::to_string(probe.cachedAppCount) + " apps remembered by Moonlight. Reconnect to load the Polaris library.";
     }
-    return "Nothing cached yet. Open this host in Moonlight once, then come back.";
+    return native ? "Connect to your PC to load its library." : "Nothing cached yet. Open this host in Moonlight once, then come back.";
 }
 
 DeckHostState hostState(const DeckLiveHostProbe& probe) {
@@ -128,12 +133,20 @@ PolarisGameFixture toLibraryGame(const polaris::DeckPolarisGame& game) {
     entry.launcherSource = game.source;
     entry.platform = game.platform;
     entry.runtime = game.runtime;
+    entry.platformLabel = game.platformLabel;
+    entry.runtimeLabel = game.runtimeLabel;
     entry.steamAppid = game.steamAppid;
     entry.category = game.category;
     entry.installed = game.installed;
     entry.coverUrl = game.coverUrl;
+    entry.artwork = game.artwork;
+    entry.launchPolicy = game.launchPolicy;
+    entry.streamCapabilities = game.streamCapabilities;
+    entry.displayPlanner = game.displayPlanner;
     entry.genres = game.genres;
     entry.lastLaunched = game.lastLaunched;
+    entry.gameTime = game.gameTime;
+    entry.spaceId = game.spaceId; entry.spaceName = game.spaceName;
     entry.hdrSupported = game.hdrSupported;
     entry.launchMode.preferredMode = game.launchPreferredMode;
     entry.launchMode.recommendedMode = game.launchRecommendedMode;
@@ -162,12 +175,13 @@ PolarisGameFixture toLibraryGame(const identity::DeckMoonlightAppRecord& app) {
 
 DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdentity& identity, const DeckLivePolarisFetcher& fetcher) {
     DeckLiveHostLibrarySnapshot snapshot;
+    const bool native = identity.sourceLabel == "nova-native";
     snapshot.identityLoaded = identity.loaded;
     snapshot.clientIdentityUsable = identity.hasClientIdentity();
     snapshot.identitySourceLabel = identity.sourceLabel;
     snapshot.clientFingerprintShort = identity::shortFingerprint(identity.clientCertificateFingerprintSha256());
     snapshot.library.readOnly = true;
-    snapshot.library.sourceLabel = "No Moonlight pairing found on this device";
+    snapshot.library.sourceLabel = native ? "No Nova pairing found on this device" : "No Moonlight pairing found on this device";
 
     if (!identity.loaded) {
         return snapshot;
@@ -175,23 +189,21 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
 
     auto probed = probeHostsInParallel(identity, fetcher);
 
-    // Library precedence: the first reachable Polaris host in Moonlight's order
-    // wins. When that host was only probed in the first round (an earlier host
-    // was asked for the library and did not answer), ask it once more for the
-    // library; its latest answer is the one the snapshot reports.
-    std::optional<std::size_t> polarisIndex;
-    for (std::size_t index = 0; index < probed.fetches.size(); ++index) {
-        auto& fetch = probed.fetches[index];
-        if (!fetch || fetch->status != DeckPolarisRequestStatus::Ok) continue;
-        if (probed.libraryAskedIndex != index) {
-            fetch = fetcher(identity.hosts[index], true);
+    // Keep Polaris precedence across hosts, then try live standard libraries.
+    // An empty successful library is authoritative, even when a cache exists.
+    std::optional<std::size_t> libraryIndex;
+    std::vector<bool> libraryLoaded(identity.hosts.size(), false);
+    if (probed.libraryAskedIndex) libraryLoaded[*probed.libraryAskedIndex] = true;
+    for (bool standardHost : {false, true}) {
+        for (std::size_t index = 0; index < probed.fetches.size() && !libraryIndex; ++index) {
+            auto& fetch = probed.fetches[index];
+            if (!fetch || fetch->status != DeckPolarisRequestStatus::Ok || fetch->standardHost != standardHost) continue;
+            if (!libraryLoaded[index]) {
+                fetch = fetcher(identity.hosts[index], true);
+                libraryLoaded[index] = true;
+            }
+            if (fetch->status == DeckPolarisRequestStatus::Ok && fetch->standardHost == standardHost) libraryIndex = index;
         }
-        if (fetch->status == DeckPolarisRequestStatus::Ok) {
-            polarisIndex = index;
-            break;
-        }
-        // A capabilities response does not guarantee the subsequent library
-        // request succeeds. Continue to the next reachable host in order.
     }
 
     for (std::size_t index = 0; index < identity.hosts.size(); ++index) {
@@ -210,22 +222,24 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
             probe.detail = std::move(fetch.detail);
             probe.serverVersion = std::move(fetch.serverVersion);
             probe.resolvedHttpsPort = fetch.httpsPort;
+            probe.standardHost = fetch.standardHost;
+            probe.spacesSupported = fetch.spacesSupported; probe.spaces = fetch.spaces;
             if (probe.status == DeckPolarisRequestStatus::Ok) {
-                probe.librarySource = "polaris-live";
-                if (polarisIndex == index) {
+                probe.librarySource = fetch.standardHost ? "gamestream-live" : "polaris-live";
+                if (libraryIndex == index) {
                     probe.gameCount = static_cast<int>(fetch.games.size());
                     snapshot.library.games.clear();
                     for (const auto& game : fetch.games) {
                         snapshot.library.games.push_back(toLibraryGame(game));
                     }
-                    snapshot.library.sourceLabel = "Polaris library · " + probe.displayName;
+                    snapshot.library.sourceLabel = (fetch.standardHost ? "GameStream library · " : "Polaris library · ") + probe.displayName;
                     snapshot.selectedHostId = probe.hostId;
                 }
             }
         }
 
         if (probe.status != DeckPolarisRequestStatus::Ok) {
-            probe.librarySource = probe.cachedAppCount > 0 ? "moonlight-cached-app-list" : "none";
+            probe.librarySource = probe.cachedAppCount > 0 && !probe.spacesSupported ? "moonlight-cached-app-list" : "none";
         }
 
         snapshot.hosts.push_back(DeckHostSummary{
@@ -235,20 +249,24 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
             .endpointClass = endpointClass(host),
             .fixtureOnly = false,
             .hasEndpointCandidate = !host.preferredAddress().empty(),
-            .polarisAvailable = probe.status == DeckPolarisRequestStatus::Ok,
-            .standardAppListAvailable = probe.status == DeckPolarisRequestStatus::Ok || probe.cachedAppCount > 0,
-            .publicStatusLabel = hostStatusLabel(probe),
-            .publicSubtitle = hostSubtitle(probe),
-            .publicProvenanceLabel = "moonlight-pairing/" + identity.sourceLabel + "/redacted-public",
+            .polarisAvailable = probe.status == DeckPolarisRequestStatus::Ok && !probe.standardHost,
+            .standardAppListAvailable = probe.status == DeckPolarisRequestStatus::Ok || (probe.cachedAppCount > 0 && !probe.spacesSupported),
+            .standardLibraryAvailable = probe.status == DeckPolarisRequestStatus::Ok && probe.standardHost,
+            .publicStatusLabel = hostStatusLabel(probe, native),
+            .publicSubtitle = hostSubtitle(probe, native),
+            .publicProvenanceLabel = (native ? "nova-pairing/" : "moonlight-pairing/") + identity.sourceLabel + "/redacted-public",
         });
         snapshot.probes.push_back(std::move(probe));
     }
 
     // Nobody answered as Polaris: the first host with a visible cached
     // Moonlight app stands in, else the first host with any cached app.
-    if (!polarisIndex) {
+    if (!libraryIndex) {
         std::optional<std::size_t> cachedIndex;
         for (std::size_t index = 0; index < identity.hosts.size() && !cachedIndex; ++index) {
+            // A legacy cache has no Desktop/Space identity. Never substitute
+            // it when an advertised destination route failed to authorize one.
+            if (snapshot.probes[index].spacesSupported) continue;
             for (const auto& app : identity.hosts[index].apps) {
                 if (!app.hidden) {
                     cachedIndex = index;
@@ -257,6 +275,7 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
             }
         }
         for (std::size_t index = 0; index < identity.hosts.size() && !cachedIndex; ++index) {
+            if (snapshot.probes[index].spacesSupported) continue;
             if (!identity.hosts[index].apps.empty()) {
                 cachedIndex = index;
             }
@@ -270,10 +289,16 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
             snapshot.library.sourceLabel = "Moonlight's cached apps · " + snapshot.probes[*cachedIndex].displayName;
             snapshot.selectedHostId = snapshot.probes[*cachedIndex].hostId;
         }
+        if (snapshot.selectedHostId.empty()) for (const auto& probe : snapshot.probes) {
+            if (!probe.spacesSupported) continue;
+            snapshot.selectedHostId = probe.hostId;
+            snapshot.library.sourceLabel = "Game list unavailable";
+            break;
+        }
     }
 
     if (identity.hosts.empty()) {
-        snapshot.library.sourceLabel = "Moonlight is installed but has no paired host yet";
+        snapshot.library.sourceLabel = native ? "Nova has no paired host yet" : "Moonlight is installed but has no paired host yet";
     }
     return snapshot;
 }
@@ -336,7 +361,8 @@ DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdenti
         // because forwarded hosts do not keep the five-port spacing.
         const auto httpPort = host.preferredHttpPort();
         const auto serverInfo = polaris::probeServerInfoHttpsPort(host.preferredAddress(), httpPort, timeout);
-        fetch.httpsPort = serverInfo.httpsPort.value_or(identity::polarisHttpsPortForMoonlightHttpPort(httpPort));
+        fetch.httpsPort = serverInfo.httpsPort.value_or(host.nativeHttpsPort > 0 ? host.nativeHttpsPort
+            : identity::polarisHttpsPortForMoonlightHttpPort(httpPort));
         // HTTP and HTTPS can have different firewall policies. Even after an
         // HTTP timeout, try the paired HTTPS fallback with certificate pinning.
         const auto client = polarisClientForHost(identity, host, fetch.httpsPort, timeout);
@@ -344,19 +370,97 @@ DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdenti
         fetch.status = capabilities.status;
         fetch.detail = capabilities.detail;
         if (!capabilities.ok()) {
+            // Only an absent API admits the standard path. Authentication,
+            // certificate, malformed-body, timeout and server errors stay visible.
+            if (capabilities.status != DeckPolarisRequestStatus::HttpError ||
+                (capabilities.httpStatus != 404 && capabilities.httpStatus != 501)) return fetch;
+            fetch.standardHost = true;
+            const auto clientId = identity.clientCertificateFingerprintSha256();
+            auto info = client.get(stream::standardHostTarget("/serverinfo", clientId), stream::kStandardServerInfoLimit);
+            if (!info.ok()) { fetch.status = info.status; fetch.detail = info.detail; return fetch; }
+            const auto verified = stream::parseStandardHostInfo(*info.value);
+            if (!verified.ok()) { fetch.status = verified.status; fetch.detail = verified.detail; return fetch; }
+            if (verified.value->id != host.uuid || !verified.value->paired) {
+                fetch.status = DeckPolarisRequestStatus::Unauthorized;
+                fetch.detail = "the pinned host did not confirm this saved pairing";
+                return fetch;
+            }
+            fetch.status = DeckPolarisRequestStatus::Ok;
+            fetch.detail.clear();
+            if (!wantLibrary) return fetch;
+            auto reply = client.get(stream::standardHostTarget("/applist", clientId), stream::kStandardAppListLimit);
+            if (!reply.ok()) { fetch.status = reply.status; fetch.detail = reply.detail; return fetch; }
+            const auto apps = stream::parseStandardAppList(*reply.value);
+            fetch.status = apps.status;
+            fetch.detail = apps.detail;
+            if (apps.ok()) for (const auto& app : *apps.value) {
+                polaris::DeckPolarisGame game;
+                game.id = "gamestream-app-" + std::to_string(app.id);
+                game.appId = app.id;
+                game.name = app.title;
+                game.source = "gamestream";
+                game.hdrSupported = app.hdrSupported;
+                game.streamCapabilities = verified.value->streamCapabilities;
+                fetch.games.push_back(std::move(game));
+            }
             return fetch;
         }
         fetch.serverVersion = capabilities.value->version;
         if (!wantLibrary) {
             return fetch;
         }
-        auto games = client.fetchAllGames();
+        fetch.spacesSupported = capabilities.value->spaces;
+        if (fetch.spacesSupported) {
+            const auto spaces = client.fetchSpaces();
+            if (spaces.ok()) fetch.spaces = *spaces.value;
+            else if (spaces.status == DeckPolarisRequestStatus::HttpError && spaces.httpStatus == 404)
+                fetch.spacesSupported = false; // Only an absent endpoint admits the legacy route.
+            else { fetch.status = spaces.status; fetch.detail = spaces.detail; return fetch; }
+        }
+        if (fetch.spaces && fetch.spaces->enabled && !fetch.spaces->available) return fetch;
+        const bool scoped = fetch.spaces && fetch.spaces->enabled;
+        const auto* selectedSpace = scoped ? fetch.spaces->selected() : nullptr;
+        auto games = selectedSpace && selectedSpace->libraryEnabled
+            ? client.fetchSpaceLibrary(selectedSpace->id)
+            : client.fetchAllGames(100, {}, scoped && fetch.spaces->selectedId == "desktop");
         fetch.status = games.status;
         if (!games.ok()) {
             fetch.detail = games.detail;
             return fetch;
         }
         fetch.games = std::move(*games.value);
+        // A Space identity must agree with the independently authenticated choice.
+        for (const auto& game : fetch.games) {
+            const bool spaceGame = polaris::isSpaceGame(game.id);
+            if ((spaceGame && (!selectedSpace || (!game.spaceId.empty() && game.spaceId != selectedSpace->id))) ||
+                (selectedSpace && !spaceGame)) {
+                fetch.status = DeckPolarisRequestStatus::MalformedBody;
+                fetch.detail = "library destination changed"; fetch.games.clear(); return fetch;
+            }
+        }
+        for (auto& game : fetch.games) game.streamCapabilities = capabilities.value->streamCapabilities;
+        if (capabilities.value->clientSettings) {
+            const auto reply = client.get("/polaris/v1/client-settings", 128 * 1024);
+            if (reply.status == DeckPolarisRequestStatus::Unauthorized || reply.status == DeckPolarisRequestStatus::CertMismatch ||
+                reply.status == DeckPolarisRequestStatus::InvalidIdentity) {
+                fetch.status = reply.status;
+                fetch.detail = reply.detail;
+                fetch.games.clear();
+                return fetch;
+            }
+            if (reply.ok()) if (const auto catalog = polaris::parseLaunchModeCatalog(*reply.value))
+                for (auto& game : fetch.games) game.launchPolicy = polaris::launchModePolicy(game, *catalog);
+        }
+        if (scoped) {
+            const auto after = client.fetchSpaces();
+            if (!after.ok() || !after.value->enabled || !after.value->available ||
+                after.value->selectedId != fetch.spaces->selectedId) {
+                fetch.status = after.ok() ? DeckPolarisRequestStatus::MalformedBody : after.status;
+                fetch.detail = "destination could not be verified after reading games";
+                fetch.games.clear(); return fetch;
+            }
+            fetch.spaces = *after.value;
+        }
         return fetch;
     };
 }
@@ -405,6 +509,7 @@ std::string describeLiveSnapshotForTerminal(const DeckLiveHostLibrarySnapshot& s
 DeckLiveReadOnlyStateProvider::DeckLiveReadOnlyStateProvider(
     DeckLiveHostLibrarySnapshot snapshot,
     const DeckLaunchPreflightService& preflightService) {
+    const bool native = snapshot.identitySourceLabel == "nova-native";
     // The selected host goes first so focus, the preflight and the detail card
     // all describe the host the library came from.
     DeckFakeHostRepository repository;
@@ -418,23 +523,24 @@ DeckLiveReadOnlyStateProvider::DeckLiveReadOnlyStateProvider(
         DeckLabGate::forMode(DeckLabGateMode::ReadOnlyNetwork),
         DeckReadOnlyStateOptions{
             .credentials = credentialsForSelectedHost(snapshot),
-            .sourceTag = "moonlight-pairing-live-read-only",
+            .sourceTag = native ? "nova-pairing-live-read-only" : "moonlight-pairing-live-read-only",
         });
     state_.scenarioId = std::string(kScenarioId);
     if (!snapshot.identityLoaded) {
-        state_.scenarioLabel = "Moonlight not paired on this device";
+        state_.scenarioLabel = native ? "Nova not paired on this device" : "Moonlight not paired on this device";
     } else if (snapshot.hosts.empty()) {
-        state_.scenarioLabel = "Moonlight has no paired host";
+        state_.scenarioLabel = native ? "Nova has no paired host" : "Moonlight has no paired host";
     } else {
-        int online = 0;
+        int online = 0, standard = 0;
         for (const auto& probe : snapshot.probes) {
             if (probe.status == DeckPolarisRequestStatus::Ok) {
                 ++online;
+                if (probe.standardHost) ++standard;
             }
         }
         state_.scenarioLabel = online > 0
-            ? "Live · " + std::to_string(online) + " Polaris host" + (online == 1 ? "" : "s") + " reachable"
-            : "Offline · Moonlight's cached apps";
+            ? "Live · " + std::to_string(online) + (standard ? " streaming host" : " Polaris host") + (online == 1 ? "" : "s") + " reachable"
+            : native ? "Offline · reconnect to your PC" : "Offline · Moonlight's cached apps";
     }
     state_.sourceLabel = "live read-only · " + snapshot.library.sourceLabel;
     state_.preflight.backendPowerStarted = false;

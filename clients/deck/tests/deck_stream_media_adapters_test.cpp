@@ -865,6 +865,21 @@ int main(int argc, char** argv) {
             }
         }
         NOVA_TEST_REQUIRE(sawHostStop);
+        // Explicit disconnect tears down the local stream once and retires
+        // host quit authority even if another caller later asks to stop/cancel.
+        DeckGuardedStreamSessionPreviewProducer detachProducer(driver);
+        DeckGuardedPreviewLifecycleGate detachGate(detachProducer);
+        NOVA_TEST_REQUIRE(detachGate.startAuthorizedHostSession(
+            approvedPolicy.snapshot(), realRequest, connection, hostFetcher).networkStarted);
+        const auto disconnected = detachGate.disconnect();
+        NOVA_TEST_REQUIRE(disconnected.statusCode == std::string("disconnected-host-session"));
+        NOVA_TEST_REQUIRE(disconnected.hostConnectionTornDown && !disconnected.networkStarted);
+        NOVA_TEST_REQUIRE(!disconnected.hostCancelRequested && !disconnected.hostCancelled);
+        NOVA_TEST_REQUIRE(driver.stopCalls == 3 && hostTargets.size() == 2);
+        detachGate.disconnect();
+        detachGate.stop();
+        detachGate.cancel("late close");
+        NOVA_TEST_REQUIRE(driver.stopCalls == 3 && hostTargets.size() == 2);
     }
 
     // When the connection itself fails to come up the host app was still
@@ -907,6 +922,8 @@ int main(int argc, char** argv) {
         NOVA_TEST_REQUIRE(failed.hostConnectionTornDown);
         NOVA_TEST_REQUIRE(driver.startCalls == 1 && driver.stopCalls == 1);
         NOVA_TEST_REQUIRE(hostTargets.empty());
+        // Failed startup cannot opt out of the launch cleanup it still owes.
+        failingGate.disconnect();
         const auto settled = failingGate.stop();
         NOVA_TEST_REQUIRE(settled.statusCode == std::string("stop-settled-host-session"));
         NOVA_TEST_REQUIRE(settled.hostCancelRequested && settled.hostCancelled);
@@ -967,6 +984,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     itemFrameLease.reset();
+    NOVA_TEST_REQUIRE(vaapiItem->composedFrames()->load() == 0);
     if (!require(!itemFrameLeaseWeak.expired(), "expected Qt Quick item to retain frame lease before scene graph update")) {
         return 1;
     }
@@ -979,6 +997,22 @@ int main(int argc, char** argv) {
         return 1;
     }
     auto* vaapiRenderNode = static_cast<DeckQtQuickRhiVaapiRenderNode*>(sceneGraphNode);
+    vaapiItem->setSize(QSizeF(640, 480));
+    NOVA_TEST_REQUIRE(vaapiItem->updatePaintNode(sceneGraphNode, nullptr) == sceneGraphNode);
+    NOVA_TEST_REQUIRE(vaapiRenderNode->rect() == QRectF(0, 40, 640, 400));
+    vaapiItem->setVideoScaleMode("fill");
+    NOVA_TEST_REQUIRE(vaapiItem->updatePaintNode(sceneGraphNode,nullptr)==sceneGraphNode);
+    NOVA_TEST_REQUIRE(vaapiRenderNode->rect()==QRectF(0,0,640,480));
+    NOVA_TEST_REQUIRE(qAbs(vaapiRenderNode->sourceRect().width()-5.0/6.0)<0.00001 && vaapiRenderNode->sourceRect().height()==1);
+    vaapiItem->setVideoScaleMode("stretch"); vaapiItem->updatePaintNode(sceneGraphNode,nullptr);
+    NOVA_TEST_REQUIRE(vaapiRenderNode->sourceRect()==QRectF(0,0,1,1));
+    vaapiItem->setVideoScaleMode("unknown"); NOVA_TEST_REQUIRE(vaapiItem->videoScaleMode()=="stretch");
+    vaapiItem->setVideoScaleMode("fit"); vaapiItem->updatePaintNode(sceneGraphNode,nullptr);
+    vaapiItem->setSize(QSizeF(1280, 800));
+    NOVA_TEST_REQUIRE(vaapiItem->updatePaintNode(sceneGraphNode, nullptr) == sceneGraphNode);
+    NOVA_TEST_REQUIRE(vaapiRenderNode->rect() == QRectF(0, 0, 1280, 800));
+    // Changing the target geometry must not require a fresh decoder frame.
+    NOVA_TEST_REQUIRE(vaapiItem->presentedFrames() == 1);
     if (!require(vaapiRenderNode->descriptor().width == 1280, "expected render node width descriptor")) {
         delete sceneGraphNode;
         return 1;
@@ -1248,6 +1282,7 @@ int main(int argc, char** argv) {
     }
     targetPresenterResource.glProgram = 0;
     vaapiRenderNode->render(nullptr);
+    NOVA_TEST_REQUIRE(vaapiItem->composedFrames()->load() == 0);
     if (!require(vaapiRenderNode->lastImportPlan().status == DeckQrhiVaapiImportStatus::MissingRenderState,
             "expected render node to retain last failed QRhi import plan")) {
         delete sceneGraphNode;
@@ -1386,7 +1421,7 @@ int main(int argc, char** argv) {
     delete sceneGraphNode;
 
     DeckVaapiFfmpegRenderer renderer;
-    NOVA_TEST_REQUIRE(renderer.adapterName() == "ffmpeg-vaapi-h264-qt-rhi-prototype");
+    NOVA_TEST_REQUIRE(renderer.adapterName() == "ffmpeg-vaapi-qt-rhi-prototype");
     const int rendererSetup = renderer.setup(VIDEO_FORMAT_H264, 1280, 800, 60, nullptr, 0);
     NOVA_TEST_REQUIRE(rendererSetup == (renderer.lifecycle().runtimeVaapiDeviceAvailable ? DR_OK : DR_NEED_IDR));
     renderer.start();

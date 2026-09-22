@@ -328,6 +328,11 @@ void assertReadOnlyHostLibraryStateComesFromBackendSummaries() {
     assert(state.games[0].id == "game-123");
     assert(state.games[0].title == "Portal 2");
     assert(state.games[0].sourceRuntimeLabel == "Steam · Linux · Proton");
+    assert(state.games[0].source == "steam");
+    assert(state.games[0].category == "fast_action");
+    assert((state.games[0].genres == std::vector<std::string>{"Action", "Puzzle"}));
+    assert(state.games[0].hdrSupported);
+    assert(state.games[0].lastLaunched == 1718187600000LL);
     assert(state.games[0].launchModeLabel == "Stream: headless · Steam: direct");
     assert(state.preflight.statusCode == "backend-read-only-preflight-blocked");
     assert(std::find(state.preflight.blockerCodes.begin(), state.preflight.blockerCodes.end(), "lab-gate-disabled") != state.preflight.blockerCodes.end());

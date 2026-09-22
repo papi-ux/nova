@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <sstream>
 #include <system_error>
 
 namespace nova::deck::runtime {
@@ -196,6 +197,19 @@ bool stringContains(const DeckVdfObject& object, const std::string_view key, con
 }
 
 bool isNovaEntry(const DeckVdfObject& entry, const DeckSteamShortcut& shortcut) {
+    const auto* canonical = findKey(entry, "NovaGameId");
+    if (!shortcut.canonicalId.empty()) {
+        const auto* options = findKey(entry, "LaunchOptions");
+        if (!options || options->kind != DeckVdfValue::Kind::String) return false;
+        // The identity also lives in a standard Steam field. Do not depend on
+        // Steam or another editor retaining Nova's optional metadata key.
+        std::istringstream words(options->text);
+        std::string word, identity;
+        while (words >> word) if (word == "--game-link") { words >> identity; break; }
+        if (identity != shortcut.canonicalId) return false;
+        return stringContains(entry, "LaunchOptions", "com.papi_ux.Nova") || stringContains(entry, "Exe", "nova-deck");
+    }
+    if (canonical || stringContains(entry, "LaunchOptions", "--game-link ")) return false;
     const auto* name = findKey(entry, "AppName");
     if (name == nullptr || name->kind != DeckVdfValue::Kind::String || !sameKey(name->text, shortcut.appName)) {
         return false;
@@ -215,6 +229,7 @@ DeckVdfObject newEntry(const DeckSteamShortcut& shortcut, const std::uint32_t ap
     DeckVdfObject entry;
     entry.emplace_back("appid", intValue(static_cast<std::int32_t>(appId)));
     entry.emplace_back("AppName", stringValue(shortcut.appName));
+    if (!shortcut.canonicalId.empty()) entry.emplace_back("NovaGameId", stringValue(shortcut.canonicalId));
     entry.emplace_back("Exe", stringValue(shortcut.exe));
     entry.emplace_back("StartDir", stringValue(shortcut.startDir));
     entry.emplace_back("icon", stringValue(shortcut.icon));
@@ -242,6 +257,7 @@ DeckVdfObject newEntry(const DeckSteamShortcut& shortcut, const std::uint32_t ap
 /// Update only what Nova owns on an entry that is already Nova's.
 void mergeEntry(DeckVdfObject& entry, const DeckSteamShortcut& shortcut) {
     setString(entry, "AppName", shortcut.appName);
+    if (!shortcut.canonicalId.empty()) setString(entry, "NovaGameId", shortcut.canonicalId);
     setString(entry, "Exe", shortcut.exe);
     setString(entry, "StartDir", shortcut.startDir);
     setString(entry, "LaunchOptions", shortcut.launchOptions);
@@ -339,7 +355,7 @@ DeckShortcutRegistration registerShortcut(const DeckVdfObject& document, const D
         if (const auto* appId = findKey(value.children, "appid"); appId != nullptr && appId->kind == DeckVdfValue::Kind::Int32) {
             registration.appId = static_cast<std::uint32_t>(appId->number);
         } else {
-            registration.appId = steamShortcutAppId(shortcut.exe, shortcut.appName);
+            registration.appId = steamShortcutAppId(shortcut.exe + shortcut.canonicalId, shortcut.appName);
             value.children.insert(value.children.begin(), {"appid", intValue(static_cast<std::int32_t>(registration.appId))});
         }
         return registration;
@@ -353,7 +369,7 @@ DeckShortcutRegistration registerShortcut(const DeckVdfObject& document, const D
             next = static_cast<int>(parsed) + 1;
         }
     }
-    registration.appId = steamShortcutAppId(shortcut.exe, shortcut.appName);
+    registration.appId = steamShortcutAppId(shortcut.exe + shortcut.canonicalId, shortcut.appName);
     DeckVdfValue entry;
     entry.kind = DeckVdfValue::Kind::Object;
     entry.children = newEntry(shortcut, registration.appId);

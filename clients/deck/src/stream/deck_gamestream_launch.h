@@ -54,6 +54,10 @@ struct DeckLaunchRequest {
     /// which enables extended Sunshine handshake features; kept as a caller
     /// string so this module needs no moonlight dependency.
     std::string extraQuery;
+    std::string streamMode; ///< verified per-session mode; empty omits the parameter
+    std::string sessionToken; ///< backend-only expected session identity for resume
+    std::string profilePreference, encoderBackend;
+    std::string videoCodec = "h264"; ///< local serverinfo admission only; never a URL parameter
 };
 
 /// Build the request target (path plus query) for the launch or resume GET.

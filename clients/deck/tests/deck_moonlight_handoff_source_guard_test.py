@@ -43,11 +43,15 @@ def normalized_text(path: Path) -> str:
         # Locating the executable for the isolated audio CTest does not probe
         # devices or enable playback in the handoff/preflight surfaces.
         text = text.replace("find_program(NOVA_DECK_TEST_PIPEWIRE pipewire)", "FIND_AUDIO_TEST_EXECUTABLE")
+        # The saved-PC CTest locates its X11 driver under BUILD_TESTING; this
+        # lookup does not launch input automation in the production shell.
+        text = text.replace("find_program(NOVA_DECK_TEST_XDOTOOL xdotool)", "FIND_UI_TEST_EXECUTABLE")
     if path.name == "main.cpp":
         # Qt signal wiring/event loop are not network connect/probe or process exec surfaces.
         text = text.replace("QObject::connect", "QT_SIGNAL_CONNECT")
         text = text.replace("connect(notifier_", "QT_SIGNAL_CONNECT(notifier_")
-        text = text.replace("return app.exec();", "return QT_APP_EVENT_LOOP;")
+        text = text.replace("const int eventLoopResult = app.exec();", "const int eventLoopResult = QT_APP_EVENT_LOOP;")
+        text = text.replace("pairingEventLoop.exec();", "QT_PAIRING_EVENT_LOOP;")
     if path.name == "Main.qml":
         # Existing inert preview URI path is local copy text, not a host HTTP launch endpoint.
         text = text.replace("preview://nova-deck/launch", "preview://nova-deck/PREVIEW_PATH")

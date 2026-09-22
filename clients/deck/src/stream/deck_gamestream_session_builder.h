@@ -21,6 +21,11 @@ struct DeckServerInfo {
     std::string appVersion;            ///< appversion tag
     std::string gfeVersion;            ///< GfeVersion tag, empty when absent
     int serverCodecModeSupport = 0;    ///< ServerCodecModeSupport tag
+    std::optional<int> currentGame;
+    std::string currentGameUuid;
+    std::optional<bool> currentGameOwned;
+    std::optional<bool> paired;
+    std::string currentSessionToken;   ///< backend-only, never a QML value
 };
 
 /// Parse the serverinfo fields a launch needs. Pure; nullopt on a bad root or a
@@ -34,6 +39,7 @@ struct DeckHttpResponse {
     bool transportOk = false;
     int status = 0;
     std::string body;
+    bool retryableTransportFailure = false; // only an explicit timeout/unreachable result
 };
 using DeckHttpFetcher = std::function<DeckHttpResponse(const std::string& target)>;
 
@@ -47,6 +53,12 @@ DeckHttpFetcher fetcherOverPolarisClient(const polaris::DeckPolarisClient& clien
 /// The outcome of assembling a connection descriptor.
 struct DeckSessionBuildResult {
     bool ok = false;
+    /// The host accepted launch/resume. Only a new launch is owed app cleanup
+    /// when setup fails; an existing resumed game must be preserved.
+    bool hostSessionStarted = false;
+    bool resumed = false; ///< existing games must survive failed/cancelled setup
+    bool sessionSelectionRejected = false; ///< error is a fixed player-facing reason
+    bool retryableTransportFailure = false;
     std::string error;   ///< public-safe reason when not ok; never carries the address
     /// The host answered the launch and did not start the session (an HTTP
     /// error, a busy host, a refusal). False when the host was never reached
@@ -57,6 +69,10 @@ struct DeckSessionBuildResult {
     DeckStreamConnectionInfo connectionInfo;  ///< carries the host session token when the host returned one
 };
 
+// Native GUI routes require positive ownership and a session token before
+// resuming. ResumeOnly never falls back to launching a replacement game.
+enum class DeckSessionStartMode { Launch, PlayOrResume, ResumeOnly };
+
 /// Read serverinfo and issue the launch through `fetch`, then assemble the
 /// connection descriptor. `keys` are supplied so a test can pin them; production
 /// passes generateStreamKeys(). The host address is not requested here, only
@@ -65,7 +81,10 @@ DeckSessionBuildResult buildStreamConnection(
     const DeckHttpFetcher& fetch,
     const std::string& serverAddress,
     const DeckLaunchRequest& request,
-    const DeckStreamKeys& keys);
+    const DeckStreamKeys& keys,
+    const std::function<bool()>& cancelled = {},
+    DeckSessionStartMode mode = DeckSessionStartMode::Launch,
+    const std::string& expectedSessionToken = {});
 
 /// The outcome of asking the host to end the app after the stream is down.
 struct DeckHostCancelOutcome {

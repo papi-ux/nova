@@ -1,6 +1,10 @@
 #pragma once
+#include "polaris/deck_launch_modes.h"
+#include "polaris/deck_stream_capabilities.h"
+#include "polaris/deck_game_time.h"
 
 #include <optional>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -40,6 +44,7 @@ struct DeckHostSummary {
     bool hasEndpointCandidate = false;
     bool polarisAvailable = false;
     bool standardAppListAvailable = false;
+    bool standardLibraryAvailable = false;  ///< Authenticated live GameStream library, distinct from an imported cache.
     std::string publicStatusLabel;
     std::string publicSubtitle;
     std::string publicProvenanceLabel;
@@ -264,6 +269,18 @@ struct DeckPublicReadOnlyGameItem {
     std::string launchModeLabel;
     std::string installedLabel;
     bool initialFocus = false;
+    std::string source;
+    std::string category;
+    std::vector<std::string> genres;
+    bool hdrSupported = false;
+    std::int64_t lastLaunched = 0;
+    DeckGameTime gameTime;
+    std::string spaceId, spaceName;
+    std::string artworkKey;
+    double logoScale = 1.0, logoX = 0.5, logoY = 0.5;
+    DeckLaunchModePolicy launchPolicy;
+    DeckStreamCapabilities streamCapabilities;
+    DeckDisplayPlanner displayPlanner;
 };
 
 struct DeckPublicReadOnlyPreflightState {

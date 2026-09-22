@@ -9,42 +9,6 @@
 
 namespace nova::deck::stream {
 
-static_assert(std::atomic<std::uint64_t>::is_always_lock_free);
-
-void DeckPcmRingBuffer::configure(const std::size_t capacitySamples) {
-    samples_.assign(capacitySamples, 0.0f);
-    writeIndex_.store(0, std::memory_order_relaxed);
-    readIndex_.store(0, std::memory_order_relaxed);
-}
-
-bool DeckPcmRingBuffer::push(const std::span<const float> samples) {
-    const auto write = writeIndex_.load(std::memory_order_relaxed);
-    const auto read = readIndex_.load(std::memory_order_acquire);
-    if (samples.size() > samples_.size() - (write - read)) {
-        return false;
-    }
-    for (std::size_t i = 0; i < samples.size(); ++i) {
-        samples_[(write + i) % samples_.size()] = samples[i];
-    }
-    writeIndex_.store(write + samples.size(), std::memory_order_release);
-    return true;
-}
-
-std::size_t DeckPcmRingBuffer::pop(const std::span<float> destination) {
-    const auto read = readIndex_.load(std::memory_order_relaxed);
-    const auto write = writeIndex_.load(std::memory_order_acquire);
-    const auto count = std::min<std::size_t>(destination.size(), write - read);
-    for (std::size_t i = 0; i < count; ++i) {
-        destination[i] = samples_[(read + i) % samples_.size()];
-    }
-    readIndex_.store(read + count, std::memory_order_release);
-    return count;
-}
-
-std::size_t DeckPcmRingBuffer::capacity() const {
-    return samples_.size();
-}
-
 namespace {
 
 class PipeWireOutput final : public DeckPcmOutput {
@@ -71,6 +35,7 @@ public:
         submittedFrames_ = 0;
         silenceFrames_ = 0;
         droppedFrames_ = 0;
+        discardedFrames_ = 0;
         static std::once_flag initialization;
         std::call_once(initialization, [] { pw_init(nullptr, nullptr); });
         loop_ = pw_thread_loop_new("nova-audio", nullptr);
@@ -87,6 +52,7 @@ public:
         stream_ = pw_stream_new_simple(pw_thread_loop_get_loop(loop_), "Nova audio",
             pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback",
                 PW_KEY_MEDIA_ROLE, "Game", PW_KEY_NODE_NAME, "nova-audio",
+                PW_KEY_NODE_DONT_RECONNECT, "false", "node.dont-move", "false",
                 PW_KEY_NODE_LATENCY, "240/48000", nullptr),
             &events, this);
         if (stream_ == nullptr || pw_thread_loop_start(loop_) < 0) {
@@ -147,6 +113,9 @@ public:
     }
 
     void close() override {
+        available_ = false;
+        streaming_ = false;
+        ++generation_;
         if (loopStarted_) {
             pw_thread_loop_stop(loop_);
             loopStarted_ = false;
@@ -160,14 +129,16 @@ public:
             loop_ = nullptr;
         }
         available_.store(false, std::memory_order_relaxed);
+        streaming_.store(false, std::memory_order_relaxed);
+        if (format_.channels) discardedFrames_.fetch_add(ring_.discard() / format_.channels);
     }
 
     bool write(const std::span<const float> samples) override {
-        if (!stream_ || !loopStarted_ || !available_.load(std::memory_order_relaxed)
-            || samples.size() % format_.channels != 0) {
-            return false;
-        }
-        if (!ring_.push(samples)) {
+        if (!format_.channels || samples.size() % format_.channels) return false;
+        const auto generation = generation_.load();
+        // No PCM backlog while an output is absent or the graph is paused.
+        // Generation tags also reject a write racing a pause/relink boundary.
+        if (!available_.load() || !streaming_.load() || !ring_.push(samples, generation)) {
             droppedFrames_.fetch_add(samples.size() / format_.channels, std::memory_order_relaxed);
             return false;
         }
@@ -177,7 +148,8 @@ public:
     DeckAudioOutputStats stats() const override {
         return {submittedFrames_.load(std::memory_order_relaxed),
             silenceFrames_.load(std::memory_order_relaxed), droppedFrames_.load(std::memory_order_relaxed),
-            available_.load(std::memory_order_relaxed)};
+            available_.load(std::memory_order_relaxed), streaming_.load(std::memory_order_relaxed),
+            false, 0, 0, discardedFrames_.load(std::memory_order_relaxed)};
     }
 
 private:
@@ -185,6 +157,8 @@ private:
         auto& self = *static_cast<PipeWireOutput*>(data);
         self.available_.store(state == PW_STREAM_STATE_PAUSED || state == PW_STREAM_STATE_STREAMING,
             std::memory_order_relaxed);
+        self.streaming_.store(state == PW_STREAM_STATE_STREAMING);
+        if (state != PW_STREAM_STATE_STREAMING) ++self.generation_;
         pw_thread_loop_signal(self.loop_, false);
     }
 
@@ -204,7 +178,14 @@ private:
         const std::size_t maxFrames = plane.maxsize / (sizeof(float) * channels);
         const auto frames = queued->requested ? std::min<std::size_t>(queued->requested, maxFrames) : maxFrames;
         const std::span<float> output(static_cast<float*>(plane.data), frames * channels);
-        const auto copied = self.ring_.pop(output);
+        const auto generation = self.generation_.load();
+        std::size_t discarded = 0;
+        auto copied = self.ring_.pop(output, generation, &discarded);
+        if (!self.streaming_.load() || generation != self.generation_.load()) {
+            discarded += copied;
+            copied = 0;
+        }
+        self.discardedFrames_.fetch_add(discarded / channels, std::memory_order_relaxed);
         std::fill(output.begin() + copied, output.end(), 0.0f);
         plane.chunk->offset = 0;
         plane.chunk->stride = sizeof(float) * channels;
@@ -215,6 +196,9 @@ private:
             self.silenceFrames_.fetch_add((output.size() - copied) / channels, std::memory_order_relaxed);
         } else {
             self.available_.store(false, std::memory_order_relaxed);
+            self.streaming_ = false;
+            ++self.generation_;
+            self.discardedFrames_.fetch_add(copied / channels, std::memory_order_relaxed);
         }
     }
 
@@ -224,6 +208,9 @@ private:
     pw_stream* stream_ = nullptr;
     bool loopStarted_ = false;
     std::atomic<bool> available_{false};
+    std::atomic<bool> streaming_{false};
+    std::atomic<std::uint64_t> generation_{0};
+    std::atomic<std::uint64_t> discardedFrames_{0};
     std::atomic<std::uint64_t> submittedFrames_{0};
     std::atomic<std::uint64_t> silenceFrames_{0};
     std::atomic<std::uint64_t> droppedFrames_{0};
@@ -232,7 +219,7 @@ private:
 } // namespace
 
 std::unique_ptr<DeckPcmOutput> makeDeckPipeWireOutput() {
-    return std::make_unique<PipeWireOutput>();
+    return makeDeckRecoveringOutput([] { return std::make_unique<PipeWireOutput>(); });
 }
 
 } // namespace nova::deck::stream

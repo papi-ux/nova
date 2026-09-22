@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 
-// The live read-only route: hosts come from Moonlight-Qt's pairing file, the
-// library comes from Polaris over the pinned mTLS client, and when Polaris is
-// not reachable the cached Moonlight app list stands in. Everything public
+// The live read-only route: hosts come from Nova or imported Moonlight identity.
+// Libraries use pinned mTLS: Polaris first, then live GameStream when the
+// Polaris API is absent. Imported cached apps remain the offline fallback. Everything public
 // stays a sanitized DTO; addresses, certificates and keys never leave the
 // snapshot builder.
 namespace nova::deck::backend {
@@ -23,6 +23,9 @@ struct DeckLivePolarisFetch {
     std::string serverVersion;
     int httpsPort = 0;
     std::vector<polaris::DeckPolarisGame> games;
+    bool standardHost = false;
+    bool spacesSupported = false;
+    std::optional<polaris::DeckSpaces> spaces;
 };
 
 /// Probe one host. `wantLibrary` is true only for the host expected to supply the library; the others are asked
@@ -35,10 +38,13 @@ struct DeckLiveHostProbe {
     polaris::DeckPolarisRequestStatus status = polaris::DeckPolarisRequestStatus::Unreachable;
     std::string detail;
     std::string serverVersion;
-    std::string librarySource;  ///< polaris-live, moonlight-cached-app-list, or none
+    std::string librarySource;  ///< polaris-live, gamestream-live, moonlight-cached-app-list, or none
     int gameCount = 0;
     int cachedAppCount = 0;
     int resolvedHttpsPort = 0;  ///< the port Polaris was actually reached on (serverinfo first, then the five-port rule)
+    bool standardHost = false;
+    bool spacesSupported = false;
+    std::optional<polaris::DeckSpaces> spaces;
 };
 
 struct DeckLiveHostLibrarySnapshot {
@@ -54,8 +60,8 @@ struct DeckLiveHostLibrarySnapshot {
 
 /// Probe every paired host through @p fetcher and build the sanitized snapshot. Pure apart from the fetcher.
 /// Hosts are probed concurrently (the fetcher is called from one thread per host), so the wait is the
-/// slowest host's, not the sum. The first reachable Polaris host in Moonlight's order supplies the
-/// library and becomes the selected host; other hosts are only asked for capabilities.
+/// slowest host's, not the sum. Prefer a reachable Polaris library, then a live
+/// standard host, then imported cached apps, keeping saved-host order in each group.
 DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdentity& identity, const DeckLivePolarisFetcher& fetcher);
 
 /// Hosts in presentation order: the selected host first, then Moonlight's order.

@@ -10,6 +10,8 @@
 // private key, paired hosts, pinned server certificates and cached app lists in
 // one QSettings INI file; this module reads that file and nothing else. The
 // private key never leaves the identity object into a public DTO.
+// The record types are also consumed by deck_native_identity's separate Nova
+// store; the Moonlight loader itself remains read-only.
 namespace nova::deck::identity {
 
 struct DeckMoonlightAppRecord {
@@ -31,6 +33,7 @@ struct DeckMoonlightHostRecord {
     int remotePort = 0;
     std::string ipv6Address;
     int ipv6Port = 0;
+    int nativeHttpsPort = 0;  ///< TLS port confirmed during Nova-owned pairing; zero for imported records.
     std::string serverCertificatePem;
     std::vector<DeckMoonlightAppRecord> apps;
 

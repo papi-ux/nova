@@ -11,6 +11,7 @@
     "--share=ipc",
     "--device=dri",
     "--device=input",
+    "--filesystem=xdg-documents/Nova reports:create",
     "--filesystem=xdg-run/pipewire-0",
     "--filesystem=xdg-run/gamescope-0",
     "--filesystem=~/.var/app/com.moonlight_stream.Moonlight/config:ro",
@@ -18,6 +19,7 @@
     "--filesystem=~/.steam/steam/userdata",
     "--filesystem=~/.var/app/com.valvesoftware.Steam/.local/share/Steam/userdata",
     "--talk-name=org.freedesktop.Flatpak",
+    "--system-talk-name=org.freedesktop.login1",
     "--env=QT_QUICK_CONTROLS_STYLE=Material"
   ],
   "cleanup": ["/include", "*.a", "/lib/static", "/lib/pkgconfig", "/share/nova-deck/cmake"],

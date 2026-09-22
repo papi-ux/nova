@@ -106,6 +106,9 @@ bool drmPrimeDescriptorHasExplicitModifier(const DeckQrhiVaapiDrmPrimeDescriptor
 using EglCreateImageKhr = EGLImageKHR (*)(EGLDisplay, EGLContext, EGLenum, EGLClientBuffer, const EGLint*);
 using EglDestroyImageKhr = EGLBoolean (*)(EGLDisplay, EGLImageKHR);
 using GlEglImageTargetTexture2DOes = void (*)(GLenum, GLeglImageOES);
+using GlGenVertexArrays = void (*)(GLsizei, GLuint*);
+using GlBindVertexArray = void (*)(GLuint);
+using GlDeleteVertexArrays = void (*)(GLsizei, const GLuint*);
 
 std::string glErrorCodeDetail(const GLenum error) {
     std::ostringstream stream;
@@ -184,9 +187,10 @@ GLuint createExternalOesPresenterProgram() {
         "#extension GL_OES_EGL_image_external : require\n"
         "precision mediump float;\n"
         "uniform samplerExternalOES u_texture;\n"
+        "uniform float u_opacity;\n"
         "varying vec2 v_texCoord;\n"
         "void main() {\n"
-        "    gl_FragColor = texture2D(u_texture, v_texCoord);\n"
+        "    gl_FragColor = texture2D(u_texture, v_texCoord) * u_opacity;\n"
         "}\n";
     return createPresenterProgram(fragmentShaderSource);
 }
@@ -196,6 +200,7 @@ GLuint createTwoLayerYuvPresenterProgram() {
         "precision mediump float;\n"
         "uniform sampler2D u_yTexture;\n"
         "uniform sampler2D u_uvTexture;\n"
+        "uniform float u_opacity;\n"
         "varying vec2 v_texCoord;\n"
         "void main() {\n"
         "    float y = texture2D(u_yTexture, v_texCoord).r;\n"
@@ -203,12 +208,13 @@ GLuint createTwoLayerYuvPresenterProgram() {
         "    float r = y + 1.5748 * uv.y;\n"
         "    float g = y - 0.1873 * uv.x - 0.4681 * uv.y;\n"
         "    float b = y + 1.8556 * uv.x;\n"
-        "    gl_FragColor = vec4(clamp(vec3(r, g, b), 0.0, 1.0), 1.0);\n"
+        "    gl_FragColor = vec4(clamp(vec3(r, g, b), 0.0, 1.0), 1.0) * u_opacity;\n"
         "}\n";
     static constexpr const char* desktopFragmentShaderSource =
         "#version 150\n"
         "uniform sampler2D u_yTexture;\n"
         "uniform sampler2D u_uvTexture;\n"
+        "uniform float u_opacity;\n"
         "in vec2 v_texCoord;\n"
         "out vec4 fragColor;\n"
         "void main() {\n"
@@ -217,19 +223,22 @@ GLuint createTwoLayerYuvPresenterProgram() {
         "    float r = y + 1.5748 * uv.y;\n"
         "    float g = y - 0.1873 * uv.x - 0.4681 * uv.y;\n"
         "    float b = y + 1.8556 * uv.x;\n"
-        "    fragColor = vec4(clamp(vec3(r, g, b), 0.0, 1.0), 1.0);\n"
+        "    fragColor = vec4(clamp(vec3(r, g, b), 0.0, 1.0), 1.0) * u_opacity;\n"
         "}\n";
     const char* fragmentShaderSource = currentContextUsesOpenGles() ? esFragmentShaderSource : desktopFragmentShaderSource;
     return createPresenterProgram(fragmentShaderSource);
 }
 
-bool renderPresenterTexture(DeckVaapiEglImagePresenter::Resource& resource, const QRectF& rect, const QMatrix4x4* projectionMatrix) {
+bool renderPresenterTexture(DeckVaapiEglImagePresenter::Resource& resource, const QRectF& rect,
+                            const QMatrix4x4* transform, const qreal opacity = 1.0,
+                            const QSGRenderNode::RenderState* state = nullptr, const QRectF& source = {0, 0, 1, 1}) {
     resource.shaderCompositionProved = false;
     resource.shaderCompositionDetail.clear();
-    if (!resource.hasTexture() || projectionMatrix == nullptr) {
-        resource.shaderCompositionDetail = !resource.hasTexture()
-            ? "shader composition skipped because no imported EGLImage/GL texture resource is available"
-            : "shader composition skipped because QSGRenderNode render state did not provide a projection matrix";
+    const bool hasGlTextures = resource.importedLayerCount == 2
+        ? resource.glTextures[0] != 0 && resource.glTextures[1] != 0
+        : resource.glTexture != 0;
+    if (!hasGlTextures || transform == nullptr || rect.isEmpty()) {
+        resource.shaderCompositionDetail = "shader composition requires GL textures, a transform and a nonempty video rectangle";
         return false;
     }
     if (resource.glProgram == 0) {
@@ -244,13 +253,54 @@ bool renderPresenterTexture(DeckVaapiEglImagePresenter::Resource& resource, cons
     const GLfloat top = static_cast<GLfloat>(rect.top());
     const GLfloat bottom = static_cast<GLfloat>(rect.bottom());
     const GLfloat vertices[] = {
-        left, top, 0.0f, 0.0f,
-        right, top, 1.0f, 0.0f,
-        left, bottom, 0.0f, 1.0f,
-        right, bottom, 1.0f, 1.0f,
+        left, top, GLfloat(source.left()), GLfloat(source.top()),
+        right, top, GLfloat(source.right()), GLfloat(source.top()),
+        left, bottom, GLfloat(source.left()), GLfloat(source.bottom()),
+        right, bottom, GLfloat(source.right()), GLfloat(source.bottom()),
     };
+    // Client-side attribute pointers are invalid in desktop core profiles. Own
+    // the VAO as well as the VBO so Qt's vertex state is never overwritten.
+    const auto bindVertexArray = reinterpret_cast<GlBindVertexArray>(eglGetProcAddress("glBindVertexArray"));
+    if (!currentContextUsesOpenGles()) {
+        const auto genVertexArrays = reinterpret_cast<GlGenVertexArrays>(eglGetProcAddress("glGenVertexArrays"));
+        if (genVertexArrays == nullptr || bindVertexArray == nullptr) {
+            resource.shaderCompositionDetail = "desktop GL vertex array functions are unavailable";
+            return false;
+        }
+        if (resource.glVertexArray == 0) genVertexArrays(1, &resource.glVertexArray);
+        bindVertexArray(resource.glVertexArray);
+    }
+    if (resource.glVertexBuffer == 0) glGenBuffers(1, &resource.glVertexBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, resource.glVertexBuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+
+    // Qt 6 makes no guarantees about incoming GL state for external rendering.
+    // Use premultiplied alpha and explicitly apply both forms of Qt clipping.
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    if (state != nullptr && state->scissorEnabled()) {
+        const auto clip = state->scissorRect();
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(clip.x(), clip.y(), clip.width(), clip.height());
+    } else {
+        glDisable(GL_SCISSOR_TEST);
+    }
+    if (state != nullptr && state->stencilEnabled()) {
+        glEnable(GL_STENCIL_TEST);
+        glStencilFunc(GL_EQUAL, state->stencilValue(), 0xff);
+        glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+        glStencilMask(0xff);
+    } else {
+        glDisable(GL_STENCIL_TEST);
+    }
     glUseProgram(resource.glProgram);
-    glUniformMatrix4fv(glGetUniformLocation(resource.glProgram, "u_projection"), 1, GL_FALSE, projectionMatrix->constData());
+    glUniformMatrix4fv(glGetUniformLocation(resource.glProgram, "u_projection"), 1, GL_FALSE, transform->constData());
+    glUniform1f(glGetUniformLocation(resource.glProgram, "u_opacity"), static_cast<float>(opacity));
     if (resource.importedLayerCount == 2) {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, resource.glTextures[0]);
@@ -265,11 +315,13 @@ bool renderPresenterTexture(DeckVaapiEglImagePresenter::Resource& resource, cons
     }
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), vertices);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), vertices + 2);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), nullptr);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), reinterpret_cast<const void*>(2 * sizeof(GLfloat)));
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
+    if (resource.glVertexArray != 0) bindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     if (resource.importedLayerCount == 2) {
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, 0);
@@ -309,6 +361,15 @@ void destroyPresenterResource(QSGTexture*& qtTexture, void*& eglDisplay, void*& 
 }
 
 void destroyPresenterResource(DeckVaapiEglImagePresenter::Resource& resource) {
+    if (resource.glVertexArray != 0) {
+        const auto deleteVertexArrays = reinterpret_cast<GlDeleteVertexArrays>(eglGetProcAddress("glDeleteVertexArrays"));
+        if (deleteVertexArrays != nullptr) deleteVertexArrays(1, &resource.glVertexArray);
+        resource.glVertexArray = 0;
+    }
+    if (resource.glVertexBuffer != 0) {
+        glDeleteBuffers(1, &resource.glVertexBuffer);
+        resource.glVertexBuffer = 0;
+    }
     EGLDisplay layerDisplay = static_cast<EGLDisplay>(resource.eglDisplay);
     destroyPresenterResource(resource.qtTexture, resource.eglDisplay, resource.eglImage, resource.glTexture, resource.glProgram);
     if (layerDisplay == EGL_NO_DISPLAY) {
@@ -384,6 +445,8 @@ DeckVaapiPresenterReadinessState readinessStateForImportStatus(const DeckQrhiVaa
         return DeckVaapiPresenterReadinessState::UnsupportedMultiLayerDrmPrimeImport;
     case DeckQrhiVaapiImportStatus::UnsupportedDrmPrimeFormat:
         return DeckVaapiPresenterReadinessState::UnsupportedDrmPrimeFormat;
+    case DeckQrhiVaapiImportStatus::UnsupportedColorSpace:
+        return DeckVaapiPresenterReadinessState::UnsupportedColorSpace;
     case DeckQrhiVaapiImportStatus::EglImageCreationFailed:
         return DeckVaapiPresenterReadinessState::EglImageCreationFailed;
     case DeckQrhiVaapiImportStatus::GlTextureBindFailed:
@@ -432,6 +495,8 @@ std::string_view readinessStatusCode(const DeckVaapiPresenterReadinessState stat
         return "unsupported-multilayer-drm-prime-import";
     case DeckVaapiPresenterReadinessState::UnsupportedDrmPrimeFormat:
         return "unsupported-drm-prime-format";
+    case DeckVaapiPresenterReadinessState::UnsupportedColorSpace:
+        return "unsupported-color-space";
     case DeckVaapiPresenterReadinessState::EglImageCreationFailed:
         return "eglimage-creation-failed";
     case DeckVaapiPresenterReadinessState::GlTextureBindFailed:
@@ -480,6 +545,8 @@ std::string_view readinessLabel(const DeckVaapiPresenterReadinessState state) {
         return "Unsupported multi-layer DRM_PRIME import";
     case DeckVaapiPresenterReadinessState::UnsupportedDrmPrimeFormat:
         return "Unsupported DRM_PRIME layer format";
+    case DeckVaapiPresenterReadinessState::UnsupportedColorSpace:
+        return "This video needs a color-aware presenter";
     case DeckVaapiPresenterReadinessState::EglImageCreationFailed:
         return "EGLImage creation failed";
     case DeckVaapiPresenterReadinessState::GlTextureBindFailed:
@@ -593,7 +660,7 @@ DeckVaapiEglImagePresenter::Resource::~Resource() {
 }
 
 DeckVaapiEglImagePresenter::Resource::Resource(Resource&& other) noexcept
-    : qtTexture(other.qtTexture), eglDisplay(other.eglDisplay), eglImage(other.eglImage), glTexture(other.glTexture), glProgram(other.glProgram), eglImages(other.eglImages), glTextures(other.glTextures), importedLayerCount(other.importedLayerCount), shaderCompositionProved(other.shaderCompositionProved), shaderCompositionDetail(std::move(other.shaderCompositionDetail)) {
+    : qtTexture(other.qtTexture), eglDisplay(other.eglDisplay), eglImage(other.eglImage), glTexture(other.glTexture), glProgram(other.glProgram), glVertexBuffer(std::exchange(other.glVertexBuffer, 0)), glVertexArray(std::exchange(other.glVertexArray, 0)), eglImages(other.eglImages), glTextures(other.glTextures), importedLayerCount(other.importedLayerCount), shaderCompositionProved(other.shaderCompositionProved), shaderCompositionDetail(std::move(other.shaderCompositionDetail)) {
     other.qtTexture = nullptr;
     other.eglDisplay = nullptr;
     other.eglImage = nullptr;
@@ -614,6 +681,8 @@ DeckVaapiEglImagePresenter::Resource& DeckVaapiEglImagePresenter::Resource::oper
         eglImage = other.eglImage;
         glTexture = other.glTexture;
         glProgram = other.glProgram;
+        glVertexBuffer = std::exchange(other.glVertexBuffer, 0);
+        glVertexArray = std::exchange(other.glVertexArray, 0);
         eglImages = other.eglImages;
         glTextures = other.glTextures;
         importedLayerCount = other.importedLayerCount;
@@ -784,6 +853,17 @@ DeckQrhiVaapiImportPlan DeckVaapiEglImagePresenter::importOpenGlTextureForCurren
     destroyPresenterResource(resource);
     resource = std::move(pendingResource);
     return DeckQrhiVaapiImportPlan{ .status = DeckQrhiVaapiImportStatus::DrmPrimeExported, .drmPrimeObjectCount = drmPrimeDescriptor.objectCount, .drmPrimeLayerCount = drmPrimeDescriptor.layerCount, .detail = drmPrimeDescriptor.layerCount == 2 ? "2-layer DRM_PRIME Y/UV dmabuf imported as separate EGLImages and GL textures in a live EGL context; awaiting shader composition proof" : "DRM_PRIME dmabuf imported into an EGLImage and GL texture in a live EGL context; awaiting shader composition proof" };
+}
+
+bool DeckVaapiEglImagePresenter::composeOpenGlTexture(Resource& resource, const QSGRenderNode& node,
+                                                    const QSGRenderNode::RenderState& state, const QRectF& source) {
+    if (node.projectionMatrix() == nullptr || node.matrix() == nullptr) {
+        resource.shaderCompositionProved = false;
+        resource.shaderCompositionDetail = "Qt did not provide the projection and model-view matrices";
+        return false;
+    }
+    const QMatrix4x4 transform = *node.projectionMatrix() * *node.matrix();
+    return renderPresenterTexture(resource, node.rect(), &transform, node.inheritedOpacity(), &state, source);
 }
 
 bool DeckVaapiEglImagePresenter::proveOpenGlShaderCompositionForCurrentContext(Resource& resource, const QSize& size) {
@@ -997,6 +1077,7 @@ DeckLinuxMediaProbe DeckLinuxMediaProbe::detect() {
     av_log_set_level(AV_LOG_QUIET);
     const int hardwareDeviceResult = av_hwdevice_ctx_create(&hardwareDevice, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
     av_log_set_level(priorLogLevel);
+    const auto videoDecodeSupport = probeVideoDecodeSupport(hardwareDevice);
     if (hardwareDevice != nullptr) {
         av_buffer_unref(&hardwareDevice);
     }
@@ -1009,6 +1090,7 @@ DeckLinuxMediaProbe DeckLinuxMediaProbe::detect() {
         .runtimeVaapiDeviceAvailable = hardwareDeviceResult == 0,
         .hardwareDeviceTypeName = vaapiType == AV_HWDEVICE_TYPE_VAAPI ? "vaapi" : "missing-vaapi",
         .runtimeStatus = hardwareDeviceResult == 0 ? "vaapi runtime device opened" : "av_hwdevice_ctx_create(VAAPI) failed: " + ffmpegErrorString(hardwareDeviceResult),
+        .videoDecodeSupport = videoDecodeSupport,
     };
 }
 
@@ -1040,6 +1122,10 @@ bool DeckQrhiVaapiFrameLease::valid() const {
 std::uintptr_t DeckQrhiVaapiFrameLease::surfaceId() const {
     const std::uintptr_t vaSurfaceId = valid() ? reinterpret_cast<std::uintptr_t>(frame_->data[3]) : 0;
     return vaSurfaceId == 0 && valid() ? 1 : vaSurfaceId;
+}
+
+DeckVideoColorInfo DeckQrhiVaapiFrameLease::colorInfo() const {
+    return frame_ ? DeckVideoColorInfo::fromFrame(*frame_) : DeckVideoColorInfo{};
 }
 
 DeckQrhiVaapiDrmPrimeDescriptor DeckQrhiVaapiFrameLease::exportDrmPrimeDescriptor() const {
@@ -1252,9 +1338,10 @@ int DeckProductPreviewPipeline::presentedFrames() const {
     return handoff_.presentedFrames();
 }
 
-DeckQtQuickRhiVaapiRenderNode::DeckQtQuickRhiVaapiRenderNode(DeckQrhiVaapiPresentationDescriptor descriptor, QQuickWindow* targetWindow)
+DeckQtQuickRhiVaapiRenderNode::DeckQtQuickRhiVaapiRenderNode(DeckQrhiVaapiPresentationDescriptor descriptor, QQuickWindow* targetWindow,
+    std::shared_ptr<std::atomic<std::uint64_t>> composedFrames)
     : descriptor_(std::move(descriptor))
-    , targetWindow_(targetWindow) {}
+    , targetWindow_(targetWindow), composedFrames_(std::move(composedFrames)) {}
 
 DeckQtQuickRhiVaapiRenderNode::~DeckQtQuickRhiVaapiRenderNode() {
     releaseResources();
@@ -1265,6 +1352,7 @@ const DeckQrhiVaapiPresentationDescriptor& DeckQtQuickRhiVaapiRenderNode::descri
 }
 
 void DeckQtQuickRhiVaapiRenderNode::replaceDescriptor(DeckQrhiVaapiPresentationDescriptor descriptor, QQuickWindow* targetWindow) {
+    frameCounted_ = false;
     presenterResource_ = {};
     lastImportPlan_ = {};
     readinessReport_ = {};
@@ -1272,6 +1360,24 @@ void DeckQtQuickRhiVaapiRenderNode::replaceDescriptor(DeckQrhiVaapiPresentationD
     targetWindow_ = targetWindow;
     markDirty(QSGNode::DirtyGeometry | QSGNode::DirtyMaterial);
 }
+
+void DeckQtQuickRhiVaapiRenderNode::setItemSize(const QSizeF& size) {
+    if (itemSize_ == size) return;
+    itemSize_ = size;
+    markDirty(QSGNode::DirtyGeometry);
+}
+void DeckQtQuickRhiVaapiRenderNode::setVideoScaleMode(DeckVideoScaleMode mode) {
+    if (scale_ == mode) return;
+    scale_ = mode;
+    markDirty(QSGNode::DirtyGeometry);
+}
+DeckVideoScaleLayout DeckQtQuickRhiVaapiRenderNode::scaleLayout() const {
+    const auto* frame = descriptor_.frameLease ? descriptor_.frameLease->frame() : nullptr;
+    const double aspect = frame && frame->sample_aspect_ratio.num > 0 && frame->sample_aspect_ratio.den > 0
+        ? static_cast<double>(frame->sample_aspect_ratio.num) / frame->sample_aspect_ratio.den : 1;
+    return deckVideoScaleLayout({qreal(descriptor_.width), qreal(descriptor_.height)}, itemSize_, scale_, aspect);
+}
+QRectF DeckQtQuickRhiVaapiRenderNode::sourceRect() const { return scaleLayout().source; }
 
 bool DeckQtQuickRhiVaapiRenderNode::hasFrameLease() const {
     return descriptor_.frameLease != nullptr && descriptor_.frameLease->valid();
@@ -1288,6 +1394,12 @@ DeckQrhiVaapiImportPlan DeckQtQuickRhiVaapiRenderNode::planQrhiImport(const Rend
         return DeckQrhiVaapiImportPlan{
             .status = DeckQrhiVaapiImportStatus::InvalidVaapiFrame,
             .detail = "render node retained frame lease is not a valid VAAPI surface",
+        };
+    }
+    if (!descriptor_.frameLease->colorInfo().legacySdrCompatible()) {
+        return DeckQrhiVaapiImportPlan{
+            .status = DeckQrhiVaapiImportStatus::UnsupportedColorSpace,
+            .detail = "10-bit, HDR or BT.2020 video cannot use the fixed 8-bit SDR presenter",
         };
     }
     if (state == nullptr) {
@@ -1312,7 +1424,7 @@ const DeckVaapiPresenterReadinessReport& DeckQtQuickRhiVaapiRenderNode::lastRead
 }
 
 QSGRenderNode::StateFlags DeckQtQuickRhiVaapiRenderNode::changedStates() const {
-    return ColorState | BlendState | ViewportState;
+    return ColorState | BlendState | DepthState | CullState | StencilState | ScissorState;
 }
 
 void DeckQtQuickRhiVaapiRenderNode::render(const RenderState* state) {
@@ -1344,7 +1456,9 @@ void DeckQtQuickRhiVaapiRenderNode::render(const RenderState* state) {
         presenterResource_);
     readinessReport_ = DeckVaapiEglImagePresenter::readinessReportForResource(lastImportPlan_, presenterResource_);
     if (lastImportPlan_.status == DeckQrhiVaapiImportStatus::DrmPrimeExported) {
-        if (renderPresenterTexture(presenterResource_, rect(), projectionMatrix())) {
+        if (DeckVaapiEglImagePresenter::composeOpenGlTexture(presenterResource_, *this, *state, sourceRect())) {
+            if (!frameCounted_ && composedFrames_) ++*composedFrames_;
+            frameCounted_ = true;
             readinessReport_ = DeckVaapiEglImagePresenter::readinessReportForResource(lastImportPlan_, presenterResource_);
         } else {
             lastImportPlan_.status = DeckQrhiVaapiImportStatus::EglImageShaderCompositionFailed;
@@ -1378,7 +1492,12 @@ QSGRenderNode::RenderingFlags DeckQtQuickRhiVaapiRenderNode::flags() const {
 }
 
 QRectF DeckQtQuickRhiVaapiRenderNode::rect() const {
-    return QRectF(0.0, 0.0, static_cast<qreal>(descriptor_.width), static_cast<qreal>(descriptor_.height));
+    const QSizeF frameSize(descriptor_.width, descriptor_.height);
+    if (!itemSize_.isValid()) return QRectF(QPointF(), frameSize);
+    if (frameSize.isEmpty() || itemSize_.isEmpty()) return {};
+    const auto rect = scaleLayout().destination;
+    return {rect.x() * itemSize_.width(), rect.y() * itemSize_.height(),
+        rect.width() * itemSize_.width(), rect.height() * itemSize_.height()};
 }
 
 DeckQtQuickRhiVaapiItem::DeckQtQuickRhiVaapiItem(QQuickItem* parent)
@@ -1390,7 +1509,8 @@ DeckQtQuickRhiVaapiItem::~DeckQtQuickRhiVaapiItem() = default;
 
 bool DeckQtQuickRhiVaapiItem::presentVaapiSurface(const DeckQrhiVaapiPresentationDescriptor& descriptor) {
     if (!descriptor.hardwareBacked || descriptor.surfaceId == 0 || descriptor.width <= 0 || descriptor.height <= 0 ||
-        descriptor.frameLease == nullptr || !descriptor.frameLease->valid()) {
+        descriptor.frameLease == nullptr || !descriptor.frameLease->valid() ||
+        !descriptor.frameLease->colorInfo().legacySdrCompatible()) {
         pendingDescriptor_ = {};
         hasPendingDescriptor_ = true;
         pendingDescriptorValid_ = false;
@@ -1408,10 +1528,24 @@ bool DeckQtQuickRhiVaapiItem::presentVaapiSurface(const DeckQrhiVaapiPresentatio
 int DeckQtQuickRhiVaapiItem::presentedFrames() const {
     return presentedFrames_;
 }
+void DeckQtQuickRhiVaapiItem::setVideoScaleMode(const QString& mode) {
+    if (!deckVideoScaleMode(mode) || scaleMode_ == mode) return;
+    scaleMode_ = mode;
+    update(); emit videoScaleModeChanged();
+}
+
+void DeckQtQuickRhiVaapiItem::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) {
+    QQuickItem::geometryChange(newGeometry, oldGeometry);
+    if (newGeometry.size() != oldGeometry.size()) update();
+}
 
 QSGNode* DeckQtQuickRhiVaapiItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* updatePaintNodeData) {
     (void)updatePaintNodeData;
     if (!hasPendingDescriptor_) {
+        if (oldNode != nullptr) {
+            auto* node = static_cast<DeckQtQuickRhiVaapiRenderNode*>(oldNode);
+            node->setItemSize(size()); node->setVideoScaleMode(*deckVideoScaleMode(scaleMode_));
+        }
         return oldNode;
     }
 
@@ -1429,15 +1563,20 @@ QSGNode* DeckQtQuickRhiVaapiItem::updatePaintNode(QSGNode* oldNode, UpdatePaintN
     if (oldNode != nullptr && oldNode->type() == QSGNode::RenderNodeType) {
         auto* renderNode = static_cast<DeckQtQuickRhiVaapiRenderNode*>(oldNode);
         renderNode->replaceDescriptor(std::move(descriptor), window());
+        renderNode->setItemSize(size());
+        renderNode->setVideoScaleMode(*deckVideoScaleMode(scaleMode_));
         return renderNode;
     }
 
     delete oldNode;
-    return new DeckQtQuickRhiVaapiRenderNode(std::move(descriptor), window());
+    auto* renderNode = new DeckQtQuickRhiVaapiRenderNode(std::move(descriptor), window(), composedFrames_);
+    renderNode->setItemSize(size());
+    renderNode->setVideoScaleMode(*deckVideoScaleMode(scaleMode_));
+    return renderNode;
 }
 
 std::string_view DeckVaapiFfmpegRenderer::adapterName() const {
-    return "ffmpeg-vaapi-h264-qt-rhi-prototype";
+    return "ffmpeg-vaapi-qt-rhi-prototype";
 }
 
 DeckVaapiFfmpegRenderer::~DeckVaapiFfmpegRenderer() {
@@ -1462,6 +1601,8 @@ int DeckVaapiFfmpegRenderer::setup(
     lifecycle_.networkStartAllowed = false;
     lifecycle_.decodedHardwareFrames = 0;
     lifecycle_.presentedHardwareFrames = 0;
+    lifecycle_.incomingFrames = lifecycle_.videoBytes = 0;
+    lifecycle_.hostLatencyTenths = lifecycle_.hostLatencySamples = 0;
     lifecycle_.lastFrameWasHardwareBacked = false;
     lifecycle_.lastRuntimeError.clear();
     resetDecoder();
@@ -1469,7 +1610,8 @@ int DeckVaapiFfmpegRenderer::setup(
     const DeckLinuxMediaProbe probe = DeckLinuxMediaProbe::detect();
     lifecycle_.runtimeVaapiDeviceAvailable = probe.runtimeVaapiDeviceAvailable;
     lifecycle_.runtimeStatus = probe.runtimeStatus;
-    if (videoFormat != VIDEO_FORMAT_H264) {
+    const auto spec = videoDecoderSpec(videoFormat);
+    if (!spec) {
         lifecycle_.lastRuntimeError = "unsupported video format for Deck FFmpeg VA-API renderer";
         return DR_NEED_IDR;
     }
@@ -1481,20 +1623,25 @@ int DeckVaapiFfmpegRenderer::setup(
         resetDecoder();
         return DR_NEED_IDR;
     }
+    if (!probeVideoDecodeSupport(hardwareDevice_).supports(videoFormat, width, height)) {
+        lifecycle_.lastRuntimeError = "The VA-API device cannot decode this codec and stream size";
+        resetDecoder();
+        return DR_NEED_IDR;
+    }
     lifecycle_.ownsHardwareDevice = true;
     lifecycle_.runtimeVaapiDeviceAvailable = true;
     lifecycle_.runtimeStatus = "vaapi runtime device opened and owned";
 
-    const AVCodec* codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+    const AVCodec* codec = avcodec_find_decoder(static_cast<AVCodecID>(spec->codecId));
     if (codec == nullptr) {
-        lifecycle_.lastRuntimeError = "FFmpeg H.264 decoder unavailable";
+        lifecycle_.lastRuntimeError = "FFmpeg decoder unavailable for " + std::string(spec->name);
         resetDecoder();
         return DR_NEED_IDR;
     }
 
     codecContext_ = avcodec_alloc_context3(codec);
     if (codecContext_ == nullptr) {
-        lifecycle_.lastRuntimeError = "avcodec_alloc_context3(H.264) failed";
+        lifecycle_.lastRuntimeError = "avcodec_alloc_context3() failed";
         resetDecoder();
         return DR_NEED_IDR;
     }
@@ -1510,7 +1657,7 @@ int DeckVaapiFfmpegRenderer::setup(
 
     result = avcodec_open2(codecContext_, codec, nullptr);
     if (result < 0) {
-        lifecycle_.lastRuntimeError = "avcodec_open2(H.264 VA-API) failed: " + ffmpegErrorString(result);
+        lifecycle_.lastRuntimeError = "avcodec_open2(VA-API) failed: " + ffmpegErrorString(result);
         resetDecoder();
         return DR_NEED_IDR;
     }
@@ -1554,8 +1701,15 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
 
     const std::vector<std::uint8_t> bytes = copyDecodeUnitBytes(decodeUnit);
     if (bytes.empty()) {
-        lifecycle_.lastRuntimeError = "decode unit did not contain Annex-B H.264 bytes";
+        lifecycle_.lastRuntimeError = "decode unit did not contain Annex-B video bytes";
         return DR_NEED_IDR;
+    }
+
+    ++lifecycle_.incomingFrames;
+    lifecycle_.videoBytes += bytes.size();
+    if (decodeUnit->frameHostProcessingLatency) {
+        lifecycle_.hostLatencyTenths += decodeUnit->frameHostProcessingLatency;
+        ++lifecycle_.hostLatencySamples;
     }
 
     AVPacket* packet = av_packet_alloc();
@@ -1582,16 +1736,23 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         const bool hardwareBacked = decodedFrame_->format == AV_PIX_FMT_VAAPI;
         lifecycle_.lastFrameWasHardwareBacked = hardwareBacked;
         if (hardwareBacked) {
+            const auto spec = videoDecoderSpec(lifecycle_.videoFormat);
+            const auto color = DeckVideoColorInfo::fromFrame(*decodedFrame_);
+            if (!spec || color.bitDepth != spec->bitDepth || !color.yuv420) {
+                lifecycle_.lastRuntimeError = "Decoded bit depth or chroma does not match the requested video format";
+                av_frame_unref(decodedFrame_);
+                return DR_NEED_IDR;
+            }
             ++lifecycle_.decodedHardwareFrames;
             std::shared_ptr<DeckQrhiVaapiFrameLease> frameLease = DeckQrhiVaapiFrameLease::cloneHardwareFrame(*decodedFrame_);
             const DeckQrhiVaapiPresentationDescriptor descriptor{
-                .width = lifecycle_.width,
-                .height = lifecycle_.height,
+                .width = decodedFrame_->width,
+                .height = decodedFrame_->height,
                 .redrawRate = lifecycle_.redrawRate,
                 .surfaceId = frameLease == nullptr ? 0 : frameLease->surfaceId(),
                 .hardwareBacked = frameLease != nullptr && frameLease->valid(),
                 .frameLease = frameLease,
-                .source = "ffmpeg-vaapi-h264",
+                .source = "ffmpeg-vaapi-" + std::string(spec->name),
             };
             if (previewFramePump_.enqueueDecodedFrame(descriptor) && previewFramePump_.flushNewest()) {
                 ++lifecycle_.presentedHardwareFrames;
@@ -1603,9 +1764,9 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
     }
 
     if (result == AVERROR(EAGAIN)) {
-        lifecycle_.lastRuntimeError = "H.264 packet accepted but no VA-API hardware frame was ready";
+        lifecycle_.lastRuntimeError = "Video packet accepted but no VA-API hardware frame was ready";
     } else if (result == AVERROR_EOF) {
-        lifecycle_.lastRuntimeError = "H.264 decoder reached EOF before a VA-API hardware frame";
+        lifecycle_.lastRuntimeError = "Video decoder reached EOF before a VA-API hardware frame";
     } else {
         lifecycle_.lastRuntimeError = "avcodec_receive_frame() failed: " + ffmpegErrorString(result);
     }
@@ -1627,6 +1788,7 @@ const DeckQrhiVaapiPresentationHandoff& DeckVaapiFfmpegRenderer::presentationHan
 
 void DeckVaapiFfmpegRenderer::resetDecoder() {
     ready_ = false;
+    previewFramePump_.clearPending();
     if (decodedFrame_ != nullptr) {
         av_frame_free(&decodedFrame_);
     }
@@ -1656,6 +1818,10 @@ DeckGuardedStreamSessionPreviewProducer::DeckGuardedStreamSessionPreviewProducer
 
 DeckGuardedStreamSessionPreviewProducer::DeckGuardedStreamSessionPreviewProducer(DeckMoonlightConnectionDriver& driver)
     : session_(renderer_, audio_, input_, *this, driver) {}
+
+DeckGuardedStreamSessionPreviewProducer::DeckGuardedStreamSessionPreviewProducer(
+    DeckMoonlightConnectionDriver& driver, DeckStreamInput& feedback)
+    : session_(renderer_, audio_, feedback, *this, driver) {}
 
 DeckGuardedStreamSessionPreviewProducer::~DeckGuardedStreamSessionPreviewProducer() = default;
 
@@ -1953,7 +2119,7 @@ DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::startAuthoriz
     const DeckOperatorStartAuthorizationSnapshot& authorization,
     const DeckStreamRequest& request,
     const DeckStreamConnectionInfo& connection,
-    DeckHttpFetcher hostFetcher) {
+    DeckHttpFetcher hostFetcher, bool newlyLaunched) {
     lastReport_.hostId = request.hostId;
     lastReport_.gameId = request.gameId;
     lastReport_.width = request.width;
@@ -1979,18 +2145,18 @@ DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::startAuthoriz
         return lastReport_;
     }
 
-    // From here on the host has an app running for this session (the launch is
-    // what produced the RTSP url), so it is owed a cancel when this ends,
-    // whether or not the stream comes up.
+    // Retain exact quit authority for an explicit End game. Failed setup owes
+    // cancellation only for a newly launched app, never for an existing game.
     hostFetcher_ = std::move(hostFetcher);
     hostSessionToken_ = connection.hostSessionToken;
     hostSessionPending_ = true;
+    newlyLaunched_ = newlyLaunched;
 
     const auto prepared = producer_.prepareNoNetwork(request);
     if (prepared.state != DeckStreamSessionState::Preparing) {
         lastReport_ = reportForTransition(prepared, "host-start-prepare-denied", false, false, &request);
         lastReport_.operatorAuthorizationState = operatorAuthorizationStateLabel(authorization.mode);
-        settleHostSession(lastReport_);
+        if (newlyLaunched_) settleHostSession(lastReport_);
         return lastReport_;
     }
 
@@ -2031,6 +2197,21 @@ DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::stop() {
     }
     lastReport_ = reportForTransition(stopped, std::move(statusCode), false, false);
     settleHostSession(lastReport_);
+    return lastReport_;
+}
+
+DeckGuardedPreviewLifecycleReport DeckGuardedPreviewLifecycleGate::disconnect() {
+    // A failed/pending start still owes the host its normal launch cleanup.
+    if (!lastReport_.networkStarted && newlyLaunched_) return lastReport_;
+    // Retire quit authority before stopping the transport. Even a teardown
+    // exception or a later cleanup call must not turn Disconnect into Quit.
+    hostSessionPending_ = false;
+    hostFetcher_ = {};
+    hostSessionToken_.clear();
+    auto report = stop();
+    report.statusCode = "disconnected-host-session";
+    report.hostCancelSummary = "disconnected without requesting host app termination";
+    lastReport_ = report;
     return lastReport_;
 }
 

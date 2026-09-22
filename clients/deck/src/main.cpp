@@ -1,3 +1,5 @@
+#include "runtime/deck_input_hub.h"
+#include "runtime/deck_desktop_input_bridge.h"
 #include "deck_layout.h"
 #include "deck_gamepad.h"
 #include "polaris_game_fixture.h"
@@ -5,8 +7,21 @@
 #include "backend/deck_live_read_only_state.h"
 #include "runtime/deck_moonlight_launcher.h"
 #include "runtime/deck_steam_shortcuts.h"
+#include "runtime/deck_game_tools.h"
+#include "runtime/deck_game_shortcuts.h"
+#include "runtime/deck_native_session.h"
+#include "runtime/deck_rumble.h"
+#include "runtime/deck_sleep_monitor.h"
+#include "runtime/deck_play_settings.h"
+#include "runtime/deck_display_capabilities.h"
+#include "runtime/deck_pairing_controller.h"
+#include "runtime/deck_library_controller.h"
+#include "runtime/deck_library_artwork.h"
 #include "stream/deck_gamestream_session_builder.h"
 #include "stream/deck_stream_media_adapters.h"
+#ifdef NOVA_DECK_VULKAN_STREAM
+#include "runtime/deck_vulkan_session_view.h"
+#endif
 
 #include <QClipboard>
 #include <QSocketNotifier>
@@ -21,14 +36,20 @@
 #include <memory>
 #include <optional>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QGuiApplication>
 #include <QThread>
 #include <QTimer>
 #include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
 #include <QKeyEvent>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QSGRendererInterface>
+#include <EGL/egl.h>
 #include <qqml.h>
 #include <QObject>
 #include <QString>
@@ -52,150 +73,7 @@
 #endif
 
 namespace {
-class QtDeckGamepadBridge final : public QObject {
-    Q_OBJECT
-    Q_PROPERTY(bool available READ available NOTIFY availabilityChanged)
-public:
-    explicit QtDeckGamepadBridge(QObject* parent = nullptr)
-        : QObject(parent) {
-        QObject::connect(&reconnectTimer_, &QTimer::timeout, this, [this]() {
-            if (!available()) openDefaultDevice();
-            if (traceInput_ && tracePolls_++ < 5) {
-                auto* window = QGuiApplication::focusWindow();
-                qInfo() << "Nova Deck input" << "focus-window" << (window != nullptr)
-                        << "active" << (window && window->isActive())
-                        << "device-open" << available();
-            }
-        });
-        reconnectTimer_.start(1000);
-        openDefaultDevice();
-    }
-
-    ~QtDeckGamepadBridge() override {
-#ifdef __linux__
-        if (gamepadFd_ >= 0) {
-            ::close(gamepadFd_);
-            gamepadFd_ = -1;
-        }
-#endif
-    }
-
-    [[nodiscard]] bool available() const {
-#ifdef __linux__
-        return gamepadFd_ >= 0;
-#else
-        return false;
-#endif
-    }
-
-    Q_INVOKABLE void activateFocusedItem() {
-        sendNavigationKey(Qt::Key_Return);
-    }
-
-signals:
-    void availabilityChanged();
-    void primaryActionPressed(int activationCount);
-    void secondaryActionPressed(int activationCount);
-
-private:
-    void sendNavigationKey(int key) {
-        QWindow* window = QGuiApplication::focusWindow();
-        if (!window || !window->isActive()) return;
-        const auto* previousFocus = window->focusObject();
-        QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier);
-        QCoreApplication::sendEvent(window, &press);
-        QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier);
-        QCoreApplication::sendEvent(window, &release);
-        if (traceInput_) qInfo() << "Nova Deck input" << "navigation-delivered" << key
-                                << "focus-moved" << (previousFocus != window->focusObject());
-    }
-
-    void openDefaultDevice() {
-#ifdef __linux__
-        const QByteArray configuredDevice = qgetenv("NOVA_DECK_GAMEPAD_DEVICE");
-        const QByteArray devicePath = configuredDevice.isEmpty() ? QByteArray("/dev/input/js0") : configuredDevice;
-        gamepadFd_ = ::open(devicePath.constData(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-        if (gamepadFd_ < 0) {
-            return;
-        }
-
-        const auto axes = nova::deck::readDeckGamepadHatAxes(gamepadFd_);
-        navigation_ = nova::deck::DeckGamepadNavigation(axes.horizontal, axes.vertical);
-        if (traceInput_) qInfo() << "Nova Deck input" << "hat-map" << axes.horizontal << axes.vertical;
-        notifier_ = new QSocketNotifier(gamepadFd_, QSocketNotifier::Read, this);
-        QObject::connect(notifier_, &QSocketNotifier::activated, this, [this]() {
-            readPendingJoystickEvents();
-        });
-        emit availabilityChanged();
-#endif
-    }
-
-#ifdef __linux__
-    void readPendingJoystickEvents() {
-        js_event rawEvent{};
-        for (;;) {
-            const ssize_t bytesRead = ::read(gamepadFd_, &rawEvent, sizeof(rawEvent));
-            if (bytesRead == static_cast<ssize_t>(sizeof(rawEvent))) {
-                const nova::deck::DeckGamepadEvent event{
-                    .timeMs = rawEvent.time,
-                    .value = rawEvent.value,
-                    .type = rawEvent.type,
-                    .number = rawEvent.number,
-                };
-                const auto direction = navigation_.decode(event);
-                // Keep draining while unfocused without acting on background input.
-                auto* window = QGuiApplication::focusWindow();
-                if (traceInput_ && direction != nova::deck::DeckGamepadAction::None) {
-                    qInfo() << "Nova Deck input" << "direction" << static_cast<int>(direction)
-                            << "focus-window" << (window != nullptr)
-                            << "active" << (window && window->isActive());
-                }
-                if (!window || !window->isActive()) continue;
-                using Action = nova::deck::DeckGamepadAction;
-                switch (direction) {
-                case Action::LeftPressed: sendNavigationKey(Qt::Key_Left); break;
-                case Action::RightPressed: sendNavigationKey(Qt::Key_Right); break;
-                case Action::UpPressed: sendNavigationKey(Qt::Key_Up); break;
-                case Action::DownPressed: sendNavigationKey(Qt::Key_Down); break;
-                default: break;
-                }
-                const auto action = nova::deck::decodeGamepadAction(event);
-                if (action == nova::deck::DeckGamepadAction::PrimaryPressed) {
-                    ++primaryActivationCount_;
-                    emit primaryActionPressed(primaryActivationCount_);
-                } else if (action == nova::deck::DeckGamepadAction::SecondaryPressed) {
-                    ++secondaryActivationCount_;
-                    emit secondaryActionPressed(secondaryActivationCount_);
-                }
-                continue;
-            }
-
-            if (bytesRead < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
-                return;
-            }
-
-            notifier_->setEnabled(false);
-            notifier_->deleteLater();
-            notifier_ = nullptr;
-            ::close(gamepadFd_);
-            gamepadFd_ = -1;
-            emit availabilityChanged();
-            return;
-        }
-    }
-
-    int gamepadFd_ = -1;
-    QSocketNotifier* notifier_ = nullptr;
-#else
-    void readPendingJoystickEvents() {}
-#endif
-    QTimer reconnectTimer_;
-    bool traceInput_ = qEnvironmentVariableIsSet("NOVA_DECK_INPUT_TRACE");
-    int tracePolls_ = 0;
-    nova::deck::DeckGamepadNavigation navigation_;
-    int primaryActivationCount_ = 0;
-    int secondaryActivationCount_ = 0;
-};
+using QtDeckGamepadBridge = nova::deck::runtime::DeckInputHub;
 
 class QtLocalClipboardBridge final : public QObject {
     Q_OBJECT
@@ -908,6 +786,39 @@ QVariantList toLibraryGameModel(const std::vector<nova::deck::backend::DeckPubli
         item.insert("launchModeLabel", toQString(game.launchModeLabel));
         item.insert("installedLabel", toQString(game.installedLabel));
         item.insert("initialFocus", game.initialFocus);
+        item.insert("source", toQString(game.source));
+        item.insert("category", toQString(game.category));
+        QStringList genres;
+        for (const auto& genre : game.genres) genres.append(toQString(genre));
+        item.insert("genres", genres);
+        item.insert("hdrSupported", game.hdrSupported);
+        item.insert("lastLaunched", QVariant::fromValue<qlonglong>(game.lastLaunched));
+        QVariantMap duration;
+        const auto seconds = [&](const char* key, const std::optional<std::int64_t>& value) {
+            if (value) duration.insert(QString::fromLatin1(key), QVariant::fromValue<qlonglong>(*value));
+        };
+        seconds("playedSeconds", game.gameTime.playedSeconds);
+        seconds("mainSeconds", game.gameTime.mainSeconds);
+        seconds("extrasSeconds", game.gameTime.extrasSeconds);
+        seconds("completionistSeconds", game.gameTime.completionistSeconds);
+        duration.insert("playSource", toQString(game.gameTime.playSource));
+        duration.insert("matchedName", toQString(game.gameTime.matchedName));
+        item.insert("gameTime", duration);
+        item.insert("spaceId", toQString(game.spaceId));
+        item.insert("spaceName", toQString(game.spaceName));
+        item.insert("artworkKey", toQString(game.artworkKey));
+        item.insert("logoTransform", QVariantMap{{"scale",game.logoScale},{"x",game.logoX},{"y",game.logoY}});
+        QStringList launchModes;
+        for (const auto& mode : game.launchPolicy.allowed) launchModes.append(toQString(mode));
+        item.insert("launchPolicy", QVariantMap{{"known", game.launchPolicy.known},
+            {"hostDefault", toQString(game.launchPolicy.hostDefault)}, {"allowed", launchModes}});
+        item.insert("streamCapabilities", QVariantMap{{"valid", game.streamCapabilities.valid},
+            {"h264", game.streamCapabilities.h264}, {"hevc", game.streamCapabilities.hevc}, {"maxFps", game.streamCapabilities.maxFps}});
+        QVariantList resolutions;
+        for (const auto& choice : game.displayPlanner.choices)
+            resolutions.append(QVariantMap{{"width", choice.width}, {"height", choice.height},
+                {"title", toQString(choice.title)}, {"detail", toQString(choice.detail)}, {"recommended", choice.recommended}, {"advanced", choice.advanced}, {"custom", choice.custom}});
+        item.insert("displayPlanner", QVariantMap{{"available", game.displayPlanner.available}, {"choices", resolutions}});
         model.append(item);
     }
     return model;
@@ -1442,6 +1353,11 @@ int nativeLaunchCommand(
                           << " audioSampleCalls=" << audio.sampleCalls
                           << " audioDecodedFrames=" << audio.decodedFrames
                           << " audioSubmittedFrames=" << audio.submittedFrames
+                          << " audioDiscardedFrames=" << audio.discardedFrames
+                          << " audioRecoveries=" << audio.audioRecoveries
+                          << " audioRecoveryAttempts=" << audio.audioRecoveryAttempts
+                          << " audioOutputRecovering=" << (audio.outputRecovering ? "true" : "false")
+                          << " audioOutputStreaming=" << (audio.outputStreaming ? "true" : "false")
                           << " audioOutputReady=" << (audio.outputReady ? "true" : "false") << std::endl;
                 nextProgressMs += 2000;
             }
@@ -1484,6 +1400,9 @@ int nativeLaunchCommand(
               << " submittedFrames=" << audio.submittedFrames
               << " silenceFrames=" << audio.silenceFrames
               << " droppedFrames=" << audio.droppedFrames
+              << " discardedFrames=" << audio.discardedFrames
+              << " audioRecoveries=" << audio.audioRecoveries
+              << " audioRecoveryAttempts=" << audio.audioRecoveryAttempts
               << " decodeErrors=" << audio.decodeErrors
               << " lastError=\"" << audio.lastError << "\"" << std::endl;
     std::cout << "nova-deck native moonlight: connectionStarted=" << (moonlight.connectionStarted ? "true" : "false")
@@ -1524,11 +1443,11 @@ int registerSteamShortcutCommand(const QStringList& arguments) {
         shortcut.launchOptions = stringArgumentAfter(arguments, QStringLiteral("--register-steam-launch-options")).toStdString();
     } else if (insideFlatpak) {
         shortcut.exe = "\"/usr/bin/flatpak\"";
-        shortcut.launchOptions = "run com.papi_ux.Nova --live";
+        shortcut.launchOptions = "run com.papi_ux.Nova --standalone";
     } else {
         const auto self = std::filesystem::read_symlink("/proc/self/exe", ec);
         shortcut.exe = "\"" + (ec ? std::string{"nova-deck"} : self.string()) + "\"";
-        shortcut.launchOptions = "--live";
+        shortcut.launchOptions = "--standalone";
     }
     shortcut.startDir = "\"/usr/bin/\"";
     shortcut.tags = {"Nova"};
@@ -1554,17 +1473,47 @@ int registerSteamShortcutCommand(const QStringList& arguments) {
     return result.ok ? 0 : 5;
 }
 
-int main(int argc, char *argv[]) {
-    for (int i = 1; i < argc; ++i) {
-        if (std::string_view(argv[i]) == "--register-steam-shortcut") {
-            QCoreApplication app(argc, argv);
-            return registerSteamShortcutCommand(QCoreApplication::arguments());
-        }
+bool runPairingSetup(QGuiApplication& app, const QStringList& arguments, bool managePcs = false) {
+    nova::deck::runtime::DeckPairingController pairing;
+    QtDeckGamepadBridge gamepad;
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("novaPairing", &pairing);
+    engine.rootContext()->setContextProperty("novaGamepad", &gamepad);
+    const bool priorQuit = app.quitOnLastWindowClosed();
+    app.setQuitOnLastWindowClosed(false);
+    engine.loadFromModule("Nova.Deck", managePcs ? "SavedPcs" : "PairHost");
+    if (engine.rootObjects().isEmpty()) { app.setQuitOnLastWindowClosed(priorQuit); return false; }
+    auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().first());
+    if (!window) { app.setQuitOnLastWindowClosed(priorQuit); return false; }
+    QEventLoop pairingEventLoop;
+    QObject::connect(window, &QWindow::visibleChanged, &pairingEventLoop, [&] { if (!window->isVisible()) pairingEventLoop.quit(); });
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &pairingEventLoop, &QEventLoop::quit);
+    const int smokeExit = arguments.contains("--smoke-exit") ? 100 :
+        intArgumentAfter(arguments, QStringLiteral("--frontend-smoke-exit-after-ms"), 0);
+    if (smokeExit > 0) QTimer::singleShot(smokeExit, window, [window] { window->close(); });
+    const QString capture = stringArgumentAfter(arguments, QStringLiteral("--frontend-smoke-capture"));
+    if (!capture.isEmpty()) QTimer::singleShot(400, window, [window, capture] { window->grabWindow().save(capture); });
+    pairingEventLoop.exec();
+    const bool openLibrary = window->property("openLibrary").toBool();
+    app.setQuitOnLastWindowClosed(priorQuit);
+    return openLibrary;
+}
+
+int runDeck(QGuiApplication& app, const QStringList& appArguments) {
+    const auto encodedLink = stringArgumentAfter(appArguments, QStringLiteral("--game-link"));
+    const auto gameLink = nova::deck::runtime::decodeGameLink(encodedLink);
+    if (appArguments.contains("--game-link") && !gameLink) { std::cerr << "Nova game link is invalid.\n"; return 5; }
+    bool standalone = gameLink.has_value() || appArguments.contains(QStringLiteral("--standalone"));
+    const bool managePcs = appArguments.contains(QStringLiteral("--manage-pcs"));
+    const bool pairRequested = managePcs || appArguments.contains(QStringLiteral("--pair"));
+    if (pairRequested || (standalone && !appArguments.contains("--print-live-state") &&
+                         !appArguments.contains("--native-launch") && [&] {
+        const auto saved = nova::deck::identity::loadNativeIdentity();
+        return !saved.ok() || saved.identity->hosts.empty();
+    }())) {
+        if (!runPairingSetup(app, appArguments, managePcs)) return 0;
+        standalone = true;
     }
-
-    QGuiApplication app(argc, argv);
-
-    const QStringList appArguments = QCoreApplication::arguments();
 
     const auto profile = nova::deck::defaultWindowProfile();
     const nova::deck::backend::DeckLaunchPreflightService readOnlyPreflightService;
@@ -1573,14 +1522,27 @@ int main(int argc, char *argv[]) {
     // asks Polaris for the library with it; nothing is launched and no session
     // is started. The default stays the offline fixture so the smoke routes
     // keep proving the shell without a host.
-    const bool liveRoute = appArguments.contains(QStringLiteral("--live")) || qEnvironmentVariableIntValue("NOVA_DECK_LIVE") == 1;
+    const bool liveRoute = standalone || appArguments.contains(QStringLiteral("--live")) || qEnvironmentVariableIntValue("NOVA_DECK_LIVE") == 1;
     const bool printLiveState = appArguments.contains(QStringLiteral("--print-live-state"));
     const bool nativeLaunch = appArguments.contains(QStringLiteral("--native-launch"));
+    const bool nativeUi = standalone || appArguments.contains(QStringLiteral("--native-ui"));
+    bool fixtureVideoSupport = false;
+#ifdef NOVA_DECK_TESTING
+    // UI fixtures run on machines without a VAAPI GPU. This explicit test-only
+    // capability snapshot never authorizes a native stream and is absent from
+    // the packaged Release build.
+    fixtureVideoSupport = appArguments.contains("--frontend-smoke-codecs") &&
+        appArguments.contains("--frontend-smoke-library-state") && !nativeLaunch;
+#endif
     std::optional<nova::deck::backend::DeckLiveHostLibrarySnapshot> liveSnapshot;
     std::optional<nova::deck::identity::DeckMoonlightIdentity> liveIdentity;
     if (liveRoute || printLiveState || nativeLaunch) {
-        liveIdentity = nova::deck::identity::loadDefaultMoonlightIdentity();
-        liveSnapshot = nova::deck::backend::buildLiveSnapshotFromDefaultIdentity(std::chrono::milliseconds(4000));
+        liveIdentity = standalone ? nova::deck::identity::loadNativeIdentity().identity
+                                  : nova::deck::identity::loadDefaultMoonlightIdentity();
+        auto snapshotIdentity = liveIdentity.value_or(nova::deck::identity::DeckMoonlightIdentity{});
+        if (standalone) snapshotIdentity.sourceLabel = "nova-native";
+        liveSnapshot = nova::deck::backend::buildLiveSnapshot(snapshotIdentity,
+            nova::deck::backend::polarisNetworkFetcher(snapshotIdentity, std::chrono::milliseconds(4000)));
         // Plain stdout on purpose: Qt routes qInfo to journald when stderr is
         // not a terminal, which hides a CLI summary from the person who asked.
         std::cout << nova::deck::backend::describeLiveSnapshotForTerminal(*liveSnapshot) << std::flush;
@@ -1685,11 +1647,111 @@ int main(int argc, char *argv[]) {
                       << QString::fromStdString(presenterReadiness.statusCode)
                       << QString::fromStdString(presenterReadiness.detail);
 
-    qmlRegisterType<nova::deck::stream::DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream", 0, 1, "DeckVaapiPreviewSurface");
 
     // Constructed before the engine so it outlives every QML binding to it.
-    QtMoonlightHandoffBridge handoffBridge(liveIdentity, liveSnapshot);
+    // Native credentials are never passed to a Moonlight process that neither
+    // owns that identity nor knows these saved hosts.
+    QtMoonlightHandoffBridge handoffBridge(standalone ? std::nullopt : liveIdentity,
+                                         standalone ? std::nullopt : liveSnapshot);
+    const QString nativeDirectory = nova::deck::identity::nativeIdentityDirectory();
+    nova::deck::runtime::DeckLibraryController libraryRefresh(liveIdentity,
+        liveSnapshot.value_or(nova::deck::backend::DeckLiveHostLibrarySnapshot{}),
+        [nativeDirectory] { return nova::deck::identity::loadNativeIdentity(nativeDirectory).identity; },
+        [](const auto& identity) {
+            return nova::deck::backend::polarisNetworkFetcher(identity, std::chrono::milliseconds(4000));
+        });
+    if (standalone) {
+        // Short intervals are only for explicit local UI smoke observations.
+        const int interval = appArguments.contains("--frontend-smoke-library-state")
+            ? std::clamp(intArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-library-refresh-ms"), 30000), 100, 30000)
+            : 30000;
+        libraryRefresh.configureAutomaticRefresh(interval, interval * 4);
+    }
+    nova::deck::runtime::DeckDisplayCapabilities displayCapabilities;
+    nova::deck::runtime::DeckNativeSessionController nativeSession(nativeUi && !fixtureVideoSupport,
+        standalone ? libraryRefresh.targetResolver()
+                   : nova::deck::runtime::nativeTargetResolver(liveIdentity, liveSnapshot));
+    nativeSession.setDisplayRateLimitReader(displayCapabilities.rateLimitReader());
+    nova::deck::runtime::DeckSleepMonitor sleepMonitor(nativeUi);
+    QObject::connect(&sleepMonitor, &nova::deck::runtime::DeckSleepMonitor::sleepingChanged,
+        &nativeSession, &nova::deck::runtime::DeckNativeSessionController::setSystemSleeping);
+    QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::sleepPreparationFinished,
+        &sleepMonitor, &nova::deck::runtime::DeckSleepMonitor::finishPreparation);
+    nova::deck::runtime::DeckGameShortcuts gameShortcuts;
+    nova::deck::runtime::DeckGameTools gameTools;
+    nova::deck::runtime::DeckHostPowerController hostPower;
+    nova::deck::runtime::DeckHostSettingsController hostSettings;
+    const auto updatePowerTarget = [&] {
+        const auto& snapshot = libraryRefresh.snapshot();
+        QString name;
+        for (const auto& host : snapshot.hosts) if (host.id == snapshot.selectedHostId) name = toQString(host.displayName);
+        gameTools.setTarget(toQString(snapshot.selectedHostId), standalone ? libraryRefresh.gameToolsResolver() : nova::deck::runtime::DeckGameToolsResolver{});
+        hostPower.setTarget(toQString(snapshot.selectedHostId), name, standalone ? libraryRefresh.hostPowerResolver() : nova::deck::runtime::DeckHostPowerResolver{});
+        hostSettings.setTarget(toQString(snapshot.selectedHostId), name, standalone ? libraryRefresh.hostSettingsResolver() : nova::deck::runtime::DeckHostSettingsResolver{});
+    };
+    updatePowerTarget();
+    const auto coordinateHostActions = [&] {
+        const bool streaming = nativeSession.busy() || nativeSession.systemSleeping();
+        hostPower.setSessionActive(streaming || hostSettings.busy() || gameTools.busy());
+        // Read-only game-plan checks must not revoke the open host-settings
+        // review after a local default edit. Mutations retain mutual exclusion.
+        hostSettings.setSessionActive(streaming || hostPower.busy() || gameTools.writing());
+        gameTools.setSessionActive(streaming || hostPower.busy() || hostSettings.busy());
+        libraryRefresh.setSessionBusy(streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy());
+        if (standalone && !streaming) nativeSession.setTargetResolver(hostPower.busy() || hostSettings.busy() || gameTools.writing() ? nova::deck::runtime::DeckNativeTargetResolver{} : libraryRefresh.targetResolver());
+    };
+    QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::stateChanged,
+        &libraryRefresh, coordinateHostActions);
+    QObject::connect(&hostPower, &nova::deck::runtime::DeckHostPowerController::stateChanged,
+        &libraryRefresh, coordinateHostActions);
+    QObject::connect(&hostSettings, &nova::deck::runtime::DeckHostSettingsController::stateChanged,
+        &libraryRefresh, coordinateHostActions);
+    QObject::connect(&sleepMonitor, &nova::deck::runtime::DeckSleepMonitor::sleepingChanged,
+        &hostPower, [&](bool sleeping) { if (sleeping) hostPower.cancel(); });
+    QObject::connect(&gameTools, &nova::deck::runtime::DeckGameTools::stateChanged, &libraryRefresh, coordinateHostActions);
+    gamepadBridge.setNativeSession(&nativeSession);
+    nova::deck::runtime::DeckPlaySettings playSettings;
+    nova::deck::runtime::DeckDesktopInputBridge desktopInput(nativeSession, playSettings);
+    playSettings.setVideoDecodeSupport(fixtureVideoSupport
+        ? nova::deck::stream::DeckVideoDecodeSupport{.h264 = {4096, 4096}, .hevc = {1920, 1200}}
+        : mediaProbe.videoDecodeSupport);
+    hostSettings.setPlaySettings(&playSettings);
+#ifdef NOVA_DECK_VULKAN_STREAM
+    std::unique_ptr<nova::deck::runtime::DeckVulkanSessionView> vulkanSessionView;
+    if (appArguments.contains(QStringLiteral("--experimental-vulkan-stream")))
+        vulkanSessionView = std::make_unique<nova::deck::runtime::DeckVulkanSessionView>(nativeSession, displayCapabilities, playSettings, desktopInput);
+#endif
     QQmlApplicationEngine engine;
+    auto* libraryArtwork = new nova::deck::runtime::DeckLibraryArtwork;
+    engine.addImageProvider(QStringLiteral("library-art"), libraryArtwork);
+    QObject::connect(&gameTools, &nova::deck::runtime::DeckGameTools::libraryChanged, &libraryRefresh, [&] {
+        const auto state = gameTools.state();
+        libraryArtwork->invalidateGame(state.value("host").toString(), state.value("game").toString());
+        libraryRefresh.refresh();
+    });
+    gameTools.setPreviewPublisher([libraryArtwork](const QString& host, const QString& game, QVariantList items) {
+        return libraryArtwork->publishPreviews(host, game, std::move(items));
+    }, [libraryArtwork] { libraryArtwork->clearPreviews(); });
+    engine.rootContext()->setContextProperty("novaGameTools", &gameTools);
+    gameShortcuts.setImageReader([libraryArtwork](const QString& key) { return libraryArtwork->requestImage(key, nullptr, {}); });
+    engine.rootContext()->setContextProperty("novaGameShortcuts", &gameShortcuts);
+    engine.rootContext()->setContextProperty("novaGameLink", gameLink ? QVariantMap{{"host", gameLink->host}, {"game", gameLink->game}, {"destination", gameLink->destination}} : QVariantMap{});
+    const auto libraryGames = standalone
+        ? libraryArtwork->publish(libraryRefresh.snapshot(), libraryRefresh.targetResolver(), toLibraryGameModel(backendReadOnlyState.games))
+        : toLibraryGameModel(backendReadOnlyState.games);
+    gameShortcuts.setCatalog(toQString(libraryRefresh.snapshot().selectedHostId), libraryRefresh.state().value("destinationId", "desktop").toString(), libraryGames);
+    engine.rootContext()->setContextProperty("novaStandalone", standalone);
+    engine.rootContext()->setContextProperty("novaLibraryRefresh", &libraryRefresh);
+    engine.rootContext()->setContextProperty("novaHostPower", &hostPower);
+    engine.rootContext()->setContextProperty("novaHostSettings", &hostSettings);
+    engine.rootContext()->setContextProperty("novaNativeSession", &nativeSession);
+    engine.rootContext()->setContextProperty("novaPlaySettings", &playSettings);
+#ifdef NOVA_DECK_VULKAN_STREAM
+    engine.rootContext()->setContextProperty("novaVulkanPresentation", vulkanSessionView.get());
+#else
+    engine.rootContext()->setContextProperty("novaVulkanPresentation", QVariant::fromValue<QObject*>(nullptr));
+#endif
+    engine.rootContext()->setContextProperty("novaDisplayCapabilities", &displayCapabilities);
     engine.rootContext()->setContextProperty("novaDeckShellName", toQString(profile.shellName));
     engine.rootContext()->setContextProperty("novaDeckWidth", profile.width);
     engine.rootContext()->setContextProperty("novaDeckHeight", profile.height);
@@ -1700,9 +1762,10 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaLibraryReadOnly", backendReadOnlyState.readOnly);
     engine.rootContext()->setContextProperty(
         "novaBackendReadOnlyProvenance",
-        liveSnapshot ? QString::fromUtf8(nova::deck::backend::kLiveProvenanceLabel.data(), static_cast<int>(nova::deck::backend::kLiveProvenanceLabel.size()))
+        standalone ? QStringLiteral("nova-pairing provenance")
+        : liveSnapshot ? QString::fromUtf8(nova::deck::backend::kLiveProvenanceLabel.data(), static_cast<int>(nova::deck::backend::kLiveProvenanceLabel.size()))
                      : QStringLiteral("fixture provenance"));
-    engine.rootContext()->setContextProperty("novaLibraryGames", toLibraryGameModel(backendReadOnlyState.games));
+    engine.rootContext()->setContextProperty("novaLibraryGames", libraryGames);
     engine.rootContext()->setContextProperty("novaLibraryHosts", toHostModel(backendReadOnlyState.hosts));
     engine.rootContext()->setContextProperty("novaSelectedHostDetail", selectedHostDetailModel);
     engine.rootContext()->setContextProperty("novaSelectedGameCard", toLibraryGameCardModel(selectedBinding.gameCard));
@@ -1714,6 +1777,60 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("novaPresenterReadiness", toPresenterReadinessModel(presenterReadiness));
     engine.rootContext()->setContextProperty("novaPreviewLifecycle", &previewLifecycle);
     engine.rootContext()->setContextProperty("novaHandoff", &handoffBridge);
+
+    QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::stateChanged,
+        &engine, [&] {
+            if (standalone && libraryRefresh.busy()) nativeSession.setTargetResolver({});
+        });
+    QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::snapshotChanged,
+        &engine, [&] {
+            if (!standalone) return;
+            updatePowerTarget();
+            const auto& snapshot = libraryRefresh.snapshot();
+            const nova::deck::backend::DeckLiveReadOnlyStateProvider provider(snapshot, readOnlyPreflightService);
+            const auto state = provider.stateForScenario("live");
+            nativeSession.setTargetResolver(libraryRefresh.targetResolver());
+            auto* context = engine.rootContext();
+            auto publicState = toReadOnlyStateModel(state);
+            publicState.insert("destinationId", libraryRefresh.state().value("destinationId"));
+            const bool automatic = libraryRefresh.state().value("automatic").toBool();
+            if (automatic && context->contextProperty("novaBackendReadOnlyState").toMap() == publicState) return;
+            if (!engine.rootObjects().isEmpty())
+                QMetaObject::invokeMethod(engine.rootObjects().first(), "prepareLibrarySnapshot", Q_ARG(QVariant, automatic));
+            std::vector<nova::deck::DeckHostListItem> hosts;
+            for (const auto& host : state.hosts) {
+                hosts.push_back({.id = host.id, .displayName = host.displayName, .statusLabel = host.statusLabel,
+                                 .row = static_cast<int>(hosts.size()), .initialFocus = host.initialFocus});
+            }
+            for (const auto& host : snapshot.hosts) backendPreview.seedReadOnlyHostSummary(host);
+            const auto binding = nova::deck::resolveLaunchPreviewBinding(hosts, snapshot.library,
+                snapshot.selectedHostId, snapshot.library.games.empty() ? std::string{} : snapshot.library.games.front().id);
+            const auto refreshedGames = libraryArtwork->publish(snapshot, libraryRefresh.targetResolver(), toLibraryGameModel(state.games));
+            gameShortcuts.setCatalog(toQString(snapshot.selectedHostId), libraryRefresh.state().value("destinationId", "desktop").toString(), refreshedGames);
+            context->setContextProperties({
+                {"novaBackendReadOnlyStateMatrix", toReadOnlyStateMatrixModel(provider.stateMatrix())},
+                {"novaBackendReadOnlyState", publicState},
+                {"novaLibraryFixtureSource", toQString(state.sourceLabel)},
+                {"novaLibraryReadOnly", state.readOnly},
+                {"novaLibraryGames", refreshedGames},
+                {"novaLibraryHosts", toHostModel(state.hosts)},
+                {"novaSelectedHostDetail", state.hosts.empty() ? toHostDetailModel(binding.hostDetail) : toHostDetailModel(state.hosts.front())},
+                {"novaSelectedGameCard", toLibraryGameCardModel(binding.gameCard)},
+                {"novaSelectedLaunchPreviewText", toQString(binding.preview.text)},
+                {"novaHostLaunchCta", toLaunchCtaModel(binding.launchCta)},
+                {"novaLaunchIntentBoundary", toLaunchIntentBoundaryModel(binding.intent.boundary)},
+                {"novaLaunchIntentPreview", toLaunchIntentPreviewModel(binding.intent, nova::deck::resolveStreamIntent(binding.intent))},
+                {"novaLaunchPreviewCopyAction", toPreviewCopyActionModel(binding.copyAction)},
+                {"novaInitialHostFocusTarget", toQString(snapshot.selectedHostId)},
+            });
+            if (!engine.rootObjects().isEmpty())
+                QMetaObject::invokeMethod(engine.rootObjects().first(), "applyLibrarySnapshot");
+            const QString capture = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-capture"));
+            if (!capture.isEmpty() && !engine.rootObjects().isEmpty()) {
+                if (auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().first()))
+                    QTimer::singleShot(300, window, [window, capture] { captureFrontendSmokeFrame(window, capture); });
+            }
+        });
 
     // --handoff-game "<title>" opens the title on the selected live host at
     // once and reports how Moonlight ended, for a headless proof with either a
@@ -1762,6 +1879,8 @@ int main(int argc, char *argv[]) {
     const bool smokeExit = appArguments.contains("--smoke-exit");
     const int frontendSmokeExitAfterMs = intArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-exit-after-ms"), 0);
     const QString frontendSmokeCapturePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-capture"));
+    const QString graphicsStatePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-graphics-state"));
+    const QString librarySmokeStatePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-library-state"));
     const QString backendDtoInteractionSmokePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-backend-dto-interactions"));
     const QString backendReadOnlyStateMatrixSmokePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-readonly-state-matrix"));
     const QString expandedDiagnosticsFrameSmokePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-expanded-diagnostics-frame"));
@@ -1778,8 +1897,41 @@ int main(int argc, char *argv[]) {
         &engine,
         &QQmlApplicationEngine::objectCreated,
         &app,
-        [smokeExit, frontendSmokeExitAfterMs, frontendSmokeCapturePath, backendDtoInteractionSmokePath, backendReadOnlyStateMatrixSmokePath, expandedDiagnosticsFrameSmokePath, expandedDiagnosticsCapturePath, &app, &productPreviewPipeline](QObject *object) {
+        [smokeExit, frontendSmokeExitAfterMs, frontendSmokeCapturePath, graphicsStatePath, librarySmokeStatePath, backendDtoInteractionSmokePath, backendReadOnlyStateMatrixSmokePath, expandedDiagnosticsFrameSmokePath, expandedDiagnosticsCapturePath, &app, &productPreviewPipeline, &nativeSession, &displayCapabilities, &desktopInput](QObject *object) {
             if (object != nullptr) {
+                displayCapabilities.watchWindow(qobject_cast<QWindow*>(object));
+                desktopInput.watchWindow(qobject_cast<QWindow*>(object), object);
+                if (auto* window = qobject_cast<QQuickWindow*>(object); window && !graphicsStatePath.isEmpty()) {
+                    // Observe the actual render thread, where a context must be
+                    // current for DMA-BUF import. A configured backend alone is
+                    // not proof that Qt selected the required EGL integration.
+                    QObject::connect(window, &QQuickWindow::beforeRendering, window,
+                        [window, graphicsStatePath, written = false]() mutable {
+                            if (written) return;
+                            const QJsonObject state{
+                                {"openGl", window->rendererInterface()->graphicsApi() == QSGRendererInterface::OpenGL},
+                                {"vulkan", window->rendererInterface()->graphicsApi() == QSGRendererInterface::Vulkan},
+                                {"eglDisplayCurrent", eglGetCurrentDisplay() != EGL_NO_DISPLAY},
+                                {"eglContextCurrent", eglGetCurrentContext() != EGL_NO_CONTEXT},
+                            };
+                            QSaveFile file(graphicsStatePath);
+                            if (file.open(QIODevice::WriteOnly)) {
+                                file.write(QJsonDocument(state).toJson(QJsonDocument::Compact));
+                                written = file.commit();
+                            }
+                        }, Qt::DirectConnection);
+                }
+                auto* nativeSurface = dynamic_cast<nova::deck::stream::DeckQtQuickRhiVaapiItem*>(
+                    object->findChild<QObject*>("nova-native-stream-surface"));
+                nativeSession.setSurface(nativeSurface);
+                if (nativeSession.enabled()) {
+                    if (!nativeSurface) {
+                        qCritical("Native preview surface is missing");
+                        QCoreApplication::exit(1);
+                        return;
+                    }
+                    qInfo("Nova Deck native preview surface attached; waiting for an explicit start");
+                }
                 QObject* previewSurfaceObject = object->findChild<QObject*>("nova-product-preview-surface");
                 if (auto* previewSurface = dynamic_cast<nova::deck::stream::DeckQtQuickRhiVaapiItem*>(previewSurfaceObject)) {
                     productPreviewPipeline.attachBorrowedSink(previewSurface);
@@ -1797,31 +1949,46 @@ int main(int argc, char *argv[]) {
             }
             if (!frontendSmokeCapturePath.isEmpty() && object != nullptr) {
                 if (auto* window = qobject_cast<QQuickWindow*>(object)) {
-                    QTimer::singleShot(1000, &app, [window, frontendSmokeCapturePath]() {
+                    QTimer::singleShot(1000, window, [window, frontendSmokeCapturePath]() {
                         captureFrontendSmokeFrame(window, frontendSmokeCapturePath);
                     });
                 } else {
                     qWarning().noquote() << "Nova Deck frontend smoke capture failed: root object is not a QQuickWindow";
                 }
             }
+            if (!librarySmokeStatePath.isEmpty() && object != nullptr) {
+                // Optional local UI observation for actual-window regressions.
+                // Only the public QML selection/focus state enters this file.
+                auto* timer = new QTimer(object);
+                QObject::connect(timer, &QTimer::timeout, object, [object, librarySmokeStatePath] {
+                    QVariant state;
+                    if (!QMetaObject::invokeMethod(object, "libraryInteractionState", Q_RETURN_ARG(QVariant, state))) return;
+                    QSaveFile file(librarySmokeStatePath);
+                    if (file.open(QIODevice::WriteOnly)) {
+                        file.write(QJsonDocument::fromVariant(state.toMap()).toJson(QJsonDocument::Compact));
+                        file.commit();
+                    }
+                });
+                timer->start(50);
+            }
             if (!backendDtoInteractionSmokePath.isEmpty() && object != nullptr) {
-                QTimer::singleShot(500, &app, [object, backendDtoInteractionSmokePath]() {
+                QTimer::singleShot(500, object, [object, backendDtoInteractionSmokePath]() {
                     writeBackendDtoInteractionSmokeArtifact(object, backendDtoInteractionSmokePath);
                 });
             }
             if (!backendReadOnlyStateMatrixSmokePath.isEmpty() && object != nullptr) {
-                QTimer::singleShot(650, &app, [object, backendReadOnlyStateMatrixSmokePath]() {
+                QTimer::singleShot(650, object, [object, backendReadOnlyStateMatrixSmokePath]() {
                     writeBackendReadOnlyStateMatrixSmokeArtifact(object, backendReadOnlyStateMatrixSmokePath);
                 });
             }
             if (!expandedDiagnosticsFrameSmokePath.isEmpty() && object != nullptr) {
-                QTimer::singleShot(1300, &app, [object, expandedDiagnosticsFrameSmokePath]() {
+                QTimer::singleShot(1300, object, [object, expandedDiagnosticsFrameSmokePath]() {
                     writeExpandedDiagnosticsFrameSmokeArtifact(object, expandedDiagnosticsFrameSmokePath);
                 });
             }
             if (!expandedDiagnosticsCapturePath.isEmpty() && object != nullptr) {
                 if (auto* window = qobject_cast<QQuickWindow*>(object)) {
-                    QTimer::singleShot(1700, &app, [window, expandedDiagnosticsCapturePath]() {
+                    QTimer::singleShot(1700, window, [window, expandedDiagnosticsCapturePath]() {
                         captureFrontendSmokeFrame(window, expandedDiagnosticsCapturePath);
                     });
                 } else {
@@ -1829,11 +1996,11 @@ int main(int argc, char *argv[]) {
                 }
             }
             if (frontendSmokeExitAfterMs > 0 && object != nullptr) {
-                QTimer::singleShot(frontendSmokeExitAfterMs, &app, &QCoreApplication::quit);
+                QTimer::singleShot(frontendSmokeExitAfterMs, object, [] { QCoreApplication::quit(); });
                 return;
             }
             if (smokeExit && object != nullptr) {
-                QTimer::singleShot(0, &app, &QCoreApplication::quit);
+                QTimer::singleShot(0, object, [] { QCoreApplication::quit(); });
             }
         },
         Qt::QueuedConnection
@@ -1841,7 +2008,50 @@ int main(int argc, char *argv[]) {
 
     engine.loadFromModule("Nova.Deck", "Main");
 
-    return app.exec();
+    const int eventLoopResult = app.exec();
+    const bool manageRequested = !engine.rootObjects().isEmpty() &&
+        engine.rootObjects().first()->property("managePcsRequested").toBool();
+    gameShortcuts.shutdown();
+    gameTools.setPreviewPublisher({});
+    return standalone && manageRequested && !nativeSession.busy() ? 73 : eventLoopResult;
+}
+
+int main(int argc, char *argv[]) {
+    bool vulkanStream = false;
+    for (int i = 1; i < argc; ++i)
+        if (std::string_view(argv[i]) == "--experimental-vulkan-stream") vulkanStream = true;
+#ifndef NOVA_DECK_VULKAN_STREAM
+    if (vulkanStream) { std::cerr << "This build does not include the experimental Vulkan stream UI.\n"; return 2; }
+#endif
+    for (int i = 1; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--register-steam-shortcut") {
+            QCoreApplication app(argc, argv);
+            return registerSteamShortcutCommand(QCoreApplication::arguments());
+        }
+    }
+    // The SDR video presenter imports VAAPI DMA-BUFs through EGL. On X11 Qt
+    // otherwise prefers GLX, which renders the library but leaves decoded video
+    // without a usable EGL context. Choose this before Qt creates any window;
+    // Wayland ignores the XCB setting, and explicit test/backend overrides stay.
+    if (qEnvironmentVariableIsEmpty("QT_XCB_GL_INTEGRATION")) qputenv("QT_XCB_GL_INTEGRATION", "xcb_egl");
+    if (vulkanStream) {
+        qputenv("QSG_RHI_BACKEND", "vulkan");
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::Vulkan);
+    } else if (qEnvironmentVariableIsEmpty("QSG_RHI_BACKEND")) qputenv("QSG_RHI_BACKEND", "opengl");
+    QGuiApplication app(argc, argv);
+    QCoreApplication::setOrganizationName(QStringLiteral("Nova"));
+    QCoreApplication::setApplicationName(QStringLiteral("NovaDeck"));
+    qmlRegisterType<nova::deck::stream::DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream", 0, 1, "DeckVaapiPreviewSurface");
+    auto arguments = QCoreApplication::arguments();
+    for (;;) {
+        const int result = runDeck(app, arguments);
+        if (result != 73) return result;
+        // Destroy the old library/session before management; reload the saved
+        // identity on return so removed hosts cannot retain launch authority.
+        arguments.removeAll("--pair");
+        if (!arguments.contains("--standalone")) arguments.append("--standalone");
+        if (!arguments.contains("--manage-pcs")) arguments.append("--manage-pcs");
+    }
 }
 
 #include "main.moc"

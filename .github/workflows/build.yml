@@ -73,7 +73,9 @@ jobs:
             git gcc cmake ninja pkgconf \
             qt6-base qt6-declarative \
             ffmpeg libva libdrm mesa \
-            libpulse pipewire pipewire-audio opus openssl
+            libpulse pipewire pipewire-audio opus openssl dbus python \
+            libplacebo vulkan-headers vulkan-swrast \
+            xorg-server-xvfb xorg-xauth xdotool
 
       - uses: actions/checkout@v5
         with:

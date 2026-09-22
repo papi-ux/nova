@@ -2,6 +2,7 @@
 
 #include <QUrl>
 #include <QXmlStreamReader>
+#include <QSet>
 
 #include <array>
 #include <cstdint>
@@ -127,6 +128,10 @@ std::string buildLaunchTarget(const DeckLaunchRequest& request, const DeckStream
     appendParam(out, first, "remoteControllersBitmap", std::to_string(request.gamepadMask));
     appendParam(out, first, "gcmap", std::to_string(request.gamepadMask));
     appendParam(out, first, "gcpersist", request.persistGamepads ? "1" : "0");
+    if (!request.streamMode.empty()) appendParam(out, first, "streamMode", percentEncoded(request.streamMode));
+    if (request.resume && !request.sessionToken.empty()) appendParam(out, first, "sessiontoken", percentEncoded(request.sessionToken));
+    if (!request.resume && !request.profilePreference.empty()) appendParam(out, first, "profilePreference", percentEncoded(request.profilePreference));
+    if (!request.resume && !request.encoderBackend.empty()) appendParam(out, first, "encoderBackend", percentEncoded(request.encoderBackend));
     appendEncodedExtraQuery(out, request.extraQuery);
     return out;
 }
@@ -134,31 +139,25 @@ std::string buildLaunchTarget(const DeckLaunchRequest& request, const DeckStream
 DeckLaunchResult parseLaunchResponse(bool resume, std::string_view xml) {
     DeckLaunchResult result;
     QXmlStreamReader reader(QByteArray(xml.data(), static_cast<int>(xml.size())));
-    QString current;
     const QString startedTag = resume ? QStringLiteral("resume") : QStringLiteral("gamesession");
-    while (!reader.atEnd()) {
-        const auto token = reader.readNext();
-        if (token == QXmlStreamReader::StartElement) {
-            current = reader.name().toString();
-            if (current == QStringLiteral("root")) {
-                readRootStatus(reader, result.statusCode, result.statusMessage);
-            }
-        } else if (token == QXmlStreamReader::Characters && !reader.isWhitespace()) {
-            const QString text = reader.text().toString();
-            if (current == startedTag) {
-                result.started = text.trimmed() != QStringLiteral("0") && !text.trimmed().isEmpty();
-            } else if (current == QStringLiteral("sessionUrl0")) {
-                result.rtspSessionUrl = text.trimmed().toStdString();
-            } else if (current == QStringLiteral("sessionToken")) {
-                result.sessionToken = text.trimmed().toStdString();
-            }
-        } else if (token == QXmlStreamReader::EndElement) {
-            current.clear();
+    if (!reader.readNextStartElement() || reader.name() != QStringLiteral("root")) return {};
+    readRootStatus(reader, result.statusCode, result.statusMessage);
+    QSet<QString> seen;
+    while (reader.readNextStartElement()) {
+        const auto name = reader.name().toString();
+        if (name != startedTag && name != "sessionUrl0" && name != "sessionToken") {
+            reader.skipCurrentElement();
+            continue;
         }
+        if (seen.contains(name)) return {};
+        seen.insert(name);
+        const auto text = reader.readElementText(QXmlStreamReader::ErrorOnUnexpectedElement).trimmed();
+        if (name == startedTag) result.started = !text.isEmpty() && text != "0";
+        else if (name == "sessionUrl0") result.rtspSessionUrl = text.toStdString();
+        else result.sessionToken = text.toStdString();
     }
-    if (reader.hasError()) {
-        return DeckLaunchResult{};
-    }
+    while (!reader.atEnd()) reader.readNext();
+    if (reader.hasError()) return {};
     return result;
 }
 

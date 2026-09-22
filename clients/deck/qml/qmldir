@@ -1,0 +1,10 @@
+singleton NovaTheme 1.0 NovaTheme.qml
+singleton NovaHudPreferences 1.0 NovaHudPreferences.qml
+singleton NovaStreamPreferences 1.0 NovaStreamPreferences.qml
+
+ArtworkStudio 1.0 ArtworkStudio.qml
+SpaceArtwork 1.0 SpaceArtwork.qml
+LogoPlacement 1.0 LogoPlacement.qml
+LogoArtwork 1.0 LogoArtwork.qml
+GameShortcut 1.0 GameShortcut.qml
+StreamProfileEditor 1.0 StreamProfileEditor.qml
