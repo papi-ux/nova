@@ -1345,10 +1345,23 @@ class NovaComposeSourceGuardTest {
             playSetupComparison().contains("NovaPlaySetupDestinations")
         )
         assertTrue(
-            "while a destination card holds focus the legend explains nothing. Falling back to the first " +
-                "row opened Play Setup on \"If you changed where it runs\" with the cursor on Desktop",
-            content.contains("onFocused = { onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN) },") &&
+            "while a destination card holds focus the legend describes the place under the cursor and " +
+                "nothing else. Falling back to the first row opened Play Setup on \"If you changed where it " +
+                "runs\" with the cursor on Desktop, and no legend at all opened it with the drawer empty",
+            content.contains("onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN)") &&
+                content.contains("focusedDestination = index") &&
+                content.contains("novaPlaySetupPlaceUnderCursor(") &&
                 !content.contains("?: settingRows.firstOrNull()")
+        )
+        val placeLegend = setup.section(
+            "internal fun NovaPlaySetupPlaceLegend(",
+            "/** What a legend card says to a screen reader: its name, then what choosing it would mean. */",
+        )
+        assertFalse(
+            "the place legend describes; the card above it is the control, so the legend takes neither a " +
+                "tap nor focus, and it is the one place under the cursor rather than the cards restated",
+            placeLegend.contains(".clickable(") || placeLegend.contains(".focusable(") ||
+                placeLegend.contains("forEach")
         )
     }
 

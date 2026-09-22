@@ -410,9 +410,12 @@ internal fun NovaGameDetailContent(
                 } else {
                     val summary = optimizationState.profileSummary
                     // Where this game opens is drawn as its own control above the rows it used to
-                    // be one of, so the legend under the rows explains only the rows.
+                    // be one of, so the legend under the rows explains the rows, or the one place
+                    // whose card holds focus, never the places restated as choices.
                     val destinationsRow = playSetupRows.firstOrNull { it.row == NovaPlaySetupRow.PLAY_IN }
                     val settingRows = playSetupRows.filter { it.row != NovaPlaySetupRow.PLAY_IN }
+                    // Which destination card the cursor is on, for the legend to describe.
+                    var focusedDestination by remember { mutableStateOf(-1) }
                     // Spend the room that is there rather than a number picked in advance:
                     // each advertised launch control leaves less room for the legend.
                     // The legend is pinned under the rows, so it is budgeted against the few
@@ -511,7 +514,10 @@ internal fun NovaGameDetailContent(
                                     status = destinationsRow.caption,
                                     options = destinationsRow.options,
                                     autoFocus = destinationsFocus,
-                                    onFocused = { onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN) },
+                                    onFocused = { index ->
+                                        focusedDestination = index
+                                        onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN)
+                                    },
                                 )
                             }
                             // Host-backed rows, drawn in a fixed order. Each advances its own value
@@ -544,12 +550,25 @@ internal fun NovaGameDetailContent(
                             // A legend for whichever row holds focus, not a picker with a
                             // state of its own. A row that has nothing to compare -- one
                             // launch mode, or no display planner on this host -- draws
-                            // nothing rather than a strip that repeats the row above it. The
-                            // destination cards describe themselves, so while one holds focus
-                            // there is no legend at all: falling back to the first row opened
-                            // Play Setup on "If you changed where it runs" with the cursor on Desktop.
+                            // nothing rather than a strip that repeats the row above it.
+                            // While a destination card holds focus, the legend says what that
+                            // one place means, in full where the card had to cut it. Falling
+                            // back to the first row opened Play Setup on "If you changed where
+                            // it runs" with the cursor on Desktop, and no legend at all opened
+                            // it with the drawer empty.
+                            val place = novaPlaySetupPlaceUnderCursor(
+                                explainedPlaySetupRow,
+                                destinationsRow?.options.orEmpty(),
+                                focusedDestination,
+                            )
                             val explained = settingRows.firstOrNull { it.row == explainedPlaySetupRow }
-                            if (explained != null && explained.options.size > 1) {
+                            if (place != null) {
+                                NovaPlaySetupPlaceLegend(
+                                    title = stringResource(R.string.nova_play_setup_place_legend),
+                                    place = place,
+                                    consequenceMaxLines = consequenceLines,
+                                )
+                            } else if (explained != null && explained.options.size > 1) {
                                 NovaPlaySetupComparison(
                                     title = explained.stripTitle,
                                     options = explained.options,

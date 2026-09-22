@@ -5,6 +5,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,6 +27,23 @@ class NovaPlaySetupLegendTest {
         // Every other row in the app acts on its first press, whatever holds focus.
         assertTrue(novaPlaySetupPressActs(firstPressFocuses = false, heldFocus = false))
         assertTrue(novaPlaySetupPressActs(firstPressFocuses = false, heldFocus = true))
+    }
+
+    @Test
+    fun theLegendDescribesTheDestinationCardUnderTheCursorAndGuessesNothing() {
+        // Found on a Retroid Pocket 6: Play Setup opened with the cursor on the Desktop card and
+        // the drawer below it empty, while four cards across had cut every sentence short.
+        val places = listOf(
+            NovaPlaySetupOption(label = "Desktop", consequence = "Use this computer's usual games and settings."),
+            NovaPlaySetupOption(label = "Living room", consequence = "Not installed in Living room. Change Space to install it there."),
+        )
+        assertEquals(places[0], novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, 0))
+        assertEquals(places[1], novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, 1))
+        // A row holds focus: that row's legend, never a place.
+        assertNull(novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.WHERE_IT_RUNS, places, 1))
+        // The places reloaded shorter than the card the cursor was on: nothing, rather than a neighbour.
+        assertNull(novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, 2))
+        assertNull(novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, -1))
     }
 
     @Test

@@ -590,6 +590,73 @@ private fun NovaPlaySetupComparisonCard(
     }
 }
 
+/**
+ * The place a destination card under the cursor stands for, or nothing.
+ *
+ * Only while the cards hold focus, and only the card that does: an index the cards no longer
+ * have, after the places reloaded, is not guessed at.
+ */
+internal fun novaPlaySetupPlaceUnderCursor(
+    explained: NovaPlaySetupRow,
+    places: List<NovaPlaySetupOption>,
+    focusedIndex: Int,
+): NovaPlaySetupOption? =
+    if (explained == NovaPlaySetupRow.PLAY_IN) places.getOrNull(focusedIndex) else null
+
+/**
+ * What the place under the cursor means, while a destination card holds focus.
+ *
+ * Four cards across a handheld cut their sentence short, so the drawer says it whole for the one
+ * the cursor is on. It describes and does not choose: the card above is the control, and the
+ * cards restated as a second set of choices is what LaunchControls was removed for. It keeps the
+ * shape and height of the legend it stands in for, so the rows above do not move when the
+ * cursor goes from a card to a row.
+ */
+@Composable
+internal fun NovaPlaySetupPlaceLegend(
+    title: String,
+    place: NovaPlaySetupOption,
+    consequenceMaxLines: Int = 2,
+) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val shape = RoundedCornerShape(NovaRadius.row)
+    Column(modifier = Modifier.fillMaxWidth().testTag("nova-play-setup-place-legend")) {
+        NovaPlaySetupColumnHead(title)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = NovaGameDetailActionHeight)
+                .clip(shape)
+                .background(surfaces.tile)
+                .border(1.dp, surfaces.tileBorder, shape)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .semantics { contentDescription = novaPlaySetupOptionDescription(place) },
+        ) {
+            Text(
+                text = place.label,
+                color = if (place.enabled) colors.textPrimary else colors.textMuted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            NovaRevealingText(
+                text = place.consequence,
+                // The cursor is on this place's card, so its whole sentence is what it is here for.
+                highlighted = true,
+                passes = 2,
+                color = colors.textMuted,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                minLines = consequenceMaxLines,
+                maxLines = consequenceMaxLines,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
 /** What a legend card says to a screen reader: its name, then what choosing it would mean. */
 internal fun novaPlaySetupOptionDescription(option: NovaPlaySetupOption): String =
     listOf(option.label, option.consequence).filter { it.isNotBlank() }.joinToString(". ")
@@ -822,8 +889,8 @@ internal fun NovaPlaySetupDestinations(
     status: String,
     options: List<NovaPlaySetupOption>,
     autoFocus: Boolean,
-    /** Told when a card takes focus, so the legend below stops explaining a row nobody is on. */
-    onFocused: () -> Unit = {},
+    /** Told which card took focus, so the legend below describes that place rather than a row nobody is on. */
+    onFocused: (Int) -> Unit = {},
 ) {
     val colors = LocalNovaComposeColors.current
     val focusIndex = options.indexOfFirst { it.current && it.enabled && it.onSelect != null }
@@ -854,7 +921,7 @@ internal fun NovaPlaySetupDestinations(
                     onClick = option.onSelect,
                     selected = option.current,
                     autoFocus = autoFocus && index == focusIndex,
-                    onFocused = onFocused,
+                    onFocused = { onFocused(index) },
                     describeCaption = true,
                     // A place the game cannot open in still has a reason to read.
                     focusableWhenDisabled = true,
