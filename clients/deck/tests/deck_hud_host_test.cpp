@@ -485,7 +485,12 @@ void eventResynchronization() {
         } else if (scenario == 4) {
             identity = false;
             until([&] { return streamCancelled.load(); });
-            require(!observer->snapshot().value("canTune").toBool(), "changed identity kept event authority");
+            // The event callback marks cancellation before returning. The
+            // observer still has to join it and publish its unavailable state.
+            // Wait for observation to end too, so stale-age expiry cannot pass.
+            until([&] { const auto view = observer->snapshot(); return !view.value("canTune").toBool() &&
+                !view.value("canRefreshDiagnostics").toBool(); });
+            require(!observer->setLiveTuningEnabled(false) && writes == 0, "changed identity kept event authority");
         } else if (scenario == 5) {
             port = 47991;
             until([&] { return listens == 2; });
