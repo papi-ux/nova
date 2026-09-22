@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
     const auto spec = videoDecoderSpec(VIDEO_FORMAT_H265);
     auto* decoder = avcodec_alloc_context3(avcodec_find_decoder(static_cast<AVCodecID>(spec->codecId)));
     require(decoder && avcodec_open2(decoder, decoder->codec, nullptr) == 0, "HEVC decoder open failed");
-    auto* parser = av_parser_init(spec->codecId);
+    auto* parser = av_parser_init(static_cast<AVCodecID>(spec->codecId));
     require(parser, "HEVC parser missing");
     uint8_t* accessUnit = nullptr;
     int size = 0;
