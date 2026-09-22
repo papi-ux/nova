@@ -1016,6 +1016,39 @@ class NovaQuickMenuUiStateTest {
         assertTrue(state.liveTuningAction.enabled)
     }
 
+    @Test
+    fun aSpaceSaysItsVerdictOnceAndCallsItsBitrateFixed() {
+        // What Polaris sends for a Space (nvhttp.cpp profile_session_status): a health summary,
+        // no Doctor object, and live_tuning null.
+        val space = com.papi.nova.api.PolarisApiClient.parseSessionStatusResponse(
+            org.json.JSONObject(
+                """{"source":"worker_profile_v1","state":"streaming","streaming_active":true,
+                "owned_by_client":true,"client_role":"owner","viewer_count":0,"game":"papi - heroic",
+                "controls":{"host_tuning_allowed":false,"quit_allowed":true,"stop_allowed":true},
+                "display_mode":{"selection":"gamescope_stream","label":"papi - heroic"},
+                "encoder":{"codec":"h264","bitrate_kbps":0,"bitrate_ceiling_kbps":8000,"session_target_fps":120},
+                "health":{"grade":"unknown","summary":"Profile performance diagnostics are not available yet."},
+                "live_tuning":null}"""
+            )
+        )
+        val state = quickState(status = space, currentGameName = "papi - heroic")
+
+        assertEquals("Profile performance diagnostics are not available yet.", state.healthSummary)
+        assertFalse("the Doctor card would only repeat the strip", state.diagnosis.visible)
+        assertEquals("Fixed", state.liveTuningAction.chip?.label)
+        assertEquals("This Space uses the bitrate selected when the stream starts.", state.liveTuningAction.caption)
+    }
+
+    @Test
+    fun aDoctorReadingKeepsItsCard() {
+        val state = quickState(
+            status = status(doctor = PolarisSessionStatus.DoctorStatus(likelyCause = "Network jitter is dropping frames"))
+        )
+
+        assertTrue(state.diagnosis.visible)
+        assertEquals("Network jitter is dropping frames", state.diagnosis.likelyCause)
+    }
+
     private fun quickState(
         status: PolarisSessionStatus?,
         apiAvailable: Boolean = true,

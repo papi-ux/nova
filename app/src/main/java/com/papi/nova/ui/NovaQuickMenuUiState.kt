@@ -130,7 +130,9 @@ data class NovaQuickMenuDiagnosisState(
     val verificationDelaySeconds: Int,
     val undoSupported: Boolean,
     val aiExplanation: String,
-    val informationalSource: String
+    val informationalSource: String,
+    // False when the card would only say again what the session strip already says.
+    val visible: Boolean = true
 )
 
 data class NovaQuickMenuUiState(
@@ -281,7 +283,7 @@ data class NovaQuickMenuUiState(
                 )
             }
 
-            val diagnosis = diagnosisState(status)
+            val diagnosis = diagnosisState(status, healthSummary)
             val stability = NovaQuickMenuStabilityState(
                 title = context.getString(R.string.nova_quick_menu_stream_card),
                 caption = if (hostStateUnavailable) context.getString(R.string.nova_quick_menu_host_state_unavailable) else "",
@@ -456,12 +458,14 @@ data class NovaQuickMenuUiState(
                 )
             )
 
+            // A Space streams at the bitrate it started with and says so; that is not an unknown.
+            val fixedForSpace = status?.liveTuningUnavailable == true && status.liveTuning == null
             return NovaQuickMenuUiState(
                 liveTuningAction = NovaQuickMenuAction(
                     NovaQuickMenuActionId.LIVE_TUNING, "Live Tuning",
                     caption = if (liveTuningPending) "Saving…" else if (hostStateUnavailable) "Reconnecting — state not confirmed" else
-                        "${autoQuality.label}. Host setting. ${autoQuality.detail}",
-                    chip = NovaQuickMenuChip(if (hostStateUnavailable || status == null || (status.liveTuningPresent && status.liveTuning == null)) "Unknown" else if (autoQuality.enabled) "On" else "Off", if (autoQuality.enabled) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE),
+                        if (fixedForSpace) "${autoQuality.detail}." else "${autoQuality.label}. Host setting. ${autoQuality.detail}",
+                    chip = NovaQuickMenuChip(if (hostStateUnavailable || status == null) "Unknown" else if (fixedForSpace) "Fixed" else if (status.liveTuningPresent && status.liveTuning == null) "Unknown" else if (autoQuality.enabled) "On" else "Off", if (autoQuality.enabled) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE),
                     // The row stays enabled while a save is pending: the caption already says
                     // Saving, onLiveTuning ignores a second press, and disabling the row under a
                     // controller cursor drops focus mid-press.
@@ -633,7 +637,7 @@ data class NovaQuickMenuUiState(
             )
         }
 
-        private fun diagnosisState(status: PolarisSessionStatus?): NovaQuickMenuDiagnosisState {
+        private fun diagnosisState(status: PolarisSessionStatus?, healthSummary: String): NovaQuickMenuDiagnosisState {
             val doctor = status?.doctor
             val informationalAiExplanation = doctor?.aiExplanation
                 ?.takeIf { it.available && it.informational }
@@ -673,6 +677,9 @@ data class NovaQuickMenuUiState(
                 tryFirst = doctor?.firstTry.orEmpty().withoutLeadingSentence(likelyCause),
                 confidence = doctor?.confidence.orEmpty(),
                 available = available,
+                // With no Doctor reading the host's health summary is the only sentence there is,
+                // and a Space sends exactly that. The strip already shows it, so the card goes.
+                visible = likelyCause.trimEnd('.') != healthSummary.trimEnd('.'),
                 actionId = actionId,
                 actionLabel = doctor?.actionLabel.orEmpty(),
                 actionExecutable = actionExecutable,

@@ -335,6 +335,7 @@ fun NovaQuickMenuContent(
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp)
         ) {
             NovaQuickMenuSessionStrip(state, initialFocusRequester)
+            Spacer(Modifier.height(8.dp))
             NovaQuickMenuRow(state.liveTuningAction, callbacks)
             // The keys a handheld cannot press any other way stay one reach from the top;
             // the full keyboard grid lives further down with the rest of the panels.
@@ -346,8 +347,11 @@ fun NovaQuickMenuContent(
             // and what Auto is running, comes next instead of three screens down. The panels
             // a player adjusts follow, Overlays first because the HUD switch is the frequent
             // tap, and the Quick Keys grid last of them since its top three are pinned above.
-            Spacer(Modifier.height(10.dp))
-            NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
+            // A session the Doctor cannot read has no card, rather than one repeating the strip.
+            if (state.diagnosis.visible) {
+                Spacer(Modifier.height(10.dp))
+                NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)
+            }
             if (state.doctorReceiptAction.visible) {
                 Spacer(Modifier.height(10.dp))
                 NovaQuickMenuInfoCard(
