@@ -407,7 +407,9 @@ class NvConnection(
     private fun adoptWatchProfile(context: ConnectionContext, profile: NovaWatchProfile): Boolean {
         val streamConfig = context.streamConfig!!
         val listener = context.connListener!!
-        val decodesTenBit = (streamConfig.getSupportedVideoFormats() and MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0
+        val deviceFormats = context.deviceVideoFormats
+            ?: streamConfig.getSupportedVideoFormats().also { context.deviceVideoFormats = it }
+        val decodesTenBit = (deviceFormats and MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0
         if (profile.tenBit && !decodesTenBit) {
             watchRefusalExplained = true
             listener.displayMessage(
@@ -426,7 +428,7 @@ class NvConnection(
             "av1" -> MoonBridge.VIDEO_FORMAT_MASK_AV1
             else -> 0
         }
-        if (codecMask != 0 && (streamConfig.getSupportedVideoFormats() and codecMask) == 0) {
+        if (codecMask != 0 && (deviceFormats and codecMask) == 0) {
             watchRefusalExplained = true
             listener.displayMessage(
                 "That stream is " + profile.codec!!.uppercase() + ", which this device cannot decode, so it cannot be watched here.",
@@ -435,7 +437,7 @@ class NvConnection(
         }
         // Whatever else matches, the handshake offers the stream's own codec at its own depth.
         streamConfig.adoptWatchVideoFormats(
-            novaWatchVideoFormats(streamConfig.getSupportedVideoFormats(), profile.codec, profile.tenBit),
+            novaWatchVideoFormats(deviceFormats, profile.codec, profile.tenBit),
         )
         if (profile.width == context.negotiatedWidth && profile.height == context.negotiatedHeight &&
             profile.fps == context.negotiatedLaunchRefreshRate && profile.tenBit == context.negotiatedHdr

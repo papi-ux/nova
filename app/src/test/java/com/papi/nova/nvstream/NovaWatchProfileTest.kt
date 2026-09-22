@@ -81,6 +81,19 @@ class NovaWatchProfileTest {
             "the formats are narrowed before the early return for a matching mode, which is where a same-size watch went on offering 10-bit",
             adopt.indexOf("adoptWatchVideoFormats(") in 0 until adopt.indexOf("profile.fps == context.negotiatedLaunchRefreshRate")
         )
+        // The first adoption narrows the handshake; a later refusal for another codec or depth
+        // must still see what the device decodes, or it is told it cannot decode what it can.
+        assertTrue(
+            "capability is read from the device's formats, captured before the first narrowing",
+            adopt.contains("context.deviceVideoFormats\n            ?: streamConfig.getSupportedVideoFormats().also { context.deviceVideoFormats = it }")
+        )
+        assertTrue(
+            "the ten-bit, codec and narrowing checks all use the device's formats",
+            adopt.contains("(deviceFormats and MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0") &&
+                adopt.contains("(deviceFormats and codecMask) == 0") &&
+                adopt.contains("novaWatchVideoFormats(deviceFormats, profile.codec, profile.tenBit)") &&
+                !adopt.contains("streamConfig.getSupportedVideoFormats() and")
+        )
     }
 
     @Test
