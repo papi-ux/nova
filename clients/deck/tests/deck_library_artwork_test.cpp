@@ -158,5 +158,30 @@ int main(int argc, char** argv) {
     provider.invalidateGame("pc-a","game-7");
     published = provider.publish(snapshot,resolver,games);
     require(key(published) != currentPoster, "confirmed artwork edit retained an old image key");
+    snapshot.probes.clear();
+    snapshot.library.games.front().appId = polaris::kSpaceAppId;
+    snapshot.library.games.front().spaceId = "room";
+    snapshot.library.games.front().artwork = {};
+    for (const auto* target : {"big-picture-v1", "library-v1", "epic.AlanWake2", "id.42"}) {
+        const auto id = QString("space.room.") + target;
+        snapshot.library.games.front().id = id.toStdString();
+        games = {QVariantMap{{"id", id}}};
+        auto spaceResolver = [&](const QString& host, const QString& game) -> std::optional<DeckNativeLaunchTarget> {
+            require(host == "pc-a" && game == id, "launcher artwork lost Space identity");
+            DeckNativeLaunchTarget launch;
+            launch.fetch = [&](const std::string& route) { path = route; ++reads; return stream::DeckHttpResponse{true, 200, body}; };
+            return launch;
+        };
+        published = provider.publish(snapshot, spaceResolver, games);
+        const bool launcher = std::string_view(target) == "big-picture-v1" || std::string_view(target) == "library-v1";
+        for (const auto* kind : {"poster", "hero", "logo", "icon"}) {
+            if (launcher) {
+                require(!published.front().toMap().contains(kind), "launcher tile requested game artwork");
+            } else {
+                require(!provider.requestImage(key(published, kind), &size, {}).isNull(), "launcher title artwork did not decode");
+                require(path == "/polaris/v1/games/" + id.toStdString() + "/space-artwork/" + kind, "launcher artwork lost dotted target");
+            }
+        }
+    }
     std::cout << "Artwork passed: pinned resolver, fixed routes, byte/pixel limits, rejected formats, stale pairing and host replacement\n";
 }

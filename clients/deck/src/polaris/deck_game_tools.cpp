@@ -35,7 +35,7 @@ QString preview(const QString& game, const QString& kind, const QJsonValue& path
 bool validGameToolId(const QString& id) { return match("^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$", id) && !id.startsWith("space.") && !isSpaceGame(id.toStdString()); }
 bool validSpaceArtworkId(const QString& id) {
     const auto space = spaceGameIdentity(id.toStdString());
-    return space && space->target != "big-picture-v1";
+    return space && space->target != "big-picture-v1" && space->target != "library-v1";
 }
 bool validEncoderChoice(const QString& id) { return id.isEmpty() || match("^[a-z0-9][a-z0-9_-]{0,63}$", id); }
 std::optional<DeckGameToolRequest> gameToolRequest(const QString& game, const QString& action, const QVariantMap& v) {

@@ -38,7 +38,7 @@ QVariantList DeckLibraryArtwork::publish(const backend::DeckLiveHostLibrarySnaps
         std::string path;
         if (standard) path = "/appasset?appid=" + std::to_string(game->appId) + "&AssetType=2&AssetIdx=0";
         else if (const auto space = polaris::spaceGameIdentity(game->id)) {
-            if (space->spaceId != game->spaceId || space->target == "big-picture-v1") { value = item; continue; }
+            if (space->spaceId != game->spaceId || space->target == "big-picture-v1" || space->target == "library-v1") { value = item; continue; }
             path = "/polaris/v1/games/" + game->id + "/space-artwork/poster";
             if (!game->artwork.poster.empty()) path = game->artwork.poster;
         }

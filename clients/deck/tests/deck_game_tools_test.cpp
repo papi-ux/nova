@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
         check(gameToolRequest(game,"spaceRefresh",{})->path=="/polaris/v1/games/space.room.42/space-artwork/resolve", "Space artwork route drift");
         for(const auto* action:{"search","choices","apply","reset","refreshArt","steam","settings","plan"})
             check(!gameToolRequest(game,action,{}),"Space escaped to desktop action");
-        for(const auto* id:{"space.room.big-picture-v1","space.room.0","space.room.042","space.other/room.42","space.room.4294967296","game"})
+        for(const auto* id:{"space.room.big-picture-v1","space.room.library-v1","space.room.0","space.room.042","space.other/room.42","space.room.4294967296","game"})
             check(!gameToolRequest(id,"spaceRefresh",{}),"invalid Space artwork identity admitted");
         check(!gameToolRequest(game,"spaceRefresh",{{"game","other"}}),"Space refresh accepted extra fields");
         check(gameToolReply(game,"spaceRefresh",{},updated)->value("resolution")=="updated", "Space receipt not parsed");
@@ -47,6 +47,7 @@ int main(int argc, char** argv) {
         check(space.checkArtwork(),"Space uncertainty could not reconcile");wait([&]{return !space.busy();});check(writes==2 && !space.state()["uncertain"].toBool(),"GET reconciliation sent a POST");
         valid=false;check(space.refreshArtwork(),"stale pairing fixture failed");wait([&]{return !space.busy();});check(writes==2,"changed pairing mutated Space artwork");
         check(!space.prepare("host","space.room.big-picture-v1",config) && !space.refreshArtwork(),"launcher borrowed previous game authority");
+        check(!space.prepare("host","space.room.library-v1",config) && !space.refreshArtwork(),"library launcher borrowed previous game authority");
     }
     check(gameToolRequest("game", "search", {{"query","A & B / ? #"}})->path == "/polaris/v1/games/game/artwork/candidates?query=A%20%26%20B%20%2F%20%3F%20%23", "query escaped incorrectly");
     for (const auto* game : {"../host", "space.test.game", "game?x=y", "game/cover"}) check(!gameToolRequest(game,"reset",{}), "unsafe game route");
