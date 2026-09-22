@@ -195,6 +195,22 @@ class NovaPlaySetupLegendTest {
         )
     }
 
+    @Test
+    fun aSpaceGamesStripAlwaysStartsOnARowItHas() {
+        val activity = read("NovaGameDetailActivity.kt")
+        // A Space game has no Where It Runs row, so starting the strip there left it empty on a
+        // touch reopen, where no focus event arrives to move it.
+        assertFalse(
+            "every reset of the explained row goes through openingExplainedRow()",
+            activity.contains("explainedRow = NovaPlaySetupRow.WHERE_IT_RUNS")
+        )
+        assertTrue(
+            activity.contains("if (spaceGame != null) NovaPlaySetupRow.RESOLUTION else NovaPlaySetupRow.WHERE_IT_RUNS")
+        )
+        // The helper, then the three places the strip is reset: on open, on close, and on a scope change.
+        assertEquals(4, activity.split("openingExplainedRow()").size - 1)
+    }
+
     private fun read(name: String): String =
         String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/$name")), StandardCharsets.UTF_8)
 
