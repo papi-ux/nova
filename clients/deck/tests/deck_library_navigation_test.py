@@ -1279,7 +1279,18 @@ def spaces_navigation(wait, keys, state, fixtures, save_capture, window):
     keys("Down")
     wait(lambda s: s.get("focus") == "destination-choice-room-b")
     assert not a["selections"] and state()["destination"]["selectedId"] == "room-a", "focus changed the destination"
-    keys("Return", "Return")
+    # Keep the host request pending while exercising duplicate activation.
+    # Otherwise the second key may arrive after success and reopen the picker.
+    selection_release = threading.Event()
+    a["selection_release"] = selection_release
+    try:
+        keys("Return")
+        wait(lambda s: s.get("busy") and len(a["selections"]) == 1)
+        keys("Return")
+        assert len(a["selections"]) == 1, "pending destination switch was posted twice"
+    finally:
+        selection_release.set()
+        del a["selection_release"]
     wait(lambda s: not s.get("busy") and not s.get("destination", {}).get("opened") and s.get("destinationName") == "Lounge")
     assert len(a["selections"]) == 1 and a["selections"][0] == {"space_id": "room-b", "previous_space_id": "room-a"}
     assert all(g.startswith("space.room-b.") for g in state()["games"]) and not state()["launchEnabled"]
@@ -1521,6 +1532,9 @@ def main():
                 if args.spaces and self.path == "/polaris/v1/spaces/select":
                     data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                     fixture["selections"].append(data)
+                    selection_release = fixture.get("selection_release")
+                    if selection_release is not None and not selection_release.wait(timeout=3):
+                        violations.append("destination selection fixture was not released")
                     permitted = [s["id"] for s in fixture["spaces"] if s["state"] != "unavailable"] + (["desktop"] if fixture["desktop_allowed"] else [])
                     accepted = data.get("previous_space_id") == fixture["selected_destination"] and data.get("space_id") in permitted and fixture.get("can_switch", True)
                     if accepted:
