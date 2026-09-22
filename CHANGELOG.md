@@ -35,9 +35,12 @@
 
 - In a Space, the health line shows once instead of again as a Doctor card, and Live Tuning says Fixed, since a Space keeps the bitrate it started with.
 
-**Steam Deck**
+**Nova for Steam Deck (Alpha)**
 
-- Nova for Steam Deck is available as an Alpha: a Flatpak bundle attached to this release, for anyone who wants to try it early.
+- Nova for Steam Deck arrives as an Alpha: a native SteamOS client, attached to this release as a Flatpak bundle, `Nova-Deck-x86_64-alpha.flatpak`. It pairs on its own with a PIN or Trusted Pair, browses the Library with its artwork, runs Play Setup, and streams with native video and audio, Command Center, NovaHUD, Doctor and session recovery.
+- Controllers get players, rumble and deadzones, and keyboard and mouse work from the first build. Ctrl+Alt+Shift+M opens Command Center.
+- `flatpak run com.papi_ux.Nova --register-steam-shortcut`, run once with Steam closed, adds Nova to Game Mode. The [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) has the whole install.
+- It is an Alpha: the mouse follows the pointer on screen, relative aiming and touch modes are not in yet, and some Android features are partial.
 
 **Under the Hood**
 
