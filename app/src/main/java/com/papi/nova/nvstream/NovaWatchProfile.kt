@@ -67,3 +67,31 @@ data class NovaWatchProfile(
         }
     }
 }
+
+/**
+ * What a watcher is told when the stream is 10-bit and this session offered the host no 10-bit
+ * format.
+ *
+ * A session offers 10-bit formats only when it asked for HDR, and a watch cannot widen that on the
+ * way in: a device that offers them has moonlight-common-c pick Main10 whenever the host has it,
+ * for an 8-bit stream too, and the host refuses that watch for its dynamic range. So the refusal
+ * stays, and says which reason holds. A handheld with HDR off was told it "cannot decode" a stream
+ * its decoder takes without trouble.
+ */
+internal fun novaTenBitWatchRefusal(
+    codec: String?,
+    decodesHevcTenBit: Boolean,
+    decodesAv1TenBit: Boolean,
+    hdrRequestedInSettings: Boolean,
+): String {
+    val decodes = when (codec) {
+        "hevc" -> decodesHevcTenBit
+        "av1" -> decodesAv1TenBit
+        else -> decodesHevcTenBit || decodesAv1TenBit
+    }
+    return when {
+        !decodes -> "That stream is HDR, which this device cannot decode, so it cannot be watched here."
+        !hdrRequestedInSettings -> "That stream is HDR. Turn on Request HDR in Settings to watch it on this device."
+        else -> "That stream is HDR and this session was set up for SDR, so it cannot be watched here."
+    }
+}

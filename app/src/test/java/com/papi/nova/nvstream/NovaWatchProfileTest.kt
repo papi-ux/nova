@@ -2,6 +2,7 @@ package com.papi.nova.nvstream
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -138,6 +139,39 @@ class NovaWatchProfileTest {
             "the picture was fitted to the shape this device asked for; a 16:10 stream in a 16:9 box is stretched by a tenth",
             game.contains("override fun streamModeAdopted(width: Int, height: Int) {") &&
                 game.contains("streamContainer?.setDesiredAspectRatio(width.toDouble() / height.toDouble())")
+        )
+    }
+
+    @Test
+    fun aWatcherRefusedATenBitStreamIsToldWhichReasonHolds() {
+        // Seen live: a handheld with HDR off in its settings was told "this device cannot decode"
+        // a 10-bit stream that its decoder takes without trouble.
+        assertTrue(
+            "a decoder with no 10-bit profile for the stream's codec cannot decode it",
+            novaTenBitWatchRefusal("av1", decodesHevcTenBit = true, decodesAv1TenBit = false, hdrRequestedInSettings = false)
+                .contains("which this device cannot decode"),
+        )
+        assertTrue(
+            "a decoder that can, on a device with HDR off, is pointed at the setting",
+            novaTenBitWatchRefusal("hevc", decodesHevcTenBit = true, decodesAv1TenBit = false, hdrRequestedInSettings = false)
+                .contains("Turn on Request HDR in Settings"),
+        )
+        val setUpForSdr = novaTenBitWatchRefusal("hevc", decodesHevcTenBit = true, decodesAv1TenBit = false, hdrRequestedInSettings = true)
+        assertFalse(
+            "with HDR already on, the setting is not the answer, and neither is the decoder",
+            setUpForSdr.contains("Settings") || setUpForSdr.contains("cannot decode"),
+        )
+
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        assertTrue(
+            "offering 10-bit to every watcher had moonlight-common-c pick Main10 for an 8-bit stream, " +
+                "which the host refuses for its dynamic range: only a session that asked for HDR offers it",
+            game.contains("if (willStreamHdr && decoderRenderer!!.isHevcMain10Hdr10Supported)") &&
+                game.contains("if (willStreamHdr && decoderRenderer!!.isAv1Main10Supported)"),
+        )
+        assertTrue(
+            "the connection is told what the decoder can do and what was asked for",
+            game.contains("newConn.setTenBitAbility(\ndecoderRenderer!!.isHevcMain10Hdr10Supported,\ndecoderRenderer!!.isAv1Main10Supported,\nprefConfig!!.enableHdr\n)"),
         )
     }
 }

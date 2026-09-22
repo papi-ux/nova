@@ -1682,6 +1682,11 @@ httpsPort, uniqueId ?: "", config,
 PlatformBinding.getCryptoProvider(this), serverCert)
 conn = newConn
 newConn.setWatchOnlyRequested(watchOnlyRequested)
+newConn.setTenBitAbility(
+decoderRenderer!!.isHevcMain10Hdr10Supported,
+decoderRenderer!!.isAv1Main10Supported,
+prefConfig!!.enableHdr
+)
 controllerHandler = ControllerHandler(this, newConn, this, prefConfig)
 keyboardTranslator = KeyboardTranslator(prefConfig)
 

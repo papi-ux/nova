@@ -410,7 +410,14 @@ class NvConnection(
         val decodesTenBit = (streamConfig.getSupportedVideoFormats() and MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0
         if (profile.tenBit && !decodesTenBit) {
             watchRefusalExplained = true
-            listener.displayMessage("That stream is HDR, which this device cannot decode, so it cannot be watched here.")
+            listener.displayMessage(
+                novaTenBitWatchRefusal(
+                    profile.codec,
+                    decodesHevcTenBit = context.decodesHevcTenBit,
+                    decodesAv1TenBit = context.decodesAv1TenBit,
+                    hdrRequestedInSettings = context.hdrRequestedInSettings,
+                ),
+            )
             return false
         }
         val codecMask = when (profile.codec) {
@@ -672,6 +679,13 @@ class NvConnection(
 
     fun setWatchOnlyRequested(watchOnlyRequested: Boolean) {
         context.watchOnlyRequested = watchOnlyRequested
+    }
+
+    /** What this device could decode and what it asked for, so a watcher refused a 10-bit stream is told why. */
+    fun setTenBitAbility(decodesHevcTenBit: Boolean, decodesAv1TenBit: Boolean, hdrRequestedInSettings: Boolean) {
+        context.decodesHevcTenBit = decodesHevcTenBit
+        context.decodesAv1TenBit = decodesAv1TenBit
+        context.hdrRequestedInSettings = hdrRequestedInSettings
     }
 
     fun sendExecServerCmd(cmdId: Int) {

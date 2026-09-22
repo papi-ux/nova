@@ -24,6 +24,9 @@ class ConnectionContext {
     @JvmField var currentGameOwnedByClient: Boolean? = null
     @JvmField var currentGameOwnerName: String? = null
     @JvmField var watchOnlyRequested = false
+    @JvmField var decodesHevcTenBit = false
+    @JvmField var decodesAv1TenBit = false
+    @JvmField var hdrRequestedInSettings = false
 
     @JvmField var negotiatedWidth = 0
     @JvmField var negotiatedHeight = 0
