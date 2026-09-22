@@ -75,7 +75,7 @@ jobs:
             ffmpeg libva libdrm mesa \
             libpulse pipewire pipewire-audio opus openssl dbus python \
             libplacebo vulkan-headers vulkan-swrast \
-            xorg-server-xvfb xorg-xauth xdotool
+            xorg-server-xvfb xorg-xauth xdotool ttf-dejavu
 
       - uses: actions/checkout@v5
         with:

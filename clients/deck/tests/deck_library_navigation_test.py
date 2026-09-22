@@ -14,6 +14,7 @@ import time
 from urllib.parse import urlsplit, parse_qs
 from xml.sax.saxutils import escape
 from deck_artwork_fixture import artwork_png
+from deck_ui_input import wait_for_ui_observations
 
 
 def command(*args):
@@ -315,7 +316,7 @@ def audio_settings_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: s["audio"]["settings"] == surround)
     save_capture("audio-settings-1280.png")
     command("xdotool", "windowsize", window, "960", "600")
-    wait(lambda s: s.get("width") == 960 if "width" in s else s["audio"]["host"]["x"] < 600)
+    wait(lambda s: s.get("width") == 960 and s.get("height") == 600)
     save_capture("audio-settings-960.png")
     tap(state()["audio"]["reset"])
     wait(lambda s: s["audio"]["settings"] == defaults)
@@ -1683,7 +1684,9 @@ def main():
             raise AssertionError(f"UI did not settle: {state()}\n{log.read_text()}")
 
         def keys(*values):
-            command("xdotool", "key", "--clearmodifiers", *values)
+            for value in values:
+                command("xdotool", "key", "--clearmodifiers", value)
+                wait_for_ui_observations(observation, app)
 
         def save_capture(name):
             if args.capture_dir:

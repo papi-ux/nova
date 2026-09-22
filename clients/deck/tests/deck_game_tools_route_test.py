@@ -13,6 +13,7 @@ import threading
 import time
 from urllib.parse import urlsplit, parse_qs
 from deck_artwork_fixture import artwork_png
+from deck_ui_input import wait_for_ui_observations
 
 
 def command(*args):
@@ -175,7 +176,10 @@ def main():
                 if predicate(state()): return state()
                 time.sleep(.03)
             raise AssertionError(f"UI did not settle: {state()}\n{log.read_text()}")
-        def keys(*values): command("xdotool", "key", "--clearmodifiers", *values)
+        def keys(*values):
+            for value in values:
+                command("xdotool", "key", "--clearmodifiers", value)
+                wait_for_ui_observations(observation, app)
         try:
             wait(lambda s: s.get("game") == game["id"])
             window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]

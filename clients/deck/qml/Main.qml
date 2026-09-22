@@ -284,6 +284,7 @@ ApplicationWindow {
     }
     function libraryInteractionState() {
         if (novaStandalone) return Object.assign(androidLibrary.state(), {
+            width: width, height: height,
             host: selectedHostForPreview.id, games: novaLibraryGames.map(game => game.id),
             titles: novaLibraryGames.map(game => game.title), busy: libraryBusy,
             automatic: novaLibraryRefresh.state.automatic, failed: novaLibraryRefresh.state.failed,
