@@ -93,7 +93,7 @@ void testRegistrationAppendsThenReplaces() {
     nova.appName = "Nova";
     nova.exe = "\"/usr/bin/flatpak\"";
     nova.startDir = "\"/usr/bin/\"";
-    nova.launchOptions = "run com.papi_ux.Nova";
+    nova.launchOptions = "run com.papi_ux.Nova --live";
     nova.tags = {"Nova"};
 
     const auto first = registerShortcut(*parsed, nova);
@@ -104,7 +104,7 @@ void testRegistrationAppendsThenReplaces() {
     const auto& entry = shortcuts.back().second.children;
     assert(find(entry, "AppName")->text == "Nova");
     assert(find(entry, "Exe")->text == "\"/usr/bin/flatpak\"");
-    assert(find(entry, "LaunchOptions")->text == "run com.papi_ux.Nova");
+    assert(find(entry, "LaunchOptions")->text == "run com.papi_ux.Nova --live");
     assert(find(entry, "AllowOverlay")->number == 1);
     assert(find(entry, "tags")->children.size() == 1 && find(entry, "tags")->children.front().second.text == "Nova");
     assert(static_cast<std::uint32_t>(find(entry, "appid")->number) == first.appId);
@@ -126,13 +126,13 @@ void testRegistrationAppendsThenReplaces() {
     novaEntry.emplace_back("SomeFutureSteamKey", unknown);
 
     nova.exe = "\"/usr/bin/flatpak\"";
-    nova.launchOptions = "run com.papi_ux.Nova --live";
+    nova.launchOptions = "run com.papi_ux.Nova --standalone";
     const auto second = registerShortcut(touched, nova);
     assert(second.replaced);
     assert(second.entryKey == "1");
     assert(second.document.front().second.children.size() == 2);
     const auto& merged = second.document.front().second.children.back().second.children;
-    assert(find(merged, "LaunchOptions")->text == "run com.papi_ux.Nova --live");
+    assert(find(merged, "LaunchOptions")->text == "run com.papi_ux.Nova --standalone");
     assert(find(merged, "appid")->number == originalAppId && "a replace keeps the app id grid art hangs off");
     assert(second.appId == static_cast<std::uint32_t>(originalAppId));
     assert(find(merged, "LastPlayTime")->number == 1725760000);

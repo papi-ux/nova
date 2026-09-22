@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <thread>
+#include <fcntl.h>
+#include <unistd.h>
 
 using namespace nova::deck::stream;
 using namespace nova::deck::test;
@@ -17,27 +19,60 @@ using namespace nova::deck::test;
 
 int main(int argc, char** argv) {
     const bool disconnect = argc == 2 && std::string_view(argv[1]) == "--private-server-disconnect";
-    if (argc == 2 && (std::string_view(argv[1]) == "--private-server" || disconnect)) {
+    const bool controlled = argc == 2 && std::string_view(argv[1]) == "--private-recovery";
+    if (argc == 2 && (std::string_view(argv[1]) == "--private-server" || disconnect || controlled)) {
         // The Python harness supplies its own daemon and links only a null sink.
         CHECK(std::getenv("NOVA_AUDIO_PRIVATE_TEST") != nullptr);
         DeckPipeWireAudio audio;
         auto config = stereoConfig();
+        const int channels = qEnvironmentVariableIntValue("NOVA_AUDIO_TEST_CHANNELS");
+        CHECK(channels == 2 || channels == 6 || channels == 8);
+        if (channels != 2) {
+            config.channelCount = config.streams = channels;
+            config.coupledStreams = 0;
+            for (int i = 0; i < channels; ++i) config.mapping[i] = i;
+        }
+        const int audioConfiguration = channels == 8 ? AUDIO_CONFIGURATION_71_SURROUND
+            : channels == 6 ? AUDIO_CONFIGURATION_51_SURROUND : AUDIO_CONFIGURATION_STEREO;
         auto packet = encodePacket(config, 240);
-        CHECK(audio.init(AUDIO_CONFIGURATION_STEREO, &config, nullptr, 0) == 0);
+        CHECK(audio.init(audioConfiguration, &config, nullptr, 0) == 0);
         audio.start();
         CHECK(audio.lifecycle().active);
         std::cout << "ready" << std::endl;
-        for (int i = 0; i < 400; ++i) {
+        if (controlled) CHECK(fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK) == 0);
+        bool quit = false;
+        for (int i = 0; i < (controlled ? 3600 : 400); ++i) {
+            char command = 0;
+            if (controlled && read(STDIN_FILENO, &command, 1) == 1 && command == 'q') { quit = true; break; }
+            const auto began = std::chrono::steady_clock::now();
             audio.decodeAndPlaySample(packet.data(), packet.size());
+            if (controlled) {
+                CHECK(std::chrono::steady_clock::now() - began < std::chrono::milliseconds(250));
+                const auto s = audio.lifecycle();
+                CHECK(s.active && !s.decodeErrors && s.submittedFrames <= s.queuedFrames);
+                if (i % 10 == 0) std::cout << "status " << s.decodedFrames << ' ' << s.submittedFrames << ' '
+                    << s.droppedFrames << ' ' << s.audioRecoveries << ' ' << s.audioRecoveryAttempts << ' '
+                    << s.outputReady << ' ' << s.outputStreaming << ' ' << s.outputRecovering << ' '
+                    << s.active << ' ' << s.discardedFrames << std::endl;
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
+        const auto beforeStop = audio.lifecycle();
         audio.stop();
         audio.cleanup();
         const auto stats = audio.lifecycle();
-        if (disconnect) {
-            CHECK(stats.decodedFrames < 96000);
+        if (controlled) {
+            CHECK(quit && !stats.active && !stats.outputReady && !stats.outputRecovering);
+            const auto attempts = stats.audioRecoveryAttempts;
+            std::this_thread::sleep_for(std::chrono::milliseconds(350));
+            CHECK(audio.lifecycle().audioRecoveryAttempts == attempts);
+            return 0;
+        } else if (disconnect) {
+            CHECK(stats.decodedFrames == 96000);
             CHECK(stats.submittedFrames > 240);
-            CHECK(stats.lastError == "Audio output disconnected");
+            CHECK(beforeStop.active && beforeStop.outputRecovering && !beforeStop.outputReady);
+            CHECK(beforeStop.audioRecoveryAttempts > 0);
+            CHECK(stats.droppedFrames > 0 && !stats.outputRecovering);
         } else {
             CHECK(stats.decodedFrames == 96000);
             CHECK(stats.submittedFrames > 48000);
@@ -221,6 +256,22 @@ int main(int argc, char** argv) {
     CHECK(audio.lifecycle().lastError == "Audio output disconnected");
     audio.decodeAndPlaySample(packet.data(), packet.size());
     CHECK(!audio.lifecycle().active);
+    audio.stop();
+    audio.cleanup();
+    // A recoverable output outage keeps decoding so the Opus state remains
+    // current. Fresh PCM resumes when the output worker makes a route usable.
+    CHECK(audio.init(AUDIO_CONFIGURATION_STEREO, &config, nullptr, 0) == 0);
+    audio.start();
+    sink.outputStats.available = false;
+    sink.outputStats.recovering = true;
+    sink.rejectWrites = true;
+    audio.decodeAndPlaySample(packet.data(), packet.size());
+    CHECK(audio.lifecycle().active && audio.lifecycle().outputRecovering && audio.lifecycle().decodedFrames == 240);
+    sink.outputStats.available = sink.outputStats.flowing = true;
+    sink.outputStats.recovering = sink.rejectWrites = false;
+    audio.decodeAndPlaySample(packet.data(), packet.size());
+    CHECK(audio.lifecycle().decodedFrames == 480 && audio.lifecycle().queuedFrames == 240 &&
+        audio.lifecycle().outputStreaming && !audio.lifecycle().outputRecovering && audio.lifecycle().lastError.empty());
     audio.stop();
     audio.cleanup();
     return 0;

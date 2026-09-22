@@ -42,6 +42,7 @@ DeckVdfValue* findKey(DeckVdfObject& object, std::string_view key);
 
 struct DeckSteamShortcut {
     std::string appName;
+    std::string canonicalId; ///< Nova game identity, empty for the app shortcut.
     std::string exe;  ///< quoted the way Steam stores it, e.g. "/usr/bin/flatpak"
     std::string startDir;  ///< quoted, e.g. "/usr/bin/"
     std::string icon;  ///< left alone on replace when empty

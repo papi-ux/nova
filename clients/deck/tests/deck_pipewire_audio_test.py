@@ -77,15 +77,18 @@ def stop(process):
 
 def main():
     binary, pipewire, pw_link = sys.argv[1:4]
-    disconnect = sys.argv[4:] == ["--disconnect"]
+    disconnect = "--disconnect" in sys.argv[4:]
+    channels = int(sys.argv[sys.argv.index("--channels") + 1]) if "--channels" in sys.argv else 2
+    positions = {2: ("FL", "FR"), 6: ("FL", "FR", "FC", "LFE", "RL", "RR"),
+                 8: ("FL", "FR", "FC", "LFE", "RL", "RR", "SL", "SR")}[channels]
     with tempfile.TemporaryDirectory(prefix="nova-audio-test-") as directory:
         root = Path(directory)
         config = root / "pipewire.conf"
-        config.write_text(CONFIG, encoding="utf-8")
+        config.write_text(CONFIG.replace("[ FL FR ]", "[ " + " ".join(positions) + " ]"), encoding="utf-8")
         (root / "client.conf").write_text(CLIENT_CONFIG, encoding="utf-8")
         env = dict(os.environ, XDG_RUNTIME_DIR=directory, PIPEWIRE_RUNTIME_DIR=directory,
                    PIPEWIRE_CONFIG_DIR=directory,
-                   PIPEWIRE_REMOTE="nova-audio-test", NOVA_AUDIO_PRIVATE_TEST="1")
+                   PIPEWIRE_REMOTE="nova-audio-test", NOVA_AUDIO_PRIVATE_TEST="1", NOVA_AUDIO_TEST_CHANNELS=str(channels))
         server = player = None
         with (root / "server.log").open("w+") as server_log, (root / "player.log").open("w+") as player_log:
             try:
@@ -100,7 +103,7 @@ def main():
                 player = subprocess.Popen([binary, mode], env=env,
                                           stdout=player_log, stderr=subprocess.STDOUT)
                 # PipeWire client adapters expose DSP ports once the stream is active.
-                for channel in ("FL", "FR"):
+                for channel in positions:
                     deadline = time.monotonic() + 3
                     while True:
                         linked = subprocess.run([pw_link, f"nova-audio:output_{channel}",
@@ -120,7 +123,7 @@ def main():
                 if player.wait(timeout=8) != 0:
                     raise RuntimeError("private PipeWire playback assertions failed")
                 player_log.seek(0)
-                print(player_log.read())
+                print(f"channels={channels}, linked positions={','.join(positions)}\n" + player_log.read())
             except Exception:
                 for label, log in (("server", server_log), ("player", player_log)):
                     log.flush()

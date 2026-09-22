@@ -1,11 +1,15 @@
 #pragma once
+#include "stream/deck_video_scale.h"
 
 #include "stream/deck_audio_output.h"
+#include "stream/deck_video_color.h"
+#include "stream/deck_video_capabilities.h"
 
 #include "stream/deck_gamestream_session_builder.h"
 #include "stream/deck_stream_core.h"
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -43,6 +47,7 @@ enum class DeckQrhiVaapiImportStatus {
     IncompleteDrmPrimeMetadata,
     UnsupportedMultiLayerDrmPrimeImport,
     UnsupportedDrmPrimeFormat,
+    UnsupportedColorSpace,
     EglImageCreationFailed,
     GlTextureBindFailed,
     EglImageShaderCompositionFailed,
@@ -115,6 +120,7 @@ enum class DeckVaapiPresenterReadinessState {
     IncompleteDrmPrimeMetadata,
     UnsupportedMultiLayerDrmPrimeImport,
     UnsupportedDrmPrimeFormat,
+    UnsupportedColorSpace,
     EglImageCreationFailed,
     GlTextureBindFailed,
     EglImageShaderCompositionFailed,
@@ -148,6 +154,8 @@ public:
         void* eglImage = nullptr;
         unsigned int glTexture = 0;
         unsigned int glProgram = 0;
+        unsigned int glVertexBuffer = 0;
+        unsigned int glVertexArray = 0;
         std::array<void*, 4> eglImages{};
         std::array<unsigned int, 4> glTextures{};
         int importedLayerCount = 0;
@@ -172,6 +180,10 @@ public:
     static bool proveOpenGlShaderCompositionForCurrentContext(
         Resource& resource,
         const QSize& size);
+    // Draws existing GL textures with Qt's transform, opacity and clip state.
+    // Texture composition alone does not prove a VAAPI/EGL import.
+    static bool composeOpenGlTexture(Resource& resource, const QSGRenderNode& node,
+                                     const QSGRenderNode::RenderState& state, const QRectF& source = {0, 0, 1, 1});
     static DeckVaapiPresenterReadinessReport readinessReportForPlan(const DeckQrhiVaapiImportPlan& plan);
     static DeckVaapiPresenterReadinessReport readinessReportForDecodedFrameProof(
         const DeckQrhiVaapiDrmPrimeDescriptor& drmPrimeDescriptor);
@@ -192,6 +204,7 @@ struct DeckLinuxMediaProbe {
     bool runtimeVaapiDeviceAvailable = false;
     std::string hardwareDeviceTypeName;
     std::string runtimeStatus;
+    DeckVideoDecodeSupport videoDecodeSupport;
 
     static DeckLinuxMediaProbe detect();
 };
@@ -209,6 +222,8 @@ struct DeckRendererLifecycle {
     bool ownsCodecContext = false;
     int decodedHardwareFrames = 0;
     int presentedHardwareFrames = 0;
+    std::uint64_t incomingFrames = 0, videoBytes = 0;
+    std::uint64_t hostLatencyTenths = 0, hostLatencySamples = 0;
     bool lastFrameWasHardwareBacked = false;
     std::string runtimeStatus;
     std::string lastRuntimeError;
@@ -229,6 +244,9 @@ public:
     static std::shared_ptr<DeckQrhiVaapiFrameLease> cloneHardwareFrame(const AVFrame& frame);
     bool valid() const;
     std::uintptr_t surfaceId() const;
+    // Immutable frame and side data; valid only while this lease is retained.
+    const AVFrame* frame() const { return frame_; }
+    DeckVideoColorInfo colorInfo() const;
     DeckQrhiVaapiDrmPrimeDescriptor exportDrmPrimeDescriptor() const;
 
 private:
@@ -316,12 +334,16 @@ private:
 
 class DeckQtQuickRhiVaapiRenderNode final : public QSGRenderNode {
 public:
-    explicit DeckQtQuickRhiVaapiRenderNode(DeckQrhiVaapiPresentationDescriptor descriptor, QQuickWindow* targetWindow = nullptr);
+    explicit DeckQtQuickRhiVaapiRenderNode(DeckQrhiVaapiPresentationDescriptor descriptor, QQuickWindow* targetWindow = nullptr,
+        std::shared_ptr<std::atomic<std::uint64_t>> composedFrames = {});
     ~DeckQtQuickRhiVaapiRenderNode() override;
 
     const DeckQrhiVaapiPresentationDescriptor& descriptor() const;
     // Scenegraph-thread only: replaces the retained frame and drops GL/EGL resources owned by the prior frame.
     void replaceDescriptor(DeckQrhiVaapiPresentationDescriptor descriptor, QQuickWindow* targetWindow = nullptr);
+    void setItemSize(const QSizeF& size);
+    void setVideoScaleMode(DeckVideoScaleMode mode);
+    QRectF sourceRect() const;
     bool hasFrameLease() const;
     DeckQrhiVaapiImportPlan planQrhiImport(const RenderState* state) const;
     const DeckQrhiVaapiImportPlan& lastImportPlan() const;
@@ -337,25 +359,41 @@ private:
     DeckQrhiVaapiImportPlan lastImportPlan_{};
     DeckVaapiPresenterReadinessReport readinessReport_{};
     QQuickWindow* targetWindow_ = nullptr;
+    QSizeF itemSize_;
+    DeckVideoScaleMode scale_ = DeckVideoScaleMode::Fit;
+    DeckVideoScaleLayout scaleLayout() const;
     DeckVaapiEglImagePresenter::Resource presenterResource_{};
+    std::shared_ptr<std::atomic<std::uint64_t>> composedFrames_;
+    bool frameCounted_ = false;
 };
 
 class DeckQtQuickRhiVaapiItem : public QQuickItem, public DeckQtQuickRhiPresentationSink {
+    Q_OBJECT
+    Q_PROPERTY(QString videoScaleMode READ videoScaleMode WRITE setVideoScaleMode NOTIFY videoScaleModeChanged)
 public:
     explicit DeckQtQuickRhiVaapiItem(QQuickItem* parent = nullptr);
     ~DeckQtQuickRhiVaapiItem() override;
 
     bool presentVaapiSurface(const DeckQrhiVaapiPresentationDescriptor& descriptor) override;
     int presentedFrames() const;
+    QString videoScaleMode() const { return scaleMode_; }
+    void setVideoScaleMode(const QString& mode);
+    // Distinct successfully composed frames, not queued/decoded frames or redraws.
+    std::shared_ptr<const std::atomic<std::uint64_t>> composedFrames() const { return composedFrames_; }
 
+signals:
+    void videoScaleModeChanged();
 protected:
     QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* updatePaintNodeData) override;
+    void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
 
 private:
     DeckQrhiVaapiPresentationDescriptor pendingDescriptor_{};
     bool hasPendingDescriptor_ = false;
     bool pendingDescriptorValid_ = false;
     int presentedFrames_ = 0;
+    QString scaleMode_ = "fit";
+    std::shared_ptr<std::atomic<std::uint64_t>> composedFrames_ = std::make_shared<std::atomic<std::uint64_t>>(0);
 };
 
 class DeckVaapiFfmpegRenderer final : public DeckStreamRenderer {
@@ -419,6 +457,11 @@ struct DeckAudioLifecycle {
     std::uint64_t submittedFrames = 0;
     std::uint64_t silenceFrames = 0;
     std::uint64_t droppedFrames = 0;
+    std::uint64_t discardedFrames = 0;
+    std::uint64_t audioRecoveries = 0;
+    std::uint64_t audioRecoveryAttempts = 0;
+    bool outputStreaming = false;
+    bool outputRecovering = false;
     int decodeErrors = 0;
     bool outputReady = false;
     bool active = false;
@@ -458,6 +501,7 @@ public:
     DeckGuardedStreamSessionPreviewProducer();
     /// As above, with the connection driver injected; `driver` must outlive the producer.
     explicit DeckGuardedStreamSessionPreviewProducer(DeckMoonlightConnectionDriver& driver);
+    DeckGuardedStreamSessionPreviewProducer(DeckMoonlightConnectionDriver& driver, DeckStreamInput& feedback);
     ~DeckGuardedStreamSessionPreviewProducer() override;
     DeckGuardedStreamSessionPreviewProducer(const DeckGuardedStreamSessionPreviewProducer&) = delete;
     DeckGuardedStreamSessionPreviewProducer& operator=(const DeckGuardedStreamSessionPreviewProducer&) = delete;
@@ -575,13 +619,18 @@ public:
     /// Without either, it stays report-only, so a real start is reachable only
     /// through this lane with both in hand. `hostFetcher` is the connection the
     /// launch went through; the gate keeps it to ask the host to end the app
-    /// when the session stops or is cancelled, whatever the stream did.
+    /// when the caller explicitly ends it. A newly launched app also gets
+    /// failed-start cleanup; an existing game being resumed is preserved.
     DeckGuardedPreviewLifecycleReport startAuthorizedHostSession(
         const DeckOperatorStartAuthorizationSnapshot& authorization,
         const DeckStreamRequest& request,
         const DeckStreamConnectionInfo& connection,
-        DeckHttpFetcher hostFetcher = {});
+        DeckHttpFetcher hostFetcher = {},
+        bool newlyLaunched = true);
     DeckGuardedPreviewLifecycleReport stop();
+    /// Detach an active stream, or clean up a failed resume, without host quit.
+    /// Later stop/cancel calls cannot change this completed disposition.
+    DeckGuardedPreviewLifecycleReport disconnect();
     DeckGuardedPreviewLifecycleReport cancel(std::string reason);
 
     const DeckGuardedPreviewLifecycleReport& lastReport() const;
@@ -607,6 +656,7 @@ private:
     DeckHttpFetcher hostFetcher_{};
     std::string hostSessionToken_;
     bool hostSessionPending_ = false;
+    bool newlyLaunched_ = true;
 };
 
 } // namespace nova::deck::stream

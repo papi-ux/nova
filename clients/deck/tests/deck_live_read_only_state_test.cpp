@@ -358,6 +358,59 @@ void testTerminalSummaryIsSanitized() {
     assert(!contains(summary, "key"));
 }
 
+void testStandardLibraryAndPrecedence() {
+    auto identity = pairedIdentity();
+    identity.sourceLabel = "nova-native";
+    identity.hosts[0].apps.clear();
+    const auto standard = [](const identity::DeckMoonlightHostRecord& host, bool) {
+        DeckLivePolarisFetch fetch;
+        fetch.status = DeckPolarisRequestStatus::Ok;
+        fetch.standardHost = host.uuid == "home-uuid";
+        fetch.games = {game(fetch.standardHost ? "gamestream-app-7" : "polaris-game", "Same title")};
+        fetch.games.front().appId = 7;
+        if (fetch.standardHost) fetch.games.front().source = "gamestream";
+        return fetch;
+    };
+    auto snapshot = buildLiveSnapshot(identity, standard);
+    assert(snapshot.selectedHostId == "office-uuid" && "Polaris preference must survive a standard host earlier in saved order");
+    identity.hosts.resize(1);
+    snapshot = buildLiveSnapshot(identity, standard);
+    assert(snapshot.selectedHostId == "home-uuid" && snapshot.library.games.size() == 1);
+    assert(snapshot.probes.front().librarySource == "gamestream-live");
+    assert(!snapshot.hosts.front().polarisAvailable && snapshot.hosts.front().standardAppListAvailable && snapshot.hosts.front().standardLibraryAvailable);
+    assert(contains(snapshot.hosts.front().publicStatusLabel, "GameStream host"));
+    assert(contains(snapshot.library.sourceLabel, "GameStream library"));
+    const DeckLaunchPreflightService service;
+    const auto state = DeckLiveReadOnlyStateProvider(snapshot, service).stateForScenario("live");
+    assert(state.games.size() == 1 && contains(state.scenarioLabel, "streaming host"));
+    for (const auto& blocker : state.preflight.blockerCodes) assert(blocker != "library-unavailable");
+    assertNoPrivateMaterial(state);
+    // An empty live list must not resurrect hidden/revoked cached apps.
+    identity.hosts.front().apps = {{7, "Old cached app", false, false}};
+    snapshot = buildLiveSnapshot(identity, [&](const auto& host, bool wantLibrary) {
+        auto fetch = standard(host, wantLibrary); fetch.games.clear(); return fetch;
+    });
+    assert(snapshot.library.games.empty() && snapshot.probes.front().librarySource == "gamestream-live");
+    assert(snapshot.selectedHostId == "home-uuid");
+    snapshot = buildLiveSnapshot(identity, [](const auto&, bool) {
+        DeckLivePolarisFetch fetch; fetch.status = DeckPolarisRequestStatus::HttpError; return fetch;
+    });
+    assert(snapshot.hosts.front().standardAppListAvailable && !snapshot.hosts.front().standardLibraryAvailable);
+}
+
+void testSpaceFailureCannotResurrectUnscopedCache() {
+    auto identity = pairedIdentity(); identity.hosts.resize(1);
+    for (const auto status : {DeckPolarisRequestStatus::Unauthorized, DeckPolarisRequestStatus::MalformedBody,
+             DeckPolarisRequestStatus::Timeout, DeckPolarisRequestStatus::HttpError}) {
+        const auto snapshot = buildLiveSnapshot(identity, [status](const auto&, bool) {
+            DeckLivePolarisFetch fetch; fetch.status = status; fetch.spacesSupported = true; return fetch;
+        });
+        assert(snapshot.selectedHostId == identity.hosts.front().uuid);
+        assert(snapshot.library.games.empty() && snapshot.probes.front().librarySource == "none");
+        assert(!snapshot.hosts.front().standardAppListAvailable);
+    }
+}
+
 } // namespace
 
 int main() {
@@ -370,5 +423,7 @@ int main() {
     testLibraryFailureTriesTheNextReachableHost();
     testHostsAreProbedConcurrently();
     testTerminalSummaryIsSanitized();
+    testStandardLibraryAndPrecedence();
+    testSpaceFailureCannotResurrectUnscopedCache();
     return 0;
 }

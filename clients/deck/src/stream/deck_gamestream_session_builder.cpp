@@ -3,72 +3,55 @@
 #include <QByteArray>
 #include <QString>
 #include <QXmlStreamReader>
+#include <QMap>
+#include <QSet>
 
 #include <chrono>
 #include <thread>
 
 namespace nova::deck::stream {
 
-namespace {
-
-// Read the flat GameStream serverinfo elements this needs in one pass.
-struct RawServerInfo {
-    bool rootOk = false;
-    int statusCode = 0;
-    QString appVersion;
-    QString gfeVersion;
-    QString codecModeSupport;
-    bool sawAppVersion = false;
-};
-
-RawServerInfo readServerInfo(std::string_view xml) {
-    RawServerInfo out;
-    QXmlStreamReader reader(QByteArray(xml.data(), static_cast<int>(xml.size())));
-    QString current;
-    while (!reader.atEnd()) {
-        const auto token = reader.readNext();
-        if (token == QXmlStreamReader::StartElement) {
-            current = reader.name().toString();
-            if (current == QStringLiteral("root")) {
-                out.rootOk = true;
-                const auto status = reader.attributes().value(QStringLiteral("status_code"));
-                if (!status.isEmpty()) {
-                    out.statusCode = status.toInt();
-                }
-            }
-        } else if (token == QXmlStreamReader::Characters && !reader.isWhitespace()) {
-            const QString text = reader.text().toString().trimmed();
-            if (current == QStringLiteral("appversion")) {
-                out.appVersion = text;
-                out.sawAppVersion = true;
-            } else if (current == QStringLiteral("GfeVersion")) {
-                out.gfeVersion = text;
-            } else if (current == QStringLiteral("ServerCodecModeSupport")) {
-                out.codecModeSupport = text;
-            }
-        } else if (token == QXmlStreamReader::EndElement) {
-            current.clear();
-        }
-    }
-    if (reader.hasError()) {
-        out.rootOk = false;
-    }
-    return out;
-}
-
-}  // namespace
-
 std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
-    const RawServerInfo raw = readServerInfo(xml);
-    // The GameStream root carries its own status_code; an authorization or
-    // pairing error can still include an appversion, so gate on it too.
-    if (!raw.rootOk || raw.statusCode != 200 || !raw.sawAppVersion || raw.appVersion.isEmpty()) {
-        return std::nullopt;
+    QXmlStreamReader reader(QByteArray(xml.data(), static_cast<int>(xml.size())));
+    if (!reader.readNextStartElement() || reader.name() != QStringLiteral("root") ||
+        reader.attributes().value(QStringLiteral("status_code")) != QStringLiteral("200")) return {};
+    // Only direct, unique scalar fields may supply identity/ownership. This
+    // also avoids last-value-wins behavior on conflicting session snapshots.
+    const QSet<QString> fields{"appversion", "GfeVersion", "ServerCodecModeSupport",
+        "currentgame", "currentgameuuid", "currentgameowned", "currentgamesessiontoken", "PairStatus"};
+    QMap<QString, QString> values;
+    while (reader.readNextStartElement()) {
+        const auto name = reader.name().toString();
+        if (!fields.contains(name)) { reader.skipCurrentElement(); continue; }
+        if (values.contains(name)) return {};
+        values.insert(name, reader.readElementText(QXmlStreamReader::ErrorOnUnexpectedElement).trimmed());
     }
+    while (!reader.atEnd()) reader.readNext();
+    if (reader.hasError() || values.value("appversion").isEmpty()) return {};
     DeckServerInfo info;
-    info.appVersion = raw.appVersion.toStdString();
-    info.gfeVersion = raw.gfeVersion.toStdString();
-    info.serverCodecModeSupport = raw.codecModeSupport.isEmpty() ? 0 : raw.codecModeSupport.toInt();
+    info.appVersion = values.value("appversion").toStdString();
+    info.gfeVersion = values.value("GfeVersion").toStdString();
+    auto integer = [&](const QString& name, int& result) {
+        const auto value = values.value(name);
+        if (value.isEmpty()) return false;
+        for (const auto ch : value) if (ch < QChar('0') || ch > QChar('9')) return false;
+        bool ok = false;
+        result = value.toInt(&ok);
+        return ok && result >= 0;
+    };
+    if (values.contains("ServerCodecModeSupport") && !integer("ServerCodecModeSupport", info.serverCodecModeSupport)) return {};
+    int number = 0;
+    if (values.contains("currentgame")) {
+        if (!integer("currentgame", number)) return {};
+        info.currentGame = number;
+    }
+    for (const auto& field : {QString("currentgameowned"), QString("PairStatus")}) {
+        if (!values.contains(field)) continue;
+        if (!integer(field, number) || number > 1) return {};
+        (field == "PairStatus" ? info.paired : info.currentGameOwned) = number == 1;
+    }
+    info.currentGameUuid = values.value("currentgameuuid").toStdString();
+    info.currentSessionToken = values.value("currentgamesessiontoken").toStdString();
     return info;
 }
 
@@ -76,6 +59,8 @@ DeckHttpFetcher fetcherOverPolarisClient(const polaris::DeckPolarisClient& clien
     return [&client](const std::string& target) -> DeckHttpResponse {
         const auto reply = client.get(target);
         DeckHttpResponse response;
+        response.retryableTransportFailure = reply.status == polaris::DeckPolarisRequestStatus::Unreachable ||
+            reply.status == polaris::DeckPolarisRequestStatus::Timeout;
         switch (reply.status) {
         case polaris::DeckPolarisRequestStatus::Unreachable:
         case polaris::DeckPolarisRequestStatus::Timeout:
@@ -98,11 +83,20 @@ DeckSessionBuildResult buildStreamConnection(
     const DeckHttpFetcher& fetch,
     const std::string& serverAddress,
     const DeckLaunchRequest& request,
-    const DeckStreamKeys& keys) {
+    const DeckStreamKeys& keys,
+    const std::function<bool()>& cancelled, DeckSessionStartMode mode,
+    const std::string& expectedSessionToken) {
     DeckSessionBuildResult result;
+    auto selected = request;
+
+    if (cancelled && cancelled()) {
+        result.error = "launch cancelled";
+        return result;
+    }
 
     const DeckHttpResponse serverInfoReply = fetch("/serverinfo");
     if (!serverInfoReply.transportOk) {
+        result.retryableTransportFailure = serverInfoReply.retryableTransportFailure;
         result.error = "could not reach the host for serverinfo";
         return result;
     }
@@ -115,9 +109,52 @@ DeckSessionBuildResult buildStreamConnection(
         result.error = "host serverinfo was unreadable";
         return result;
     }
+    // Resolve against fresh serverinfo before any launch/resume mutation. Zero
+    // is the legacy H.264 default, never implicit HEVC or Main10 support.
+    const int requiredCodec = request.videoCodec == "h264" ? SCM_H264 : request.videoCodec == "hevc" ? SCM_HEVC : 0;
+    const int availableCodecs = serverInfo->serverCodecModeSupport == 0 ? SCM_H264 : serverInfo->serverCodecModeSupport;
+    if (!requiredCodec || !(availableCodecs & requiredCodec)) {
+        result.sessionSelectionRejected = true;
+        result.error = "The PC no longer offers the selected video codec. Refresh the PC and review Play Setup again.";
+        return result;
+    }
 
-    const DeckHttpResponse launchReply = fetch(buildLaunchTarget(request, keys));
+    if (mode != DeckSessionStartMode::Launch) {
+        const bool running = serverInfo->currentGame.value_or(0) != 0 || !serverInfo->currentGameUuid.empty() ||
+            !serverInfo->currentSessionToken.empty() || serverInfo->currentGameOwned.value_or(false);
+        auto reject = [&](const char* copy) {
+            result.sessionSelectionRejected = true;
+            result.error = copy;
+            return result;
+        };
+        if (serverInfo->paired == false)
+            return reject("This PC no longer recognizes Nova's pairing. Pair it again before playing.");
+        if (!running && mode == DeckSessionStartMode::ResumeOnly)
+            return reject("That game is no longer running. Return to the library to start it again.");
+        if (running) {
+            if (serverInfo->currentGame != request.appId ||
+                (!request.appUuid.empty() && serverInfo->currentGameUuid != request.appUuid))
+                return reject("A different game is running on this PC. Return to the library and choose that game.");
+            if (serverInfo->currentGameOwned == false)
+                return reject("This game belongs to another device. Resume it from that device or end it on the PC.");
+            if (serverInfo->currentGameOwned != true || serverInfo->paired != true || serverInfo->currentSessionToken.empty())
+                return reject("This PC cannot verify a safe resume. End the existing game on the PC before starting again.");
+            if (!expectedSessionToken.empty() && expectedSessionToken != serverInfo->currentSessionToken)
+                return reject("That session has changed. Return to the library and review the game again.");
+            selected.resume = true;
+            selected.sessionToken = serverInfo->currentSessionToken;
+            // A resume retains the host's running display/launch mode.
+            selected.streamMode.clear();
+        }
+    }
+    result.resumed = selected.resume;
+    if (cancelled && cancelled()) {
+        result.error = "launch cancelled";
+        return result;
+    }
+    const DeckHttpResponse launchReply = fetch(buildLaunchTarget(selected, keys));
     if (!launchReply.transportOk) {
+        result.retryableTransportFailure = launchReply.retryableTransportFailure;
         result.error = "could not reach the host to start the session";
         return result;
     }
@@ -127,12 +164,19 @@ DeckSessionBuildResult buildStreamConnection(
         result.error = "host launch returned an unexpected status";
         return result;
     }
-    const DeckLaunchResult launch = parseLaunchResponse(request.resume, launchReply.body);
+    const DeckLaunchResult launch = parseLaunchResponse(selected.resume, launchReply.body);
     result.launchStatusCode = launch.statusCode;
     result.launchStatusMessage = launch.statusMessage;
-    if (!launch.started) {
+    if (!launch.started || launch.statusCode != 200) {
         result.launchRefused = true;
         result.error = "the host did not start the session";
+        return result;
+    }
+    result.hostSessionStarted = true;
+    result.connectionInfo.hostSessionToken = launch.sessionToken;
+    if (selected.resume && !selected.sessionToken.empty() && launch.sessionToken != selected.sessionToken) {
+        result.error = "The host changed the session during resume. Return to the library and try again.";
+        result.sessionSelectionRejected = true;
         return result;
     }
     if (launch.rtspSessionUrl.empty()) {

@@ -74,17 +74,26 @@ std::string sourceLabelFor(const std::string& source) {
     if (source == "manual") {
         return "Manual";
     }
+    if (source == "emulator") return "Emulator";
+    if (source == "gamestream") return "GameStream";
     return source.empty() ? std::string{"Other"} : source;
 }
 
 std::string sourceRuntimeLabelFor(const PolarisGameFixture& game) {
     std::vector<std::string> parts;
     parts.push_back(sourceLabelFor(game.launcherSource.empty() ? game.source : game.launcherSource));
-    if (!game.platformLabel.empty()) {
-        parts.push_back(game.platformLabel);
+    const auto platform = !game.platformLabel.empty() ? game.platformLabel
+        : game.platform == "linux" ? "Linux" : game.platform == "windows" ? "Windows"
+        : game.platform == "macos" ? "macOS" : "";
+    const auto runtime = !game.runtimeLabel.empty() ? game.runtimeLabel
+        : game.runtime == "native" ? "Native" : game.runtime == "proton" ? "Proton"
+        : game.runtime == "wine" ? "Wine" : game.runtime == "steam" ? "Steam"
+        : game.runtime == "umu" ? "UMU" : "";
+    if (!platform.empty()) {
+        parts.push_back(platform);
     }
-    if (!game.runtimeLabel.empty() && game.runtimeLabel != game.platformLabel) {
-        parts.push_back(game.runtimeLabel);
+    if (!runtime.empty() && std::find(parts.begin(), parts.end(), runtime) == parts.end()) {
+        parts.push_back(runtime);
     }
 
     std::string label;
@@ -209,7 +218,7 @@ DeckLaunchPreflightInput publicPreviewInputFor(
         .host = host,
         .credentials = credentials,
         .library = DeckLibraryAvailability{
-            .available = host.has_value() && host->polarisAvailable,
+            .available = host.has_value() && (host->polarisAvailable || host->standardLibraryAvailable),
             .gameAvailable = host.has_value() && host->standardAppListAvailable && !request.gameId.empty(),
             .sourceLabel = host.has_value() ? "sanitized-backend-snapshot" : "sanitized-backend-missing-host",
         },
@@ -698,6 +707,18 @@ DeckPublicReadOnlyHostLibraryState buildReadOnlyHostLibraryState(
             .launchModeLabel = launchModeLabelFor(game),
             .installedLabel = game.installed ? "Installed" : "Not installed",
             .initialFocus = gameRow == 0,
+            .source = game.source,
+            .category = game.category,
+            .genres = game.genres,
+            .hdrSupported = game.hdrSupported,
+            .lastLaunched = game.lastLaunched,
+            .gameTime = game.gameTime,
+            .spaceId = game.spaceId, .spaceName = game.spaceName,
+            .artworkKey = game.artwork.key,
+            .logoScale = game.artwork.logoScale, .logoX = game.artwork.logoX, .logoY = game.artwork.logoY,
+            .launchPolicy = game.launchPolicy,
+            .streamCapabilities = game.streamCapabilities,
+            .displayPlanner = game.displayPlanner,
         });
         ++gameRow;
     }

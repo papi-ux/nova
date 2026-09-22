@@ -2,8 +2,8 @@
 Type=Application
 Name=Nova
 GenericName=Polaris game streaming client
-Comment=Your Polaris library on the Deck, streamed through Moonlight
-Exec=nova-deck --live
+Comment=Your game library and streaming in Nova
+Exec=nova-deck --standalone
 Icon=com.papi_ux.Nova
 Terminal=false
 Categories=Game;

@@ -72,6 +72,11 @@ void testLaunchTarget() {
         "&localAudioPlayMode=0&surroundAudioInfo=131075"
         "&remoteControllersBitmap=0&gcmap=0&gcpersist=0";
     assert(buildLaunchTarget(request, keys) == expected);
+    auto withMode = request;
+    withMode.streamMode = "headless_stream";
+    assert(buildLaunchTarget(withMode, keys) == expected + "&streamMode=headless_stream");
+    withMode.streamMode = "desktop_display&appid=9";
+    assert(buildLaunchTarget(withMode, keys) == expected + "&streamMode=desktop_display%26appid%3D9");
 
     // A host extra query is appended verbatim after the built parameters.
     DeckLaunchRequest withExtra = request;
@@ -89,6 +94,9 @@ void testLaunchTarget() {
         "&localAudioPlayMode=0&surroundAudioInfo=131075"
         "&remoteControllersBitmap=0&gcmap=0&gcpersist=0";
     assert(buildLaunchTarget(request, keys) == expectedResume);
+    request.sessionToken = "session &next=other";
+    assert(buildLaunchTarget(request, keys) == expectedResume + "&sessiontoken=session%20%26next%3Dother");
+    request.sessionToken.clear();
 
     // Caller-supplied values are percent-encoded so they stay one parameter:
     // an app uuid with a space, an ampersand and an equals sign, and an extra
@@ -101,6 +109,15 @@ void testLaunchTarget() {
     assert(escapedTarget.find("&appuuid=a%20b%26c%3Dd&") != std::string::npos);
     assert(escapedTarget.find("&x=1%202&flag&y=%25") != std::string::npos);
     assert(escapedTarget.find("a b") == std::string::npos);
+}
+
+void testResumeResponseIdentity() {
+    for (const auto* body : {
+        "<root status_code=\"200\"><resume>1</resume><sessionToken>a</sessionToken><sessionToken>b</sessionToken></root>",
+        "<root status_code=\"200\"><resume>0</resume><resume>1</resume></root>",
+        "<root status_code=\"200\"><sessionToken><nested>a</nested></sessionToken><resume>1</resume></root>",
+        "<other status_code=\"200\"><resume>1</resume></other>"})
+        assert(!parseLaunchResponse(true, body).started);
 }
 
 void testCancelProtocol() {
@@ -167,6 +184,7 @@ int main(int argc, char** argv) {
     testGeneratedKeys();
     testLaunchTarget();
     testCancelProtocol();
+    testResumeResponseIdentity();
     testParseResponses();
     return 0;
 }

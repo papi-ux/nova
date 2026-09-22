@@ -14,6 +14,12 @@ DeckLaunchRequest launchRequestForStream(const DeckStreamRequest& request, const
     launch.fps = request.fps;
     launch.surroundAudioInfo = SURROUNDAUDIOINFO_FROM_AUDIO_CONFIGURATION(request.audioConfiguration);
     launch.extraQuery = LiGetLaunchUrlQueryParameters();
+    launch.streamMode = request.streamMode;
+    launch.profilePreference = request.profilePreference;
+    launch.encoderBackend = request.encoderBackend;
+    launch.playLocalAudio = request.playHostAudio;
+    launch.videoCodec = request.videoFormat == VIDEO_FORMAT_H264 ? "h264"
+        : request.videoFormat == VIDEO_FORMAT_H265 ? "hevc" : "unsupported";
     return launch;
 }
 
@@ -61,7 +67,8 @@ void* nextOpaqueCallbackContext() {
 
 bool isValidStreamRequest(const DeckStreamRequest& request) {
     return request.width > 0 && request.height > 0 && request.fps > 0 && request.bitrateKbps > 0 &&
-        request.audioConfiguration != 0;
+        request.audioConfiguration != 0 &&
+        (request.videoFormat == VIDEO_FORMAT_H264 || request.videoFormat == VIDEO_FORMAT_H265);
 }
 
 class DefaultMoonlightConnectionDriver final : public DeckMoonlightConnectionDriver {
@@ -79,6 +86,12 @@ public:
 
     void stop() override {
         LiStopConnection();
+    }
+    void interrupt() override {
+        LiInterruptConnection();
+    }
+    bool estimatedRtt(std::uint32_t& rtt, std::uint32_t& variation) override {
+        return LiGetEstimatedRttInfo(&rtt, &variation);
     }
 };
 
@@ -141,6 +154,7 @@ int DeckStreamSession::videoSetupForSlot(const std::size_t slot, const int video
     if (owner == nullptr || owner != ownerForSlot(slot)) {
         return DR_NEED_IDR;
     }
+    if (videoFormat != owner->request_.videoFormat) return DR_NEED_IDR;
     return owner->renderer_.setup(videoFormat, width, height, redrawRate, context, drFlags);
 }
 
@@ -940,6 +954,7 @@ DeckStreamTransition DeckStreamSession::prepare(const DeckStreamRequest& request
     streamConfig_.height = request.height;
     streamConfig_.fps = request.fps;
     streamConfig_.bitrate = request.bitrateKbps;
+    streamConfig_.supportedVideoFormats = request.videoFormat;
     streamConfig_.audioConfiguration = request.audioConfiguration;
     streamConfig_.packetSize = 1024;
     connectionStartedSeen_ = false;

@@ -73,7 +73,9 @@ jobs:
             git gcc cmake ninja pkgconf \
             qt6-base qt6-declarative \
             ffmpeg libva libdrm mesa \
-            libpulse pipewire pipewire-audio opus openssl
+            libpulse pipewire pipewire-audio opus openssl dbus \
+            libplacebo vulkan-headers vulkan-swrast \
+            xorg-server-xvfb xorg-xauth xdotool
 
       - uses: actions/checkout@v5
         with:
@@ -91,15 +93,20 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure
-        run: cmake -S clients/deck -B build-deck -G Ninja
+        run: >-
+          cmake -S clients/deck -B build-deck -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DNOVA_DECK_BUILD_VULKAN_STREAM=ON
+          -DNOVA_DECK_BUILD_HDR_VALIDATION=ON
 
       - name: Build
-        run: cmake --build build-deck
+        run: cmake --build build-deck --parallel 2
 
       - name: Test
         env:
           # The client is a Qt Quick application and the runner has no display.
           QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
         run: ctest --test-dir build-deck --output-on-failure
 
   android-smoke:

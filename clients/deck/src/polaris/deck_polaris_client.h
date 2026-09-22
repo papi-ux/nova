@@ -1,13 +1,24 @@
 #pragma once
+#include "polaris/deck_launch_modes.h"
+#include "polaris/deck_stream_capabilities.h"
+
+#include "polaris/deck_artwork.h"
+#include "polaris/deck_game_tools.h"
+#include "polaris/deck_game_time.h"
+#include "polaris/deck_spaces.h"
+#include "polaris/deck_host_telemetry.h"
+#include "polaris/deck_host_settings.h"
 
 #include <chrono>
+#include <cstddef>
 #include <memory>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
-// A read-only client for Polaris's /polaris/v1 API on the GameStream HTTPS
+// A pinned client for Polaris's /polaris/v1 API on the GameStream HTTPS
 // port. It authenticates with the paired Moonlight client certificate and
 // trusts exactly one server certificate, the one Moonlight pinned at pairing.
 // Any paired certificate that calls /polaris/v1 is promoted to the nova client
@@ -50,6 +61,18 @@ struct DeckPolarisResult {
     }
 };
 
+struct DeckHostPower {
+    bool supported = false, enabled = false, permitted = false;
+    std::string blockedMessage, lastOutcome, lastMessage;
+    long long lastAt = 0;
+    bool allowed() const { return supported && enabled && permitted; }
+};
+struct DeckHostSleepReceipt {
+    bool accepted = false;
+    std::string code, message;
+};
+std::optional<DeckHostPower> parseHostPower(std::string_view json);
+
 struct DeckPolarisCapabilities {
     std::string server;
     std::string version;
@@ -58,8 +81,12 @@ struct DeckPolarisCapabilities {
     bool clientSettings = false;
     bool resolvedProfileProvenance = false;
     bool expectedTopologyAssertion = false;
+    bool hostSleep = false;
+    bool spaces = false;
+    DeckHostPower hostPower;
     std::string captureBackend;
     std::vector<std::string> codecs;
+    DeckStreamCapabilities streamCapabilities;
 };
 
 struct DeckPolarisGame {
@@ -69,12 +96,16 @@ struct DeckPolarisGame {
     std::string source;
     std::string platform;
     std::string runtime;
+    std::string platformLabel;
+    std::string runtimeLabel;
     std::string steamAppid;
     std::string category;
     std::string coverUrl;
     bool installed = true;
     bool hdrSupported = false;
     long long lastLaunched = 0;
+    DeckGameTime gameTime;
+    std::string spaceId, spaceName;
     std::vector<std::string> genres;
     std::string launchPreferredMode;
     std::string launchRecommendedMode;
@@ -85,6 +116,11 @@ struct DeckPolarisGame {
     std::string steamLaunchRecommendedMode;
     std::vector<std::string> steamLaunchAllowedModes;
     std::string steamLaunchModeReason;
+    DeckArtworkManifest artwork;
+    bool launchContractValid = true;
+    DeckLaunchModePolicy launchPolicy;
+    DeckStreamCapabilities streamCapabilities;
+    DeckDisplayPlanner displayPlanner;
 };
 
 struct DeckPolarisGamesPage {
@@ -105,6 +141,8 @@ struct DeckPolarisSessionStatus {
 
 std::optional<DeckPolarisCapabilities> parseCapabilities(std::string_view json);
 std::optional<DeckPolarisGamesPage> parseGamesPage(std::string_view json);
+std::optional<DeckLaunchModeCatalog> parseLaunchModeCatalog(std::string_view json);
+DeckLaunchModePolicy launchModePolicy(const DeckPolarisGame& game, const DeckLaunchModeCatalog& catalog);
 std::optional<DeckPolarisSessionStatus> parseSessionStatus(std::string_view json);
 
 /// The HttpsPort a GameStream host advertises in its plain-HTTP serverinfo XML.
@@ -139,18 +177,56 @@ public:
         DeckPolarisTlsIdentity identity,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(4000));
 
-    [[nodiscard]] DeckPolarisResult<std::string> get(const std::string& path) const;
+    [[nodiscard]] DeckPolarisResult<std::string> get(const std::string& path, std::size_t maxBodyBytes = 4 * 1024 * 1024) const;
     [[nodiscard]] DeckPolarisResult<DeckPolarisCapabilities> fetchCapabilities() const;
-    [[nodiscard]] DeckPolarisResult<DeckPolarisGamesPage> fetchGamesPage(int limit, int offset) const;
-    [[nodiscard]] DeckPolarisResult<std::vector<DeckPolarisGame>> fetchAllGames(int pageSize = 100) const;
+    [[nodiscard]] DeckPolarisResult<DeckPolarisGamesPage> fetchGamesPage(int limit, int offset, bool desktop = false) const;
+    [[nodiscard]] DeckPolarisResult<std::vector<DeckPolarisGame>> fetchAllGames(int pageSize = 100,
+        const std::function<bool()>& cancelled = {}, bool desktop = false) const;
+    [[nodiscard]] DeckPolarisResult<DeckSpaces> fetchSpaces(const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<DeckSpaces> selectSpace(const std::string& id, const std::string& previous,
+        const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<std::vector<DeckPolarisGame>> fetchSpaceLibrary(const std::string& id,
+        const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckPolarisSessionStatus> fetchSessionStatus() const;
+    [[nodiscard]] DeckPolarisResult<DeckHostTelemetry> fetchHostTelemetry(const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<DeckDoctorReceipt> runDoctorAction(const DeckDoctorRequest& request,
+        const std::function<bool()>& cancelled = {}) const;
+    // Fixed path on the selected host's authenticated advertised port. Each
+    // connection requests a fresh snapshot; Last-Event-ID replay is not used.
+    [[nodiscard]] DeckPolarisResult<bool> watchSessionEvents(int advertisedPort,
+        const std::function<void()>& refresh, const std::function<bool()>& cancelled,
+        std::chrono::milliseconds idleTimeout = std::chrono::milliseconds(15000)) const;
+    // A single conditional paired mutation; never retried on a lost response.
+    [[nodiscard]] DeckPolarisResult<bool> setLiveTuningEnabled(bool enabled,
+        const DeckLiveTuningTelemetry& observed, const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<bool> setFixedBitrate(int bitrateKbps,
+        const DeckLiveTuningTelemetry& observed, const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<DeckHostPower> fetchHostPower() const;
+    [[nodiscard]] DeckPolarisResult<DeckHostSettings> fetchHostSettings(const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<bool> fetchHostSettingsIdle(const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<DeckHostSettings> setHostResumeTimeout(int seconds,
+        const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<DeckHostSettings> setSessionProfile(const QString& display, int bitrate, bool clear,
+        const DeckLiveTuningTelemetry& observed, const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<DeckHostSettings> setHostProfile(const QString& display, int bitrate, bool clear,
+        const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<DeckHostSettings> setHostDefaultMode(const QString& mode,
+        const std::function<bool()>& cancelled = {}) const;
+    // Fixed endpoint/body, fresh connection, and non-rewindable upload. Never
+    // replay a request after a timeout, dropped answer, redirect or auth error.
+    [[nodiscard]] DeckPolarisResult<DeckHostSleepReceipt> requestHostSleep(
+        const std::function<bool()>& cancelled = {}) const;
 
     [[nodiscard]] const DeckPolarisEndpoint& endpoint() const {
         return endpoint_;
     }
 
+    [[nodiscard]] DeckPolarisResult<QVariantMap> gameTool(const QString& game, const QString& action,
+        const QVariantMap& values, const std::function<bool()>& cancelled = {}) const;
 private:
     struct Session;
+    DeckPolarisResult<std::string> request(const std::string& path, std::size_t maxBodyBytes,
+        bool post, const std::function<bool()>& cancelled = {}, std::string postBody = "{}", bool remove = false) const;
 
     DeckPolarisEndpoint endpoint_;
     DeckPolarisTlsIdentity identity_;

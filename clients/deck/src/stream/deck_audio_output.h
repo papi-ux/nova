@@ -1,9 +1,12 @@
 #pragma once
 
 #include <atomic>
+#include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <functional>
 #include <span>
 #include <vector>
 
@@ -21,6 +24,11 @@ struct DeckAudioOutputStats {
     std::uint64_t silenceFrames = 0;
     std::uint64_t droppedFrames = 0;
     bool available = false;
+    bool flowing = false; // PipeWire is processing; not proof of audible output.
+    bool recovering = false;
+    std::uint64_t recoveries = 0;
+    std::uint64_t recoveryAttempts = 0;
+    std::uint64_t discardedFrames = 0; // Previously queued PCM retired after a route change.
 };
 
 // One producer (the Opus callback), one consumer (PipeWire's realtime thread).
@@ -29,12 +37,15 @@ struct DeckAudioOutputStats {
 class DeckPcmRingBuffer {
 public:
     void configure(std::size_t capacitySamples);
-    bool push(std::span<const float> samples);
-    std::size_t pop(std::span<float> destination);
+    bool push(std::span<const float> samples, std::uint64_t generation = 0);
+    std::size_t pop(std::span<float> destination, std::uint64_t generation = 0, std::size_t* discarded = nullptr);
+    // Consumer only, or after both threads stop. Does not reset producer state.
+    std::size_t discard();
     std::size_t capacity() const;
 
 private:
     std::vector<float> samples_;
+    std::vector<std::uint64_t> generations_;
     alignas(64) std::atomic<std::uint64_t> writeIndex_{0};
     alignas(64) std::atomic<std::uint64_t> readIndex_{0};
 };
@@ -49,9 +60,18 @@ public:
     virtual void stop() = 0;
     virtual void close() = 0;
     virtual bool write(std::span<const float> samples) = 0;
+    // Frame counters are monotonic until the next open(), including across
+    // stop/close, so the recovering owner can retain final retirement totals.
     virtual DeckAudioOutputStats stats() const = 0;
 };
 
 std::unique_ptr<DeckPcmOutput> makeDeckPipeWireOutput();
+// Initial open stays fail-fast. After start, a worker recreates failed outputs
+// with capped backoff; decode/write never waits for open/close or a retry delay.
+std::unique_ptr<DeckPcmOutput> makeDeckRecoveringOutput(
+    std::function<std::unique_ptr<DeckPcmOutput>()> factory,
+    std::array<std::chrono::milliseconds, 4> delays = {
+        std::chrono::milliseconds{0}, std::chrono::milliseconds{250},
+        std::chrono::milliseconds{1000}, std::chrono::milliseconds{3000}});
 
 } // namespace nova::deck::stream

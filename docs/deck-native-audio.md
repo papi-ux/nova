@@ -2,8 +2,8 @@
 
 The native connection's audio callback decodes GameStream Opus multistream
 packets through libopus and queues interleaved float PCM for PipeWire playback.
-The graphical Play flow still uses the existing handoff. This backend is one
-part of the supported Deck client, not release acceptance.
+The local native graphical Play flow uses the same backend. This implementation
+is one part of the Deck client; installed-device release acceptance remains open.
 
 The decoder accepts validated 48 kHz configurations with up to eight channels.
 It preserves the negotiated Opus mapping and GameStream speaker mask. Packet
@@ -14,11 +14,27 @@ samples and updates atomic counters; it does not decode, allocate or take the
 decoder's lifecycle mutex. The requested graph latency is 5 ms; this is a
 request, not a measured end-to-end latency claim.
 
-Initialization fails when the default PipeWire server is unavailable. Stop
-destroys the stream and joins its loop before buffers can be reused. A new
-initialization clears media counters and queued PCM. Missing output, start
-failure, corrupt Opus and output disconnection have fixed diagnostic text.
-The backend does not fall back to PulseAudio or automatically reconnect output.
+Initialization fails when the default PipeWire server is unavailable. Once
+started, a separate worker recreates failed outputs at 0/250/1000/3000 ms delays,
+then every three seconds while the stream is active. Two seconds of advancing
+PCM submission resets the backoff. Device open/close and retry waits stay off the
+Opus callback and GUI thread. A replacement keeps the original sample rate,
+channel count and speaker mask. Recovery never relaunches the game or changes
+the PC-audio request, host settings or system output selection.
+
+SteamOS/WirePlumber owns output selection. An available but paused graph waits
+for relinking without reopening the backend. Incoming PCM is dropped while the
+graph is unavailable or paused; generation-tagged queue entries prevent stale
+PCM from crossing an observed pause/route boundary, including a producer racing
+that boundary. Opus continues decoding so recovery uses current codec state.
+The in-game notice distinguishes waiting for an output from reconnecting audio,
+keeps game controls usable, and clears when graph processing resumes.
+
+Stop cancels retry waits and joins the recovery worker and PipeWire loop before
+buffers can be reused. An in-progress backend open has a two-second deadline;
+a candidate finishing after stop cannot start or become writable. A new
+initialization clears media counters and queued PCM. Fixed diagnostic text
+avoids exporting backend device details. There is no PulseAudio fallback.
 
 Native CLI progress and final receipts distinguish:
 
@@ -29,7 +45,14 @@ Native CLI progress and final receipts distinguish:
 - `submittedFrames`: PCM frames copied into PipeWire buffers, not proof of
   audible speaker output.
 - `silenceFrames`: zero-filled frames supplied because the queue was empty.
-- `droppedFrames`: frames rejected because the queue was full.
+- `droppedFrames`: incoming frames rejected because the queue was full or output
+  was unavailable/paused.
+- `discardedFrames`: previously queued frames retired after an output/route
+  change or teardown; these are distinct from rejected incoming frames.
+- `audioRecoveryAttempts` / `audioRecoveries`: attempted backend reopenings and
+  successful replacements. A successful replacement alone does not prove flow.
+- `audioOutputReady` / `audioOutputStreaming` / `audioOutputRecovering`: server
+  availability, graph processing and pending recovery in progress receipts.
 - `decodeErrors`: invalid Opus packets rejected without queueing PCM.
 
 Build dependencies include the libopus and PipeWire development packages
@@ -40,7 +63,7 @@ manifest exposes the default `xdg-run/pipewire-0` socket for the native path.
 Run the normal Deck CTest suite, or the focused tests:
 
 ```sh
-ctest --test-dir build/deck --output-on-failure -R 'opus_audio|audio_unavailable|pipewire_'
+ctest --test-dir build/deck --output-on-failure -R 'opus_audio|audio_(unavailable|recovery|[268]_(restart|route))|pipewire_'
 ```
 
 The decoder tests encode real stereo, 5.1 and 7.1 packets at 2.5, 5, 10, 20,
@@ -49,9 +72,21 @@ exercise transport-requested loss concealment, invalid configurations, corrupt p
 producer/consumer ordering, stop and repeated initialization. When `pipewire`
 and `pw-link` are installed, CTest also starts a private daemon with a null sink
 and checks real PCM submission plus server disconnection. Those tests never
-start a game host or connect to the user's audio server.
+start a game host or connect to the user's audio server. With `pw-cli` and
+`pw-dump`, private 2/6/8-channel tests also remove a null sink, relink to another,
+restart the daemon, recover PCM submission and stop during a second outage.
+They verify decoder continuity, drops during the gap, same-backend relinking,
+bounded decode time and cancellation. Portable recovery tests cover blocked
+open, stale generation retirement, counter preservation, backoff, stable format
+and late-candidate cancellation. Production QML tests cover the notice and
+controller focus at 1280×800/960×600.
 
 Remaining acceptance includes the installed Flatpak on Deck speakers and
 headphones, A/V synchronization, latency and underruns under game load, output
-switching and suspend/resume. GUI session recovery must surface output failure
-and offer a fresh session rather than treating the packet count as playback.
+switching and suspend/resume. Private null-sink relinking does not validate
+SteamOS automatic default-device selection, Bluetooth profiles or docking.
+Audio effects and physical surround placement also remain open. A processing
+graph and packet counters do not establish audible playback or A/V sync.
+
+Implementation references: [PipeWire stream states and realtime callbacks](https://docs.pipewire.org/page_streams.html)
+and [WirePlumber output selection and relinking policy](https://pipewire.pages.freedesktop.org/wireplumber/policies/linking.html).

@@ -265,6 +265,9 @@ int main() {
     assert(!prepared.networkStarted);
     assert(session.state() == DeckStreamSessionState::Preparing);
 
+    assert(sessionVideoCallbacks->setup(VIDEO_FORMAT_H265, 1280, 800, 60, callbackContext, 0) == DR_NEED_IDR);
+    assert(sessionVideoCallbacks->setup(VIDEO_FORMAT_H265_MAIN10, 1280, 800, 60, callbackContext, 0) == DR_NEED_IDR);
+    assert(renderer.setupCalls.empty());
     assert(sessionVideoCallbacks->setup(VIDEO_FORMAT_H264, 1280, 800, 60, callbackContext, 0) == 0);
     sessionVideoCallbacks->start();
     assert(sessionVideoCallbacks->submitDecodeUnit(nullptr) == DR_OK);

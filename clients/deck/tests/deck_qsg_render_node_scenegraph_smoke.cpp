@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
     const DeckLinuxMediaProbe mediaProbe = DeckLinuxMediaProbe::detect();
     if (!mediaProbe.runtimeVaapiDeviceAvailable) {
         std::cout << "Nova Deck QSGRenderNode scenegraph smoke skipped: " << mediaProbe.runtimeStatus << '\n';
-        return 0;
+        return 77;
     }
 
     QQuickWindow window;
@@ -260,11 +260,12 @@ int main(int argc, char** argv) {
     renderer.cleanup();
     vaapiItem->setParentItem(nullptr);
     vaapiItem.reset();
-    std::cout << "Nova Deck QSGRenderNode scenegraph smoke passed: product render-node path entered "
+    std::cout << "Nova Deck QSGRenderNode scenegraph smoke " << (provedReady ? "passed" : "skipped")
+              << ": product render-node path entered "
               << recordedMessageCount("Nova Deck QSGRenderNode VAAPI/EGL render path")
               << " consecutive render passes; "
               << (provedReady ? "imported two DRM_PRIME layers, proved shader composition, then reported ready"
                               : "blocked with exact headless Qt scenegraph EGL/OpenGL capability detail")
               << '\n';
-    return 0;
+    return provedReady ? 0 : 77;
 }

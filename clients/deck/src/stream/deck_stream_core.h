@@ -33,6 +33,10 @@ struct DeckStreamRequest {
     /// The moonlight audio layout the session decodes; the launch tells the
     /// host the same layout, so both sides are derived from this one value.
     int audioConfiguration = AUDIO_CONFIGURATION_STEREO;
+    std::string streamMode; // Verified one-launch override; empty follows the host.
+    bool playHostAudio = false; // Session request only; never writes host-wide settings.
+    std::string profilePreference, encoderBackend;
+    int videoFormat = VIDEO_FORMAT_H264; // One reviewed SDR format, never a capability mask.
 };
 
 struct DeckStreamTransition {
@@ -110,6 +114,11 @@ public:
         AUDIO_RENDERER_CALLBACKS& audioCallbacks,
         void* callbackContext) = 0;
     virtual void stop() = 0;
+    /// May be called from another thread while start() is pending. Teardown
+    /// still belongs to the thread that called start(), after it returns.
+    virtual void interrupt() {}
+    // Called only by the owning worker while the connection is active.
+    virtual bool estimatedRtt(std::uint32_t&, std::uint32_t&) { return false; }
 };
 
 /// The driver that calls moonlight-common-c for real.

@@ -1,4 +1,9 @@
 #pragma once
+#include "polaris/deck_launch_modes.h"
+#include "polaris/deck_stream_capabilities.h"
+
+#include "polaris/deck_artwork.h"
+#include "polaris/deck_game_time.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -46,10 +51,16 @@ struct PolarisGameFixture {
     std::string coverUrl;
     std::vector<std::string> genres;
     std::int64_t lastLaunched = 0;
+    DeckGameTime gameTime;
+    std::string spaceId, spaceName;
     bool mangohud = false;
     bool hdrSupported = false;
     PolarisLaunchModeFixture launchMode;
     PolarisSteamLaunchFixture steamLaunch;
+    DeckArtworkManifest artwork;
+    DeckLaunchModePolicy launchPolicy;
+    DeckStreamCapabilities streamCapabilities;
+    DeckDisplayPlanner displayPlanner;
 };
 
 struct PolarisGameLibraryFixture {

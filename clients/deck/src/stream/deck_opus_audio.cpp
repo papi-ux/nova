@@ -141,7 +141,7 @@ void DeckPipeWireAudio::decodeAndPlaySample(char* sampleData, const int sampleLe
     }
     if (output_->write(std::span<const float>(pcm_.data(), static_cast<std::size_t>(frames * channels_)))) {
         lifecycle_.queuedFrames += frames;
-    } else if (!output_->stats().available) {
+    } else if (const auto status = output_->stats(); !status.available && !status.recovering) {
         ready_ = false;
         lifecycle_.active = false;
         lifecycle_.outputReady = false;
@@ -156,10 +156,15 @@ DeckAudioLifecycle DeckPipeWireAudio::lifecycle() const {
     snapshot.submittedFrames = output.submittedFrames;
     snapshot.silenceFrames = output.silenceFrames;
     snapshot.droppedFrames = output.droppedFrames;
+    snapshot.discardedFrames = output.discardedFrames;
+    snapshot.outputStreaming = output.flowing;
+    snapshot.outputRecovering = output.recovering;
+    snapshot.audioRecoveries = output.recoveries;
+    snapshot.audioRecoveryAttempts = output.recoveryAttempts;
     if (ready_ && !output.available) {
-        snapshot.active = false;
+        snapshot.active = lifecycle_.active && output.recovering;
         snapshot.outputReady = false;
-        snapshot.lastError = "Audio output disconnected";
+        snapshot.lastError = output.recovering ? "Reconnecting audio output" : "Audio output disconnected";
     }
     return snapshot;
 }

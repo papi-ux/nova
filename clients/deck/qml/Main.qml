@@ -10,7 +10,7 @@ ApplicationWindow {
     height: novaDeckHeight
     visible: true
     title: novaDeckShellName
-    color: "#070B18"
+    color: NovaTheme.window
 
     readonly property int deckSafeMargin: 32
     readonly property int deckShellSpacing: 16
@@ -26,7 +26,7 @@ ApplicationWindow {
     readonly property int hostTextWidth: hostColumnWidth - 40
     readonly property int sampleTextWidth: sampleCardWidth - 48
     readonly property int detailTextWidth: detailColumnWidth - 48
-    readonly property color focusRingColor: "#FFFFFF"
+    readonly property color focusRingColor: NovaTheme.focus
     readonly property color focusGlowColor: "#284971"
     readonly property string expandedDiagnosticsCueContrastRatio: "13.56:1"
     readonly property string expandedDiagnosticsFocusAffordance: "4px focus ring + active focus badge"
@@ -55,6 +55,35 @@ ApplicationWindow {
         : "DTO parity: contract=backend-owned-read-only-dto-v1 · owner=backend-owned-read-only-model · privacy=redacted-public-dto · readiness=dto-parity-ready"
     property var backendDiagnosticsPreview: novaBackendPreview.lastDiagnosticsPreview
     property bool diagnosticsExpanded: false
+    property bool managePcsRequested: false
+    readonly property bool libraryBusy: novaStandalone && novaLibraryRefresh.state.busy
+    readonly property bool libraryBlocking: libraryBusy && !novaLibraryRefresh.state.automatic
+    property string refreshSelectionId: ""
+    property bool closeAfterLibraryRefresh: false
+    property var pendingLibraryView: ({})
+    readonly property bool automaticRefreshPaused: hostPicker.opened || nativePreview.opened || diagnosticsExpanded
+        || managePcsRequested || closeAfterLibraryRefresh || closeAfterNativeStop
+        || (novaStandalone ? androidLibrary.interactionPaused : !libraryHasFocus())
+    onAutomaticRefreshPausedChanged: if (novaStandalone) novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
+    onActiveChanged: if (novaStandalone) { novaLibraryRefresh.setWindowActive(active); novaHostPower.setWindowActive(active); novaHostSettings.setWindowActive(active) }
+    Component.onCompleted: {
+        if (novaStandalone) {
+            novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
+            novaLibraryRefresh.setWindowActive(active)
+            novaHostPower.setWindowActive(active)
+            novaHostSettings.setWindowActive(active)
+        }
+    }
+
+    function libraryHasFocus() {
+        if (novaStandalone) return androidLibrary.browsing
+        let item = activeFocusItem
+        while (item) {
+            if (item === libraryGameList) return true
+            item = item.parent
+        }
+        return false
+    }
     property bool expandedDiagnosticsLaneScrolledToDetails: false
 
     // Bound content height to the screen while each column scrolls independently.
@@ -75,6 +104,7 @@ ApplicationWindow {
     }
 
     function keepFocusedItemVisible() {
+        if (novaStandalone && !hostPicker.opened) return
         const item = activeFocusItem
         if (!item) return
         for (const viewport of [hostViewport, libraryGameList, detailViewport]) {
@@ -97,7 +127,7 @@ ApplicationWindow {
     function focusedControlName() {
         const item = activeFocusItem
         if (!item) return "Library"
-        if (item.modelData) return item.modelData.title || item.modelData.displayName
+        if (item.modelData) return item.modelData.title || item.modelData.displayName || item.modelData.label || item.text || "Library"
         if (item === hostDetailPanel) return "Review selected game"
         if (item === launchCtaPlaceholder || item === handoffActionButton) return "Launch action"
         if (item === secondaryDiagnosticsToggle) return "Diagnostics"
@@ -172,6 +202,12 @@ ApplicationWindow {
     }
 
     function selectHostForPreview(hostModel) {
+        if (novaStandalone) {
+            if (libraryBusy || nativeSessionState.busy) return
+            refreshSelectionId = selectedHostForPreview.id === hostModel.id ? selectedGameForPreview.id : ""
+            if (novaLibraryRefresh.selectHost(hostModel.id)) hostPicker.close()
+            return
+        }
         selectedHostForPreview = {
             "id": hostModel.id,
             "displayName": hostModel.displayName,
@@ -182,23 +218,107 @@ ApplicationWindow {
         refreshLaunchPreviewBinding()
     }
 
+    function refreshLibrary() {
+        if (!novaStandalone || libraryBusy || nativeSessionState.busy) return
+        refreshSelectionId = selectedGameForPreview.id || ""
+        novaLibraryRefresh.refresh()
+    }
+
+    function prepareLibrarySnapshot(automatic) {
+        if (novaStandalone) { androidLibrary.prepare(automatic); return }
+        pendingLibraryView = { automatic: automatic,
+            game: automatic ? selectedGameForPreview.id : refreshSelectionId,
+            focus: activeFocusItem ? activeFocusItem.objectName : "",
+            index: novaLibraryGames.findIndex(game => game.id === selectedGameForPreview.id),
+            scroll: libraryGameList.contentItem.contentY }
+    }
+
+    function applyLibrarySnapshot() {
+        if (novaStandalone) {
+            selectedHostForPreview = novaSelectedHostDetail
+            androidLibrary.apply()
+            return
+        }
+        const saved = pendingLibraryView
+        selectedHostForPreview = novaSelectedHostDetail
+        selectedGameForPreview = novaSelectedGameCard
+        if (saved.automatic && novaLibraryGames.length > 0)
+            selectGameForPreview(novaLibraryGames[Math.max(0, Math.min(saved.index, novaLibraryGames.length - 1))])
+        for (const game of novaLibraryGames) {
+            if (game.id === saved.game) {
+                selectGameForPreview(game)
+                break
+            }
+        }
+        refreshSelectionId = ""
+        refreshLaunchPreviewBinding()
+        Qt.callLater(function() {
+            if (saved.automatic) {
+                const view = libraryGameList.contentItem
+                view.contentY = Math.max(0, Math.min(saved.scroll, view.contentHeight - view.height))
+                if (hostPicker.opened) {
+                    for (let i = 0; i < hostRepeater.count; ++i) {
+                        const host = hostRepeater.itemAt(i)
+                        if (host && host.objectName === saved.focus) { host.forceActiveFocus(); return }
+                    }
+                    focusSelectedHost()
+                    return
+                }
+                for (const control of [managePcsButton, refreshLibraryButton, hostPickerButton,
+                    secondaryDiagnosticsToggle, copyPreviewButton, handoffActionButton, nativePreviewButton]) {
+                    if (control.objectName === saved.focus && control.visible && control.enabled) {
+                        control.forceActiveFocus()
+                        return
+                    }
+                }
+            }
+            focusSelectedGame()
+        })
+    }
+
+    function focusedControlVisible() {
+        if (!activeFocusItem) return false
+        const point = activeFocusItem.mapToItem(contentItem, 0, 0)
+        return point.x >= -1 && point.y >= -1 && point.x + activeFocusItem.width <= width + 1
+            && point.y + activeFocusItem.height <= height + 1
+    }
+    function libraryInteractionState() {
+        if (novaStandalone) return Object.assign(androidLibrary.state(), {
+            host: selectedHostForPreview.id, games: novaLibraryGames.map(game => game.id),
+            titles: novaLibraryGames.map(game => game.title), busy: libraryBusy,
+            automatic: novaLibraryRefresh.state.automatic, failed: novaLibraryRefresh.state.failed,
+            refreshCopy: novaLibraryRefresh.state.copy,
+            focus: activeFocusItem ? activeFocusItem.objectName : "", focusVisible: focusedControlVisible(), pickerOpen: hostPicker.opened,
+            nativePreviewOpen: nativePreview.opened, playSetup: nativePreview.setupState(), windowActive: active })
+        return { host: selectedHostForPreview.id, game: selectedGameForPreview.id,
+            title: selectedGameForPreview.title, games: novaLibraryGames.map(game => game.id),
+            titles: novaLibraryGames.map(game => game.title), busy: libraryBusy, automatic: novaLibraryRefresh.state.automatic,
+            failed: novaLibraryRefresh.state.failed, launchEnabled: handoffActionButton.enabled,
+            focus: activeFocusItem ? activeFocusItem.objectName : "", focusVisible: focusedControlVisible(), pickerOpen: hostPicker.opened,
+            nativePreviewOpen: nativePreview.opened, windowActive: active }
+    }
+
     function selectGameForPreview(gameModel) {
         selectedGameForPreview = {
             "id": gameModel.id,
             "title": gameModel.title,
-            "sourceRuntimeLabel": gameModel.sourceRuntimeLabel,
-            "launchModeLabel": gameModel.launchModeLabel,
-            "installedLabel": gameModel.installedLabel
+            "sourceRuntimeLabel": gameModel.sourceRuntimeLabel || "",
+            "launchModeLabel": gameModel.launchModeLabel || "",
+            "installedLabel": gameModel.installedLabel || "",
+            "launchPolicy": gameModel.launchPolicy || { known: false, hostDefault: "", allowed: [] },
+            "streamCapabilities": gameModel.streamCapabilities || {},
+            "displayPlanner": gameModel.displayPlanner || {}
         }
         refreshLaunchPreviewBinding()
     }
 
     function focusLaunchAction() {
-        if (handoffActionButton.visible) handoffActionButton.forceActiveFocus()
+        if (handoffActionButton.visible && handoffActionButton.enabled) handoffActionButton.forceActiveFocus()
         else secondaryDiagnosticsToggle.forceActiveFocus()
     }
 
     function focusSelectedHost() {
+        if (novaStandalone && (libraryBusy || nativeSessionState.busy)) return
         if (!hostPicker.opened) {
             hostPicker.open()
             return
@@ -217,6 +337,7 @@ ApplicationWindow {
 
     function focusSelectedGame() {
         if (hostPicker.opened) hostPicker.close()
+        if (novaStandalone) { androidLibrary.focusGame(); return }
         for (let i = 0; i < libraryGameRepeater.count; ++i) {
             const item = libraryGameRepeater.itemAt(i)
             if (item && selectedGameForPreview && item.objectName === selectedGameForPreview.id) {
@@ -261,8 +382,33 @@ ApplicationWindow {
 
     // Bound straight to the bridge property; its NOTIFY keeps this fresh.
     readonly property var handoffState: novaHandoff.state
+    readonly property var nativeSessionState: novaNativeSession.state
+    readonly property bool nativePlaying: !nativeSessionState.sleeping && nativeSessionState.phase === "active"
+    property bool closeAfterNativeStop: false
+
+    onClosing: (event) => {
+        if (novaStandalone) novaLibraryRefresh.suspendAutomaticRefresh()
+        if (libraryBusy) {
+            event.accepted = false
+            closeAfterLibraryRefresh = true
+        }
+        if (nativeSessionState.busy) {
+            event.accepted = false
+            closeAfterNativeStop = true
+            novaNativeSession.closeSession()
+        }
+    }
+
+    function leaveNativePreview() {
+        nativePreview.leave()
+    }
 
     function activateLaunchCardFromController() {
+        if (novaStandalone) {
+            if (libraryBusy || novaLibraryRefresh.state.failed || novaLibraryGames.length === 0) return
+            nativePreview.open()
+            return
+        }
         if (handoffState.available) {
             novaHandoff.activate(
                 selectedHostForPreview ? selectedHostForPreview.id : "",
@@ -293,7 +439,7 @@ ApplicationWindow {
         copyStatusLabel.text = didCopyPreview
             ? launchPreviewCopyAction.successToast + " · A pressed #" + previewCopyActivationCount
             : launchPreviewCopyAction.inertToast + " · A press stayed preview-only"
-        copyStatusLabel.color = didCopyPreview ? "#8AFFC1" : "#FFDDA8"
+        copyStatusLabel.color = didCopyPreview ? "#8AFFC1" : NovaTheme.warning
     }
 
     function armNoNetworkPreviewFromControlSurface() {
@@ -531,8 +677,8 @@ ApplicationWindow {
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#111936" }
-            GradientStop { position: 1.0; color: "#070B18" }
+            GradientStop { position: 0.0; color: NovaTheme.window }
+            GradientStop { position: 1.0; color: NovaTheme.window }
         }
     }
 
@@ -542,10 +688,57 @@ ApplicationWindow {
             novaGamepad.activateFocusedItem()
         }
         function onSecondaryActionPressed(activationCount) {
+            if (nativePreview.opened) {
+                leaveNativePreview()
+                return
+            }
+            if (novaStandalone) {
+                if (hostPicker.opened) hostPicker.close()
+                else androidLibrary.back()
+                return
+            }
             cancelHandoffFromController()
             if (hostPicker.opened) hostPicker.close()
             focusSelectedGame()
         }
+    }
+
+    Connections {
+        target: novaNativeSession
+        function onStateChanged() {
+            if (root.closeAfterNativeStop && !root.nativeSessionState.busy) root.close()
+        }
+    }
+
+    Connections {
+        target: novaLibraryRefresh
+        function onStateChanged() {
+            if (root.closeAfterLibraryRefresh && !root.libraryBusy) root.close()
+        }
+    }
+
+    NativeStreamPreview {
+        presentationBridge: typeof novaVulkanPresentation !== "undefined" ? novaVulkanPresentation : null
+        inputHub: novaGamepad
+        id: nativePreview
+        session: novaNativeSession
+        settingsProvider: novaPlaySettings
+        launchPolicy: selectedGameForPreview && selectedGameForPreview.launchPolicy
+            ? selectedGameForPreview.launchPolicy : ({ known: false, hostDefault: "", allowed: [] })
+        streamCapabilities: selectedGameForPreview.streamCapabilities || ({})
+        displayPlanner: selectedGameForPreview.displayPlanner || ({})
+        displayCapabilities: novaDisplayCapabilities.state
+        hostId: selectedHostForPreview ? selectedHostForPreview.id : ""
+        gameId: selectedGameForPreview ? selectedGameForPreview.id : ""
+        hostName: selectedHostForPreview ? selectedHostForPreview.displayName : "Your PC"
+        gameTitle: selectedGameForPreview ? selectedGameForPreview.title : "Selected game"
+        destinationId: novaStandalone ? (novaLibraryRefresh.state.destinationId || "") : "desktop"
+        destinationName: novaStandalone ? (novaLibraryRefresh.state.destinationName || "Destination unavailable") : "Desktop"
+        destinationPlayable: !novaStandalone || novaLibraryRefresh.state.destinationPlayable !== false
+        gameTools: novaStandalone ? novaGameTools : null
+        hostSettingsController: novaStandalone ? novaHostSettings : null
+        returnLabel: novaStandalone ? "Back to details" : "Back to library"
+        onClosed: root.gameLinkStarted ? root.close() : novaStandalone ? androidLibrary.focusGame() : focusLaunchAction()
     }
 
     Popup {
@@ -561,8 +754,8 @@ ApplicationWindow {
         onOpened: focusSelectedHost()
         onClosed: Qt.callLater(focusSelectedGame)
         background: Rectangle {
-            color: "#10182E"
-            border.color: "#53678C"
+            color: NovaTheme.window
+            border.color: NovaTheme.divider
             radius: 20
         }
         contentItem: Item { id: hostPickerContent }
@@ -576,11 +769,73 @@ ApplicationWindow {
         z: 1000
     }
 
+    property bool gameLinkPending: Object.keys(novaGameLink).length > 0
+    property bool gameLinkStarted: false
+    property string gameLinkError: ""
+    property int gameLinkStep: 0
+    Timer {
+        interval: 200; repeat: true; running: root.gameLinkPending && novaStandalone
+        onTriggered: {
+            if (novaLibraryRefresh.state.busy || novaNativeSession.state.busy) return
+            if (novaLibraryRefresh.state.failed) { root.gameLinkError = "Couldn't reach the saved PC. Refresh it to try again."; root.gameLinkPending = false; return }
+            if (novaSelectedHostDetail.id !== novaGameLink.host) {
+                if (root.gameLinkStep >= 1 || !novaLibraryRefresh.selectHost(novaGameLink.host)) {
+                    root.gameLinkError = "The saved PC is unavailable. Select it from your PCs."; root.gameLinkPending = false
+                } else root.gameLinkStep = 1
+                return
+            }
+            if ((novaLibraryRefresh.state.destinationId || "desktop") !== novaGameLink.destination) {
+                if (root.gameLinkStep >= 2 || !novaLibraryRefresh.selectDestination(novaGameLink.destination)) {
+                    root.gameLinkError = "The saved destination is unavailable. Choose where to play."; root.gameLinkPending = false
+                } else root.gameLinkStep = 2
+                return
+            }
+            root.gameLinkPending = false
+            root.gameLinkStarted = true
+            nativePreview.autoStartRequested = true
+            if (!androidLibrary.openGameLink(novaGameLink.game)) {
+                root.gameLinkStarted = false; nativePreview.autoStartRequested = false
+                root.gameLinkError = "The saved game is no longer in this library. Refresh the library or choose another game."
+            }
+        }
+    }
+    Label {
+        anchors.top: parent.top; anchors.horizontalCenter: parent.horizontalCenter; z: 100
+        visible: root.gameLinkError.length > 0
+        width: parent.width - 48; padding: 16
+        text: root.gameLinkError; textFormat: Text.PlainText; wrapMode: Text.WordWrap
+        color: NovaTheme.text; background: Rectangle { color: NovaTheme.panel }
+    }
+    LibraryBrowser {
+        gameTools: novaGameTools
+        gameShortcuts: novaGameShortcuts
+        hostPower: novaHostPower
+        gamepad: novaGamepad
+        id: androidLibrary
+        anchors.fill: parent
+        visible: novaStandalone
+        enabled: novaStandalone
+        games: novaLibraryGames
+        host: novaSelectedHostDetail
+        refreshState: novaLibraryRefresh.state
+        libraryController: novaLibraryRefresh
+        settingsProvider: novaPlaySettings
+        hostSettingsController: novaStandalone ? novaHostSettings : null
+        sessionBusy: novaNativeSession.state.busy
+        onSelected: game => selectGameForPreview(game)
+        onChooseHost: focusSelectedHost()
+        onRefreshRequested: refreshLibrary()
+        onManagePcs: { root.managePcsRequested = true; root.close() }
+        onPlayRequested: game => { selectGameForPreview(game); nativePreview.open() }
+    }
+
     FocusScope {
         id: libraryFocusScope
         anchors.fill: parent
-        focus: true
+        visible: !novaStandalone
+        focus: !novaStandalone
         Component.onCompleted: Qt.callLater(function() {
+            if (novaStandalone) return
             refreshLaunchPreviewBinding()
             focusSelectedGame()
         })
@@ -594,14 +849,67 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Label {
                     text: novaDeckShellName
-                    color: "#E9ECFF"
+                    color: NovaTheme.text
                     font.pixelSize: 32
                     font.bold: true
                 }
                 Item { Layout.fillWidth: true }
                 Button {
+                    id: managePcsButton
+                    objectName: "manage-pcs"
+                    visible: novaStandalone
+                    enabled: !novaNativeSession.state.busy && !libraryBusy
+                    text: "Saved PCs"
+                    Layout.preferredWidth: 170
+                    Layout.preferredHeight: 52
+                    function activate() {
+                        if (!enabled || !visible) return
+                        root.managePcsRequested = true
+                        root.close()
+                    }
+                    onClicked: activate()
+                    Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) activate() }
+                    Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) activate() }
+                    Keys.onRightPressed: refreshLibraryButton.forceActiveFocus()
+                    Keys.onDownPressed: focusSelectedGame()
+                    contentItem: Text {
+                        text: managePcsButton.text; font.pixelSize: 18; font.bold: true
+                        color: managePcsButton.activeFocus ? NovaTheme.window : NovaTheme.secondary
+                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 12; color: managePcsButton.activeFocus ? NovaTheme.focus : NovaTheme.panel
+                        border.color: managePcsButton.activeFocus ? NovaTheme.focus : NovaTheme.divider
+                    }
+                }
+                Button {
+                    id: refreshLibraryButton
+                    objectName: "refresh-library"
+                    visible: novaStandalone
+                    enabled: !libraryBusy && !nativeSessionState.busy
+                    text: libraryBusy && novaLibraryRefresh.state.automatic ? "Checking…" : "Refresh"
+                    Layout.preferredWidth: 130
+                    Layout.preferredHeight: 52
+                    onClicked: refreshLibrary()
+                    Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) refreshLibrary() }
+                    Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) refreshLibrary() }
+                    Keys.onLeftPressed: managePcsButton.forceActiveFocus()
+                    Keys.onRightPressed: hostPickerButton.forceActiveFocus()
+                    Keys.onDownPressed: focusSelectedGame()
+                    contentItem: Text {
+                        text: refreshLibraryButton.text; font.pixelSize: 18; font.bold: true
+                        color: refreshLibraryButton.activeFocus ? NovaTheme.window : NovaTheme.secondary
+                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 12; color: refreshLibraryButton.activeFocus ? NovaTheme.focus : NovaTheme.panel
+                        border.color: refreshLibraryButton.activeFocus ? NovaTheme.focus : NovaTheme.divider
+                    }
+                }
+                Button {
                     id: hostPickerButton
                     objectName: "change-host"
+                    enabled: !novaStandalone || (!libraryBusy && !nativeSessionState.busy)
                     text: "Host: " + (selectedHostForPreview.displayName || "Choose host") + "  ▾"
                     Layout.preferredWidth: 424
                     Layout.preferredHeight: 52
@@ -609,18 +917,20 @@ ApplicationWindow {
                     Keys.onReturnPressed: focusSelectedHost()
                     Keys.onEnterPressed: focusSelectedHost()
                     Keys.onDownPressed: focusSelectedGame()
+                    Keys.onLeftPressed: { if (refreshLibraryButton.visible && refreshLibraryButton.enabled) refreshLibraryButton.forceActiveFocus() }
                     contentItem: Text {
                         text: hostPickerButton.text
+                        textFormat: Text.PlainText
                         font.pixelSize: 17
                         font.bold: true
-                        color: hostPickerButton.activeFocus ? "#10182E" : "#D0DAF0"
+                        color: hostPickerButton.activeFocus ? NovaTheme.window : NovaTheme.secondary
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         elide: Text.ElideRight
                     }
                     background: Rectangle {
-                        color: hostPickerButton.activeFocus ? focusRingColor : "#1B2742"
-                        border.color: hostPickerButton.activeFocus ? focusRingColor : "#344361"
+                        color: hostPickerButton.activeFocus ? focusRingColor : NovaTheme.panel
+                        border.color: hostPickerButton.activeFocus ? focusRingColor : NovaTheme.divider
                         radius: 12
                     }
                 }
@@ -629,15 +939,26 @@ ApplicationWindow {
             Label {
                 text: "Choose host → Pick game → Review safe launch plan"
                 visible: false
-                color: "#A8B0D8"
+                color: NovaTheme.secondary
                 font.pixelSize: 21
             }
 
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 2
-                color: "#7C73FF"
+                color: NovaTheme.accent
                 opacity: 0.65
+            }
+
+            Label {
+                objectName: "library-refresh-status"
+                Layout.fillWidth: true
+                visible: novaStandalone && (libraryBlocking || novaLibraryRefresh.state.failed)
+                text: closeAfterLibraryRefresh ? "Finishing the library check before closing…" : novaLibraryRefresh.state.copy
+                textFormat: Text.PlainText
+                color: novaLibraryRefresh.state.failed ? NovaTheme.warning : NovaTheme.secondary
+                font.pixelSize: 17
+                wrapMode: Text.WordWrap
             }
 
             Rectangle {
@@ -646,8 +967,8 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 44
                 radius: 18
-                color: "#10182E"
-                border.color: "#39466F"
+                color: NovaTheme.window
+                border.color: NovaTheme.divider
                 border.width: 1
 
                 RowLayout {
@@ -658,16 +979,17 @@ ApplicationWindow {
 
                     Label {
                         text: "FOCUS"
-                        color: "#FFFFFF"
+                        color: NovaTheme.focus
                         font.pixelSize: 16
                         font.bold: true
                     }
 
                     Label {
                         text: focusedControlName()
+                        textFormat: Text.PlainText
                         Layout.fillWidth: true
                         elide: Text.ElideRight
-                        color: "#E9ECFF"
+                        color: NovaTheme.text
                         font.pixelSize: 16
                         font.bold: true
                     }
@@ -675,7 +997,7 @@ ApplicationWindow {
                     Label {
                         text: "3 · Review launch plan"
                         visible: false
-                        color: "#FFDDA8"
+                        color: NovaTheme.warning
                         font.pixelSize: 16
                         font.bold: true
                     }
@@ -684,7 +1006,7 @@ ApplicationWindow {
 
                     Label {
                         text: "White outline = active control"
-                        color: "#7C88B8"
+                        color: NovaTheme.muted
                         font.pixelSize: 13
                     }
                 }
@@ -705,8 +1027,8 @@ ApplicationWindow {
                     spacing: deckPanelSpacing
 
                     Label {
-                        text: "1 · Pick host"
-                        color: "#E9ECFF"
+                        text: novaStandalone ? "Choose a PC" : "1 · Pick host"
+                        color: NovaTheme.text
                         font.pixelSize: 26
                         font.bold: true
                     }
@@ -715,7 +1037,7 @@ ApplicationWindow {
                         Layout.preferredWidth: hostTextWidth
                         text: "Backend-fed hosts · " + novaBackendReadOnlyState.sourceLabel + (novaBackendReadOnlyState.readOnly ? " · backend-owned read-only model · " + novaBackendReadOnlyProvenance : " · Backend read-only model unavailable — network remains disabled")
                                 visible: diagnosticsExpanded
-                        color: "#A8B0D8"
+                        color: NovaTheme.secondary
                         font.pixelSize: 13
                         wrapMode: Text.WordWrap
                     }
@@ -727,8 +1049,8 @@ ApplicationWindow {
                         Layout.preferredWidth: hostColumnWidth
                         Layout.preferredHeight: visible ? 120 : 0
                         radius: 20
-                        color: activeFocus ? focusGlowColor : "#151D39"
-                        border.color: activeFocus ? focusRingColor : "#39466F"
+                        color: activeFocus ? focusGlowColor : NovaTheme.window
+                        border.color: activeFocus ? focusRingColor : NovaTheme.divider
                         border.width: activeFocus ? 5 : 2
                         focus: visible
                         activeFocusOnTab: visible
@@ -742,14 +1064,14 @@ ApplicationWindow {
 
                             Label {
                                 text: "No demo hosts yet"
-                                color: "#E9ECFF"
+                                color: NovaTheme.text
                                 font.pixelSize: 22
                                 font.bold: true
                             }
 
                             Label {
                                 text: "Empty host state is focusable and deterministic."
-                                color: "#A8B0D8"
+                                color: NovaTheme.secondary
                                 font.pixelSize: 14
                             }
                         }
@@ -767,13 +1089,13 @@ ApplicationWindow {
                             Layout.preferredWidth: hostColumnWidth
                             Layout.preferredHeight: hostCardHeight
                             radius: 20
-                            color: activeFocus ? focusRingColor : "#151D39"
-                            border.color: activeFocus ? focusRingColor : "#344361"
+                            color: activeFocus ? focusRingColor : NovaTheme.window
+                            border.color: activeFocus ? focusRingColor : NovaTheme.divider
                             border.width: activeFocus ? 5 : 1
                             focus: modelData.initialFocus
                             activeFocusOnTab: true
                             KeyNavigation.right: hostDetailPanel
-                            onActiveFocusChanged: if (activeFocus) selectHostForPreview(modelData)
+                            onActiveFocusChanged: if (activeFocus && !novaStandalone) selectHostForPreview(modelData)
                             TapHandler {
                                 onTapped: {
                                     selectHostForPreview(modelData)
@@ -808,8 +1130,9 @@ ApplicationWindow {
                                 Label {
                                     Layout.fillWidth: true
                                     text: modelData.displayName
+                                    textFormat: Text.PlainText
                                     elide: Text.ElideRight
-                                    color: parent.parent.activeFocus ? "#10182E" : "#E9ECFF"
+                                    color: parent.parent.activeFocus ? NovaTheme.window : NovaTheme.text
                                     font.pixelSize: 20
                                     font.bold: true
                                 }
@@ -818,14 +1141,14 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     text: modelData.statusLabel
                                     elide: Text.ElideRight
-                                    color: parent.parent.activeFocus ? "#354660" : "#B8C2F0"
+                                    color: parent.parent.activeFocus ? NovaTheme.divider : NovaTheme.secondary
                                     font.pixelSize: 16
                                 }
 
                                 Label {
                                     visible: selectedHostForPreview.id === modelData.id
                                     text: parent.parent.activeFocus ? "A · Use this host" : "Selected host"
-                                    color: parent.parent.activeFocus ? "#354660" : "#8999B5"
+                                    color: parent.parent.activeFocus ? NovaTheme.divider : NovaTheme.muted
                                     font.pixelSize: 14
                                     font.bold: true
                                 }
@@ -837,12 +1160,14 @@ ApplicationWindow {
                 ScrollableColumn {
                     id: libraryGameList
                     objectName: "library-game-list"
+                    enabled: !libraryBlocking
+                    opacity: libraryBlocking ? 0.55 : 1
                     Layout.preferredWidth: sampleCardWidth
                     spacing: deckPanelSpacing
 
                     Label {
                         text: "Your games"
-                        color: "#E9ECFF"
+                        color: NovaTheme.text
                         font.pixelSize: 23
                         font.bold: true
                     }
@@ -851,7 +1176,7 @@ ApplicationWindow {
                         Layout.preferredWidth: sampleTextWidth
                         text: "Backend-fed library snapshot · " + novaBackendReadOnlyState.sourceLabel + (novaBackendReadOnlyState.readOnly ? " · backend-owned read-only model · " + novaBackendReadOnlyProvenance : " · Backend read-only model unavailable — network remains disabled")
                                 visible: diagnosticsExpanded
-                        color: "#A8B0D8"
+                        color: NovaTheme.secondary
                         font.pixelSize: 13
                         wrapMode: Text.WordWrap
                     }
@@ -863,8 +1188,8 @@ ApplicationWindow {
                         Layout.preferredWidth: sampleCardWidth
                         Layout.preferredHeight: visible ? 116 : 0
                         radius: 18
-                        color: activeFocus ? focusGlowColor : "#151D39"
-                        border.color: activeFocus ? focusRingColor : "#39466F"
+                        color: activeFocus ? focusGlowColor : NovaTheme.window
+                        border.color: activeFocus ? focusRingColor : NovaTheme.divider
                         border.width: activeFocus ? 5 : 2
                         focus: visible
                         activeFocusOnTab: visible
@@ -879,16 +1204,19 @@ ApplicationWindow {
                             spacing: 5
 
                             Label {
-                                text: "No games in read-only snapshot"
-                                color: "#E9ECFF"
+                                text: novaStandalone ? "No games to show" : "No games in read-only snapshot"
+                                color: NovaTheme.text
                                 font.pixelSize: 20
                                 font.bold: true
                             }
 
                             Label {
                                 Layout.preferredWidth: sampleTextWidth
-                                text: "Snapshot unavailable in this preview shell — no backend request will be made."
-                                color: "#A8B0D8"
+                                text: novaStandalone ? (novaLibraryRefresh.state.failed
+                                    ? "Refresh after checking the PC, or choose another saved PC."
+                                    : "Refresh the game list or choose another saved PC.")
+                                    : "Snapshot unavailable in this preview shell — no backend request will be made."
+                                color: NovaTheme.secondary
                                 font.pixelSize: 14
                                 wrapMode: Text.WordWrap
                             }
@@ -907,8 +1235,8 @@ ApplicationWindow {
                             Layout.preferredWidth: sampleCardWidth
                             Layout.preferredHeight: 104
                             radius: 18
-                            color: activeFocus ? focusRingColor : "#151D39"
-                            border.color: activeFocus ? focusRingColor : "#344361"
+                            color: activeFocus ? focusRingColor : NovaTheme.window
+                            border.color: activeFocus ? focusRingColor : NovaTheme.divider
                             border.width: activeFocus ? 5 : 1
                             focus: modelData.initialFocus
                             activeFocusOnTab: true
@@ -955,8 +1283,9 @@ ApplicationWindow {
                                 Label {
                                     Layout.fillWidth: true
                                     text: modelData.title
+                                    textFormat: Text.PlainText
                                     elide: Text.ElideRight
-                                    color: parent.parent.activeFocus ? "#10182E" : "#E9ECFF"
+                                    color: parent.parent.activeFocus ? NovaTheme.window : NovaTheme.text
                                     font.pixelSize: 26
                                     font.bold: true
                                 }
@@ -965,7 +1294,7 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     text: modelData.installedLabel
                                     elide: Text.ElideRight
-                                    color: parent.parent.activeFocus ? "#354660" : "#B8C2F0"
+                                    color: parent.parent.activeFocus ? NovaTheme.divider : NovaTheme.secondary
                                     font.pixelSize: 13
                                 }
 
@@ -974,14 +1303,14 @@ ApplicationWindow {
                                     text: modelData.launchModeLabel
                                     visible: diagnosticsExpanded
                                     elide: Text.ElideRight
-                                    color: parent.parent.activeFocus ? "#354660" : "#A8B0D8"
+                                    color: parent.parent.activeFocus ? NovaTheme.divider : NovaTheme.secondary
                                     font.pixelSize: 14
                                 }
 
                                 Label {
                                     visible: selectedGameForPreview.id === modelData.id
                                     text: parent.parent.activeFocus ? "A · Review and play" : "Selected game"
-                                    color: parent.parent.activeFocus ? "#354660" : "#8999B5"
+                                    color: parent.parent.activeFocus ? NovaTheme.divider : NovaTheme.muted
                                     font.pixelSize: 13
                                     font.bold: true
                                 }
@@ -1002,8 +1331,8 @@ ApplicationWindow {
                         Layout.preferredWidth: detailColumnWidth
                         Layout.preferredHeight: Math.max(detailPanelHeight, hostReviewContent.implicitHeight + 40)
                         radius: 22
-                        color: activeFocus ? focusGlowColor : "#151D39"
-                        border.color: activeFocus ? focusRingColor : "#39466F"
+                        color: activeFocus ? focusGlowColor : NovaTheme.window
+                        border.color: activeFocus ? focusRingColor : NovaTheme.divider
                         border.width: activeFocus ? 5 : 2
                         focus: false
                         activeFocusOnTab: false
@@ -1022,15 +1351,16 @@ ApplicationWindow {
 
                             Label {
                                 text: "Selected game"
-                                color: "#7C88B8"
+                                color: NovaTheme.muted
                                 font.pixelSize: 16
                             }
 
                             Label {
                                 Layout.fillWidth: true
                                 text: selectedGameForPreview.title
+                                textFormat: Text.PlainText
                                 elide: Text.ElideRight
-                                color: "#E9ECFF"
+                                color: NovaTheme.text
                                 font.pixelSize: 26
                                 font.bold: true
                             }
@@ -1041,7 +1371,7 @@ ApplicationWindow {
                                 wrapMode: Text.WordWrap
                                 maximumLineCount: 3
                                 elide: Text.ElideRight
-                                color: "#B8C2F0"
+                                color: NovaTheme.secondary
                                 font.pixelSize: 15
                             }
 
@@ -1059,7 +1389,7 @@ ApplicationWindow {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedHostForPreview.subtitle
                                 visible: diagnosticsExpanded
-                                color: "#A8B0D8"
+                                color: NovaTheme.secondary
                                 font.pixelSize: 16
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
@@ -1069,6 +1399,7 @@ ApplicationWindow {
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: "Selected game: " + selectedGameForPreview.title
+                                textFormat: Text.PlainText
                                 color: "#8AFFC1"
                                 font.pixelSize: 14
                                 wrapMode: Text.WordWrap
@@ -1083,8 +1414,8 @@ ApplicationWindow {
                         Layout.preferredWidth: detailColumnWidth
                         Layout.preferredHeight: Math.max(launchPreviewHeight, launchContent.implicitHeight + 32)
                         radius: 20
-                        color: activeFocus ? focusGlowColor : "#181D34"
-                        border.color: activeFocus ? focusRingColor : "#39466F"
+                        color: activeFocus ? focusGlowColor : NovaTheme.panel
+                        border.color: activeFocus ? focusRingColor : NovaTheme.divider
                         border.width: activeFocus ? 5 : 2
                         opacity: 1.0
                         focus: false
@@ -1107,16 +1438,16 @@ ApplicationWindow {
                             spacing: 3
 
                             Label {
-                                text: handoffState.available ? "Open selected game" : "3 · Review launch plan"
-                                color: "#7C88B8"
+                                text: handoffState.available || novaStandalone ? "Open selected game" : "3 · Review launch plan"
+                                color: NovaTheme.muted
                                 font.pixelSize: 13
                                 font.bold: true
                             }
 
                             Label {
                                 text: backendReadOnlyPlayerState && backendReadOnlyPlayerState.title ? backendReadOnlyPlayerState.title : "Product state: Launch preview blocked"
-                                visible: !handoffState.available
-                                color: "#E9ECFF"
+                                visible: !handoffState.available && !novaStandalone
+                                color: NovaTheme.text
                                 font.pixelSize: 23
                                 font.bold: true
                                 wrapMode: Text.WordWrap
@@ -1129,44 +1460,46 @@ ApplicationWindow {
                                 font.pixelSize: 13
                                 font.bold: true
                                 wrapMode: Text.WordWrap
-                                visible: !handoffState.available && !diagnosticsExpanded
+                                visible: !handoffState.available && !novaStandalone && !diagnosticsExpanded
                             }
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: backendReadOnlyPlayerState && backendReadOnlyPlayerState.actionLabel ? backendReadOnlyPlayerState.actionLabel : "Review the safe launch plan before copying it locally."
-                                color: "#E9ECFF"
+                                color: NovaTheme.text
                                 font.pixelSize: 15
                                 font.bold: true
                                 wrapMode: Text.WordWrap
                                 maximumLineCount: 2
                                 elide: Text.ElideRight
-                                visible: !handoffState.available && !diagnosticsExpanded
+                                visible: !handoffState.available && !novaStandalone && !diagnosticsExpanded
                             }
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: backendReadOnlyPlayerState && backendReadOnlyPlayerState.safetyLabel ? backendReadOnlyPlayerState.safetyLabel : "Read-only state only; diagnostics are secondary and safe to inspect."
-                                color: "#FFDDA8"
+                                color: NovaTheme.warning
                                 font.pixelSize: 12
                                 font.bold: true
                                 wrapMode: Text.WordWrap
                                 maximumLineCount: 2
                                 elide: Text.ElideRight
-                                visible: !handoffState.available && !diagnosticsExpanded
+                                visible: !handoffState.available && !novaStandalone && !diagnosticsExpanded
                             }
 
                             Button {
                                 id: handoffActionButton
                                 objectName: "handoff-primary-action"
+                                enabled: !novaStandalone || (!libraryBusy && !novaLibraryRefresh.state.failed && novaLibraryGames.length > 0)
                                 Layout.preferredWidth: detailTextWidth
                                 Layout.minimumHeight: 48
-                                text: !handoffState.available ? "Copy safe launch plan"
+                                text: novaStandalone ? "Preview in Nova" : !handoffState.available ? "Copy safe launch plan"
                                     : handoffState.running ? "End current session"
                                     : handoffState.armed ? "Confirm launch in Moonlight" : "Play in Moonlight"
                                 contentItem: Text {
                                     text: handoffActionButton.text
-                                    color: handoffActionButton.activeFocus ? "#10182E" : "#FFFFFF"
+                                    color: !handoffActionButton.enabled ? NovaTheme.muted
+                                        : handoffActionButton.activeFocus ? NovaTheme.window : NovaTheme.focus
                                     font.pixelSize: 18
                                     font.bold: true
                                     horizontalAlignment: Text.AlignHCenter
@@ -1174,8 +1507,9 @@ ApplicationWindow {
                                 }
                                 background: Rectangle {
                                     radius: 12
-                                    color: handoffActionButton.activeFocus ? focusRingColor : "#263B62"
-                                    border.color: handoffActionButton.activeFocus ? focusRingColor : "#53678C"
+                                    color: !handoffActionButton.enabled ? NovaTheme.panel
+                                        : handoffActionButton.activeFocus ? focusRingColor : NovaTheme.raised
+                                    border.color: handoffActionButton.activeFocus ? focusRingColor : NovaTheme.divider
                                     border.width: handoffActionButton.activeFocus ? 5 : 1
                                 }
                                 visible: !diagnosticsExpanded
@@ -1184,6 +1518,39 @@ ApplicationWindow {
                                 Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) activateLaunchCardFromController() }
                                 Keys.onLeftPressed: focusSelectedLibraryItem()
                                 Keys.onUpPressed: focusSelectedGame()
+                                Keys.onDownPressed: {
+                                    if (nativePreviewButton.visible) nativePreviewButton.forceActiveFocus()
+                                    else copyPreviewButton.forceActiveFocus()
+                                }
+                            }
+
+                            Button {
+                                id: nativePreviewButton
+                                objectName: "native-preview-open"
+                                Layout.preferredWidth: detailTextWidth
+                                Layout.minimumHeight: 48
+                                visible: novaNativeSession.enabled && !novaStandalone && !diagnosticsExpanded
+                                enabled: !handoffState.running && !handoffState.armed
+                                text: "Preview in Nova"
+                                contentItem: Text {
+                                    text: nativePreviewButton.text
+                                    color: nativePreviewButton.activeFocus ? NovaTheme.window : "white"
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    radius: 12
+                                    color: nativePreviewButton.activeFocus ? NovaTheme.focus : NovaTheme.raised
+                                    border.color: nativePreviewButton.activeFocus ? NovaTheme.focus : NovaTheme.divider
+                                    border.width: nativePreviewButton.activeFocus ? 5 : 1
+                                }
+                                onClicked: nativePreview.open()
+                                Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) nativePreview.open() }
+                                Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) nativePreview.open() }
+                                Keys.onUpPressed: handoffActionButton.forceActiveFocus()
+                                Keys.onLeftPressed: focusSelectedGame()
                                 Keys.onDownPressed: copyPreviewButton.forceActiveFocus()
                             }
 
@@ -1191,7 +1558,7 @@ ApplicationWindow {
                                 objectName: "moonlight-handoff-status"
                                 Layout.preferredWidth: detailTextWidth
                                 text: handoffState.copy + (handoffState.sessionCopy ? " · " + handoffState.sessionCopy : "")
-                                color: handoffState.running ? "#8AFFC1" : "#FFDDA8"
+                                color: handoffState.running ? "#8AFFC1" : NovaTheme.warning
                                 font.pixelSize: 13
                                 font.bold: true
                                 wrapMode: Text.WordWrap
@@ -1203,7 +1570,7 @@ ApplicationWindow {
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: novaHostLaunchCta.helpText
-                                color: "#B8C2F0"
+                                color: NovaTheme.secondary
                                 font.pixelSize: 13
                                 wrapMode: Text.WordWrap
                                 visible: false
@@ -1211,8 +1578,9 @@ ApplicationWindow {
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
-                                text: backendReadOnlyPlayerState && backendReadOnlyPlayerState.body ? backendReadOnlyPlayerState.body : "Launch preview blocked. Open diagnostics."
-                                color: "#FFDDA8"
+                                text: novaStandalone ? "Review your game before starting the stream."
+                                    : backendReadOnlyPlayerState && backendReadOnlyPlayerState.body ? backendReadOnlyPlayerState.body : "Launch preview blocked. Open diagnostics."
+                                color: novaStandalone ? NovaTheme.secondary : NovaTheme.warning
                                 font.pixelSize: 14
                                 font.bold: true
                                 wrapMode: Text.WordWrap
@@ -1230,13 +1598,13 @@ ApplicationWindow {
                                 wrapMode: Text.WordWrap
                                 maximumLineCount: 1
                                 elide: Text.ElideRight
-                                visible: !handoffState.available && !diagnosticsExpanded
+                                visible: !novaStandalone && !handoffState.available && !diagnosticsExpanded
                             }
 
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: "Blocked safely: lab gate keeps backend power and streams off."
-                                color: "#FFDDA8"
+                                color: NovaTheme.warning
                                 font.pixelSize: 11
                                 font.bold: true
                                 wrapMode: Text.WordWrap
@@ -1246,7 +1614,7 @@ ApplicationWindow {
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: "Diagnostics explain why; they never start discovery, backend power, or media."
-                                color: "#A8B0D8"
+                                color: NovaTheme.secondary
                                 font.pixelSize: 10
                                 wrapMode: Text.WordWrap
                                 visible: false
@@ -1255,7 +1623,7 @@ ApplicationWindow {
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: novaLaunchIntentBoundary.reason
-                                color: "#A8B0D8"
+                                color: NovaTheme.secondary
                                 font.pixelSize: 12
                                 wrapMode: Text.WordWrap
                                 visible: false
@@ -1273,7 +1641,7 @@ ApplicationWindow {
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: selectedBackendReadOnlyDtoSummary
-                                color: "#FFDDA8"
+                                color: NovaTheme.warning
                                 font.pixelSize: 12
                                 font.bold: true
                                 wrapMode: Text.WordWrap
@@ -1288,7 +1656,7 @@ ApplicationWindow {
                                     + (novaPresenterReadiness.hardwarePresenterPlanned ? " · presenter planned" : "")
                                 color: novaPresenterReadiness.ready ? "#8AFFC1"
                                     : novaPresenterReadiness.hardwarePresenterPlanned ? "#C9F0D4"
-                                    : "#FFDDA8"
+                                    : NovaTheme.warning
                                 font.pixelSize: 13
                                 font.bold: novaPresenterReadiness.ready || novaPresenterReadiness.hardwarePresenterPlanned
                                 wrapMode: Text.WordWrap
@@ -1298,7 +1666,7 @@ ApplicationWindow {
                             Label {
                                 Layout.preferredWidth: detailTextWidth
                                 text: novaPresenterReadiness.detail
-                                color: "#A8B0D8"
+                                color: NovaTheme.secondary
                                 font.pixelSize: 12
                                 wrapMode: Text.WordWrap
                                 visible: false
@@ -1318,7 +1686,7 @@ ApplicationWindow {
                                     + (previewLifecycleReport.hostDisplayName ? previewLifecycleReport.hostDisplayName : "No host selected")
                                     + " / "
                                     + (previewLifecycleReport.gameTitle ? previewLifecycleReport.gameTitle : "No game selected")
-                                color: previewLifecycleReport.armed ? "#8AFFC1" : "#FFDDA8"
+                                color: previewLifecycleReport.armed ? "#8AFFC1" : NovaTheme.warning
                                 font.pixelSize: 11
                                 font.bold: previewLifecycleReport.armed
                                 wrapMode: Text.WordWrap
@@ -1334,7 +1702,7 @@ ApplicationWindow {
                                     + " · networkStarted=" + operatorAuthorizationReport.networkStarted
                                 color: operatorAuthorizationReport.startAuthorized ? "#8AFFC1"
                                     : operatorAuthorizationReport.dryRunAuthorized ? "#C9F0D4"
-                                    : "#FFDDA8"
+                                    : NovaTheme.warning
                                 font.pixelSize: 11
                                 font.bold: operatorAuthorizationReport.dryRunAuthorized || operatorAuthorizationReport.startAuthorized
                                 wrapMode: Text.WordWrap
@@ -1349,7 +1717,7 @@ ApplicationWindow {
                                     + " · stream=" + backendPreflightPreview.streamAllowed
                                     + " · backendPowerStarted=" + backendPreflightPreview.backendPowerStarted
                                     + " · " + backendPreflightPreview.publicCopy
-                                color: backendPreflightPreview.approved ? "#8AFFC1" : "#FFDDA8"
+                                color: backendPreflightPreview.approved ? "#8AFFC1" : NovaTheme.warning
                                 font.pixelSize: 10
                                 font.bold: backendPreflightPreview.approved
                                 wrapMode: Text.WordWrap
@@ -1391,7 +1759,7 @@ ApplicationWindow {
                                 onClicked: activateLaunchPreviewCopyFromController()
                                 contentItem: Text {
                                     text: copyPreviewButton.text
-                                    color: copyPreviewButton.activeFocus ? "#10182E" : "#E9ECFF"
+                                    color: copyPreviewButton.activeFocus ? NovaTheme.window : NovaTheme.text
                                     font.pixelSize: 13
                                     font.bold: true
                                     horizontalAlignment: Text.AlignHCenter
@@ -1400,8 +1768,8 @@ ApplicationWindow {
                                 }
                                 background: Rectangle {
                                     radius: 12
-                                    color: copyPreviewButton.activeFocus ? focusRingColor : "#1B2742"
-                                    border.color: copyPreviewButton.activeFocus ? focusRingColor : "#344361"
+                                    color: copyPreviewButton.activeFocus ? focusRingColor : NovaTheme.panel
+                                    border.color: copyPreviewButton.activeFocus ? focusRingColor : NovaTheme.divider
                                     border.width: copyPreviewButton.activeFocus ? 5 : 1
                                 }
                             }
@@ -1410,15 +1778,15 @@ ApplicationWindow {
                                 id: secondaryDiagnosticsToggle
                                 contentItem: Text {
                                     text: secondaryDiagnosticsToggle.text
-                                    color: secondaryDiagnosticsToggle.activeFocus ? "#10182E" : "#E9ECFF"
+                                    color: secondaryDiagnosticsToggle.activeFocus ? NovaTheme.window : NovaTheme.text
                                     font.pixelSize: 14
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                 }
                                 background: Rectangle {
                                     radius: 12
-                                    color: secondaryDiagnosticsToggle.activeFocus ? focusRingColor : "#1B2742"
-                                    border.color: secondaryDiagnosticsToggle.activeFocus ? focusRingColor : "#344361"
+                                    color: secondaryDiagnosticsToggle.activeFocus ? focusRingColor : NovaTheme.panel
+                                    border.color: secondaryDiagnosticsToggle.activeFocus ? focusRingColor : NovaTheme.divider
                                     border.width: secondaryDiagnosticsToggle.activeFocus ? 5 : 1
                                 }
                                 objectName: "secondary-diagnostics-toggle"
@@ -1843,7 +2211,7 @@ ApplicationWindow {
                                 id: copyStatusLabel
                                 Layout.preferredWidth: detailTextWidth
                                 text: launchPreviewCopyAction.idleStatusLabel
-                                color: "#FFDDA8"
+                                color: NovaTheme.warning
                                 font.pixelSize: 13
                                 wrapMode: Text.WordWrap
                                 visible: false
@@ -1857,7 +2225,7 @@ ApplicationWindow {
                 text: novaDeckFullscreenPreferred
                     ? "D-pad Navigate · A Review / Select · B Back · Touch to select"
                     : "Deck default: 1280×800 · windowed test mode"
-                color: "#7C88B8"
+                color: NovaTheme.muted
                 font.pixelSize: 18
             }
         }
