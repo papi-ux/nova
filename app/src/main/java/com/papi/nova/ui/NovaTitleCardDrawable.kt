@@ -9,6 +9,7 @@ import android.graphics.PixelFormat
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
@@ -42,12 +43,7 @@ internal class NovaTitleCardDrawable(context: Context, val title: String) : Draw
         val inset = area.width() * INSET
         text.textSize = (area.width() * TEXT_SIZE).coerceIn(MIN_TEXT_SP * density, MAX_TEXT_SP * density)
         val width = (area.width() - 2 * inset).toInt().coerceAtLeast(1)
-        val layout = StaticLayout.Builder.obtain(title, 0, title.length, text, width)
-            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setMaxLines(MAX_LINES)
-            .setEllipsize(TextUtils.TruncateAt.END)
-            .setIncludePad(false)
-            .build()
+        val layout = nameLayout(width)
         val top = area.bottom - inset - layout.height
         // The name sits on the placeholder's own dark end, deepened so it reads on any theme.
         scrim.shader = LinearGradient(
@@ -59,6 +55,21 @@ internal class NovaTitleCardDrawable(context: Context, val title: String) : Draw
         canvas.translate(area.left + inset, top)
         layout.draw(canvas)
         canvas.restore()
+    }
+
+    private fun nameLayout(width: Int): StaticLayout {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return StaticLayout.Builder.obtain(title, 0, title.length, text, width)
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setMaxLines(MAX_LINES)
+                .setEllipsize(TextUtils.TruncateAt.END)
+                .setIncludePad(false)
+                .build()
+        }
+        // Android 5 has no builder and no line limit, so the name is cut to what the lines hold first.
+        val fitted = TextUtils.ellipsize(title, text, width * MAX_LINES.toFloat(), TextUtils.TruncateAt.END)
+        @Suppress("DEPRECATION")
+        return StaticLayout(fitted, text, width, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false)
     }
 
     override fun setAlpha(alpha: Int) {

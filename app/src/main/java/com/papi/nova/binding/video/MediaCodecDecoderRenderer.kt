@@ -141,7 +141,8 @@ class MediaCodecDecoderRenderer(
     // Every IDR carries the SPS again and every copy is patched the same way, so a host that
     // sends a keyframe twice a second wrote the same fix-up lines twice a second and pushed
     // everything else out of logcat. Each fix-up is said once per stream.
-    private val loggedSpsPatches = ConcurrentHashMap.newKeySet<String>()
+    // ConcurrentHashMap.newKeySet needs API 24; this is the same set on API 21.
+    private val loggedSpsPatches: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
     private fun logSpsPatchOnce(message: String) {
         if (loggedSpsPatches.add(message)) {
