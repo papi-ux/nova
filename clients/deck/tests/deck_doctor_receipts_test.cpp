@@ -63,7 +63,10 @@ void recoveryContract() {
 }
 void interruptedUndo() {
     auto s = sample(); DeckDoctorActions flow;
-    require(flow.restore(checkpoint(), *s.live, QDateTime::currentMSecsSinceEpoch()) == DeckDoctorActions::Recovery::Restored, "Undo recovery fixture failed");
+    // Build the receipt before reading its restore time: C++ does not specify
+    // argument evaluation order, so an inline checkpoint can look future-dated.
+    const auto initialCheckpoint = checkpoint();
+    require(flow.restore(initialCheckpoint, *s.live, QDateTime::currentMSecsSinceEpoch()) == DeckDoctorActions::Recovery::Restored, "Undo recovery fixture failed");
     flow.observe(&s,true,1000); require(flow.check(1000), "initial check failed"); auto request = flow.next(1010);
     flow.complete(parseDoctorReceipt(doctor_fixture::receipt(*request),200,*request),1020);
     require(flow.undo(1020), "Undo fixture failed"); request=flow.next(1030);
