@@ -105,7 +105,7 @@
     <string name="pcview_sheet_caption_wake">Send a wake signal and wait for the host to answer.</string>
     <string name="pcview_sheet_caption_send_wol">Send the wake packet and nothing else.</string>
     <string name="pcview_sheet_caption_sleep">Put the host to sleep until it is woken.</string>
-    <string name="pcview_sheet_caption_pair">Pair with a PIN this device shows you.</string>
+    <string name="pcview_sheet_caption_pair">On a trusted network it pairs itself, or by PIN.</string>
     <string name="pcview_sheet_caption_pair_otp">Pair with a one time code from the host\'s console.</string>
     <string name="pcview_sheet_caption_scan_qr">Scan the pairing code on the host\'s console.</string>
     <string name="pcview_sheet_caption_app_list">The plain app list for Sunshine and Apollo.</string>

@@ -16,6 +16,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
 import com.papi.nova.NovaActivity
+import com.papi.nova.ui.compose.novaInPlaceImeOptions
 import com.papi.nova.AppView
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
@@ -314,7 +315,9 @@ class AddComputerManually : NovaActivity() {
         UiHelper.notifyNewRootView(this)
 
         hostText = findViewById(R.id.hostTextView)
-        hostText.imeOptions = EditorInfo.IME_ACTION_DONE
+        // Typed where it stands: in landscape a keyboard would otherwise swap the whole screen for
+        // a blank page with a copy of the field, on a screen that is only this field and its button.
+        hostText.imeOptions = novaInPlaceImeOptions(EditorInfo.IME_ACTION_DONE)
         hostText.setOnEditorActionListener { _, actionId, keyEvent ->
             if (
                 actionId == EditorInfo.IME_ACTION_DONE ||

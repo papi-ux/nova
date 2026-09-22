@@ -80,6 +80,14 @@ class NovaArtworkStudioLayoutTest {
             "a keyboard in landscape leaves a third of the screen, and the controller hints are not for typing",
             panels.contains("if (!WindowInsets.isImeVisible) {\n                NovaGameDetailDestinationHints(selfInset = false)")
         )
+        val addServer = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/preferences/AddComputerManually.kt")),
+            StandardCharsets.UTF_8,
+        )
+        assertTrue(
+            "Add Server's address field opened the same full screen of keyboard",
+            addServer.contains("hostText.imeOptions = novaInPlaceImeOptions(EditorInfo.IME_ACTION_DONE)")
+        )
     }
 
     @Test
