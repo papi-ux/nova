@@ -9,10 +9,11 @@
 
 **The streaming client that speaks host.**
 
-Nova turns Android TVs, handhelds, tablets, and phones into a polished home for
-PC game streaming. Pair it with Polaris for a controller-first Library, clear
-launch plans, and live session controls that stay close while you play. Standard
-Moonlight-compatible hosts remain supported too.
+Nova turns Android TVs, handhelds, tablets, and phones, and now a Steam Deck,
+into a polished home for PC game streaming. Pair it with Polaris for a
+controller-first Library, clear launch plans, and live session controls that
+stay close while you play. Standard Moonlight-compatible hosts remain supported
+too.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1f1d31)](https://github.com/papi-ux/nova/stargazers)
 [![Matrix](https://img.shields.io/badge/Matrix-Join_chat-0dbd8b?style=for-the-badge&logo=matrix&logoColor=white&labelColor=1f1d31)](https://matrix.to/#/#papi-ux:papi-ux.com)
@@ -30,9 +31,9 @@ Moonlight-compatible hosts remain supported too.
 <img src="docs/screenshots/divider-aurora.svg" width="100%" height="3" alt="">
 
 > [!IMPORTANT]
-> Nova is an Android app today. Android handhelds, phones, and Android TV are
-> the supported client boundary; Nova is not a Windows, macOS, iOS, or native
-> Linux client.
+> Nova is an Android app, with a native Steam Deck client in Alpha. Android
+> handhelds, phones, and Android TV are the supported client boundary; Nova is
+> not a Windows, macOS, or iOS client.
 
 ![Nova Polaris Aurora Library with Big Walk selected in a grid of cover art, beside the connected host and its Desktop entry](docs/screenshots/nova-library-aurora-v1.4.9.webp)
 
@@ -53,6 +54,11 @@ path:
 - **Stale host state fails closed.** Nova binds optimization to the exact app and
   display topology and refuses an older or malformed deterministic launch
   contract instead of guessing.
+- **Spaces with the launcher you use.** Change Space says whether a Space opens
+  Steam, Heroic, or Lutris, and a game without artwork gets a poster with its
+  name.
+- **Watch works at any size.** Watch takes the running stream's own mode, and
+  shows only when there is a stream.
 
 Read the [changelog](CHANGELOG.md) for the release-by-release change and
 validation record.
@@ -149,6 +155,13 @@ the standard path when it is not present.
 
 The [quick-start guide](https://papi-ux.com/docs/nova/quickstart/) covers
 Obtainium, pairing methods, first-stream controls, and architecture selection.
+
+### Steam Deck Alpha
+
+Each release carries a native Steam Deck client as a Flatpak that pairs,
+browses, and streams from Game Mode. The
+[Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) installs it and
+lists what the Alpha does not do yet.
 
 ## Compatibility and platform boundaries
 
