@@ -915,7 +915,7 @@ def host_power_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: not s.get("hostPowerOpen") and s.get("focus") == "library-sleep-host")
 
 
-def host_scope_navigation(wait, keys, state, fixtures, save_capture, window):
+def host_scope_navigation(wait, keys, state, fixtures, save_capture, window, settle):
     fixture = fixtures["a"]
     def host():
         return state().get("playSetup", {}).get("hostDefaults", {})
@@ -923,9 +923,11 @@ def host_scope_navigation(wait, keys, state, fixtures, save_capture, window):
         return wait(lambda s: s.get("playSetup", {}).get("hostDefaults", {}).get("opened") and
                     not s["playSetup"]["hostDefaults"]["status"].get("busy"))
     def click(control):
+        settle()
         p = host()["controls"][control]
         # --sync waits for motion and hangs if Refresh is already under the pointer.
         command("xdotool", "mousemove", str(p["x"]), str(p["y"]), "click", "1")
+        settle()
     def refresh(phase="ready", can_change=True):
         before = len([r for r in fixture["requests"] if r[1] == "/polaris/v1/client-settings"])
         click("refresh")
@@ -934,8 +936,12 @@ def host_scope_navigation(wait, keys, state, fixtures, save_capture, window):
              s["playSetup"]["hostDefaults"]["status"].get("canChange") == can_change and
              not s["playSetup"]["hostDefaults"]["status"].get("busy"))
     def choose(mode):
+        # Refresh recreates the mode rows. A ready status can be observed before
+        # their layout and deferred focus restoration have reached the window.
+        settle()
         p = next(row["center"] for row in host()["modes"] if row["id"] == mode)
         command("xdotool", "mousemove", str(p["x"]), str(p["y"]), "click", "1")
+        settle()
     keys("Return")
     wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
     keys("Return")
@@ -1737,7 +1743,8 @@ def main():
             elif args.profile_sync:
                 profile_sync_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.host_scope:
-                host_scope_navigation(wait, keys, state, fixtures, save_capture, window)
+                host_scope_navigation(wait, keys, state, fixtures, save_capture, window,
+                                      lambda: wait_for_ui_observations(observation, app))
             elif args.setup_parity:
                 setup_parity_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.spaces:
