@@ -33,9 +33,9 @@ class DeckMediaAssertGuardTest(unittest.TestCase):
         source = MEDIA_ADAPTER_SOURCE.read_text(encoding="utf-8")
 
         self.assertIn(
-            "DeckVaapiEglImagePresenter::composeOpenGlTexture(presenterResource_, *this, *state)",
+            "DeckVaapiEglImagePresenter::composeOpenGlTexture(presenterResource_, *this, *state, sourceRect())",
             source,
-            "render node must attempt shader composition from the QSG render call",
+            "render node must attempt shader composition with its source rectangle from the QSG render call",
         )
         self.assertNotIn(
             "commandBuffer() == nullptr",
