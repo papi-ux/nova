@@ -433,6 +433,10 @@ class NvConnection(
             )
             return false
         }
+        // Whatever else matches, the handshake offers the stream's own codec at its own depth.
+        streamConfig.adoptWatchVideoFormats(
+            novaWatchVideoFormats(streamConfig.getSupportedVideoFormats(), profile.codec, profile.tenBit),
+        )
         if (profile.width == context.negotiatedWidth && profile.height == context.negotiatedHeight &&
             profile.fps == context.negotiatedLaunchRefreshRate && profile.tenBit == context.negotiatedHdr
         ) {

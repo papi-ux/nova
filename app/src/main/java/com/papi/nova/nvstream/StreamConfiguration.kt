@@ -235,6 +235,11 @@ class StreamConfiguration private constructor() {
         this.launchRefreshRate = refreshRate
     }
 
+    /** The formats a watcher offers the host, which must be the stream's own. */
+    fun adoptWatchVideoFormats(formats: Int) {
+        supportedVideoFormats = formats
+    }
+
     fun getWidth(): Int = width
 
     fun getHeight(): Int = height

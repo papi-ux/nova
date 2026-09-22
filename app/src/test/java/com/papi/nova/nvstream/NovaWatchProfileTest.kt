@@ -61,6 +61,29 @@ class NovaWatchProfileTest {
     }
 
     @Test
+    fun aWatcherOffersTheStreamsOwnCodecAtItsOwnDepth() {
+        val h264 = 0x0001
+        val hevcMain = 0x0100
+        val hevcMain10 = 0x0200
+        val av1Main8 = 0x1000
+        val av1Main10 = 0x2000
+        val everything = h264 or hevcMain or hevcMain10 or av1Main8 or av1Main10
+        // A device with HDR on watching an 8-bit HEVC stream offers HEVC Main and nothing else.
+        assertEquals(hevcMain, novaWatchVideoFormats(everything, "hevc", tenBit = false))
+        assertEquals(hevcMain or hevcMain10, novaWatchVideoFormats(everything, "hevc", tenBit = true))
+        assertEquals(av1Main8, novaWatchVideoFormats(everything, "av1", tenBit = false))
+        assertEquals(h264, novaWatchVideoFormats(everything, "h264", tenBit = false))
+        // A host that did not say the codec narrows only the depth.
+        assertEquals(h264 or hevcMain or av1Main8, novaWatchVideoFormats(everything, null, tenBit = false))
+        val adopt = File("src/main/java/com/papi/nova/nvstream/NvConnection.kt").readText()
+            .substringAfter("private fun adoptWatchProfile(").substringBefore("protected fun quitAndLaunch(")
+        assertTrue(
+            "the formats are narrowed before the early return for a matching mode, which is where a same-size watch went on offering 10-bit",
+            adopt.indexOf("adoptWatchVideoFormats(") in 0 until adopt.indexOf("profile.fps == context.negotiatedLaunchRefreshRate")
+        )
+    }
+
+    @Test
     fun aWatcherAsksForTheStreamsModeTheFirstTimeWhenTheHostHasSaidIt() {
         val connection = File("src/main/java/com/papi/nova/nvstream/NvConnection.kt").readText()
         val before = connection.substringAfter("if (context.watchOnlyRequested) {\n                        if (hostSaysWatchable == false) {")

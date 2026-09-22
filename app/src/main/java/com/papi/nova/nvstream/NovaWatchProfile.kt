@@ -1,5 +1,7 @@
 package com.papi.nova.nvstream
 
+import com.papi.nova.nvstream.jni.MoonBridge
+
 /**
  * The stream a watcher is joining, as the host describes it.
  *
@@ -66,6 +68,26 @@ data class NovaWatchProfile(
             return NovaWatchProfile(parsedWidth, parsedHeight, fpsX1000, tenBit = bits == "10", codec = knownCodec(codec))
         }
     }
+}
+
+/**
+ * The video formats a watcher offers: the stream's own codec at the stream's own depth.
+ *
+ * A watcher is handed the owner's stream as it is, and the host checks at the RTSP handshake that
+ * the watcher is set up for exactly that stream, where no retry can reach. Offering a 10-bit format
+ * for an 8-bit stream has moonlight-common-c pick Main10 whenever the host has it, and another codec
+ * lets it pick that one. Seen live 2026-09-22: a Retroid with HDR on was refused an 8-bit HEVC stream
+ * with "Watch profile mismatch (dynamic range)".
+ */
+internal fun novaWatchVideoFormats(offered: Int, codec: String?, tenBit: Boolean): Int {
+    val codecMask = when (codec) {
+        "h264" -> MoonBridge.VIDEO_FORMAT_MASK_H264
+        "hevc" -> MoonBridge.VIDEO_FORMAT_MASK_H265
+        "av1" -> MoonBridge.VIDEO_FORMAT_MASK_AV1
+        else -> 0.inv()
+    }
+    val depthMask = if (tenBit) 0.inv() else MoonBridge.VIDEO_FORMAT_MASK_10BIT.inv()
+    return offered and codecMask and depthMask
 }
 
 /**
