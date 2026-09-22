@@ -559,12 +559,13 @@ void testSpacesSelectionAndLaunch() {
     auto target = runtime::nativeTargetResolver(saved, snapshot)("spaces-host", "space.arcade.7");
     require(target && !target->automaticReconnect && !target->hostTelemetry);
     int launches = 0, status = 200;
+    QString expectedIdentity = "space.arcade.7";
     https.redirectLocation.clear();
     https.handler = [&](const QUrl& url) -> std::pair<int, QByteArray> {
         if (url.path() == "/polaris/v1/spaces") return {status, spacesBody()};
         if (url.path().contains("space-artwork")) return {200, "fixture-image"};
         require(url.path() == "/launch" || url.path() == "/resume");
-        require(QUrlQuery(url).queryItemValue("appuuid") == "space.arcade.7");
+        require(QUrlQuery(url).queryItemValue("appuuid") == expectedIdentity);
         ++launches; return {200, "<root status_code=\"200\"/>"};
     };
     const std::string launch = "/launch?appid=1347244801&appuuid=space.arcade.7";
@@ -579,6 +580,18 @@ void testSpacesSelectionAndLaunch() {
     require(!target->fetch(launch).transportOk && launches == 1);
     status = 200;
     require(target->fetch(launch).transportOk && launches == 2);
+    for (const auto* launcherTarget : {"library-v1", "epic.AlanWake2", "id.42"}) {
+        expectedIdentity = QString("space.arcade.") + launcherTarget;
+        snapshot.library.games.front().id = expectedIdentity.toStdString();
+        auto launcher = runtime::nativeTargetResolver(saved, snapshot)("spaces-host", expectedIdentity);
+        require(launcher && !launcher->automaticReconnect && !launcher->hostTelemetry);
+        const int beforeLaunch = launches;
+        const auto route = "/launch?appid=1347244801&appuuid=" + expectedIdentity.toStdString();
+        require(launcher->fetch(route).transportOk && launches == beforeLaunch + 1);
+        selected = "desktop";
+        require(!launcher->fetch(route).transportOk && launches == beforeLaunch + 1);
+        selected = "arcade";
+    }
     snapshot.library.games.front().id = "space.other.7";
     require(!runtime::nativeTargetResolver(saved, snapshot)("spaces-host", "space.other.7"));
     snapshot.library.games.front().id = "space.arcade";
@@ -590,7 +603,7 @@ void testSpacesSelectionAndLaunch() {
     target = runtime::nativeTargetResolver(saved, snapshot)("spaces-host", "desktop-game");
     require(target.has_value());
     selected = "arcade";
-    require(!target->fetch("/launch?appid=7&appuuid=desktop-game").transportOk && launches == 2);
+    require(!target->fetch("/launch?appid=7&appuuid=desktop-game").transportOk && launches == 5);
 
     // The production reader uses only the selected library. A missing legacy
     // route is distinct from denied/malformed Spaces and a concurrent change.
@@ -611,6 +624,7 @@ void testSpacesSelectionAndLaunch() {
     int spacesStatus = 200, libraryStatus = 200;
     bool changeDuringRead = false, disabled = false;
     int scopedReads = 0, desktopReads = 0, legacyReads = 0;
+    QString libraryTarget = "7";
     https.handler = [&](const QUrl& url) -> std::pair<int, QByteArray> {
         if (url.path() == "/polaris/v1/capabilities")
             return {200, R"({"server":"polaris","features":{"game_library":true,"spaces_v1":true}})"};
@@ -621,7 +635,10 @@ void testSpacesSelectionAndLaunch() {
             ++scopedReads;
             require(QUrlQuery(url).queryItemValue("space_id") == "arcade");
             if (changeDuringRead) selected = "desktop";
-            return {libraryStatus, R"({"schema":1,"status":true,"space_id":"arcade","library_available":true,"games":[{"id":"space.arcade.7","app_id":1347244801,"name":"Fixture","space":{"id":"arcade","name":"Arcade","target":"7"}}],"total":1})"};
+            return {libraryStatus, QJsonDocument(QJsonObject{{"schema", 1}, {"status", true}, {"space_id", "arcade"},
+                {"library_available", true}, {"total", 1}, {"games", QJsonArray{QJsonObject{
+                    {"id", "space.arcade." + libraryTarget}, {"app_id", kSpaceAppId}, {"name", "Fixture"},
+                    {"space", QJsonObject{{"id", "arcade"}, {"name", "Arcade"}, {"target", libraryTarget}}}}}}}).toJson(QJsonDocument::Compact)};
         }
         require(url.path() == "/polaris/v1/games");
         if (QUrlQuery(url).queryItemValue("environment") == "desktop") ++desktopReads;
@@ -632,6 +649,14 @@ void testSpacesSelectionAndLaunch() {
     auto library = fetch(host, true);
     require(library.status == DeckPolarisRequestStatus::Ok && library.games.size() == 1 &&
         library.games.front().id == "space.arcade.7" && scopedReads == 1 && desktopReads == 0 && legacyReads == 0);
+    for (const auto* launcherTarget : {"library-v1", "epic.AlanWake2", "id.42"}) {
+        libraryTarget = launcherTarget;
+        const int beforeRead = scopedReads;
+        library = fetch(host, true);
+        require(library.status == DeckPolarisRequestStatus::Ok && library.games.size() == 1 &&
+            library.games.front().id == ("space.arcade." + libraryTarget).toStdString() &&
+            library.games.front().spaceId == "arcade" && scopedReads == beforeRead + 1 && desktopReads == 0 && legacyReads == 0);
+    }
     libraryStatus = 403; library = fetch(host, true);
     require(library.status == DeckPolarisRequestStatus::Unauthorized && library.games.empty() && desktopReads == 0 && legacyReads == 0);
     libraryStatus = 200; changeDuringRead = true; library = fetch(host, true);

@@ -13,6 +13,23 @@ namespace {
 bool matches(std::string_view value, const char* pattern) {
     return QRegularExpression(QString::fromLatin1(pattern)).match(QString::fromUtf8(value.data(), value.size())).hasMatch();
 }
+bool validTitleNumber(std::string_view target) {
+    if (!matches(target, "^[1-9][0-9]{0,9}\\z")) return false;
+    unsigned long long value = 0;
+    const auto parsed = std::from_chars(target.data(), target.data() + target.size(), value);
+    return parsed.ec == std::errc{} && parsed.ptr == target.data() + target.size() && value <= 4294967295ULL;
+}
+bool validTarget(std::string_view target) {
+    // Match Android's WorkerLaunchContract: an identity carries no launcher
+    // family, so admit their union. The host enforces the Space's family.
+    if (target == "big-picture-v1" || target == "library-v1") return true;
+    if (target.starts_with("id.")) return validTitleNumber(target.substr(3));
+    const auto dot = target.find('.');
+    if (dot == std::string_view::npos) return validTitleNumber(target);
+    const auto runner = target.substr(0, dot);
+    return (runner == "epic" || runner == "gog" || runner == "amazon" || runner == "sideload") &&
+        matches(target.substr(dot + 1), "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\\z");
+}
 bool nameValid(const QString& name) {
     return !name.trimmed().isEmpty() && name.toUtf8().size() <= 128 &&
         std::none_of(name.begin(), name.end(), [](QChar c) { return c.unicode() < 32 || c.unicode() == 127; });
@@ -72,12 +89,7 @@ std::optional<DeckSpaceGameIdentity> spaceGameIdentity(std::string_view id) {
     const auto dot = id.find('.', 6);
     if (dot == std::string_view::npos || !validSpaceId(id.substr(6, dot - 6))) return {};
     const auto target = id.substr(dot + 1);
-    if (target != "big-picture-v1") {
-        if (!matches(target, "^[1-9][0-9]{0,9}$")) return {};
-        unsigned long long value = 0;
-        const auto parsed = std::from_chars(target.data(), target.data() + target.size(), value);
-        if (parsed.ec != std::errc{} || value > 4294967295ULL) return {};
-    }
+    if (!validTarget(target)) return {};
     return DeckSpaceGameIdentity{std::string(id.substr(6, dot - 6)), std::string(target)};
 }
 bool isSpaceGame(std::string_view id) {

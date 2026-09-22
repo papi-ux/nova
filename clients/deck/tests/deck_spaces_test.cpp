@@ -1,9 +1,11 @@
 #include "runtime/deck_library_controller.h"
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <cstdlib>
 #include <iostream>
 #include <mutex>
@@ -18,6 +20,58 @@ QJsonObject spacesBody(const std::string& selected = "desktop") {
         {"desktop_allowed", true}, {"selected_space_id", QString::fromStdString(selected)},
         {"spaces", QJsonArray{QJsonObject{{"id", "Arcade_1"}, {"name", "Arcade"}, {"state", "ready"},
             {"selected", selected == "Arcade_1"}, {"library_enabled", true}, {"can_open", true}}}}};
+}
+void launcherTargets() {
+    // The host/worker vectors, also pinned by Android in df83ef88. An identity
+    // carries no launcher family, so Nova accepts the union of their grammars;
+    // the host decides which family may use each target. Gamescope is a probe.
+    QFile fixture(NOVA_DECK_LAUNCHER_TARGET_FIXTURE);
+    require(fixture.open(QIODevice::ReadOnly), "launcher target fixture missing");
+    const auto document = QJsonDocument::fromJson(fixture.readAll());
+    require(document.isArray() && !document.array().isEmpty(), "invalid launcher target fixture");
+    int accepted = 0;
+    QJsonArray games;
+    QSet<QString> seen;
+    for (const auto value : document.array()) {
+        const auto vector = value.toObject();
+        if (vector["profile"] == "gamescope" || !vector["accepted"].toBool()) continue;
+        const auto target = vector["target"].toString();
+        const auto id = "space.Arcade_1." + target;
+        const auto identity = spaceGameIdentity(id.toStdString());
+        require(identity && identity->spaceId == "Arcade_1" && identity->target == target.toStdString(),
+            qPrintable("launcher target rejected or changed: " + target));
+        ++accepted;
+        if (seen.contains(target)) continue;
+        seen.insert(target);
+        const auto artwork = "/polaris/v1/games/" + id + "/space-artwork/poster";
+        QJsonObject game{{"id", id}, {"app_id", kSpaceAppId}, {"name", "Fixture"},
+            {"space", QJsonObject{{"id", "Arcade_1"}, {"name", "Arcade"}, {"target", target}}},
+            {"artwork", QJsonObject{{"assets", QJsonObject{{"poster", QJsonObject{{"cached", true}, {"url", artwork}}}}}}}};
+        const auto page = [&](const QJsonObject& g) { return parseGamesPage(json({{"games", QJsonArray{g}}})); };
+        const auto parsed = page(game);
+        require(parsed && parsed->games.size() == 1 && parsed->games.front().id == id.toStdString() &&
+            parsed->games.front().artwork.poster == artwork.toStdString(), "launcher game or artwork lost");
+        games.append(game);
+        auto bad = game; bad.remove("space");
+        require(!page(bad), "launcher accepted without Space context");
+        bad = game; bad["app_id"] = 7;
+        require(!page(bad), "launcher borrowed a Desktop app id");
+        bad = game; bad["space"] = QJsonObject{{"id", "Other"}, {"name", "Other"}, {"target", target}};
+        require(!page(bad), "launcher borrowed another Space");
+        bad = game; bad["space"] = QJsonObject{{"id", "Arcade_1"}, {"name", "Arcade"}, {"target", "different"}};
+        require(!page(bad), "launcher accepted a mismatched target");
+    }
+    require(accepted == 11, "launcher acceptance vectors changed");
+    const auto page = parseGamesPage(json({{"games", games}}));
+    require(page && page->games.size() == static_cast<std::size_t>(games.size()), "mixed launcher library rejected");
+    // Refusals that no family accepts (a family's refusal may be valid for another).
+    for (const auto* target : {"", "0", "0440", "4294967296", "big-picture-v2", "library-v2", "input-pong-v1",
+            "id.", "id.0", "id.01", "id.4294967296", "id.12345678901", "epic.", "steam.440", "store.Thing",
+            ".Fortnite", "epic./etc/passwd", "epic.heroic://launch", "epic.-leading", "epic.a b", "sideload.a.b",
+            "../steam", "440 ", "440\n", "id.42\n", "epic.title\n"})
+        require(!spaceGameIdentity(std::string("space.Arcade_1.") + target), "invalid launcher target accepted");
+    require(spaceGameIdentity("space.Arcade_1.epic." + std::string(64, 'a')).has_value(), "64-byte Heroic title rejected");
+    require(!spaceGameIdentity("space.Arcade_1.epic." + std::string(65, 'a')), "oversized Heroic title accepted");
 }
 void parsing() {
     auto good = spacesBody();
@@ -122,4 +176,4 @@ void selection() {
     require(posts == 2 && controller.state().value("failed").toBool(), "changed identity sent a selection");
 }
 }
-int main(int argc, char** argv) { QCoreApplication app(argc, argv); parsing(); selection(); }
+int main(int argc, char** argv) { QCoreApplication app(argc, argv); parsing(); launcherTargets(); selection(); }

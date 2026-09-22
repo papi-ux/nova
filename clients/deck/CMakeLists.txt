@@ -194,6 +194,8 @@ if(BUILD_TESTING)
     endif()
     add_executable(nova_deck_spaces_test tests/deck_spaces_test.cpp)
     target_link_libraries(nova_deck_spaces_test PRIVATE nova_deck_core)
+    target_compile_definitions(nova_deck_spaces_test PRIVATE
+        NOVA_DECK_LAUNCHER_TARGET_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/launcher-targets.json")
     add_test(NAME nova_deck_spaces_test COMMAND nova_deck_spaces_test)
     set_tests_properties(nova_deck_spaces_test PROPERTIES TIMEOUT 15)
     add_executable(nova_deck_library_query_test tests/deck_library_query_test.cpp)
