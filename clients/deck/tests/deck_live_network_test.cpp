@@ -75,10 +75,18 @@ TestIdentity createDerivedServer(const QString& directory) {
 
 class TlsServer final : public QTcpServer {
 public:
-    explicit TlsServer(const TestIdentity& identity) : identity_(identity) {}
+    // Decode fixture credentials before accepting connections. Re-decoding on
+    // each accept raced OpenSSL's decoder-cache teardown on the client thread.
+    explicit TlsServer(const TestIdentity& identity)
+        : certificate_(identity.cert), privateKey_(identity.key, QSsl::Rsa) {
+        require(!certificate_.isNull() && !privateKey_.isNull());
+    }
+    void trustClient(const QByteArray& certificatePem) {
+        trustedClient_ = QSslCertificate(certificatePem);
+        require(!trustedClient_.isNull());
+    }
     int requests = 0;
     std::function<std::pair<int, QByteArray>(const QUrl&)> handler;
-    QByteArray trustedClient;
     std::vector<QString> paths;
     bool dribbleReply = false, dropReply = false;
     std::vector<QByteArray> methods, bodies;
@@ -89,12 +97,12 @@ public:
 protected:
     void incomingConnection(qintptr descriptor) override {
         auto* socket = new QSslSocket(this);
-        socket->setLocalCertificate(QSslCertificate(identity_.cert));
-        socket->setPrivateKey(QSslKey(identity_.key, QSsl::Rsa));
+        socket->setLocalCertificate(certificate_);
+        socket->setPrivateKey(privateKey_);
         socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-        if (!trustedClient.isEmpty()) {
+        if (!trustedClient_.isNull()) {
             auto config = socket->sslConfiguration();
-            config.setCaCertificates({QSslCertificate(trustedClient)});
+            config.setCaCertificates({trustedClient_});
             socket->setSslConfiguration(config);
             socket->setPeerVerifyMode(QSslSocket::VerifyPeer);
         }
@@ -116,7 +124,7 @@ protected:
             const QUrl url = QUrl::fromEncoded(request.split(' ').at(1));
             paths.push_back(url.path());
             headers.push_back(request.first(end));
-            if (!trustedClient.isEmpty()) require(socket->peerCertificate().toDer() == QSslCertificate(trustedClient).toDer());
+            if (!trustedClient_.isNull()) require(socket->peerCertificate().toDer() == trustedClient_.toDer());
             if (eventStream) { eventStream(socket); request.clear(); return; }
             if (dropReply) { socket->abort(); return; }
             if (dribbleReply) {
@@ -141,7 +149,8 @@ protected:
     }
 
 private:
-    TestIdentity identity_;
+    QSslCertificate certificate_, trustedClient_;
+    QSslKey privateKey_;
 };
 
 void testSilentHttpStillUsesPinnedHttps(bool nativePort) {
@@ -238,7 +247,7 @@ void testStandardHostLibraryAndLaunch() {
     const auto server = createIdentity(directory.path(), "standard-server");
     const auto client = createIdentity(directory.path(), "standard-client");
     TlsServer https(server);
-    https.trustedClient = client.cert;
+    https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     QTcpServer http;
     require(http.listen(QHostAddress::LocalHost, 0));
@@ -344,7 +353,7 @@ void testFreshLaunchModeAuthority() {
     const auto server = createIdentity(directory.path(), "modes-server");
     const auto client = createIdentity(directory.path(), "modes-client");
     TlsServer https(server);
-    https.trustedClient = client.cert;
+    https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     QTcpServer silentHttp;
     require(silentHttp.listen(QHostAddress::LocalHost, 0));
@@ -430,7 +439,7 @@ void testPinnedOwnedResume() {
     const auto server = createIdentity(directory.path(), "resume-server");
     const auto client = createIdentity(directory.path(), "resume-client");
     TlsServer https(server);
-    https.trustedClient = client.cert;
+    https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     identity::DeckMoonlightIdentity identity;
     identity.loaded = true;
@@ -497,7 +506,7 @@ void testSpacesSelectionAndLaunch() {
     QTemporaryDir directory;
     const auto server = createIdentity(directory.path(), "spaces-server");
     const auto client = createIdentity(directory.path(), "spaces-client");
-    TlsServer https(server); https.trustedClient = client.cert;
+    TlsServer https(server); https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient transport({"127.0.0.1", https.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -642,7 +651,7 @@ void testSleepNeverReplays() {
     QTemporaryDir directory;
     const auto server = createIdentity(directory.path(), "server");
     const auto client = createIdentity(directory.path(), "client");
-    TlsServer https(server); https.trustedClient = client.cert;
+    TlsServer https(server); https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient transport({"127.0.0.1", https.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -672,7 +681,7 @@ void testSleepNeverReplays() {
     result = transport.requestHostSleep([] { return true; });
     require(!result.ok() && https.requests == before);
     const auto derived = createDerivedServer(directory.path());
-    TlsServer wrong(derived); wrong.trustedClient = client.cert;
+    TlsServer wrong(derived); wrong.trustClient(client.cert);
     require(wrong.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient rejected({"127.0.0.1", wrong.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -686,7 +695,7 @@ void testHudStatusRead() {
     QTemporaryDir directory;
     const auto server = createIdentity(directory.path(), "server");
     const auto client = createIdentity(directory.path(), "client");
-    TlsServer https(server); https.trustedClient = client.cert;
+    TlsServer https(server); https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient transport({"127.0.0.1", https.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -713,7 +722,7 @@ void testHudStatusRead() {
     https.handler = [](const QUrl&) -> std::pair<int, QByteArray> { return {200, QByteArray(128 * 1024 + 1, ' ')}; };
     require(transport.fetchHostTelemetry().status == DeckPolarisRequestStatus::MalformedBody);
     const auto derived = createDerivedServer(directory.path());
-    TlsServer wrong(derived); wrong.trustedClient = client.cert;
+    TlsServer wrong(derived); wrong.trustClient(client.cert);
     require(wrong.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient rejected({"127.0.0.1", wrong.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -726,7 +735,7 @@ void testLiveTuningNeverReplays() {
     QTemporaryDir directory;
     const auto server = createIdentity(directory.path(), "server");
     const auto client = createIdentity(directory.path(), "client");
-    TlsServer https(server); https.trustedClient = client.cert;
+    TlsServer https(server); https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient transport({"127.0.0.1", https.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -770,7 +779,7 @@ void testLiveTuningNeverReplays() {
     https.handler = [](const QUrl&) -> std::pair<int, QByteArray> { return {200, QByteArray(128 * 1024 + 1, ' ')}; };
     require(transport.setLiveTuningEnabled(true, observed).status == DeckPolarisRequestStatus::MalformedBody);
     const auto derived = createDerivedServer(directory.path());
-    TlsServer wrong(derived); wrong.trustedClient = client.cert;
+    TlsServer wrong(derived); wrong.trustClient(client.cert);
     require(wrong.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient rejected({"127.0.0.1", wrong.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -817,7 +826,7 @@ void testFixedBitrateNeverReplays() {
     using namespace nova::deck::polaris;
     QTemporaryDir directory;
     const auto server = createIdentity(directory.path(), "server"), client = createIdentity(directory.path(), "client");
-    TlsServer https(server); https.trustedClient = client.cert;
+    TlsServer https(server); https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient transport({"127.0.0.1", https.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -854,7 +863,7 @@ void testFixedBitrateNeverReplays() {
     require(elapsed.elapsed() < 400 && https.requests == before + 1); https.dribbleReply = false;
     https.handler = [](const QUrl&) -> std::pair<int, QByteArray> { return {200, QByteArray(128 * 1024 + 1, ' ')}; };
     require(transport.setFixedBitrate(15000, observed).status == DeckPolarisRequestStatus::MalformedBody);
-    const auto derived = createDerivedServer(directory.path()); TlsServer wrong(derived); wrong.trustedClient = client.cert;
+    const auto derived = createDerivedServer(directory.path()); TlsServer wrong(derived); wrong.trustClient(client.cert);
     require(wrong.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient rejected({"127.0.0.1", wrong.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -865,7 +874,7 @@ void testSessionEventTransport() {
     using namespace nova::deck::polaris;
     QTemporaryDir directory;
     const auto server = createIdentity(directory.path(), "server"), client = createIdentity(directory.path(), "client");
-    TlsServer https(server); https.trustedClient = client.cert;
+    TlsServer https(server); https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     // Deliberately different base port: only the authenticated advertisement is used.
     DeckPolarisClient transport({"127.0.0.1", 1},
@@ -945,7 +954,7 @@ void testSessionEventTransport() {
     // Production target factory: status and events use distinct authenticated
     // ports/threads. Event content only prompts a status GET, never paints HUD.
     using namespace nova::deck;
-    TlsServer status(server); status.trustedClient = client.cert;
+    TlsServer status(server); status.trustClient(client.cert);
     require(status.listen(QHostAddress::LocalHost, 0));
     QSslSocket* eventSocket = nullptr;
     https.eventStream = [&](QSslSocket* socket) { eventSocket = socket; socket->write(head); };
@@ -1007,7 +1016,7 @@ void testDoctorTransportAndFactory() {
     using namespace nova::deck::polaris;
     QTemporaryDir directory;
     const auto server = createIdentity(directory.path(), "server"), client = createIdentity(directory.path(), "client");
-    TlsServer https(server); https.trustedClient = client.cert;
+    TlsServer https(server); https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient transport({"127.0.0.1", https.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -1048,7 +1057,7 @@ void testDoctorTransportAndFactory() {
     require(elapsed.elapsed() < 400 && https.requests == before + 1); https.dribbleReply = false;
     https.handler = [](const QUrl&) -> std::pair<int, QByteArray> { return {200, QByteArray(128 * 1024 + 1, ' ')}; };
     require(transport.runDoctorAction(request).status == DeckPolarisRequestStatus::MalformedBody);
-    const auto derived = createDerivedServer(directory.path()); TlsServer wrong(derived); wrong.trustedClient = client.cert;
+    const auto derived = createDerivedServer(directory.path()); TlsServer wrong(derived); wrong.trustClient(client.cert);
     require(wrong.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient rejected({"127.0.0.1", wrong.serverPort()},
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
@@ -1110,7 +1119,7 @@ void testArtworkMutationsNeverReplay() {
     const auto server = createIdentity(directory.path(), "art-server");
     const auto client = createIdentity(directory.path(), "art-client");
     const auto wrong = createIdentity(directory.path(), "art-wrong");
-    TlsServer https(server); https.trustedClient = client.cert;
+    TlsServer https(server); https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient api({"127.0.0.1", https.serverPort()}, {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(300));
     const QVariantMap candidate{{"provider","steamgriddb"},{"provider_game_id","42"},{"title","A & B"}};
@@ -1160,7 +1169,7 @@ void testHostSettingsNeverReplays() {
     const auto server = createIdentity(directory.path(), "server");
     const auto client = createIdentity(directory.path(), "client");
     const auto wrong = createIdentity(directory.path(), "wrong");
-    TlsServer https(server); https.trustedClient = client.cert;
+    TlsServer https(server); https.trustClient(client.cert);
     require(https.listen(QHostAddress::LocalHost, 0));
     DeckPolarisClient api({"127.0.0.1", https.serverPort()}, {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(300));
     auto settings = host_settings_fixture::settings();
