@@ -1172,9 +1172,29 @@ def keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window):
 
 
 def setup_parity_navigation(wait, keys, state, fixtures, save_capture, window):
-    def review():
-        keys("Return")
-        wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    def review(during_refresh=False):
+        fixture = fixtures["a"]
+        if during_refresh:
+            fixture["entered"].clear()
+            fixture["release"].clear()
+        try:
+            if during_refresh:
+                wait(lambda s: s.get("busy") and s.get("automatic") and fixture["entered"].is_set())
+            keys("Return")
+            opened = wait(lambda s: s.get("detailOpen") and s.get("focus") in ("game-detail-play", "game-detail-back"))
+            if during_refresh:
+                assert opened["busy"] and not opened["launchEnabled"] and opened["focus"] == "game-detail-back"
+        finally:
+            if during_refresh:
+                fixture["release"].set()
+        ready = wait(lambda s: s.get("detailOpen") and not s.get("busy") and s.get("launchEnabled"))
+        # An in-flight refresh disables Play when details open. Completing it
+        # must preserve the player's Back focus; navigate explicitly to Play.
+        if during_refresh:
+            assert ready["focus"] == "game-detail-back", "background refresh stole details focus"
+        if ready["focus"] == "game-detail-back":
+            keys("Right")
+        wait(lambda s: s.get("focus") == "game-detail-play")
         keys("Return")
         wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     def setup():
@@ -1191,7 +1211,7 @@ def setup_parity_navigation(wait, keys, state, fixtures, save_capture, window):
         wait(lambda s: s.get("focus") == "play-setup-choice-reset" and s.get("focusVisible"))
         save_capture("setup-reset-choice-large.png")
         keys("Return")
-    review()
+    review(during_refresh=True)
     assert setup()["destination"] == {"id": "room-a", "name": "Arcade", "space": True}
     assert "in Arcade on Living Room PC" in setup()["readPlan"]["intro"] and setup()["audio"]["channels"] == 2
     assert not any(setup()["overrides"].values())
@@ -1435,6 +1455,9 @@ def main():
                     status = fixture.get("spaces_status", 200)
                     body = fixture.get("spaces_body", json.dumps(spaces_snapshot(fixture)))
                 elif secure and path == "/polaris/v1/spaces/library" and "spaces" in fixture:
+                    fixture["entered"].set()
+                    if not fixture["release"].wait(5):
+                        violations.append("Space library fixture release timed out")
                     sid = parse_qs(urlsplit(self.path).query).get("space_id", [""])[0]
                     if sid != fixture["selected_destination"]:
                         violations.append("library requested for the wrong Space")
