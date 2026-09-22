@@ -51,7 +51,8 @@ class MediaCodecDecoderRendererStageTimingSourceGuardTest {
             "A host that repeats the SPS with every keyframe made these lines most of logcat on a Space " +
                 "stream (4,994 of 8,675 in 42 minutes), so the SPS fix-ups go through logSpsPatchOnce.",
             source.contains("LimeLog.info(\"Adding bitstream restrictions\")") ||
-                source.contains("LimeLog.info(\"Patching num_ref_frames in SPS\")")
+                source.contains("LimeLog.info(\"Patching num_ref_frames in SPS\")") ||
+                source.contains("LimeLog.info(\"Hacking SPS to baseline\")")
         )
         assertTrue(
             "Each stream says its fix-ups again, so a new setup forgets the ones already said.",

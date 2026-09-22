@@ -667,19 +667,24 @@ data class NovaQuickMenuUiState(
             }
             val likelyCause = doctor?.likelyCause?.takeIf { it.isNotBlank() }
                 ?: "Connect to Polaris for HOST / NET / CLIENT diagnostics."
+            val evidence = doctor?.evidence ?: emptyList()
+            // The host's first-try line usually opens by restating the finding, which is
+            // already the card's title. Keep only the advice that follows it.
+            val tryFirst = doctor?.firstTry.orEmpty().withoutLeadingSentence(likelyCause)
             return NovaQuickMenuDiagnosisState(
                 classification = doctor?.classification?.takeIf { it.isNotBlank() } ?: "UNKNOWN",
                 likelyCause = likelyCause,
-                evidence = doctor?.evidence ?: emptyList(),
+                evidence = evidence,
                 evidenceHighlight = doctorEvidenceHighlight(status),
-                // The host's first-try line usually opens by restating the finding, which is
-                // already the card's title. Keep only the advice that follows it.
-                tryFirst = doctor?.firstTry.orEmpty().withoutLeadingSentence(likelyCause),
+                tryFirst = tryFirst,
                 confidence = doctor?.confidence.orEmpty(),
                 available = available,
                 // With no Doctor reading the host's health summary is the only sentence there is,
                 // and a Space sends exactly that. The strip already shows it, so the card goes.
-                visible = likelyCause.trimEnd('.') != healthSummary.trimEnd('.'),
+                // A reading with evidence, a first try or an action keeps its card even when its
+                // cause says what the strip says.
+                visible = likelyCause.trimEnd('.') != healthSummary.trimEnd('.') ||
+                    evidence.isNotEmpty() || tryFirst.isNotBlank() || actionId.isNotBlank(),
                 actionId = actionId,
                 actionLabel = doctor?.actionLabel.orEmpty(),
                 actionExecutable = actionExecutable,

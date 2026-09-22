@@ -1049,6 +1049,24 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Network jitter is dropping frames", state.diagnosis.likelyCause)
     }
 
+    @Test
+    fun aDoctorReadingThatMatchesTheStripStillShowsItsEvidence() {
+        // Only a bare summary is a repeat. A reading that names the same cause and brings
+        // evidence has something the strip does not say.
+        val state = quickState(
+            status = status(
+                health = PolarisSessionStatus.HealthStatus(grade = "good", summary = "Network jitter is dropping frames."),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    likelyCause = "Network jitter is dropping frames",
+                    evidence = listOf("Loss 4% over the last 10 s")
+                )
+            )
+        )
+
+        assertEquals("Network jitter is dropping frames.", state.healthSummary)
+        assertTrue(state.diagnosis.visible)
+    }
+
     private fun quickState(
         status: PolarisSessionStatus?,
         apiAvailable: Boolean = true,

@@ -1873,7 +1873,7 @@ class MediaCodecDecoderRenderer(
                 }
 
                 if (needsBaselineSpsHack) {
-                    LimeLog.info("Hacking SPS to baseline")
+                    logSpsPatchOnce("Hacking SPS to baseline")
                     sps.profileIdc = 66
                     savedSps = sps
                 }
