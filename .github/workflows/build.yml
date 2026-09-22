@@ -127,7 +127,8 @@ jobs:
         with:
           bundle: Nova-Deck-x86_64-alpha.flatpak
           manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.json
-          cache-key: nova-deck-flatpak-${{ github.sha }}
+          # A release is built from its own tree every time; a cache keyed per commit never hits.
+          cache: false
           upload-artifact: false
 
       - name: Keep the bundle for the release
@@ -136,7 +137,8 @@ jobs:
           name: nova-deck-flatpak
           path: Nova-Deck-x86_64-alpha.flatpak
           if-no-files-found: error
-          retention-days: 3
+          # Long enough to re-run a failed release job without rebuilding the bundle.
+          retention-days: 14
 
   android-smoke:
     name: Emulator smoke test
@@ -188,7 +190,10 @@ jobs:
   build:
     name: Assemble release APK
     needs: [verify, android-smoke, deck-flatpak]
-    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || needs.deck-flatpak.result == 'skipped') }}
+    # A tag needs the Deck bundle. The job is skipped on pushes and pull requests by design, but on a
+    # tag skipped means the Deck tests failed, and the release should stop here rather than sign
+    # three APKs and fail at the missing bundle.
+    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || (needs.deck-flatpak.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

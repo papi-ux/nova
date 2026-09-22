@@ -2041,6 +2041,10 @@ int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("Nova"));
     QCoreApplication::setApplicationName(QStringLiteral("NovaDeck"));
+#ifdef NOVA_DECK_VERSION
+    // A support report names this version; a build without it reports local-preview.
+    QCoreApplication::setApplicationVersion(QStringLiteral(NOVA_DECK_VERSION));
+#endif
     qmlRegisterType<nova::deck::stream::DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream", 0, 1, "DeckVaapiPreviewSurface");
     auto arguments = QCoreApplication::arguments();
     for (;;) {

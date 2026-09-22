@@ -86,6 +86,12 @@ class NovaReleaseMetadataTest {
         val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
         assertTrue(build.contains("versionName \"1.4.12\""))
+        // The Deck bundle reports the same version in its support report and its AppStream data.
+        assertTrue(File(root, "clients/deck/CMakeLists.txt").readText().contains("project(NovaDeck VERSION 1.4.12 "))
+        assertTrue(
+            File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
+                .contains("<release version=\"1.4.12\" date=\"2026-09-22\"/>")
+        )
         assertTrue(build.contains("versionCode = 53"))
         assertTrue(changelog.contains("## 1.4.12 - 2026-09-22"))
         assertTrue(changelog.contains("Steam Input remains manual and read-only."))
