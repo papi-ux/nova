@@ -26,6 +26,7 @@
 
 - Play Setup plans resolutions from this device rather than from the host (#302).
 - Play Setup keeps its legend in sight, shows a row's choices first, uses the screen, and shows text it had to cut when you ask for it.
+- Play Setup's legend explains the row the cursor is on. It opened on "If you changed where it runs" while the cursor sat on the Desktop card, and Host Virtual no longer says it needs a Windows driver.
 - Artwork Studio opens to the whole screen, and the keyboard stays down until you pick the search field.
 - The game page lines up with the library's margin and stops ending lines in an ellipsis.
 - Every screen follows the device when it is turned or resized.

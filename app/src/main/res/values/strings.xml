@@ -432,7 +432,7 @@
     <string name="nova_play_setup_tuning_declined_no_reason">Host declined this preference</string>
     <string name="nova_play_setup_strip_steam">If you changed how Steam starts</string>
     <string name="nova_play_setup_compare_private">Its own display, made for this session. The desk keeps its own screen.</string>
-    <string name="nova_play_setup_compare_virtual">Uses the host\'s virtual display driver. Advanced, and needs SudoVDA on the host.</string>
+    <string name="nova_play_setup_compare_virtual">A screen of its own on the host\'s desktop, beside its monitors, for games that need the desktop session.</string>
     <string name="nova_game_detail_group_state">State</string>
     <string name="nova_game_detail_group_actions">Actions</string>
     <string name="nova_game_detail_group_insight">Insight</string>

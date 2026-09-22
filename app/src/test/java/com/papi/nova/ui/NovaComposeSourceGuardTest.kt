@@ -1344,6 +1344,12 @@ class NovaComposeSourceGuardTest {
             "the destination cards are not the legend: the legend stays a description and never a stop",
             playSetupComparison().contains("NovaPlaySetupDestinations")
         )
+        assertTrue(
+            "while a destination card holds focus the legend explains nothing. Falling back to the first " +
+                "row opened Play Setup on \"If you changed where it runs\" with the cursor on Desktop",
+            content.contains("onFocused = { onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN) },") &&
+                !content.contains("?: settingRows.firstOrNull()")
+        )
     }
 
     /** Just the strip, so a focusable anywhere else in Play Setup cannot satisfy the check. */

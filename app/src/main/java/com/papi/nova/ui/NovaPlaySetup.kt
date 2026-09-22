@@ -822,6 +822,8 @@ internal fun NovaPlaySetupDestinations(
     status: String,
     options: List<NovaPlaySetupOption>,
     autoFocus: Boolean,
+    /** Told when a card takes focus, so the legend below stops explaining a row nobody is on. */
+    onFocused: () -> Unit = {},
 ) {
     val colors = LocalNovaComposeColors.current
     val focusIndex = options.indexOfFirst { it.current && it.enabled && it.onSelect != null }
@@ -852,6 +854,7 @@ internal fun NovaPlaySetupDestinations(
                     onClick = option.onSelect,
                     selected = option.current,
                     autoFocus = autoFocus && index == focusIndex,
+                    onFocused = onFocused,
                     describeCaption = true,
                     // A place the game cannot open in still has a reason to read.
                     focusableWhenDisabled = true,

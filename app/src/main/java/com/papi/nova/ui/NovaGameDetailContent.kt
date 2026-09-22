@@ -511,6 +511,7 @@ internal fun NovaGameDetailContent(
                                     status = destinationsRow.caption,
                                     options = destinationsRow.options,
                                     autoFocus = destinationsFocus,
+                                    onFocused = { onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN) },
                                 )
                             }
                             // Host-backed rows, drawn in a fixed order. Each advances its own value
@@ -543,9 +544,11 @@ internal fun NovaGameDetailContent(
                             // A legend for whichever row holds focus, not a picker with a
                             // state of its own. A row that has nothing to compare -- one
                             // launch mode, or no display planner on this host -- draws
-                            // nothing rather than a strip that repeats the row above it.
+                            // nothing rather than a strip that repeats the row above it. The
+                            // destination cards describe themselves, so while one holds focus
+                            // there is no legend at all: falling back to the first row opened
+                            // Play Setup on "If you changed where it runs" with the cursor on Desktop.
                             val explained = settingRows.firstOrNull { it.row == explainedPlaySetupRow }
-                                ?: settingRows.firstOrNull()
                             if (explained != null && explained.options.size > 1) {
                                 NovaPlaySetupComparison(
                                     title = explained.stripTitle,
