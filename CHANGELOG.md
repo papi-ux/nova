@@ -2,7 +2,46 @@
 
 ## Unreleased
 
+**Spaces With Heroic and Lutris**
+
+- A Space can open Heroic Games Launcher or Lutris beside Steam. Its library loads, Change Space says which launcher each Space opens, and nothing promises a Steam sign-in any more.
+- A game with no artwork gets a poster with its name on it, so a Heroic or Lutris library is no longer a row of identical tiles, and a Space title's game page asks the host for its hero art.
+- A library that cannot be read says which entry and what was wrong with it.
+
+**Watch Stream**
+
+- Watch works whatever resolution this device would ask for. Nova takes the running stream's mode, codec and depth before it asks, so the host does not refuse it. With Polaris 1.4.12 it knows the mode from the host up front; an older host's refusal is read and the watch asked again once.
+- Watch is offered only when there is a stream to watch. A game left open on the host with nobody streaming it no longer turns every card into Watch Stream, and the library stays one press away.
+- A watcher refused an HDR stream is told which reason holds: this device cannot decode it, or Request HDR is off in Settings.
+
+**Hosts**
+
+- A host's card has a state lamp and badges, uses the width of the screen, and no longer cuts what it says.
+- Manage opens a rebuilt sheet. Wake Host reads Sleep Host when the machine is already awake, and Streaming Presets is Presets.
+- Deleting a PC asks it to forget this device, so pairing again no longer leaves a second entry on the host. A PC that was off when Nova started is asked too, and a running game is warned about first.
+- Add Server takes the address with the keyboard in place instead of a full screen one, and Trusted Pair's caption says what it does.
+- A sheet's actions scroll, so Delete PC can be reached on a landscape handheld, and bottom sheets sit on the bottom of the screen when the system bars are hidden.
+
+**Play Setup, the Game Page and Artwork Studio**
+
+- Play Setup plans resolutions from this device rather than from the host (#302).
+- Play Setup keeps its legend in sight, shows a row's choices first, uses the screen, and shows text it had to cut when you ask for it.
+- Artwork Studio opens to the whole screen, and the keyboard stays down until you pick the search field.
+- The game page lines up with the library's margin and stops ending lines in an ellipsis.
+- Every screen follows the device when it is turned or resized.
+
+**Command Center**
+
+- In a Space, the health line shows once instead of again as a Doctor card, and Live Tuning says Fixed, since a Space keeps the bitrate it started with.
+
+**Steam Deck**
+
+- Nova for Steam Deck is available as an Alpha: a Flatpak bundle attached to this release, for anyone who wants to try it early.
+
+**Under the Hood**
+
 - Updates the BouncyCastle crypto library to 1.85. It signs the certificate Nova pairs with and runs the pairing challenge, and 1.85 closes a certificate name check that could be slipped past and an ASN.1 depth guard that could be reset.
+- The decoder's stream fix-up notes are logged once per stream instead of with every keyframe.
 
 ## 1.4.11 - 2026-09-19
 
