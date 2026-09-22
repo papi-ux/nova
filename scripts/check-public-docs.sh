@@ -139,6 +139,8 @@ expected_assets = (
     "Nova-Android-armeabi-v7a.apk.sha256",
     "Nova-Android-x86_64.apk",
     "Nova-Android-x86_64.apk.sha256",
+    "Nova-Deck-x86_64-alpha.flatpak",
+    "Nova-Deck-x86_64-alpha.flatpak.sha256",
 )
 verify = workflow[positions[3]:positions[4]]
 verify_lines = [line.strip() for line in verify.splitlines()]

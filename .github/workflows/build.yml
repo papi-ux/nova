@@ -104,6 +104,40 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build-deck --output-on-failure
 
+  deck-flatpak:
+    name: Deck Alpha Flatpak
+    needs: deck
+    # The Deck client ships as an Alpha beside each release: one Flatpak bundle, built from
+    # the tagged source in the runtime its manifest names. Manual runs build it too, so a
+    # release tag is never the first time the bundle is built.
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+
+      - name: Build the Deck Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: Nova-Deck-x86_64-alpha.flatpak
+          manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.json
+          cache-key: nova-deck-flatpak-${{ github.sha }}
+          upload-artifact: false
+
+      - name: Keep the bundle for the release
+        uses: actions/upload-artifact@v7
+        with:
+          name: nova-deck-flatpak
+          path: Nova-Deck-x86_64-alpha.flatpak
+          if-no-files-found: error
+          retention-days: 3
+
   android-smoke:
     name: Emulator smoke test
     needs: verify
@@ -153,8 +187,8 @@ jobs:
 
   build:
     name: Assemble release APK
-    needs: [verify, android-smoke]
-    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') }}
+    needs: [verify, android-smoke, deck-flatpak]
+    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || needs.deck-flatpak.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -294,6 +328,22 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+      # A tag always has the Deck bundle, since deck-flatpak runs for every tag. If it did
+      # not build, the release refuses below for a missing asset rather than shipping without it.
+      - name: Add the Deck Alpha bundle
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/download-artifact@v8
+        with:
+          name: nova-deck-flatpak
+          path: ${{ env.APK_ASSET_DIR }}
+
+      - name: Checksum the Deck Alpha bundle
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          cd "${APK_ASSET_DIR}"
+          sha256sum Nova-Deck-x86_64-alpha.flatpak > Nova-Deck-x86_64-alpha.flatpak.sha256
+
       - name: Verify release tag matches built source
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -338,6 +388,8 @@ jobs:
             Nova-Android-armeabi-v7a.apk.sha256
             Nova-Android-x86_64.apk
             Nova-Android-x86_64.apk.sha256
+            Nova-Deck-x86_64-alpha.flatpak
+            Nova-Deck-x86_64-alpha.flatpak.sha256
           )
           release_assets=()
           for asset_name in "${expected_asset_names[@]}"; do
@@ -355,7 +407,7 @@ jobs:
             printf '%s\n' "${expected_asset_names[@]}" | sort
           )
           if [ "${local_asset_names[*]}" != "${expected_asset_names[*]}" ]; then
-            echo "Local release assets do not match the exact six-file contract" >&2
+            echo "Local release assets do not match the exact eight-file contract" >&2
             printf 'expected: %s\n' "${expected_asset_names[*]}" >&2
             printf 'local: %s\n' "${local_asset_names[*]}" >&2
             exit 1
@@ -402,6 +454,8 @@ jobs:
             Nova-Android-armeabi-v7a.apk.sha256
             Nova-Android-x86_64.apk
             Nova-Android-x86_64.apk.sha256
+            Nova-Deck-x86_64-alpha.flatpak
+            Nova-Deck-x86_64-alpha.flatpak.sha256
           )
           release_assets=()
           for asset_name in "${expected_asset_names[@]}"; do
@@ -424,13 +478,15 @@ jobs:
             Nova-Android-armeabi-v7a.apk.sha256
             Nova-Android-x86_64.apk
             Nova-Android-x86_64.apk.sha256
+            Nova-Deck-x86_64-alpha.flatpak
+            Nova-Deck-x86_64-alpha.flatpak.sha256
           )
           mapfile -t published_assets < <(
             gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | sort
           )
           mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
           if [ "${published_assets[*]}" != "${expected_assets[*]}" ]; then
-            echo "Release assets do not match the exact six-file contract on ${GITHUB_REF_NAME}" >&2
+            echo "Release assets do not match the exact eight-file contract on ${GITHUB_REF_NAME}" >&2
             printf 'expected: %s\n' "${expected_assets[*]}" >&2
             printf 'published: %s\n' "${published_assets[*]}" >&2
             exit 1

@@ -268,6 +268,8 @@ class NovaReleaseMetadataTest {
             "Nova-Android-armeabi-v7a.apk.sha256",
             "Nova-Android-x86_64.apk",
             "Nova-Android-x86_64.apk.sha256",
+            "Nova-Deck-x86_64-alpha.flatpak",
+            "Nova-Deck-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertConsecutive(stageLines, listOf(
@@ -278,7 +280,7 @@ class NovaReleaseMetadataTest {
         ))
         assertConsecutive(stageLines, listOf(
             "if [ \"\${local_asset_names[*]}\" != \"\${expected_asset_names[*]}\" ]; then",
-            "echo \"Local release assets do not match the exact six-file contract\" >&2",
+            "echo \"Local release assets do not match the exact eight-file contract\" >&2",
             "printf 'expected: %s\\n' \"\${expected_asset_names[*]}\" >&2",
             "printf 'local: %s\\n' \"\${local_asset_names[*]}\" >&2",
             "exit 1",
@@ -302,6 +304,8 @@ class NovaReleaseMetadataTest {
             "Nova-Android-armeabi-v7a.apk.sha256",
             "Nova-Android-x86_64.apk",
             "Nova-Android-x86_64.apk.sha256",
+            "Nova-Deck-x86_64-alpha.flatpak",
+            "Nova-Deck-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertTrue(uploadLines.contains(
@@ -325,6 +329,8 @@ class NovaReleaseMetadataTest {
             "Nova-Android-armeabi-v7a.apk.sha256",
             "Nova-Android-x86_64.apk",
             "Nova-Android-x86_64.apk.sha256",
+            "Nova-Deck-x86_64-alpha.flatpak",
+            "Nova-Deck-x86_64-alpha.flatpak.sha256",
         )
         for (asset in exactAssetNames) {
             assertTrue(verifyLines.contains(asset))
@@ -338,7 +344,7 @@ class NovaReleaseMetadataTest {
         ))
         assertConsecutive(verifyLines, listOf(
             "if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then",
-            "echo \"Release assets do not match the exact six-file contract on \${GITHUB_REF_NAME}\" >&2",
+            "echo \"Release assets do not match the exact eight-file contract on \${GITHUB_REF_NAME}\" >&2",
             "printf 'expected: %s\\n' \"\${expected_assets[*]}\" >&2",
             "printf 'published: %s\\n' \"\${published_assets[*]}\" >&2",
             "exit 1",

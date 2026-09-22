@@ -276,8 +276,8 @@ class NovaComposeBuildConfigurationTest {
             workflow.contains("Nova-Android-armeabi-v7a.apk")
         )
         assertTrue(
-            "tag release verification should require exact equality with three APKs and three checksum assets",
-            workflow.contains("Release assets do not match the exact six-file contract") &&
+            "tag release verification should require exact equality with three APKs, the Deck Alpha bundle and a checksum for each",
+            workflow.contains("Release assets do not match the exact eight-file contract") &&
                 workflow.contains("\${published_assets[*]}") &&
                 workflow.contains("\${expected_assets[*]}")
         )
