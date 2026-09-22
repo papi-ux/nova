@@ -113,7 +113,7 @@ class NovaWatchProfileTest {
         assertTrue(
             "a codec this device cannot decode is said in so many words, like HDR",
             adopt.contains("\"av1\" -> MoonBridge.VIDEO_FORMAT_MASK_AV1") &&
-                adopt.contains("if (codecMask != 0 && (streamConfig.getSupportedVideoFormats() and codecMask) == 0) {")
+                adopt.contains("if (codecMask != 0 && (deviceFormats and codecMask) == 0) {")
         )
         assertTrue(
             "an id is never put on screen as the owner's name",
