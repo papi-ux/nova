@@ -317,6 +317,12 @@ android {
 
     testOptions {
         unitTests.includeAndroidResources = true
+        unitTests.all {
+            // A forked test JVM takes Java's default heap, not the daemon's, and Robolectric's
+            // resource tables do not fit in it: the suite lost a different test to
+            // "OutOfMemoryError: Java heap space" on three CI runs in one day.
+            maxHeapSize = '2g'
+        }
     }
 }
 
