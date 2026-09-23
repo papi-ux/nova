@@ -26,6 +26,18 @@ Register Nova with Steam from Desktop Mode, with Steam closed:
 
 The shortcut runs `flatpak run com.papi_ux.Nova --standalone`; Steam shows it as "Nova" and Game Mode launches it like any other non-Steam game. Updating the Flatpak alone does not change an existing Steam shortcut. Re-register it with Steam closed to migrate an older `--live` shortcut while retaining its app ID, artwork and player customizations.
 
+For right-trackpad pointer movement in Game Mode, open Nova's page in Steam,
+select the controller icon, and set **Right Trackpad Behavior → As Mouse**.
+Steam's default **Gamepad With Joystick Trackpad** layout sends joystick input
+from that pad. Changing only this behavior keeps the other gamepad mappings.
+Leave the editor and reopen it to check that **As Mouse** was saved. If Steam
+reverts the setting, close Nova, restart Steam, and retry the change.
+
+In Nova, **Direct Pointer** follows the pointer within the streamed picture;
+close Command Center to send mouse input to the PC. **View + Menu** opens
+Command Center again. Steam Input controls the trackpad's output; installing or
+updating Nova does not replace a player's Steam Input layout.
+
 Local PC search uses the device's Avahi 0.8+ service to browse local
 `_nvstream._tcp` advertisements. It does not scan IP ranges or label advertised
 PCs trusted. Results only fill the address/HTTP port for Nova's existing Trusted
