@@ -282,7 +282,8 @@ val optimization:JSONObject?,
 val policyBlocked:Boolean,
 val profilePreference:String,
 val resolvedProfileTrusted:Boolean,
-val policyMessage:String = ""
+val policyMessage:String = "",
+val policyReason:com.papi.nova.manager.LaunchRefusalReason? = null
 )
 private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
@@ -1328,16 +1329,20 @@ return@runOnMainIfRuntimeActive
 }
 launchPolicyGatePending.set(false)
 val policyMessage = launchDecision.policyMessage.takeIf { it.isNotBlank() }
+val policyReason = launchDecision.policyReason
 LimeLog.severe(
 if (policyMessage != null) {
 "Nova: Refusing launch because Polaris rejected the requested profile: $policyMessage"
 } else {
-"Nova: Refusing launch because host identity or deterministic resolved-profile authority is unproven"
+"Nova: Refusing launch because of " +
+(policyReason?.name ?: "unproven deterministic launch authority")
 }
 )
 Toast.makeText(
 this@Game,
-policyMessage ?: getString(R.string.nova_launch_deterministic_host_required),
+policyMessage ?: getString(
+policyReason?.messageRes() ?: R.string.nova_launch_deterministic_host_required
+),
 Toast.LENGTH_LONG
 ).show()
 finish()
@@ -1387,8 +1392,9 @@ null
 }
 if (launchPolicyTokenInvalid)
 {
-LimeLog.severe("Nova: Refusing launch because host identity or deterministic resolved-profile authority is unproven")
-Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
+// The one-shot handoff token was stale or already spent, which says nothing about the host.
+LimeLog.severe("Nova: Refusing launch because the one-shot launch policy handoff was not valid")
+Toast.makeText(this, R.string.nova_launch_retry, Toast.LENGTH_LONG).show()
 finish()
 return
 }
@@ -2647,7 +2653,15 @@ catch (e:Exception)
 }
 }
 
-private fun resolvedOptimizationHonorsLaunchEnvelope(
+/**
+ * Which part of the launch envelope the host's resolved profile fell outside, or null for none.
+ *
+ * It answers with the term rather than a bare false because the refusal is shown to a person. One
+ * message covered all of these once, and it named the only cause it was not: a host that needed
+ * updating. The order is the order worth reading: the topology decides whether the stream is even
+ * the screen that was asked for.
+ */
+private fun launchEnvelopeViolation(
 optimization:JSONObject,
 requestedHdr:Boolean,
 clientMaximumFps:Float,
@@ -2663,15 +2677,17 @@ topologyLocked:Boolean,
 mirrorDesktopRequested:Boolean,
 forcePrivateRequested:Boolean,
 requestedEncoderBackend:String
-):Boolean {
-if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimization)) return false
+):com.papi.nova.manager.LaunchRefusalReason? {
+if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimization)) {
+return com.papi.nova.manager.LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC
+}
 if (optimization.opt("source") == com.papi.nova.manager.WorkerLaunchContract.SOURCE) {
-return com.papi.nova.manager.WorkerLaunchContract.honors(
+return if (com.papi.nova.manager.WorkerLaunchContract.honors(
 optimization, appUUID?.takeIf { it.isNotBlank() } ?: appId.toString(),
 requestedWidth, requestedHeight, requestedFps, clientMaximumFps, displayLocked,
 bitrateLocked, bitrateCeilingKbps, mirrorDesktopRequested, forcePrivateRequested,
 requestedEncoderBackend
-)
+)) null else com.papi.nova.manager.LaunchRefusalReason.SPACE_PROFILE
 }
 val topologyEnvelopeHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
 optimization = optimization,
@@ -2727,17 +2743,21 @@ com.papi.nova.manager.StreamSyncManager.resolvedFieldIsNormalized(
 optimization,
 "hdr"
 ) == true))
-return hdrWithinEnvelope &&
-topologyEnvelopeHonored &&
-com.papi.nova.manager.NovaEncoderLaunchContract.honors(
+return when {
+!topologyEnvelopeHonored -> com.papi.nova.manager.LaunchRefusalReason.TOPOLOGY
+!hdrWithinEnvelope -> com.papi.nova.manager.LaunchRefusalReason.HDR
+!com.papi.nova.manager.NovaEncoderLaunchContract.honors(
 optimization,
 requestedEncoderBackend
-) &&
-resolvedFps > 0f &&
-(clientMaximumFps <= 0f || resolvedFps <= clientMaximumFps + 0.5f) &&
-displayLockHonored &&
-fpsLockHonored &&
-bitrateLockHonored
+) -> com.papi.nova.manager.LaunchRefusalReason.ENCODER
+resolvedFps <= 0f -> com.papi.nova.manager.LaunchRefusalReason.DISPLAY_MODE
+clientMaximumFps > 0f && resolvedFps > clientMaximumFps + 0.5f ->
+com.papi.nova.manager.LaunchRefusalReason.DISPLAY_MODE
+!displayLockHonored -> com.papi.nova.manager.LaunchRefusalReason.DISPLAY_MODE
+!fpsLockHonored -> com.papi.nova.manager.LaunchRefusalReason.DISPLAY_MODE
+!bitrateLockHonored -> com.papi.nova.manager.LaunchRefusalReason.BITRATE
+else -> null
+}
 }
 
 private fun loadLaunchOptimization(
@@ -2757,12 +2777,14 @@ val safeAppIdentity:String = appUUID?.takeIf { it.isNotBlank() }
 ?: safeAppName
 val preference:String = requestedProfilePreference.takeIf { it.isNotBlank() }
 ?: com.papi.nova.ui.AutoQualityProfilePreferences.load(this, safeAppIdentity, safeAppName)
-fun blocked(message:String = ""):LaunchOptimizationDecision = LaunchOptimizationDecision(
+fun blocked(reason:com.papi.nova.manager.LaunchRefusalReason,
+message:String = ""):LaunchOptimizationDecision = LaunchOptimizationDecision(
 optimization = null,
 policyBlocked = true,
 profilePreference = preference,
 resolvedProfileTrusted = false,
-policyMessage = message
+policyMessage = message,
+policyReason = reason
 )
 val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(
 width = requestedWidth,
@@ -2799,7 +2821,7 @@ exactTopologyLocked,
 mirrorDesktop,
 forcePrivateAfterSteamClose
 )
-if (resolvedOptimizationHonorsLaunchEnvelope(
+if (launchEnvelopeViolation(
 preflight,
 requestedHdr,
 clientMaximumFps,
@@ -2815,7 +2837,7 @@ exactTopologyLocked,
 mirrorDesktop,
 forcePrivateAfterSteamClose,
 encoderBackend
-) && !containsNovaLaunchOverride)
+) == null && !containsNovaLaunchOverride)
 {
 // Play Setup already resolved the exact per-launch locks. Its HDR value is
 // accepted only after it matches Nova's actual display/decoder capability.
@@ -2844,17 +2866,17 @@ LimeLog.info(if (!preflightTopologyHonored) {
 }
 else
 {
-return blocked()
+return blocked(com.papi.nova.manager.LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC)
 }
 }
 catch (e:Exception) {
 LimeLog.warning("Nova: Rejecting malformed preflight optimization payload")
-return blocked()
+return blocked(com.papi.nova.manager.LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC)
 }
 }
 if (novaApiClient == null)
 {
-return blocked()
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
 }
 
 val hostKind = try
@@ -2864,7 +2886,7 @@ novaApiClient!!.identifyLaunchHost()
 catch (e:Exception)
 {
 LimeLog.severe("Nova: Launch identity failed closed: " + e.message)
-return blocked()
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
 }
 if (hostKind == com.papi.nova.api.PolarisLaunchHostKind.NON_POLARIS)
 {
@@ -2874,7 +2896,7 @@ return LaunchOptimizationDecision(null, false, preference, false)
 if (hostKind != com.papi.nova.api.PolarisLaunchHostKind.CURRENT_POLARIS)
 {
 LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch authority")
-return blocked()
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_TOO_OLD)
 }
 val resolverRequest = preflightSelection.resolverRequest ?: callerRequest
 val optimizationResult = try {
@@ -2897,11 +2919,11 @@ encoderBackend = encoderBackend)
 }
 catch (e:com.papi.nova.api.PolarisApiRejectedException)
 {
-return blocked(e.rejection.error)
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_REFUSED, e.rejection.error)
 }
 if (optimizationResult == null)
 {
-return blocked()
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
 }
 else
 {
@@ -2909,10 +2931,10 @@ LimeLog.info(("Nova: Launch optimization loaded source=" + optimizationResult.op
 " mode=" + optimizationResult.optString("display_mode", "")))
 if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimizationResult))
 {
-return blocked()
+return blocked(com.papi.nova.manager.LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC)
 }
 val currentClientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
-if (!resolvedOptimizationHonorsLaunchEnvelope(
+val envelopeViolation = launchEnvelopeViolation(
 optimizationResult,
 requestedHdr,
 currentClientMaximumFps,
@@ -2928,10 +2950,11 @@ exactTopologyLocked,
 mirrorDesktop,
 forcePrivateAfterSteamClose,
 encoderBackend
-))
+)
+if (envelopeViolation != null)
 {
-LimeLog.severe("Nova: Rejecting resolved profile outside the current HDR, FPS, bitrate-lock, or encoder envelope")
-return blocked()
+LimeLog.severe("Nova: Rejecting resolved profile outside the launch envelope: " + envelopeViolation.name)
+return blocked(envelopeViolation)
 }
 }
 return LaunchOptimizationDecision(optimizationResult, false, preference, true)

@@ -42,8 +42,8 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("LaunchOptimizationPreflightPolicy.select(") &&
                 game.contains("preflightSelection.trustedPreflight ?: novaApiClient!!.getOptimization(") &&
                 game.contains("catch (e:com.papi.nova.api.PolarisApiRejectedException)") &&
-                game.contains("return blocked(e.rejection.error)") &&
-                game.contains("policyMessage ?: getString(R.string.nova_launch_deterministic_host_required)") &&
+                game.contains("LaunchRefusalReason.HOST_REFUSED, e.rejection.error)") &&
+                game.contains("policyReason?.messageRes() ?: R.string.nova_launch_deterministic_host_required") &&
                 game.contains("Rejecting malformed preflight optimization payload") &&
                 game.contains("mode = requestedLaunchTopology()") &&
                 game.contains("topologyLocked = exactTopologyLocked") &&
@@ -126,16 +126,18 @@ class GameClientRuntimeSourceGuardTest {
             game.contains("requestedProfilePreference:String") &&
                 game.contains("val containsNovaLaunchOverride =") &&
                 game.contains("NovaLaunchStreamOverride.NORMALIZATION_REASON") &&
-                game.contains(") && !containsNovaLaunchOverride)") &&
+                game.contains(") == null && !containsNovaLaunchOverride)") &&
                 game.contains("displayLocked = displayLocked") &&
                 !game.contains("queryDisplayLocked = containsNovaLaunchOverride") &&
                 game.contains("return LaunchOptimizationDecision(optimizationResult, false, preference, true)")
         )
         assertTrue(
-            "fresh and preflight resolved profiles must pass the same HDR, client-FPS, and metered-lock envelope",
-            game.contains("private fun resolvedOptimizationHonorsLaunchEnvelope(") &&
-                game.countOccurrences("resolvedOptimizationHonorsLaunchEnvelope(") >= 3 &&
-                game.contains("resolvedFps <= clientMaximumFps + 0.5f") &&
+            "fresh and preflight resolved profiles must pass the same HDR, client-FPS, and metered-lock envelope, and every refusal must name the cause it is shown for",
+            game.contains("private fun launchEnvelopeViolation(") &&
+                game.countOccurrences("launchEnvelopeViolation(") >= 3 &&
+                !game.contains("return blocked()") &&
+                game.contains("return blocked(envelopeViolation)") &&
+                game.contains("clientMaximumFps > 0f && resolvedFps > clientMaximumFps + 0.5f") &&
                 game.contains("resolvedBitrate in 1..bitrateCeilingKbps") &&
                 game.contains("val displayLockHonored = !displayLocked") &&
                 game.contains("val fpsLockHonored = !(displayLocked || fpsLocked)")

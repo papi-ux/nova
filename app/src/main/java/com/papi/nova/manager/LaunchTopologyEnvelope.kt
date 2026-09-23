@@ -22,6 +22,23 @@ internal object LaunchTopologyEnvelope {
     )
 
     /**
+     * The one substitution a locked topology accepts, as reason code to the source allowed to give it.
+     *
+     * A lock stops the host handing back a topology nobody asked for. It must not stop an app whose
+     * own semantics are the desktop: Desktop resolves any request into desktop_display, so every
+     * client that had set an explicit display mode locked its topology and was refused here, before
+     * the host was ever asked to launch anything. Polaris is built for the losing request. Its launch
+     * resolver defers that mode's availability and still refuses the launch if the app turns out not
+     * to override it, so the exception costs the lock nothing it was protecting.
+     *
+     * Both halves have to agree. A reason on its own, or a source on its own, does not open it.
+     */
+    private val lockedDesktopMirrorNormalizations = mapOf(
+        "app_desktop_mirror_semantics" to "app_configuration",
+        "explicit_mirror_desktop" to "client_launch_request",
+    )
+
+    /**
      * Canonical topology assertion from a trusted deterministic response.
      * This value never selects host policy; it is echoed on /launch so Polaris
      * can reject the request if its final resolver no longer agrees.
@@ -64,8 +81,11 @@ internal object LaunchTopologyEnvelope {
         val appMatches = expectedApp.isNotEmpty() &&
             (contractAppUuid.equals(expectedApp, ignoreCase = true) ||
                 contractAppId.equals(expectedApp, ignoreCase = true))
+        val desktopMirrorNormalization = normalizedResolved == "desktop_display" &&
+            lockedDesktopMirrorNormalizations[contractReason] == contractSource
         val lockedResolutionMatches = !topologyLocked || expectedRequest == "host_default" ||
-            resolvedTopology.equals(expectedRequest, ignoreCase = true)
+            resolvedTopology.equals(expectedRequest, ignoreCase = true) ||
+            desktopMirrorNormalization
         val expectedNormalized = expectedRequest != "host_default" &&
             !resolvedTopology.equals(expectedRequest, ignoreCase = true)
 

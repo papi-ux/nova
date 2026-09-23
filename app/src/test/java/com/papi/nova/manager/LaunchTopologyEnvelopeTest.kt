@@ -130,20 +130,120 @@ class LaunchTopologyEnvelopeTest {
         )
     }
 
+    @Test
+    fun aLockedTopologyAcceptsAnAppWhoseSemanticsAreTheDesktop() {
+        // Desktop resolves whatever was asked into desktop_display and names the reason. Every client
+        // that sets an explicit display mode locks its topology, and a locked request used to demand
+        // an exact match, so no such client could open Desktop at all: it was refused here, before the
+        // host was ever asked to launch it. Polaris expects the losing request. Its launch resolver
+        // defers that mode's availability and still refuses the launch if the app does not override it.
+        val desktop = optimization(
+            requested = "host_virtual_display",
+            resolved = "desktop_display",
+            locked = true,
+            source = "app_configuration",
+            reason = "app_desktop_mirror_semantics",
+        )
+
+        assertTrue(
+            LaunchTopologyEnvelope.matches(
+                desktop, "game-a", "host_virtual_display", true, false, false
+            )
+        )
+        // The resolved topology is what Nova then asserts on /launch, so the host can disagree once more.
+        assertEquals("desktop_display", LaunchTopologyEnvelope.resolvedSelection(desktop))
+
+        // The same exception covers a client that asked for the mirror itself.
+        assertTrue(
+            LaunchTopologyEnvelope.matches(
+                optimization(
+                    requested = "host_virtual_display",
+                    resolved = "desktop_display",
+                    locked = true,
+                    mirror = true,
+                    source = "client_launch_request",
+                    reason = "explicit_mirror_desktop",
+                ),
+                "game-a",
+                "host_virtual_display",
+                true,
+                true,
+                false,
+            )
+        )
+    }
+
+    @Test
+    fun aLockedTopologyStillRefusesEverySubstitutionThatIsNotTheDesktopMirror() {
+        // The lock is what stops a host quietly handing back an unrelated topology. Only the desktop
+        // mirror is excused, and only when the host names it: the reason and the source have to agree,
+        // so neither one alone opens the exception.
+        assertFalse(
+            LaunchTopologyEnvelope.matches(
+                optimization(
+                    "host_virtual_display",
+                    "gamescope_stream",
+                    true,
+                    source = "app_configuration",
+                    reason = "app_desktop_mirror_semantics",
+                ),
+                "game-a",
+                "host_virtual_display",
+                true,
+                false,
+                false,
+            )
+        )
+        assertFalse(
+            LaunchTopologyEnvelope.matches(
+                optimization(
+                    "host_virtual_display",
+                    "desktop_display",
+                    true,
+                    source = "host_configuration",
+                    reason = "app_desktop_mirror_semantics",
+                ),
+                "game-a",
+                "host_virtual_display",
+                true,
+                false,
+                false,
+            )
+        )
+        assertFalse(
+            LaunchTopologyEnvelope.matches(
+                optimization(
+                    "host_virtual_display",
+                    "desktop_display",
+                    true,
+                    source = "app_configuration",
+                    reason = "host_default_topology",
+                ),
+                "game-a",
+                "host_virtual_display",
+                true,
+                false,
+                false,
+            )
+        )
+    }
+
     private fun optimization(
         requested: String,
         resolved: String,
         locked: Boolean,
         mirror: Boolean = false,
         forcePrivate: Boolean = false,
+        source: String = "client_launch_request",
+        reason: String = "test_topology_resolution",
     ): JSONObject = JSONObject().put(
         "topology_resolution",
         JSONObject()
             .put("requested", requested)
             .put("resolved", resolved)
             .put("locked", locked)
-            .put("source", "client_launch_request")
-            .put("reason_code", "test_topology_resolution")
+            .put("source", source)
+            .put("reason_code", reason)
             .put(
                 "normalized",
                 requested != "host_default" && !resolved.equals(requested, ignoreCase = true),

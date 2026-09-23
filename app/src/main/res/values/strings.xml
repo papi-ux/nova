@@ -1154,6 +1154,13 @@
     <string name="nova_pairing_auto_fallback_pin">Automatic pairing failed — switching to PIN</string>
     <string name="nova_pairing_auto_unsupported">This host doesn\'t support automatic pairing — update Polaris or pair with OTP/PIN</string>
     <string name="nova_launch_deterministic_host_required">Update Polaris before launching. This Nova version requires deterministic launch profiles and will not use legacy recovery or AI launch settings.</string>
+    <string name="nova_launch_host_unreachable">Nova could not reach Polaris to set this launch up. Check that the host is awake and on the network, then try again.</string>
+    <string name="nova_launch_retry">Nova could not finish setting this launch up. Go back to the library and try again.</string>
+    <string name="nova_launch_envelope_topology">Polaris resolved a display topology this launch did not ask for. Change the display mode in Play Setup, then try again.</string>
+    <string name="nova_launch_envelope_hdr">Polaris could not stream this launch in HDR. Turn HDR off in Play Setup, then try again.</string>
+    <string name="nova_launch_envelope_encoder">Polaris could not use the encoder this launch asked for. Pick another encoder in Play Setup, then try again.</string>
+    <string name="nova_launch_envelope_display">Polaris resolved a resolution or frame rate outside what this launch locked. Change the mode in Play Setup, then try again.</string>
+    <string name="nova_launch_envelope_bitrate">Polaris resolved a bitrate outside what this launch allows. Change the bitrate in Play Setup, then try again.</string>
     <string name="nova_quick_menu_safe">Safe</string>
     <string name="nova_quick_menu_mouse">Mouse</string>
     <string name="nova_quick_menu_controller">Touch Controls</string>
