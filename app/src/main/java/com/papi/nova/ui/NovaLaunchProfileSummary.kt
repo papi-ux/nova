@@ -47,6 +47,15 @@ data class NovaLaunchProfileSummary(
      * the hold anyway.
      */
     val grantHoldReason: String = "",
+    /**
+     * The topology the host resolved, when that is not the one this client asked for.
+     *
+     * Desktop is the case it exists for: its own semantics are the desktop, so Polaris resolves a
+     * Host Virtual Display request into Mirror Desktop and says so. The page used to show the
+     * request, so it promised a new screen and then took over the one that was there.
+     * Blank when the host resolved exactly what was asked, which is every ordinary launch.
+     */
+    val resolvedTopologyLabel: String = "",
     /** Resolved preset name and plain-language origin shown by Play Setup. */
     val profileLabel: String = "",
     val profileDescription: String = ""
@@ -290,6 +299,19 @@ private fun buildDeterministicLaunchPresetSummary(
     val selectedParts = resolvedFields.parts
     val hdrNotRequested = resolvedFields.hdrNotRequested
 
+    // Only when the host changed it. Repeating the request back would be noise, and a host that
+    // resolved exactly what was asked has nothing to add.
+    val topology = optimization.optJSONObject("topology_resolution")
+    val requestedTopology = topology?.optString("requested").orEmpty()
+    val resolvedTopology = topology?.optString("resolved").orEmpty()
+    val resolvedTopologyLabel = if (
+        resolvedTopology.isNotBlank() && !resolvedTopology.equals(requestedTopology, ignoreCase = true)
+    ) {
+        com.papi.nova.api.PolarisClientSettings.labelForMode(resolvedTopology)
+    } else {
+        ""
+    }
+
     val asked = if (clientAskedFps > 0.0) " · ${formatFps(clientAskedFps)} FPS" else ""
     val profileDescription =
         "Polaris resolved this from the launch request, paired-device settings, and current host capabilities."
@@ -316,6 +338,7 @@ private fun buildDeterministicLaunchPresetSummary(
         showRetryHighFps = false,
         retryHighFpsLabel = "",
         grantHoldReason = "",
+        resolvedTopologyLabel = resolvedTopologyLabel,
         profileLabel = presetLabel,
         profileDescription = profileDescription
     )
