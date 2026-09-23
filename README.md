@@ -35,7 +35,7 @@ too.
 > handhelds, phones, and Android TV are the supported client boundary; Nova is
 > not a Windows, macOS, or iOS client.
 
-![Nova Polaris Aurora Library with Control selected in a grid of cover art, beside the Desktop entry and the launcher tiles](docs/screenshots/nova-library-aurora-v1.4.12.webp)
+![Nova Polaris Aurora Library on a Retroid Pocket 6, Big Walk in focus, the chip naming where it opens](docs/screenshots/nova-library-aurora-v1.4.12.webp)
 
 ## Built for the whole player loop
 
