@@ -35,7 +35,7 @@ too.
 > handhelds, phones, and Android TV are the supported client boundary; Nova is
 > not a Windows, macOS, or iOS client.
 
-![Nova Polaris Aurora Library with Control selected in a grid of cover art, beside the Desktop entry and the Steam and Lutris tiles the host offers](docs/screenshots/nova-library-aurora-v1.4.12.webp)
+![Nova Polaris Aurora Library with Control selected in a grid of cover art, beside the Desktop entry and the launcher tiles](docs/screenshots/nova-library-aurora-v1.4.12.webp)
 
 ## Built for the whole player loop
 
@@ -102,7 +102,7 @@ may fall back, a host-only mode links back to Polaris instead of posing as a
 per-game choice, and a session-scoped choice does not silently rewrite the host
 default.
 
-![Nova Polaris Aurora Play Setup for Big Walk, naming the display Polaris will make for the session, the resolution matched to this handheld, the frame rate, and the encoder policy it follows](docs/screenshots/nova-play-setup-bigwalk-aurora-v1.4.12.webp)
+![Nova Polaris Aurora Play Setup for Big Walk, naming the display Polaris makes for the session, the resolution, the frame rate, and the encoder policy](docs/screenshots/nova-play-setup-bigwalk-aurora-v1.4.12.webp)
 
 ### <img src="docs/screenshots/pulse-ready.svg" width="14" height="14" alt=""> Control
 
@@ -140,8 +140,6 @@ the standard path when it is not present.
 [![Latest APK](https://img.shields.io/badge/Latest-ARM64_APK-c8d6e5?style=for-the-badge&logo=android&labelColor=1f1d31)](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk)
 
 </div>
-
-![Nova Polaris Aurora Hosts with two paired PCs, each card showing its state lamp, what it runs, and whether it offers Spaces](docs/screenshots/nova-hosts-aurora-v1.4.12.webp)
 
 1. Install the public APK that matches the Android device.
 2. Open **Servers**, discover or add the host, and pair.
