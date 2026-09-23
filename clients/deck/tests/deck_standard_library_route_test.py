@@ -110,8 +110,13 @@ def main():
                 identity_path.chmod(0o600)
                 original_identity = identity_path.read_bytes()
                 capture = root / "standard-host-library.png"
+                # The desktop window controller now fits the available screen.
+                # Give this 1280x800 capture fixture an explicit matching screen.
+                screen = root / "offscreen.json"
+                screen.write_text(json.dumps({"windowFrameMargins": False, "screens": [
+                    {"name": "Fixture", "width": 1280, "height": 800, "dpr": 1.0}]}))
                 env = dict(os.environ, NOVA_DECK_IDENTITY_DIR=str(root),
-                           XDG_CONFIG_HOME=str(root/"config"), QT_QPA_PLATFORM="offscreen", QT_QUICK_BACKEND="software",
+                           XDG_CONFIG_HOME=str(root/"config"), QT_QPA_PLATFORM=f"offscreen:configfile={screen}", QT_QUICK_BACKEND="software",
                            QT_SCALE_FACTOR="1", QT_SCREEN_SCALE_FACTORS="1", QT_FORCE_STDERR_LOGGING="1",
                            NOVA_DECK_GAMEPAD_DEVICE="/dev/null")
                 result = subprocess.run([

@@ -11,6 +11,8 @@ with tempfile.TemporaryDirectory(prefix="nova-standalone-test-") as temporary:
     moonlight = root / "Moonlight.conf"
     moonlight.write_text("[General]\ncertificate=unused\nkey=unused\n", encoding="utf-8")
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", QT_QUICK_BACKEND="software",
+               XDG_CONFIG_HOME=str(root / "config"), XDG_DATA_HOME=str(root / "data"),
+               NOVA_DECK_GAMEPAD_DEVICE="/dev/null",
                QT_FORCE_STDERR_LOGGING="1", NOVA_DECK_IDENTITY_DIR=str(root / "nova"),
                NOVA_DECK_MOONLIGHT_CONF=str(moonlight))
     for args, code in [(["--standalone", "--print-live-state"], 2),
