@@ -17,6 +17,13 @@ def targetAbis = (project.findProperty("novaAbis") ?: "arm64-v8a,armeabi-v7a,x86
         .findAll { !it.isEmpty() }
 def fdroidBuild = project.findProperty("novaFdroid")?.toString()?.toBoolean() ?: false
 
+// A beta's version name carries the channel from its git tag, so a tester's report says
+// 1.4.13-beta.1 rather than an ambiguous "pre". Only the preRelease build type reads this.
+def novaVersionSuffix = providers.gradleProperty("novaVersionSuffix").getOrElse("-pre")
+if (!(novaVersionSuffix ==~ /^-(pre|beta\.[0-9]+|rc\.[0-9]+)$/)) {
+    throw new GradleException("novaVersionSuffix must be -pre, -beta.N or -rc.N")
+}
+
 // Optional observer for audio socket timing; ordinary builds keep the original source.
 def audioReceiveDiagnosticsValue = providers.gradleProperty("novaAudioReceiveDiagnostics").getOrElse("false")
 if (!(audioReceiveDiagnosticsValue in ["true", "false"])) {
@@ -260,7 +267,7 @@ android {
         preRelease {
             initWith release
             applicationIdSuffix ".pre"
-            versionNameSuffix "-pre"
+            versionNameSuffix novaVersionSuffix
             resValue "string", "app_label", "Nova Pre"
             resValue "string", "app_label_root", "Nova Pre (Root)"
             resValue "string", "app_label_game", "Nova Pre (Game)"

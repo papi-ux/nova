@@ -125,7 +125,9 @@ class NovaReleaseMetadataTest {
             .filter { it.isNotEmpty() && !it.startsWith("#") }
             .toList()
 
-        assertTrue(releaseScript.contains("version=\"\${1:-\$declared_version}\""))
+        assertTrue(releaseScript.contains("requested=\"\${1:-\$declared_version}\""))
+        assertTrue(releaseScript.contains("version=\"\${requested%%-*}\""))
+        assertTrue(releaseScript.contains("channel_suffix=\"\${requested#\"\$version\"}\""))
         assertConsecutive(lines, listOf(
             "if [[ \"\$version\" != \"\$declared_version\" ]]; then",
             "echo \"Requested release version \${version} does not match app version \${declared_version}.\" >&2",
@@ -148,7 +150,8 @@ class NovaReleaseMetadataTest {
         assertTrue(lines.count { it == "require_exact_master_head" } == 2)
         assertOrdered(lines, listOf(
             "require_exact_master_head",
-            "./gradlew -PnovaAbis=arm64-v8a,armeabi-v7a,x86_64 assembleNonRoot_gameRelease",
+            "./gradlew -PnovaAbis=arm64-v8a,armeabi-v7a,x86_64 \"\${gradle_channel_flags[@]}\" " +
+                "\"assembleNonRoot_game\${build_type}\"",
             "require_exact_master_head",
             "git tag -a \"\$tag\" -m \"Nova \${tag}\"",
             "if ! git push --atomic origin \\",
@@ -165,6 +168,83 @@ class NovaReleaseMetadataTest {
         assertTrue(lines.none {
             it == "git push origin master" || it == "git push origin \"\$tag\""
         })
+    }
+
+    @Test
+    fun aBetaTagBuildsTheSideBySideVariantAndPublishesAsAPrerelease() {
+        val root = repoRoot()
+        val workflow = File(root, ".github/workflows/build.yml").readText()
+        val buildJob = workflowJob(workflow, "build")
+
+        // The channel is resolved before anything is built, because the build type is part of it.
+        val resolvePosition = buildJob.indexOf("      - name: Resolve release channel\n")
+        val buildPosition = buildJob.indexOf("      - name: Build release APK\n")
+        assertTrue("Missing the release channel resolution step", resolvePosition >= 0)
+        assertTrue(
+            "The channel must be resolved before the APK is built",
+            buildPosition > resolvePosition,
+        )
+
+        val resolveLines = workflowRunLines(workflowStep(buildJob, "Resolve release channel"))
+        assertNoHeredoc(resolveLines, "Release channel resolution")
+        assertOrdered(resolveLines, listOf(
+            "channel=stable",
+            "build_type=Release",
+            "variant=release",
+            "if [[ \"\${GITHUB_REF}\" == refs/tags/* ]]; then",
+            "if [[ ! \"\${GITHUB_REF_NAME}\" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+(-(beta|rc)\\.[0-9]+)?\$ ]]; then",
+            "if [[ \"\${GITHUB_REF_NAME}\" == *-* ]]; then",
+            "channel=prerelease",
+            "build_type=PreRelease",
+            "variant=preRelease",
+        ))
+        for (export in listOf(
+            "echo \"NOVA_VERSION_SUFFIX=-\${GITHUB_REF_NAME#*-}\" >> \"\$GITHUB_ENV\"",
+            "echo \"NOVA_RELEASE_CHANNEL=\${channel}\" >> \"\$GITHUB_ENV\"",
+            "echo \"NOVA_BUILD_TYPE=\${build_type}\" >> \"\$GITHUB_ENV\"",
+            "echo \"NOVA_APK_VARIANT=\${variant}\" >> \"\$GITHUB_ENV\"",
+        )) {
+            assertTrue("Release channel must export $export", resolveLines.contains(export))
+        }
+
+        // preRelease carries its own applicationId, which is the whole point: a beta installs beside
+        // a stable Nova, so it can never block a stable update through its versionCode.
+        val buildGradle = File(root, "app/build.gradle").readText()
+        assertTrue(buildGradle.contains("applicationIdSuffix \".pre\""))
+        assertTrue(buildGradle.contains("versionNameSuffix novaVersionSuffix"))
+        assertTrue(buildGradle.contains(
+            "providers.gradleProperty(\"novaVersionSuffix\").getOrElse(\"-pre\")"
+        ))
+
+        // Nothing downstream may name the stable variant, or a beta tag would ship stable APKs.
+        val buildLines = workflowRunLines(workflowStep(buildJob, "Build release APK"))
+        assertTrue(buildLines.contains(
+            "./gradlew --no-build-cache \"\${gradle_flags[@]}\" \"assembleNonRoot_game\${NOVA_BUILD_TYPE}\""
+        ))
+        val signLines = workflowRunLines(workflowStep(buildJob, "Sign APKs"))
+        val selectLines = workflowRunLines(workflowStep(buildJob, "Select APK artifacts"))
+        for (lines in listOf(signLines, selectLines)) {
+            assertTrue(lines.contains(
+                "APK_DIR=\"app/build/outputs/apk/nonRoot_game/\${NOVA_APK_VARIANT}\""
+            ))
+            assertTrue(
+                "The release APK directory must come from the resolved variant",
+                lines.none { it.contains("apk/nonRoot_game/release") },
+            )
+        }
+        assertTrue(signLines.contains(
+            "unsigned_apks=(\"\${APK_DIR}\"/*\"\${NOVA_APK_VARIANT}\"-unsigned.apk)"
+        ))
+        assertTrue(selectLines.contains(
+            "signed_apks=(\"\${APK_DIR}\"/*-\"\${NOVA_APK_VARIANT}\".apk)"
+        ))
+        assertTrue(selectLines.contains(
+            "apk_files=(\"\${APK_DIR}\"/*\"\${NOVA_APK_VARIANT}\"-unsigned.apk)"
+        ))
+
+        // An asset name carries the ABI, never the channel, so every published stable link keeps
+        // resolving and Obtainium needs no second configuration.
+        assertTrue(selectLines.contains("asset_name=\"Nova-Android-\${abi}.apk\""))
     }
 
     @Test
@@ -201,15 +281,16 @@ class NovaReleaseMetadataTest {
             it == "          EXPECTED_SOURCE_COMMIT: \${{ needs.verify.outputs.source_commit }}"
         })
         assertOrdered(tagGuardLines, listOf(
-            "if [[ ! \"\${GITHUB_REF_NAME}\" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+\$ ]]; then",
+            "if [[ ! \"\${GITHUB_REF_NAME}\" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+(-(beta|rc)\\.[0-9]+)?\$ ]]; then",
             "checked_out_commit=\"\$(git rev-parse HEAD)\"",
             "git fetch --no-tags --force origin \\",
             "tag_commit=\"\$(git rev-parse \"refs/tags/\${GITHUB_REF_NAME}^{commit}\")\"",
             "if [ \"\$tag_commit\" != \"\$EXPECTED_SOURCE_COMMIT\" ]; then",
         ))
         assertConsecutive(tagGuardLines, listOf(
-            "if [[ ! \"\${GITHUB_REF_NAME}\" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+\$ ]]; then",
-            "echo \"Release tag must match vMAJOR.MINOR.PATCH: \${GITHUB_REF_NAME}\" >&2",
+            "if [[ ! \"\${GITHUB_REF_NAME}\" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+(-(beta|rc)\\.[0-9]+)?\$ ]]; then",
+            "echo \"Release tag must match vMAJOR.MINOR.PATCH with an optional -beta.N or -rc.N: " +
+                "\${GITHUB_REF_NAME}\" >&2",
             "exit 1",
             "fi",
         ))
@@ -247,6 +328,10 @@ class NovaReleaseMetadataTest {
             "if [ \"\$published_notes\" != \"\$expected_notes\" ]; then",
         ))
         assertTrue(stageLines.count { it == "--verify-tag \\" } == 2)
+        // A rerun that finds the release already staged takes the edit path. A beta that lost its
+        // channel there would publish as a stable release.
+        assertTrue(stageLines.contains("channel=(--prerelease)"))
+        assertTrue(stageLines.count { it == "\"\${channel[@]}\" \\" } == 2)
         assertTrue(stageLines.count {
             it == "echo \"publish_draft=true\" >> \"\$GITHUB_OUTPUT\""
         } == 2)
@@ -363,7 +448,12 @@ class NovaReleaseMetadataTest {
                 "steps.stage-release.outputs.publish_draft == 'true'"
         })
         assertTrue(workflowRunLines(publish) == listOf(
-            "gh release edit \"\${GITHUB_REF_NAME}\" --verify-tag --draft=false"
+            "set -euo pipefail",
+            "if [ \"\${NOVA_RELEASE_CHANNEL}\" = prerelease ]; then",
+            "gh release edit \"\${GITHUB_REF_NAME}\" --verify-tag --draft=false --prerelease --latest=false",
+            "else",
+            "gh release edit \"\${GITHUB_REF_NAME}\" --verify-tag --draft=false",
+            "fi",
         ))
     }
 }

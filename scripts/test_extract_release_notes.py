@@ -30,6 +30,18 @@ class ExtractReleaseNotesTest(unittest.TestCase):
             "Curated summary.\n\n- Exact release fact.\n",
         )
 
+    def test_a_beta_reuses_the_notes_of_the_release_it_precedes(self) -> None:
+        for tag in ("v1.3.7-beta.1", "v1.3.7-beta.12", "v1.3.7-rc.1"):
+            self.assertEqual(
+                extract_release_notes(CHANGELOG, tag),
+                "Curated summary.\n\n- Exact release fact.\n",
+            )
+
+    def test_rejects_a_malformed_channel_suffix(self) -> None:
+        for tag in ("v1.3.7-beta", "v1.3.7-alpha.1", "v1.3.7-beta.1.2", "v1.3.7beta.1"):
+            with self.assertRaisesRegex(ValueError, "vMAJOR.MINOR.PATCH"):
+                extract_release_notes(CHANGELOG, tag)
+
     def test_rejects_missing_and_malformed_tags(self) -> None:
         with self.assertRaisesRegex(ValueError, "found 0"):
             extract_release_notes(CHANGELOG, "v1.3.8")

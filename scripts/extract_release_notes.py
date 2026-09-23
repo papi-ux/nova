@@ -8,7 +8,10 @@ import sys
 from pathlib import Path
 
 
-VERSION_TAG = re.compile(r"^v(?P<version>[0-9]+(?:\.[0-9]+){2})$")
+# A beta reuses the notes of the release it precedes, so the channel suffix is read and dropped.
+VERSION_TAG = re.compile(
+    r"^v(?P<version>[0-9]+(?:\.[0-9]+){2})(?:-(?:beta|rc)\.[0-9]+)?$"
+)
 RELEASE_HEADING = re.compile(
     r"^## (?P<version>[0-9]+(?:\.[0-9]+){2}) - (?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})$",
     re.MULTILINE,
@@ -18,7 +21,10 @@ RELEASE_HEADING = re.compile(
 def extract_release_notes(changelog: str, tag: str) -> str:
     tag_match = VERSION_TAG.fullmatch(tag)
     if not tag_match:
-        raise ValueError(f"release tag must be vMAJOR.MINOR.PATCH, got: {tag}")
+        raise ValueError(
+            "release tag must be vMAJOR.MINOR.PATCH with an optional "
+            f"-beta.N or -rc.N, got: {tag}"
+        )
 
     version = tag_match.group("version")
     matches = [
@@ -43,7 +49,7 @@ def extract_release_notes(changelog: str, tag: str) -> str:
 def main(argv: list[str]) -> int:
     if len(argv) not in (2, 3):
         print(
-            "usage: extract_release_notes.py vMAJOR.MINOR.PATCH [CHANGELOG.md]",
+            "usage: extract_release_notes.py vMAJOR.MINOR.PATCH[-beta.N] [CHANGELOG.md]",
             file=sys.stderr,
         )
         return 2

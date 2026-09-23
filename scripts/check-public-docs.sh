@@ -84,7 +84,9 @@ grep -Fq "$expected_latest_arm64_url" README.md
 grep -Fq "$expected_latest_armv7_url" README.md
 grep -Fq "$expected_latest_x86_url" README.md
 grep -Fq "arm64-v8a,armeabi-v7a,x86_64" app/build.gradle
-grep -Fq "unsigned_apks=(\"\${APK_DIR}\"/*release-unsigned.apk)" .github/workflows/build.yml
+grep -Fq "unsigned_apks=(\"\${APK_DIR}\"/*\"\${NOVA_APK_VARIANT}\"-unsigned.apk)" .github/workflows/build.yml
+grep -Fq 'channel=(--prerelease)' .github/workflows/build.yml
+grep -Fq -- '--draft=false --prerelease --latest=false' .github/workflows/build.yml
 grep -Fq 'gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber' .github/workflows/build.yml
 grep -Fq 'python3 scripts/extract_release_notes.py "${GITHUB_REF_NAME}" > "$release_notes"' .github/workflows/build.yml
 grep -Fq -- '--notes-file "$release_notes"' .github/workflows/build.yml

@@ -5,13 +5,29 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
 declared_version="$(grep 'versionName' app/build.gradle | head -1 | sed 's/.*"\(.*\)"/\1/')"
-version="${1:-$declared_version}"
+requested="${1:-$declared_version}"
+version="${requested%%-*}"
+channel_suffix="${requested#"$version"}"
 if [[ "$version" != "$declared_version" ]]; then
   echo "Requested release version ${version} does not match app version ${declared_version}." >&2
   exit 1
 fi
+if [[ -n "$channel_suffix" && ! "$channel_suffix" =~ ^-(beta|rc)\.[0-9]+$ ]]; then
+  echo "Release channel suffix must be -beta.N or -rc.N; got '${channel_suffix}'." >&2
+  exit 1
+fi
 
-tag="v${version}"
+# A beta is built as preRelease, which installs beside a stable Nova rather than over it. The
+# validation build below is the same variant CI will build from the tag.
+if [[ -n "$channel_suffix" ]]; then
+  build_type=PreRelease
+  gradle_channel_flags=("-PnovaVersionSuffix=${channel_suffix}")
+else
+  build_type=Release
+  gradle_channel_flags=()
+fi
+
+tag="v${requested}"
 
 require_exact_master_head() {
   local current_branch local_head remote_master
@@ -50,7 +66,7 @@ require_exact_master_head
 
 bash scripts/check-public-docs.sh
 bash scripts/check-public-surface.sh
-./gradlew -PnovaAbis=arm64-v8a,armeabi-v7a,x86_64 assembleNonRoot_gameRelease
+./gradlew -PnovaAbis=arm64-v8a,armeabi-v7a,x86_64 "${gradle_channel_flags[@]}" "assembleNonRoot_game${build_type}"
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "Release validation changed the working tree; refusing to tag." >&2

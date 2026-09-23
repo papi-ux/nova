@@ -225,8 +225,45 @@ jobs:
       - name: Install NDK
         run: sdkmanager "ndk;27.0.12077973"
 
+      # A beta is the same release, told early. The git tag carries the channel, so every version
+      # pin stays at the plain version and only two things change. The build type becomes preRelease,
+      # whose own applicationId installs beside a stable Nova instead of over it, so a beta can never
+      # block a stable update through its versionCode. And the release itself is marked a prerelease.
+      - name: Resolve release channel
+        run: |
+          set -euo pipefail
+
+          channel=stable
+          build_type=Release
+          variant=release
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?$ ]]; then
+              echo "Release tag must match vMAJOR.MINOR.PATCH with an optional -beta.N or -rc.N: ${GITHUB_REF_NAME}" >&2
+              exit 1
+            fi
+            if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+              channel=prerelease
+              build_type=PreRelease
+              variant=preRelease
+              # The app carries which beta it is, so a tester's report says beta.1 or beta.2.
+              echo "NOVA_VERSION_SUFFIX=-${GITHUB_REF_NAME#*-}" >> "$GITHUB_ENV"
+            fi
+          fi
+
+          echo "NOVA_RELEASE_CHANNEL=${channel}" >> "$GITHUB_ENV"
+          echo "NOVA_BUILD_TYPE=${build_type}" >> "$GITHUB_ENV"
+          echo "NOVA_APK_VARIANT=${variant}" >> "$GITHUB_ENV"
+
       - name: Build release APK
-        run: ./gradlew --no-build-cache assembleNonRoot_gameRelease
+        run: |
+          set -euo pipefail
+
+          gradle_flags=()
+          if [ -n "${NOVA_VERSION_SUFFIX:-}" ]; then
+            gradle_flags+=("-PnovaVersionSuffix=${NOVA_VERSION_SUFFIX}")
+          fi
+          ./gradlew --no-build-cache "${gradle_flags[@]}" "assembleNonRoot_game${NOVA_BUILD_TYPE}"
 
       - name: Sign APKs
         if: github.event_name != 'pull_request' && env.HAS_KEYSTORE_BASE64 == 'true'
@@ -236,8 +273,8 @@ jobs:
 
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/keystore.jks
 
-          APK_DIR="app/build/outputs/apk/nonRoot_game/release"
-          unsigned_apks=("${APK_DIR}"/*release-unsigned.apk)
+          APK_DIR="app/build/outputs/apk/nonRoot_game/${NOVA_APK_VARIANT}"
+          unsigned_apks=("${APK_DIR}"/*"${NOVA_APK_VARIANT}"-unsigned.apk)
 
           if [ "${#unsigned_apks[@]}" -eq 0 ]; then
             echo "No unsigned release APKs found in ${APK_DIR}" >&2
@@ -265,16 +302,16 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
 
-          APK_DIR="app/build/outputs/apk/nonRoot_game/release"
+          APK_DIR="app/build/outputs/apk/nonRoot_game/${NOVA_APK_VARIANT}"
           APK_ASSET_DIR="${PWD}/release-assets"
           mkdir -p "${APK_ASSET_DIR}"
 
-          signed_apks=("${APK_DIR}"/*-release.apk)
+          signed_apks=("${APK_DIR}"/*-"${NOVA_APK_VARIANT}".apk)
 
           if [ "${#signed_apks[@]}" -gt 0 ]; then
             apk_files=("${signed_apks[@]}")
           else
-            apk_files=("${APK_DIR}"/*release-unsigned.apk)
+            apk_files=("${APK_DIR}"/*"${NOVA_APK_VARIANT}"-unsigned.apk)
           fi
 
           if [ "${#apk_files[@]}" -eq 0 ]; then
@@ -287,6 +324,8 @@ jobs:
             exit 1
           fi
 
+          # An asset name carries the ABI, never the channel: the release page says what channel it
+          # is, the APK inside declares the .pre applicationId, and Obtainium's filter keeps matching.
           for apk in "${apk_files[@]}"; do
             apk_name="$(basename "$apk")"
             case "$apk_name" in
@@ -356,8 +395,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release tag must match vMAJOR.MINOR.PATCH: ${GITHUB_REF_NAME}" >&2
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH with an optional -beta.N or -rc.N: ${GITHUB_REF_NAME}" >&2
             exit 1
           fi
 
@@ -420,10 +459,18 @@ jobs:
           release_notes="$RUNNER_TEMP/nova-release-notes.md"
           python3 scripts/extract_release_notes.py "${GITHUB_REF_NAME}" > "$release_notes"
 
+          # Both paths carry the channel. A rerun that finds the release already staged takes the
+          # edit path, and a beta that lost its flag there would publish as a stable release.
+          channel=()
+          if [ "${NOVA_RELEASE_CHANNEL}" = prerelease ]; then
+            channel=(--prerelease)
+          fi
+
           if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             gh release create "${GITHUB_REF_NAME}" \
               --draft \
               --verify-tag \
+              "${channel[@]}" \
               --title "${GITHUB_REF_NAME}" \
               --notes-file "$release_notes"
             echo "publish_draft=true" >> "$GITHUB_OUTPUT"
@@ -431,6 +478,7 @@ jobs:
             gh release edit "${GITHUB_REF_NAME}" \
               --verify-tag \
               --draft=true \
+              "${channel[@]}" \
               --title "${GITHUB_REF_NAME}" \
               --notes-file "$release_notes"
             echo "publish_draft=true" >> "$GITHUB_OUTPUT"
@@ -502,4 +550,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release edit "${GITHUB_REF_NAME}" --verify-tag --draft=false
+        run: |
+          set -euo pipefail
+
+          # A beta never becomes the newest release. Nova's own updater and Obtainium both read
+          # releases/latest, which leaves out a release that is marked and not latest.
+          if [ "${NOVA_RELEASE_CHANNEL}" = prerelease ]; then
+            gh release edit "${GITHUB_REF_NAME}" --verify-tag --draft=false --prerelease --latest=false
+          else
+            gh release edit "${GITHUB_REF_NAME}" --verify-tag --draft=false
+          fi
