@@ -30,6 +30,7 @@ Popup {
     property var inputHub: null
     readonly property var players: inputHub ? inputHub.players : []
     property var windowController: null
+    property var desktopInput: null
     required property var settingsProvider
     property var hostSettingsController: null
     property var gameTools: null
@@ -375,11 +376,21 @@ Popup {
                 Label {
                     objectName: "native-desktop-input-help"
                     Layout.fillWidth: true
-                    text: "Keyboard: Ctrl + Alt + Shift + M opens Command Center. Ctrl + Alt + Shift + F switches fullscreen. Escape goes to your game.\nMouse: direct pointer control for desktop apps and menus. Relative mouse aiming is not available yet."
+                    text: "Keyboard: Ctrl + Alt + Shift + M opens Command Center and releases the mouse. Ctrl + Alt + Shift + F switches fullscreen. Escape goes to your game.\nMouse: " + (nativePreview.settingsProvider.mouseMode === "relative"
+                        ? "Relative Aiming. Resume captures the mouse for aiming without screen edges."
+                        : "Direct Pointer for desktop apps and menus.")
                     textFormat: Text.PlainText
                     wrapMode: Text.WordWrap
                     color: NovaTheme.secondary
                     font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
+                }
+                Label {
+                    objectName: "native-mouse-capture-error"
+                    Layout.fillWidth: true
+                    visible: nativePreview.settingsProvider.mouseMode === "relative" && text.length > 0
+                    text: nativePreview.desktopInput ? nativePreview.desktopInput.mouseState.error : ""
+                    textFormat: Text.PlainText; wrapMode: Text.WordWrap
+                    color: NovaTheme.warning; font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
                 }
                 Label {
                     text: "Players"; color: NovaTheme.text
@@ -440,7 +451,7 @@ Popup {
                     text: "Video Scaling · " + (nativePreview.settingsProvider.videoScaleMode === "fill" ? "Fill" : nativePreview.settingsProvider.videoScaleMode === "stretch" ? "Stretch" : "Fit")
                     onClicked: videoScaling.open()
                     Keys.onUpPressed: inGameAppearance.forceActiveFocus()
-                    Keys.onDownPressed: inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameHud.forceActiveFocus()
+                    Keys.onDownPressed: inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameMouse.visible && inGameMouse.enabled ? inGameMouse.forceActiveFocus() : inGameHud.forceActiveFocus()
                 }
                 NovaButton {
                     id: inGameWindow; objectName: "native-window-mode"
@@ -449,6 +460,16 @@ Popup {
                     text: nativePreview.windowController && nativePreview.windowController.fullscreen ? "Switch to Windowed" : "Switch to Fullscreen"
                     onClicked: nativePreview.windowController.toggleFullscreen()
                     Keys.onUpPressed: inGameScale.forceActiveFocus()
+                    Keys.onDownPressed: inGameMouse.visible && inGameMouse.enabled ? inGameMouse.forceActiveFocus() : inGameHud.forceActiveFocus()
+                }
+                NovaButton {
+                    id: inGameMouse; objectName: "native-mouse-mode"
+                    visible: !!nativePreview.desktopInput
+                    enabled: nativePreview.settingsProvider.mouseMode === "relative" || (!!nativePreview.desktopInput && nativePreview.desktopInput.mouseState.available)
+                    Layout.fillWidth: true; unit: nativePreview.unit
+                    text: "Mouse Mode · " + (nativePreview.settingsProvider.mouseMode === "relative" ? "Relative Aiming" : "Direct Pointer")
+                    onClicked: nativePreview.settingsProvider.setMouseMode(nativePreview.settingsProvider.mouseMode === "relative" ? "direct" : "relative")
+                    Keys.onUpPressed: inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameScale.forceActiveFocus()
                     Keys.onDownPressed: inGameHud.forceActiveFocus()
                 }
                 NovaButton {
@@ -458,7 +479,7 @@ Popup {
                     unit: nativePreview.unit
                     text: "NovaHUD · " + (NovaHudPreferences.enabled ? NovaHudPreferences.title : "Off")
                     onClicked: hudSettings.open()
-                    Keys.onUpPressed: inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameScale.forceActiveFocus()
+                    Keys.onUpPressed: inGameMouse.visible && inGameMouse.enabled ? inGameMouse.forceActiveFocus() : inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameScale.forceActiveFocus()
                     Keys.onDownPressed: liveTuningAction.enabled ? liveTuningAction.forceActiveFocus() : doctorAction.forceActiveFocus()
                 }
                 NovaButton {

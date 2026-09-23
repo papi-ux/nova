@@ -725,6 +725,7 @@ ApplicationWindow {
         session: novaNativeSession
         settingsProvider: novaPlaySettings
         windowController: novaWindowController
+        desktopInput: novaDesktopInput
         launchPolicy: selectedGameForPreview && selectedGameForPreview.launchPolicy
             ? selectedGameForPreview.launchPolicy : ({ known: false, hostDefault: "", allowed: [] })
         streamCapabilities: selectedGameForPreview.streamCapabilities || ({})
@@ -823,6 +824,7 @@ ApplicationWindow {
         libraryController: novaLibraryRefresh
         settingsProvider: novaPlaySettings
         windowController: novaWindowController
+        desktopInput: novaDesktopInput
         hostSettingsController: novaStandalone ? novaHostSettings : null
         sessionBusy: novaNativeSession.state.busy
         onSelected: game => selectGameForPreview(game)

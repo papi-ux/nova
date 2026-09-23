@@ -83,10 +83,13 @@ int main(int argc, char** argv) {
         ApplicationWindow {
             width: 1280; height: 800; visible: true
             title: "Nova native controls test"
+            property bool relativeAvailable:true
+            QtObject { id:input; property var mouseState:({available:relativeAvailable, active:false, pending:false, error:""}) }
             function largeText() { NovaTheme.setFontScale(1.3) }
             Button { id: library; objectName: "library"; text: "Library"; focus: true }
             NativeStreamPreview {
                 id: preview
+                desktopInput: input
                 inputHub: testPlayers
                 session: testSession
                 settingsProvider: testSettings
@@ -656,6 +659,15 @@ int main(int argc, char** argv) {
         "scaling relaunched or changed the stream profile");
     require(settings.resetVideoScaleMode(),"scaling reset failed"); window->resize(1280,800); settle();
     auto* hudAction = root->findChild<QQuickItem*>("native-hud-settings");
+    auto* mouseAction = root->findChild<QQuickItem*>("native-mouse-mode");
+    require(mouseAction && mouseAction->isEnabled(), "mouse mode action missing");
+    scaleAction->forceActiveFocus(); key(*window,Qt::Key_Down); focused(*window,mouseAction,"mouse mode unreachable");
+    key(*window,Qt::Key_Return); require(settings.mouseMode()=="relative", "Command Center did not choose relative aiming");
+    root->setProperty("relativeAvailable",false); settle();
+    require(mouseAction->isEnabled(), "unavailable capture prevented returning to direct mode");
+    key(*window,Qt::Key_Return); require(settings.mouseMode()=="direct" && !mouseAction->isEnabled(), "unavailable relative capture was selectable");
+    scaleAction->forceActiveFocus(); key(*window,Qt::Key_Down); focused(*window,hudAction,"disabled mouse action trapped focus");
+    root->setProperty("relativeAvailable",true); settle();
     auto* hudPopup = root->findChild<QObject*>("hud-settings-popup");
     auto* hud = root->findChild<QQuickItem*>("nova-stream-hud");
     require(hudAction && hudPopup && hud && !hud->isVisible(), "HUD integration missing or not off by default");

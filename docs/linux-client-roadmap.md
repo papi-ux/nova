@@ -100,6 +100,19 @@ The rate-policy slice (L03) is implemented locally:
   actual-app review/settings routes. Existing pairing/session authority remains
   in force. Physical 240 FPS cadence and Flatpak upgrade acceptance remain open.
 
+The relative mouse slice (L05) is implemented locally:
+
+- Direct Pointer remains the saved/default behavior. Relative Aiming adds X11 raw
+  motion and Wayland pointer locking, hidden-cursor aiming and explicit release
+  through Command Center, focus/window changes and mode changes.
+- Settings and Command Center expose the mode, retain a path back to Direct
+  Pointer on unsupported compositors, and explain capture refusal. Fractional
+  motion and relative distance are retained; pixel-only scrolling is forwarded.
+- Focused transport, settings, session and UI regressions pass. Xvfb and an
+  isolated KWin Wayland compositor both pass native relative motion beyond
+  display edges, cursor restoration, release and recapture. Physical input,
+  hotplug, installed Flatpak and game acceptance remain open.
+
 ## Source audit and implementation order
 
 Source baseline: [`c822632`](https://github.com/papi-ux/nova/commit/c822632), after

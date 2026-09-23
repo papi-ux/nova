@@ -8,6 +8,7 @@ Popup {
     id: hub
     objectName: "settings-hub"
     property var windowController: null
+    property var desktopInput: null
     required property var settingsProvider
     property var hostController: null
     property var libraryPreferences: null
@@ -32,6 +33,7 @@ Popup {
         {key: "face", category: "controls", title: "Face Buttons", words: "controller layout labels positions swap ab xy", scope: "This device · Games without an override · Next new stream", detail: "Match positions swaps A/B and X/Y. A game's own layout takes priority.", reset: "labels"},
         {key: "rumble", category: "controls", title: "Controller Rumble", words: "vibration haptics", scope: "This device · Next new stream", detail: "Vibration on the active controller when supported. Pauses while controls are open.", reset: true},
         {key: "deadzone", category: "controls", title: "Stick Deadzone", words: "controller analog sensitivity drift radial anti dead zone", scope: "This device · All controllers · Next new stream", detail: "Adjust small stick movements near the center. Reconnect and wake keep the current choice.", reset: 5},
+        {key: "mouse", category: "controls", title: "Mouse Mode", words: "relative aiming capture direct pointer mouse keyboard", scope: "This device · Resume to capture the mouse", detail: "Relative Aiming keeps moving at screen edges. Direct Pointer follows the video for desktop apps. Ctrl + Alt + Shift + M releases capture and opens Command Center.", reset: "direct"},
         {key: "theme", category: "appearance", title: "Theme", words: "colors oled high contrast polaris portable chrome miami", scope: "This device · Applies immediately", detail: "Use the same Nova theme across your library and in-game menus.", reset: "polaris"},
         {key: "text", category: "appearance", title: "Text Size", words: "font scale accessibility large", scope: "This device · Applies immediately", detail: "Increase text size while keeping controls reachable.", reset: 1},
         {key: "layout", category: "appearance", title: "Library Layout", words: "grid compact stage posters", scope: "This device · Applies immediately", detail: "Choose a poster grid, compact grid or cinematic Stage view.", reset: "grid"},
@@ -45,6 +47,7 @@ Popup {
     ]
     readonly property var shown: definitions.filter(item => {
         if (item.key === "window" && !windowController) return false
+        if (item.key === "mouse" && !desktopInput) return false
         const words = search.text.trim().toLowerCase().split(/\s+/).filter(Boolean)
         const matches = words.every(word => (item.title + " " + item.words + " " + item.scope).toLowerCase().includes(word))
         return words.length ? matches : category === "all" || item.category === category
@@ -73,6 +76,7 @@ Popup {
         }
         case "channels": return settingsProvider.audioSettings.channels
         case "hostAudio": return settingsProvider.audioSettings.playHostAudio
+        case "mouse": return settingsProvider.mouseMode
         case "face": return settingsProvider.defaultFaceButtonLayout
         case "rumble": return settingsProvider.rumbleEnabled
         case "deadzone": return settingsProvider.stickDeadzonePercent
@@ -96,6 +100,7 @@ Popup {
         case "pacing": return [{id: "latency", title: "Prefer lowest latency"}, {id: "balanced", title: "Balanced"}]
         case "channels": return [{id: 2, title: "Stereo"}, {id: 6, title: "5.1 surround"}, {id: 8, title: "7.1 surround"}]
         case "face": return [{id: "labels", title: "Match labels"}, {id: "positions", title: "Match positions"}]
+        case "mouse": return [{id: "direct", title: "Direct Pointer"}, {id: "relative", title: "Relative Aiming", available: !!desktopInput && desktopInput.mouseState.available}]
         case "theme": return NovaTheme.choices
         case "text": return [1, 1.15, 1.3].map(v => ({id: v, title: Math.round(v * 100) + "%"}))
         case "layout": return [{id: "grid", title: "Grid"}, {id: "compact", title: "Compact"}, {id: "stage", title: "Stage"}]
@@ -125,6 +130,7 @@ Popup {
         case "face": ok = settingsProvider.setDefaultFaceButtonLayout(next); break
         case "rumble": ok = settingsProvider.setRumbleEnabled(next); break
         case "deadzone": ok = settingsProvider.resetStickDeadzonePercent(); break
+        case "mouse": ok = settingsProvider.setMouseMode(next); break
         case "theme": NovaTheme.setTheme(next); break
         case "text": NovaTheme.setFontScale(next); break
         case "layout": if (libraryPreferences) libraryPreferences.layoutMode = next; else ok = false; break
@@ -206,7 +212,13 @@ Popup {
         width: Math.min(660 * hub.unit, parent ? parent.width - 32 : 660)
         height: Math.min(implicitHeight, parent ? parent.height - 32 : 760)
         padding: 24 * hub.unit; modal: true; focus: true; closePolicy: Popup.CloseOnEscape
-        onOpened: choiceButtons.itemAt(Math.max(0, values.findIndex(item => item.id === hub.value(definition.key)))).forceActiveFocus()
+        function focusChoice(index, direction) {
+            while (index >= 0 && index < values.length && values[index].available === false) index += direction
+            if (index < 0) index = 0
+            if (index >= values.length) choiceBack.forceActiveFocus()
+            else choiceButtons.itemAt(index).forceActiveFocus()
+        }
+        onOpened: focusChoice(Math.max(0, values.findIndex(item => item.id === hub.value(definition.key))), -1)
         onClosed: Qt.callLater(hub.restoreRow)
         background: Rectangle { color: NovaTheme.panel; radius: 12; border.color: NovaTheme.divider }
         contentItem: ColumnLayout {
@@ -224,11 +236,12 @@ Popup {
                         required property int index
                         objectName: "settings-choice-" + index
                         Layout.fillWidth: true; unit: hub.unit
-                        text: modelData.title + (hub.value(choices.definition.key) === modelData.id ? " · Selected" : "")
+                        enabled: modelData.available !== false
+                        text: modelData.title + (modelData.available === false ? " · Unavailable" : "") + (hub.value(choices.definition.key) === modelData.id ? " · Selected" : "")
                         Accessible.checkable: true; Accessible.checked: hub.value(choices.definition.key) === modelData.id
                         onClicked: if (hub.save(choices.definition.key, modelData.id)) choices.close()
-                        Keys.onUpPressed: choiceButtons.itemAt(Math.max(0, index - 1)).forceActiveFocus()
-                        Keys.onDownPressed: index < choices.values.length - 1 ? choiceButtons.itemAt(index + 1).forceActiveFocus() : choiceBack.forceActiveFocus()
+                        Keys.onUpPressed: choices.focusChoice(index - 1, -1)
+                        Keys.onDownPressed: choices.focusChoice(index + 1, 1)
                     }
                 }
             }
@@ -237,7 +250,7 @@ Popup {
                 id: choiceBack; objectName: "settings-choice-back"
                 unit: hub.unit; Layout.fillWidth: true; text: "Cancel"
                 onClicked: choices.close()
-                Keys.onUpPressed: choiceButtons.itemAt(choices.values.length - 1).forceActiveFocus()
+                Keys.onUpPressed: choices.focusChoice(choices.values.length - 1, -1)
             }
         }
     }

@@ -26,6 +26,24 @@ int main(int argc, char** argv) {
     require(directory.isValid(), "missing temporary settings directory");
     const auto file = directory.filePath("play.ini");
     {
+        const auto path = directory.filePath("mouse.ini");
+        DeckPlaySettings settings(path);
+        require(settings.mouseMode() == "direct", "existing installations changed mouse behavior");
+        require(settings.saveChoice("pc", "game", {{"fps", 90}}), "mouse scope fixture failed");
+        const auto game = settings.load("pc", "game"), audio = settings.audioSettings();
+        int changes = 0; QObject::connect(&settings, &DeckPlaySettings::mouseModeChanged, [&] { ++changes; });
+        require(settings.setMouseMode("relative") && DeckPlaySettings(path).mouseMode() == "relative", "mouse mode did not persist");
+        for (const auto* bad : {"", "Relative", " relative", "trackpad"})
+            require(!settings.setMouseMode(bad), "invalid mouse mode accepted");
+        require(settings.resetVideoScaleMode() && settings.resetStreamDefaults() && settings.mouseMode() == "relative", "unrelated reset changed mouse mode");
+        require(settings.setMouseMode("direct") && changes == 2 && settings.load("pc", "game") == game && settings.audioSettings() == audio, "mouse mode write crossed scopes");
+        QSettings corrupt(path, QSettings::IniFormat); corrupt.setValue("Input/v1/mouseMode", true); corrupt.sync();
+        require(settings.mouseMode() == "direct", "invalid saved mouse mode captured pointer");
+        QFile blocker(directory.filePath("mouse-blocked")); require(blocker.open(QIODevice::WriteOnly), "mouse failure fixture failed"); blocker.close();
+        DeckPlaySettings blocked(blocker.fileName() + "/settings.ini");
+        require(!blocked.setMouseMode("relative") && blocked.mouseMode() == "direct", "failed mouse save appeared applied");
+    }
+    {
         const auto path=directory.filePath("deadzone.ini"); DeckPlaySettings input(path);
         int changes=0; QObject::connect(&input,&DeckPlaySettings::stickDeadzonePercentChanged,[&] { ++changes; });
         require(input.stickDeadzonePercent()==5,"deadzone default differs from Android");

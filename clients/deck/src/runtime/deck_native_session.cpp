@@ -234,13 +234,12 @@ void DeckNativeSessionController::sendDesktopInput(const DeckDesktopPacket& pack
     const std::lock_guard lock(shared_->mutex);
     if (!shared_->acceptingInput || shared_->cancelled || shared_->done || shared_->inputOverflow) return;
     auto& queue = shared_->desktopInputs;
-    // Only adjacent motion is replaceable: preserve click/scroll/key ordering.
-    if (packet.kind == DeckDesktopPacket::Position && !queue.empty() && queue.back().packet.kind == DeckDesktopPacket::Position)
-        queue.back().packet = packet;
-    else if (queue.size() >= 256) {
+    // Preserve relative distance as well as click/scroll/key ordering.
+    const bool coalesced = !queue.empty() && coalesceDeckDesktopMotion(queue.back().packet, packet);
+    if (!coalesced && queue.size() >= 256) {
         shared_->inputOverflow = true;
         queue.clear(); ++shared_->desktopGeneration;
-    } else queue.push_back({packet, shared_->desktopGeneration});
+    } else if (!coalesced) queue.push_back({packet, shared_->desktopGeneration});
     shared_->wake.notify_all();
 }
 

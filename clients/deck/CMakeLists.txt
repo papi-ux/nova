@@ -26,7 +26,25 @@ pkg_check_modules(NOVA_DECK_LINUX_AUDIO REQUIRED IMPORTED_TARGET
     libpulse
     opus
 )
-find_package(Qt6 REQUIRED COMPONENTS Quick Network DBus)
+find_package(Qt6 6.10 REQUIRED COMPONENTS Quick Network DBus WaylandClient GuiPrivate)
+pkg_check_modules(NOVA_DECK_POINTER REQUIRED IMPORTED_TARGET wayland-client xcb xcb-xinput)
+pkg_get_variable(NOVA_DECK_WAYLAND_PROTOCOLS wayland-protocols pkgdatadir)
+find_program(NOVA_DECK_WAYLAND_SCANNER wayland-scanner REQUIRED)
+set(NOVA_DECK_POINTER_PROTOCOL_SOURCES)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/pointer-protocols")
+foreach(protocol IN ITEMS relative-pointer pointer-constraints)
+    set(xml "${NOVA_DECK_WAYLAND_PROTOCOLS}/unstable/${protocol}/${protocol}-unstable-v1.xml")
+    if(NOT EXISTS "${xml}")
+        message(FATAL_ERROR "wayland-protocols is required for Linux relative mouse capture: missing ${xml}")
+    endif()
+    set(code "${CMAKE_CURRENT_BINARY_DIR}/pointer-protocols/${protocol}-protocol.c")
+    set(header "${CMAKE_CURRENT_BINARY_DIR}/pointer-protocols/${protocol}-client-protocol.h")
+    add_custom_command(OUTPUT "${code}" "${header}"
+        COMMAND "${NOVA_DECK_WAYLAND_SCANNER}" private-code "${xml}" "${code}"
+        COMMAND "${NOVA_DECK_WAYLAND_SCANNER}" client-header "${xml}" "${header}"
+        DEPENDS "${xml}" VERBATIM)
+    list(APPEND NOVA_DECK_POINTER_PROTOCOL_SOURCES "${code}" "${header}")
+endforeach()
 find_package(OpenSSL 1.1.1 REQUIRED COMPONENTS Crypto)
 
 add_library(nova_deck_core STATIC
@@ -61,6 +79,8 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_native_session.cpp
     src/runtime/deck_input_hub.cpp
     src/runtime/deck_desktop_input_bridge.cpp
+    src/runtime/deck_relative_pointer.cpp
+    ${NOVA_DECK_POINTER_PROTOCOL_SOURCES}
     src/runtime/deck_window_controller.cpp
     src/runtime/deck_rumble.cpp
     src/runtime/deck_rumble_linux.cpp
@@ -115,6 +135,8 @@ endif()
 target_include_directories(nova_deck_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+    PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/pointer-protocols
 )
 target_link_libraries(nova_deck_core
     PUBLIC
@@ -124,6 +146,10 @@ target_link_libraries(nova_deck_core
         Qt6::Network
         Qt6::DBus
         OpenSSL::Crypto
+    PRIVATE
+        Qt6::GuiPrivate
+        Qt6::WaylandClient
+        PkgConfig::NOVA_DECK_POINTER
 )
 include(GNUInstallDirs)
 target_compile_definitions(nova_deck_core
@@ -281,6 +307,16 @@ if(BUILD_TESTING)
     add_executable(nova_deck_window_controller_test tests/deck_window_controller_test.cpp)
     target_link_libraries(nova_deck_window_controller_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_window_controller_test COMMAND nova_deck_window_controller_test)
+    pkg_check_modules(NOVA_DECK_XTEST REQUIRED IMPORTED_TARGET xcb-xtest)
+    add_executable(nova_deck_relative_pointer_test tests/deck_relative_pointer_test.cpp)
+    target_link_libraries(nova_deck_relative_pointer_test PRIVATE nova_deck_core PkgConfig::NOVA_DECK_XTEST)
+    find_program(NOVA_DECK_TEST_XVFB_RUN xvfb-run)
+    if(NOVA_DECK_TEST_XVFB_RUN)
+        add_test(NAME nova_deck_relative_pointer_test COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24" $<TARGET_FILE:nova_deck_relative_pointer_test>)
+        set_tests_properties(nova_deck_relative_pointer_test PROPERTIES TIMEOUT 20 ENVIRONMENT "QT_QPA_PLATFORM=xcb;QT_QUICK_BACKEND=software")
+        add_test(NAME nova_deck_relative_session_test COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24" $<TARGET_FILE:nova_deck_native_session_test> --desktop-only)
+        set_tests_properties(nova_deck_relative_session_test PROPERTIES TIMEOUT 20 ENVIRONMENT "QT_QPA_PLATFORM=xcb;QT_QUICK_BACKEND=software")
+    endif()
     add_executable(nova_deck_desktop_input_test tests/deck_desktop_input_test.cpp)
     target_link_libraries(nova_deck_desktop_input_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_desktop_input_test COMMAND nova_deck_desktop_input_test)

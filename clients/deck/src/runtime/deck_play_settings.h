@@ -41,6 +41,7 @@ class DeckPlaySettings final : public QObject {
     Q_PROPERTY(int stickDeadzonePercent READ stickDeadzonePercent NOTIFY stickDeadzonePercentChanged)
     Q_PROPERTY(QVariantMap streamDefaults READ streamDefaults NOTIFY streamDefaultsChanged)
     Q_PROPERTY(QVariantMap streamLimits READ streamLimits CONSTANT)
+    Q_PROPERTY(QString mouseMode READ mouseMode NOTIFY mouseModeChanged)
 public:
     explicit DeckPlaySettings(QString fileName = {}, QObject* parent = nullptr);
     Q_INVOKABLE QVariantMap load(const QString& hostId, const QString& gameId) const;
@@ -52,6 +53,8 @@ public:
         const QVariantMap& capabilities, const QVariantMap& planner, const QVariantMap& display = {}, bool spaceSession = false) const;
     Q_INVOKABLE int displayRateLimit(double refreshHz) const;
     QVariantMap streamLimits() const;
+    QString mouseMode() const;
+    Q_INVOKABLE bool setMouseMode(const QString& mode);
     // Startup snapshot for review. The session worker probes again before launch.
     void setVideoDecodeSupport(stream::DeckVideoDecodeSupport support) { videoSupport_ = support; }
     QString defaultFaceButtonLayout() const;
@@ -81,6 +84,7 @@ public:
     Q_INVOKABLE QVariantMap logoPlacement(const QString& hostId, const QString& gameId, const QVariantMap& fallback = {}) const;
     Q_INVOKABLE bool saveLogoPlacement(const QString& hostId, const QString& gameId, const QVariantMap& values, const QVariantMap& expected, const QVariantMap& fallback = {});
 signals:
+    void mouseModeChanged();
     void logoPlacementChanged();
     void streamDefaultsChanged();
     void defaultFaceButtonLayoutChanged();

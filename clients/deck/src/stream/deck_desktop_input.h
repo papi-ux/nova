@@ -10,7 +10,7 @@
 namespace nova::deck::stream {
 
 struct DeckDesktopPacket {
-    enum Kind { Key, Button, Position, Scroll, ReleaseAll } kind = ReleaseAll;
+    enum Kind { Key, Button, Position, Relative, Scroll, ReleaseAll } kind = ReleaseAll;
     int code = 0, x = 0, y = 0;
     bool down = false;
     bool operator==(const DeckDesktopPacket&) const = default;
@@ -18,6 +18,16 @@ struct DeckDesktopPacket {
 };
 using DeckDesktopSend = std::function<int(const DeckDesktopPacket&)>;
 int sendDeckDesktopPacket(const DeckDesktopPacket& packet);
+// Adjacent absolute positions replace each other; relative movements add.
+// Refuse a merge that would exceed the transport's signed 16-bit deltas.
+bool coalesceDeckDesktopMotion(DeckDesktopPacket& previous, const DeckDesktopPacket& next);
+class DeckRelativeMotion {
+public:
+    std::vector<DeckDesktopPacket> move(double x, double y);
+    void reset() { x_ = y_ = 0; }
+private:
+    double x_ = 0, y_ = 0;
+};
 
 // Physical US key positions on Linux/X11 and Wayland; logical Qt fallback for
 // injected Steam Input events. No text/IME or clipboard forwarding here.

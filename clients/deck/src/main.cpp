@@ -1755,6 +1755,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaNativeSession", &nativeSession);
     engine.rootContext()->setContextProperty("novaPlaySettings", &playSettings);
     engine.rootContext()->setContextProperty("novaWindowController", &windowController);
+    engine.rootContext()->setContextProperty("novaDesktopInput", &desktopInput);
 #ifdef NOVA_DECK_VULKAN_STREAM
     engine.rootContext()->setContextProperty("novaVulkanPresentation", vulkanSessionView.get());
 #else

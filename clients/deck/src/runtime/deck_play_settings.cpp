@@ -364,6 +364,17 @@ QVariantMap DeckPlaySettings::streamLimits() const {
 
 int DeckPlaySettings::displayRateLimit(double refreshHz) const { return deckDisplayRateLimit(refreshHz); }
 
+QString DeckPlaySettings::mouseMode() const {
+    const auto value = store(fileName_)->value("Input/v1/mouseMode");
+    return value.metaType().id() == QMetaType::QString && value == "relative" ? "relative" : "direct";
+}
+bool DeckPlaySettings::setMouseMode(const QString& mode) {
+    if (mode != "direct" && mode != "relative") return false;
+    auto settings = store(fileName_);
+    if (!writeValue(*settings, "Input/v1/mouseMode", mode)) return false;
+    emit mouseModeChanged(); return true;
+}
+
 QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVariantMap& capabilities,
     const QVariantMap& planner, const QVariantMap& display, bool spaceSession) const {
     const auto requested = DeckPlayConfiguration::fromMap(values);

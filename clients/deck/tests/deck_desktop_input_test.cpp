@@ -6,6 +6,23 @@ using namespace nova::deck::stream;
 void require(bool ok, const char* why) { if (!ok) { std::cerr << why << '\n'; std::exit(1); } }
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    DeckRelativeMotion motion;
+    require(motion.move(.25, -.25).empty() && motion.move(.25, -.25).empty() && motion.move(.25, -.25).empty(),
+        "fractional aiming moved too early");
+    require(motion.move(.25, -.25) == std::vector{DeckDesktopPacket{DeckDesktopPacket::Relative, 0, 1, -1}},
+        "high-resolution aiming lost accumulated fractions");
+    int dx = 0, dy = 0;
+    for (const auto& packet : motion.move(70000, -70000)) { require(packet.valid(), "relative packet exceeded wire bounds"); dx += packet.x; dy += packet.y; }
+    require(dx == 70000 && dy == -70000, "split relative motion lost distance");
+    motion.move(.8, .8); motion.reset();
+    require(motion.move(.3, .3).empty(), "capture release retained old motion");
+    DeckDesktopPacket previous{DeckDesktopPacket::Relative, 0, 30, -20};
+    require(coalesceDeckDesktopMotion(previous, {DeckDesktopPacket::Relative, 0, -10, 5}) && previous.x == 20 && previous.y == -15,
+        "relative queue coalescing replaced distance");
+    const auto held = previous;
+    require(!coalesceDeckDesktopMotion(previous, {DeckDesktopPacket::Relative, 0, 32767, 0}) && previous == held &&
+        !coalesceDeckDesktopMotion(previous, {DeckDesktopPacket::Button, 1, 0, 0, true}) &&
+        !coalesceDeckDesktopMotion(previous, {DeckDesktopPacket::Position, 0, 12, 14}), "motion coalescing crossed bounds or event order");
     for (const QString platform : {QString("xcb"), QString("wayland")}) {
         // A non-US logical symbol still sends the physical W gaming position.
         QKeyEvent physical(QEvent::KeyPress, Qt::Key_Z, Qt::NoModifier, 25, 0, 0);

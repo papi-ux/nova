@@ -64,6 +64,8 @@ int main(int argc, char** argv) {
     component.setData("import QtQuick\nimport QtQuick.Controls\nimport QtCore\nimport \"" + QUrl::fromLocalFile(NOVA_DECK_QML_DIRECTORY).toEncoded() + "\"\n" + R"(
         ApplicationWindow {
             width:1280; height:800; visible:true; color:NovaTheme.window
+            property bool relativeAvailable:true
+            QtObject { id:input; property var mouseState:({available:relativeAvailable}) }
             property bool available:true
             property var provider:settings
             readonly property string themeId:NovaTheme.themeId
@@ -75,7 +77,7 @@ int main(int argc, char** argv) {
             function controllerBack() { hub.back() }
             function syncPreferences() { NovaTheme.preferences.sync(); NovaHudPreferences.preferences.sync(); NovaStreamPreferences.preferences.sync(); prefs.sync() }
             NovaButton { id:open; objectName:"open-settings"; text:"Settings"; onClicked:hub.open() }
-            SettingsHub { id:hub; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
+            SettingsHub { id:hub; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
         }
     )", QUrl());
     auto root = std::unique_ptr<QObject>(component.create()); if (!root) std::cerr << component.errorString().toStdString(); check(bool(root), "QML failed");
@@ -148,6 +150,15 @@ int main(int argc, char** argv) {
     check(item("settings-search")->property("text") == "rumble", "controller Back applied keyboard draft");
     click("settings-row-rumble"); check(!settings.rumbleEnabled(), "rumble toggle failed");
     click("settings-reset-rumble"); check(settings.rumbleEnabled(), "rumble reset failed");
+    query("mouse"); click("settings-row-mouse"); focused("settings-choice-0");
+    key(Qt::Key_Down); focused("settings-choice-1"); key(Qt::Key_Return);
+    check(settings.mouseMode()=="relative", "relative choice did not persist");
+    root->setProperty("relativeAvailable",false); settle();
+    click("settings-row-mouse"); focused("settings-choice-0");
+    check(!item("settings-choice-1")->isEnabled(), "unsupported relative capture remained selectable");
+    key(Qt::Key_Down); focused("settings-choice-back"); key(Qt::Key_Up); focused("settings-choice-0"); key(Qt::Key_Return);
+    check(settings.mouseMode()=="direct", "unavailable relative backend blocked direct pointer");
+    root->setProperty("relativeAvailable",true); settle();
     query("stick drift"); click("settings-row-deadzone"); focused("deadzone-minus");
     key(Qt::Key_Return); check(settings.stickDeadzonePercent()==5,"deadzone draft saved early");
     controllerBack(); focused("settings-row-deadzone");
@@ -181,6 +192,9 @@ int main(int argc, char** argv) {
     click("settings-row-text"); click("settings-choice-2"); window->resize(960, 600); settle();
     focused("settings-row-text"); within("settings-row-text"); within("settings-back");
     capture("settings-appearance-960-large");
+    query("mouse"); click("settings-row-mouse");
+    key(Qt::Key_Down); focused("settings-choice-1"); within("settings-choice-1"); within("settings-choice-back");
+    capture("mouse-mode-960-large"); controllerBack();
     query("scaling"); click("settings-row-scale");
     within("video-scale-back"); within("video-scale-reset"); capture("video-scaling-960-large");
     click("video-scale-stretch"); check(settings.videoScaleMode()=="stretch","Stretch did not save");

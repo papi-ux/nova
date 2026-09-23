@@ -1705,6 +1705,9 @@ void testDesktopWindowRouting() {
     QWheelEvent wheel({640,400},window.mapToGlobal(QPointF(640,400)),{},QPoint(120,-240),Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
     QCoreApplication::sendEvent(&window,&wheel);
     until([&] { return desktop.seen({DeckDesktopPacket::Scroll,0,120,-240}); });
+    QWheelEvent pixels({640,400},window.mapToGlobal(QPointF(640,400)),QPoint(-13,27),{},Qt::NoButton,Qt::NoModifier,Qt::ScrollUpdate,false);
+    QCoreApplication::sendEvent(&window,&pixels);
+    until([&] { return desktop.seen({DeckDesktopPacket::Scroll,0,-13,27}); });
     QQuickItem local(window.contentItem()); local.setParent(&window);
     local.setObjectName("native-show-controls"); local.setPosition({10,10}); local.setSize({100,100});
     const auto count=desktop.snapshot().size();
@@ -1734,6 +1737,34 @@ void testDesktopWindowRouting() {
     until([&] { return desktop.seen({DeckDesktopPacket::Key,'C'}); });
     require(windowController.fullscreen()!=previousMode && controller.controlsVisible() &&
         !desktop.seen({DeckDesktopPacket::Key,'F',0,0,true}), "fullscreen chord leaked or left held input");
+    key(Qt::Key_C,false);
+    require(settings.setMouseMode("relative") && controller.controlsVisible(), "mouse mode switched during captured play");
+    controller.setInputFocus(true); controller.resumeInput();
+    if (bridge.mouseState().value("available").toBool()) {
+        until([&] { return bridge.mouseState().value("active").toBool(); });
+        auto* relative = bridge.findChild<DeckRelativePointer*>(); require(relative, "missing relative backend");
+        relative->motion(0.25, -0.25); relative->motion(0.75, -0.75);
+        until([&] { return desktop.seen({DeckDesktopPacket::Relative,0,1,-1}); });
+        // Physical clicks over the hidden local HUD pointer belong to the game.
+        mouse(QEvent::MouseButtonPress,{30,30},Qt::RightButton,Qt::RightButton);
+        until([&] { return desktop.seen({DeckDesktopPacket::Button,3,0,0,true}); });
+        QEvent leave(QEvent::Leave); QCoreApplication::sendEvent(&window,&leave);
+        require(!controller.controlsVisible(), "pointer edge released relative capture");
+        QCoreApplication::sendEvent(&window,&focusOut);
+        until([&] { return desktop.seen({DeckDesktopPacket::Button,3}); });
+        require(controller.controlsVisible() && !bridge.mouseState().value("active").toBool(), "focus loss retained capture");
+        controller.setInputFocus(true); controller.resumeInput();
+        until([&] { return bridge.mouseState().value("active").toBool(); });
+        mouse(QEvent::MouseButtonRelease,{30,30},Qt::RightButton,Qt::NoButton);
+        mouse(QEvent::MouseButtonPress,{30,30},Qt::MiddleButton,Qt::MiddleButton);
+        until([&] { return desktop.seen({DeckDesktopPacket::Button,2,0,0,true}); });
+        require(settings.setMouseMode("direct"), "could not return to direct pointer");
+        until([&] { return desktop.seen({DeckDesktopPacket::Button,2}); });
+        require(controller.controlsVisible() && !bridge.mouseState().value("active").toBool(), "mode change retained capture");
+    } else {
+        require(controller.controlsVisible() && !bridge.mouseState().value("error").toString().isEmpty(), "unsupported relative mode silently swallowed pointer");
+        require(settings.setMouseMode("direct"), "unavailable backend blocked direct pointer");
+    }
     controller.closeSession(); settled(controller);
     require(host.cancels==0,"desktop window close ended game");
 }
@@ -1976,12 +2007,13 @@ int main(int argc, char** argv) {
     QFile userDirs(settingsDirectory.path()+"/user-dirs.dirs");
     require(userDirs.open(QIODevice::WriteOnly), "missing user directories fixture");
     userDirs.write("XDG_DOCUMENTS_DIR=\""+settingsDirectory.path().toUtf8()+"/Documents\"\n"); userDirs.close();
-    qputenv("QT_QPA_PLATFORM","offscreen");
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) qputenv("QT_QPA_PLATFORM","offscreen");
     qputenv("QT_QUICK_BACKEND","software");
     QGuiApplication app(argc, argv);
     require(deckSupportReportDirectory().startsWith(settingsDirectory.path()+"/"), "support report destination is not isolated");
     QCoreApplication::setOrganizationName("NovaDeckTests");
     QCoreApplication::setApplicationName("NativeSession");
+    if (app.arguments().contains("--desktop-only")) { testDesktopWindowRouting(); return 0; }
     testDesktopWorkerOwnership();
     testDesktopWindowRouting();
     QSettings::setDefaultFormat(QSettings::IniFormat);

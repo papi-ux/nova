@@ -819,9 +819,9 @@ The native tests need CMake, C/C++ compilers, OpenSSL crypto development headers
 
 For the Qt shell on Fedora, install the Qt 6 development packages if CMake warns that Qt6 Quick or QuickControls2 is missing:
 
-    sudo dnf install cmake gcc-c++ openssl qt6-qtbase-devel qt6-qtdeclarative-devel
+    sudo dnf install cmake gcc-c++ openssl qt6-qtbase-devel qt6-qtbase-private-devel qt6-qtdeclarative-devel wayland-devel wayland-protocols-devel libxcb-devel
 
-On Fedora, qt6-qtdeclarative-devel provides cmake(Qt6QuickControls2). SteamOS package names may differ; the required CMake components are Qt6 Core, Qt6 Gui, Qt6 Network, Qt6 DBus, Qt6 Qml, Qt6 Quick, and Qt6 QuickControls2.
+On Fedora, qt6-qtdeclarative-devel provides cmake(Qt6QuickControls2). SteamOS package names may differ; the required CMake components are Qt6 Core, Qt6 Gui, Qt6 Network, Qt6 DBus, Qt6 Qml, Qt6 Quick, Qt6 QuickControls2, Qt6 WaylandClient and Qt6 GuiPrivate (Qt 6.10 or newer). The Wayland surface interface uses matching Qt private headers; keep those headers at the same version as the Qt runtime. Relative-pointer and pointer-constraints bindings are generated from wayland-protocols; X11 uses XCB XInput2. Tests also use XCB XTEST. The KDE 6.10 Flatpak SDK includes these dependencies.
 
 Primary design reference:
 
@@ -1713,14 +1713,25 @@ The active native stream now forwards physical keyboard keys and direct mouse
 pointer movement, five mouse buttons, and vertical/horizontal wheel scrolling.
 Close Command Center to send input to the PC. **Ctrl + Alt + Shift + M** opens
 Command Center; plain **Escape** goes to the game. The Deck View/Menu shortcut
-and touch access remain available. Nova's HUD and Command Center clicks remain
+and touch access remain available. In Direct Pointer mode, Nova's HUD and Command Center clicks remain
 local, including drags that leave their bounds.
 
-This first mouse mode follows the displayed picture. Fit excludes letterbox
+Direct Pointer follows the displayed picture and remains the default for existing installations. Fit excludes letterbox
 bars; Fill maps into the cropped source, and Stretch follows the full image.
 Non-square pixel aspect is included. This is suitable for desktop applications
-and pointer-driven menus; **relative mouse capture for aiming is still open**.
-Touchscreen/trackpad gestures, pixel-only scrolling, IME/text composition and
+and pointer-driven menus. **Relative Aiming** is available in Settings and
+Command Center: X11 uses a confined grab and raw XInput2 motion; Wayland uses
+relative-pointer and pointer-constraints protocols on the actual presentation
+surface. The cursor hides during capture and returns on release. Physical mouse
+buttons belong to the game in this mode, including when the hidden cursor is
+above a HUD control; the keyboard/controller shortcuts and touch stay local.
+Missing protocols, a competing grab or a refused lock leave controls open with
+an actionable message. Mode changes require Resume. Adjacent relative samples
+retain total distance and subpixel fractions; motion is not bounded by the
+screen edge. Pixel-only touchpad scrolling is forwarded as high-resolution wheel
+units (one unit per pixel), while wheel notches retain 120 units per notch.
+
+Touchscreen/trackpad gestures beyond scrolling, IME/text composition and
 non-US text-entry preferences are not included in this slice. Physical Linux
 keyboard scancodes use US game-key positions; native left/right modifiers and
 keypad digits remain distinct, with logical Qt fallback for injected events.
@@ -1736,4 +1747,11 @@ The real library or Vulkan presentation window owns forwarding, preventing the
 redirected Quick overlay from sending an event twice. Existing controller routing,
 permissions, pairing and stream settings are preserved. Local evidence:
 `../../build/deck-desktop-input/EVIDENCE.md`. Installed mouse/keyboard, Steam Input
-and device-removal behavior still require physical acceptance.
+and device-removal behavior still require physical acceptance. The relative
+mouse slice additionally passes Xvfb raw-motion/edge/cursor/subscription checks,
+X11 session release tests, and an isolated KWin Wayland/EIS motion/lock/release
+check. The EIS input source exists only in the disposable test compositor.
+Settings and Command Center regressions cover persisted mode, unavailable
+capture, keyboard navigation, and enlarged text. Retained local evidence:
+`../../build/linux-mouse/EVIDENCE.md`; these checks do not claim installed Flatpak
+or physical game acceptance.

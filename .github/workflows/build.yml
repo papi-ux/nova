@@ -71,7 +71,7 @@ jobs:
         run: |
           pacman -Syu --noconfirm --needed \
             git gcc cmake ninja pkgconf \
-            qt6-base qt6-declarative \
+            qt6-base qt6-declarative qt6-wayland wayland wayland-protocols \
             ffmpeg libva libdrm mesa \
             libpulse pipewire pipewire-audio opus openssl dbus python \
             libplacebo vulkan-headers vulkan-swrast \
