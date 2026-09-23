@@ -21,6 +21,25 @@ Current status:
 - Fallback build path keeps the core/controller/library smoke runnable without Qt.
 - The shell consumes a generated sample Polaris game fixture shaped after shared/polaris/model/src/commonMain/kotlin/com/papi/nova/shared/polaris/model/PolarisGame.kt.
 
+## Linux window controls
+
+Choose **Settings → Video & Stream → Window Mode**, use the fullscreen/windowed
+button in **Command Center**, or press **Ctrl + Alt + Shift + F**. During play,
+switching modes releases held input and opens Command Center; explicitly resume
+when ready. Escape continues to go to the game while gameplay owns input.
+
+Desktop launches default to a window and Game Mode defaults to fullscreen. Each
+environment remembers its own mode, size, maximized state and display. A removed
+monitor cannot leave restored geometry outside the available screen; Wayland
+chooses window placement. The optional Vulkan stream window shares the selected
+mode while keeping its own normal size, so returning to the library does not
+resize that window while GPU work is still draining.
+
+Regression coverage includes actual QML controls, held-input release, persistence,
+Vulkan cancel/reopen under GPU pressure, and separate isolated X11/Wayland
+compositor runs. Physical Deck Game Mode, mixed-DPI monitor transitions and
+installed Flatpak upgrade checks remain acceptance work.
+
 ## Local Android v1.4.11 parity work
 
 The standalone library now shares theme colors and focus controls across pairing,

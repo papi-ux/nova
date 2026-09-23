@@ -14,6 +14,7 @@ FocusScope {
     required property var refreshState
     property var libraryController: null
     property var hostSettingsController: null
+    property var windowController: null
     required property var settingsProvider
     property var hostPower: null
     property var gamepad: null
@@ -1191,6 +1192,7 @@ FocusScope {
 
     SettingsHub {
         id: settingsHub
+        windowController: browser.windowController
         settingsProvider: browser.settingsProvider
         hostController: browser.hostSettingsController
         libraryPreferences: preferences

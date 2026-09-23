@@ -61,6 +61,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_native_session.cpp
     src/runtime/deck_input_hub.cpp
     src/runtime/deck_desktop_input_bridge.cpp
+    src/runtime/deck_window_controller.cpp
     src/runtime/deck_rumble.cpp
     src/runtime/deck_rumble_linux.cpp
     src/runtime/deck_sleep_monitor.cpp
@@ -277,6 +278,9 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_controller_input_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_controller_input_test COMMAND nova_deck_controller_input_test)
     add_executable(nova_deck_native_session_test tests/deck_native_session_test.cpp)
+    add_executable(nova_deck_window_controller_test tests/deck_window_controller_test.cpp)
+    target_link_libraries(nova_deck_window_controller_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_window_controller_test COMMAND nova_deck_window_controller_test)
     add_executable(nova_deck_desktop_input_test tests/deck_desktop_input_test.cpp)
     target_link_libraries(nova_deck_desktop_input_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_desktop_input_test COMMAND nova_deck_desktop_input_test)

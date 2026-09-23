@@ -1,5 +1,6 @@
 #include "runtime/deck_input_hub.h"
 #include "runtime/deck_desktop_input_bridge.h"
+#include "runtime/deck_window_controller.h"
 #include "deck_layout.h"
 #include "deck_gamepad.h"
 #include "polaris_game_fixture.h"
@@ -1476,6 +1477,7 @@ int registerSteamShortcutCommand(const QStringList& arguments) {
 bool runPairingSetup(QGuiApplication& app, const QStringList& arguments, bool managePcs = false) {
     nova::deck::runtime::DeckPairingController pairing;
     QtDeckGamepadBridge gamepad;
+    nova::deck::runtime::DeckWindowController windowController;
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("novaPairing", &pairing);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepad);
@@ -1485,6 +1487,7 @@ bool runPairingSetup(QGuiApplication& app, const QStringList& arguments, bool ma
     if (engine.rootObjects().isEmpty()) { app.setQuitOnLastWindowClosed(priorQuit); return false; }
     auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().first());
     if (!window) { app.setQuitOnLastWindowClosed(priorQuit); return false; }
+    windowController.watchWindow(window);
     QEventLoop pairingEventLoop;
     QObject::connect(window, &QWindow::visibleChanged, &pairingEventLoop, [&] { if (!window->isVisible()) pairingEventLoop.quit(); });
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &pairingEventLoop, &QEventLoop::quit);
@@ -1712,6 +1715,11 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     gamepadBridge.setNativeSession(&nativeSession);
     nova::deck::runtime::DeckPlaySettings playSettings;
     nova::deck::runtime::DeckDesktopInputBridge desktopInput(nativeSession, playSettings);
+    // Install the local window shortcut after desktop forwarding, so the chord
+    // is consumed before host keyboard input on both presentation paths.
+    nova::deck::runtime::DeckWindowController windowController;
+    QObject::connect(&windowController, &nova::deck::runtime::DeckWindowController::modeAboutToChange,
+        &nativeSession, &nova::deck::runtime::DeckNativeSessionController::showControls);
     playSettings.setVideoDecodeSupport(fixtureVideoSupport
         ? nova::deck::stream::DeckVideoDecodeSupport{.h264 = {4096, 4096}, .hevc = {1920, 1200}}
         : mediaProbe.videoDecodeSupport);
@@ -1719,7 +1727,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
 #ifdef NOVA_DECK_VULKAN_STREAM
     std::unique_ptr<nova::deck::runtime::DeckVulkanSessionView> vulkanSessionView;
     if (appArguments.contains(QStringLiteral("--experimental-vulkan-stream")))
-        vulkanSessionView = std::make_unique<nova::deck::runtime::DeckVulkanSessionView>(nativeSession, displayCapabilities, playSettings, desktopInput);
+        vulkanSessionView = std::make_unique<nova::deck::runtime::DeckVulkanSessionView>(nativeSession, displayCapabilities, playSettings, desktopInput, windowController);
 #endif
     QQmlApplicationEngine engine;
     auto* libraryArtwork = new nova::deck::runtime::DeckLibraryArtwork;
@@ -1746,6 +1754,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaHostSettings", &hostSettings);
     engine.rootContext()->setContextProperty("novaNativeSession", &nativeSession);
     engine.rootContext()->setContextProperty("novaPlaySettings", &playSettings);
+    engine.rootContext()->setContextProperty("novaWindowController", &windowController);
 #ifdef NOVA_DECK_VULKAN_STREAM
     engine.rootContext()->setContextProperty("novaVulkanPresentation", vulkanSessionView.get());
 #else
@@ -1897,10 +1906,11 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
         &engine,
         &QQmlApplicationEngine::objectCreated,
         &app,
-        [smokeExit, frontendSmokeExitAfterMs, frontendSmokeCapturePath, graphicsStatePath, librarySmokeStatePath, backendDtoInteractionSmokePath, backendReadOnlyStateMatrixSmokePath, expandedDiagnosticsFrameSmokePath, expandedDiagnosticsCapturePath, &app, &productPreviewPipeline, &nativeSession, &displayCapabilities, &desktopInput](QObject *object) {
+        [smokeExit, frontendSmokeExitAfterMs, frontendSmokeCapturePath, graphicsStatePath, librarySmokeStatePath, backendDtoInteractionSmokePath, backendReadOnlyStateMatrixSmokePath, expandedDiagnosticsFrameSmokePath, expandedDiagnosticsCapturePath, &app, &productPreviewPipeline, &nativeSession, &displayCapabilities, &desktopInput, &windowController](QObject *object) {
             if (object != nullptr) {
                 displayCapabilities.watchWindow(qobject_cast<QWindow*>(object));
                 desktopInput.watchWindow(qobject_cast<QWindow*>(object), object);
+                windowController.watchWindow(qobject_cast<QWindow*>(object));
                 if (auto* window = qobject_cast<QQuickWindow*>(object); window && !graphicsStatePath.isEmpty()) {
                     // Observe the actual render thread, where a context must be
                     // current for DMA-BUF import. A configured backend alone is

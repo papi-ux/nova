@@ -1,5 +1,6 @@
 #include "deck_game_tools_fixture.h"
 #include "runtime/deck_host_settings.h"
+#include "runtime/deck_window_controller.h"
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QQmlContext>
@@ -54,7 +55,9 @@ int main(int argc, char** argv) {
         target.writeMode = [&](const auto&, const auto&) { ++writes; return game_tools_fixture::ok(current); };
         return target;
     });
+    DeckWindowController windowController;
     QQmlEngine engine; engine.rootContext()->setContextProperty("settings", &settings); engine.rootContext()->setContextProperty("host", &host);
+    engine.rootContext()->setContextProperty("windowMode", &windowController);
     bool warnings = false;
     QObject::connect(&engine, &QQmlEngine::warnings, [&](const QList<QQmlError>& es) { warnings = true; for (const auto& e : es) std::cerr << e.toString().toStdString() << '\n'; });
     QQmlComponent component(&engine);
@@ -72,11 +75,12 @@ int main(int argc, char** argv) {
             function controllerBack() { hub.back() }
             function syncPreferences() { NovaTheme.preferences.sync(); NovaHudPreferences.preferences.sync(); NovaStreamPreferences.preferences.sync(); prefs.sync() }
             NovaButton { id:open; objectName:"open-settings"; text:"Settings"; onClicked:hub.open() }
-            SettingsHub { id:hub; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
+            SettingsHub { id:hub; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
         }
     )", QUrl());
     auto root = std::unique_ptr<QObject>(component.create()); if (!root) std::cerr << component.errorString().toStdString(); check(bool(root), "QML failed");
     auto* window = qobject_cast<QQuickWindow*>(root.get()); check(window, "no window");
+    windowController.watchWindow(window);
     const auto item = [&](const char* name) { auto* p = find(window->contentItem(), name); check(p, name); return p; };
     const auto click = [&](const char* name) { item(name)->forceActiveFocus(); settle(); QTest::keyClick(window, Qt::Key_Return); settle(); };
     const auto key = [&](Qt::Key k) { QTest::keyClick(window, k); settle(); };
@@ -101,6 +105,13 @@ int main(int argc, char** argv) {
     check(reads == 0 && writes == 0, "opening hub touched host");
     capture("settings-all-1280");
     key(Qt::Key_Down); focused("settings-category-stream"); key(Qt::Key_Return); key(Qt::Key_Right); focused("settings-row-stream");
+    key(Qt::Key_Down); focused("settings-row-window"); click("settings-row-window");
+    click("settings-choice-1");
+    check(windowController.fullscreen() && window->visibility() == QWindow::FullScreen, "Settings did not enter fullscreen");
+    check(QSettings().value("Window/fullscreen").toBool(), "fullscreen preference did not persist");
+    click("settings-row-window"); click("settings-choice-0");
+    check(!windowController.fullscreen() && window->visibility() == QWindow::Windowed && settings.load("host","game")==override,
+          "window mode did not restore or crossed stream preference scope");
     key(Qt::Key_Down); focused("settings-row-scale"); click("settings-row-scale"); focused("video-scale-fit");
     key(Qt::Key_Down); controllerBack(); check(settings.videoScaleMode()=="fit","focus/Back changed scaling"); focused("settings-row-scale");
     click("settings-row-scale"); click("video-scale-fill");

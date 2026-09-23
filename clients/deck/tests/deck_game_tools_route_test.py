@@ -214,6 +214,18 @@ def main():
                 if capture_dir:
                     Path(capture_dir).mkdir(parents=True, exist_ok=True)
                     command("import", "-window", window, str(Path(capture_dir)/"settings-search-app-960-large.png"))
+                keys("Up"); wait(lambda s: s.get("focus") == "settings-search")
+                keys("ctrl+a"); command("xdotool", "type", "--clearmodifiers", "window mode")
+                wait(lambda s: hub(s).get("keys") == ["window"])
+                keys("Down", "Return", "Down", "Return")
+                wait(lambda s: s.get("fullscreen") and hub(s).get("values", {}).get("window") == "fullscreen")
+                if capture_dir:
+                    command("import", "-window", window, str(Path(capture_dir)/"settings-fullscreen.png"))
+                keys("ctrl+alt+shift+f")
+                wait(lambda s: s.get("fullscreen") is False and hub(s).get("width") == 960 and hub(s).get("height") == 600)
+                assert state()["focus"] == "settings-row-window" and state()["focusVisible"], "fullscreen shortcut lost Settings focus"
+                if capture_dir:
+                    command("import", "-window", window, str(Path(capture_dir)/"settings-windowed-restored.png"))
                 assert not settings_writes and not writes
                 assert settings_read_count() == initial_settings_reads, "browsing Settings fetched host settings"
                 keys("Escape"); wait(lambda s: not hub(s).get("opened") and s.get("focus") == "library-settings")

@@ -7,6 +7,7 @@ import QtQuick.Layouts
 Popup {
     id: hub
     objectName: "settings-hub"
+    property var windowController: null
     required property var settingsProvider
     property var hostController: null
     property var libraryPreferences: null
@@ -23,6 +24,7 @@ Popup {
     ]
     readonly property var definitions: [
         {key: "stream", category: "stream", title: "Stream Defaults", words: "resolution width height fps frame rate bitrate mbps every game video", scope: "This device · Games without an override · Next new stream", detail: "Review resolution, frame rate and bitrate in Every Game. Per-game choices stay in Play Setup."},
+        {key: "window", category: "stream", title: "Window Mode", words: "fullscreen full screen window desktop display monitor", scope: "This device · Applies immediately", detail: "Switch between a desktop window and fullscreen. Ctrl + Alt + Shift + F also switches modes. During play, resume from Command Center after switching."},
         {key: "scale", category: "stream", title: "Video Scaling", words: "fit fill stretch crop bars aspect ratio display screen", scope: "This device · All streams · Applies immediately", detail: "Choose how the picture fits your screen.", reset: "fit"},
         {key: "pacing", category: "stream", title: "Video Frame Pacing", words: "latency balanced smooth timing stutter frames", scope: "This device · Next new stream · Reconnect keeps the current choice", detail: "Prefer lowest latency shows the newest frame as soon as possible. Balanced spaces decoded frames at the stream rate with a small buffer, which adds delay. Display timing still depends on your system. Warp, FPS-limit and smoothest-video modes are not available in the Linux client yet.", reset: "latency"},
         {key: "channels", category: "audio", title: "Audio Channels", words: "stereo surround speakers headphones 5.1 7.1", scope: "This device · Next new stream", detail: "Surround needs a compatible output. Your system controls audio routing.", reset: 2},
@@ -42,6 +44,7 @@ Popup {
         {key: "sync", category: "pc", title: "Polaris Sync", words: "host paired profile keep in step match send import reset display mode resume timeout", scope: "Selected PC · Paired profile and PC-wide settings are labeled separately", detail: "Compare Nova and Polaris, manage Keep in step, and review host settings. Each action shows its scope."}
     ]
     readonly property var shown: definitions.filter(item => {
+        if (item.key === "window" && !windowController) return false
         const words = search.text.trim().toLowerCase().split(/\s+/).filter(Boolean)
         const matches = words.every(word => (item.title + " " + item.words + " " + item.scope).toLowerCase().includes(word))
         return words.length ? matches : category === "all" || item.category === category
@@ -61,6 +64,7 @@ Popup {
 
     function value(key) {
         switch (key) {
+        case "window": return windowController && windowController.fullscreen ? "fullscreen" : "windowed"
         case "scale": return settingsProvider.videoScaleMode
         case "pacing": return settingsProvider.framePacingMode
         case "stream": {
@@ -87,6 +91,7 @@ Popup {
     }
     function options(key) {
         switch (key) {
+        case "window": return [{id: "windowed", title: "Windowed"}, {id: "fullscreen", title: "Fullscreen"}]
         case "scale": return scaleSheet.modes
         case "pacing": return [{id: "latency", title: "Prefer lowest latency"}, {id: "balanced", title: "Balanced"}]
         case "channels": return [{id: 2, title: "Stereo"}, {id: 6, title: "5.1 surround"}, {id: 8, title: "7.1 surround"}]
@@ -112,6 +117,7 @@ Popup {
     function save(key, next) {
         let ok = true
         switch (key) {
+        case "window": if (windowController) windowController.setFullscreen(next === "fullscreen"); else ok = false; break
         case "scale": ok = settingsProvider.setVideoScaleMode(next); break
         case "pacing": ok = next === "latency" ? settingsProvider.resetFramePacingMode() : settingsProvider.setFramePacingMode(next); break
         case "channels": ok = settingsProvider.saveAudioSettings({channels: next, playHostAudio: settingsProvider.audioSettings.playHostAudio}); break

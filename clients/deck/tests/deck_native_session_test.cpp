@@ -3,6 +3,7 @@
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_native_session.h"
 #include "runtime/deck_desktop_input_bridge.h"
+#include "runtime/deck_window_controller.h"
 #include "deck_doctor_fixture.h"
 
 #include <QCoreApplication>
@@ -1663,9 +1664,12 @@ void testDesktopWindowRouting() {
     DeckNativeSessionController controller(true,host.resolver(),driver,[](const auto&) { return 0; },nullptr,desktop.sender());
     DeckPlaySettings settings;
     DeckDesktopInputBridge bridge(controller,settings);
+    DeckWindowController windowController;
+    QObject::connect(&windowController, &DeckWindowController::modeAboutToChange, &controller, &DeckNativeSessionController::showControls);
     QQuickWindow window, unrelated;
     window.resize(1280,800); window.show(); window.requestActivate();
     bridge.watchWindow(&window,&window);
+    windowController.watchWindow(&window);
     until([&] { return window.isActive(); }); controller.setInputFocus(true);
     const auto key=[&](int code,bool down,Qt::KeyboardModifiers mods=Qt::NoModifier,bool repeat=false,QWindow* target=nullptr) {
         QKeyEvent event(down ? QEvent::KeyPress : QEvent::KeyRelease,code,mods,{},repeat);
@@ -1718,6 +1722,14 @@ void testDesktopWindowRouting() {
     require(controller.controlsVisible() && !desktop.seen({DeckDesktopPacket::Key,'M',0,0,true}),"focus loss or local shortcut guard failed");
     controller.setInputFocus(true); controller.resumeInput();
     key(Qt::Key_B,true,Qt::NoModifier,true); key(Qt::Key_B,false);
+    key(Qt::Key_C,true);
+    until([&] { return desktop.seen({DeckDesktopPacket::Key,'C',0,0,true}); });
+    const bool previousMode = windowController.fullscreen();
+    key(Qt::Key_F,true,Qt::ControlModifier|Qt::AltModifier|Qt::ShiftModifier);
+    key(Qt::Key_F,false);
+    until([&] { return desktop.seen({DeckDesktopPacket::Key,'C'}); });
+    require(windowController.fullscreen()!=previousMode && controller.controlsVisible() &&
+        !desktop.seen({DeckDesktopPacket::Key,'F',0,0,true}), "fullscreen chord leaked or left held input");
     controller.closeSession(); settled(controller);
     require(host.cancels==0,"desktop window close ended game");
 }

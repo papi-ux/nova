@@ -284,7 +284,7 @@ ApplicationWindow {
     }
     function libraryInteractionState() {
         if (novaStandalone) return Object.assign(androidLibrary.state(), {
-            width: width, height: height,
+            width: width, height: height, fullscreen: novaWindowController.fullscreen,
             host: selectedHostForPreview.id, games: novaLibraryGames.map(game => game.id),
             titles: novaLibraryGames.map(game => game.title), busy: libraryBusy,
             automatic: novaLibraryRefresh.state.automatic, failed: novaLibraryRefresh.state.failed,
@@ -724,6 +724,7 @@ ApplicationWindow {
         id: nativePreview
         session: novaNativeSession
         settingsProvider: novaPlaySettings
+        windowController: novaWindowController
         launchPolicy: selectedGameForPreview && selectedGameForPreview.launchPolicy
             ? selectedGameForPreview.launchPolicy : ({ known: false, hostDefault: "", allowed: [] })
         streamCapabilities: selectedGameForPreview.streamCapabilities || ({})
@@ -821,6 +822,7 @@ ApplicationWindow {
         refreshState: novaLibraryRefresh.state
         libraryController: novaLibraryRefresh
         settingsProvider: novaPlaySettings
+        windowController: novaWindowController
         hostSettingsController: novaStandalone ? novaHostSettings : null
         sessionBusy: novaNativeSession.state.busy
         onSelected: game => selectGameForPreview(game)

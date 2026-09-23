@@ -68,6 +68,24 @@ focused Linux verification:
   The source slice is ready for review; installed Flatpak upgrade acceptance and
   publication remain pending.
 
+The desktop-window slice (L04) is also implemented locally:
+
+- Settings → Video & Stream → Window Mode and the in-game Command Center
+  switch between fullscreen and windowed. Ctrl + Alt + Shift + F works in the
+  library, pairing/PC management and both stream presentation paths.
+- Desktop and Game Mode remember their own mode, normal size, maximized state
+  and display choice. Restored geometry is constrained to the available screen;
+  Wayland leaves positioning to the compositor. Within a running session, the
+  library and Vulkan presentation retain their own normal geometry.
+- Mode/display changes release held stream input and leave Command Center open
+  until the player resumes. Vulkan handoff remains responsive under a stalled
+  GPU, including cancellation, fullscreen switching and reopening.
+- Eight focused Linux checks pass, covering geometry/persistence, native input,
+  Settings and Command Center, actual-app Settings, Vulkan overlays, refusal and
+  GPU pressure. Separate isolated X11 and Wayland compositor checks verify actual
+  fullscreen dimensions and restoration after resize. These checks do not close
+  the physical Game Mode, mixed-DPI/multi-monitor or installed Flatpak gates.
+
 ## Source audit and implementation order
 
 Source baseline: [`c822632`](https://github.com/papi-ux/nova/commit/c822632), after
