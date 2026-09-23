@@ -40,6 +40,22 @@ DeckDecodeLimits profileLimits(VADisplay display, VAProfile profile, unsigned in
     if (vaCreateConfig(display, profile, VAEntrypointVLD, &attribute, 1, &config) != VA_STATUS_SUCCESS) return {};
     unsigned int size = 0;
     DeckDecodeLimits result;
+    // Some drivers (including NVIDIA's VA-API bridge) publish valid maximum
+    // picture dimensions here but leave surface-attribute GETTABLE flags unset.
+    // Use the reported config limits, never a guessed GPU/vendor default. Keep
+    // the stricter value when both config and surface limits are available.
+    VAConfigAttrib dimensions[] = {
+        {VAConfigAttribMaxPictureWidth, VA_ATTRIB_NOT_SUPPORTED},
+        {VAConfigAttribMaxPictureHeight, VA_ATTRIB_NOT_SUPPORTED},
+    };
+    const auto constrain = [](int& limit, unsigned int value) {
+        if (value > 0 && value <= 65536)
+            limit = limit > 0 ? std::min(limit, static_cast<int>(value)) : static_cast<int>(value);
+    };
+    if (vaGetConfigAttributes(display, profile, VAEntrypointVLD, dimensions, 2) == VA_STATUS_SUCCESS) {
+        constrain(result.maxWidth, dimensions[0].value);
+        constrain(result.maxHeight, dimensions[1].value);
+    }
     if (vaQuerySurfaceAttributes(display, config, nullptr, &size) == VA_STATUS_SUCCESS && size > 0 && size <= 256) {
         std::vector<VASurfaceAttrib> attributes(size);
         if (vaQuerySurfaceAttributes(display, config, attributes.data(), &size) == VA_STATUS_SUCCESS && size <= attributes.size()) {
@@ -47,8 +63,8 @@ DeckDecodeLimits profileLimits(VADisplay display, VAProfile profile, unsigned in
                 const auto& value = attributes[i];
                 if (!(value.flags & VA_SURFACE_ATTRIB_GETTABLE) || value.value.type != VAGenericValueTypeInteger ||
                     value.value.value.i <= 0 || value.value.value.i > 65536) continue;
-                if (value.type == VASurfaceAttribMaxWidth) result.maxWidth = value.value.value.i;
-                if (value.type == VASurfaceAttribMaxHeight) result.maxHeight = value.value.value.i;
+                if (value.type == VASurfaceAttribMaxWidth) constrain(result.maxWidth, value.value.value.i);
+                if (value.type == VASurfaceAttribMaxHeight) constrain(result.maxHeight, value.value.value.i);
             }
         }
     }
