@@ -26,10 +26,19 @@ fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, client
         contract?.allowedModes.orEmpty().forEach(::add)
     }.asSequence().map(resolveAvailable).firstOrNull { it.isNotBlank() }.orEmpty()
     val preferredMode = resolveAvailable(contract?.preferredMode.orEmpty()).ifBlank { fallbackMode }
-    val recommendedMode = hostDefaultMode
-        .ifBlank { resolveAvailable(contract?.recommendedMode.orEmpty()) }
-        .ifBlank { preferredMode }
-        .ifBlank { fallbackMode }
+    // The host's configured display normally wins, because it is a later and more specific answer
+    // than an app's stored preference. An entry that states it does not follow the host default is
+    // the exception: the Desktop entry is the desktop, so a host configured to make screens for
+    // games would otherwise open it on one of those without anybody asking.
+    val contractRecommendedMode = resolveAvailable(contract?.recommendedMode.orEmpty())
+    val recommendedMode = if (contract?.followsHostDefault == false && contractRecommendedMode.isNotBlank()) {
+        contractRecommendedMode
+    } else {
+        hostDefaultMode
+            .ifBlank { contractRecommendedMode }
+            .ifBlank { preferredMode }
+            .ifBlank { fallbackMode }
+    }
     val virtualAvailable = modeAvailability(clientSettings, PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
     val virtualUnavailableReason = clientSettings.launchModeUnavailableReason(
         PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
