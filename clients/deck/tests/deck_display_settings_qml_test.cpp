@@ -41,7 +41,8 @@ int main(int argc,char** argv) {
         ApplicationWindow {
             width:1280;height:800;visible:true;color:NovaTheme.window
             function large() { NovaTheme.setFontScale(1.3) }
-            PlaySetup { id:setup;anchors.fill:parent;settingsProvider:settings;hostSettingsController:host;hostId:"host";gameId:"game";gameTitle:"Moonlit Harbor";hostName:"Living Room PC";displayCapabilities:({known:true,refreshHz:90});streamCapabilities:({h264:true,maxFps:120});Component.onCompleted:prepare() }
+            function normal() { NovaTheme.setFontScale(1) }
+            PlaySetup { id:setup;anchors.fill:parent;settingsProvider:settings;hostSettingsController:host;hostId:"host";gameId:"game";gameTitle:"Moonlit Harbor";hostName:"Living Room PC";displayCapabilities:({known:true,refreshHz:240});streamCapabilities:({h264:true,maxFps:360});Component.onCompleted:prepare() }
         }
     )",QUrl());
     auto root=std::unique_ptr<QObject>(component.create());if(!root)std::cerr<<component.errorString().toStdString();check(bool(root),"QML failed");
@@ -60,25 +61,32 @@ int main(int argc,char** argv) {
     auto* touch=QTest::createTouchDevice();const auto point=field->mapToScene(QPointF(field->width()/2,field->height()/2)).toPoint();
     QTest::touchEvent(window,touch).press(0,point,window).commit();QTest::touchEvent(window,touch).release(0,point,window).commit();settle();
     auto* entry=item("endpoint-keyboard-entry");entry->forceActiveFocus();QTest::keyClick(window,Qt::Key_A,Qt::ControlModifier);
-    for(const auto key:{Qt::Key_2,Qt::Key_7,Qt::Key_Period,Qt::Key_5})QTest::keyClick(window,key);
-    check(entry->property("text")=="27.5","numeric pad rejected decimal bitrate");
+    for(const auto key:{Qt::Key_2,Qt::Key_2,Qt::Key_5,Qt::Key_Period,Qt::Key_5})QTest::keyClick(window,key);
+    check(entry->property("text")=="225.5","numeric pad rejected decimal bitrate");
     click("endpoint-keyboard-done");capture("custom-bitrate-1280");click("stream-profile-save");
-    check(settings.load("host","game")["configuration"].toMap()["bitrateKbps"]==27500&&writes==0,"local bitrate touched host");
-    click("play-setup-rate");click("play-setup-choice-3");item("stream-profile-fps")->setProperty("text","45");click("stream-profile-save");
-    check(settings.load("host","game")["configuration"].toMap()["fps"]==45,"custom frame rate not saved");
+    check(settings.load("host","game")["configuration"].toMap()["bitrateKbps"]==225500&&writes==0,"local bitrate touched host");
+    QMetaObject::invokeMethod(root.get(),"large");window->resize(960,600);settle();
+    click("play-setup-rate");
+    for(int i=0;i<5;++i){QTest::keyClick(window,Qt::Key_Down);settle();}
+    auto* highRate=item("play-setup-choice-6");
+    check(window->activeFocusItem()==highRate && highRate->mapToScene(QPointF(0,0)).y()>=0 &&
+        highRate->mapToScene(QPointF(0,highRate->height())).y()<=window->height(), "240 FPS choice clipped or unreachable with large text");
+    capture("desktop-rates-240-large-960");click("play-setup-choice-7");item("stream-profile-fps")->setProperty("text","240");click("stream-profile-save");
+    check(settings.load("host","game")["configuration"].toMap()["fps"]==240,"custom frame rate not saved");
+    QMetaObject::invokeMethod(root.get(),"normal");window->resize(1280,800);settle();
     click("play-setup-every-game");wait([&]{return !host.busy();});click("host-edit-defaults");
     item("stream-profile-width")->setProperty("text","1920");item("stream-profile-height")->setProperty("text","1200");item("stream-profile-fps")->setProperty("text","50");item("stream-profile-bitrate")->setProperty("text","22.5");
     QMetaObject::invokeMethod(root.get(),"large");window->resize(960,600);settle();item("stream-profile-fps")->forceActiveFocus();settle();capture("device-defaults-960-large");
     click("stream-profile-save");check(settings.streamDefaults()["fps"]==50&&settings.streamDefaults()["bitrateKbps"]==22500&&writes==0,"device defaults incorrectly saved");
-    check(settings.load("host","game")["configuration"].toMap()["fps"]==45,"device defaults erased game override");
+    check(settings.load("host","game")["configuration"].toMap()["fps"]==240,"device defaults erased game override");
     click("host-resume-timeout");capture("resume-timeout-960-large");click("host-resume-timeout-600");wait([&]{return !host.busy();});
     check(writes==1&&current.desiredResumeTimeout==600,"timeout not sent once");
     window->resize(1280,800);settle();capture("every-game-1280-large");
     click("host-defaults-back");click("play-setup-rate");click("play-setup-choice-reset");
     check(settings.load("host","game")["configuration"].toMap()["fps"]==50
-        && settings.load("host","game")["configuration"].toMap()["bitrateKbps"]==27500,"individual reset ignored new defaults or erased bitrate");
+        && settings.load("host","game")["configuration"].toMap()["bitrateKbps"]==225500,"individual reset ignored new defaults or erased bitrate");
     click("play-setup-bitrate");click("play-setup-choice-5");item("stream-profile-bitrate")->setProperty("text","99");click("stream-profile-back");
-    check(DeckPlaySettings(config.filePath("play.ini")).load("host","game")["configuration"].toMap()["bitrateKbps"]==27500,"cancel mutated saved choice");
+    check(DeckPlaySettings(config.filePath("play.ini")).load("host","game")["configuration"].toMap()["bitrateKbps"]==225500,"cancel mutated saved choice");
     check(!warnings,"display/settings screens emitted warnings");
     std::cout<<"Custom stream/device scopes, numeric touch entry, controller focus, reset, timeout and large text passed.\n";
 }

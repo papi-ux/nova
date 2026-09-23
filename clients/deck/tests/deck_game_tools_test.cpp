@@ -55,6 +55,13 @@ int main(int argc, char** argv) {
     check(gameToolRequest("game","reset",{})->method == "DELETE", "reset contract drift");
     check(gameToolReply("game","settings",{},game_tools_fixture::settings())->value("encoders").toList().size() == 1, "unavailable encoder exposed");
     check(gameToolReply("game","plan",config,game_tools_fixture::plan())->value("fields").toList().size() == 5, "resolved fields missing");
+    for (const int fps : {15, 120, 144, 165, 240}) {
+        auto high = config; high["fps"] = fps; high["bitrateKbps"] = 225500;
+        const auto request = gameToolRequest("game", "plan", high);
+        check(request && request->path.find("&fps=" + std::to_string(fps) + "&") != std::string::npos &&
+            request->path.find("bitrate_kbps=225500&bitrate_locked=1") != std::string::npos,
+            "desktop rate did not reach locked host plan");
+    }
     auto malformed = game_tools_fixture::plan(); malformed.replace(malformed.find("1280x800x60"),10,"1280x800x90");
     check(!gameToolReply("game","plan",config,malformed), "inconsistent resolved profile accepted");
     check(!gameToolReply("game","plan",config,"{\"source\":\"ai_cache\",\"resolved_profile\":{}}"), "untrusted plan displayed");

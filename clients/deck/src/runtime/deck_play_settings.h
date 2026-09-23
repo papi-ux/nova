@@ -40,6 +40,7 @@ class DeckPlaySettings final : public QObject {
     Q_PROPERTY(QString framePacingMode READ framePacingMode NOTIFY framePacingModeChanged)
     Q_PROPERTY(int stickDeadzonePercent READ stickDeadzonePercent NOTIFY stickDeadzonePercentChanged)
     Q_PROPERTY(QVariantMap streamDefaults READ streamDefaults NOTIFY streamDefaultsChanged)
+    Q_PROPERTY(QVariantMap streamLimits READ streamLimits CONSTANT)
 public:
     explicit DeckPlaySettings(QString fileName = {}, QObject* parent = nullptr);
     Q_INVOKABLE QVariantMap load(const QString& hostId, const QString& gameId) const;
@@ -50,6 +51,7 @@ public:
     Q_INVOKABLE QVariantMap streamPlan(const QVariantMap& configuration,
         const QVariantMap& capabilities, const QVariantMap& planner, const QVariantMap& display = {}, bool spaceSession = false) const;
     Q_INVOKABLE int displayRateLimit(double refreshHz) const;
+    QVariantMap streamLimits() const;
     // Startup snapshot for review. The session worker probes again before launch.
     void setVideoDecodeSupport(stream::DeckVideoDecodeSupport support) { videoSupport_ = support; }
     QString defaultFaceButtonLayout() const;

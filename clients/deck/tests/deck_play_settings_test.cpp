@@ -241,7 +241,7 @@ int main(int argc, char** argv) {
     plan = settings.streamPlan(wide, {{"maxFps", 240}}, {});
     require(plan.value("configuration").toMap() == wide && plan.value("rates").toList().size() == 2,
         "host capabilities exposed an unimplemented client rate or lost preference");
-    for (const auto& unavailable : {QVariantMap{{"valid", false}}, QVariantMap{{"h264", false}}, QVariantMap{{"maxFps", 20}}}) {
+    for (const auto& unavailable : {QVariantMap{{"valid", false}}, QVariantMap{{"h264", false}}, QVariantMap{{"maxFps", 14}}}) {
         plan = settings.streamPlan(defaults, unavailable, {});
         require(!plan.value("playable").toBool() && !plan.value("reason").toString().isEmpty(), "unsupported stream remained playable");
     }
@@ -254,8 +254,21 @@ int main(int argc, char** argv) {
         const bool accepts90 = std::isfinite(hz) && hz >= 88 && hz <= 1000;
         require(result.value("configuration").toMap().value("fps").toInt() == (accepts90 ? 90 : hz == 87.9 ? 87 : 60),
             "display threshold did not match effective FPS");
-        require(result.value("rates").toList().size() == (accepts90 || hz == 87.9 ? 3 : 2), "unsupported display FPS offered");
+        require(result.value("rates").toList().size() == (hz == 120 ? 4 : accepts90 || hz == 87.9 ? 3 : 2), "unsupported display FPS offered");
         require(result.value("adjustment").toString().isEmpty() == accepts90, "display adjustment was hidden");
+    }
+    for (const int fps : {15, 31, 120, 144, 165, 175, 240}) {
+        const auto requested = DeckPlayConfiguration{2560, 1440, fps, 225500}.toMap();
+        const auto high = settings.streamPlan(requested, {{"maxFps", 360}}, {}, {{"known", true}, {"refreshHz", 239.76}});
+        require(high.value("playable").toBool() && high.value("configuration").toMap().value("fps") == fps &&
+            high.value("configuration").toMap().value("bitrateKbps") == 225500 && high.value("adjustment").toString().isEmpty(),
+            "desktop rate or bitrate was capped during review");
+        require(high.value("rates").toList().back().toMap().value("fps") == 240, "240 FPS preset missing on capable display");
+        require(settings.save("linux", "game", requested) && DeckPlaySettings(file).load("linux", "game").value("configuration").toMap() == requested,
+            "high-rate game preference lost on restart");
+        const auto imported = settings.defaultsFromHost(QString("2560x1440x%1").arg(fps), 225500);
+        require(imported && imported->value("fps") == fps && imported->value("bitrateKbps") == 225500,
+            "Sync rejected valid high-rate defaults");
     }
     const QVariantMap fastDisplay{{"known", true}, {"refreshHz", 90}};
     for (const auto& host : {QVariantMap{}, QVariantMap{{"maxFps", 60}}}) {
@@ -287,7 +300,7 @@ int main(int argc, char** argv) {
     require(settings.load("a/b", "c").value("configuration").toMap() == chosen, "host/game key collision");
     require(!settings.save("", "game", chosen) && !settings.save("host", "game-empty-state", chosen), "empty selection persisted");
 
-    for (const auto& bad : QList<QVariant>{true, "60", 29.5, -1, 0, 120, 1e30,
+    for (const auto& bad : QList<QVariant>{true, "60", 29.5, -1, 0, 14, 241, 1e30,
             std::numeric_limits<double>::quiet_NaN()}) {
         auto values = chosen;
         values["fps"] = bad;

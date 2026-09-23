@@ -40,6 +40,26 @@ Vulkan cancel/reopen under GPU pressure, and separate isolated X11/Wayland
 compositor runs. Physical Deck Game Mode, mixed-DPI monitor transitions and
 installed Flatpak upgrade checks remain acceptance work.
 
+## Linux frame rates and bitrate
+
+Play Setup offers 120, 144, 165 and 240 fps when the PC advertises support and the
+current display can accommodate them. Standard fractional display refresh rates
+retain their nominal choices (for example, 239.76 Hz permits 240 fps). Custom
+whole-number rates follow the current Polaris profile contract, 15–240 fps.
+
+The old 100 Mbps numeric-parser limit and 150 Mbps host-plan request limit are
+removed. Decimal custom bitrates now reach storage, defaults, Sync, host planning,
+launch and recovery without those client-side ceilings. Polaris currently accepts
+1–300 Mbps for profiles and live bitrate changes; this remains an explicit host
+constraint. Neither a requested rate nor the capability check proves measured
+240 FPS playback or a sustained network bitrate.
+
+Preferences survive a move to a slower display. Play Setup explains any lower
+frame rate used for that stream and leaves the saved preference intact. Launch
+rechecks the display and host; resume and reconnect preserve the reviewed values.
+Tests cover 240 FPS transport configuration, recovery, bounded frame delivery,
+225.5 Mbps custom entry and host plans, plus existing scope/authorization guards.
+
 ## Local Android v1.4.11 parity work
 
 The standalone library now shares theme colors and focus controls across pairing,
@@ -940,8 +960,8 @@ offline caching and event/reconnect-driven invalidation remain open.
 
 The details Play action now opens Android's two-column **Play Setup** review:
 what will happen on the selected PC, and what the player can change. The local
-stream choices are 1280×800, 1280×720, 1920×1080 or 1920×1200; 30/60 fps plus
-90 fps when the current display and PC permit it; and 10, 20, 30
+stream choices are 1280×800, 1280×720, 1920×1080 or 1920×1200; 30/60/90/120/144/165/240 fps
+when the current display and PC permit it; and 10, 20, 30
 or 40 Mbps. Audio follows the device preferences in System. Choices save immediately for this PC/game
 on this device. Reset removes only that override and restores 1280×800, 60 fps,
 20 Mbps. Opening or editing the review sends no host mutation.
@@ -965,7 +985,7 @@ the actual mTLS library route through restart and 1280×800/960×600 captures.
 
 This completes the local per-game client stream-choice slice of P07/P13/P27.
 Android's host/Space destination, automatic/custom display
-planning, rates above 90 fps, encoder, tuning/presets,
+planning, encoder, tuning/presets,
 Steam launch behavior and Every Game host scope still need implementation.
 HDR and physical Deck stream acceptance remain open.
 
@@ -1069,7 +1089,7 @@ restart and reviewed 1280×800/960×600 fixture captures.
 
 This implements the current SDR stream review, not the full Android display
 planner. Peak-mode enumeration, automatic display selection,
-custom and higher resolutions, rates above 90 fps, Main10/HDR presentation and the Android
+custom and higher resolutions, Main10/HDR presentation and the Android
 resolved-profile/encoder/tuning contracts remain open. No physical Deck
 acceptance is added by these local checks.
 
@@ -1511,7 +1531,7 @@ acceptance. Development and tests remain local.
 ### Custom stream profiles and PC resume timeout (local development)
 
 Choose **Custom…** in Play Setup's Resolution, Frame rate or Bitrate picker. The
-numeric form accepts even sizes from 320–4096 × 240–4096, whole-number 30–90 fps,
+numeric form accepts even sizes from 320–4096 × 240–4096, whole-number 15–240 fps,
 and 1–300 Mbps, including decimal Mbps. Save affects only that game's selected
 field; Cancel leaves its preferences unchanged. Available host recommendations
 include safe advanced sizes. Codec/decoder, host and current-display checks still
@@ -1522,8 +1542,7 @@ establish hardware or physical playback support.
 device across PCs. Existing game overrides stay in place, and resetting one game
 choice uses these current defaults. Keep in step can copy the device profile to
 the selected paired PC while Every Game is open. Supported Polaris profile imports
-retain custom values exactly. Fractional rates and rates above 90 fps remain
-unavailable.
+retain custom values exactly. Fractional stream frame rates remain unavailable.
 
 **Every Game → Resume timeout** appears when Polaris advertises support. The
 1/5/10/30-minute choices affect the PC for all paired devices; the form distinguishes

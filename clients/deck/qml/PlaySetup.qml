@@ -23,7 +23,8 @@ FocusScope {
     readonly property var requestedConfiguration: {
         const result = Object.assign({}, configuration)
         if (result.profilePreference === "high_fps" && !overrides.fps)
-            result.fps = Math.max(30, settingsProvider.displayRateLimit(displayCapabilities.known ? displayCapabilities.refreshHz : 0))
+            result.fps = Math.max(settingsProvider.streamLimits.minFps, Math.min(settingsProvider.streamLimits.maxFps,
+                settingsProvider.displayRateLimit(displayCapabilities.known ? displayCapabilities.refreshHz : 0)))
         return result
     }
     Timer { id: planRefresh; interval: 150; onTriggered: if (setup.gameTools && setup.visible) setup.gameTools.review(setup.plan.configuration) }
@@ -174,7 +175,7 @@ FocusScope {
             || (mode === "headless_dongle" ? "Headless Dongle" : "Host default")
     }
     function hostPlanFact(field) {
-        const labels = { display_mode: "Display", target_bitrate_kbps: "Bitrate", target_fps: "Frame rate", preferred_codec: "Codec", hdr: "Color" }
+        const labels = { display_mode: "Display", target_bitrate_kbps: "Bitrate", target_fps: "Frame Rate", preferred_codec: "Codec", hdr: "Color" }
         let value = field.value
         if (field.key === "display_mode") { const parts = value.split("x"); value = parts[0] + " × " + parts[1] + " · " + parts[2] + " fps" }
         if (field.key === "target_bitrate_kbps") value = (Number(value) / 1000) + " Mbps"
@@ -368,8 +369,8 @@ FocusScope {
                     field: "fps"
                     explanation: "Higher frame rates make motion smoother. The plan accounts for the current display and PC limits."
                     defaultExplanation: "Use Nova's current device-default frame rate, adjusted to the display and PC when needed."
-                    label: "Frame rate"; value: plan.configuration.fps + " fps" + (plan.adjustment ? " · Adjusted" : "")
-                    onClicked: if (plan.rates.length) picker.choose(rate, "Frame rate", plan.rates,
+                    label: "Frame Rate"; value: plan.configuration.fps + " fps" + (plan.adjustment ? " · Adjusted" : "")
+                    onClicked: if (plan.rates.length) picker.choose(rate, "Frame Rate", plan.rates,
                         Math.max(0, plan.rates.findIndex(choice => choice.fps === plan.configuration.fps)))
                 }
                 Setting {

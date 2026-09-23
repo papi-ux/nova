@@ -86,6 +86,20 @@ The desktop-window slice (L04) is also implemented locally:
   fullscreen dimensions and restoration after resize. These checks do not close
   the physical Game Mode, mixed-DPI/multi-monitor or installed Flatpak gates.
 
+The rate-policy slice (L03) is implemented locally:
+
+- The 90 fps device ceiling is removed from review, saved profiles, capability
+  checks and frame delivery. Supported displays/hosts offer 120/144/165/240 fps;
+  custom integral values follow the current Polaris profile range of 15–240 fps.
+- Removed the hidden 100 Mbps number-parser ceiling and the separate 150 Mbps
+  host-plan ceiling. The current Polaris host contract still accepts 1–300 Mbps;
+  raising that host limit requires a matching host/protocol change, not a client
+  claim of unlimited bitrate. The limits were rechecked against host source.
+- Tests cover high-rate persistence, Sync import, capability and display changes,
+  launch, disconnect/resume and reconnect, bounded pacing, QML custom entry and
+  actual-app review/settings routes. Existing pairing/session authority remains
+  in force. Physical 240 FPS cadence and Flatpak upgrade acceptance remain open.
+
 ## Source audit and implementation order
 
 Source baseline: [`c822632`](https://github.com/papi-ux/nova/commit/c822632), after

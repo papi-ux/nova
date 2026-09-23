@@ -2,6 +2,7 @@
 #include "polaris/deck_spaces.h"
 #include "polaris/deck_launch_modes.h"
 #include "polaris/deck_host_settings.h"
+#include "polaris/deck_stream_capabilities.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -80,7 +81,7 @@ std::optional<DeckGameToolRequest> gameToolRequest(const QString& game, const QS
         const auto preset = v.value("profilePreference", "auto").toString(), encoder = v.value("encoderBackend").toString();
         if (!QStringList{"auto", "quality", "high_fps", "stability"}.contains(preset) || !validEncoderChoice(encoder)) return {};
         const auto w = v.value("width").toInt(), h = v.value("height").toInt(), fps = v.value("fps").toInt(), rate = v.value("bitrateKbps").toInt();
-        if (w < 640 || w > 3840 || h < 480 || h > 2160 || fps < 30 || fps > 90 || rate < 1000 || rate > 150000) return {};
+        if (!supportedDeckResolution(w, h) || !supportedDeckProfileRate(fps) || !supportedDeckProfileBitrate(rate)) return {};
         QString path = "/polaris/v1/optimize?device=steam_deck&game=" + game + "&preference=" + preset +
             QString("&width=%1&height=%2&fps=%3&display_locked=1&bitrate_kbps=%4&bitrate_locked=1&hdr=0&client_max_fps=%3").arg(w).arg(h).arg(fps).arg(rate);
         if (!encoder.isEmpty()) path += "&encoder=" + encoder;

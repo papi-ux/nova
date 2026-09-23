@@ -39,7 +39,8 @@ void testParsesCapabilities() {
     assert(!parseCapabilities("[1,2]").has_value());
     assert(capabilities->streamCapabilities.supports(1920, 1200, 60));
     assert(capabilities->streamCapabilities.supports(1280, 800, 90));
-    assert(!capabilities->streamCapabilities.supports(1280, 800, 120));
+    assert(capabilities->streamCapabilities.supports(1280, 800, 120));
+    assert(!capabilities->streamCapabilities.supports(1280, 800, 144));
     assert(!parseCapabilities("{}")->streamCapabilities.supports(1280, 800, 90));
     for (const auto* capture : {R"({"max_fps":"60"})", R"({"max_fps":0})", R"({"max_fps":-1})",
         R"({"max_fps":1001})", R"({"codecs":"h264"})", R"({"codecs":[true,"h264"]})", "false"}) {
@@ -48,6 +49,8 @@ void testParsesCapabilities() {
     }
     const auto hevcOnly = parseCapabilities(R"({"capture":{"codecs":["hevc","av1"],"max_fps":240}})");
     assert(hevcOnly && hevcOnly->streamCapabilities.valid && !hevcOnly->streamCapabilities.h264);
+    assert(hevcOnly->streamCapabilities.supports(1920, 1080, 240));
+    assert(!hevcOnly->streamCapabilities.supports(1920, 1080, 241));
     const auto limited = parseCapabilities(R"({"capture":{"codecs":["H264"],"max_fps":30}})");
     assert(limited && limited->streamCapabilities.supports(1280, 800, 30) && !limited->streamCapabilities.supports(1280, 800, 60));
     assert(parseCapabilities("{}")->streamCapabilities.supports(1280, 800, 60));

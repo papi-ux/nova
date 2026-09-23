@@ -14,6 +14,7 @@
 #include <cmath>
 #include <algorithm>
 #include <memory>
+#include <limits>
 
 namespace nova::deck::runtime {
 namespace {
@@ -74,7 +75,7 @@ std::optional<int> integer(const QVariant& value) {
     default: return std::nullopt;
     }
     const auto number = value.toDouble();
-    if (!std::isfinite(number) || number < 0 || number > 100000 || std::floor(number) != number) return std::nullopt;
+    if (!std::isfinite(number) || number < 0 || number > std::numeric_limits<int>::max() || std::floor(number) != number) return std::nullopt;
     return static_cast<int>(number);
 }
 std::optional<int> stickDeadzoneValue(const QVariant& value) {
@@ -294,8 +295,8 @@ std::optional<DeckPlayConfiguration> DeckPlayConfiguration::fromMap(const QVaria
     if (!supportedDeckResolution(*width, *height)) return std::nullopt;
     // Saved preferences may outlive the display they were selected on. Review
     // resolves them against the current display; the worker rechecks before launch.
-    if (*fps < 30 || *fps > 90) return std::nullopt;
-    if (*bitrate < 1000 || *bitrate > 300000) return std::nullopt;
+    if (!supportedDeckProfileRate(*fps)) return std::nullopt;
+    if (!supportedDeckProfileBitrate(*bitrate)) return std::nullopt;
     return DeckPlayConfiguration{*width, *height, *fps, *bitrate, face.toString(), mode.toString(), codec.toString(), preset.toString(), encoder.toString()};
 }
 
@@ -356,6 +357,11 @@ std::optional<QVariantMap> DeckPlaySettings::defaultsFromHost(const QString& dis
     return normalized;
 }
 
+QVariantMap DeckPlaySettings::streamLimits() const {
+    return {{"minFps", deckMinProfileFps}, {"maxFps", deckMaxProfileFps},
+        {"minBitrateKbps", deckMinProfileBitrateKbps}, {"maxBitrateKbps", deckMaxProfileBitrateKbps}};
+}
+
 int DeckPlaySettings::displayRateLimit(double refreshHz) const { return deckDisplayRateLimit(refreshHz); }
 
 QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVariantMap& capabilities,
@@ -404,10 +410,10 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     }
     appendResolution(effective.width, effective.height, {{"custom", true}});
     const int hostMaxFps = std::isfinite(limits.maxFps) && limits.maxFps > 0 && limits.maxFps <= 1000 ? static_cast<int>(limits.maxFps) : 60;
-    const int allowedFps = std::min(displayMaxFps, hostMaxFps);
-    QList<int> rateChoices{30, 60, 90};
-    if (effective.fps >= 30 && effective.fps <= allowedFps && !rateChoices.contains(effective.fps)) rateChoices.append(effective.fps);
-    if (allowedFps >= 30 && allowedFps <= 90 && !rateChoices.contains(allowedFps)) rateChoices.append(allowedFps);
+    const int allowedFps = std::min({displayMaxFps, hostMaxFps, deckMaxProfileFps});
+    QList<int> rateChoices{30, 60, 90, 120, 144, 165, 240};
+    if (supportedDeckProfileRate(effective.fps) && effective.fps <= allowedFps && !rateChoices.contains(effective.fps)) rateChoices.append(effective.fps);
+    if (supportedDeckProfileRate(allowedFps) && !rateChoices.contains(allowedFps)) rateChoices.append(allowedFps);
     std::sort(rateChoices.begin(), rateChoices.end());
     QVariantList rates;
     for (const int fps : rateChoices) if (fps <= allowedFps) {
@@ -449,7 +455,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     return {{"configuration", effective.toMap()}, {"playable", reason.isEmpty()}, {"reason", reason},
         {"adjustment", reason.isEmpty() ? adjustment : QString{}}, {"resolutions", resolutions}, {"rates", rates},
         {"codecs", codecs}, {"codecDetail", codecDetail},
-        {"videoLabel", selectedFormat == VIDEO_FORMAT_H265 ? "HEVC · SDR" : selectedFormat == VIDEO_FORMAT_H264 ? "H.264 · SDR" : "Codec unavailable"}, {"maxClientFps", 90}, {"displayMaxFps", displayMaxFps},
+        {"videoLabel", selectedFormat == VIDEO_FORMAT_H265 ? "HEVC · SDR" : selectedFormat == VIDEO_FORMAT_H264 ? "H.264 · SDR" : "Codec unavailable"}, {"maxClientFps", deckMaxProfileFps}, {"displayMaxFps", displayMaxFps},
         {"displayLabel", displayKnown ? QString("%1 Hz display").arg(hz, 0, 'f', hz == std::floor(hz) ? 0 : 1)
                                       : QString("Display rate unknown")}};
 }

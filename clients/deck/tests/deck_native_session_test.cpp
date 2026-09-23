@@ -403,26 +403,26 @@ void testVideoCodecAtLaunch() {
     }
 }
 
-void testDisplayRateAtLaunch() {
-    const auto values = DeckPlayConfiguration{1280, 800, 90, 20000}.toMap();
+void testDisplayRateAtLaunch(int fps) {
+    const auto values = DeckPlayConfiguration{1280, 800, fps, 225500}.toMap();
     {
         Host host;
         Driver driver;
         DeckNativeSessionController controller(true, host.resolver(), driver);
         require(!controller.startConfigured("host", "game", values) && host.resolves == 0,
-            "unverified display allowed a 90 FPS request");
+            "unverified display allowed a high FPS request");
     }
     for (int scenario = 0; scenario < 6; ++scenario) {
         Host host;
         Driver driver;
         host.driver = &driver;
         Barrier check;
-        std::atomic<int> displayLimit{90};
+        std::atomic<int> displayLimit{fps};
         host.verifyStream = [&](const std::function<bool()>& cancelled) -> std::optional<nova::deck::DeckStreamCapabilities> {
             if (scenario == 3 || scenario == 5) check.wait();
             if (cancelled()) return {};
             nova::deck::DeckStreamCapabilities caps;
-            caps.maxFps = scenario == 1 ? 60 : scenario == 2 ? 0 : 120;
+            caps.maxFps = scenario == 1 ? 60 : scenario == 2 ? 0 : 360;
             return caps;
         };
         if (scenario == 4) host.blockPath = "/serverinfo";
@@ -443,17 +443,17 @@ void testDisplayRateAtLaunch() {
         }
         if (scenario == 0) {
             until([&] { return phase(controller) == "active"; });
-            require(host.launchRequest.find("mode=1280x800x90") != std::string::npos && driver.receivedConfiguration.fps == 90,
-                "90 FPS review did not reach both launch and stream configuration");
+            require(host.launchRequest.find("mode=1280x800x" + std::to_string(fps)) != std::string::npos && driver.receivedConfiguration.fps == fps && driver.receivedConfiguration.bitrate == 225500,
+                "high FPS review did not reach both launch and stream configuration");
             displayLimit = 60;
             QElapsedTimer timer; timer.start();
             while (timer.elapsed() < 50) { QCoreApplication::processEvents(); QThread::msleep(1); }
-            require(phase(controller) == "active" && driver.receivedConfiguration.fps == 90 && driver.stops == 0,
+            require(phase(controller) == "active" && driver.receivedConfiguration.fps == fps && driver.stops == 0,
                 "display change renegotiated or ended an active game");
             controller.stop();
         }
         settled(controller);
-        if (scenario == 0) require(driver.stops == 1 && host.cancels == 1, "90 FPS stream broke cleanup");
+        if (scenario == 0) require(driver.stops == 1 && host.cancels == 1, "high FPS stream broke cleanup");
         else {
             require(host.launches == 0 && driver.starts == 0 && host.cancels == 0,
                 "unsupported, changed or cancelled display plan launched a game");
@@ -949,17 +949,19 @@ std::string ownedRunningGame(const std::string& app = "17", const std::string& t
         "</currentgameowned><currentgamesessiontoken>" + token + "</currentgamesessiontoken></root>";
 }
 
-void testDisconnectedResume() {
+void testDisconnectedResume(int fps) {
     Host host;
     host.appUuid = "game";
     Driver driver;
     host.driver = &driver;
     InputRecorder input(driver);
+    host.verifyStream = [](const auto&) { nova::deck::DeckStreamCapabilities caps; caps.maxFps = 240; return std::optional(caps); };
     DeckNativeSessionController controller(true, host.resolver(), driver, input.sender());
+    require(controller.setDisplayRateLimitReader([] { return 240; }), "high-rate recovery display fixture failed");
     controller.setInputFocus(true);
     controller.updateController({}, true);
     require(!controller.resumeDisconnected("host", "game"), "resume without a ticket was accepted");
-    DeckPlayConfiguration configuration{1920, 1080, 30, 30000, "positions"};
+    DeckPlayConfiguration configuration{1920, 1080, fps, 225500, "positions"};
     require(controller.startConfigured("host", "game", configuration.toMap()), "resume fixture did not launch");
     until([&] { return phase(controller) == "active"; });
     controller.resumeInput();
@@ -981,8 +983,8 @@ void testDisconnectedResume() {
     require(host.launches == 1 && host.resumes == 1 && host.cancels == 0, "resume launched/replaced/quit a game");
     require(host.resumeRequest.starts_with("/resume?") && host.resumeRequest.find("sessiontoken=private-token") != std::string::npos,
         "resume did not name its exact session");
-    require(driver.receivedConfiguration.width == 1920 && driver.receivedConfiguration.fps == 30 &&
-        driver.receivedConfiguration.bitrate == 30000, "resume lost reviewed stream settings");
+    require(driver.receivedConfiguration.width == 1920 && driver.receivedConfiguration.fps == fps &&
+        driver.receivedConfiguration.bitrate == 225500, "resume lost reviewed stream settings");
     controller.resumeInput();
     require(controller.controllerHint().contains("Release"), "resume replayed a held game button");
     controller.updateController({}, true);
@@ -1005,16 +1007,18 @@ void testDisconnectedResume() {
         "resumed connection failure ended the existing game");
 }
 
-void testInterruptedRecovery() {
+void testInterruptedRecovery(int fps) {
     Host host;
     host.appUuid = "game";
     Driver driver;
     host.driver = &driver;
     InputRecorder input(driver);
+    host.verifyStream = [](const auto&) { nova::deck::DeckStreamCapabilities caps; caps.maxFps = 240; return std::optional(caps); };
     DeckNativeSessionController controller(true, host.resolver(), driver, input.sender());
+    require(controller.setDisplayRateLimitReader([] { return 240; }), "high-rate recovery display fixture failed");
     controller.setInputFocus(true);
     controller.updateController({}, true);
-    const DeckPlayConfiguration config{1920, 1080, 30, 30000, "positions"};
+    const DeckPlayConfiguration config{1920, 1080, fps, 225500, "positions"};
     require(!controller.reconnect("host", "game"), "idle reconnect reached a host");
     require(controller.startConfigured("host", "game", config.toMap()), "recovery fixture did not start");
     until([&] { return phase(controller) == "active"; });
@@ -1054,8 +1058,8 @@ void testInterruptedRecovery() {
     require(controller.reconnect("host", "game"), "second manual reconnect was refused");
     until([&] { return phase(controller) == "active"; });
     require(controller.controlsVisible() && driver.receivedConfiguration.width == 1920 &&
-        driver.receivedConfiguration.height == 1080 && driver.receivedConfiguration.fps == 30 &&
-        driver.receivedConfiguration.bitrate == 30000, "reconnect lost configuration or auto-captured input");
+        driver.receivedConfiguration.height == 1080 && driver.receivedConfiguration.fps == fps &&
+        driver.receivedConfiguration.bitrate == 225500, "reconnect lost configuration or auto-captured input");
     controller.resumeInput();
     require(controller.controllerHint().contains("Release"), "reconnect replayed held controls");
     controller.updateController({}, true);
@@ -2003,7 +2007,7 @@ int main(int argc, char** argv) {
     testLaunchModeAuthorization();
     testStreamCapabilitiesAtLaunch();
     testVideoCodecAtLaunch();
-    testDisplayRateAtLaunch();
+    for (const int fps : {90, 120, 144, 165, 240}) testDisplayRateAtLaunch(fps);
     testBackendTargetAuthority();
     testCancelDuringHttp("/serverinfo");
     testCancelDuringHttp("/launch");
@@ -2021,8 +2025,8 @@ int main(int argc, char** argv) {
     testSyncProfileSessionBoundary();
     testConfiguredFaceButtons();
     testDisconnectAndExitChoice();
-    testDisconnectedResume();
-    testInterruptedRecovery();
+    for (const int fps : {30, 240}) testDisconnectedResume(fps);
+    for (const int fps : {30, 240}) testInterruptedRecovery(fps);
     testInterruptionScopeAndGracefulEnd();
     testResumeFailuresAndCancellation();
     testQueuedInputBoundaries();

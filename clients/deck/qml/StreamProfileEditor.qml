@@ -17,6 +17,7 @@ Popup {
     property var returnFocus: null
     property string error: ""
     property real unit: 1
+    readonly property var limits: settingsProvider ? settingsProvider.streamLimits : ({})
     readonly property bool sizeVisible: defaultsScope || field === "resolution"
     readonly property bool rateVisible: defaultsScope || field === "fps"
     readonly property bool bitrateVisible: defaultsScope || field === "bitrateKbps"
@@ -60,15 +61,15 @@ Popup {
             values.width = Number(widthField.text); values.height = Number(heightField.text)
         }
         if (rateVisible) {
-            if (!/^[0-9]{2}$/.test(rateField.text) || Number(rateField.text) < 30 || Number(rateField.text) > 90) {
-                error = "Choose a whole-number frame rate from 30–90 fps."; return
+            if (!/^[0-9]+$/.test(rateField.text) || Number(rateField.text) < limits.minFps || Number(rateField.text) > limits.maxFps) {
+                error = "Polaris accepts whole-number frame rates from " + limits.minFps + "–" + limits.maxFps + " fps."; return
             }
             values.fps = Number(rateField.text)
         }
         if (bitrateVisible) {
-            if (!/^[0-9]{1,3}(\.[0-9]{1,3})?$/.test(bitrateField.text)
-                    || Number(bitrateField.text) < 1 || Number(bitrateField.text) > 300) {
-                error = "Choose a bitrate from 1–300 Mbps, with up to three decimal places."; return
+            if (!/^[0-9]+(\.[0-9]{1,3})?$/.test(bitrateField.text)
+                    || Number(bitrateField.text) * 1000 < limits.minBitrateKbps || Number(bitrateField.text) * 1000 > limits.maxBitrateKbps) {
+                error = "Polaris accepts " + limits.minBitrateKbps / 1000 + "–" + limits.maxBitrateKbps / 1000 + " Mbps, with up to three decimal places."; return
             }
             values.bitrateKbps = Math.round(Number(bitrateField.text) * 1000)
         }
@@ -112,7 +113,7 @@ Popup {
             reserveScrollBarSpace: true
             Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0
             spacing: 12 * editor.unit
-            Copy { text: editor.defaultsScope ? "Nova stream defaults" : "Custom " + (editor.field === "resolution" ? "resolution" : editor.field === "fps" ? "frame rate" : "bitrate"); color: NovaTheme.text; font.bold: true; font.pixelSize: 28 * editor.unit * NovaTheme.fontScale }
+            Copy { text: editor.defaultsScope ? "Nova Stream Defaults" : "Custom " + (editor.field === "resolution" ? "Resolution" : editor.field === "fps" ? "Frame Rate" : "Bitrate"); color: NovaTheme.text; font.bold: true; font.pixelSize: 28 * editor.unit * NovaTheme.fontScale }
             Copy { text: editor.defaultsScope ? "For games without their own choice, on this device across PCs. Keep in step may copy these defaults to the paired PC while Every Game is open." : "For this game on this PC. Other games and Nova's device defaults stay unchanged." }
             Copy { text: "Width · pixels"; visible: editor.sizeVisible }
             NumberField { id: widthField; objectName: "stream-profile-width"; title: "Width in pixels"; visible: editor.sizeVisible }
@@ -122,7 +123,7 @@ Popup {
             NumberField { id: rateField; objectName: "stream-profile-fps"; title: "Frame rate in fps"; visible: editor.rateVisible }
             Copy { text: "Bitrate · Mbps"; visible: editor.bitrateVisible }
             NumberField { id: bitrateField; objectName: "stream-profile-bitrate"; title: "Bitrate in Mbps"; visible: editor.bitrateVisible; decimal: true }
-            Copy { text: "The stream still needs a supported decoder, PC and display. Play Setup shows adjustments before Play. Fractional frame rates and rates above 90 fps are not available yet." }
+            Copy { text: "Choose up to 240 fps and 300 Mbps. Your PC, decoder and display still need to support the selected rate. Play Setup shows adjustments before Play and preserves your saved choice. Fractional frame rates are not available yet." }
         }
         Copy { objectName: "stream-profile-error"; text: editor.error; color: NovaTheme.warning; visible: text.length > 0 }
         RowLayout {
