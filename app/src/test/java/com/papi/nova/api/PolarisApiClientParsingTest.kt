@@ -1943,6 +1943,64 @@ class PolarisApiClientParsingTest {
     }
 
     @Test
+    fun launchModeChoice_keepsAnEntrysOwnAnswerWhenItDoesNotFollowTheHostDefault() {
+        // The Desktop entry is the desktop. A host configured to make a screen for every game would
+        // otherwise open it on one of those, which is a fine thing to ask for and a strange thing to
+        // be handed without asking. The host says so in the contract; this is Nova honouring it.
+        val settings = PolarisApiClient.parseClientSettingsResponse(
+            JSONObject(
+                "{\"version\":1,\"desired\":{\"stream_display_mode\":\"host_virtual_display\"}," +
+                    "\"effective\":{},\"capabilities\":{\"modes\":[" +
+                    "{\"value\":\"desktop_display\",\"available\":true}," +
+                    "{\"value\":\"host_virtual_display\",\"available\":true}]}}"
+            )
+        )
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                "{\"id\":\"desktop-uuid\",\"app_id\":1,\"name\":\"Desktop\"," +
+                    "\"launch_mode\":{\"preferred_mode\":\"desktop_display\"," +
+                    "\"recommended_mode\":\"desktop_display\"," +
+                    "\"allowed_modes\":[\"desktop_display\",\"host_virtual_display\"]," +
+                    "\"follows_host_default\":false}}"
+            )
+        )
+
+        val choice = game.resolveLaunchModeChoice(true, settings)
+
+        assertEquals(PolarisGame.MODE_DESKTOP_DISPLAY, choice.recommendedMode)
+        // The host default is still reported, because the page explains where a default came from.
+        assertEquals(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY, choice.hostDefaultMode)
+        // And a screen of its own stays on offer; it is the default that changed, not the choice.
+        assertTrue(choice.virtualDisplayAllowed)
+    }
+
+    @Test
+    fun launchModeChoice_stillTakesTheHostDefaultForAnOrdinaryEntry() {
+        // The flag defaults to true and a host too old to send it means exactly that, so the same
+        // payload without the flag must keep taking the host's configured display.
+        val settings = PolarisApiClient.parseClientSettingsResponse(
+            JSONObject(
+                "{\"version\":1,\"desired\":{\"stream_display_mode\":\"host_virtual_display\"}," +
+                    "\"effective\":{},\"capabilities\":{\"modes\":[" +
+                    "{\"value\":\"desktop_display\",\"available\":true}," +
+                    "{\"value\":\"host_virtual_display\",\"available\":true}]}}"
+            )
+        )
+        val game = PolarisGameJsonAdapter.fromJson(
+            JSONObject(
+                "{\"id\":\"game-uuid\",\"app_id\":42,\"name\":\"Game\"," +
+                    "\"launch_mode\":{\"preferred_mode\":\"desktop_display\"," +
+                    "\"recommended_mode\":\"desktop_display\"," +
+                    "\"allowed_modes\":[\"desktop_display\",\"host_virtual_display\"]}}"
+            )
+        )
+
+        val choice = game.resolveLaunchModeChoice(true, settings)
+
+        assertEquals(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY, choice.recommendedMode)
+    }
+
+    @Test
     fun parseGame_includesSteamLaunchContract() {
         val game = PolarisGameJsonAdapter.fromJson(
             JSONObject(
