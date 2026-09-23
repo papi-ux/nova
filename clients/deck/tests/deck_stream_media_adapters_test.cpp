@@ -1166,6 +1166,17 @@ int main(int argc, char** argv) {
         delete sceneGraphNode;
         return 1;
     }
+    multiLayerDrmPrimeDescriptor.layers[1].format = 0x38384752; // DRM_FORMAT_RG88, NVIDIA VA-API export
+    const auto nvidiaMetadataPlan = DeckVaapiEglImagePresenter::validateDrmPrimeMetadata(multiLayerDrmPrimeDescriptor);
+    const auto nvidiaNoContextPlan = DeckVaapiEglImagePresenter::importOpenGlTextureForCurrentContext(
+        multiLayerDrmPrimeDescriptor, QSize(1280, 800), noContextPresenterResource);
+    if (!require(nvidiaMetadataPlan.status == DeckQrhiVaapiImportStatus::DrmPrimeExported &&
+            nvidiaNoContextPlan.status == DeckQrhiVaapiImportStatus::MissingRenderContext &&
+            multiLayerDrmPrimeDescriptor.layers[1].format == 0x38384752,
+            "expected NVIDIA RG88 chroma to retain its format and require a real EGL import context")) {
+        delete sceneGraphNode;
+        return 1;
+    }
     multiLayerDrmPrimeDescriptor.layers[1].format = 0x34325258; // DRM_FORMAT_XRGB8888
     const auto unsupportedMultiLayerFormatPlan = DeckVaapiEglImagePresenter::validateDrmPrimeMetadata(multiLayerDrmPrimeDescriptor);
     if (!require(unsupportedMultiLayerFormatPlan.status == DeckQrhiVaapiImportStatus::UnsupportedDrmPrimeFormat,

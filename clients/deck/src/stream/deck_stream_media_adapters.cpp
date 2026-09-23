@@ -727,9 +727,15 @@ DeckQrhiVaapiImportPlan DeckVaapiEglImagePresenter::validateDrmPrimeMetadata(con
     if (drmPrimeDescriptor.layerCount > 2) {
         return DeckQrhiVaapiImportPlan{ .status = DeckQrhiVaapiImportStatus::UnsupportedMultiLayerDrmPrimeImport, .drmPrimeObjectCount = drmPrimeDescriptor.objectCount, .drmPrimeLayerCount = drmPrimeDescriptor.layerCount, .detail = "DRM_PRIME descriptor has more than the supported Deck two-layer Y/UV shape; no layer is truncated or silently ignored" };
     }
+    // Mesa exports NV12 chroma as GR88; NVIDIA's VA-API/EGL path exports
+    // RG88. Preserve the driver's fourcc and modifier for EGL import. Both
+    // paths expose U/V as the sampled red/green components; do not relabel or
+    // byte-swap the exported image. The NVIDIA route is checked against a
+    // downloaded hardware reference with unequal chroma values.
     if (drmPrimeDescriptor.layerCount == 2 &&
-        (drmPrimeDescriptor.layers[0].format != DRM_FORMAT_R8 || drmPrimeDescriptor.layers[1].format != DRM_FORMAT_GR88)) {
-        return DeckQrhiVaapiImportPlan{ .status = DeckQrhiVaapiImportStatus::UnsupportedDrmPrimeFormat, .drmPrimeObjectCount = drmPrimeDescriptor.objectCount, .drmPrimeLayerCount = drmPrimeDescriptor.layerCount, .detail = "Only the real Deck two-layer DRM_PRIME Y/UV shape is supported for shader composition: layer 0 DRM_FORMAT_R8 luma and layer 1 DRM_FORMAT_GR88 chroma" };
+        (drmPrimeDescriptor.layers[0].format != DRM_FORMAT_R8 ||
+         (drmPrimeDescriptor.layers[1].format != DRM_FORMAT_GR88 && drmPrimeDescriptor.layers[1].format != DRM_FORMAT_RG88))) {
+        return DeckQrhiVaapiImportPlan{ .status = DeckQrhiVaapiImportStatus::UnsupportedDrmPrimeFormat, .drmPrimeObjectCount = drmPrimeDescriptor.objectCount, .drmPrimeLayerCount = drmPrimeDescriptor.layerCount, .detail = "Two-layer DRM_PRIME shader composition requires R8 luma and GR88 or RG88 interleaved chroma" };
     }
     int importedPlaneCount = 0;
     for (int layerIndex = 0; layerIndex < drmPrimeDescriptor.layerCount; ++layerIndex) {
