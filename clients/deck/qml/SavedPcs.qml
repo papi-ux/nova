@@ -187,7 +187,7 @@ ApplicationWindow {
             }
             Action {
                 id: library; objectName: "saved-pcs-library"
-                text: hosts.count ? "Back to library" : "Close"
+                text: hosts.count ? "Back to Library" : "Close"
                 onClicked: root.finish()
                 Keys.onLeftPressed: add.forceActiveFocus()
                 Keys.onUpPressed: root.focusList()

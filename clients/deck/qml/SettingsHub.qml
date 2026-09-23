@@ -16,29 +16,29 @@ Popup {
     property string error: ""
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
     readonly property var categories: [
-        {id: "all", title: "All settings"}, {id: "stream", title: "Video & stream"},
+        {id: "all", title: "All Settings"}, {id: "stream", title: "Video & Stream"},
         {id: "audio", title: "Audio"}, {id: "controls", title: "Controls"},
-        {id: "appearance", title: "Appearance"}, {id: "ingame", title: "In-game UI"},
+        {id: "appearance", title: "Appearance"}, {id: "ingame", title: "In-Game UI"},
         {id: "pc", title: "Polaris Sync"}
     ]
     readonly property var definitions: [
-        {key: "stream", category: "stream", title: "Stream defaults", words: "resolution width height fps frame rate bitrate mbps every game video", scope: "This device · Games without an override · Next new stream", detail: "Review resolution, frame rate and bitrate in Every Game. Per-game choices stay in Play Setup."},
-        {key: "scale", category: "stream", title: "Video scaling", words: "fit fill stretch crop bars aspect ratio display screen", scope: "This device · All streams · Applies immediately", detail: "Choose how the picture fits your screen.", reset: "fit"},
-        {key: "pacing", category: "stream", title: "Video frame pacing", words: "latency balanced smooth timing stutter frames", scope: "This device · Next new stream · Reconnect keeps the current choice", detail: "Prefer lowest latency shows the newest frame as soon as possible. Balanced spaces decoded frames at the stream rate with a small buffer, which adds delay. Display timing still depends on SteamOS. Warp, FPS-limit and smoothest-video modes are not available on Deck yet.", reset: "latency"},
-        {key: "channels", category: "audio", title: "Audio channels", words: "stereo surround speakers headphones 5.1 7.1", scope: "This device · Next new stream", detail: "Surround needs a compatible output. SteamOS controls audio routing.", reset: 2},
-        {key: "hostAudio", category: "audio", title: "Play audio on PC", words: "host sound speakers", scope: "This device · Next new stream", detail: "Also play through the PC's audio output while streaming.", reset: false},
-        {key: "face", category: "controls", title: "Face buttons", words: "controller layout labels positions swap ab xy", scope: "This device · Games without an override · Next new stream", detail: "Match positions swaps A/B and X/Y. A game's own layout takes priority.", reset: "labels"},
-        {key: "rumble", category: "controls", title: "Controller rumble", words: "vibration haptics", scope: "This device · Next new stream", detail: "Vibration on the active controller when supported. Pauses while controls are open.", reset: true},
-        {key: "deadzone", category: "controls", title: "Stick deadzone", words: "controller analog sensitivity drift radial anti dead zone", scope: "This device · All controllers · Next new stream", detail: "Adjust small stick movements near the center. Reconnect and wake keep the current choice.", reset: 5},
-        {key: "theme", category: "appearance", title: "Theme", words: "colors oled high contrast polaris portable chrome miami material", scope: "This device · Applies immediately", detail: "Use the same Nova theme across your library and in-game menus.", reset: "polaris"},
-        {key: "text", category: "appearance", title: "Text size", words: "font scale accessibility large", scope: "This device · Applies immediately", detail: "Increase text size while keeping controls reachable.", reset: 1},
-        {key: "layout", category: "appearance", title: "Library layout", words: "grid compact stage posters", scope: "This device · Applies immediately", detail: "Choose a poster grid, compact grid or cinematic Stage view.", reset: "grid"},
-        {key: "command", category: "ingame", title: "Command Center button", words: "hide touch overlay shortcut menu view", scope: "This device · Applies immediately", detail: "The controller shortcut still opens Command Center. Without a controller, the touch button stays available.", reset: true},
-        {key: "hint", category: "ingame", title: "Controller shortcut hint", words: "hide press view menu steam deck symbols", scope: "This device · Applies immediately", detail: "Show the controller shortcut reminder during play.", reset: true},
+        {key: "stream", category: "stream", title: "Stream Defaults", words: "resolution width height fps frame rate bitrate mbps every game video", scope: "This device · Games without an override · Next new stream", detail: "Review resolution, frame rate and bitrate in Every Game. Per-game choices stay in Play Setup."},
+        {key: "scale", category: "stream", title: "Video Scaling", words: "fit fill stretch crop bars aspect ratio display screen", scope: "This device · All streams · Applies immediately", detail: "Choose how the picture fits your screen.", reset: "fit"},
+        {key: "pacing", category: "stream", title: "Video Frame Pacing", words: "latency balanced smooth timing stutter frames", scope: "This device · Next new stream · Reconnect keeps the current choice", detail: "Prefer lowest latency shows the newest frame as soon as possible. Balanced spaces decoded frames at the stream rate with a small buffer, which adds delay. Display timing still depends on your system. Warp, FPS-limit and smoothest-video modes are not available in the Linux client yet.", reset: "latency"},
+        {key: "channels", category: "audio", title: "Audio Channels", words: "stereo surround speakers headphones 5.1 7.1", scope: "This device · Next new stream", detail: "Surround needs a compatible output. Your system controls audio routing.", reset: 2},
+        {key: "hostAudio", category: "audio", title: "Play Audio on PC", words: "host sound speakers", scope: "This device · Next new stream", detail: "Also play through the PC's audio output while streaming.", reset: false},
+        {key: "face", category: "controls", title: "Face Buttons", words: "controller layout labels positions swap ab xy", scope: "This device · Games without an override · Next new stream", detail: "Match positions swaps A/B and X/Y. A game's own layout takes priority.", reset: "labels"},
+        {key: "rumble", category: "controls", title: "Controller Rumble", words: "vibration haptics", scope: "This device · Next new stream", detail: "Vibration on the active controller when supported. Pauses while controls are open.", reset: true},
+        {key: "deadzone", category: "controls", title: "Stick Deadzone", words: "controller analog sensitivity drift radial anti dead zone", scope: "This device · All controllers · Next new stream", detail: "Adjust small stick movements near the center. Reconnect and wake keep the current choice.", reset: 5},
+        {key: "theme", category: "appearance", title: "Theme", words: "colors oled high contrast polaris portable chrome miami", scope: "This device · Applies immediately", detail: "Use the same Nova theme across your library and in-game menus.", reset: "polaris"},
+        {key: "text", category: "appearance", title: "Text Size", words: "font scale accessibility large", scope: "This device · Applies immediately", detail: "Increase text size while keeping controls reachable.", reset: 1},
+        {key: "layout", category: "appearance", title: "Library Layout", words: "grid compact stage posters", scope: "This device · Applies immediately", detail: "Choose a poster grid, compact grid or cinematic Stage view.", reset: "grid"},
+        {key: "command", category: "ingame", title: "Command Center Button", words: "hide touch overlay shortcut menu view", scope: "This device · Applies immediately", detail: "The controller shortcut still opens Command Center. Without a controller, the touch button stays available.", reset: true},
+        {key: "hint", category: "ingame", title: "Controller Shortcut Hint", words: "hide press view menu steam deck symbols", scope: "This device · Applies immediately", detail: "Show the controller shortcut reminder during play.", reset: true},
         {key: "hud", category: "ingame", title: "NovaHUD", words: "overlay statistics performance fps", scope: "This device · Applies immediately", detail: "Show stream readings during play. Unavailable measurements remain blank.", reset: false},
-        {key: "hudMode", category: "ingame", title: "HUD layout", words: "slim minimal performance debug statistics", scope: "This device · Applies immediately", detail: "Choose how much stream detail to show.", reset: "minimal"},
-        {key: "opacity", category: "ingame", title: "HUD background opacity", words: "transparent transparency panel", scope: "This device · Applies immediately", detail: "Adjust the background behind stream readings.", reset: 64},
-        {key: "position", category: "ingame", title: "HUD position", words: "top bottom left right corner", scope: "This device · Applies immediately", detail: "Choose a corner, or drag the HUD during play.", reset: "0,0"},
+        {key: "hudMode", category: "ingame", title: "HUD Layout", words: "slim minimal performance debug statistics", scope: "This device · Applies immediately", detail: "Choose how much stream detail to show.", reset: "minimal"},
+        {key: "opacity", category: "ingame", title: "HUD Background Opacity", words: "transparent transparency panel", scope: "This device · Applies immediately", detail: "Adjust the background behind stream readings.", reset: 64},
+        {key: "position", category: "ingame", title: "HUD Position", words: "top bottom left right corner", scope: "This device · Applies immediately", detail: "Choose a corner, or drag the HUD during play.", reset: "0,0"},
         {key: "sync", category: "pc", title: "Polaris Sync", words: "host paired profile keep in step match send import reset display mode resume timeout", scope: "Selected PC · Paired profile and PC-wide settings are labeled separately", detail: "Compare Nova and Polaris, manage Keep in step, and review host settings. Each action shows its scope."}
     ]
     readonly property var shown: definitions.filter(item => {
@@ -363,7 +363,7 @@ Popup {
             Layout.fillWidth: true; spacing: 16 * hub.unit
             Copy { text: "A  Select     B  Back"; color: NovaTheme.secondary }
             NovaButton {
-                id: done; objectName: "settings-back"; unit: hub.unit; text: "Back to library"
+                id: done; objectName: "settings-back"; unit: hub.unit; text: "Back to Library"
                 onClicked: hub.close()
                 Keys.onUpPressed: hub.restoreRow()
                 Keys.onLeftPressed: hub.focusCategory()

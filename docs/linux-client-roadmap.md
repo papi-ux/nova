@@ -31,7 +31,7 @@ audit commit below must not be assumed to match those installations.
 
 ## Approved additions
 
-All rows below are planned until their implementation and validation are recorded.
+Rows below are planned unless updated in the implementation status section.
 Existing partial behavior is called out so it can be extended rather than rebuilt.
 
 | ID | Work | Completion criteria |
@@ -49,6 +49,23 @@ Removing Material You is an approved native-platform adaptation to P21, rather
 than a reason to omit the remaining appearance or accessibility capabilities.
 The host-search requirement means finding compatible PCs on a local/trusted
 network; it does not mean changing Linux Wi-Fi or firewall configuration.
+
+## Implementation status
+
+2026-09-23: the first appearance/copy slice is implemented locally, with
+verification in progress:
+
+- L06 removes Material You and migrates its saved selection to Polaris Aurora.
+  The Linux settings regression verifies persistence and preservation of text
+  size, library layout and game overrides. The actual-app appearance route
+  passes for all five remaining themes, large text, focus and restart.
+- L08 standardizes settings/category titles and corresponding appearance,
+  audio, rumble, scaling and navigation labels. Audio/rumble help applies to
+  Linux devices generally. The wider interface-copy audit remains open.
+- Linux builds and the two checks above pass; screenshots at 1280x800 and
+  960x600 with enlarged text were reviewed. Remaining native-preview and
+  related route regressions must finish before this slice is ready for review.
+  Installed Flatpak upgrade acceptance and publication remain pending.
 
 ## Source audit and implementation order
 

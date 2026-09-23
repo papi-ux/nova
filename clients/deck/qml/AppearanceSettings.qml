@@ -46,14 +46,14 @@ Popup {
             objectName: "appearance-text-size"
             unit: appearance.unit
             Layout.fillWidth: true
-            text: "Text size: " + Math.round(NovaTheme.fontScale * 100) + "%"
+            text: "Text Size: " + Math.round(NovaTheme.fontScale * 100) + "%"
             onClicked: NovaTheme.setFontScale(NovaTheme.fontScale === 1 ? 1.15 : NovaTheme.fontScale === 1.15 ? 1.3 : 1)
             Keys.onUpPressed: themes.itemAt(themes.count - 1).forceActiveFocus()
             Keys.onDownPressed: commandCenterButton.forceActiveFocus()
         }
         Label {
             Layout.fillWidth: true
-            text: "In-game controls"
+            text: "In-Game Controls"
             color: NovaTheme.text; font.bold: true
             font.pixelSize: 20 * appearance.unit * NovaTheme.fontScale
         }
@@ -62,7 +62,7 @@ Popup {
             objectName: "appearance-command-center-button"
             unit: appearance.unit
             Layout.fillWidth: true
-            text: "Command Center button: " + (NovaStreamPreferences.commandCenterButton ? "On" : "Off")
+            text: "Command Center Button: " + (NovaStreamPreferences.commandCenterButton ? "On" : "Off")
             Accessible.checkable: true
             Accessible.checked: NovaStreamPreferences.commandCenterButton
             onClicked: NovaStreamPreferences.setCommandCenterButton(!NovaStreamPreferences.commandCenterButton)
@@ -74,7 +74,7 @@ Popup {
             objectName: "appearance-shortcut-hint"
             unit: appearance.unit
             Layout.fillWidth: true
-            text: "Controller shortcut hint: " + (NovaStreamPreferences.shortcutHint ? "On" : "Off")
+            text: "Controller Shortcut Hint: " + (NovaStreamPreferences.shortcutHint ? "On" : "Off")
             Accessible.checkable: true
             Accessible.checked: NovaStreamPreferences.shortcutHint
             onClicked: NovaStreamPreferences.setShortcutHint(!NovaStreamPreferences.shortcutHint)

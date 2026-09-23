@@ -738,7 +738,7 @@ ApplicationWindow {
         destinationPlayable: !novaStandalone || novaLibraryRefresh.state.destinationPlayable !== false
         gameTools: novaStandalone ? novaGameTools : null
         hostSettingsController: novaStandalone ? novaHostSettings : null
-        returnLabel: novaStandalone ? "Back to details" : "Back to library"
+        returnLabel: novaStandalone ? "Back to Details" : "Back to Library"
         onClosed: root.gameLinkStarted ? root.close() : novaStandalone ? androidLibrary.focusGame() : focusLaunchAction()
     }
 

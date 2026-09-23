@@ -279,7 +279,7 @@ int main(int argc, char** argv) {
     focused(*window, primary, "stop must move focus off the disappearing End game action");
     session.transition("stopped", false, "Your game has ended.");
     settle();
-    require(primary->property("text") == "Back to details", "completed stop must expose the return action");
+    require(primary->property("text") == "Back to Details", "completed stop must expose the return action");
     screenshot("native-controls-stopped.png");
     key(*window, Qt::Key_Return);
     require(!preview->property("opened").toBool(), "return action must close preview");
@@ -493,7 +493,7 @@ int main(int argc, char** argv) {
     session.allowResume = false;
     session.transition("interrupted", false, "The connection was interrupted. Return to the library and check this PC.");
     settle();
-    require(primary->property("text") == "Back to details" && !resumeReturn->isVisible(), "unverified legacy session offered reconnect");
+    require(primary->property("text") == "Back to Details" && !resumeReturn->isVisible(), "unverified legacy session offered reconnect");
     session.allowResume = true;
     session.transition("interrupted", false, interruptedCopy);
     settle();

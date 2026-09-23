@@ -27,6 +27,16 @@ int main(int argc, char** argv) {
     QTemporaryDir config; qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName("NovaDeckTests"); QCoreApplication::setApplicationName("SettingsHub");
+    // Existing Flatpak users may have selected the retired Android theme.
+    // Migrating it must preserve independently saved appearance/library choices.
+    {
+        QSettings previous;
+        previous.setValue("Appearance/themeId", "material_you");
+        previous.setValue("Appearance/textScale", 1.3);
+        previous.setValue("Library/layoutMode", "compact");
+        previous.sync();
+        check(previous.status() == QSettings::NoError, "legacy appearance fixture failed");
+    }
     DeckPlaySettings settings(config.filePath("play.ini"));
     QFile blocker(config.filePath("blocked")); check(blocker.open(QIODevice::WriteOnly), "failure fixture failed"); blocker.close();
     DeckPlaySettings failedSettings(config.filePath("blocked/play.ini"));
@@ -53,6 +63,8 @@ int main(int argc, char** argv) {
             width:1280; height:800; visible:true; color:NovaTheme.window
             property bool available:true
             property var provider:settings
+            readonly property string themeId:NovaTheme.themeId
+            readonly property real fontScale:NovaTheme.fontScale
             Settings { id:prefs; category:"Library"; property string layoutMode:"grid" }
             function large() { NovaTheme.setFontScale(1.3) }
             function contrast() { NovaTheme.setTheme("high_contrast") }
@@ -73,7 +85,19 @@ int main(int argc, char** argv) {
     const auto capture = [&](const char* name) { if (argc > 1) { QDir().mkpath(argv[1]); check(window->grabWindow().save(QString::fromLocal8Bit(argv[1]) + "/" + name + ".png"), "capture failed"); } };
     const auto query = [&](const char* text) { auto* s = item("settings-search"); s->forceActiveFocus(); s->setProperty("text", text); settle(); };
     const auto within = [&](const char* name) { auto* p = item(name); const auto r = p->mapRectToScene(p->boundingRect()); check(r.top() >= 0 && r.bottom() <= window->height() && r.left() >= 0 && r.right() <= window->width(), "control outside window"); };
-    settle(); click("open-settings"); focused("settings-category-all");
+    settle();
+    check(root->property("themeId") == "polaris" && root->property("fontScale").toDouble() == 1.3,
+          "retired theme did not fall back without resetting text size");
+    QMetaObject::invokeMethod(root.get(), "syncPreferences");
+    {
+        QSettings migrated;
+        check(migrated.value("Appearance/themeId") == "polaris" &&
+              migrated.value("Appearance/textScale").toDouble() == 1.3 &&
+              migrated.value("Library/layoutMode") == "compact" && settings.load("host", "game") == override,
+              "theme migration did not persist or crossed preference scope");
+    }
+    QMetaObject::invokeMethod(root.get(), "resetTheme"); settle();
+    click("open-settings"); focused("settings-category-all");
     check(reads == 0 && writes == 0, "opening hub touched host");
     capture("settings-all-1280");
     key(Qt::Key_Down); focused("settings-category-stream"); key(Qt::Key_Return); key(Qt::Key_Right); focused("settings-row-stream");

@@ -38,13 +38,13 @@ Popup {
     component Action: NovaButton { unit: rumble.unit; Layout.fillWidth: true }
     contentItem: NovaScrollColumn {
         spacing: 16 * rumble.unit
-        Copy { text: "Controller rumble"; font.pixelSize: 28 * rumble.unit * NovaTheme.fontScale; font.bold: true }
+        Copy { text: "Controller Rumble"; font.pixelSize: 28 * rumble.unit * NovaTheme.fontScale; font.bold: true }
         Copy { text: "This device · Applies to the next new stream"; color: NovaTheme.secondary }
-        Copy { text: "Feel vibration from your game on the active controller when supported by SteamOS. Other controllers stay quiet."; color: NovaTheme.secondary }
+        Copy { text: "Feel vibration from your game on the active controller when supported by your device. Other controllers stay quiet."; color: NovaTheme.secondary }
         Action {
             id: enabledButton
             objectName: "rumble-enabled"
-            text: "Controller rumble: " + (settingsProvider.rumbleEnabled ? "On" : "Off")
+            text: "Controller Rumble: " + (settingsProvider.rumbleEnabled ? "On" : "Off")
             onClicked: rumble.error = settingsProvider.setRumbleEnabled(!settingsProvider.rumbleEnabled)
                 ? "" : "Couldn't save rumble settings. Try again."
             Keys.onDownPressed: resetButton.forceActiveFocus()
@@ -54,7 +54,7 @@ Popup {
         Action {
             id: resetButton
             objectName: "rumble-reset"
-            text: "Reset rumble default"
+            text: "Reset Rumble Default"
             onClicked: rumble.error = settingsProvider.resetRumble() ? "" : "Couldn't reset rumble settings. Try again."
             Keys.onUpPressed: enabledButton.forceActiveFocus()
             Keys.onDownPressed: done.forceActiveFocus()

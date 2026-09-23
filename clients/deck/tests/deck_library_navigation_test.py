@@ -190,7 +190,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
 def appearance_navigation(wait, keys, state, save_capture, window):
     keys("Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
     wait(lambda s: s.get("appearanceOpen") and s.get("focus") == "appearance-theme-polaris")
-    for index, theme in enumerate(("polaris", "portable_chrome", "oled", "miami", "high_contrast", "material_you")):
+    for index, theme in enumerate(("polaris", "portable_chrome", "oled", "miami", "high_contrast")):
         if index:
             keys("Down")
         keys("Return")
@@ -215,7 +215,7 @@ def appearance_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: s.get("appearanceOpen"))
     # Every choice remains reachable at large text. Choose Portable Chrome for
     # the restart check; switching theme must not reset the larger font.
-    keys(*(["Up"] * 4), "Return")
+    keys(*(["Up"] * 3), "Return")
     wait(lambda s: s.get("theme") == "portable_chrome" and s.get("fontScale") == 1.3)
     keys("Escape", "Escape")
 

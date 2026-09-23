@@ -36,7 +36,7 @@ FocusScope {
     property string destinationId: "desktop"
     property string destinationName: "Desktop"
     readonly property bool spaceDestination: destinationId.length > 0 && destinationId !== "desktop"
-    property string returnLabel: "Back to details"
+    property string returnLabel: "Back to Details"
     property var configuration: ({ width: 1280, height: 800, fps: 60, bitrateKbps: 20000, faceButtonLayout: "default", launchMode: "default", videoCodec: "h264" })
     property var launchPolicy: ({ known: false, hostDefault: "", allowed: [] })
     property var streamCapabilities: ({})
@@ -390,10 +390,10 @@ FocusScope {
                     field: "faceButtonLayout"
                     explanation: "Match the labels or positions on your controller, or inherit the device setting."
                     defaultExplanation: "Follow the face-button default in System."
-                    label: "Face buttons"
+                    label: "Face Buttons"
                     value: configuration.faceButtonLayout === "default" ? "Device default"
                         : configuration.faceButtonLayout === "positions" ? "Match positions" : "Match labels"
-                    onClicked: picker.choose(faceButtons, "Face buttons", [
+                    onClicked: picker.choose(faceButtons, "Face Buttons", [
                         { label: "Device default", detail: "Use the default in System for games without an override.", faceButtonLayout: "default" },
                         { label: "Match labels", detail: "Send A as A, B as B, X as X and Y as Y.", faceButtonLayout: "labels" },
                         { label: "Match positions", detail: "Swap A/B and X/Y so your pad's positions match a Switch-style layout.", faceButtonLayout: "positions" }

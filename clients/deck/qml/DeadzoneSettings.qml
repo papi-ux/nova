@@ -28,7 +28,7 @@ Popup {
     }
     contentItem: ColumnLayout {
         spacing: 12 * editor.unit
-        Copy { text: "Stick deadzone"; color: NovaTheme.text; font.pixelSize: 28 * editor.unit * NovaTheme.fontScale; font.bold: true }
+        Copy { text: "Stick Deadzone"; color: NovaTheme.text; font.pixelSize: 28 * editor.unit * NovaTheme.fontScale; font.bold: true }
         Copy { text: "This device · All controllers · Next new stream" }
         NovaScrollColumn {
             Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0

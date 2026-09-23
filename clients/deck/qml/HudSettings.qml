@@ -52,7 +52,7 @@ Popup {
             id: alpha
             objectName: "hud-opacity"
             Layout.fillWidth: true; unit: settings.unit
-            text: "Background opacity: " + NovaHudPreferences.panelOpacity + "%"
+            text: "Background Opacity: " + NovaHudPreferences.panelOpacity + "%"
             onClicked: {
                 const values = [0, 25, 64, 90, 100]
                 NovaHudPreferences.setOpacity(values[(values.indexOf(NovaHudPreferences.panelOpacity) + 1) % values.length])

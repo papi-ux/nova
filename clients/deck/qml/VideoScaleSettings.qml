@@ -34,7 +34,7 @@ Popup {
     }
     contentItem: ColumnLayout {
         spacing: 12 * scaling.unit
-        Copy { text: "Video scaling"; color: NovaTheme.text; font.pixelSize: 28 * scaling.unit * NovaTheme.fontScale; font.bold: true }
+        Copy { text: "Video Scaling"; color: NovaTheme.text; font.pixelSize: 28 * scaling.unit * NovaTheme.fontScale; font.bold: true }
         Copy { text: "This device · All streams · Applies immediately" }
         NovaScrollColumn {
             Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0

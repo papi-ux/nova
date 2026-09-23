@@ -25,12 +25,16 @@ Current status:
 
 The standalone library now shares theme colors and focus controls across pairing,
 PC management, browsing, Play Setup, audio, rumble and the streaming overlay.
-System → Appearance offers six themes and 100/115/130% text size. Compact uses a
+System → Appearance offers five themes and 100/115/130% text size. Compact uses a
 dense portrait-poster grid; scrollable forms keep controller focus visible at
 smaller window sizes.
 
-Appearance also has separate **Command Center button** and **Controller shortcut
-hint** switches. They apply during play and persist on the Deck, independently
+The Linux client no longer offers Material You. Existing selections migrate to
+Polaris Aurora on startup while preserving text size, library layout and other
+settings. The remaining five themes keep their saved choices.
+
+Appearance also has separate **Command Center Button** and **Controller Shortcut
+Hint** switches. They apply during play and persist on the device, independently
 of NovaHUD. The floating button uses the Deck's Menu symbol; the shortcut shows
 the View/Menu symbols instead of text button names. Hiding both keeps the chord
 and Escape available. Without a controller, the touch button remains available;
@@ -52,7 +56,7 @@ scrolls independently, leaving Play reachable; Play still opens stream setup.
 
 `nova_deck_library_polish_test` drives the actual app against isolated mTLS
 fixtures: missing/zero/partial durations, delayed or denied artwork, all layouts,
-six themes, 130% text, small windows, pointer selection and controller focus.
+five themes, 130% text, small windows, pointer selection and controller focus.
 Local source, screenshots, checks and Flatpak evidence are retained in
 `build/deck-library-polish/EVIDENCE.md`. This package excludes the unfinished
 persistent Doctor receipt/report work. Installed acceptance remains separate.
@@ -638,7 +642,7 @@ release, next-session isolation, touch/D-pad/keyboard confirmation and return
 focus at 1280×800 and 960×600.
 
 After a successful disconnect, **Resume game** reconnects using the previous
-stream settings, with **Back to details** still available. The backend retains
+stream settings, with **Back to Details** still available. The backend retains
 the host/game IDs, app identity, reviewed configuration and session token only
 in memory; no token enters QML or settings. Resume resolves the current saved
 pairing/library again, checks the live paired ownership and exact app/session,
@@ -951,7 +955,7 @@ HDR and physical Deck stream acceptance remain open.
 Play Setup now offers Android's **Match labels**, **Match positions**, and an
 inherited **Device default** for each PC/game. Match labels sends A/B/X/Y by
 their names. Match positions swaps A/B and X/Y for a Switch-style layout.
-**System → Face buttons** sets the device default; an explicit game choice takes
+**System → Face Buttons** sets the device default; an explicit game choice takes
 precedence. The review shows the effective layout before Play. Reset returns
 that game's stream choices to defaults and its buttons to device inheritance,
 without changing another game's override or the device default.
@@ -1382,7 +1386,7 @@ tests establish graph submission and lifecycle behavior only.
 
 ### Controller rumble (local development)
 
-**System → Controller rumble** implements Android's `checkbox_enable_rumble`:
+**System → Controller Rumble** implements Android's `checkbox_enable_rumble`:
 enabled by default, device-wide persistence and application to the next new
 stream. Reset rumble default affects only that preference; audio, face-button
 layout and per-game stream choices retain their scope. Failed writes retain the
@@ -1560,8 +1564,8 @@ next-launch trials are not included. Evidence: `build/deck-doctor-recovery/EVIDE
 
 ### Settings hub
 
-Open **Settings** in the library header to browse Video & stream, Audio, Controls,
-Appearance, In-game UI and Polaris Sync. Search matches setting names and related
+Open **Settings** in the library header to browse Video & Stream, Audio, Controls,
+Appearance, In-Game UI and Polaris Sync. Search matches setting names and related
 terms across all categories; tap the field or press A to type with Nova's keyboard.
 The category rail starts with focus. Right enters the settings, Left returns to
 the rail, and Back returns from an editor to the same setting.
@@ -1605,7 +1609,7 @@ Installed Deck and physical acceptance remain pending.
 
 ### Video scaling
 
-Choose **Settings → Video & stream → Video scaling**, or open **Video scaling**
+Choose **Settings → Video & Stream → Video Scaling**, or open **Video Scaling**
 in Command Center during a game:
 
 - **Fit** shows the whole picture, with black bars when its shape differs from
@@ -1625,7 +1629,7 @@ acceptance remain pending.
 
 ### Video frame pacing
 
-Open **Settings → Video & stream → Video frame pacing**:
+Open **Settings → Video & Stream → Video Frame Pacing**:
 
 - **Prefer lowest latency** keeps the newest decoded frame and hands it to the
   renderer as soon as possible. This remains the default.
@@ -1646,7 +1650,7 @@ acceptance on a Deck display.
 
 ### Stick deadzone
 
-Open **Settings → Controls → Stick deadzone**. Use the slider or 1% buttons to
+Open **Settings → Controls → Stick Deadzone**. Use the slider or 1% buttons to
 choose −20% through +20%, then **Save**. Positive values ignore small movements
 near the center; negative values boost small movements and may amplify drift.
 The Android default is 5%. At zero or below, a tiny 1% center floor remains.

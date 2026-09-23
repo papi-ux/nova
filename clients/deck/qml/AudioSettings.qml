@@ -46,7 +46,7 @@ Popup {
         spacing: 12 * audio.unit
         Copy { text: "Audio"; font.pixelSize: 28 * audio.unit * NovaTheme.fontScale; font.bold: true }
         Copy { text: "This device · Applies to the next new stream"; color: NovaTheme.secondary }
-        Copy { text: "Stereo suits the Deck's speakers and headphones. Surround needs a compatible output; SteamOS controls audio routing."; color: NovaTheme.secondary }
+        Copy { text: "Stereo works with speakers and headphones. Surround needs a compatible output; your system controls audio routing."; color: NovaTheme.secondary }
         Repeater {
             id: choices
             model: [{ channels: 2, label: "Stereo" }, { channels: 6, label: "5.1 surround" }, { channels: 8, label: "7.1 surround" }]
@@ -63,7 +63,7 @@ Popup {
         Action {
             id: hostAudio
             objectName: "audio-host-playback"
-            text: "Play audio on PC: " + (audio.current.playHostAudio ? "On" : "Off")
+            text: "Play Audio on PC: " + (audio.current.playHostAudio ? "On" : "Off")
             onClicked: audio.save({ channels: audio.current.channels, playHostAudio: !audio.current.playHostAudio })
             Keys.onUpPressed: choices.itemAt(2).forceActiveFocus()
             Keys.onDownPressed: resetAudio.forceActiveFocus()
@@ -73,7 +73,7 @@ Popup {
         Action {
             id: resetAudio
             objectName: "audio-reset"
-            text: "Reset audio defaults"
+            text: "Reset Audio Defaults"
             onClicked: audio.error = settingsProvider.resetAudioSettings() ? "" : "Couldn't reset audio settings. Try again."
             Keys.onUpPressed: hostAudio.forceActiveFocus()
             Keys.onDownPressed: done.forceActiveFocus()

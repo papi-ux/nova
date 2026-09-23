@@ -43,7 +43,7 @@ Popup {
     property string destinationId: "desktop"
     property string destinationName: "Desktop"
     property bool destinationPlayable: true
-    property string returnLabel: "Back to details"
+    property string returnLabel: "Back to Details"
     property string reviewedHostId: ""
     property string reviewedGameId: ""
     property string reviewedHostName: ""
@@ -436,7 +436,7 @@ Popup {
                 NovaButton {
                     id: inGameScale; objectName: "native-video-scale"
                     Layout.fillWidth: true; unit: nativePreview.unit
-                    text: "Video scaling · " + (nativePreview.settingsProvider.videoScaleMode === "fill" ? "Fill" : nativePreview.settingsProvider.videoScaleMode === "stretch" ? "Stretch" : "Fit")
+                    text: "Video Scaling · " + (nativePreview.settingsProvider.videoScaleMode === "fill" ? "Fill" : nativePreview.settingsProvider.videoScaleMode === "stretch" ? "Stretch" : "Fit")
                     onClicked: videoScaling.open()
                     Keys.onUpPressed: inGameAppearance.forceActiveFocus()
                     Keys.onDownPressed: inGameHud.forceActiveFocus()

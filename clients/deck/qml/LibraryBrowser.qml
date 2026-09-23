@@ -1343,7 +1343,7 @@ FocusScope {
                 id: faceDefaultButton
                 objectName: "library-face-default"
                 Layout.fillWidth: true
-                text: "Face buttons: " + (settingsProvider.defaultFaceButtonLayout === "positions" ? "Match positions" : "Match labels")
+                text: "Face Buttons: " + (settingsProvider.defaultFaceButtonLayout === "positions" ? "Match positions" : "Match labels")
                 onClicked: faceDefaultPicker.openChoice(settingsProvider.defaultFaceButtonLayout, "sort")
                 Keys.onUpPressed: syncButton.enabled ? syncButton.forceActiveFocus() : pcsButton.forceActiveFocus()
                 Keys.onDownPressed: audioButton.forceActiveFocus()
@@ -1368,7 +1368,7 @@ FocusScope {
                 id: rumbleButton
                 objectName: "library-rumble-settings"
                 Layout.fillWidth: true
-                text: "Controller rumble"
+                text: "Controller Rumble"
                 onClicked: rumbleSettings.open()
                 Keys.onUpPressed: audioButton.forceActiveFocus()
                 Keys.onDownPressed: appearanceButton.forceActiveFocus()
