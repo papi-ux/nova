@@ -13,7 +13,7 @@ Install and run it (Desktop Mode on a Deck, or any desktop):
     flatpak install --user build/Nova.flatpak
     flatpak run com.papi_ux.Nova --standalone
 
-Permissions, and why: network for paired hosts; display sockets and dri for the shell; `input` for the Deck's controls; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
+Permissions, and why: network for paired hosts and local service discovery; `org.freedesktop.Avahi` on the system bus for explicit Find PCs searches; display sockets and dri for the shell; `input` for the Deck's controls; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
 
 The native streaming path uses `xdg-run/pipewire-0` for direct
 PipeWire audio output. This exposes the default PipeWire socket, not the whole
@@ -25,3 +25,16 @@ Register Nova with Steam from Desktop Mode, with Steam closed:
     flatpak run com.papi_ux.Nova --register-steam-shortcut
 
 The shortcut runs `flatpak run com.papi_ux.Nova --standalone`; Steam shows it as "Nova" and Game Mode launches it like any other non-Steam game. Updating the Flatpak alone does not change an existing Steam shortcut. Re-register it with Steam closed to migrate an older `--live` shortcut while retaining its app ID, artwork and player customizations.
+
+Local PC search uses the device's Avahi 0.8+ service to browse local
+`_nvstream._tcp` advertisements. It does not scan IP ranges or label advertised
+PCs trusted. Results only fill the address/HTTP port for Nova's existing Trusted
+Pair or PIN flow. The search stops after eight seconds, supports multiple
+interfaces and scoped IPv6 addresses, and expires retained choices after one
+minute. Without Avahi or its sandbox permission, manual entry remains available.
+
+The KDE 6.10 SDK supplies the WaylandClient/GuiPrivate headers and
+wayland-protocols used by relative mouse capture. Match Qt private headers to the
+runtime version. Both compositor protocols are required for Relative Aiming on
+Wayland; Direct Pointer remains available when they are absent. The existing
+Wayland and fallback-X11 display permissions cover those input paths.

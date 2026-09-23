@@ -106,6 +106,7 @@ add_library(nova_deck_core STATIC
     src/polaris/deck_session_events.cpp
     src/runtime/deck_library_controller.cpp
     src/runtime/deck_library_artwork.cpp
+    src/runtime/deck_host_discovery.cpp
     src/runtime/deck_pairing_controller.cpp
 )
 set_target_properties(nova_deck_core PROPERTIES AUTOMOC ON)
@@ -324,6 +325,12 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_native_session_test COMMAND nova_deck_native_session_test)
     set_tests_properties(nova_deck_native_session_test PROPERTIES TIMEOUT 60)
     find_program(DBUS_RUN_SESSION dbus-run-session REQUIRED)
+    add_executable(nova_deck_host_discovery_test tests/deck_host_discovery_test.cpp)
+    target_link_libraries(nova_deck_host_discovery_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_host_discovery_test COMMAND ${DBUS_RUN_SESSION} --
+        ${CMAKE_COMMAND} -E env NOVA_DECK_PRIVATE_DISCOVERY_BUS=1 $<TARGET_FILE:nova_deck_host_discovery_test>)
+    set_tests_properties(nova_deck_host_discovery_test PROPERTIES TIMEOUT 25)
+
     add_executable(nova_deck_sleep_monitor_test tests/deck_sleep_monitor_test.cpp)
     target_link_libraries(nova_deck_sleep_monitor_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_sleep_monitor_test COMMAND ${DBUS_RUN_SESSION} --
@@ -616,6 +623,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/LogoPlacement.qml
                 qml/LogoArtwork.qml
                 qml/PlaySetup.qml
+                qml/HostSearch.qml
                 qml/PairHost.qml
                 qml/EndpointKeyboard.qml
                 qml/SavedPcs.qml

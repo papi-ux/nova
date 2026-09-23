@@ -16,6 +16,7 @@
 #include "runtime/deck_play_settings.h"
 #include "runtime/deck_display_capabilities.h"
 #include "runtime/deck_pairing_controller.h"
+#include "runtime/deck_host_discovery.h"
 #include "runtime/deck_library_controller.h"
 #include "runtime/deck_library_artwork.h"
 #include "stream/deck_gamestream_session_builder.h"
@@ -1476,10 +1477,12 @@ int registerSteamShortcutCommand(const QStringList& arguments) {
 
 bool runPairingSetup(QGuiApplication& app, const QStringList& arguments, bool managePcs = false) {
     nova::deck::runtime::DeckPairingController pairing;
+    nova::deck::runtime::DeckHostDiscovery discovery;
     QtDeckGamepadBridge gamepad;
     nova::deck::runtime::DeckWindowController windowController;
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("novaPairing", &pairing);
+    engine.rootContext()->setContextProperty("novaDiscovery", &discovery);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepad);
     const bool priorQuit = app.quitOnLastWindowClosed();
     app.setQuitOnLastWindowClosed(false);

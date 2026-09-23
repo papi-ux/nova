@@ -144,7 +144,7 @@ ApplicationWindow {
                 }
                 Label {
                     Layout.fillWidth: true
-                    text: "Unpair asks this PC to remove Nova's access. Forget only removes the saved PC here; the host may still trust this Deck. You can add the PC again afterward."
+                    text: "Unpair asks this PC to remove Nova's access. Forget only removes the saved PC here; the host may still trust this device. You can add the PC again afterward."
                     color: NovaTheme.secondary; font.pixelSize: 19 * NovaTheme.fontScale; wrapMode: Text.WordWrap
                 }
                 RowLayout {
@@ -155,7 +155,7 @@ ApplicationWindow {
                         Keys.onRightPressed: forget.forceActiveFocus()
                     }
                     Action {
-                        id: forget; objectName: "saved-pcs-forget"; text: "Forget on this Deck"
+                        id: forget; objectName: "saved-pcs-forget"; text: "Forget on This Device"
                         onClicked: novaPairing.removeHost(root.selected.id, true)
                         Keys.onLeftPressed: unpair.forceActiveFocus()
                         Keys.onRightPressed: keep.forceActiveFocus()

@@ -181,7 +181,7 @@ bool DeckPairingController::removeHost(const QString& hostId, bool localOnly) {
                         ? "Cancelled. This PC remains saved."
                         : result.requestMayHaveReachedHost
                         ? "The PC did not confirm unpairing. Its saved record is kept. Check the host's paired devices before retrying or forgetting locally."
-                        : "Nova could not confirm this PC's pairing. Its saved record is kept. Check the PC, then retry or choose Forget on this Deck.");
+                        : "Nova could not confirm this PC's pairing. Its saved record is kept. Check the PC, then retry or choose Forget on This Device.");
                     return;
                 }
             }
@@ -189,10 +189,10 @@ bool DeckPairingController::removeHost(const QString& hostId, bool localOnly) {
             // if Cancel arrived late. Keeping an acknowledged success is honest.
             if (!forgetNativeHost(directory, credentials, host).ok()) {
                 finish("failed", localOnly ? "The saved PC could not be removed. Try again."
-                    : "The PC confirmed unpairing, but Nova could not remove its saved record. Use Forget on this Deck after checking the saved list.");
+                    : "The PC confirmed unpairing, but Nova could not remove its saved record. Use Forget on This Device after checking the saved list.");
                 return;
             }
-            finish("removed", localOnly ? "Forgotten on this Deck. Remove Nova Deck from the PC's paired devices to revoke its access."
+            finish("removed", localOnly ? "Forgotten on this device. Remove Nova Deck from the PC's paired devices to revoke its access."
                 : "The PC confirmed unpairing. Its saved record is removed; you can pair it again.");
         } catch (...) { finish("failed", "The change could not be confirmed. Check the host's paired devices and the saved list."); }
     });

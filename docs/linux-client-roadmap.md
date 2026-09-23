@@ -25,9 +25,14 @@ and upgrade testing, including their sandbox permissions and existing settings
 and pairing data.
 
 Record each installation's version, Flatpak commit and corresponding release
-asset/hash before testing. The distribution source is confirmed by the user;
-the exact installed artifact identities have not yet been inspected. The source
-audit commit below must not be assumed to match those installations.
+asset/hash before upgrade testing. Read-only inspection of one Linux system
+installation on 2026-09-23 found version `1.4.12`, ref
+`app/com.papi_ux.Nova/x86_64/master`, runtime `org.kde.Platform/x86_64/6.10`,
+and Flatpak commit `34d695f01f442f36d417bb1b82e24ac3e4f6b341af53374ae455929f5a26df71`.
+The Deck and other Linux installations still need individual identity read-back;
+release-asset hash correspondence is not established by the Flatpak commit alone.
+The distribution source is confirmed by the user. The source audit commit below
+must not be assumed to match those installations.
 
 ## Approved additions
 
@@ -113,6 +118,21 @@ The relative mouse slice (L05) is implemented locally:
   display edges, cursor restoration, release and recapture. Physical input,
   hotplug, installed Flatpak and game acceptance remain open.
 
+The local search slice (L07) is implemented locally:
+
+- Find PCs browses local streaming advertisements on explicit request, displays
+  separate endpoints for same-name PCs, and fills the address/HTTP port only
+  after selection. Trusted Pair and PIN keep their existing authorization and
+  certificate checks; advertisements never confer trust.
+- Searches are bounded to eight seconds, 64 resolve attempts and 32 displayed
+  endpoints. Duplicate advertisements collapse; removed, cancelled and expired
+  results cannot be selected. IPv6 link-local endpoints retain interface scope.
+- A private D-Bus regression covers service loss, malformed/stale records,
+  cancellation and multiple interfaces. Pairing UI coverage includes selection,
+  manual recovery, unchanged pairing routes, keyboard focus and 960x600 at
+  130% text. A live read-only Avahi query completed successfully. Flatpak adds
+  the Avahi system-bus permission; Avahi 0.8+ must run on the Linux device.
+
 ## Source audit and implementation order
 
 Source baseline: [`c822632`](https://github.com/papi-ux/nova/commit/c822632), after
@@ -195,3 +215,22 @@ Update the [cross-product acceptance contract](https://github.com/papi-ux/polari
 with the expanded Linux profiles and evidence before admitting a supported Linux
 release. Retain its existing Deck requirements and the separation from Nordstern
 protocol research. Alpha publication does not mark these gates accepted.
+
+## Linux compatibility audit of this candidate
+
+The client is a native Linux application with no Steam dependency for standalone
+pairing/library/streaming. Steam registration remains optional. The following
+results and remaining gaps were checked against this candidate's source:
+
+| Area | Candidate evidence | Remaining acceptance or implementation |
+|---|---|---|
+| Desktop UI | Fedora 44 / Qt 6.11.2, Xvfb, KWin X11 and Wayland; window/fullscreen restore, direct/relative input and 960x600 at 130% text | Actual Deck Game Mode, laptop/desktop physical input, mixed-DPI external displays and display removal |
+| Rate controls | Host/profile validation and full launch/resume/reconnect preserve up to 240 fps and 300 Mbps; display ceilings follow the active monitor | Physical 120/144/165/240 cadence, decoder throughput and network capacity; higher bitrate still requires a matching Polaris contract change |
+| Decode/GPU | H.264/HEVC VA-API capability checks and DRM/EGL presentation are present | Automatic FFmpeg VA-API device selection is still used for both probe and decode. There is no explicit hybrid-GPU selector, native NVDEC backend or software-decoder fallback. NVIDIA-only and cross-GPU import are not advertised as validated |
+| Audio | PipeWire autoconnect permits routing/reconnection and preserves channel mapping; existing tests cover buffering/recovery | No in-app output-device picker; physical speaker/headphone/external-output changes and A/V sync remain acceptance work |
+| Discovery | Local Avahi browse works on the build host; private service/UI regressions cover endpoint selection and lifecycle | Hosts must advertise; Avahi 0.8+ is needed on the device. VPN/routed networks and networks blocking multicast may need manual entry |
+| Packaging/HDR | Same application ID and settings paths; added Avahi permission and matching Qt input dependencies | The shipped manifest still leaves the experimental Vulkan path disabled. A development Vulkan build is not evidence that the repository Flatpak supports HDR. HDR packaging/presentation and upgrades from the user's exact installed artifacts remain separate gates |
+
+These are concrete coverage limits, not a claim that every Linux hardware and
+compositor combination is supported. The remaining parity and physical release
+gates above remain open.
