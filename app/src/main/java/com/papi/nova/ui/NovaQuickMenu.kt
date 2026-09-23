@@ -1042,15 +1042,21 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     when (actionId) {
                         NovaQuickMenuActionId.MOUSE_MODE -> {
                             if (game.allowChangeMouseMode) {
+                                // Picking a mouse mode opens a dialog of its own, which needs the
+                                // screen and the touches the drawer is holding.
                                 dismiss()
                                 game.selectMouseMode(game)
                             }
                         }
                         NovaQuickMenuActionId.CONTROLLER -> {
-                            dismiss()
+                            // A setting, and nothing else wants the screen: the drawer stays open
+                            // and its own row shows the new state, so a wrong guess costs one tap
+                            // rather than the whole menu and the place in it.
                             game.toggleVirtualController()
+                            refreshState()
                         }
                         NovaQuickMenuActionId.KEYBOARD -> {
+                            // The keyboard layout covers the screen and takes every touch on it.
                             dismiss()
                             game.toggleFullKeyboard()
                         }
@@ -1076,14 +1082,18 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 haptic {
                     when (actionId) {
                         NovaQuickMenuActionId.PASTE_CLIPBOARD -> {
-                            dismiss()
+                            // The text goes to the host and nothing here needs the screen, so the
+                            // drawer stays where the hand left it.
                             game.sendClipboard(true)
                         }
                         NovaQuickMenuActionId.ROTATE_SCREEN -> {
+                            // The rotation re-lays out everything under the drawer, and the drawer
+                            // with it. It closes so the menu is not resized mid-turn.
                             dismiss()
                             game.rotateScreen()
                         }
                         NovaQuickMenuActionId.MORE_KEYS -> {
+                            // Opens the older menu, which is another surface over the stream.
                             dismiss()
                             val legacyMenu = com.papi.nova.GameMenu(game)
                             legacyMenu.showMenu(device)
