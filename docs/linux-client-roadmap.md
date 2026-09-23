@@ -16,6 +16,19 @@ successful negotiation and physically presented frames are separate results;
 none establishes the others. HDR10+ and the Nordstern transport remain separate
 research work.
 
+## Installed starting point
+
+Reported on 2026-09-23: the most recent Nova installations on the Steam Deck and
+Linux machines came from the Flatpak distributed through the Nova GitHub
+repository. Use those installed Flatpaks as the starting point for reproduction
+and upgrade testing, including their sandbox permissions and existing settings
+and pairing data.
+
+Record each installation's version, Flatpak commit and corresponding release
+asset/hash before testing. The distribution source is confirmed by the user;
+the exact installed artifact identities have not yet been inspected. The source
+audit commit below must not be assumed to match those installations.
+
 ## Approved additions
 
 All rows below are planned until their implementation and validation are recorded.
@@ -93,7 +106,7 @@ distributions, versions, GPUs and devices before they are advertised as tested.
 | Rates | Retain Deck SDR60/SDR90/HDR90 profiles. Validate high-refresh Linux profiles through 240 fps on capable hardware, distinguishing requested, negotiated, decoded, submitted, presented, repeated and dropped frames. Test bitrate values above the old client ceiling where the host/protocol supports them. |
 | Audio and input | Speakers, headphones and external/routed audio; controller hotplug and Steam Input; direct/relative mouse, keyboard, overlays, focus changes and held-input release. |
 | Network and identity | Local discovery, manual entry, Trusted Pair and PIN, pinned/revoked identity, multiple interfaces, network loss and stale discovery results; Polaris and standard compatible hosts; permitted and denied Spaces. |
-| Distribution and lifecycle | Exact Flatpak fresh install/upgrade, persistence/reset, desktop launch and optional Steam entry; cancellation, host restart, disconnect/end-game and resource cleanup. Retain the 60-minute soak, 20 launch/stop cycles and five suspend/resume cycles. |
+| Distribution and lifecycle | Fresh install and upgrade from the repository-distributed Flatpaks already installed on Deck/Linux, with exact artifact identities and preserved pairing/settings; persistence/reset, desktop launch and optional Steam entry; cancellation, host restart, disconnect/end-game and resource cleanup. Retain the 60-minute soak, 20 launch/stop cycles and five suspend/resume cycles. |
 
 Implementation can proceed before all hardware is available. A missing physical
 result remains explicitly unverified; a configuration option or fixture test is
