@@ -6,7 +6,16 @@ Owner-approved target: standalone Nova with built-in streaming, OLED HDR10 at
 2026-09-17. Freeze product behavior at this reference; later features need an
 explicit scope change, while release-blocking corrections remain eligible.
 
-The [Nightly acceptance contract](https://github.com/papi-ux/polaris-nightly/blob/docs/deck-first-reconciliation/docs/deck-release-acceptance-v1.md)
+Approved scope expansion, 2026-09-23: the native client also targets Linux
+laptops, desktops and other handhelds, including configurable high rates such as
+240 fps on capable systems. The [Linux client roadmap](linux-client-roadmap.md)
+records fullscreen/desktop behavior, complete mouse input, host discovery,
+continued UI/backend work, native theme choices and copy consistency. It retains
+the Deck HDR90 floor and separates implementation from physical acceptance.
+Material You is explicitly excluded from the Linux theme set; the remaining
+appearance and accessibility requirements still apply.
+
+The [Nightly acceptance contract](https://github.com/papi-ux/polaris-nightly/blob/main/docs/deck-release-acceptance-v1.md)
 owns cross-product release admission through DECK-01 to DECK-07. This document
 owns Nova's capability inventory. The existing
 [diagnostics preview gate](deck-product-readiness-checklist.md) proves only that
@@ -90,13 +99,16 @@ security and standard-host/Spaces compatibility matrix.
 
 ## Release disposition
 
-Implementation progress after the frozen reference: [draft audio PR #320](https://github.com/papi-ux/nova/pull/320)
-adds real Opus decoding and bounded PipeWire output toward P10/P15. Real-packet
-tests, private null-sink playback/disconnect tests and a KDE Flatpak build pass.
-Review, GUI integration and installed-Deck audio acceptance remain open. The
-reference-status column above remains a record of the audited baseline.
+[PR #334](https://github.com/papi-ux/nova/pull/334) integrated the native Alpha:
+standalone PIN/Trusted Pair, libraries, Play Setup, native video/audio,
+Command Center/NovaHUD, Doctor/Undo, Sync/settings, recovery and initial input.
+[v1.4.12](https://github.com/papi-ux/nova/releases/tag/v1.4.12) published the Alpha
+Flatpak. Full product parity and supported-release physical acceptance remain
+open. The reference-status column above records the September 17 baseline;
+`Missing` there does not mean a capability is still wholly unimplemented.
 
-Deck publication remains held while any required row is incomplete. The existing
-headless native proof and offline diagnostics gate remain valuable bounded
-evidence, not a supported Deck release. Static HDR10 belongs to this target;
-HDR10+, true 240 fps and a new Nordstern transport remain separate research work.
+A supported release remains gated on the required capability and installed
+artifact evidence. The Alpha, headless proof and offline diagnostics cannot
+close those gates. Static HDR10 and high-refresh Linux work including 240 fps are
+in scope; HDR10+ and a new Nordstern transport remain separate research work.
+See the Linux roadmap for the approved additions and implementation sequence.

@@ -1,7 +1,7 @@
 # Nova Roadmap
 
 Nova is public and usable today, but it is still early. This roadmap explains
-where the Android client is heading and where testing helps most. **Direction,
+where the Android and native Linux clients are heading and where testing helps most. **Direction,
 not a release calendar:** priorities can move when real devices, regressions, or
 measurements teach us something better.
 
@@ -18,15 +18,17 @@ For the shared host-and-client view, see the
 
 ## What stays true
 
-- Android is the only shipping client today.
+- Android is available today. The native Steam Deck client is available as an
+  Alpha Flatpak starting with v1.4.12; full Linux support and parity are in progress.
 - Nova remains usable with Moonlight-compatible hosts for standard pairing,
   launch, and streaming.
 - Polaris provides the richest host-aware experience: launch modes, live host
   context, session state, diagnostics, and coordinated tuning.
 - Public releases continue to use predictable ARM64, ARMv7, and x86_64 APKs through
   GitHub Releases, Obtainium, and GitHub Store.
-- Steam Deck and Linux handheld work remains a development preview, not a shipping
-  desktop client. iOS is planned without a release date.
+- The native client targets Linux laptops, desktops and handhelds, with Steam Deck
+  as a device profile. Supported combinations need their own acceptance evidence.
+  iOS is planned without a release date.
 
 ## Now — make handheld streaming dependable
 
@@ -59,6 +61,31 @@ For the shared host-and-client view, see the
 - Expand automated coverage around pairing, launch, stream UI, controller input,
   resume, stop, and cleanup.
 
+## Native Linux client
+
+The [approved Linux roadmap](docs/linux-client-roadmap.md) expands the native
+client beyond Steam Deck to laptops, desktops and other handhelds:
+
+- Continue UI/UX refinement and complete UI/backend flows for controller,
+  mouse/keyboard and touch use.
+- Add accessible fullscreen/windowed controls and robust resizing, scaling,
+  monitor selection and focus restoration.
+- Complete relative mouse capture for aiming alongside existing pointer input.
+- Find compatible hosts on local/trusted networks so pairing usually needs no
+  typed IP address; retain manual entry and explicit host-authorized pairing.
+- Remove Material You from Linux, preserve saved appearance preferences through
+  fallback, and standardize interface titles such as **Video & Stream**.
+- Remove arbitrary Deck-specific bitrate/FPS caps and support custom rates,
+  including 240 fps where the host, protocol and client can support them.
+- Audit Wayland/X11, graphics/decoder choices, audio, input, packaging and
+  laptop/external-display compatibility, and publish what has actually been tested.
+
+The 240 fps goal requires 240 unique frames per second decoded and physically
+presented on a validated 240 Hz Linux system, with host, network, decoder,
+display, quality, latency, thermals and power measured. Exposing a setting or
+selecting a 240 Hz display mode does not prove that result. Deck LCD SDR60 and
+OLED SDR90/HDR90 remain required profiles; broader support does not remove them.
+
 ## Build alongside — clean seams, no hidden rewrite
 
 When current work already touches media units, decoder output, session lifecycle,
@@ -82,21 +109,14 @@ path and reaches a compatible display with truthful HDR10 and SDR fallback. Nova
 must not turn an Android capability flag, static HDR, or generic tone mapping into
 a false HDR10+ claim.
 
-### True 240 fps
-
-The goal is 240 unique frames per second decoded and physically presented on a
-validated 240 Hz client, with the host, network, decoder, display, quality,
-latency, thermals, and power all measured. A 240 Hz display mode or duplicated
-frames is not the capability.
-
-Passing each goal separately does not prove a combined HDR10+ at 240 fps profile.
+Passing HDR10+ and the Linux 240 fps goal separately does not prove a combined profile.
 That combination would need its own exact device, codec, color, bitrate, quality,
 latency, thermal, fallback, and rollback evidence.
 
 ### More client platforms
 
-- Continue Steam Deck and Linux handheld development as a bounded preview before
-  making broader Linux-client promises.
+- Follow the active Linux client roadmap above; keep untested configurations
+  explicit while extending support beyond the Alpha.
 - Pursue iOS only when the media, controller, packaging, and maintenance contracts
   are clear enough to support it responsibly.
 - Add new Android variants only when real users and devices justify the release and

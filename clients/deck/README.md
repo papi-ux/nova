@@ -7,6 +7,13 @@ not yet a supported Deck release. The active [release parity checklist](../../do
 requires standalone pairing, in-app media and controls, Android product parity,
 and OLED HDR10 at 90 fps together.
 
+The [approved Linux client roadmap](../../docs/linux-client-roadmap.md) extends
+this client to Linux laptops, desktops and other handhelds. It tracks desktop
+window/fullscreen behavior, complete mouse support, local host search, UI/theme
+work and removal of arbitrary rate caps, including 240 fps on capable systems.
+The implementation notes below describe individual slices; they are not a
+current completion ledger or a claim that every Linux configuration is supported.
+
 Current status:
 
 - CMake builds a small native core library on Linux/SteamOS-capable development hosts.
