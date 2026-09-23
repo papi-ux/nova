@@ -52,8 +52,8 @@ network; it does not mean changing Linux Wi-Fi or firewall configuration.
 
 ## Implementation status
 
-2026-09-23: the first appearance/copy slice is implemented locally, with
-verification in progress:
+2026-09-23: the first appearance/copy slice is implemented locally and has passed
+focused Linux verification:
 
 - L06 removes Material You and migrates its saved selection to Polaris Aurora.
   The Linux settings regression verifies persistence and preservation of text
@@ -62,10 +62,11 @@ verification in progress:
 - L08 standardizes settings/category titles and corresponding appearance,
   audio, rumble, scaling and navigation labels. Audio/rumble help applies to
   Linux devices generally. The wider interface-copy audit remains open.
-- Linux builds and the two checks above pass; screenshots at 1280x800 and
-  960x600 with enlarged text were reviewed. Remaining native-preview and
-  related route regressions must finish before this slice is ready for review.
-  Installed Flatpak upgrade acceptance and publication remain pending.
+- Linux builds and all seven focused checks pass: settings migration, appearance,
+  native preview, settings route, library experience, audio settings and library
+  polish. Screenshots at 1280x800 and 960x600 with enlarged text were reviewed.
+  The source slice is ready for review; installed Flatpak upgrade acceptance and
+  publication remain pending.
 
 ## Source audit and implementation order
 
