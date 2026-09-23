@@ -1,4 +1,5 @@
 #include "runtime/deck_native_session.h"
+#include "runtime/deck_session_failure_message.h"
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_rumble.h"
 #include <QScopeGuard>
@@ -829,12 +830,17 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 finish("interrupted", "This PC did not answer. Check your connection and try reconnecting.");
                 return;
             }
+            const DeckSessionFailure failure{
+                .cancelled = shared->cancelled,
+                .displayRateChanged = target->request.fps > displayRateLimit(),
+                .sessionSelectionRejected = built.sessionSelectionRejected,
+                .launchRefused = built.launchRefused,
+                .resumed = built.resumed,
+                .builderError = built.error,
+                .hostMessage = built.launchStatusMessage,
+            };
             finish(shared->cancelled ? "cancelled" : "failed",
-                shared->cancelled ? "Preview cancelled." : target->request.fps > displayRateLimit()
-                    ? "The display rate changed. Review Play Setup again before starting."
-                    : built.sessionSelectionRejected ? QString::fromStdString(built.error)
-                    : built.resumed ? "The game could not be resumed. It was not asked to quit; return to the library and try again."
-                    : "The host could not start this preview. Check pairing and host availability.");
+                QString::fromStdString(deckSessionFailureMessage(failure)));
             return;
         }
         shared->publish("connecting", "Connecting video and audio…");
