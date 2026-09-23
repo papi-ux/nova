@@ -391,6 +391,12 @@
          nouns, because the strip explains a change not yet made. -->
     <string name="nova_play_setup_where_caption">Which display Polaris makes for this session</string>
     <string name="nova_play_setup_strip_where">If you changed where it runs</string>
+    <string name="nova_play_setup_screen_to_add">Screen To Add</string>
+    <string name="nova_play_setup_screen_to_add_caption">How big a display Polaris creates for this device</string>
+    <string name="nova_play_setup_strip_screen_to_add">If you changed the screen to add</string>
+    <string name="nova_play_setup_screen_to_add_device">Match this device</string>
+    <string name="nova_play_setup_screen_to_add_stream">Follow the stream</string>
+    <string name="nova_play_setup_screen_to_add_stream_consequence">The screen is made the size you stream at, which may not be this screen\'s shape.</string>
     <string name="nova_play_setup_place_legend">About this place</string>
     <string name="nova_play_setup_resolution">Resolution</string>
     <string name="nova_play_setup_resolution_caption">The display is made to match this handheld</string>

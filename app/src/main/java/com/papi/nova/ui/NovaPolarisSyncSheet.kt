@@ -127,6 +127,9 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                         settingsUnavailable = engine.settingsUnavailable,
                         autoSyncEnabled = engine.autoSyncEnabled,
                         hasServerUuid = !serverUuid.isNullOrBlank(),
+                        deviceScreenMode = novaDeviceScreenMode(
+                            requireActivity().windowManager?.defaultDisplay,
+                        ),
                         novaDisplayMode = novaDisplayMode,
                         novaBitrateKbps = prefs.bitrate,
                         loadingLabel = getString(R.string.nova_polaris_sync_loading),
@@ -139,6 +142,7 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                     )
                     val actions = NovaPlaySetupHostActions(
                         onSelectMode = { engine.setStreamDisplayMode(it) },
+                        onSelectScreenToAdd = { engine.setVirtualDisplayMode(it) },
                         onMatchNova = { engine.matchNova() },
                         onSendNova = { engine.sendNova() },
                         onUsePolaris = { engine.usePolarisProfile() },

@@ -2,6 +2,9 @@ package com.papi.nova.ui
 
 import com.papi.nova.manager.PolarisProfileSync
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -20,6 +23,7 @@ class NovaPlaySetupHostScopeTest {
         val calls = mutableListOf<String>()
         val actions = NovaPlaySetupHostActions(
             onSelectMode = { calls += "mode:$it" },
+            onSelectScreenToAdd = { calls += "screen:$it" },
             onMatchNova = { calls += "match" },
             onSendNova = { calls += "send" },
             onUsePolaris = { calls += "pull" },
@@ -57,6 +61,8 @@ class NovaPlaySetupHostScopeTest {
         aiChecked: Boolean = false,
         autoSyncChecked: Boolean = false,
         relaunchRequired: Boolean = false,
+        screenToAddMode: String = "",
+        deviceScreenMode: String = "",
     ) = NovaPolarisSyncUiState(
         status = NovaPolarisSyncStatus.SYNCED,
         desiredModeLabel = desiredLabel,
@@ -74,7 +80,59 @@ class NovaPlaySetupHostScopeTest {
         autoSyncEnabled = true,
         relaunchRequired = relaunchRequired,
         modeSummary = if (desiredLabel == effectiveLabel) desiredLabel else "$desiredLabel → $effectiveLabel",
+        screenToAddMode = screenToAddMode,
+        deviceScreenMode = deviceScreenMode,
     )
+
+
+    @Test
+    fun theScreenToAddRowAppearsOnlyWhenThisDeviceKnowsItsOwnPanel() {
+        // Blank means the panel could not be measured, and a row offering to match nothing would be
+        // a row that cannot be used. Every other release sized the screen from the stream, so that
+        // is what it keeps doing.
+        val recorded = RecordedActions()
+        val withoutPanel = rows(sync(), recorded)
+        assertNull(withoutPanel.firstOrNull { it.row == NovaPlaySetupRow.HOST_SCREEN_TO_ADD })
+
+        val withPanel = rows(sync(deviceScreenMode = "2560x1600x60"), recorded)
+        val row = withPanel.firstOrNull { it.row == NovaPlaySetupRow.HOST_SCREEN_TO_ADD }
+        assertNotNull(row)
+    }
+
+    @Test
+    fun theScreenToAddRowSaysWhatTheHostWillMakeAndSetsIt() {
+        val recorded = RecordedActions()
+        val following = rows(sync(deviceScreenMode = "2560x1600x60"), recorded)
+            .first { it.row == NovaPlaySetupRow.HOST_SCREEN_TO_ADD }
+        // Nothing set: the host follows the stream, which is what every release before this did, so
+        // the row must not read as though a size had been chosen.
+        assertFalse(following.overridden)
+        assertFalse(following.value.contains("2560"))
+        assertEquals(2, following.options.size)
+        // The device option carries the measured panel as its consequence, so the row says what it
+        // will actually ask for rather than only naming itself.
+        assertEquals("2560x1600x60", following.options[0].consequence)
+        assertFalse(following.options[0].current)
+        assertTrue(following.options[1].current)
+
+        following.options[0].onSelect?.invoke()
+        assertEquals(listOf("screen:2560x1600x60"), recorded.calls)
+
+        val set = rows(
+            sync(deviceScreenMode = "2560x1600x60", screenToAddMode = "2560x1600x60"),
+            recorded,
+        ).first { it.row == NovaPlaySetupRow.HOST_SCREEN_TO_ADD }
+        // Set: the row reads as the screen the host will make, and says it is not the default.
+        assertEquals("2560x1600x60", set.value)
+        assertTrue(set.overridden)
+        assertTrue(set.options[0].current)
+        assertFalse(set.options[1].current)
+
+        recorded.calls.clear()
+        set.options[1].onSelect?.invoke()
+        // Clearing sends an empty value, which is what the host reads as "follow the stream".
+        assertEquals(listOf("screen:"), recorded.calls)
+    }
 
     private fun rows(sync: NovaPolarisSyncUiState, recorded: RecordedActions) =
         buildNovaPlaySetupHostRows(sync, "profile", getString, recorded.actions)

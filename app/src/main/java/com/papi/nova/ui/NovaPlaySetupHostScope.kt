@@ -12,6 +12,7 @@ import com.papi.nova.R
  */
 internal class NovaPlaySetupHostActions(
     val onSelectMode: (String) -> Unit,
+    val onSelectScreenToAdd: (String) -> Unit,
     val onMatchNova: () -> Unit,
     val onSendNova: () -> Unit,
     val onUsePolaris: () -> Unit,
@@ -31,6 +32,49 @@ internal fun buildNovaPlaySetupHostRows(
         getString(if (checked) R.string.nova_play_setup_on else R.string.nova_play_setup_off)
 
     val rows = mutableListOf<NovaPlaySetupRowState>()
+    // What the host makes when it adds a screen, which is not what this device streams. They were
+    // the same number until 1.4.13, so a tablet that streams small to save bandwidth was given a
+    // screen the shape of the stream rather than the shape of its own glass.
+    if (sync.deviceScreenMode.isNotBlank()) {
+        val followsStream = sync.screenToAddMode.isBlank()
+        rows += NovaPlaySetupRowState(
+            row = NovaPlaySetupRow.HOST_SCREEN_TO_ADD,
+            label = getString(R.string.nova_play_setup_screen_to_add),
+            caption = getString(R.string.nova_play_setup_screen_to_add_caption),
+            value = if (followsStream) {
+                getString(R.string.nova_play_setup_screen_to_add_stream)
+            } else {
+                sync.screenToAddMode
+            },
+            stripTitle = getString(R.string.nova_play_setup_strip_screen_to_add),
+            options = listOf(
+                NovaPlaySetupOption(
+                    label = getString(R.string.nova_play_setup_screen_to_add_device),
+                    consequence = sync.deviceScreenMode,
+                    current = sync.screenToAddMode == sync.deviceScreenMode,
+                    enabled = ready,
+                    onSelect = if (ready) {
+                        { actions.onSelectScreenToAdd(sync.deviceScreenMode) }
+                    } else {
+                        null
+                    },
+                ),
+                NovaPlaySetupOption(
+                    label = getString(R.string.nova_play_setup_screen_to_add_stream),
+                    consequence = getString(R.string.nova_play_setup_screen_to_add_stream_consequence),
+                    current = followsStream,
+                    enabled = ready,
+                    onSelect = if (ready) {
+                        { actions.onSelectScreenToAdd("") }
+                    } else {
+                        null
+                    },
+                ),
+            ),
+            enabled = ready,
+            overridden = !followsStream,
+        )
+    }
     rows += NovaPlaySetupRowState(
         row = NovaPlaySetupRow.HOST_DEFAULT_DISPLAY,
         label = getString(R.string.nova_play_setup_host_default_display),

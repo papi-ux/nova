@@ -1041,6 +1041,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 settingsUnavailable = engine?.settingsUnavailable == true,
                 autoSyncEnabled = engine?.autoSyncEnabled == true,
                 hasServerUuid = !serverUuid.isNullOrBlank(),
+                deviceScreenMode = novaDeviceScreenMode(windowManager?.defaultDisplay),
                 novaDisplayMode = PreferenceConfiguration.formatStreamingDisplayMode(
                     prefs.width,
                     prefs.height,
@@ -1642,6 +1643,7 @@ class NovaGameDetailActivity : NovaActivity() {
 
         fun hostActions() = NovaPlaySetupHostActions(
             onSelectMode = { hostSyncEngine?.setStreamDisplayMode(it) },
+            onSelectScreenToAdd = { hostSyncEngine?.setVirtualDisplayMode(it) },
             onMatchNova = { hostSyncEngine?.matchNova() },
             onSendNova = { hostSyncEngine?.sendNova() },
             onUsePolaris = { hostSyncEngine?.usePolarisProfile() },

@@ -90,6 +90,18 @@ internal class NovaPolarisSyncEngine(
         updatePolarisSettings(streamDisplayMode = mode)
     }
 
+    /**
+     * @brief Set how big a screen this host should add for this device, or clear it to follow the
+     *        stream size, which is what every release before 1.4.13 did.
+     */
+    fun setVirtualDisplayMode(mode: String) {
+        if (mode.isBlank()) {
+            updatePolarisSettings(clearVirtualDisplayMode = true)
+        } else {
+            updatePolarisSettings(virtualDisplayMode = mode)
+        }
+    }
+
     fun setAiAutoQuality(enabled: Boolean) {
         updatePolarisSettings(aiAutoQualityEnabled = enabled)
     }
@@ -149,6 +161,8 @@ internal class NovaPolarisSyncEngine(
         streamDisplayMode: String? = null,
         displayMode: String? = null,
         clearDisplayMode: Boolean = false,
+        virtualDisplayMode: String? = null,
+        clearVirtualDisplayMode: Boolean = false,
         targetBitrateKbps: Int? = null,
         clearTargetBitrate: Boolean = false,
         adaptiveBitrateEnabled: Boolean? = null,
@@ -179,6 +193,8 @@ internal class NovaPolarisSyncEngine(
                         streamDisplayMode = streamDisplayMode,
                         displayMode = displayMode,
                         clearDisplayMode = clearDisplayMode,
+                        virtualDisplayMode = virtualDisplayMode,
+                        clearVirtualDisplayMode = clearVirtualDisplayMode,
                         targetBitrateKbps = targetBitrateKbps,
                         clearTargetBitrate = clearTargetBitrate,
                         adaptiveBitrateEnabled = adaptiveBitrateEnabled,

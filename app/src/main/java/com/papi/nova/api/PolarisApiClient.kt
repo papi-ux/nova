@@ -855,6 +855,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     streamDisplayModeLabel = desired?.optString("stream_display_mode_label", "") ?: "",
                     streamDisplayModeReason = desired?.optString("stream_display_mode_reason", "") ?: "",
                     displayMode = desired?.optString("display_mode", "") ?: "",
+                    virtualDisplayMode = desired?.optString("virtual_display_mode", "") ?: "",
                     targetBitrateKbps = desired?.optInt("target_bitrate_kbps", 0) ?: 0,
                     aiAutoQualityEnabled = desired?.let {
                         it.optBoolean(
@@ -947,6 +948,8 @@ class PolarisApiClient @JvmOverloads constructor(
             streamDisplayMode: String? = null,
             displayMode: String? = null,
             clearDisplayMode: Boolean = false,
+            virtualDisplayMode: String? = null,
+            clearVirtualDisplayMode: Boolean = false,
             targetBitrateKbps: Int? = null,
             clearTargetBitrate: Boolean = false,
             adaptiveBitrateEnabled: Boolean? = null,
@@ -961,6 +964,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     ?.let { put("stream_display_mode", it) }
                 displayMode?.let { put("display_mode", it) }
                 if (clearDisplayMode) put("clear_display_mode", true)
+                virtualDisplayMode?.let { put("virtual_display_mode", it) }
+                if (clearVirtualDisplayMode) put("clear_virtual_display_mode", true)
                 targetBitrateKbps?.let { put("target_bitrate_kbps", it) }
                 if (clearTargetBitrate) put("clear_target_bitrate", true)
                 aiAutoQualityEnabled?.let {
@@ -2517,6 +2522,8 @@ class PolarisApiClient @JvmOverloads constructor(
         streamDisplayMode: String? = null,
         displayMode: String? = null,
         clearDisplayMode: Boolean = false,
+        virtualDisplayMode: String? = null,
+        clearVirtualDisplayMode: Boolean = false,
         targetBitrateKbps: Int? = null,
         clearTargetBitrate: Boolean = false,
         adaptiveBitrateEnabled: Boolean? = null,
@@ -2529,6 +2536,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 streamDisplayMode = streamDisplayMode,
                 displayMode = displayMode,
                 clearDisplayMode = clearDisplayMode,
+                virtualDisplayMode = virtualDisplayMode,
+                clearVirtualDisplayMode = clearVirtualDisplayMode,
                 targetBitrateKbps = targetBitrateKbps,
                 clearTargetBitrate = clearTargetBitrate,
                 adaptiveBitrateEnabled = adaptiveBitrateEnabled,

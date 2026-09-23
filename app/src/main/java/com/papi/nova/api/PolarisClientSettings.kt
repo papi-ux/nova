@@ -13,6 +13,12 @@ data class PolarisClientSettings(
         val streamDisplayModeLabel: String = "",
         val streamDisplayModeReason: String = "",
         val displayMode: String = "",
+        /**
+         * How big a screen this host adds for this device, as WIDTHxHEIGHTxFPS; blank to follow
+         * the stream size. Not what this device streams at: a tablet can be given a screen its own
+         * shape and still receive it small.
+         */
+        val virtualDisplayMode: String = "",
         val targetBitrateKbps: Int = 0,
         val aiAutoQualityEnabled: Boolean = false,
         val adaptiveBitrateEnabled: Boolean = false,
