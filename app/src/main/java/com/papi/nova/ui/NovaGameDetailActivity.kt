@@ -1814,12 +1814,23 @@ class NovaGameDetailActivity : NovaActivity() {
                                 hasExplicitOverride = uiState.hasExplicitOverride,
                                 aiRecommendedMode = optimizationState.aiRecommendedMode,
                                 title = getString(R.string.nova_game_detail_where_it_runs),
-                                hostDefaultLabel = getString(
-                                    R.string.nova_play_setup_host_default_entry_detail,
-                                    uiState.hostStreamDisplayModeLabel.ifBlank {
-                                        getString(R.string.nova_polaris_sync_unset)
-                                    },
-                                ),
+                                hostDefaultLabel = if (uiState.followsHostDefault) {
+                                    getString(
+                                        R.string.nova_play_setup_host_default_entry_detail,
+                                        uiState.hostStreamDisplayModeLabel.ifBlank {
+                                            getString(R.string.nova_polaris_sync_unset)
+                                        },
+                                    )
+                                } else {
+                                    // Naming the host's mode here would promise the one thing this
+                                    // row will not do: an entry that answers for itself resolves to
+                                    // its own display, and the row is what clears a choice back to it.
+                                    getString(
+                                        R.string.nova_play_setup_host_default_entry_own_detail,
+                                        PolarisStreamDisplayMode.labelForMode(uiState.recommendedMode)
+                                            .ifBlank { getString(R.string.nova_polaris_sync_unset) },
+                                    )
+                                },
                                 hostDefaultOnlyDetail = getString(R.string.nova_play_setup_mode_host_default_only),
                                 plainModeDetails = playSetupModeDetails(),
                             )
@@ -2488,9 +2499,13 @@ class NovaGameDetailActivity : NovaActivity() {
             }
             // A place picked for this game speaks for itself. The host's reason explains its
             // own default: picked Host Virtual, the plan still said the game ran in a private
-            // labwc compositor.
-            uiState.hasExplicitOverride ->
-                playSetupModeDetails()[PolarisStreamDisplayMode.normalize(uiState.playMode)].orEmpty()
+            // labwc compositor. An entry that does not follow the host default is the same case
+            // without anybody choosing: under a Mirror Desktop headline this printed the host's
+            // sentence about creating a virtual output, which is the opposite of what happens.
+            uiState.hasExplicitOverride || !uiState.followsHostDefault ->
+                playSetupModeDetails()[PolarisStreamDisplayMode.normalize(uiState.playMode)]
+                    ?.takeIf { it.isNotBlank() }
+                    ?: uiState.game.launchMode?.modeReason.orEmpty()
             uiState.launchChoice.hostModeReason.isNotBlank() -> uiState.launchChoice.hostModeReason
             uiState.game.launchMode?.modeReason?.isNotBlank() == true -> uiState.game.launchMode?.modeReason.orEmpty()
             uiState.recommendedMode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_intro_virtual_default)

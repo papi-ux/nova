@@ -2822,7 +2822,10 @@ class NovaComposeSourceGuardTest {
     fun playSetupPlanDescribesThePlaceChosenForTheGame() {
         val activity = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
         val intro = activity.section("private fun buildLaunchIntro(", "private fun lastPlayedText(")
-        val chosen = intro.indexOf("uiState.hasExplicitOverride ->")
+        // Widened in 1.4.13: an entry that does not follow the host default is the same case with
+        // nobody choosing, and under a Mirror Desktop headline the host's sentence about creating a
+        // virtual output is the opposite of what happens.
+        val chosen = intro.indexOf("uiState.hasExplicitOverride || !uiState.followsHostDefault ->")
         val hostReason = intro.indexOf("uiState.launchChoice.hostModeReason.isNotBlank() ->")
         assertTrue(
             "picked Host Virtual for Control, Play Setup still said the game ran in a private labwc compositor: a place chosen for the game speaks before the host's reason for its own default",

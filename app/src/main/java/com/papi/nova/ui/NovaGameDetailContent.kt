@@ -475,6 +475,13 @@ internal fun NovaGameDetailContent(
                                                 uiState.overridesHostMode -> stringResource(
                                                     R.string.nova_play_setup_host_overridden,
                                                 )
+                                                // The desktop does not take the host's default, and
+                                                // saying it follows one it ignores is the sentence
+                                                // that sent papi looking for a bug that was not there.
+                                                !uiState.followsHostDefault -> stringResource(
+                                                    R.string.nova_play_setup_host_not_followed,
+                                                    com.papi.nova.api.PolarisStreamDisplayMode.labelForMode(uiState.recommendedMode),
+                                                )
                                                 else -> stringResource(
                                                     R.string.nova_play_setup_host_followed,
                                                 )

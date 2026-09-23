@@ -567,6 +567,9 @@ class NovaGameDetailUiStateTest {
 
         assertEquals(PolarisGame.MODE_DESKTOP_DISPLAY, state.playMode)
         assertFalse(state.playUsesVirtualDisplay)
+        // The page reads this to stop saying the entry follows a default it ignores, and to stop
+        // printing the host's sentence about creating a screen under a Mirror Desktop headline.
+        assertFalse(state.followsHostDefault)
     }
 
     @Test
