@@ -249,3 +249,58 @@ pairing startup smokes passed with isolated settings/identity paths. The bundle
 is a local, unpublished candidate. The installed Linux Flatpak recorded above was
 not replaced. This closes build/headless regression coverage for these slices,
 not physical upgrade, gameplay, HDR or high-refresh acceptance.
+
+### Installed Linux upgrade checkpoint — 2026-09-23
+
+The repository-distributed 1.4.12 system Flatpak was upgraded on a Fedora 44
+KDE Wayland desktop with an NVIDIA RTX 4090 and a 7680×2160/120 Hz HDR display.
+The original bundle and private user data were backed up first. The paired
+identity stayed byte-identical and every existing preference retained its value.
+The candidate loaded the live library and added only its window preferences.
+The fullscreen shortcut switched from 1280×800 to the actual display bounds and
+restored the saved window. The installed sandbox can reach Avahi 0.8.
+
+On-device checks found and fixed two concrete NVIDIA compatibility defects:
+
+- The decoder exposed maximum picture dimensions through VA-API configuration
+  attributes while leaving surface-attribute flags unset. Nova now uses reported
+  configuration limits and keeps the stricter limit when both queries provide
+  dimensions. Unknown profiles, formats and dimensions remain unsupported.
+- The driver exported NV12 chroma as RG88, while the EGL presenter accepted only
+  GR88. Both layouts are now admitted without relabeling the exported format or
+  modifier. A hardware-only decode/import probe compared unequal chroma values
+  against a downloaded hardware reference. The production scenegraph test also
+  verifies visible red pixels, so a blank draw cannot satisfy that check.
+
+The new capability regression fails against the old implementation and passes
+with the fix. Six targeted capability/session/profile/media checks passed;
+the media regression and GL composition check passed after the layout fix.
+The production scenegraph smoke passed on the actual NVIDIA GPU inside the
+installed Flatpak runtime, using the same packaged core library. These results
+supplement the earlier full regression run; they are not one combined test run.
+
+A native eight-second H.264 stream decoded 176 hardware frames, submitted audio
+and confirmed host cancellation. That is approximately 22 decoded fps against
+a 60 fps request, not cadence acceptance. Visible Mirror Desktop streaming and
+the Command Center's confirmed End Session action then passed. The host returned
+to idle and the physical display geometry/HDR setting remained unchanged.
+The host's default virtual-display route produced a black stream; it remains an
+open host/display compatibility result. Authenticated status probes sometimes
+timed out during streaming, so they do not provide an in-stream health proof.
+
+The original Flatpak was restored and could still read its paired library; the
+candidate was then reinstalled. Identity and all original preferences survived
+the upgrade, tests and rollback. Small HEVC fixture runs that allowed FFmpeg CPU
+fallback are excluded from hardware evidence.
+
+The installed candidate bundle has SHA-256
+`a6edc121edddbaa440a1df8d7f47d83909db5a5c25dd38f6bd48914b6efe28bb`
+and Flatpak commit
+`78730edcc62486c783664bc482bb6082e68cf6a4c6c059e396354db2eb6bc6b5`.
+Its product sources are `860b85f`; the subsequent scenegraph change strengthens
+the test only. The artifact is still an unpublished 1.4.12 candidate.
+
+Deck/Game Mode and laptop access, physical mouse/controller/hotplug tests,
+audible A/V sync, sustained gameplay, high-refresh cadence and HDR negotiation/
+packaging/output remain open. This desktop result does not admit NVIDIA systems
+in general, hybrid GPUs, or a supported HDR/240 fps release.
