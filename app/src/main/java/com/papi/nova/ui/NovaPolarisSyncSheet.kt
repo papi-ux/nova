@@ -130,6 +130,9 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                         deviceScreenMode = novaDeviceScreenMode(
                             requireActivity().windowManager?.defaultDisplay,
                         ),
+                        deviceScreenScale = novaDeviceScreenScale(
+                            requireActivity().windowManager?.defaultDisplay,
+                        ),
                         novaDisplayMode = novaDisplayMode,
                         novaBitrateKbps = prefs.bitrate,
                         loadingLabel = getString(R.string.nova_polaris_sync_loading),
@@ -142,7 +145,8 @@ class NovaPolarisSyncSheet : BottomSheetDialogFragment() {
                     )
                     val actions = NovaPlaySetupHostActions(
                         onSelectMode = { engine.setStreamDisplayMode(it) },
-                        onSelectScreenToAdd = { engine.setVirtualDisplayMode(it) },
+                        onSelectScreenToAdd = { mode, scale -> engine.setVirtualDisplayMode(mode, scale) },
+                        onSelectScreenScale = { engine.setVirtualDisplayScale(it) },
                         onMatchNova = { engine.matchNova() },
                         onSendNova = { engine.sendNova() },
                         onUsePolaris = { engine.usePolarisProfile() },

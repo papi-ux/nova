@@ -50,7 +50,11 @@ data class NovaPolarisSyncUiState(
     /** What the host will make when it adds a screen for this device; blank follows the stream. */
     val screenToAddMode: String = "",
     /** This device's own panel, as WIDTHxHEIGHTxFPS, which is what the row offers to match. */
-    val deviceScreenMode: String = ""
+    val deviceScreenMode: String = "",
+    /** Pixels per point on the screen the host adds; 0 means nobody said, so it is made at 1. */
+    val screenToAddScale: Double = 0.0,
+    /** This device's own density, which is the scale that makes a desktop this size readable. */
+    val deviceScreenScale: Double = 0.0
 )
 
 /**
@@ -72,6 +76,24 @@ internal fun novaDeviceScreenMode(display: android.view.Display?): String {
     return "${width}x${height}x$fps"
 }
 
+/**
+ * This device's density, which is how many pixels it puts in a point, or 0 when it cannot be read.
+ *
+ * The pixel count alone says nothing about how big a screen is. 2560x1600 is a comfortable desktop
+ * on a monitor and unreadable on a ten inch tablet, and the difference is exactly this number: the
+ * tablet reports 2, so its own desktop is 1280x800 of points drawn at full sharpness.
+ */
+internal fun novaDeviceScreenScale(display: android.view.Display?): Double {
+    if (display == null) return 0.0
+    val metrics = android.util.DisplayMetrics()
+    @Suppress("DEPRECATION")
+    display.getRealMetrics(metrics)
+    val density = metrics.density.toDouble()
+    // Bounded the same way the host bounds it, so a device reporting something strange asks for
+    // something the host will accept rather than being refused at save time.
+    return if (density >= 1.0 && density <= 4.0) density else 0.0
+}
+
 object NovaPolarisSyncUiStateMapper {
     // Every label arrives from the caller, none defaults to English here: a default
     // is a string that ships in every locale unnoticed, which is exactly how the
@@ -84,6 +106,7 @@ object NovaPolarisSyncUiStateMapper {
         hasServerUuid: Boolean,
         novaDisplayMode: String,
         deviceScreenMode: String = "",
+        deviceScreenScale: Double = 0.0,
         novaBitrateKbps: Int,
         loadingLabel: String,
         unavailableLabel: String,
@@ -191,7 +214,9 @@ object NovaPolarisSyncUiStateMapper {
                 "$desiredModeLabel → $effectiveModeLabel"
             },
             screenToAddMode = settings?.desired?.virtualDisplayMode.orEmpty(),
-            deviceScreenMode = deviceScreenMode
+            deviceScreenMode = deviceScreenMode,
+            screenToAddScale = settings?.desired?.virtualDisplayScale ?: 0.0,
+            deviceScreenScale = deviceScreenScale
         )
     }
 }

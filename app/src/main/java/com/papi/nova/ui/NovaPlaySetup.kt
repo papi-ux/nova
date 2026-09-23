@@ -782,6 +782,7 @@ internal enum class NovaPlaySetupRow {
     STEAM_LAUNCH,
     HOST_DEFAULT_DISPLAY,
     HOST_SCREEN_TO_ADD,
+    HOST_SCREEN_SCALE,
     HOST_PROFILE,
     HOST_KEEP_IN_STEP,
 }

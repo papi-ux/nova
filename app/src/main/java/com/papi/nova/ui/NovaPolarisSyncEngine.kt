@@ -94,11 +94,30 @@ internal class NovaPolarisSyncEngine(
      * @brief Set how big a screen this host should add for this device, or clear it to follow the
      *        stream size, which is what every release before 1.4.13 did.
      */
-    fun setVirtualDisplayMode(mode: String) {
+    fun setVirtualDisplayMode(mode: String, scale: Double = 0.0) {
         if (mode.isBlank()) {
-            updatePolarisSettings(clearVirtualDisplayMode = true)
+            // Both, because the scale describes that screen. Leaving one behind would make the next
+            // stream sized screen at a scale chosen for a panel it is not.
+            updatePolarisSettings(clearVirtualDisplayMode = true, clearVirtualDisplayScale = true)
         } else {
-            updatePolarisSettings(virtualDisplayMode = mode)
+            updatePolarisSettings(
+                virtualDisplayMode = mode,
+                virtualDisplayScale = scale.takeIf { it > 0.0 },
+            )
+        }
+    }
+
+    /**
+     * @brief Set how big things are on the screen the host adds, or clear it back to scale 1.
+     *
+     * A panel's pixel count says nothing about how big it is, so a 2560x1600 desktop is unreadable
+     * on ten inches and fine on twenty seven. Only this device knows which one it is.
+     */
+    fun setVirtualDisplayScale(scale: Double) {
+        if (scale > 0.0) {
+            updatePolarisSettings(virtualDisplayScale = scale)
+        } else {
+            updatePolarisSettings(clearVirtualDisplayScale = true)
         }
     }
 
@@ -163,6 +182,8 @@ internal class NovaPolarisSyncEngine(
         clearDisplayMode: Boolean = false,
         virtualDisplayMode: String? = null,
         clearVirtualDisplayMode: Boolean = false,
+        virtualDisplayScale: Double? = null,
+        clearVirtualDisplayScale: Boolean = false,
         targetBitrateKbps: Int? = null,
         clearTargetBitrate: Boolean = false,
         adaptiveBitrateEnabled: Boolean? = null,
@@ -195,6 +216,8 @@ internal class NovaPolarisSyncEngine(
                         clearDisplayMode = clearDisplayMode,
                         virtualDisplayMode = virtualDisplayMode,
                         clearVirtualDisplayMode = clearVirtualDisplayMode,
+                        virtualDisplayScale = virtualDisplayScale,
+                        clearVirtualDisplayScale = clearVirtualDisplayScale,
                         targetBitrateKbps = targetBitrateKbps,
                         clearTargetBitrate = clearTargetBitrate,
                         adaptiveBitrateEnabled = adaptiveBitrateEnabled,

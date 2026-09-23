@@ -397,6 +397,10 @@
     <string name="nova_play_setup_screen_to_add_device">Match this device</string>
     <string name="nova_play_setup_screen_to_add_stream">Follow the stream</string>
     <string name="nova_play_setup_screen_to_add_stream_consequence">The screen is made the size you stream at, which may not be this screen\'s shape.</string>
+    <string name="nova_play_setup_screen_scale">Screen Scale</string>
+    <string name="nova_play_setup_screen_scale_caption">How big things are on the display Polaris creates</string>
+    <string name="nova_play_setup_strip_screen_scale">If you changed the screen scale</string>
+    <string name="nova_play_setup_screen_scale_device">Match this device</string>
     <string name="nova_play_setup_place_legend">About this place</string>
     <string name="nova_play_setup_resolution">Resolution</string>
     <string name="nova_play_setup_resolution_caption">The display is made to match this handheld</string>
@@ -811,7 +815,7 @@
     <string name="summary_seekbar_metered_bitrate">High bitrates consume more data, lower bitrates improve smoothness in metered networks.\nSet 0 for ¼ of the above bitrate settings.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="title_resolution_scale_factor">Resolution Scale Factor</string>
-    <string name="summary_resolution_scale_factor">Server side requested virtual screen resolution will be multiplied by this factor. Streaming resolution are not affected.\ne.g. 120% will make 2000x1000 become 2400x1200.\nSetting a higher scale factor will improve image quality for some games.\nRequires a host that supports virtual display scaling.</string>
+    <string name="summary_resolution_scale_factor">Multiplies the resolution this session renders and streams.\ne.g. 120% makes 1920x1080 into 2304x1296: more detail, more bandwidth, and everything on screen a little smaller.\nTo make a desktop Polaris creates readable instead, use Screen Scale in Play Setup.</string>
     <string name="resolution_prefix_native">Native</string>
     <string name="resolution_prefix_native_fullscreen">Native Full-Screen</string>
     <string name="resolution_prefix_native_landscape">(Landscape)</string>

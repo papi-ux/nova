@@ -19,6 +19,8 @@ data class PolarisClientSettings(
          * shape and still receive it small.
          */
         val virtualDisplayMode: String = "",
+        /** Pixels per point on the screen the host creates; 0 means nobody said, so the host uses 1. */
+        val virtualDisplayScale: Double = 0.0,
         val targetBitrateKbps: Int = 0,
         val aiAutoQualityEnabled: Boolean = false,
         val adaptiveBitrateEnabled: Boolean = false,

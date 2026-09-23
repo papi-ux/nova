@@ -10,9 +10,31 @@ import com.papi.nova.R
  * hold it still. The shape mirrors the game scope on purpose: the pill changes the
  * subject, not how the panel is read.
  */
+/** A scale as a person says it: 2x, 1.5x, never 2.0x. */
+internal fun novaScreenScaleLabel(scale: Double): String {
+    val whole = kotlin.math.abs(scale - kotlin.math.round(scale)) < 0.01
+    return if (whole) "${kotlin.math.round(scale).toInt()}x" else "${scale}x"
+}
+
+/**
+ * The desktop that scale leaves, as WIDTHxHEIGHT of points, or blank when the pixels are unknown.
+ *
+ * This is the number that answers the question, and it is not one anybody can do in their head
+ * while looking at a list of multipliers.
+ */
+internal fun novaScreenScaleConsequence(screenMode: String, scale: Double): String {
+    if (scale <= 0.0) return ""
+    val parts = screenMode.split("x")
+    val width = parts.getOrNull(0)?.toIntOrNull() ?: return ""
+    val height = parts.getOrNull(1)?.toIntOrNull() ?: return ""
+    if (width <= 0 || height <= 0) return ""
+    return "${kotlin.math.round(width / scale).toInt()}x${kotlin.math.round(height / scale).toInt()}"
+}
+
 internal class NovaPlaySetupHostActions(
     val onSelectMode: (String) -> Unit,
-    val onSelectScreenToAdd: (String) -> Unit,
+    val onSelectScreenToAdd: (String, Double) -> Unit,
+    val onSelectScreenScale: (Double) -> Unit,
     val onMatchNova: () -> Unit,
     val onSendNova: () -> Unit,
     val onUsePolaris: () -> Unit,
@@ -54,7 +76,9 @@ internal fun buildNovaPlaySetupHostRows(
                     current = sync.screenToAddMode == sync.deviceScreenMode,
                     enabled = ready,
                     onSelect = if (ready) {
-                        { actions.onSelectScreenToAdd(sync.deviceScreenMode) }
+                        // The scale goes with it: a screen the shape of this panel drawn at scale 1
+                        // is the same pixels and unreadable, which is the half that was missing.
+                        { actions.onSelectScreenToAdd(sync.deviceScreenMode, sync.deviceScreenScale) }
                     } else {
                         null
                     },
@@ -65,7 +89,7 @@ internal fun buildNovaPlaySetupHostRows(
                     current = followsStream,
                     enabled = ready,
                     onSelect = if (ready) {
-                        { actions.onSelectScreenToAdd("") }
+                        { actions.onSelectScreenToAdd("", 0.0) }
                     } else {
                         null
                     },
@@ -73,6 +97,58 @@ internal fun buildNovaPlaySetupHostRows(
             ),
             enabled = ready,
             overridden = !followsStream,
+        )
+    }
+    // How big things are on that screen. The pixel count decides how much fits; this decides
+    // whether any of it can be read, and it is the half that has no equivalent anywhere else in
+    // Nova: Resolution Scale Factor multiplies the pixels, which makes everything smaller.
+    if (sync.deviceScreenMode.isNotBlank()) {
+        val effectiveScale = if (sync.screenToAddScale > 0.0) sync.screenToAddScale else 1.0
+        val screenPixels = sync.screenToAddMode.ifBlank { sync.deviceScreenMode }
+        val fixedScales = listOf(1.0, 1.5, 2.0)
+            // An explicit option that is the device's own answer would be the same row twice.
+            .filterNot { kotlin.math.abs(it - sync.deviceScreenScale) < 0.01 }
+        val scaleOptions = buildList {
+            if (sync.deviceScreenScale > 0.0) {
+                add(
+                    NovaPlaySetupOption(
+                        label = getString(R.string.nova_play_setup_screen_scale_device),
+                        consequence = novaScreenScaleConsequence(screenPixels, sync.deviceScreenScale),
+                        current = kotlin.math.abs(effectiveScale - sync.deviceScreenScale) < 0.01,
+                        enabled = ready,
+                        onSelect = if (ready) {
+                            { actions.onSelectScreenScale(sync.deviceScreenScale) }
+                        } else {
+                            null
+                        },
+                    )
+                )
+            }
+            fixedScales.forEach { scale ->
+                add(
+                    NovaPlaySetupOption(
+                        label = novaScreenScaleLabel(scale),
+                        consequence = novaScreenScaleConsequence(screenPixels, scale),
+                        current = kotlin.math.abs(effectiveScale - scale) < 0.01,
+                        enabled = ready,
+                        onSelect = if (ready) {
+                            { actions.onSelectScreenScale(scale) }
+                        } else {
+                            null
+                        },
+                    )
+                )
+            }
+        }
+        rows += NovaPlaySetupRowState(
+            row = NovaPlaySetupRow.HOST_SCREEN_SCALE,
+            label = getString(R.string.nova_play_setup_screen_scale),
+            caption = getString(R.string.nova_play_setup_screen_scale_caption),
+            value = novaScreenScaleLabel(effectiveScale),
+            stripTitle = getString(R.string.nova_play_setup_strip_screen_scale),
+            options = scaleOptions,
+            enabled = ready,
+            overridden = sync.screenToAddScale > 0.0,
         )
     }
     rows += NovaPlaySetupRowState(

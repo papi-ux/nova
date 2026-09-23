@@ -23,7 +23,8 @@ class NovaPlaySetupHostScopeTest {
         val calls = mutableListOf<String>()
         val actions = NovaPlaySetupHostActions(
             onSelectMode = { calls += "mode:$it" },
-            onSelectScreenToAdd = { calls += "screen:$it" },
+            onSelectScreenToAdd = { mode, scale -> calls += "screen:$mode@$scale" },
+            onSelectScreenScale = { calls += "scale:$it" },
             onMatchNova = { calls += "match" },
             onSendNova = { calls += "send" },
             onUsePolaris = { calls += "pull" },
@@ -63,6 +64,8 @@ class NovaPlaySetupHostScopeTest {
         relaunchRequired: Boolean = false,
         screenToAddMode: String = "",
         deviceScreenMode: String = "",
+        screenToAddScale: Double = 0.0,
+        deviceScreenScale: Double = 0.0,
     ) = NovaPolarisSyncUiState(
         status = NovaPolarisSyncStatus.SYNCED,
         desiredModeLabel = desiredLabel,
@@ -82,6 +85,8 @@ class NovaPlaySetupHostScopeTest {
         modeSummary = if (desiredLabel == effectiveLabel) desiredLabel else "$desiredLabel → $effectiveLabel",
         screenToAddMode = screenToAddMode,
         deviceScreenMode = deviceScreenMode,
+        screenToAddScale = screenToAddScale,
+        deviceScreenScale = deviceScreenScale,
     )
 
 
@@ -116,7 +121,7 @@ class NovaPlaySetupHostScopeTest {
         assertTrue(following.options[1].current)
 
         following.options[0].onSelect?.invoke()
-        assertEquals(listOf("screen:2560x1600x60"), recorded.calls)
+        assertEquals(listOf("screen:2560x1600x60@0.0"), recorded.calls)
 
         val set = rows(
             sync(deviceScreenMode = "2560x1600x60", screenToAddMode = "2560x1600x60"),
@@ -131,7 +136,74 @@ class NovaPlaySetupHostScopeTest {
         recorded.calls.clear()
         set.options[1].onSelect?.invoke()
         // Clearing sends an empty value, which is what the host reads as "follow the stream".
-        assertEquals(listOf("screen:"), recorded.calls)
+        assertEquals(listOf("screen:@0.0"), recorded.calls)
+    }
+
+    @Test
+    fun matchingThisDeviceSendsItsScaleWithItsSize() {
+        // The two halves of one answer. A screen the shape of this panel drawn at scale 1 has the
+        // same pixels the panel has and none of the size, which is where papi ended up: a 2560x1600
+        // desktop on ten inches, technically correct and unusable.
+        val recorded = RecordedActions()
+        rows(sync(deviceScreenMode = "2560x1600x60", deviceScreenScale = 2.0), recorded)
+            .first { it.row == NovaPlaySetupRow.HOST_SCREEN_TO_ADD }
+            .options[0].onSelect?.invoke()
+
+        assertEquals(listOf("screen:2560x1600x60@2.0"), recorded.calls)
+    }
+
+    @Test
+    fun theScreenScaleRowSaysWhatDesktopEachChoiceLeaves() {
+        val recorded = RecordedActions()
+        val row = rows(
+            sync(
+                deviceScreenMode = "2560x1600x60",
+                screenToAddMode = "2560x1600x60",
+                deviceScreenScale = 2.0,
+            ),
+            recorded,
+        ).first { it.row == NovaPlaySetupRow.HOST_SCREEN_SCALE }
+
+        // Nothing saved yet, so the row reads as what the host will actually do, which is scale 1.
+        assertEquals("1x", row.value)
+        assertFalse(row.overridden)
+
+        // This device first, then the fixed steps that are not the same answer twice: 2x is what
+        // this tablet reports, so it appears once, as Match This Device.
+        assertEquals(3, row.options.size)
+        assertEquals("1280x800", row.options[0].consequence)
+        assertEquals("1x", row.options[1].label)
+        assertEquals("2560x1600", row.options[1].consequence)
+        assertEquals("1.5x", row.options[2].label)
+        assertTrue(row.options[1].current)
+        assertFalse(row.options[0].current)
+
+        row.options[0].onSelect?.invoke()
+        assertEquals(listOf("scale:2.0"), recorded.calls)
+
+        val saved = rows(
+            sync(
+                deviceScreenMode = "2560x1600x60",
+                screenToAddMode = "2560x1600x60",
+                screenToAddScale = 2.0,
+                deviceScreenScale = 2.0,
+            ),
+            recorded,
+        ).first { it.row == NovaPlaySetupRow.HOST_SCREEN_SCALE }
+        assertEquals("2x", saved.value)
+        assertTrue(saved.overridden)
+        assertTrue(saved.options[0].current)
+        assertFalse(saved.options[1].current)
+    }
+
+    @Test
+    fun theScreenScaleRowNeedsAPanelToTalkAbout() {
+        // Same gate as the size it belongs to: a scale for a screen this device cannot describe
+        // would be a row with nothing behind it.
+        val recorded = RecordedActions()
+        assertNull(
+            rows(sync(), recorded).firstOrNull { it.row == NovaPlaySetupRow.HOST_SCREEN_SCALE }
+        )
     }
 
     private fun rows(sync: NovaPolarisSyncUiState, recorded: RecordedActions) =
