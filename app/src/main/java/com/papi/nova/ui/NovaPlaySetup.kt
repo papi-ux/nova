@@ -599,9 +599,16 @@ private fun NovaPlaySetupComparisonCard(
 internal fun novaPlaySetupPlaceUnderCursor(
     explained: NovaPlaySetupRow,
     places: List<NovaPlaySetupOption>,
-    focusedIndex: Int,
+    focusedLabel: String,
 ): NovaPlaySetupOption? =
-    if (explained == NovaPlaySetupRow.PLAY_IN) places.getOrNull(focusedIndex) else null
+    if (explained == NovaPlaySetupRow.PLAY_IN && focusedLabel.isNotEmpty()) {
+        // By name, not by position. The host can add or drop a Space while a card holds focus, and a
+        // remembered position then points at whichever place moved into it: the legend would explain
+        // a neighbour, confidently, under a cursor that never left.
+        places.firstOrNull { it.label == focusedLabel }
+    } else {
+        null
+    }
 
 /**
  * What the place under the cursor means, while a destination card holds focus.

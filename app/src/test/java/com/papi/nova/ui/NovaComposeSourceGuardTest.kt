@@ -1406,9 +1406,11 @@ class NovaComposeSourceGuardTest {
         assertTrue(
             "while a destination card holds focus the legend describes the place under the cursor and " +
                 "nothing else. Falling back to the first row opened Play Setup on \"If you changed where it " +
-                "runs\" with the cursor on Desktop, and no legend at all opened it with the drawer empty",
+                "runs\" with the cursor on Desktop, and no legend at all opened it with the drawer empty. " +
+                "The cursor is remembered by the card's name, because the host can add or drop a Space " +
+                "while it holds focus and a remembered position then points at the place that moved into it",
             content.contains("onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN)") &&
-                content.contains("focusedDestination = index") &&
+                content.contains("focusedDestination = destinationsRow.options.getOrNull(index)?.label") &&
                 content.contains("novaPlaySetupPlaceUnderCursor(") &&
                 !content.contains("?: settingRows.firstOrNull()")
         )

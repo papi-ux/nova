@@ -37,13 +37,19 @@ class NovaPlaySetupLegendTest {
             NovaPlaySetupOption(label = "Desktop", consequence = "Use this computer's usual games and settings."),
             NovaPlaySetupOption(label = "Living room", consequence = "Not installed in Living room. Change Space to install it there."),
         )
-        assertEquals(places[0], novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, 0))
-        assertEquals(places[1], novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, 1))
+        assertEquals(places[0], novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, "Desktop"))
+        assertEquals(places[1], novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, "Living room"))
         // A row holds focus: that row's legend, never a place.
-        assertNull(novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.WHERE_IT_RUNS, places, 1))
-        // The places reloaded shorter than the card the cursor was on: nothing, rather than a neighbour.
-        assertNull(novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, 2))
-        assertNull(novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, -1))
+        assertNull(novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.WHERE_IT_RUNS, places, "Living room"))
+        // The place the cursor was on is gone from the reloaded list: nothing, rather than a neighbour.
+        assertNull(novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, "Bedroom"))
+        assertNull(novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, places, ""))
+        // A Space added ahead of it does not hand the legend the neighbour that took its place,
+        // which is the whole reason the cursor is remembered by name.
+        val withNewSpace = listOf(
+            NovaPlaySetupOption(label = "Bedroom", consequence = "Installed in Bedroom."),
+        ) + places
+        assertEquals(places[1], novaPlaySetupPlaceUnderCursor(NovaPlaySetupRow.PLAY_IN, withNewSpace, "Living room"))
     }
 
     @Test

@@ -414,8 +414,9 @@ internal fun NovaGameDetailContent(
                     // whose card holds focus, never the places restated as choices.
                     val destinationsRow = playSetupRows.firstOrNull { it.row == NovaPlaySetupRow.PLAY_IN }
                     val settingRows = playSetupRows.filter { it.row != NovaPlaySetupRow.PLAY_IN }
-                    // Which destination card the cursor is on, for the legend to describe.
-                    var focusedDestination by remember { mutableStateOf(-1) }
+                    // Which destination card the cursor is on, for the legend to describe. By name,
+                    // because the list behind it can change while the cursor stays where it is.
+                    var focusedDestination by remember { mutableStateOf("") }
                     // Spend the room that is there rather than a number picked in advance:
                     // each advertised launch control leaves less room for the legend.
                     // The legend is pinned under the rows, so it is budgeted against the few
@@ -515,7 +516,7 @@ internal fun NovaGameDetailContent(
                                     options = destinationsRow.options,
                                     autoFocus = destinationsFocus,
                                     onFocused = { index ->
-                                        focusedDestination = index
+                                        focusedDestination = destinationsRow.options.getOrNull(index)?.label.orEmpty()
                                         onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN)
                                     },
                                 )
