@@ -234,3 +234,18 @@ results and remaining gaps were checked against this candidate's source:
 These are concrete coverage limits, not a claim that every Linux hardware and
 compositor combination is supported. The remaining parity and physical release
 gates above remain open.
+
+### Candidate validation checkpoint — 2026-09-23
+
+The Fedora 44 / Qt 6.11.2 development build completed all 118 scheduled checks:
+116 passed after correcting two test-fixture assumptions, and two graphics-
+dependent checks skipped (`vulkan_import_hardware` and the offscreen QSG smoke).
+The fixes give the standard-host screenshot an explicit display size and isolate
+route tests from checkout metadata and user preferences. Their focused rerun
+passed. No production geometry or pairing guard was relaxed to satisfy them.
+
+The actual Flatpak manifest also built in the KDE 6.10 SDK (Qt 6.10.3); shell and
+pairing startup smokes passed with isolated settings/identity paths. The bundle
+is a local, unpublished candidate. The installed Linux Flatpak recorded above was
+not replaced. This closes build/headless regression coverage for these slices,
+not physical upgrade, gameplay, HDR or high-refresh acceptance.

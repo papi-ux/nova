@@ -1,25 +1,27 @@
-# Nova Deck Client
+# Nova Native Linux Client
 
-This directory contains Nova's native Steam Deck development client. It has a
-Qt shell, live library reads, a Moonlight handoff, and an opt-in asynchronous
-native GameStream preview with hardware decoding and Opus/PipeWire audio. It is
-not yet a supported Deck release. The active [release parity checklist](../../docs/deck-release-parity.md)
-requires standalone pairing, in-app media and controls, Android product parity,
-and OLED HDR10 at 90 fps together.
+This directory contains Nova's native Linux client for Steam Deck, laptops,
+desktops and other handhelds. The Qt/QML interface supports Nova-owned pairing,
+libraries, Play Setup and in-app GameStream video/audio/input. The Flatpak opens
+standalone Nova; Moonlight handoff remains an explicit legacy route.
 
-The [approved Linux client roadmap](../../docs/linux-client-roadmap.md) extends
-this client to Linux laptops, desktops and other handhelds. It tracks desktop
-window/fullscreen behavior, complete mouse support, local host search, UI/theme
-work and removal of arbitrary rate caps, including 240 fps on capable systems.
-The implementation notes below describe individual slices; they are not a
-current completion ledger or a claim that every Linux configuration is supported.
+The [Linux client roadmap](../../docs/linux-client-roadmap.md) records the current
+implementation, tested compatibility and remaining gaps. The
+[release parity checklist](../../docs/deck-release-parity.md) retains the Deck
+LCD/OLED, HDR90, product parity and physical acceptance requirements. This is an
+Alpha client; a successful build does not validate every Linux configuration.
 
-Current status:
+Current implementation includes:
 
-- CMake builds a small native core library on Linux/SteamOS-capable development hosts.
-- Qt 6/QML shell builds when Qt Quick and QuickControls2 development packages are installed.
-- Fallback build path keeps the core/controller/library smoke runnable without Qt.
-- The shell consumes a generated sample Polaris game fixture shaped after shared/polaris/model/src/commonMain/kotlin/com/papi/nova/shared/polaris/model/PolarisGame.kt.
+- Standalone PIN/Trusted Pair and explicit local PC discovery.
+- VA-API video, Opus/PipeWire audio, controllers, keyboard and direct/relative mouse input.
+- Desktop fullscreen/window controls, display-aware rates through 240 fps and
+  host-validated bitrate settings.
+- Native themes, accessible text sizing and controller/mouse/touch UI navigation.
+
+Building requires Qt 6.10 or newer and the native Linux media/input dependencies,
+even when the QML shell target is disabled. The implementation notes below retain
+historical context; use the linked roadmap as the current completion ledger.
 
 ## Linux window controls
 
@@ -39,6 +41,19 @@ Regression coverage includes actual QML controls, held-input release, persistenc
 Vulkan cancel/reopen under GPU pressure, and separate isolated X11/Wayland
 compositor runs. Physical Deck Game Mode, mixed-DPI monitor transitions and
 installed Flatpak upgrade checks remain acceptance work.
+
+## Local PC search
+
+In pairing, choose **Find PCs on This Network**, select the intended endpoint,
+then choose **Trusted Pair** or **Pair with PIN**. Selection fills the address and
+HTTP port; discovery never grants trust or pairs automatically. PCs with the same
+name remain distinguishable by address, port and network.
+
+Search uses Avahi 0.8+ on the Linux device. It browses local streaming service
+advertisements for eight seconds, supports multiple interfaces and scoped IPv6,
+and expires retained results after one minute. PCs must be awake and advertising;
+manual entry remains available when multicast or the discovery service is
+unavailable. The Flatpak manifest permits the Avahi system-bus calls.
 
 ## Linux frame rates and bitrate
 
