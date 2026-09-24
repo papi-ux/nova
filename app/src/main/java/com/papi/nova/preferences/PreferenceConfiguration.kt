@@ -297,15 +297,18 @@ class PreferenceConfiguration {
         private const val ONLY_L3_R3_DEFAULT = false
         private const val SHOW_GUIDE_BUTTON_DEFAULT = true
         /**
-         * Ask for HDR unless the player says otherwise.
+         * Off until the player asks.
          *
-         * This was off, so a player with an HDR panel streaming from an HDR host got an SDR picture
-         * until they went looking for a checkbox, and nothing anywhere said that was why. Asking is
-         * cheap and it is not a promise: the panel's own capability, the host's encoder, the capture
-         * display's mode and the renderer are each still asked in turn, and any one of them says no
-         * and the stream is SDR with a reason.
+         * It was turned on by default and turned back, because asking is a promise on this codec even
+         * though it is not on the others. Requesting HDR offers the ten bit formats and nothing else,
+         * so a panel that cannot present them has no eight bit offer to fall back to: the renderer
+         * fails at its swapchain and the session dies, where HEVC would simply have streamed SDR.
+         *
+         * Turning this back on wants two things first: the request gated on the panel rather than on
+         * the preference alone, and both depths offered so a host or a client that cannot do HDR can
+         * still be served.
          */
-        private const val DEFAULT_ENABLE_HDR = true
+        private const val DEFAULT_ENABLE_HDR = false
         private const val DEFAULT_ENABLE_PIP = false
         private const val DEFAULT_ENABLE_PERF_OVERLAY = false
         private const val DEFAULT_ENABLE_PERF_LOGGING = false

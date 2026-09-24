@@ -76,7 +76,7 @@
 
         <!-- HDR -->
         <CheckBoxPreference
-            android:defaultValue="true"
+            android:defaultValue="false"
             android:key="checkbox_enable_hdr"
             android:summary="@string/summary_enable_hdr"
             android:title="@string/title_enable_hdr"
