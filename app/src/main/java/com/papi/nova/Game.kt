@@ -1450,6 +1450,20 @@ if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROW
         // codec hand back H.264 instead, which looks like it worked and is the hardest kind of wrong
         // to notice. The library refuses the session with a reason instead.
         supportedVideoFormats = MoonBridge.VIDEO_FORMAT_PYROWAVE
+
+ // Said rather than silently corrected, because the bitrate is the player's to choose and a
+        // stream that quietly used four times the bandwidth asked for would be worse than a soft
+        // picture. Every frame of this codec is a keyframe, so a budget that would carry H.264
+        // comfortably leaves this one nothing to spend on detail, and the result looks like a broken
+        // codec rather than a starved one.
+        val wanted = com.papi.nova.binding.video.PyroWaveDecoderRenderer.recommendedKbps(
+prefConfig!!.width, prefConfig!!.height, prefConfig!!.fps.toInt())
+if (wanted > 0 && prefConfig!!.bitrate < wanted)
+{
+LimeLog.warning("PyroWave: " + prefConfig!!.bitrate + " kbps for " + prefConfig!!.width + "x" +
+prefConfig!!.height + " at " + prefConfig!!.fps.toInt() + "; it wants about " + wanted)
+NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, wanted / 1000))
+}
 }
 else
 {

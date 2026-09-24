@@ -26,6 +26,30 @@ class PyroWaveDecoderRenderer(
     private val perfListener: PerfOverlayListener,
 ) : NovaVideoRenderer() {
 
+    companion object {
+        /**
+         * Bits per pixel below which this codec has nothing left to spend on detail.
+         *
+         * Every frame is coded from scratch, so quality follows the per frame budget directly and
+         * there is no prediction to lean on. Measured by eye on the same content: soft at 0.18,
+         * good at 0.73. This sits near the bottom of that range, which is where a picture stops
+         * being worth looking at rather than where it stops being perfect.
+         */
+        private const val USABLE_BITS_PER_PIXEL = 0.35
+
+        /**
+         * The bitrate this codec wants for a stream of this shape, in kbps.
+         *
+         * Frame rate multiplies it exactly, unlike an inter frame codec where the extra frames are
+         * more similar to their neighbours and cost far less than the first one.
+         */
+        fun recommendedKbps(width: Int, height: Int, fps: Int): Int {
+            if (width <= 0 || height <= 0 || fps <= 0) return 0
+            val bits = USABLE_BITS_PER_PIXEL * width.toDouble() * height.toDouble() * fps.toDouble()
+            return (bits / 1000.0).toInt()
+        }
+    }
+
     private var surface: Surface? = null
     private var handle: Long = 0
     private var format: Int = 0
