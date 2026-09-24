@@ -177,7 +177,41 @@ namespace nova_vk {
       swapchain_extent.height = frame_height;
     }
 
+    // Mailbox if the driver has it, immediate if not, FIFO if neither.
+    //
+    // FIFO waits for vblank on every present, and a stream is not paced by this display: the frames
+    // arrive on the host's clock, and the two are never quite in phase. Waiting for vblank inside
+    // the call that delivers a frame means the submit thread stalls for up to a whole refresh, and
+    // because the decode happens on that same thread the next frame is late as well. That is what a
+    // bad one percent low is made of, and this renderer measured 52 against HEVC's 60 on the same
+    // device and content while it was doing this.
+    //
+    // Mailbox keeps the queue full and replaces what has not been shown yet, so a frame that arrives
+    // early does not block and a frame that arrives late is simply the next one shown. Immediate
+    // does not synchronise at all, which can tear but never waits. FIFO stays as the fallback
+    // because it is the only one every implementation is required to offer.
+    VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    uint32_t mode_count = 0;
+    vk.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device, surface, &mode_count, nullptr);
+    if (mode_count > 0) {
+      std::vector<VkPresentModeKHR> modes(mode_count);
+      vk.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device, surface, &mode_count, modes.data());
+      for (auto mode : modes) {
+        if (mode == VK_PRESENT_MODE_MAILBOX_KHR) {
+          present_mode = mode;
+          break;
+        }
+        if (mode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+          present_mode = mode;
+        }
+      }
+    }
+
+    // Mailbox needs a third image to have anything to replace; with two it degrades into waiting.
     uint32_t images = caps.minImageCount + 1;
+    if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR && images < 3) {
+      images = 3;
+    }
     if (caps.maxImageCount > 0 && images > caps.maxImageCount) {
       images = caps.maxImageCount;
     }
@@ -206,11 +240,10 @@ namespace nova_vk {
                           ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
                           : caps.currentTransform;
     info.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
-    // FIFO is the only mode every implementation must offer, and for a stream that is paced
-    // elsewhere it is also the one that does not tear.
-    info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+    info.presentMode = present_mode;
     info.clipped = VK_TRUE;
 
+    LOGI("swapchain: %u images, present mode %d", images, static_cast<int>(present_mode));
     if (vk.vkCreateSwapchainKHR(device.device, &info, nullptr, &swapchain) != VK_SUCCESS) {
       LOGW("could not create a swapchain");
       return false;
