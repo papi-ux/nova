@@ -46,10 +46,18 @@ updating Nova does not replace a player's Steam Input layout.
 
 Local PC search uses the device's Avahi 0.8+ service to browse local
 `_nvstream._tcp` advertisements. It does not scan IP ranges or label advertised
-PCs trusted. Results only fill the address/HTTP port for Nova's existing Trusted
+PCs trusted. Multiple addresses for the same service appear as one PC, preferring
+the physical LAN over VPN and local container interfaces. Different service
+targets or ports remain separate even when their display names match.
+Results only fill the address/HTTP port for Nova's existing Trusted
 Pair or PIN flow. The search stops after eight seconds, supports multiple
 interfaces and scoped IPv6 addresses, and expires retained choices after one
 minute. Without Avahi or its sandbox permission, manual entry remains available.
+
+Desktop is the default destination for a device with no Space assignment. Nova
+loads the normal Desktop library under the host's ordinary permissions; it does
+not create or select a Space. Assigned Space restrictions, denied Desktop
+access and destination changes continue to be checked before launching.
 
 The KDE 6.10 SDK supplies the WaylandClient/GuiPrivate headers and
 wayland-protocols used by relative mouse capture. Match Qt private headers to the

@@ -52,10 +52,10 @@ public:
         auto message = QDBusMessage::createSignal(target.isEmpty() ? path : target, browserInterface, event);
         message.setArguments({interface, protocol, name, type, QString("local"), uint{0}}); bus.send(message);
     }
-    void resolve(int index, const QString& address, quint16 port = 47989) {
+    void resolve(int index, const QString& address, quint16 port = 47989, const QString& target = "fixture.local") {
         require(index >= 0 && index < int(resolves.size()), "missing resolver request");
         const auto& request = resolves[index]; const auto in = request.arguments();
-        bus.send(request.createReply({in[0],in[1],in[2],in[3],in[4],QString("fixture.local"),in[5],address,
+        bus.send(request.createReply({in[0],in[1],in[2],in[3],in[4],target,in[5],address,
             QVariant::fromValue(port),QVariant::fromValue(QList<QByteArray>{}),uint{0}}));
     }
     void releasePrepare() { bus.send(prepare.createReply({QVariant::fromValue(QDBusObjectPath(path))})); }
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     const auto first = discovery.hosts()[0].toMap();
     require(first.value("name")=="Cached PC" && first.value("port")==47989 && !first.contains("trusted"), "advertisement became a trust decision");
     host.item("ItemNew","Cached PC",2); until([&] { return host.resolves.size()==2; }); host.resolve(1,"192.0.2.1"); settle();
-    require(discovery.hosts().size()==1 && discovery.endpoint(first.value("id").toString())==first,"duplicate endpoint duplicated or changed selected result");
+    require(discovery.hosts().size()==1 && discovery.endpoint(first.value("id").toString()).value("address")==first.value("address"),"duplicate endpoint duplicated or lost stable identity");
     host.item("ItemNew","Cached PC",3); until([&] { return host.resolves.size()==3; }); host.resolve(2,"192.0.2.2",48000); until([&] { return discovery.hosts().size()==2; });
     host.item("ItemRemove","Cached PC",1); host.item("ItemRemove","Cached PC",2); until([&] { return discovery.hosts().size()==1; });
     require(discovery.endpoint(first.value("id").toString()).isEmpty(),"removed endpoint still selectable");
@@ -105,6 +105,29 @@ int main(int argc, char** argv) {
     until([&] { return host.resolves.size()==71; }); settle(); require(host.resolves.size()==71,"discovery request budget was unbounded");
     for(int i=7;i<71;++i) host.resolve(i,"192.0.2."+QString::number(i));
     until([&] { return discovery.hosts().size()==32; }); settle(); require(discovery.hosts().size()==32,"result budget was unbounded");
+    const auto beforeStart = host.starts;
+    discovery.start(); until([&] { return host.starts==beforeStart+1; });
+    const int base = int(host.resolves.size());
+    for (int i=0; i<6; ++i) host.item("ItemNew", "Studio PC",10000+i,i==2 ? 1 : 0);
+    until([&] { return int(host.resolves.size())==base+6; });
+    host.resolve(base,"192.0.2.80",47989,"studio.local");
+    host.resolve(base+1,"192.0.2.81",47989,"STUDIO.LOCAL.");
+    host.resolve(base+2,"fe80::1234",47989,"studio.local");
+    host.resolve(base+3,"192.0.2.82",47989,"different.local");
+    host.resolve(base+4,"192.0.2.83",48000,"studio.local");
+    host.resolve(base+5,"192.0.2.84",47989,"invalid target");
+    until([&] { return discovery.hosts().size()==3; }); settle();
+    QString grouped;
+    for (const auto& host : discovery.hosts()) if (host.toMap().value("address")=="192.0.2.80") grouped=host.toMap().value("id").toString();
+    require(!grouped.isEmpty(),"service addresses were not grouped or IPv4 LAN was not preferred to link-local IPv6");
+    host.item("ItemRemove","Studio PC",10000);
+    until([&] { return discovery.endpoint(grouped).value("address")=="192.0.2.81"; });
+    require(discovery.hosts().size()==3,"removing one route removed the PC or duplicated it");
+    host.item("ItemRemove","Studio PC",10001);
+    until([&] { return discovery.endpoint(grouped).value("address")=="fe80::1234%10002"; });
+    host.item("ItemRemove","Studio PC",10002,1);
+    until([&] { return discovery.hosts().size()==2; });
+    require(discovery.endpoint(grouped).isEmpty(),"last withdrawn address remained selectable");
     host.bus.unregisterService(service); until([&] { return !discovery.state().value("busy").toBool() && discovery.hosts().isEmpty(); });
     discovery.start(); until([&] { return !discovery.state().value("busy").toBool(); });
     require(discovery.state().value("copy").toString().contains("unavailable"),"missing discovery service was not actionable");

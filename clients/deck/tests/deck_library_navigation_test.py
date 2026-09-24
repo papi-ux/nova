@@ -1281,7 +1281,7 @@ def spaces_snapshot(fixture):
     return {"schema": 1, "status": True, "enabled": True,
             "available": bool(fixture["selected_destination"]), "can_switch": fixture.get("can_switch", True) and bool(fixture["selected_destination"]),
             "selected_space_id": fixture["selected_destination"], "desktop_allowed": fixture["desktop_allowed"],
-            "unavailable_reason": None if fixture["selected_destination"] else "no_space_assigned",
+            "unavailable_reason": None if fixture["selected_destination"] else fixture.get("unavailable_reason", "no_space_assigned"),
             "spaces": [dict(row, selected=row["id"] == fixture["selected_destination"]) for row in fixture["spaces"]]}
 
 
@@ -1381,11 +1381,30 @@ def spaces_navigation(wait, keys, state, fixtures, save_capture, window):
     a["selected_destination"] = ""
     a["desktop_allowed"] = False
     refreshed()
+    assert state()["games"] == ["game-7", "game-42"] and state()["launchEnabled"]
+    assert state()["destinationName"] == "Desktop" and "normal PC permissions" in state()["destination"]["caption"]
+    assert len(a["selections"]) == before, "ordinary Desktop issued a Space selection"
+    assert a["games_queries"][-1].get("environment") == ["desktop"]
+    save_capture("desktop-without-spaces-large-960.png")
+    # Ordinary Desktop still obeys its own permission response.
+    a["games_status"] = 403
+    keys("Return")
+    wait(lambda s: not s.get("busy") and s.get("failed"))
     assert state()["games"] == [] and not state()["launchEnabled"]
-    assert "No Space" in state()["destination"]["caption"]
-    save_capture("destination-none-assigned-large-960.png")
+    a["games_status"] = 200
+    refreshed()
+    assert state()["games"] == ["game-7", "game-42"] and state()["launchEnabled"]
+    # A transient Spaces failure cannot be interpreted as an unassigned device.
+    a["unavailable_reason"] = "reconfiguring"
+    queried = len(a["games_queries"])
+    refreshed()
+    assert state()["games"] == [] and not state()["launchEnabled"] and len(a["games_queries"]) == queried
+    del a["unavailable_reason"]
+    refreshed()
+    assert state()["destinationName"] == "Desktop" and state()["games"] == ["game-7", "game-42"]
     keys("Escape")
     wait(lambda s: not s.get("destination", {}).get("opened") and s.get("focus") == "library-destination")
+    save_capture("desktop-default-library-large-960.png")
 
 
 def main():
@@ -1490,8 +1509,10 @@ def main():
                     if "spaces" in fixture:
                         query = parse_qs(urlsplit(self.path).query)
                         fixture["games_queries"].append(query)
-                        if fixture.get("spaces_status", 200) != 404 and (fixture["selected_destination"] != "desktop" or query.get("environment") != ["desktop"]):
+                        ordinary = not fixture["selected_destination"] and not fixture["spaces"] and fixture.get("unavailable_reason", "no_space_assigned") == "no_space_assigned"
+                        if fixture.get("spaces_status", 200) != 404 and ((fixture["selected_destination"] != "desktop" and not ordinary) or query.get("environment") != ["desktop"]):
                             violations.append("desktop library read without matching selection")
+                    status = fixture.get("games_status", 200)
                     body = json.dumps({"games": fixture["metadata"], "total": len(fixture["metadata"])})
                 elif (args.artwork or args.polish or args.spaces) and secure and path.startswith("/polaris/v1/games/") and "/artwork/" in path:
                     fixture["artwork_requests"].append(self.path)

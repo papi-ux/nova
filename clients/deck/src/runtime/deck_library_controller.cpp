@@ -33,8 +33,8 @@ const backend::DeckLiveHostProbe* selectedProbe(const backend::DeckLiveHostLibra
 }
 QString destinationId(const backend::DeckLiveHostLibrarySnapshot& snapshot) {
     const auto* probe = selectedProbe(snapshot);
-    if (probe && probe->spacesSupported && (!probe->spaces || probe->spaces->enabled))
-        return probe->spaces ? QString::fromStdString(probe->spaces->selectedId) : QString{};
+    if (probe && probe->spacesSupported)
+        return probe->spaces ? QString::fromStdString(probe->spaces->destinationId()) : QString{};
     return "desktop";
 }
 polaris::DeckPolarisResult<polaris::DeckSpaces> selectSpaceOnHost(
@@ -315,7 +315,7 @@ void DeckLibraryController::updateSpacesState() {
     const QString name = id == "desktop" ? "Desktop" : selected ? QString::fromStdString(selected->name) : "Spaces unavailable";
     QVariantList rows;
     rows.push_back(QVariantMap{{"id", "desktop"}, {"name", "Desktop"}, {"status", ""},
-        {"caption", !known ? "Refresh to check Desktop access." : spaces->desktopAllowed ? (id == "desktop" ? "Current destination" : "Your PC's regular library")
+        {"caption", !known ? "Refresh to check Desktop access." : spaces->usesStandardDesktop() || spaces->desktopAllowed ? (id == "desktop" ? "Current destination" : "Your PC's regular library")
             : "Desktop access is off for this device. Check device access in Polaris."},
         {"available", known && spaces->permitsSelection("desktop")}, {"selected", known && id == "desktop"}});
     if (spaces) for (const auto& space : spaces->spaces) {
@@ -338,7 +338,7 @@ void DeckLibraryController::updateSpacesState() {
     state_["spaces"] = QVariantMap{{"supported", supported}, {"known", known}, {"changing", changing},
         {"name", name}, {"selectedId", id}, {"rows", rows},
         {"caption", !known ? QString("Could not check destinations. Refresh before choosing.")
-            : !spaces->enabled ? QString("Spaces are not enabled on this PC.") : blockedCopy(*spaces)}};
+            : spaces->usesStandardDesktop() ? QString("Desktop uses your normal PC permissions. No Space is required.") : blockedCopy(*spaces)}};
 }
 
 bool DeckLibraryController::request(const QString& hostId, bool automatic, const QString& destination) {

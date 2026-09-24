@@ -32,8 +32,8 @@ DeckNativeTargetResolver nativeTargetResolver(
             if (probe.resolvedHttpsPort > 0) port = probe.resolvedHttpsPort;
             standardHost = probe.standardHost;
             if (probe.spacesSupported) {
-                if (!probe.spaces || (probe.spaces->enabled && !probe.spaces->available)) return {};
-                destination = probe.spaces->enabled ? probe.spaces->selectedId : "desktop";
+                if (!probe.spaces || (probe.spaces->enabled && !probe.spaces->available && !probe.spaces->usesStandardDesktop())) return {};
+                destination = probe.spaces->destinationId();
             }
         }
         const auto space = polaris::spaceGameIdentity(game->id);

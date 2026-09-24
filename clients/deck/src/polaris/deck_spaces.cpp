@@ -101,13 +101,23 @@ const DeckSpace* DeckSpaces::selected() const {
     const auto item = std::find_if(spaces.begin(), spaces.end(), [&](const auto& s) { return s.id == selectedId && s.selected; });
     return item == spaces.end() ? nullptr : &*item;
 }
+bool DeckSpaces::usesStandardDesktop() const {
+    // Spaces are optional. An unassigned device still uses the ordinary
+    // Desktop library and launch permissions, which the host must authorize.
+    // Errors, transient unavailability and assigned Spaces never take this path.
+    return !enabled || (!available && selectedId.empty() && spaces.empty() &&
+        unavailableReason == "no_space_assigned");
+}
+std::string DeckSpaces::destinationId() const {
+    return usesStandardDesktop() ? "desktop" : selectedId;
+}
 bool DeckSpaces::permitsSelection(std::string_view id) const {
     if (!enabled || !available || !canSwitch) return false;
     if (id == "desktop") return desktopAllowed;
     return std::any_of(spaces.begin(), spaces.end(), [&](const auto& s) { return s.id == id && s.state != "unavailable"; });
 }
 bool DeckSpaces::permitsPlay(std::string_view id) const {
-    if (!enabled) return id == "desktop";
+    if (usesStandardDesktop()) return id == "desktop";
     if (!available || selectedId != id) return false;
     if (id == "desktop") return desktopAllowed;
     const auto* current = selected();

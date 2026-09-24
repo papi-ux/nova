@@ -19,6 +19,8 @@ struct DeckSpaces {
     std::string selectedId, unavailableReason, switchBlockedReason;
     std::vector<DeckSpace> spaces;
     const DeckSpace* selected() const;
+    bool usesStandardDesktop() const;
+    std::string destinationId() const;
     bool permitsSelection(std::string_view id) const;
     bool permitsPlay(std::string_view id) const;
 };
