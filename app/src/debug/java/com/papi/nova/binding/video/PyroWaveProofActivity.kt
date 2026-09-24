@@ -71,18 +71,19 @@ class PyroWaveProofActivity : Activity(), SurfaceHolder.Callback {
         }
 
         renderer.start()
-        var drew = true
-        // Twice, so the second frame runs through barriers the first could not have papered over.
-        repeat(2) {
-            val outcome = renderer.submitDecodeUnit(
-                bitstream, bitstream.size, 0, it, 2, 0.toChar(), 0L, 0L)
-            if (outcome != com.papi.nova.nvstream.jni.MoonBridge.DR_OK) {
-                drew = false
-            }
-        }
+        // Once: this is one frame, and a frame is its sequence number. The decoder drops a sequence
+        // it has already decoded, so pushing these bytes twice tests that it says no.
+        val outcome = renderer.submitDecodeUnit(
+            bitstream, bitstream.size, 0, 0, 2, 0.toChar(), 0L, 0L)
+        val shown = renderer.framesShown
+        val refused = renderer.framesRefused
         renderer.stop()
         renderer.cleanup()
-        return drew
+
+        // The counts, not the return value. A frame that does not reach the screen is counted rather
+        // than refused, because refusing asks the library for a keyframe and every frame of this
+        // codec already is one, so the submit returns DR_OK either way.
+        return outcome == com.papi.nova.nvstream.jni.MoonBridge.DR_OK && shown == 1L && refused == 0L
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit

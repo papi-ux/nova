@@ -623,6 +623,14 @@ namespace nova_vk {
     return true;
   }
 
+  void renderer_t::await_last_frame() {
+    if (!frame_submitted) {
+      return;
+    }
+    vk.vkWaitForFences(device.device, 1, &in_flight, VK_TRUE, UINT64_MAX);
+    frame_submitted = false;
+  }
+
   void renderer_t::barrier_planes(VkCommandBuffer cmd, VkPipelineStageFlags from,
                                   VkAccessFlags from_access, VkPipelineStageFlags to,
                                   VkAccessFlags to_access) {
@@ -693,8 +701,7 @@ namespace nova_vk {
       return false;
     }
 
-    vk.vkWaitForFences(device.device, 1, &in_flight, VK_TRUE, UINT64_MAX);
-    vk.vkResetFences(device.device, 1, &in_flight);
+    await_last_frame();
 
     // One push for the whole frame. The bitstream delimits itself, so the decoder walks the blocks
     // inside it and this is the same work as pushing each of the codec's packets in turn.
@@ -703,14 +710,17 @@ namespace nova_vk {
     // not lose them one at a time: it reassembles a whole frame under FEC or drops it, so a frame
     // that arrives here incomplete arrived corrupt.
     //
-    // Twice, at most, and only ever for the first frame of a decoder's life. A decoder that has
-    // never been pushed to accepts its first frame, reports success and counts none of its blocks,
-    // so the frame never becomes ready; clearing and pushing the same bytes again works every time.
-    // Measured on two devices rather than reasoned about, and narrowed: clearing at creation does
-    // not help, so whatever the push leaves behind is what clearing then fixes. The codec's own CPU
-    // entry point does not need any of this, which is the part still unexplained and the reason
-    // this is a retry with a comment rather than a line of setup.
-    for (int attempt = 0; attempt < 2; attempt++) {
+    // The retry is for the first frame of a decoder's life and nothing else, and the flag is what
+    // makes that true rather than the comment. On these two Android devices a decoder that has never
+    // produced a frame accepts its first one, reports success and counts none of its blocks, so it
+    // never becomes ready; clearing and pushing the same bytes works every time. Clearing at
+    // creation does not help, so it is something the first push leaves behind. The codec's own CPU
+    // entry point does not need it, and the Linux client does not see it on desktop NVIDIA or on a
+    // Steam Deck, so this looks like something about this library build or these drivers rather than
+    // the codec. Once a frame has decoded, a later one that is not ready arrived wrong, and pushing
+    // it again would spend a parse on bytes that cannot improve.
+    const int attempts = decoder_warmed ? 1 : 2;
+    for (int attempt = 0; attempt < attempts; attempt++) {
       const auto pushed = pyrowave_decoder_push_packet(decoder, bitstream, size);
       if (pushed != PYROWAVE_SUCCESS) {
         LOGW("the decoder refused the frame (%d)", static_cast<int>(pushed));
@@ -718,10 +728,11 @@ namespace nova_vk {
       }
 
       if (pyrowave_decoder_decode_is_ready(decoder, false)) {
+        decoder_warmed = true;
         break;
       }
 
-      if (attempt == 1) {
+      if (attempt == attempts - 1) {
         LOGW("the frame is not a whole frame (%zu bytes)", size);
         return false;
       }
@@ -736,8 +747,7 @@ namespace nova_vk {
       return false;
     }
 
-    vk.vkWaitForFences(device.device, 1, &in_flight, VK_TRUE, UINT64_MAX);
-    vk.vkResetFences(device.device, 1, &in_flight);
+    await_last_frame();
 
     if (!upload(luma, cb, cr)) {
       return false;
@@ -817,10 +827,16 @@ namespace nova_vk {
     submit.pCommandBuffers = &command_buffer;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &rendered;
+    // Here and nowhere earlier. Everything above this line can still refuse the frame, and a fence
+    // reset for work that is then never submitted is a wait that never ends.
+    vk.vkResetFences(device.device, 1, &in_flight);
     if (vk.vkQueueSubmit(device.graphics_queue, 1, &submit, in_flight) != VK_SUCCESS) {
       LOGW("could not submit the frame");
+      // Left unsignalled, which is why nothing will wait on it: the next frame resets it again
+      // before its own submit, and resetting an already unsignalled fence is allowed.
       return false;
     }
+    frame_submitted = true;
 
     VkPresentInfoKHR present_info = {};
     present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;

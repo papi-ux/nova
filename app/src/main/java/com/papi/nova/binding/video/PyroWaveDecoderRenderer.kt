@@ -26,8 +26,11 @@ class PyroWaveDecoderRenderer : NovaVideoRenderer() {
     private var surface: Surface? = null
     private var handle: Long = 0
     private var format: Int = 0
-    private var framesShown: Long = 0
-    private var framesRefused: Long = 0
+    /** Frames that reached the screen, and frames that did not. Readable for a proof or a HUD. */
+    var framesShown: Long = 0
+        private set
+    var framesRefused: Long = 0
+        private set
 
     // What the library asks.
 

@@ -85,6 +85,9 @@ namespace nova_vk {
     /** Record the decode of the pushed frame into the plane images. */
     bool record_decode(VkCommandBuffer cmd);
 
+    /** Wait for the last submitted frame, if there was one. */
+    void await_last_frame();
+
     /** The barriers around whatever writes the planes, both ways, in their resting layout. */
     void barrier_planes(VkCommandBuffer cmd, VkPipelineStageFlags from, VkAccessFlags from_access,
                         VkPipelineStageFlags to, VkAccessFlags to_access);
@@ -132,6 +135,24 @@ namespace nova_vk {
     VkSemaphore acquired = VK_NULL_HANDLE;
     VkSemaphore rendered = VK_NULL_HANDLE;
     VkFence in_flight = VK_NULL_HANDLE;
+
+    /**
+     * Whether in_flight has work behind it.
+     *
+     * A fence is reset the moment before a submit and never before, because every path between the
+     * two can refuse the frame: a decoder that will not take it, a frame that is not whole, a
+     * swapchain image that cannot be acquired, a submit that fails. Resetting early left the fence
+     * unsignalled with nothing coming to signal it, and the next frame waited on it forever.
+     */
+    bool frame_submitted = false;
+
+    /**
+     * Whether a frame has ever come out of this decoder ready.
+     *
+     * Gates the one retry below. Once a frame has decoded, a later one that is not ready is a frame
+     * that arrived wrong, and pushing it again would waste a parse on bytes that will not improve.
+     */
+    bool decoder_warmed = false;
   };
 
 }  // namespace nova_vk

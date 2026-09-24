@@ -429,11 +429,15 @@ Java_com_papi_nova_binding_video_PyroWave_nativeGpuDecodeSelfTest(
     if (renderer == NULL) {
         outcome = -32;
     }
-    // Twice, because the second frame is the one that proves the barriers are right. The first
-    // transitions the plane images from UNDEFINED, which is allowed to discard whatever was there
-    // and would hide a missing dependency between the decode and the draw that reads it.
-    else if (!pyrowave_renderer_decode_and_present(renderer, (const uint8_t *) payload, (size_t) size) ||
-             !pyrowave_renderer_decode_and_present(renderer, (const uint8_t *) payload, (size_t) size)) {
+    // Once, because there is one frame here and a frame is its sequence number. Pushing these
+    // bytes again is pushing the same frame again, and the decoder drops a sequence it has already
+    // decoded, which is exactly what it should do. A second frame needs a second frame, and a live
+    // stream is where that comes from.
+    //
+    // One is still enough to show the barrier between the decode and the draw is there: without it
+    // the draw reads the images while the compute is still writing them, and the picture tears or
+    // comes back empty rather than coming back right.
+    else if (!pyrowave_renderer_decode_and_present(renderer, (const uint8_t *) payload, (size_t) size)) {
         outcome = -33;
     }
     else {
