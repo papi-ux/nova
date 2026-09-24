@@ -770,6 +770,7 @@ int main(int argc, char** argv) {
     bitratePopup->setProperty("draftKbps", 300000); bitratePlus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 300000, "picker exceeded upper bound");
     session.tuning["appliedBitrateKbps"] = 200000; session.tuning["requestedBitrate"] = "200.0M";
+    session.tuning["bitrateCopy"] = "Applied 200 Mbps. Live Tuning is off.";
     emit session.hudChanged(); settle(); key(*window, Qt::Key_Down);
     focused(*window, bitrateApply, "high-rate picker lost Apply focus");
     screenshot("live-bitrate-high-rate-large-960.png");

@@ -35,7 +35,7 @@ Popup {
         Label {
             objectName: "live-bitrate-applied"
             Layout.fillWidth: true
-            text: "Requested: " + (bitrate.status.requestedBitrate || "--") + " · Encoder applied: " + bitrate.format(bitrate.status.appliedBitrateKbps || 0)
+            text: "Requested: " + (bitrate.status.requestedBitrate || "--") + "\nEncoder applied: " + bitrate.format(bitrate.status.appliedBitrateKbps || 0)
             color: NovaTheme.secondary; wrapMode: Text.WordWrap
             font.pixelSize: 18 * bitrate.unit * NovaTheme.fontScale
         }
