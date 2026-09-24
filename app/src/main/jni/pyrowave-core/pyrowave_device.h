@@ -35,6 +35,7 @@ namespace nova_vk {
     pyrowave_device codec = nullptr;
 
   private:
+    VkApplicationInfo application_info = {};
     VkInstanceCreateInfo instance_info = {};
     VkDeviceCreateInfo device_info = {};
     VkDeviceQueueCreateInfo queue_info = {};

@@ -35,6 +35,7 @@ namespace nova_vk {
       PFN_vkDestroyInstance destroy_instance = nullptr;
       PFN_vkEnumeratePhysicalDevices enumerate_physical_devices = nullptr;
       PFN_vkGetPhysicalDeviceProperties2 get_physical_device_properties2 = nullptr;
+      PFN_vkGetPhysicalDeviceFeatures2 get_physical_device_features2 = nullptr;
       PFN_vkGetPhysicalDeviceQueueFamilyProperties get_queue_family_properties = nullptr;
       PFN_vkCreateDevice create_device = nullptr;
       PFN_vkDestroyDevice destroy_device = nullptr;
@@ -67,6 +68,8 @@ namespace nova_vk {
           reinterpret_cast<PFN_vkEnumeratePhysicalDevices>(get("vkEnumeratePhysicalDevices"));
         get_physical_device_properties2 = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2>(
           get("vkGetPhysicalDeviceProperties2"));
+        get_physical_device_features2 = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2>(
+          get("vkGetPhysicalDeviceFeatures2"));
         get_queue_family_properties = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(
           get("vkGetPhysicalDeviceQueueFamilyProperties"));
         create_device = reinterpret_cast<PFN_vkCreateDevice>(get("vkCreateDevice"));
@@ -108,12 +111,14 @@ namespace nova_vk {
       return false;
     }
 
-    VkApplicationInfo app = {};
-    app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app.pApplicationName = "nova";
-    app.pEngineName = "nova";
+    // A member rather than a local. The codec's C API says the create infos and everything inside
+    // them have to outlive the device it makes from them, and instance_info points at this one.
+    application_info = {};
+    application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    application_info.pApplicationName = "nova";
+    application_info.pEngineName = "nova";
     // The codec asks for 1.3: it needs subgroup size control, which is core there.
-    app.apiVersion = VK_API_VERSION_1_3;
+    application_info.apiVersion = VK_API_VERSION_1_3;
 
     std::vector<const char *> instance_extensions;
     if (want_presentation) {
@@ -123,7 +128,7 @@ namespace nova_vk {
 
     instance_info = {};
     instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instance_info.pApplicationInfo = &app;
+    instance_info.pApplicationInfo = &application_info;
     instance_info.enabledExtensionCount = static_cast<uint32_t>(instance_extensions.size());
     instance_info.ppEnabledExtensionNames = instance_extensions.empty() ? nullptr : instance_extensions.data();
 
@@ -172,27 +177,52 @@ namespace nova_vk {
     queue_info.queueCount = 1;
     queue_info.pQueuePriorities = &priority;
 
-    // The features the codec's header names. Chained through a features2 struct because the C API
-    // says the device create info's pNext must carry one.
+    // Everything this GPU reports, handed back as what to enable, chained through a features2
+    // struct because the C API says the device create info's pNext must carry one. The same structs
+    // serve both ways round in Vulkan, and asking is better than listing: a device built from a hand
+    // written minimum is a shape nobody upstream runs, and the codec's Granite core falls back when a
+    // feature is missing. One of those fallbacks deadlocks. A device with no timeline semaphore sends
+    // Granite to ask for a legacy one while it already holds the device lock, and it hangs on itself,
+    // which is why that one is required below rather than merely enabled.
     vulkan13 = {};
     vulkan13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    vulkan13.subgroupSizeControl = VK_TRUE;
-    vulkan13.computeFullSubgroups = VK_TRUE;
 
     vulkan12 = {};
     vulkan12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    vulkan12.storageBuffer8BitAccess = VK_TRUE;
     vulkan12.pNext = &vulkan13;
 
     vulkan11 = {};
     vulkan11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-    vulkan11.storageBuffer16BitAccess = VK_TRUE;
     vulkan11.pNext = &vulkan12;
 
     features = {};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    features.features.shaderInt16 = VK_TRUE;
     features.pNext = &vulkan11;
+
+    if (!loader.get_physical_device_features2) {
+      LOGW("this Vulkan loader cannot report device features");
+      destroy();
+      return false;
+    }
+    loader.get_physical_device_features2(physical_device, &features);
+
+    if (!features.features.shaderInt16 || !vulkan11.storageBuffer16BitAccess ||
+        !vulkan12.storageBuffer8BitAccess || !vulkan12.timelineSemaphore ||
+        !vulkan13.subgroupSizeControl || !vulkan13.computeFullSubgroups) {
+      LOGW("this GPU lacks a feature the codec's shaders need");
+      destroy();
+      return false;
+    }
+
+    // Bounds checking every buffer access costs throughput and buys a decoder nothing; the rest is
+    // for capture and replay tooling, or is something Granite itself switches off.
+    features.features.robustBufferAccess = VK_FALSE;
+    vulkan11.protectedMemory = VK_FALSE;
+    vulkan11.multiviewGeometryShader = VK_FALSE;
+    vulkan11.multiviewTessellationShader = VK_FALSE;
+    vulkan12.bufferDeviceAddressCaptureReplay = VK_FALSE;
+    vulkan12.bufferDeviceAddressMultiDevice = VK_FALSE;
+    vulkan13.privateData = VK_FALSE;
 
     device_extensions.clear();
     if (want_presentation) {
