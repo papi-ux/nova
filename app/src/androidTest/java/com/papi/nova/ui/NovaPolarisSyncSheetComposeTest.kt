@@ -162,6 +162,8 @@ class NovaPolarisSyncSheetComposeTest {
         getString = { resId -> context.getString(resId) },
         actions = NovaPlaySetupHostActions(
             onSelectMode = {},
+            onSelectScreenToAdd = { _, _ -> },
+            onSelectScreenScale = {},
             onMatchNova = {},
             onSendNova = {},
             onUsePolaris = {},
