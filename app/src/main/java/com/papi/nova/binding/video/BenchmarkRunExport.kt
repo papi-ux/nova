@@ -34,7 +34,7 @@ private const val ABORT_REASON_STREAM_GENERATION_CHANGED = "stream_generation_ch
  * MediaCodecDecoderRenderer.BenchmarkRunState's doc comment) has no other
  * abort trigger to detect, so this is the only condition checked here.
  */
-fun buildBenchmarkRunJson(result: MediaCodecDecoderRenderer.BenchmarkRunResult, collectorVersion: String): String {
+fun buildBenchmarkRunJson(result: BenchmarkRunResult, collectorVersion: String): String {
     val aborted = result.terminalStreamGeneration != result.initialStreamGeneration
     val actualDurationNs = result.stoppedElapsedRealtimeNs - result.startedElapsedRealtimeNs
     val withinTolerance = abs(actualDurationNs - result.expectedDurationNs) <= result.durationToleranceNs

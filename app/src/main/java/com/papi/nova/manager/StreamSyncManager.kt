@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.os.Build
 import android.view.Display
-import com.papi.nova.binding.video.MediaCodecDecoderRenderer
+import com.papi.nova.binding.video.NovaVideoRenderer
 import com.papi.nova.binding.video.PyroWave
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
@@ -387,7 +387,7 @@ class StreamSyncManager private constructor() {
         fun buildDeviceCapabilities(
             context: Context,
             display: Display?,
-            renderer: MediaCodecDecoderRenderer?,
+            renderer: NovaVideoRenderer?,
             supportedVideoFormats: Int,
             displaySupportsHdr10: Boolean,
             externalDisplay: Boolean
@@ -441,7 +441,7 @@ class StreamSyncManager private constructor() {
         @JvmOverloads
         fun buildClientRuntime(
             context: Context,
-            renderer: MediaCodecDecoderRenderer?,
+            renderer: NovaVideoRenderer?,
             appliedRefreshRateHz: Float,
             displayModeId: Int,
             displayMode: String?,

@@ -25,7 +25,9 @@ import com.papi.nova.binding.input.virtual_controller.VirtualController
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardController
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardLayoutController
 import com.papi.nova.binding.video.CrashListener
+import com.papi.nova.binding.video.BenchmarkRunResult
 import com.papi.nova.binding.video.MediaCodecDecoderRenderer
+import com.papi.nova.binding.video.NovaVideoRenderer
 import com.papi.nova.binding.video.MediaCodecHelper
 import com.papi.nova.binding.video.PerfOverlayListener
 import com.papi.nova.binding.video.PerfOverlaySample
@@ -337,7 +339,7 @@ private var performanceOverlayView:View? = null
 
 private var performanceOverlayBig:TextView? = null
 
-private var decoderRenderer:MediaCodecDecoderRenderer? = null
+private var decoderRenderer:NovaVideoRenderer? = null
 private var reportedCrash:Boolean = false
 
 private var highPerfWifiLock:WifiManager.WifiLock? = null
@@ -7466,7 +7468,7 @@ companion object {
  }
 
  @JvmStatic
- fun stopBenchmarkCapture():MediaCodecDecoderRenderer.BenchmarkRunResult? {
+ fun stopBenchmarkCapture():BenchmarkRunResult? {
   return instance?.decoderRenderer?.stopBenchmarkCapture()
  }
 
