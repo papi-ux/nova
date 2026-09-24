@@ -1880,5 +1880,5 @@
     <string name="nova_space_leave_caption">Ends this Space’s game session. Games, saves and sign-in stay in the Space.</string>
     <string name="pcview_card_hint_spaces">Spaces available. Change Space from the library.</string>
     <string name="nova_pyrowave_profile_unavailable">This host does not offer the PyroWave profile this build of Nova can decode. Both ends have to carry the same codec revision. Nothing is wrong with your network.</string>
-    <string name="nova_pyrowave_bitrate_low">PyroWave wants about %1$d Mbps at this resolution and frame rate. Below that the picture will look soft, because every frame is a keyframe.</string>
+    <string name="nova_pyrowave_bitrate_low">PyroWave asks for about %1$d Mbps at this resolution and frame rate. Every frame is a keyframe, so a smaller budget goes on the frame rather than on the detail.</string>
 </resources>

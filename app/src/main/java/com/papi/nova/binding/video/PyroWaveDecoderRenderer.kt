@@ -28,14 +28,22 @@ class PyroWaveDecoderRenderer(
 
     companion object {
         /**
-         * Bits per pixel below which this codec has nothing left to spend on detail.
+         * Bits per pixel at which this codec looks like itself.
          *
          * Every frame is coded from scratch, so quality follows the per frame budget directly and
-         * there is no prediction to lean on. Measured by eye on the same content: soft at 0.18,
-         * good at 0.73. This sits near the bottom of that range, which is where a picture stops
-         * being worth looking at rather than where it stops being perfect.
+         * there is no prediction to lean on. Measured by eye on the same content: soft at 0.18, good
+         * at 0.73.
+         *
+         * This is the good one, and it used to be 0.35. That number is halfway to soft, and the
+         * paragraph describing it said so in as many words: where a picture stops being worth looking
+         * at. Advice is read as what to set, not as a floor to stay above, so a player who followed it
+         * saw the codec at its worst and had every reason to think that was the codec.
+         *
+         * It is a large number, 91 Mbps for 1080p60 against the 20 Mbps Nova defaults to, and that is
+         * the honest shape of an intra only codec rather than something to round down out of
+         * politeness. A player who cannot spend it is better served knowing why the picture is soft.
          */
-        private const val USABLE_BITS_PER_PIXEL = 0.35
+        private const val GOOD_BITS_PER_PIXEL = 0.73
 
         /**
          * The bitrate this codec wants for a stream of this shape, in kbps.
@@ -45,8 +53,22 @@ class PyroWaveDecoderRenderer(
          */
         fun recommendedKbps(width: Int, height: Int, fps: Int): Int {
             if (width <= 0 || height <= 0 || fps <= 0) return 0
-            val bits = USABLE_BITS_PER_PIXEL * width.toDouble() * height.toDouble() * fps.toDouble()
+            val bits = GOOD_BITS_PER_PIXEL * width.toDouble() * height.toDouble() * fps.toDouble()
             return (bits / 1000.0).toInt()
+        }
+
+        /**
+         * The same advice as a whole number of Mbps, which is the unit it is said in.
+         *
+         * Said and compared in the same unit on purpose. Comparing the exact figure against a rounded
+         * one is advice nobody can take: a player told 91 Mbps who then sets 91 is at 91000 kbps,
+         * still under the 90846 this actually wanted rounded up, and is told the same thing again on
+         * every launch forever. Rounding up rather than down so that following the advice is always
+         * enough to satisfy it.
+         */
+        fun advisedMbps(width: Int, height: Int, fps: Int): Int {
+            val kbps = recommendedKbps(width, height, fps)
+            return if (kbps <= 0) 0 else (kbps + 999) / 1000
         }
     }
 

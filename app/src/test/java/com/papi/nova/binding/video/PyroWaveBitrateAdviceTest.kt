@@ -46,6 +46,44 @@ class PyroWaveBitrateAdviceTest {
     }
 
     @Test
+    fun theAdviceIsWhatLookedGoodAndNotTheFloorBelowIt() {
+        // It used to be 0.35 bits per pixel, which its own description called the point where a
+        // picture stops being worth looking at. Advice is read as what to set, so a player who took it
+        // saw the codec at its worst and blamed the codec.
+        val at60 = PyroWaveDecoderRenderer.recommendedKbps(1920, 1080, 60)
+        val bitsPerPixel = at60 * 1000.0 / (1920.0 * 1080.0 * 60.0)
+        assertTrue(
+            "advice of $bitsPerPixel bits per pixel is back near the soft end of what was measured",
+            bitsPerPixel > 0.6,
+        )
+        assertTrue("advice of $bitsPerPixel bits per pixel is above what was ever measured", bitsPerPixel < 0.8)
+    }
+
+    @Test
+    fun followingTheAdviceSatisfiesIt() {
+        // The warning compares against the exact figure and prints a rounded one, so a player told
+        // 91 Mbps who set 91 was under 90846 kbps and told again, on every launch, forever. The one
+        // number is the one that is shown.
+        for (fps in listOf(30, 60, 90, 120, 144)) {
+            for (size in listOf(1280 to 720, 1920 to 1080, 2560 to 1440, 3840 to 2160)) {
+                val advised = PyroWaveDecoderRenderer.advisedMbps(size.first, size.second, fps)
+                val exact = PyroWaveDecoderRenderer.recommendedKbps(size.first, size.second, fps)
+                assertTrue(
+                    "at ${size.first}x${size.second}${fps}: setting the advised $advised Mbps is still " +
+                        "under the $exact kbps it wanted, so the advice can never be taken",
+                    advised * 1000 >= exact,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun nonsenseHasNoAdviceInMbpsEither() {
+        assertEquals(0, PyroWaveDecoderRenderer.advisedMbps(0, 1080, 60))
+        assertEquals(0, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 0))
+    }
+
+    @Test
     fun novasDefaultIsWellUnderWhatThisCodecNeeds() {
         // 20 Mbps is Nova's default and the reason this advice exists at all: a player who picks the
         // codec and changes nothing else would judge it at a setting it cannot meet.

@@ -1469,13 +1469,13 @@ if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROW
         // picture. Every frame of this codec is a keyframe, so a budget that would carry H.264
         // comfortably leaves this one nothing to spend on detail, and the result looks like a broken
         // codec rather than a starved one.
-        val wanted = com.papi.nova.binding.video.PyroWaveDecoderRenderer.recommendedKbps(
+        val wantedMbps = com.papi.nova.binding.video.PyroWaveDecoderRenderer.advisedMbps(
 prefConfig!!.width, prefConfig!!.height, prefConfig!!.fps.toInt())
-if (wanted > 0 && prefConfig!!.bitrate < wanted)
+if (wantedMbps > 0 && prefConfig!!.bitrate < wantedMbps * 1000)
 {
 LimeLog.warning("PyroWave: " + prefConfig!!.bitrate + " kbps for " + prefConfig!!.width + "x" +
-prefConfig!!.height + " at " + prefConfig!!.fps.toInt() + "; it wants about " + wanted)
-NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, wanted / 1000))
+prefConfig!!.height + " at " + prefConfig!!.fps.toInt() + "; it wants about " + wantedMbps + " Mbps")
+NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, wantedMbps))
 }
 }
 else
