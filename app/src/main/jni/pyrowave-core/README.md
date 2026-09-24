@@ -9,7 +9,8 @@ app already pins:
 
 ```bash
 git clone --recurse-submodules https://github.com/Themaister/pyrowave
-cd pyrowave && bash checkout_granite.sh
+cd pyrowave && git checkout 186f0393b77f7755953b5ecde994bb1cec2e4155
+bash checkout_granite.sh
 NDK=$ANDROID_HOME/ndk/27.0.12077973
 for abi in arm64-v8a x86_64 armeabi-v7a; do
   cmake -S . -B build-$abi -G Ninja \
@@ -30,3 +31,9 @@ installs and runs on a device with no Vulkan at all.
 
 Its C API is not ABI stable before 1.0, so `pyrowave.h` here must be the header these libraries were
 built from. `PyroWave.apiVersion()` reads the version out of the library rather than trusting that.
+
+Nor is its bitstream, which is why the revision above is pinned rather than left at master, and why it
+has to match Polaris's `third-party/pyrowave` submodule. That agreement is what
+`PYROWAVE_PROFILE_TOKEN` carries in the RTSP handshake, so all three move together: this checkout,
+that submodule, and the token. Two of them agreeing and the third not is a stream that decodes to
+noise, which is the failure the token exists to turn into a refusal.
