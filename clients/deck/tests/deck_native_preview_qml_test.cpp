@@ -769,6 +769,11 @@ int main(int argc, char** argv) {
     key(*window, Qt::Key_Return);
     bitratePopup->setProperty("draftKbps", 300000); bitratePlus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 300000, "picker exceeded upper bound");
+    session.tuning["appliedBitrateKbps"] = 200000; session.tuning["requestedBitrate"] = "200.0M";
+    emit session.hudChanged(); settle(); key(*window, Qt::Key_Down);
+    focused(*window, bitrateApply, "high-rate picker lost Apply focus");
+    screenshot("live-bitrate-high-rate-large-960.png");
+    require(bitrateApply->mapToScene(QPointF(0, bitrateApply->height())).y() <= window->height(), "high-rate feedback clipped with large text");
     bitratePopup->setProperty("draftKbps", 1000); bitrateMinus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 1000 && session.bitrateWrites == 1, "picker exceeded lower bound or wrote while editing");
     // A touch adjustment edits the draft without submitting it.
