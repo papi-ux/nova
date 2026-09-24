@@ -64,7 +64,12 @@ class PyroWaveProofActivity : Activity(), SurfaceHolder.Callback {
             return false
         }
 
-        val renderer = PyroWaveDecoderRenderer()
+        // A listener that drops what it is given: this drives the renderer to check it draws, and
+        // the HUD it would normally feed is not on screen.
+        val renderer = PyroWaveDecoderRenderer(object : PerfOverlayListener {
+            override fun onPerfUpdate(text: String) = Unit
+            override fun onPerfSample(sample: PerfOverlaySample) = Unit
+        })
         renderer.setRenderTarget(surface)
         if (renderer.setup(PYROWAVE_FORMAT, 34, 30, 60) != 0) {
             return false

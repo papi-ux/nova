@@ -1192,7 +1192,7 @@ performanceOverlayBig!!.setVisibility(View.VISIBLE)
 }
 
 decoderRenderer = if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE)
-com.papi.nova.binding.video.PyroWaveDecoderRenderer()
+com.papi.nova.binding.video.PyroWaveDecoderRenderer(this)
 else MediaCodecDecoderRenderer(
 this,
 prefConfig,

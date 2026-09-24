@@ -1,5 +1,6 @@
 package com.papi.nova.binding.video
 
+import android.os.SystemClock
 import android.view.Surface
 import com.papi.nova.LimeLog
 import com.papi.nova.nvstream.jni.MoonBridge
@@ -21,11 +22,27 @@ import com.papi.nova.nvstream.jni.MoonBridge
  * exact profile this client implements or the connection fails with a reason, rather than quietly
  * handing back H.264 under the name of the codec the player chose.
  */
-class PyroWaveDecoderRenderer : NovaVideoRenderer() {
+class PyroWaveDecoderRenderer(
+    private val perfListener: PerfOverlayListener,
+) : NovaVideoRenderer() {
 
     private var surface: Surface? = null
     private var handle: Long = 0
     private var format: Int = 0
+    private var width: Int = 0
+    private var height: Int = 0
+
+    // The window the HUD reads, reset every time it is reported.
+    private var windowStartedMs: Long = 0
+    private var windowFrames: Long = 0
+    private var windowDrawn: Long = 0
+    private var windowDecodeNs: Long = 0
+    private var totalDecodeNs: Long = 0
+
+    // What the host says it spent capturing and encoding each frame, in tenths of a millisecond,
+    // which is the unit the frame header carries it in.
+    private var windowHostLatency: Long = 0
+    private var windowHostLatencyFrames: Long = 0
     /** Frames that reached the screen, and frames that did not. Readable for a proof or a HUD. */
     var framesShown: Long = 0
         private set
@@ -36,6 +53,8 @@ class PyroWaveDecoderRenderer : NovaVideoRenderer() {
 
     override fun setup(format: Int, width: Int, height: Int, redrawRate: Int): Int {
         this.format = format
+        this.width = width
+        this.height = height
 
         val target = surface
         if (target == null) {
@@ -53,7 +72,9 @@ class PyroWaveDecoderRenderer : NovaVideoRenderer() {
         return 0
     }
 
-    override fun start() = Unit
+    override fun start() {
+        windowStartedMs = SystemClock.elapsedRealtime()
+    }
 
     override fun stop() = Unit
 
@@ -74,16 +95,103 @@ class PyroWaveDecoderRenderer : NovaVideoRenderer() {
         // Every frame of this codec is a keyframe, so a frame that fails to decode costs exactly
         // itself: the next one stands alone and there is no reference chain to repair. Asking for an
         // IDR would be asking for what is already on its way.
-        if (!PyroWave.decodeAndPresent(handle, decodeUnitData, decodeUnitLength)) {
+        // Zero means the host did not report it, which is different from reporting zero, so it is
+        // left out of the average rather than counted as a fast frame.
+        val hostTenths = frameHostProcessingLatency.code
+        if (hostTenths > 0) {
+            windowHostLatency += hostTenths.toLong()
+            windowHostLatencyFrames++
+        }
+
+        val startedNs = System.nanoTime()
+        val drew = PyroWave.decodeAndPresent(handle, decodeUnitData, decodeUnitLength)
+        val elapsedNs = System.nanoTime() - startedNs
+
+        // Decode and present together, because that is what the call does: the compute work and the
+        // draw that reads it are one submit under one fence, and timing half of it would be timing
+        // nothing anyone waits for.
+        windowFrames++
+        windowDecodeNs += elapsedNs
+        totalDecodeNs += elapsedNs
+
+        if (drew) {
+            framesShown++
+            windowDrawn++
+        }
+        else {
             framesRefused++
             if (framesRefused == 1L || framesRefused % 60L == 0L) {
                 LimeLog.warning("PyroWave: $framesRefused frames did not reach the screen")
             }
-            return MoonBridge.DR_OK
         }
 
-        framesShown++
+        reportIfWindowElapsed()
         return MoonBridge.DR_OK
+    }
+
+    /**
+     * Hand the HUD a second's worth of measurements, once a second.
+     *
+     * Counted here rather than sampled on a timer, because this is the only thread that knows a
+     * frame happened and there is no queue between it and the screen to ask instead.
+     */
+    private fun reportIfWindowElapsed() {
+        val now = SystemClock.elapsedRealtime()
+        val elapsedMs = now - windowStartedMs
+        if (elapsedMs < 1000L) {
+            return
+        }
+
+        val seconds = elapsedMs.toDouble() / 1000.0
+        val decodeMs = if (windowFrames > 0) {
+            windowDecodeNs.toDouble() / windowFrames.toDouble() / 1_000_000.0
+        }
+        else {
+            0.0
+        }
+        val rttInfo = try {
+            MoonBridge.getEstimatedRttInfo()
+        } catch (e: Throwable) {
+            0L
+        }
+
+        perfListener.onPerfSample(
+            PerfOverlaySample(
+                fps = windowDrawn.toDouble() / seconds,
+                incomingFps = windowFrames.toDouble() / seconds,
+                renderedFps = windowDrawn.toDouble() / seconds,
+                width = width,
+                height = height,
+                codec = "PyroWave",
+                rttMs = (rttInfo shr 32).toInt(),
+                rttVarianceMs = rttInfo.toInt(),
+                decodeTimeMs = decodeMs,
+                // Frames this renderer was handed and could not draw. Not network loss: the
+                // transport reassembles a frame or drops it before this sees it, so anything counted
+                // here arrived and was unusable.
+                packetLossPct = if (windowFrames > 0) {
+                    (windowFrames - windowDrawn).toDouble() / windowFrames.toDouble() * 100.0
+                }
+                else {
+                    0.0
+                },
+                monotonicTimestampMs = now,
+                framesExpected = framesShown + framesRefused,
+                framesReceived = framesShown + framesRefused,
+                framesRendered = framesShown,
+                framesLost = framesRefused,
+                hostProcessingLatencyMs = windowHostLatencyFrames
+                    .takeIf { it > 0 }
+                    ?.let { windowHostLatency.toDouble() / 10.0 / it.toDouble() },
+            )
+        )
+
+        windowStartedMs = now
+        windowFrames = 0
+        windowDrawn = 0
+        windowDecodeNs = 0
+        windowHostLatency = 0
+        windowHostLatencyFrames = 0
     }
 
     override fun cleanup() {
@@ -142,13 +250,21 @@ class PyroWaveDecoderRenderer : NovaVideoRenderer() {
 
     // How the session is going.
 
-    override fun getAverageEndToEndLatency(): Int = 0
+    // Decode and present, which for this renderer is the whole of it: there is no queue between
+    // the frame arriving and the picture appearing, so the two numbers are the same measurement.
+    override fun getAverageEndToEndLatency(): Int = averageDecodeMs()
 
-    override fun getAverageDecoderLatency(): Int = 0
+    override fun getAverageDecoderLatency(): Int = averageDecodeMs()
 
-    // Null rather than false: this renderer does not measure, which is a different answer from
-    // having measured and found nothing, and the overlay draws them differently.
-    override fun performanceWasTracked(): Boolean? = null
+    private fun averageDecodeMs(): Int {
+        val frames = framesShown + framesRefused
+        if (frames == 0L) {
+            return 0
+        }
+        return (totalDecodeNs / frames / 1_000_000L).toInt()
+    }
+
+    override fun performanceWasTracked(): Boolean = framesShown + framesRefused > 0
 
     override fun getMinDecoderLatency(): String = ""
 

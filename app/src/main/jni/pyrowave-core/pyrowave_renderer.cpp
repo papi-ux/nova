@@ -710,17 +710,32 @@ namespace nova_vk {
     // not lose them one at a time: it reassembles a whole frame under FEC or drops it, so a frame
     // that arrives here incomplete arrived corrupt.
     //
-    // The retry is for the first frame of a decoder's life and nothing else, and the flag is what
-    // makes that true rather than the comment. On these two Android devices a decoder that has never
-    // produced a frame accepts its first one, reports success and counts none of its blocks, so it
-    // never becomes ready; clearing and pushing the same bytes works every time. Clearing at
-    // creation does not help, so it is something the first push leaves behind. The codec's own CPU
-    // entry point does not need it, and the Linux client does not see it on desktop NVIDIA or on a
-    // Steam Deck, so this looks like something about this library build or these drivers rather than
-    // the codec. Once a frame has decoded, a later one that is not ready arrived wrong, and pushing
-    // it again would spend a parse on bytes that cannot improve.
+    // A frame that lost blocks is still a frame, and drawing it is the reason to have this codec.
+    //
+    // This used to insist on a whole one, on the reasoning that the transport reassembles a frame
+    // under FEC or drops it. That is not what happens: moonlight hands over a full sized buffer with
+    // the holes still in it where packets did not arrive, so the frame is the right length and some
+    // blocks inside it are missing. Refusing those threw away fifty two frames in forty five seconds
+    // on one of the two handhelds here, every one of which the codec could have drawn.
+    //
+    // The codec sets its own floor for this and it is a sensible one: the two lowest frequency bands
+    // have to be intact and at least ninety percent of the blocks present. Those bands carry the
+    // structure of the picture, so what comes back is the frame with some fine detail missing rather
+    // than anything corrupt, which is what an intra-only wavelet codec degrades into. Below that
+    // floor it still says no and the frame is dropped.
+    //
+    // The retry around it is for the first frame of a decoder's life and nothing else, and the flag
+    // is what makes that true rather than the comment. On both Android devices here a decoder that
+    // has never produced a frame accepts its first one, reports success and counts none of its
+    // blocks; clearing and pushing the same bytes works every time, and clearing at creation does
+    // not, so it is something the first push leaves behind. The codec's own CPU entry point does not
+    // need it and the Linux client does not see it on desktop NVIDIA or a Steam Deck, so it looks
+    // like this library build or these drivers rather than the codec.
+    bool ready = false;
+    bool partial = false;
     const int attempts = decoder_warmed ? 1 : 2;
-    for (int attempt = 0; attempt < attempts; attempt++) {
+
+    for (int attempt = 0; attempt < attempts && !ready; attempt++) {
       const auto pushed = pyrowave_decoder_push_packet(decoder, bitstream, size);
       if (pushed != PYROWAVE_SUCCESS) {
         LOGW("the decoder refused the frame (%d)", static_cast<int>(pushed));
@@ -728,15 +743,28 @@ namespace nova_vk {
       }
 
       if (pyrowave_decoder_decode_is_ready(decoder, false)) {
-        decoder_warmed = true;
-        break;
+        ready = true;
       }
+      else if (pyrowave_decoder_decode_is_ready(decoder, true)) {
+        ready = true;
+        partial = true;
+      }
+      else if (attempt + 1 < attempts) {
+        pyrowave_decoder_clear(decoder);
+      }
+    }
 
-      if (attempt == attempts - 1) {
-        LOGW("the frame is not a whole frame (%zu bytes)", size);
-        return false;
+    if (!ready) {
+      LOGW("the frame lost too much to draw (%zu bytes)", size);
+      return false;
+    }
+
+    decoder_warmed = true;
+    if (partial) {
+      partial_frames++;
+      if (partial_frames == 1 || partial_frames % 120 == 0) {
+        LOGI("%llu frames drawn with blocks missing", static_cast<unsigned long long>(partial_frames));
       }
-      pyrowave_decoder_clear(decoder);
     }
 
     return present_recorded([this](VkCommandBuffer cmd) { return record_decode(cmd); });
@@ -950,6 +978,10 @@ extern "C" bool pyrowave_renderer_present(void *handle, const uint8_t *luma, con
 
 extern "C" bool pyrowave_renderer_decode_and_present(void *handle, const uint8_t *bitstream, size_t size) {
   return handle && static_cast<nova_vk::renderer_t *>(handle)->decode_and_present(bitstream, size);
+}
+
+extern "C" uint64_t pyrowave_renderer_partial_frames(void *handle) {
+  return handle ? static_cast<nova_vk::renderer_t *>(handle)->frames_decoded_partially() : 0;
 }
 
 extern "C" void pyrowave_renderer_destroy(void *handle) {

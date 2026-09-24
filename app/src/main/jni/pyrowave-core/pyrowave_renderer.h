@@ -49,6 +49,11 @@ namespace nova_vk {
      */
     bool decode_and_present(const uint8_t *bitstream, std::size_t size);
 
+    /// How many of the frames drawn so far were missing blocks when they were decoded.
+    uint64_t frames_decoded_partially() const {
+      return partial_frames;
+    }
+
     /**
      * Upload three planes and show them.
      *
@@ -153,6 +158,9 @@ namespace nova_vk {
      * that arrived wrong, and pushing it again would waste a parse on bytes that will not improve.
      */
     bool decoder_warmed = false;
+
+    /// Frames drawn with some blocks missing, for anyone asking how the link is behaving.
+    uint64_t partial_frames = 0;
   };
 
 }  // namespace nova_vk
