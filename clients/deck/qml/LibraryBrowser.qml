@@ -562,9 +562,11 @@ FocusScope {
                 ChromeButton {
                     id: settingsButton
                     objectName: "library-settings"
-                    text: browser.updateController && browser.updateController.state.restartRequired ? "Finish Update" : browser.updateController && browser.updateController.state.available ? "Update Available" : "Settings"
+                    readonly property bool hasUpdate: !!browser.updateController && (browser.updateController.state.restartRequired || browser.updateController.state.available)
+                    text: hasUpdate ? "Updates" : "Settings"
+                    Accessible.description: hasUpdate ? "Review the Nova update" : "Nova settings"
                     enabled: !sessionBusy
-                    onClicked: settingsHub.open()
+                    onClicked: hasUpdate ? settingsHub.openUpdates() : settingsHub.open()
                     Keys.onLeftPressed: systemButton.forceActiveFocus()
                     Keys.onDownPressed: focusGame()
                 }

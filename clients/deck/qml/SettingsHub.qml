@@ -165,6 +165,12 @@ Popup {
         const i = Math.max(0, categories.findIndex(item => item.id === category))
         categoryButtons.itemAt(i).forceActiveFocus()
     }
+    function openUpdates() {
+        selectedKey = "updates"
+        selectCategory("app")
+        open()
+        Qt.callLater(() => { if (opened && updateController) updateSheet.open() })
+    }
     function selectCategory(id) {
         category = id; search.clear(); rows.contentY = 0; error = ""
     }

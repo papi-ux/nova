@@ -88,6 +88,7 @@ int main(int argc, char** argv) {
             function contrast() { NovaTheme.setTheme("high_contrast") }
             function resetTheme() { NovaTheme.setTheme("polaris"); NovaTheme.setFontScale(1) }
             function controllerBack() { hub.back() }
+            function openUpdates() { hub.openUpdates() }
             function syncPreferences() { NovaTheme.preferences.sync(); NovaHudPreferences.preferences.sync(); NovaStreamPreferences.preferences.sync(); prefs.sync() }
             NovaButton { id:open; objectName:"open-settings"; text:"Settings"; onClicked:hub.open() }
             SettingsHub { id:hub; updateController:updater; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
@@ -279,7 +280,8 @@ int main(int argc, char** argv) {
     check(!find(window->contentItem(), "host-defaults-back"), "unavailable PC opened host editor");
     query("text size"); controllerBack(); check(item("settings-search")->property("text").toString().isEmpty(), "Back did not clear query");
     controllerBack(); focused("open-settings");
-    click("open-settings"); query("nova updates"); click("settings-row-updates");
+    QMetaObject::invokeMethod(root.get(), "openUpdates"); settle();
+    check(find(window->contentItem(), "update-status"), "update shortcut did not open its screen");
     focused("update-back"); click("update-check");
     check(root->property("updateChecks").toInt() == 1, "check action was not routed");
     click("update-automatic"); check(root->property("updateState").toMap()["automatic"].toBool(), "automatic choice not routed");
