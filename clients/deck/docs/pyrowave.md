@@ -16,6 +16,31 @@ planes for its EGL presenter. There is no production CPU decode fallback.
 HDR, 4:4:4, Spaces, and a Punktfunk connection are outside this first route.
 High refresh rates and sustained performance still need device measurements.
 
+## HUD and live bitrate
+
+NovaHUD identifies the active decoder as **PyroWave**. Received video bitrate is
+measured from complete video payloads delivered to the decoder; it excludes audio,
+FEC, transport headers and packets that never become a complete frame. It is not
+the encoder's maximum bitrate. Simple scenes can use less than the budget.
+
+The debug HUD and local support report distinguish the requested bitrate, the
+encoder-confirmed applied bitrate, and the measured received video bitrate.
+`WORK` is average time in the decoder submission callback, including validation,
+GPU waits and frame handoff; it excludes Qt composition and is not GPU-only timing.
+`REFUSED` is the cumulative number of decoder callback refusals in this session.
+It is not a network-loss count. Stale measurements become unavailable.
+
+**Command Center → Live bitrate** changes the current stream after the matching
+host confirms that its encoder accepted the target. This explicit fixed-rate
+choice turns automatic Live Tuning off and supersedes pending Doctor bitrate
+changes. It does not change the saved Play Setup. The host's configured bitrate
+bounds still apply; a bounded or refused target must not be shown as applied.
+
+PyroWave's host encoder can update its per-frame budget without restarting the
+stream. The budget follows the negotiated rational frame rate and remains subject
+to transport bounds. This adds runtime rate control, not a codec-specific automatic
+quality policy or a promise of equal sharpness at equal bitrate across codecs.
+
 ## Shared Android/Linux transport contract
 
 Both client implementations must use the same contract:
@@ -59,6 +84,9 @@ against the token automatically across both projects; keep the feature opt-in.
 frame ownership. It also starts a fresh GPU decoder at every sequence value,
 without a preceding CPU-output decode or capability probe, and checks that a
 rejected GPU frame preserves the previous image and permits the next valid frame.
+Command storage and immutable device capabilities are reused within a decoder
+session. Exported frame images retain independent ownership; a new frame never
+overwrites an image still held by the presenter.
 `nova_deck_pyrowave_presenter_test` verifies Vulkan decode through
 the actual EGL shader with distinct chroma values and checks frame lifetime.
 

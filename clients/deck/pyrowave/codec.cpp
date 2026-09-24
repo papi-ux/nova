@@ -129,11 +129,18 @@ struct Codec::State {
     VkDevice vkDevice = VK_NULL_HANDLE;
     VkPhysicalDevice physical = VK_NULL_HANDLE;
     VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    VkFence decodeFence = VK_NULL_HANDLE;
+    PFN_vkGetMemoryFdKHR getMemoryFd = nullptr;
+    PFN_vkGetImageDrmFormatModifierPropertiesEXT getModifier = nullptr;
+    VkPhysicalDeviceMemoryProperties memoryProperties{};
+    std::vector<std::uint64_t> exportModifiers;
     VkQueue queue = VK_NULL_HANDLE;
     std::uint32_t queueFamily = 0;
     ~State() {
         if (decoder) pyrowave_decoder_destroy(decoder);
         if (encoder) pyrowave_encoder_destroy(encoder);
+        if (decodeFence) vkDestroyFence(vkDevice, decodeFence, nullptr);
         if (commandPool) vkDestroyCommandPool(vkDevice, commandPool, nullptr);
         if (device) pyrowave_device_destroy(device);
     }
@@ -249,11 +256,14 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
     for (auto packet : packets)
         if (!state_->checked(pyrowave_decoder_push_packet(state_->decoder, packet.data(), packet.size()), "PyroWave packet decode")) return false;
     if (!pyrowave_decoder_decode_is_ready(state_->decoder, false)) return state_->fail("Incomplete PyroWave frame");
-    pyrowave_device_get_vk_device_handles(state_->device, nullptr, &state_->physical, &state_->vkDevice);
+    if (!state_->vkDevice) {
+        pyrowave_device_get_vk_device_handles(state_->device, nullptr, &state_->physical, &state_->vkDevice);
+        state_->getMemoryFd = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetDeviceProcAddr(state_->vkDevice, "vkGetMemoryFdKHR"));
+        state_->getModifier = reinterpret_cast<PFN_vkGetImageDrmFormatModifierPropertiesEXT>(vkGetDeviceProcAddr(state_->vkDevice, "vkGetImageDrmFormatModifierPropertiesEXT"));
+        vkGetPhysicalDeviceMemoryProperties(state_->physical, &state_->memoryProperties);
+    }
     auto device = state_->vkDevice;
-    const auto getMemoryFd = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR"));
-    const auto getModifier = reinterpret_cast<PFN_vkGetImageDrmFormatModifierPropertiesEXT>(vkGetDeviceProcAddr(device, "vkGetImageDrmFormatModifierPropertiesEXT"));
-    if (!getMemoryFd || !getModifier) return state_->fail("Vulkan DMA-BUF export is unavailable");
+    if (!state_->getMemoryFd || !state_->getModifier) return state_->fail("Vulkan DMA-BUF export is unavailable");
     if (!state_->commandPool) {
         std::uint32_t count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(state_->physical, &count, nullptr);
@@ -266,7 +276,7 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
         if (!found) return state_->fail("Vulkan graphics/compute queue unavailable");
         vkGetDeviceQueue(device, state_->queueFamily, 0, &state_->queue);
         VkCommandPoolCreateInfo info{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
-        info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+        info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         info.queueFamilyIndex = state_->queueFamily;
         if (vkCreateCommandPool(device, &info, nullptr, &state_->commandPool) != VK_SUCCESS)
             return state_->fail("Vulkan command pool creation failed");
@@ -287,22 +297,23 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
     auto owner = std::make_shared<Owner>();
     owner->state = state_;
     GpuImage next{state_->width, state_->height, {}, owner};
-    VkDrmFormatModifierPropertiesListEXT modifiers{VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT};
-    VkFormatProperties2 properties{VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2, &modifiers};
-    vkGetPhysicalDeviceFormatProperties2(state_->physical, VK_FORMAT_R8_UNORM, &properties);
-    std::vector<VkDrmFormatModifierPropertiesEXT> supported(modifiers.drmFormatModifierCount);
-    modifiers.pDrmFormatModifierProperties = supported.data();
-    vkGetPhysicalDeviceFormatProperties2(state_->physical, VK_FORMAT_R8_UNORM, &properties);
-    std::vector<std::uint64_t> candidates;
-    for (const auto& modifier : supported) {
-        const auto flags = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-        if (modifier.drmFormatModifierPlaneCount == 1 && (modifier.drmFormatModifierTilingFeatures & flags) == flags)
-            candidates.push_back(modifier.drmFormatModifier);
+    if (state_->exportModifiers.empty()) {
+        VkDrmFormatModifierPropertiesListEXT modifiers{VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT};
+        VkFormatProperties2 properties{VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2, &modifiers};
+        vkGetPhysicalDeviceFormatProperties2(state_->physical, VK_FORMAT_R8_UNORM, &properties);
+        std::vector<VkDrmFormatModifierPropertiesEXT> supported(modifiers.drmFormatModifierCount);
+        modifiers.pDrmFormatModifierProperties = supported.data();
+        vkGetPhysicalDeviceFormatProperties2(state_->physical, VK_FORMAT_R8_UNORM, &properties);
+        for (const auto& modifier : supported) {
+            const auto flags = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+            if (modifier.drmFormatModifierPlaneCount == 1 && (modifier.drmFormatModifierTilingFeatures & flags) == flags)
+                state_->exportModifiers.push_back(modifier.drmFormatModifier);
+        }
+        if (state_->exportModifiers.empty()) return state_->fail("No exportable R8 storage image modifier");
     }
-    if (candidates.empty()) return state_->fail("No exportable R8 storage image modifier");
+    const auto& candidates = state_->exportModifiers;
+    const auto& memoryProperties = state_->memoryProperties;
     pyrowave_gpu_buffers buffers{};
-    VkPhysicalDeviceMemoryProperties memoryProperties{};
-    vkGetPhysicalDeviceMemoryProperties(state_->physical, &memoryProperties);
     for (int i = 0; i < 3; ++i) {
         const auto w = std::uint32_t(i ? state_->width / 2 : state_->width);
         const auto h = std::uint32_t(i ? state_->height / 2 : state_->height);
@@ -336,9 +347,9 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
             return state_->fail("Vulkan export memory allocation failed");
         VkMemoryGetFdInfoKHR fdInfo{VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
         fdInfo.memory = owner->memory[i]; fdInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-        if (getMemoryFd(device, &fdInfo, &owner->fds[i]) != VK_SUCCESS) return state_->fail("DMA-BUF export failed");
+        if (state_->getMemoryFd(device, &fdInfo, &owner->fds[i]) != VK_SUCCESS) return state_->fail("DMA-BUF export failed");
         VkImageDrmFormatModifierPropertiesEXT modifier{VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT};
-        if (getModifier(device, owner->images[i], &modifier) != VK_SUCCESS) return state_->fail("DMA-BUF modifier query failed");
+        if (state_->getModifier(device, owner->images[i], &modifier) != VK_SUCCESS) return state_->fail("DMA-BUF modifier query failed");
         VkImageSubresource subresource{VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT, 0, 0};
         VkSubresourceLayout layout{};
         vkGetImageSubresourceLayout(device, owner->images[i], &subresource, &layout);
@@ -346,23 +357,24 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
         buffers.planes[i] = {owner->images[i], w, h, VK_FORMAT_R8_UNORM, VK_FORMAT_R8_UNORM,
             0, 0, VK_IMAGE_ASPECT_COLOR_BIT, VK_COMPONENT_SWIZZLE_IDENTITY, VK_IMAGE_LAYOUT_GENERAL};
     }
-    struct Commands {
-        VkDevice device; VkCommandPool pool;
-        VkCommandBuffer buffer = VK_NULL_HANDLE;
-        VkFence fence = VK_NULL_HANDLE;
-        ~Commands() {
-            if (fence) vkDestroyFence(device, fence, nullptr);
-            if (buffer) vkFreeCommandBuffers(device, pool, 1, &buffer);
-        }
-    } commands{device, state_->commandPool};
-    VkCommandBufferAllocateInfo allocate{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-    allocate.commandPool = commands.pool; allocate.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; allocate.commandBufferCount = 1;
-    VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-    if (vkAllocateCommandBuffers(device, &allocate, &commands.buffer) != VK_SUCCESS ||
-        vkCreateFence(device, &fenceInfo, nullptr, &commands.fence) != VK_SUCCESS) return state_->fail("Vulkan command allocation failed");
+    // Submission completes before this call returns, so command storage can be
+    // reused. Exported images remain separately owned until their consumer is done.
+    if (!state_->commandBuffer) {
+        VkCommandBufferAllocateInfo allocate{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+        allocate.commandPool = state_->commandPool; allocate.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; allocate.commandBufferCount = 1;
+        if (vkAllocateCommandBuffers(device, &allocate, &state_->commandBuffer) != VK_SUCCESS)
+            return state_->fail("Vulkan command allocation failed");
+    }
+    if (!state_->decodeFence) {
+        VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+        if (vkCreateFence(device, &fenceInfo, nullptr, &state_->decodeFence) != VK_SUCCESS)
+            return state_->fail("Vulkan fence allocation failed");
+    }
+    const auto commandBuffer = state_->commandBuffer;
+    if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS) return state_->fail("Vulkan command reset failed");
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    if (vkBeginCommandBuffer(commands.buffer, &begin) != VK_SUCCESS) return state_->fail("Vulkan command begin failed");
+    if (vkBeginCommandBuffer(commandBuffer, &begin) != VK_SUCCESS) return state_->fail("Vulkan command begin failed");
     std::array<VkImageMemoryBarrier, 3> barriers{};
     for (int i = 0; i < 3; ++i) {
         auto& b = barriers[i]; b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -371,9 +383,9 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
         b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         b.image = owner->images[i]; b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     }
-    vkCmdPipelineBarrier(commands.buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         0, 0, nullptr, 0, nullptr, 3, barriers.data());
-    pyrowave_device_set_command_buffer(state_->device, commands.buffer);
+    pyrowave_device_set_command_buffer(state_->device, commandBuffer);
     const auto decoded = pyrowave_decoder_decode_gpu_buffer(state_->decoder, nullptr, nullptr, &buffers);
     pyrowave_device_set_command_buffer(state_->device, VK_NULL_HANDLE);
     if (!state_->checked(decoded, "PyroWave Vulkan decode")) return false;
@@ -381,13 +393,16 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
         b.oldLayout = VK_IMAGE_LAYOUT_GENERAL; b.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; b.dstAccessMask = 0;
         b.srcQueueFamilyIndex = state_->queueFamily; b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_EXTERNAL;
     }
-    vkCmdPipelineBarrier(commands.buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
         0, 0, nullptr, 0, nullptr, 3, barriers.data());
-    if (vkEndCommandBuffer(commands.buffer) != VK_SUCCESS) return state_->fail("Vulkan command end failed");
+    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) return state_->fail("Vulkan command end failed");
     VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    submit.commandBufferCount = 1; submit.pCommandBuffers = &commands.buffer;
-    if (vkQueueSubmit(state_->queue, 1, &submit, commands.fence) != VK_SUCCESS) return state_->fail("Vulkan decode submission failed");
-    const auto waited = vkWaitForFences(device, 1, &commands.fence, VK_TRUE, UINT64_MAX);
+    submit.commandBufferCount = 1; submit.pCommandBuffers = &commandBuffer;
+    // A rejected frame may return before submission. Never wait on a fence
+    // that was reset for a command that was not submitted.
+    if (vkResetFences(device, 1, &state_->decodeFence) != VK_SUCCESS) return state_->fail("Vulkan fence reset failed");
+    if (vkQueueSubmit(state_->queue, 1, &submit, state_->decodeFence) != VK_SUCCESS) return state_->fail("Vulkan decode submission failed");
+    const auto waited = vkWaitForFences(device, 1, &state_->decodeFence, VK_TRUE, UINT64_MAX);
     if (waited != VK_SUCCESS) return state_->fail("Vulkan decode completion failed");
     image = std::move(next);
     return true;
