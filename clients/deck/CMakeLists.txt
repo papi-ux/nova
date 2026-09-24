@@ -303,6 +303,10 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_host_settings_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_host_settings_test COMMAND nova_deck_host_settings_test)
     set_tests_properties(nova_deck_host_settings_test PROPERTIES TIMEOUT 45)
+    add_executable(nova_deck_background_sync_test tests/deck_background_sync_test.cpp)
+    target_link_libraries(nova_deck_background_sync_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_background_sync_test COMMAND nova_deck_background_sync_test)
+    set_tests_properties(nova_deck_background_sync_test PROPERTIES TIMEOUT 70)
     add_executable(nova_deck_hud_host_test tests/deck_hud_host_test.cpp)
     add_executable(nova_deck_session_sync_test tests/deck_session_sync_test.cpp)
     target_link_libraries(nova_deck_session_sync_test PRIVATE nova_deck_core)
@@ -819,6 +823,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
                         $<TARGET_FILE:nova-deck> --keep-in-step)
                 set_tests_properties(nova_deck_keep_in_step_route_test PROPERTIES TIMEOUT 95 RESOURCE_LOCK nova_deck_x11)
+                add_test(NAME nova_deck_background_sync_route_test
+                    COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
+                        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
+                        $<TARGET_FILE:nova-deck> --background-sync)
+                set_tests_properties(nova_deck_background_sync_route_test PROPERTIES TIMEOUT 60 RESOURCE_LOCK nova_deck_x11)
                 add_test(NAME nova_deck_library_polish_test
                     COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py

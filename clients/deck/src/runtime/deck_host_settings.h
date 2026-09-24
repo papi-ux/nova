@@ -31,6 +31,9 @@ public:
     void setTarget(QString hostId, QString name, DeckHostSettingsResolver resolver);
     void setSessionActive(bool active);
     void setPlaySettings(DeckPlaySettings* settings);
+    void setBackgroundBlocked(bool blocked);
+    Q_INVOKABLE void setInteractionPaused(bool paused);
+    void shutdown();
     Q_INVOKABLE void setWindowActive(bool active);
     Q_INVOKABLE void open();
     Q_INVOKABLE void openSync(bool readOnly);
@@ -47,10 +50,14 @@ signals:
     void novaDefaultsChanged();
 private:
     struct Job;
-    void start(const QString& mode = {}, const QString& profileAction = {}, bool automatic = false, int resumeTimeout = -1);
+    void start(const QString& mode = {}, const QString& profileAction = {}, bool automatic = false, int resumeTimeout = -1,
+        bool enableSyncAfterImport = false);
     QString keepInStep() const;
     void pauseKeepInStep();
     void maybeKeepInStep();
+    void queueBackgroundCheck();
+    void checkBackground();
+    bool automaticEligible() const;
     void poll();
     void publish(QString phase, QString copy);
     void cancel();
@@ -60,10 +67,12 @@ private:
     QPointer<DeckPlaySettings> playSettings_;
     bool readOnly_ = false, syncView_ = false;
     bool idle_ = false, windowActive_ = false, sessionActive_ = false, opened_ = false;
+    bool interactionPaused_ = false, backgroundBlocked_ = false, backgroundPending_ = false, closing_ = false;
     unsigned generation_ = 0;
     QVariantMap state_;
     QTimer timer_;
     QTimer syncTimer_;
+    QTimer backgroundTimer_;
     QElapsedTimer clock_;
     QHash<QString, qint64> lastSync_;
     QSet<QString> pausedHosts_;

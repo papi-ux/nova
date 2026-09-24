@@ -60,7 +60,9 @@ FocusScope {
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
     readonly property bool blocked: refreshState.busy && !refreshState.automatic
     readonly property bool launchEnabled: refreshState.destinationPlayable !== false && !refreshState.busy && !refreshState.failed && !sessionBusy && !(updateController && updateController.busy)
+        && !(hostSettingsController && hostSettingsController.state.busy)
         && selectedId.length > 0 && selectedId !== "game-empty-state"
+    readonly property bool syncNeedsReview: !!hostSettingsController && !!hostSettingsController.state.syncNeedsReview
     readonly property bool browsing: grid.activeFocus || (grid.currentItem && grid.currentItem.activeFocus)
         || emptyState.activeFocus
     readonly property bool interactionPaused: detailOpen || destinations.opened || options.opened || systemMenu.opened
@@ -248,7 +250,7 @@ FocusScope {
                 scroll: detailViewport.contentY, scrollMaximum: Math.max(0, detailViewport.contentHeight - detailViewport.height),
                 playY: playButton.mapToItem(browser, 0, 0).y, playHeight: playButton.height },
             defaultFaceButtonLayout: settingsProvider.defaultFaceButtonLayout, faceDefaultsOpen: faceDefaultPicker.opened,
-            settingsHub: settingsHub.state(),
+            settingsHub: settingsHub.state(), syncNeedsReview: syncNeedsReview,
             audio: audioSettings.state(),
             rumble: rumbleSettings.state(),
             hostPowerUi: powerSheet.interactionState(), hostPowerOpen: powerSheet.opened, hostPower: hostPower ? hostPower.state : ({}), appearanceOpen: appearanceSettings.opened, polarisSync: polarisSync.state(), theme: NovaTheme.themeId, fontScale: NovaTheme.fontScale,
@@ -573,6 +575,29 @@ FocusScope {
             }
         }
         RowLayout {
+            visible: browser.syncNeedsReview
+            Layout.fillWidth: true
+            CopyLabel {
+                Layout.fillWidth: true
+                text: browser.hostSettingsController && browser.hostSettingsController.state.keepInStep === "review"
+                    ? "Polaris has different stream settings. Choose which profile to use."
+                    : "Keep in step is paused. Review the profiles before resuming."
+                wrapMode: Text.WordWrap
+                font.pixelSize: 16 * unit * NovaTheme.fontScale
+            }
+            ChromeButton {
+                id: syncReview
+                objectName: "library-sync-review"
+                text: "Review Sync"
+                implicitWidth: Math.max(128 * unit, contentItem.implicitWidth + 32 * unit)
+                Layout.minimumWidth: implicitWidth
+                enabled: !sessionBusy && !refreshState.busy
+                onClicked: polarisSync.open()
+                Keys.onUpPressed: settingsButton.forceActiveFocus()
+                Keys.onDownPressed: search.forceActiveFocus()
+            }
+        }
+        RowLayout {
             Layout.fillWidth: true
             spacing: 20 * unit
             ColumnLayout {
@@ -612,7 +637,7 @@ FocusScope {
                 onTextChanged: if (!applyingSnapshot) rebuild(selectedId, 0)
                 onAccepted: focusGame()
                 Keys.onDownPressed: focusFilter()
-                Keys.onUpPressed: optionsButton.forceActiveFocus()
+                Keys.onUpPressed: browser.syncNeedsReview ? syncReview.forceActiveFocus() : optionsButton.forceActiveFocus()
                 Keys.onEscapePressed: { clear(); focusGame() }
             }
         }
@@ -1285,7 +1310,7 @@ FocusScope {
         settingsProvider: browser.settingsProvider
         syncView: true
         backLabel: "Back"
-        onClosed: if (systemMenu.opened) syncButton.forceActiveFocus()
+        onClosed: if (systemMenu.opened) syncButton.forceActiveFocus(); else if (browser.syncNeedsReview) syncReview.forceActiveFocus(); else settingsButton.forceActiveFocus()
     }
     AudioSettings {
         id: audioSettings

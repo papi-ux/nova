@@ -64,11 +64,15 @@ ApplicationWindow {
     readonly property bool automaticRefreshPaused: hostPicker.opened || nativePreview.opened || diagnosticsExpanded
         || managePcsRequested || closeAfterLibraryRefresh || closeAfterNativeStop
         || (novaStandalone ? androidLibrary.interactionPaused : !libraryHasFocus())
-    onAutomaticRefreshPausedChanged: if (novaStandalone) novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
+    onAutomaticRefreshPausedChanged: if (novaStandalone) {
+        novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
+        novaHostSettings.setInteractionPaused(automaticRefreshPaused)
+    }
     onActiveChanged: if (novaStandalone) { novaLibraryRefresh.setWindowActive(active); novaHostPower.setWindowActive(active); novaHostSettings.setWindowActive(active) }
     Component.onCompleted: {
         if (novaStandalone) {
             novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
+            novaHostSettings.setInteractionPaused(automaticRefreshPaused)
             novaLibraryRefresh.setWindowActive(active)
             novaHostPower.setWindowActive(active)
             novaHostSettings.setWindowActive(active)

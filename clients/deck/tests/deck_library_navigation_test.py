@@ -1,5 +1,6 @@
 """Drive the real library with keyboard input and two isolated mTLS PCs."""
 import argparse
+import hashlib
 from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -1118,6 +1119,47 @@ def profile_sync_navigation(wait, keys, state, fixtures, save_capture, window):
         {"display_mode": "1280x720x60", "target_bitrate_kbps": 20000}]
 
 
+def background_sync_navigation(wait, keys, state, fixtures, save_capture, window):
+    fixture = fixtures["a"]
+    def sync(s=None):
+        return (state() if s is None else s).get("polarisSync", {})
+    def status(s=None):
+        return sync(s).get("status", {})
+    wait(lambda s: s.get("syncNeedsReview") and status(s).get("keepInStep") == "review")
+    assert not sync()["opened"] and not fixture["settings_posts"], "existing profile was overwritten"
+    command("xdotool", "windowsize", "--sync", window, "960", "600")
+    keys("Up", "Up", "Up")
+    wait(lambda s: s.get("focus") == "library-sync-review" and s.get("focusVisible"))
+    save_capture("background-sync-review-large-960.png")
+    keys("Return")
+    wait(lambda s: sync(s).get("opened") and status(s).get("phase") == "ready")
+    labels = {action["id"]: action["label"] for action in status()["profileActions"]}
+    assert labels["match"] == "Use Nova & Sync" and labels["use"] == "Use Polaris & Sync"
+    # Controller focus must scroll the chosen action into view at large text size.
+    order = ["match", "send", "use", "clear", "reset"]
+    for _ in range(20):
+        focus = state().get("focus", "")
+        if focus == "host-profile-use":
+            break
+        if focus.startswith("host-profile-"):
+            direction = "Down" if order.index(focus.removeprefix("host-profile-")) < 2 else "Up"
+        elif focus.startswith("host-defaults-mode-") or focus == "host-edit-defaults":
+            direction = "Down"
+        else:
+            direction = "Up"
+        keys(direction)
+        wait(lambda s: s.get("focus") != focus)
+    wait(lambda s: s.get("focus") == "host-profile-use" and s.get("focusVisible"))
+    save_capture("background-sync-choose-large-960.png")
+    keys("Return")
+    wait(lambda s: status(s).get("keepInStep") == "on" and status(s).get("novaDisplay") == "1920x1080x30"
+         and not status(s).get("busy"))
+    assert not fixture["settings_posts"], "Use Polaris unexpectedly wrote to the PC"
+    keys("Escape")
+    wait(lambda s: not sync(s).get("opened") and not s.get("syncNeedsReview") and s.get("focusVisible"))
+    save_capture("background-sync-resolved-large-960.png")
+
+
 def keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window):
     fixture = fixtures["a"]
     def status(s=None):
@@ -1423,13 +1465,14 @@ def main():
     parser.add_argument("--host-scope", action="store_true")
     parser.add_argument("--profile-sync", action="store_true")
     parser.add_argument("--keep-in-step", action="store_true")
+    parser.add_argument("--background-sync", action="store_true")
     parser.add_argument("--launch-modes", action="store_true")
     parser.add_argument("--stream-plan", action="store_true")
     parser.add_argument("--audio-settings", action="store_true")
     parser.add_argument("--appearance", action="store_true")
     parser.add_argument("--host-power", action="store_true")
     args = parser.parse_args()
-    args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step
+    args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
     with tempfile.TemporaryDirectory(prefix="nova-library-navigation-") as temporary, ExitStack() as stack:
         root = Path(temporary)
@@ -1554,7 +1597,7 @@ def main():
                 if args.host_scope and self.path == "/polaris/v1/client-settings":
                     data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                     mode_write = set(data) == {"stream_display_mode"} and data["stream_display_mode"] in ("headless_stream", "desktop_display")
-                    profile_write = (args.profile_sync or args.keep_in_step) and (data == {"clear_display_mode": True, "clear_target_bitrate": True} or
+                    profile_write = (args.profile_sync or args.keep_in_step or args.background_sync) and (data == {"clear_display_mode": True, "clear_target_bitrate": True} or
                         (set(data) == {"display_mode", "target_bitrate_kbps"} and data["display_mode"] in ("1280x720x60", "1920x1080x30", "1280x800x60") and data["target_bitrate_kbps"] in (20000, 30000)))
                     if not fixture["host_idle"] or not (mode_write or profile_write):
                         violations.append("unexpected host settings mutation")
@@ -1629,7 +1672,7 @@ def main():
             if args.host_scope and host_id == "a":
                 fixture.update(host_idle=True, settings_posts=[], settings_post_times=[])
                 profile = {"stream_display_mode": "headless_stream", "display_mode": "1280x800x60", "target_bitrate_kbps": 20000}
-                if args.profile_sync or args.keep_in_step:
+                if args.profile_sync or args.keep_in_step or args.background_sync:
                     profile.update(display_mode="1920x1080x30", target_bitrate_kbps=30000)
                 fixture["catalog"] = {"version": 1, "revision": "1", "desired": dict(profile), "effective": dict(profile), "relaunch_required": False,
                     "capabilities": {"display_mode_override": True, "target_bitrate_override": True, "modes": [{"value": mode, "label": label, "available": mode != "headless_dongle", "session_overridable": mode != "headless_dongle",
@@ -1726,11 +1769,15 @@ def main():
         if args.spaces:
             (root/"config/Nova").mkdir(parents=True)
             (root/"config/Nova/NovaDeck.conf").write_text("[Appearance]\ntextScale=1.3\n")
+        if args.background_sync:
+            # Match the durable preference created only after a new successful pairing.
+            with (root/"config/Nova/NovaDeck.conf").open("a") as config:
+                config.write("\n[PolarisSync]\nv1\\" + hashlib.sha256(b"a").hexdigest() + "=pending\n")
         output = stack.enter_context(log.open("w"))
         auto_args = ["--frontend-smoke-library-refresh-ms", "800"] if args.automatic or args.filters or args.stage or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else []
         app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "55000" if args.keep_in_step else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.filters or args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "30000" if args.background_sync else "55000" if args.keep_in_step else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.filters or args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
                                env=env, stdout=output, stderr=output)
 
         def state():
@@ -1782,7 +1829,9 @@ def main():
             wait(lambda s: s.get("windowActive"))
             keys("Right")
             wait(lambda s: s.get("game") == ("space.room-a.7" if args.spaces else prefix+"42"))
-            if args.keep_in_step:
+            if args.background_sync:
+                background_sync_navigation(wait, keys, state, fixtures, save_capture, window)
+            elif args.keep_in_step:
                 keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.profile_sync:
                 profile_sync_navigation(wait, keys, state, fixtures, save_capture, window)

@@ -114,7 +114,7 @@ Popup {
             Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0
             spacing: 12 * editor.unit
             Copy { text: editor.defaultsScope ? "Nova Stream Defaults" : "Custom " + (editor.field === "resolution" ? "Resolution" : editor.field === "fps" ? "Frame Rate" : "Bitrate"); color: NovaTheme.text; font.bold: true; font.pixelSize: 28 * editor.unit * NovaTheme.fontScale }
-            Copy { text: editor.defaultsScope ? "For games without their own choice, on this device across PCs. Keep in step may copy these defaults to the paired PC while Every Game is open." : "For this game on this PC. Other games and Nova's device defaults stay unchanged." }
+            Copy { text: editor.defaultsScope ? "For games without their own choice, on this device across PCs. When Keep in step is on, these defaults sync to the paired PC while Nova is idle." : "For this game on this PC. Other games and Nova's device defaults stay unchanged." }
             Copy { text: "Width · pixels"; visible: editor.sizeVisible }
             NumberField { id: widthField; objectName: "stream-profile-width"; title: "Width in pixels"; visible: editor.sizeVisible }
             Copy { text: "Height · pixels"; visible: editor.sizeVisible }
