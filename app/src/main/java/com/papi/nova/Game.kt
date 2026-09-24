@@ -1755,7 +1755,13 @@ initVirtualController()
 initKeyboardController()
 }
 
-if (!decoderRenderer!!.isAvcSupported)
+  // H.264 is the floor for every codec that negotiates against it, so a device with no AVC decoder
+        // cannot stream at all and is told so here. PyroWave is not one of those: it reports no H.264
+        // because it offers no H.264, deliberately, and telling someone who chose it that their device
+        // cannot decode a codec they did not ask for is a wrong answer to a question nobody asked. A
+        // host that cannot serve it refuses the session later, with a reason that is about the codec.
+        if (!decoderRenderer!!.isAvcSupported &&
+prefConfig!!.videoFormat != PreferenceConfiguration.FormatOption.FORCE_PYROWAVE)
 {
 novaProgressOverlay?.dismiss()
 if (spinner != null)
@@ -5486,6 +5492,12 @@ NovaSnackbar.showError(this@Game, getString(R.string.video_decoder_init_failed))
 }
 
 var dialogText:String = getResources().getString(R.string.conn_error_msg) + " " + stage + " (error " + errorCode + ")"
+ // The codec that was asked for was not on offer, which the generic sentence turns into a
+                    // firewall hunt. Nothing is wrong with the network and no port will fix it.
+                    if (errorCode == MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE)
+{
+dialogText = getResources().getString(R.string.nova_pyrowave_profile_unavailable)
+}
  // A Polaris host says why it refused; that beats "error 503" and a generic sentence.
 val hostRefusal = conn?.lastHostRefusal
 if (hostRefusal != null && errorCode != 0)
@@ -5512,7 +5524,10 @@ else -> {
                         }
 }
 
-if (portFlags != 0)
+ // Not when the refusal was about the codec. The ports are reported for whatever the handshake
+                    // happened to be using, and listing them under a sentence that just said the network is
+                    // fine sends someone to open ports that are already open.
+                    if (portFlags != 0 && errorCode != MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE)
 {
 dialogText += ("\n\n" + getResources().getString(R.string.check_ports_msg) + "\n" +
 MoonBridge.stringifyPortFlags(portFlags, "\n"))

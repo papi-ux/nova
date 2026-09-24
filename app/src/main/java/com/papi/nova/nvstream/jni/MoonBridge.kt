@@ -53,6 +53,10 @@ class MoonBridge {
 
         // Above the four profile nibbles, which are full. Kept in step with Limelight.h.
         const val VIDEO_FORMAT_PYROWAVE = 0x10000
+
+        // Kept in step with Limelight.h. The host did not offer the PyroWave profile this client
+        // implements, which is a codec answer and not a network one.
+        const val ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE = -105
         const val VIDEO_FORMAT_AV1_MAIN10 = 0x2000
 
         const val VIDEO_FORMAT_MASK_H264 = 0x000F

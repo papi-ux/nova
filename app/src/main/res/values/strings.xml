@@ -1879,4 +1879,5 @@
     <string name="nova_space_leave_action">Leave Space</string>
     <string name="nova_space_leave_caption">Ends this Space’s game session. Games, saves and sign-in stay in the Space.</string>
     <string name="pcview_card_hint_spaces">Spaces available. Change Space from the library.</string>
+    <string name="nova_pyrowave_profile_unavailable">This host does not offer the PyroWave profile this build of Nova can decode. Both ends have to carry the same codec revision. Nothing is wrong with your network.</string>
 </resources>
