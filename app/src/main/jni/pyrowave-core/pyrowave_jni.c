@@ -12,6 +12,7 @@
 #include <android/log.h>
 #include <jni.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define LOG_TAG "PyroWave"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -276,6 +277,118 @@ Java_com_papi_nova_binding_video_PyroWave_nativePresentSelfTest(
     (*env)->ReleaseByteArrayElements(env, bitstream, payload, JNI_ABORT);
     ANativeWindow_release(window);
     return outcome;
+}
+
+/**
+ * What a streaming session holds: the renderer, the window it draws into, and somewhere to put a
+ * frame on its way through.
+ *
+ * The self tests build and tear down a renderer inside one call, which a session cannot. It keeps
+ * one for as long as its surface lives and pushes thousands of frames through it, so these three
+ * have one lifetime and one handle. The renderer does not own the window, its header says the
+ * caller retains it, so something has to and this is it.
+ */
+typedef struct {
+    void *renderer;
+    ANativeWindow *window;
+    uint8_t *scratch;
+    jint scratch_size;
+} pyrowave_session;
+
+/**
+ * Make a renderer a stream can keep, and hand back a handle for it.
+ *
+ * @return the handle, or 0 when a renderer could not be made.
+ */
+JNIEXPORT jlong JNICALL
+Java_com_papi_nova_binding_video_PyroWave_nativeCreateRenderer(
+        JNIEnv *env, jclass clazz, jobject surface, jint width, jint height) {
+    (void) clazz;
+
+    if (surface == NULL || width <= 0 || height <= 0) {
+        return 0;
+    }
+
+    pyrowave_session *session = calloc(1, sizeof(*session));
+    if (session == NULL) {
+        return 0;
+    }
+
+    session->window = ANativeWindow_fromSurface(env, surface);
+    if (session->window == NULL) {
+        free(session);
+        return 0;
+    }
+
+    session->renderer = pyrowave_renderer_create(session->window, (uint32_t) width, (uint32_t) height);
+    if (session->renderer == NULL) {
+        ANativeWindow_release(session->window);
+        free(session);
+        return 0;
+    }
+
+    LOGI("renderer for a session: %dx%d", width, height);
+    return (jlong) (uintptr_t) session;
+}
+
+/**
+ * One frame, decoded and shown.
+ *
+ * The bytes are copied into a buffer this side owns rather than pinned in place. Pinning would be
+ * one copy fewer and would hold a critical region across a GPU submit and a fence wait, which is a
+ * whole frame of the collector blocked to save a memcpy of a compressed frame.
+ *
+ * @return true when the frame reached the screen.
+ */
+JNIEXPORT jboolean JNICALL
+Java_com_papi_nova_binding_video_PyroWave_nativeDecodeAndPresent(
+        JNIEnv *env, jclass clazz, jlong handle, jbyteArray frame, jint length) {
+    (void) clazz;
+
+    pyrowave_session *session = (pyrowave_session *) (uintptr_t) handle;
+    if (session == NULL || frame == NULL || length <= 0) {
+        return JNI_FALSE;
+    }
+
+    if (length > session->scratch_size) {
+        uint8_t *grown = realloc(session->scratch, (size_t) length);
+        if (grown == NULL) {
+            return JNI_FALSE;
+        }
+        session->scratch = grown;
+        session->scratch_size = length;
+    }
+
+    (*env)->GetByteArrayRegion(env, frame, 0, length, (jbyte *) session->scratch);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return JNI_FALSE;
+    }
+
+    return pyrowave_renderer_decode_and_present(session->renderer, session->scratch, (size_t) length)
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Give back the renderer, the window it drew into and the buffer frames passed through.
+ */
+JNIEXPORT void JNICALL
+Java_com_papi_nova_binding_video_PyroWave_nativeDestroyRenderer(
+        JNIEnv *env, jclass clazz, jlong handle) {
+    (void) env;
+    (void) clazz;
+
+    pyrowave_session *session = (pyrowave_session *) (uintptr_t) handle;
+    if (session == NULL) {
+        return;
+    }
+
+    // The renderer first: it waits for the device to go idle, and the window has to outlive the
+    // swapchain that is still pointing at it.
+    pyrowave_renderer_destroy(session->renderer);
+    ANativeWindow_release(session->window);
+    free(session->scratch);
+    free(session);
 }
 
 /**

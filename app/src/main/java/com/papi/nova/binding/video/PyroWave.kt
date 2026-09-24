@@ -220,6 +220,29 @@ object PyroWave {
         }
     }
 
+    /**
+     * A renderer for a session to keep, or 0 when one could not be made.
+     *
+     * The native side holds the Vulkan device, the decoder and the swapchain together, so this is
+     * one handle for all three and it has to be given back with [destroyRenderer].
+     */
+    fun createRenderer(surface: Surface, width: Int, height: Int): Long {
+        if (!loaded) return 0
+        return nativeCreateRenderer(surface, width, height)
+    }
+
+    /** One whole frame, decoded on the GPU and drawn. */
+    fun decodeAndPresent(handle: Long, frame: ByteArray, length: Int): Boolean {
+        if (!loaded || handle == 0L) return false
+        return nativeDecodeAndPresent(handle, frame, length)
+    }
+
+    /** Give back a renderer and everything it was holding. */
+    fun destroyRenderer(handle: Long) {
+        if (!loaded || handle == 0L) return
+        nativeDestroyRenderer(handle)
+    }
+
     private const val SELF_TEST_ASSET = "pyrowave/selftest-34x30.pw"
 
     // Kept in step with the constants in pyrowave_jni.c.
@@ -229,6 +252,15 @@ object PyroWave {
         1 -> Probe.FRAGMENT
         else -> null
     }
+
+    @JvmStatic
+    private external fun nativeCreateRenderer(surface: Surface, width: Int, height: Int): Long
+
+    @JvmStatic
+    private external fun nativeDecodeAndPresent(handle: Long, frame: ByteArray, length: Int): Boolean
+
+    @JvmStatic
+    private external fun nativeDestroyRenderer(handle: Long)
 
     @JvmStatic
     private external fun nativeGpuDecodeSelfTest(surface: Surface, bitstream: ByteArray): Int
