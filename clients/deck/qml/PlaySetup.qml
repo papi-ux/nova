@@ -229,7 +229,11 @@ FocusScope {
         property string scopeLabel: field ? (overrides[field] ? "This game" : "Default") : "This game's choices"
         text: label + ": " + value
         Layout.fillWidth: true
-        Layout.preferredHeight: Math.max(60 * unit, 52 * unit * NovaTheme.fontScale)
+        // Both text lines and the active style's padding must fit inside the
+        // button, including large text and Linux font substitutions.
+        Layout.preferredHeight: Math.max(60 * unit, implicitHeight)
+        topPadding: 10 * unit
+        bottomPadding: 10 * unit
         Accessible.description: scopeLabel + ". " + explanation
         onActiveFocusChanged: if (activeFocus) focusedRow = position
         Keys.onUpPressed: position > 0 ? rows[position - 1].forceActiveFocus() : focusPlayRequested()
@@ -241,7 +245,7 @@ FocusScope {
             ColumnLayout {
                 spacing: 2 * unit
                 Copy { text: label; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text; font.pixelSize: 17 * unit * NovaTheme.fontScale }
-                Copy { text: parent.parent.parent === steamLaunch ? "This game · On PC" : scopeLabel; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale }
+                Copy { text: parent.parent.parent === steamLaunch ? "This game · On PC" : scopeLabel; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale; font.weight: Font.Normal }
             }
             Copy {
                 Layout.fillWidth: true
@@ -410,8 +414,8 @@ FocusScope {
                     field: "launchMode"
                     explanation: spaceDestination ? "The selected Space provides its own launch settings." : "Choose where the game runs for this session, or use the PC's default."
                     defaultExplanation: spaceDestination ? "Use this Space's launch settings." : "Follow the PC's configured default launch mode."
-                    label: "Launch mode"; value: modeLabel(configuration.launchMode)
-                    onClicked: picker.choose(launchMode, "Launch mode", launchChoices,
+                    label: "Launch Mode"; value: modeLabel(configuration.launchMode)
+                    onClicked: picker.choose(launchMode, "Launch Mode", launchChoices,
                         Math.max(0, launchChoices.findIndex(choice => choice.launchMode === configuration.launchMode)))
                 }
                 Setting {
