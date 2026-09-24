@@ -5,6 +5,9 @@
 #include <pyrowave/pyrowave.h>
 
 #include "pyrowave_device_c.h"
+#include "pyrowave_renderer_c.h"
+
+#include <android/native_window_jni.h>
 
 #include <android/log.h>
 #include <jni.h>
@@ -175,5 +178,102 @@ Java_com_papi_nova_binding_video_PyroWave_nativeDecodeSelfTest(
         pyrowave_device_release(owned);
     }
     (*env)->ReleaseByteArrayElements(env, bitstream, payload, JNI_ABORT);
+    return outcome;
+}
+
+/**
+ * Decode the bundled frame and put it on a Surface.
+ *
+ * The whole client path end to end except the network: library, borrowed device, decoder, colour
+ * conversion, swapchain, present. Fed from the decoder's host memory path on purpose, so the only
+ * thing being tested here is presentation.
+ *
+ * @return 0 when a frame reached the screen, or a negative code.
+ */
+JNIEXPORT jint JNICALL
+Java_com_papi_nova_binding_video_PyroWave_nativePresentSelfTest(
+        JNIEnv *env, jclass clazz, jobject surface, jbyteArray bitstream) {
+    (void) clazz;
+
+    enum { Width = 34, Height = 30 };
+
+    ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
+    if (window == NULL) {
+        return -20;
+    }
+
+    const jsize size = (*env)->GetArrayLength(env, bitstream);
+    jbyte *payload = (*env)->GetByteArrayElements(env, bitstream, NULL);
+    if (payload == NULL || size <= 0) {
+        ANativeWindow_release(window);
+        return -21;
+    }
+
+    uint8_t luma[Height][Width];
+    uint8_t cb[Height / 2][Width / 2];
+    uint8_t cr[Height / 2][Width / 2];
+    jint outcome = -1;
+
+    pyrowave_device device = NULL;
+    pyrowave_decoder decoder = NULL;
+    void *owned = NULL;
+    void *renderer = NULL;
+
+    do {
+        owned = pyrowave_device_acquire(false, &device);
+        if (owned == NULL) { outcome = -22; break; }
+
+        pyrowave_decoder_create_info info = {0};
+        info.device = device;
+        info.width = Width;
+        info.height = Height;
+        info.chroma = PYROWAVE_CHROMA_SUBSAMPLING_420;
+        info.fragment_path = false;
+        if (pyrowave_decoder_create(&info, &decoder) != PYROWAVE_SUCCESS) { outcome = -23; break; }
+
+        if (pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS ||
+            !pyrowave_decoder_decode_is_ready(decoder, false)) {
+            outcome = -24;
+            break;
+        }
+
+        pyrowave_cpu_buffer out = {0};
+        out.format = PYROWAVE_CPU_BUFFER_FORMAT_YUV420P;
+        out.width = Width;
+        out.height = Height;
+        out.data[0] = &luma[0][0];
+        out.data[1] = &cb[0][0];
+        out.data[2] = &cr[0][0];
+        out.row_stride_in_bytes[0] = sizeof(luma[0]);
+        out.row_stride_in_bytes[1] = sizeof(cb[0]);
+        out.row_stride_in_bytes[2] = sizeof(cr[0]);
+        out.plane_size_in_bytes[0] = sizeof(luma);
+        out.plane_size_in_bytes[1] = sizeof(cb);
+        out.plane_size_in_bytes[2] = sizeof(cr);
+        if (pyrowave_decoder_decode_cpu_buffer_synchronous(decoder, &out) != PYROWAVE_SUCCESS) {
+            outcome = -25;
+            break;
+        }
+
+        renderer = pyrowave_renderer_create(window, Width, Height);
+        if (renderer == NULL) { outcome = -26; break; }
+
+        // Twice, because the second frame is the one that proves the barriers are right: the first
+        // transitions from UNDEFINED and would paper over a wrong layout on the way back.
+        if (!pyrowave_renderer_present(renderer, &luma[0][0], &cb[0][0], &cr[0][0]) ||
+            !pyrowave_renderer_present(renderer, &luma[0][0], &cb[0][0], &cr[0][0])) {
+            outcome = -27;
+            break;
+        }
+
+        LOGI("present self test: a frame reached the screen");
+        outcome = 0;
+    } while (0);
+
+    if (renderer != NULL) pyrowave_renderer_destroy(renderer);
+    if (decoder != NULL) pyrowave_decoder_destroy(decoder);
+    if (owned != NULL) pyrowave_device_release(owned);
+    (*env)->ReleaseByteArrayElements(env, bitstream, payload, JNI_ABORT);
+    ANativeWindow_release(window);
     return outcome;
 }

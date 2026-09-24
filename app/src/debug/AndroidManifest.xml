@@ -11,5 +11,15 @@
             android:name="com.papi.nova.ui.NovaLibraryActivity"
             android:exported="true"
             tools:replace="android:exported" />
+
+        <!-- Debug builds only, and not reachable from the app. Started by hand:
+             adb shell am start -n <package>/com.papi.nova.binding.video.PyroWaveProofActivity
+             Presentation is the one part of a video client that cannot be tested by asserting on a
+             return value, so this exists to put a frame somewhere a camera can see it. -->
+        <activity
+            android:name="com.papi.nova.binding.video.PyroWaveProofActivity"
+            android:exported="true"
+            android:label="PyroWave proof" />
+
     </application>
 </manifest>

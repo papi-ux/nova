@@ -24,6 +24,9 @@ namespace nova_vk {
       destroy();
     }
 
+    /** The loader entry point this device was built with, for anything else that needs to resolve. */
+    PFN_vkGetInstanceProcAddr get_instance_proc_addr() const;
+
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physical_device = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;

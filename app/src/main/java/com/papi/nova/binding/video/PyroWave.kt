@@ -2,6 +2,7 @@ package com.papi.nova.binding.video
 
 import android.content.Context
 import android.os.Build
+import android.view.Surface
 import com.papi.nova.LimeLog
 
 /**
@@ -184,6 +185,24 @@ object PyroWave {
         }
     }
 
+    /**
+     * Decode the bundled frame and draw it on a surface, returning 0 when one reached the screen.
+     *
+     * Everything the client does except the network, which is the point: if this draws, the only
+     * thing between here and a stream is the protocol.
+     */
+    @JvmStatic
+    fun presentSelfTest(context: Context, surface: Surface): Int? {
+        if (!loaded) return null
+        return try {
+            val bitstream = context.assets.open(SELF_TEST_ASSET).use { it.readBytes() }
+            nativePresentSelfTest(surface, bitstream)
+        } catch (e: Exception) {
+            LimeLog.warning("PyroWave: present self test could not run: " + e.message)
+            null
+        }
+    }
+
     private const val SELF_TEST_ASSET = "pyrowave/selftest-34x30.pw"
 
     // Kept in step with the constants in pyrowave_jni.c.
@@ -202,4 +221,7 @@ object PyroWave {
 
     @JvmStatic
     private external fun nativeDecodeSelfTest(bitstream: ByteArray, fragmentPath: Boolean): Int
+
+    @JvmStatic
+    private external fun nativePresentSelfTest(surface: Surface, bitstream: ByteArray): Int
 }

@@ -19,9 +19,9 @@ include $(PREBUILT_SHARED_LIBRARY)
 # be one module lighter rather than one #ifdef deeper.
 include $(CLEAR_VARS)
 LOCAL_MODULE := pyrowave-jni
-LOCAL_SRC_FILES := pyrowave_jni.c pyrowave_device.cpp
+LOCAL_SRC_FILES := pyrowave_jni.c pyrowave_device.cpp pyrowave_renderer.cpp
 LOCAL_SHARED_LIBRARIES := pyrowave
-LOCAL_LDLIBS := -llog
+LOCAL_LDLIBS := -llog -landroid
 LOCAL_CFLAGS := -ffunction-sections -fdata-sections
 LOCAL_LDFLAGS := -Wl,--gc-sections
 include $(BUILD_SHARED_LIBRARY)

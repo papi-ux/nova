@@ -79,6 +79,10 @@ namespace nova_vk {
 
   }  // namespace
 
+  PFN_vkGetInstanceProcAddr device_t::get_instance_proc_addr() const {
+    return loader.get_instance_proc_addr;
+  }
+
   void device_t::destroy() {
     if (codec) {
       pyrowave_device_destroy(codec);
