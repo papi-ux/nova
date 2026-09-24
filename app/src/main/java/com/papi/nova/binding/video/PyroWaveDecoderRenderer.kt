@@ -276,6 +276,16 @@ class PyroWaveDecoderRenderer(
     override val isAv1Supported: Boolean = false
     override val isAv1Main10Supported: Boolean = false
 
+    // None of the above and HDR10 all the same. There is no hardware decoder profile in this codec to
+    // ask about: the ten bit formats are the codec's own, the frames arrive as PQ BT.2020, and this
+    // renderer builds a swapchain to match.
+    //
+    // Whether this particular surface can present that is a question only the surface can answer, so
+    // it is asked at creation, where a no fails the renderer with a line saying which one said it
+    // rather than guessing here. The panel's own HDR capability is asked earlier still, by the part of
+    // Nova that decides whether to request an HDR stream in the first place.
+    override val isHdr10Supported: Boolean = true
+
     override fun getPreferredColorSpace(): Int = MoonBridge.COLORSPACE_REC_709
 
     override fun getPreferredColorRange(): Int = MoonBridge.COLOR_RANGE_FULL

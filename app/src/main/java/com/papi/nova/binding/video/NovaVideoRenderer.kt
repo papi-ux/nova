@@ -37,6 +37,17 @@ abstract class NovaVideoRenderer : VideoDecoderRenderer() {
     abstract val isAv1Supported: Boolean
     abstract val isAv1Main10Supported: Boolean
 
+    /**
+     * Whether this renderer can take an HDR10 stream at all, whatever it decodes it with.
+     *
+     * For a MediaCodec renderer that is exactly the two profiles above, which is why they are what
+     * this is made of by default. A renderer whose codec carries HDR itself has neither of them and
+     * can still present PQ BT.2020, and asking about the profiles instead of asking this is how the
+     * one that can spent a while refusing to.
+     */
+    open val isHdr10Supported: Boolean
+        get() = isHevcMain10Hdr10Supported || isAv1Main10Supported
+
     /** The colour space this renderer would rather be given, as a moonlight constant. */
     abstract fun getPreferredColorSpace(): Int
 

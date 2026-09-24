@@ -1264,7 +1264,7 @@ LimeLog.info("Balanced: preferLowerDelays=false, timeout=2000us")
 catch (ignored:Throwable) {}
 
  // Don't stream HDR if the decoder can't support it
-if (willStreamHdr && !decoderRenderer!!.isHevcMain10Hdr10Supported && !decoderRenderer!!.isAv1Main10Supported)
+if (willStreamHdr && !decoderRenderer!!.isHdr10Supported)
 {
 willStreamHdr = false
 NovaSnackbar.showError(this, getString(R.string.nova_hdr_decoder_unsupported))
