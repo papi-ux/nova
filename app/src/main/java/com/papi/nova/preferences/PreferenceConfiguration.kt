@@ -296,7 +296,16 @@ class PreferenceConfiguration {
         private const val DEFAULT_HIDE_OSC_WHEN_HAS_GAMEPAD = true
         private const val ONLY_L3_R3_DEFAULT = false
         private const val SHOW_GUIDE_BUTTON_DEFAULT = true
-        private const val DEFAULT_ENABLE_HDR = false
+        /**
+         * Ask for HDR unless the player says otherwise.
+         *
+         * This was off, so a player with an HDR panel streaming from an HDR host got an SDR picture
+         * until they went looking for a checkbox, and nothing anywhere said that was why. Asking is
+         * cheap and it is not a promise: the panel's own capability, the host's encoder, the capture
+         * display's mode and the renderer are each still asked in turn, and any one of them says no
+         * and the stream is SDR with a reason.
+         */
+        private const val DEFAULT_ENABLE_HDR = true
         private const val DEFAULT_ENABLE_PIP = false
         private const val DEFAULT_ENABLE_PERF_OVERLAY = false
         private const val DEFAULT_ENABLE_PERF_LOGGING = false
