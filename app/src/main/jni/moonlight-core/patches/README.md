@@ -3,10 +3,14 @@
 What Nova adds to the streaming library so it can negotiate PyroWave, kept here as a patch series
 rather than as a fork.
 
-Five commits, 127 lines across four files, most of it comment: a format number and the profile
-token in `Limelight.h`, the negotiation arm and the SDP matcher in `RtspConnection.c`, one attribute
-in `SdpGenerator.c`, and two words in `VideoDepacketizer.c`. The library never sees a PyroWave byte;
-it carries the payload opaquely and hands it to the renderer.
+Seven commits, 270 lines across five files, most of it comment: the format numbers and the profile
+tokens in `Limelight.h`, the negotiation arm in `RtspConnection.c`, the SDP matcher in its own
+`PyroWaveSdp.h`, one attribute in `SdpGenerator.c`, and two words in `VideoDepacketizer.c`. The
+library never sees a PyroWave byte; it carries the payload opaquely and hands it to the renderer.
+
+The matcher has a header of its own because it is the one protocol decision this client makes by
+reading text, and `tools/test_pyrowave_sdp.py` compiles and runs it against the malformed and
+adversarial payloads an RTSP connection would never let a test reach.
 
 ## Why a patch series and not a fork
 

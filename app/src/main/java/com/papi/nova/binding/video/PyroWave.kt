@@ -226,9 +226,15 @@ object PyroWave {
      * The native side holds the Vulkan device, the decoder and the swapchain together, so this is
      * one handle for all three and it has to be given back with [destroyRenderer].
      */
-    fun createRenderer(surface: Surface, width: Int, height: Int, chroma444: Boolean): Long {
+    fun createRenderer(
+        surface: Surface,
+        width: Int,
+        height: Int,
+        chroma444: Boolean,
+        hdr: Boolean,
+    ): Long {
         if (!loaded) return 0
-        return nativeCreateRenderer(surface, width, height, chroma444)
+        return nativeCreateRenderer(surface, width, height, chroma444, hdr)
     }
 
     /** One whole frame, decoded on the GPU and drawn. */
@@ -259,6 +265,7 @@ object PyroWave {
         width: Int,
         height: Int,
         chroma444: Boolean,
+        hdr: Boolean,
     ): Long
 
     @JvmStatic

@@ -38,8 +38,13 @@ namespace nova_vk {
      * @param chroma_444 Whether the stream carries a chroma sample per pixel rather than per four.
      *   It has to match what the host encoded: the decoder reads the chroma out of each frame's
      *   sequence header and refuses one that disagrees with how it was created.
+     * @param hdr Whether the stream is full range BT.2020 with the PQ transfer function rather than
+     *   full range Rec. 709. Like the chroma this is agreed out of band, through the profile token,
+     *   because the bitstream carries neither the primaries nor the transfer function. Unlike the
+     *   chroma nothing would refuse a mismatch, so getting it wrong is a picture that is merely wrong.
+     *   Fails rather than falling back when the surface cannot present HDR10.
      */
-    bool create(ANativeWindow *window, uint32_t width, uint32_t height, bool chroma_444);
+    bool create(ANativeWindow *window, uint32_t width, uint32_t height, bool chroma_444, bool hdr);
 
     /**
      * Decode one complete frame's bitstream on the GPU and show it.
@@ -117,6 +122,36 @@ namespace nova_vk {
 
     /// Zero when every pixel has its own chroma sample, one when four share.
     uint32_t chroma_shift = 1;
+
+    /// Whether this stream is HDR10, which decides the swapchain, the planes and the colour matrix.
+    bool hdr = false;
+
+    /// What the swapchain was created with, which says whether the surface took the PQ colour space.
+    VkColorSpaceKHR swapchain_colour_space = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+
+    /**
+     * @brief The inverse colour matrix the present shader is handed, as four coefficients.
+     *
+     * Full range either way, so there is no offset or gain, and the transfer function is left as it
+     * arrived: an SDR frame carries sRGB values into an sRGB swapchain and an HDR one carries PQ into
+     * an ST.2084 swapchain, and converting either would be converting twice. What differs is the
+     * primaries, and that is these four numbers.
+     */
+    struct colour_matrix_t {
+      float cr_to_r;
+      float cb_to_g;
+      float cr_to_g;
+      float cb_to_b;
+    };
+
+    colour_matrix_t colour_matrix() const {
+      // BT.2020 non constant luminance, from Kr 0.2627, Kg 0.678, Kb 0.0593.
+      if (hdr) {
+        return {1.4746f, -0.164553f, -0.571353f, 1.8814f};
+      }
+      // Rec. 709, from Kr 0.2126, Kg 0.7152, Kb 0.0722.
+      return {1.5748f, -0.187324f, -0.468124f, 1.8556f};
+    }
 
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;

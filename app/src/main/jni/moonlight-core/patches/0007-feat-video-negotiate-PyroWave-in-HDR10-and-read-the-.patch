@@ -1,0 +1,390 @@
+From d98c661198f454c992e53ae6a3a395bccd9f755c Mon Sep 17 00:00:00 2001
+From: papi <papi@papi-ux.com>
+Date: Thu, 24 Sep 2026 07:44:40 -0400
+Subject: [PATCH 7/7] feat(video): negotiate PyroWave in HDR10, and read the
+ profile as a list
+
+A host that can carry both colourimetries offers one token for each, in one fmtp
+line, space separated. So the matcher stops requiring the whole value to equal
+its token and looks for its token as a whole element of the list instead. That is
+the change that lets a host offer a second token without breaking every client
+that knows only the first, and it keeps the property the whole value match was
+there for: a whole element is still not a prefix, so a client that knows "-v1"
+does not accept a host offering "-v10".
+
+Two formats above the two that were there, filling the nibble the PyroWave mask
+already reserved: 4:2:0 and 4:4:4 at ten bits. They join VIDEO_FORMAT_MASK_10BIT,
+which is what makes the SDP generator send dynamicRangeMode 1 for them with no
+second mechanism, and that field is how a host learns a stream is HDR. A ten bit
+format that stayed out of that mask would negotiate as SDR and be decoded as
+Rec. 709.
+
+Both ends have to have it, as with the chroma, and for a sharper reason: the
+chroma travels in every frame's sequence header so a decoder built for the wrong
+one refuses the lot, while the colourimetry travels in neither, so a mismatch
+there is a picture that is merely wrong. SCM_PYROWAVE_HDR10 is what a client
+reads to know, because the dynamic range is asked for at launch over HTTP, before
+any of this.
+
+The SDP text logic moves into PyroWaveSdp.h. It is the only protocol decision this
+client makes by parsing text, and it had no test: the harness it was written
+against was a throwaway in a temp directory and is gone. As a header it can be
+included by one that lives in the repository.
+---
+ src/Limelight.h      |  17 ++++-
+ src/PyroWaveSdp.h    | 146 +++++++++++++++++++++++++++++++++++++++++++
+ src/RtspConnection.c | 115 ++++++++++++----------------------
+ 3 files changed, 200 insertions(+), 78 deletions(-)
+ create mode 100644 src/PyroWaveSdp.h
+
+diff --git a/src/Limelight.h b/src/Limelight.h
+index 86b2884..69cf24a 100644
+--- a/src/Limelight.h
++++ b/src/Limelight.h
+@@ -236,6 +236,8 @@ typedef struct _DECODE_UNIT {
+ // not know it never sets this one, so the two of them negotiate exactly as they did before.
+ #define VIDEO_FORMAT_PYROWAVE        0x10000 // PyroWave 4:2:0 8-bit
+ #define VIDEO_FORMAT_PYROWAVE_444    0x20000 // PyroWave 4:4:4 8-bit
++#define VIDEO_FORMAT_PYROWAVE_10BIT  0x40000 // PyroWave 4:2:0 10-bit HDR10
++#define VIDEO_FORMAT_PYROWAVE_444_10BIT 0x80000 // PyroWave 4:4:4 10-bit HDR10
+ 
+ // What the host has to say before this client will accept the codec from it.
+ //
+@@ -251,17 +253,27 @@ typedef struct _DECODE_UNIT {
+ // Moves with the PyroWave library this client is built against.
+ #define PYROWAVE_PROFILE_TOKEN "pyrowave-186f0393-sdr420-v1"
+ 
++// The same agreement for an HDR10 stream, which is a different one about the same bytes: full range
++// BT.2020 with the PQ transfer function rather than full range Rec. 709. Its own token because the
++// bitstream says nothing about primaries or transfer function, so a client that decoded one as the
++// other would show a plausible looking wrong picture and no error.
++#define PYROWAVE_HDR_PROFILE_TOKEN "pyrowave-186f0393-hdr2020pq420-v1"
++
+ // Masks for clients to use to match video codecs without profile-specific details.
+ #define VIDEO_FORMAT_MASK_H264     0x000F
+ #define VIDEO_FORMAT_MASK_H265     0x0F00
+ #define VIDEO_FORMAT_MASK_AV1      0xF000
+ #define VIDEO_FORMAT_MASK_PYROWAVE 0xF0000
+-#define VIDEO_FORMAT_MASK_10BIT    0xAA00
++// PyroWave's ten bit formats join this one, which is what makes the SDP generator send
++// dynamicRangeMode 1 for them without a second mechanism. That field is how a Sunshine host learns a
++// stream is HDR, so a ten bit format that stayed out of this mask would negotiate as SDR and be
++// decoded as Rec. 709.
++#define VIDEO_FORMAT_MASK_10BIT    0xC0AA00
+ // PyroWave's 4:4:4 format joins this one so the chromaSamplingType attribute below is emitted for
+ // it without a second mechanism. Chroma is the one thing about this codec that does not need an
+ // agreement out of band: it travels in every frame's sequence header, and a decoder created for the
+ // wrong one refuses the frame and says so.
+-#define VIDEO_FORMAT_MASK_YUV444   0x2CC04
++#define VIDEO_FORMAT_MASK_YUV444   0xACC04
+ 
+ // If set in the renderer capabilities field, this flag will cause audio/video data to
+ // be submitted directly from the receive thread. This should only be specified if the
+@@ -543,6 +555,7 @@ void LiInitializeConnectionCallbacks(PCONNECTION_LISTENER_CALLBACKS clCallbacks)
+ #define SCM_AV1_HIGH10_444  0x00400000 // Sunshine extension
+ #define SCM_PYROWAVE        0x00800000 // Polaris extension
+ #define SCM_PYROWAVE_444    0x01000000 // Polaris extension
++#define SCM_PYROWAVE_HDR10  0x02000000 // Polaris extension
+ 
+ // SCM masks to identify various codec capabilities
+ #define SCM_MASK_H264   (SCM_H264 | SCM_H264_HIGH8_444)
+diff --git a/src/PyroWaveSdp.h b/src/PyroWaveSdp.h
+new file mode 100644
+index 0000000..2a5dd0e
+--- /dev/null
++++ b/src/PyroWaveSdp.h
+@@ -0,0 +1,146 @@
++// The SDP text this client reads to decide whether a host is offering PyroWave, and on what terms.
++//
++// Its own header for one reason: it is the only place in this client where a protocol decision is made
++// by parsing text, and text parsing is where the mistakes are. As a header it can be included by a
++// harness and tested against malformed, truncated and adversarial payloads without standing up an RTSP
++// connection. tools/test_pyrowave_sdp.py is that harness.
++//
++// static inline rather than a translation unit of its own, so the patch series that carries this stays
++// a diff against upstream rather than a build system change.
++#pragma once
++
++#include <stdbool.h>
++#include <stddef.h>
++#include <string.h>
++
++// Whether a space separated list of tokens holds this one as a whole element.
++//
++// Whole element, not substring: the token this client knows is a prefix of every longer one that
++// begins the same way, so a substring search lets a "-v1" client accept a "-v10" host.
++static inline bool sdpListOffersToken(const char* value, const char* end, const char* token) {
++    size_t tokenLength = strlen(token);
++
++    while (value < end) {
++        const char* elementEnd;
++
++        while (value < end && (*value == ' ' || *value == '\t')) {
++            value++;
++        }
++        elementEnd = value;
++        while (elementEnd < end && *elementEnd != ' ' && *elementEnd != '\t') {
++            elementEnd++;
++        }
++
++        if ((size_t)(elementEnd - value) == tokenLength && memcmp(value, token, tokenLength) == 0) {
++            return true;
++        }
++        value = elementEnd;
++    }
++
++    return false;
++}
++
++// Counts an fmtp line for payload 99 and says whether the tokens it offers include the one asked for.
++//
++// A list rather than one value, because a host that can carry more than one colourimetry offers one
++// token for each and a client takes the one it implements. Matching the whole value, which is what
++// this used to do, would make a host offering two tokens unusable by a client that knows one of them.
++static inline void countPyroWaveProfileLine(const char* line, const char* end, const char* token,
++                                     int* matches, int* mismatches) {
++    static const char name[] = "a=fmtp:99";
++    size_t nameLength = sizeof(name) - 1;
++    const char* value;
++
++    if ((size_t)(end - line) <= nameLength || memcmp(line, name, nameLength) != 0) {
++        return;
++    }
++
++    // The separator is not optional, for the reason countSdpAttribute gives.
++    value = line + nameLength;
++    if (*value != ' ' && *value != '\t') {
++        return;
++    }
++
++    while (value < end && (*value == ' ' || *value == '\t')) {
++        value++;
++    }
++    while (end > value && (end[-1] == ' ' || end[-1] == '\t')) {
++        end--;
++    }
++
++    if (sdpListOffersToken(value, end, token)) {
++        (*matches)++;
++    }
++    else {
++        (*mismatches)++;
++    }
++}
++
++// Counts an SDP attribute line whose name matches, and says whether its value was the expected one.
++static inline void countSdpAttribute(const char* line, const char* end, const char* name,
++                              const char* expected, int* matches, int* mismatches) {
++    size_t nameLength = strlen(name);
++    size_t expectedLength = strlen(expected);
++    const char* value;
++
++    if ((size_t)(end - line) <= nameLength || memcmp(line, name, nameLength) != 0) {
++        return;
++    }
++
++    // The separator is not optional. Without checking it, "a=fmtp:990" reads as a line about
++    // payload 99, and so does every longer payload number starting with those digits.
++    value = line + nameLength;
++    if (*value != ' ' && *value != '\t') {
++        return;
++    }
++
++    while (value < end && (*value == ' ' || *value == '\t')) {
++        value++;
++    }
++    while (end > value && (end[-1] == ' ' || end[-1] == '\t')) {
++        end--;
++    }
++
++    if ((size_t)(end - value) == expectedLength && memcmp(value, expected, expectedLength) == 0) {
++        (*matches)++;
++    }
++    else if (mismatches != NULL) {
++        (*mismatches)++;
++    }
++}
++
++// Whether this SDP offers exactly the PyroWave profile this client implements, for payload 99.
++//
++// Deliberately not a substring search over the payload. The token this client knows is a prefix of
++// every longer one that begins the same way, so a "-v1" client accepts a "-v10" host; and a token
++// that turned up inside some unrelated attribute would pass just as well. Either way the client goes
++// on to decode a profile it does not implement, which is a picture that is merely wrong.
++//
++// So the payload has to carry one rtpmap for 99 naming the codec, and one fmtp for 99 whose whole
++// value is the token, and nothing else claiming payload 99. A second mapping saying something else
++// is a refusal and not a choice: a host that offers two codecs or two profiles for one payload type
++// has not said which of them it will send, and picking one would be a guess.
++static inline bool sdpOffersPyroWaveProfile(const char* payload, const char* token) {
++    int codecLines = 0;
++    int otherCodecLines = 0;
++    int profileLines = 0;
++    int otherProfileLines = 0;
++    const char* line = payload;
++
++    while (*line != 0) {
++        const char* end = line;
++        while (*end != 0 && *end != '\r' && *end != '\n') {
++            end++;
++        }
++
++        countSdpAttribute(line, end, "a=rtpmap:99", "PYROWAVE/90000", &codecLines, &otherCodecLines);
++        countPyroWaveProfileLine(line, end, token, &profileLines, &otherProfileLines);
++
++        line = end;
++        while (*line == '\r' || *line == '\n') {
++            line++;
++        }
++    }
++
++    return codecLines == 1 && otherCodecLines == 0 && profileLines == 1 && otherProfileLines == 0;
++}
+diff --git a/src/RtspConnection.c b/src/RtspConnection.c
+index 5426cfc..46a76b3 100644
+--- a/src/RtspConnection.c
++++ b/src/RtspConnection.c
+@@ -1,5 +1,6 @@
+ #include "Limelight-internal.h"
+ #include "Rtsp.h"
++#include "PyroWaveSdp.h"
+ 
+ #define RTSP_CONNECT_TIMEOUT_SEC 10
+ #define RTSP_RECEIVE_TIMEOUT_SEC 15
+@@ -927,77 +928,11 @@ bool parseSdpAttributeToInt(const char* payload, const char* name, int* val) {
+ }
+ 
+ // Perform RTSP Handshake with the streaming server machine as part of the connection process
+-// Counts an SDP attribute line whose name matches, and says whether its value was the expected one.
+-static void countSdpAttribute(const char* line, const char* end, const char* name,
+-                              const char* expected, int* matches, int* mismatches) {
+-    size_t nameLength = strlen(name);
+-    size_t expectedLength = strlen(expected);
+-    const char* value;
+-
+-    if ((size_t)(end - line) <= nameLength || memcmp(line, name, nameLength) != 0) {
+-        return;
+-    }
+-
+-    // The separator is not optional. Without checking it, "a=fmtp:990" reads as a line about
+-    // payload 99, and so does every longer payload number starting with those digits.
+-    value = line + nameLength;
+-    if (*value != ' ' && *value != '\t') {
+-        return;
+-    }
+-
+-    while (value < end && (*value == ' ' || *value == '\t')) {
+-        value++;
+-    }
+-    while (end > value && (end[-1] == ' ' || end[-1] == '\t')) {
+-        end--;
+-    }
+-
+-    if ((size_t)(end - value) == expectedLength && memcmp(value, expected, expectedLength) == 0) {
+-        (*matches)++;
+-    }
+-    else if (mismatches != NULL) {
+-        (*mismatches)++;
+-    }
+-}
+-
+-// Whether this SDP offers exactly the PyroWave profile this client implements, for payload 99.
+-//
+-// Deliberately not a substring search over the payload. The token this client knows is a prefix of
+-// every longer one that begins the same way, so a "-v1" client accepts a "-v10" host; and a token
+-// that turned up inside some unrelated attribute would pass just as well. Either way the client goes
+-// on to decode a profile it does not implement, which is a picture that is merely wrong.
+-//
+-// So the payload has to carry one rtpmap for 99 naming the codec, and one fmtp for 99 whose whole
+-// value is the token, and nothing else claiming payload 99. A second mapping saying something else
+-// is a refusal and not a choice: a host that offers two codecs or two profiles for one payload type
+-// has not said which of them it will send, and picking one would be a guess.
+-static bool sdpOffersPyroWaveProfile(const char* payload) {
+-    int codecLines = 0;
+-    int otherCodecLines = 0;
+-    int profileLines = 0;
+-    int otherProfileLines = 0;
+-    const char* line = payload;
+-
+-    while (*line != 0) {
+-        const char* end = line;
+-        while (*end != 0 && *end != '\r' && *end != '\n') {
+-            end++;
+-        }
+-
+-        countSdpAttribute(line, end, "a=rtpmap:99", "PYROWAVE/90000", &codecLines, &otherCodecLines);
+-        countSdpAttribute(line, end, "a=fmtp:99", PYROWAVE_PROFILE_TOKEN, &profileLines, &otherProfileLines);
+-
+-        line = end;
+-        while (*line == '\r' || *line == '\n') {
+-            line++;
+-        }
+-    }
+-
+-    return codecLines == 1 && otherCodecLines == 0 && profileLines == 1 && otherProfileLines == 0;
+-}
+ 
+ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+     int ret;
++    bool wantsPyroWaveHdr = false;
++    const char* pyroWaveToken = PYROWAVE_PROFILE_TOKEN;
+ 
+     LC_ASSERT(RtspPortNumber != 0);
+ 
+@@ -1150,20 +1085,48 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+             // So a host that cannot serve it is an error and not a reason to drop down the ladder
+             // below. Falling through would hand the user H.264 under the name of the codec they
+             // picked, which looks like it worked and is the hardest kind of wrong to notice.
++            // HDR is asked for at launch, over HTTP, long before this, so by the time the SDP can
++            // be read the client has already committed. The token here is the second opinion: the
++            // host's codec mode bits said it could carry this colourimetry, and the SDP says which
++            // ones it is actually offering.
++            wantsPyroWaveHdr = (StreamConfig.supportedVideoFormats &
++                                (VIDEO_FORMAT_PYROWAVE_10BIT | VIDEO_FORMAT_PYROWAVE_444_10BIT)) != 0;
++            pyroWaveToken = wantsPyroWaveHdr ? PYROWAVE_HDR_PROFILE_TOKEN : PYROWAVE_PROFILE_TOKEN;
++
+             if (!(serverInfo->serverCodecModeSupport & SCM_PYROWAVE) ||
+-                !sdpOffersPyroWaveProfile(response.payload)) {
++                !sdpOffersPyroWaveProfile(response.payload, pyroWaveToken)) {
+                 Limelog("This host does not offer the PyroWave profile this client implements (%s)\n",
+-                        PYROWAVE_PROFILE_TOKEN);
++                        pyroWaveToken);
++                ret = ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE;
++                goto Exit;
++            }
++            if (wantsPyroWaveHdr && !(serverInfo->serverCodecModeSupport & SCM_PYROWAVE_HDR10)) {
++                Limelog("This host cannot carry PyroWave in HDR\n");
+                 ret = ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE;
+                 goto Exit;
+             }
+ 
+-            // 4:4:4 when both ends have it, and never on the strength of one end alone. The
+-            // chroma travels in every frame's sequence header, so a decoder built for the wrong one
+-            // refuses the lot; and a client that asked only for 4:4:4 would rather be told than be
+-            // handed 4:2:0 it cannot read.
+-            if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE_444) &&
+-                (serverInfo->serverCodecModeSupport & SCM_PYROWAVE_444)) {
++            // The chroma and the dynamic range, each only when both ends have it, and never on the
++            // strength of one end alone. Both travel out of band rather than in the bitstream: the
++            // chroma is in every frame's sequence header so a decoder built for the wrong one refuses
++            // the lot, and the colourimetry is in neither, so a mismatch there is a picture that is
++            // merely wrong. Best available first, so a client that can take 4:4:4 HDR gets it.
++            if (wantsPyroWaveHdr) {
++                if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE_444_10BIT) &&
++                    (serverInfo->serverCodecModeSupport & SCM_PYROWAVE_444)) {
++                    NegotiatedVideoFormat = VIDEO_FORMAT_PYROWAVE_444_10BIT;
++                }
++                else if (StreamConfig.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE_10BIT) {
++                    NegotiatedVideoFormat = VIDEO_FORMAT_PYROWAVE_10BIT;
++                }
++                else {
++                    Limelog("This host does not offer PyroWave HDR with the chroma this client asked for\n");
++                    ret = ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE;
++                    goto Exit;
++                }
++            }
++            else if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE_444) &&
++                     (serverInfo->serverCodecModeSupport & SCM_PYROWAVE_444)) {
+                 NegotiatedVideoFormat = VIDEO_FORMAT_PYROWAVE_444;
+             }
+             else if (StreamConfig.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE) {

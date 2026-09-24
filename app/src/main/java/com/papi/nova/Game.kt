@@ -1449,7 +1449,20 @@ if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROW
  // On its own or not at all. Offering H.264 beside it would let a host that cannot serve the
         // codec hand back H.264 instead, which looks like it worked and is the hardest kind of wrong
         // to notice. The library refuses the session with a reason instead.
-        supportedVideoFormats = MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444
+        //
+        // The ten bit formats only when this display can show HDR10, which is the same question the
+        // rest of Nova already asks before requesting an HDR stream. Asking for HDR on a panel that
+        // cannot present it would end the session at the swapchain, because an HDR stream has nothing
+        // to be shown as: the frames are PQ encoded BT.2020 and an sRGB surface makes them dark and
+        // oversaturated rather than merely different.
+        supportedVideoFormats = if (willStreamHdr)
+        {
+            MoonBridge.VIDEO_FORMAT_PYROWAVE_10BIT or MoonBridge.VIDEO_FORMAT_PYROWAVE_444_10BIT
+        }
+        else
+        {
+            MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444
+        }
 
  // Said rather than silently corrected, because the bitrate is the player's to choose and a
         // stream that quietly used four times the bandwidth asked for would be worse than a soft

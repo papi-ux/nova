@@ -1,7 +1,7 @@
 From 8e7e39b646a6e07f4a09684e952b3d0c8cefe58c Mon Sep 17 00:00:00 2001
 From: papi <papi@papi-ux.com>
 Date: Wed, 23 Sep 2026 22:40:54 -0400
-Subject: [PATCH 3/6] feat(video): match the whole profile line, and refuse
+Subject: [PATCH 3/7] feat(video): match the whole profile line, and refuse
  rather than fall through
 
 Two ways the previous version accepted a stream it should not have.

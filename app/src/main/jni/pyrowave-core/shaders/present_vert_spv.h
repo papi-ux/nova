@@ -1,8 +1,8 @@
 // Generated from present.vert. Do not edit.
 //
 // Regenerate with:
-//   glslc -O shaders/present.vert -o /tmp/out.spv
-//   python3 tools/spv_to_header.py /tmp/out.spv shaders/present_vert_spv.h
+//   glslc -O shaders/present.vert -o /tmp/present.vert.spv
+//   python3 tools/spv_to_header.py
 //
 // Vendored rather than compiled during the build, so building this app needs no shader
 // compiler and no CI job can break on one. The shader is frozen: three planes in, one

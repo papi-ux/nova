@@ -22,15 +22,15 @@ def emit(symbol, glsl_name, spv_path, out_name):
         "// Generated from %s. Do not edit.\n"
         "//\n"
         "// Regenerate with:\n"
-        "//   glslc -O shaders/%s -o /tmp/out.spv\n"
-        "//   python3 tools/spv_to_header.py /tmp/out.spv shaders/%s\n"
+        "//   glslc -O shaders/%s -o /tmp/%s.spv\n"
+        "//   python3 tools/spv_to_header.py\n"
         "//\n"
         "// Vendored rather than compiled during the build, so building this app needs no shader\n"
         "// compiler and no CI job can break on one. The shader is frozen: three planes in, one\n"
         "// colour out, and it changes only if the colour handling does.\n"
         "#pragma once\n\n"
         "#include <cstdint>\n\n"
-        "static const uint32_t %s[] = {\n%s\n};\n" % (glsl_name, glsl_name, out_name, symbol, body),
+        "static const uint32_t %s[] = {\n%s\n};\n" % (glsl_name, glsl_name, glsl_name, symbol, body),
         encoding="utf-8")
     print("wrote", out_name, len(words), "words")
 

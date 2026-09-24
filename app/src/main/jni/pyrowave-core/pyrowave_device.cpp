@@ -32,6 +32,7 @@ namespace nova_vk {
       PFN_vkGetInstanceProcAddr get_instance_proc_addr = nullptr;
 
       PFN_vkCreateInstance create_instance = nullptr;
+      PFN_vkEnumerateInstanceExtensionProperties enumerate_instance_extensions = nullptr;
       PFN_vkDestroyInstance destroy_instance = nullptr;
       PFN_vkEnumeratePhysicalDevices enumerate_physical_devices = nullptr;
       PFN_vkGetPhysicalDeviceProperties2 get_physical_device_properties2 = nullptr;
@@ -58,7 +59,30 @@ namespace nova_vk {
         }
         create_instance = reinterpret_cast<PFN_vkCreateInstance>(
           get_instance_proc_addr(VK_NULL_HANDLE, "vkCreateInstance"));
+        enumerate_instance_extensions = reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(
+          get_instance_proc_addr(VK_NULL_HANDLE, "vkEnumerateInstanceExtensionProperties"));
         return create_instance != nullptr;
+      }
+
+      /// Whether the loader offers an instance extension, asked before one is required.
+      bool has_instance_extension(const char *name) {
+        if (!enumerate_instance_extensions) {
+          return false;
+        }
+        uint32_t count = 0;
+        if (enumerate_instance_extensions(nullptr, &count, nullptr) != VK_SUCCESS || count == 0) {
+          return false;
+        }
+        std::vector<VkExtensionProperties> available(count);
+        if (enumerate_instance_extensions(nullptr, &count, available.data()) != VK_SUCCESS) {
+          return false;
+        }
+        for (const auto &extension : available) {
+          if (std::strcmp(extension.extensionName, name) == 0) {
+            return true;
+          }
+        }
+        return false;
       }
 
       void resolve_instance(VkInstance instance) {
@@ -124,6 +148,14 @@ namespace nova_vk {
     if (want_presentation) {
       instance_extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
       instance_extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+      // Without this, a surface reports only sRGB and there is no way to ask for the PQ colour space
+      // an HDR10 stream has to be presented in. Only when the loader has it: an instance asking for an
+      // extension that is not there is not created at all, and an SDR stream still wants to work.
+      if (loader.has_instance_extension(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME)) {
+        instance_extensions.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+      } else {
+        LOGW("this Vulkan loader cannot report HDR colour spaces, so HDR streams cannot be presented");
+      }
     }
 
     instance_info = {};

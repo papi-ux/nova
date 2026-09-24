@@ -1,7 +1,7 @@
 From 8cce880a6f46325fc75c82bfedf8cb8ebb3479a7 Mon Sep 17 00:00:00 2001
 From: papi <papi@papi-ux.com>
 Date: Wed, 23 Sep 2026 22:06:46 -0400
-Subject: [PATCH 2/6] feat(video): require the host to name the codec revision
+Subject: [PATCH 2/7] feat(video): require the host to name the codec revision
  and the colours
 
 PyroWave carries neither in its bitstream. Its API and its bitstream are both unstable

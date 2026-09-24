@@ -40,7 +40,7 @@ namespace nova_vk {
   X(vkCreateCommandPool) X(vkDestroyCommandPool) X(vkAllocateCommandBuffers) \
   X(vkBeginCommandBuffer) X(vkEndCommandBuffer) X(vkCmdPipelineBarrier) X(vkCmdCopyBufferToImage) \
   X(vkCmdBeginRenderPass) X(vkCmdEndRenderPass) X(vkCmdBindPipeline) X(vkCmdBindDescriptorSets) \
-  X(vkCmdSetViewport) X(vkCmdSetScissor) X(vkCmdDraw) \
+  X(vkCmdSetViewport) X(vkCmdSetScissor) X(vkCmdDraw) X(vkCmdPushConstants) \
   X(vkCreateSemaphore) X(vkDestroySemaphore) X(vkCreateFence) X(vkDestroyFence) \
   X(vkWaitForFences) X(vkResetFences) X(vkQueueSubmit)
 
@@ -100,7 +100,7 @@ namespace nova_vk {
   }
 
   bool renderer_t::create(ANativeWindow *native_window, uint32_t width, uint32_t height,
-                          bool chroma_444) {
+                          bool chroma_444, bool stream_is_hdr) {
     destroy();
 
     if (!native_window || width == 0 || height == 0) {
@@ -110,6 +110,7 @@ namespace nova_vk {
     frame_width = width;
     frame_height = height;
     chroma_shift = chroma_444 ? 0 : 1;
+    hdr = stream_is_hdr;
 
     if (!device.create(true)) {
       return false;
@@ -164,14 +165,43 @@ namespace nova_vk {
     std::vector<VkSurfaceFormatKHR> formats(count);
     vk.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device, surface, &count, formats.data());
 
+    // For HDR the surface has to offer ten bits a channel and the ST.2084 colour space, and if it
+    // does not there is nothing sensible to fall back to: the frames arriving are PQ encoded BT.2020,
+    // and presenting them to an sRGB swapchain shows a dark, oversaturated picture that looks like the
+    // stream is broken. So this fails, the renderer says why, and the session ends with a reason.
+    //
+    // Android reports this colour space only when the instance asked for VK_EXT_swapchain_colorspace,
+    // which the device does when it is created for presentation.
+    bool found = false;
     VkSurfaceFormatKHR chosen = formats.front();
-    for (const auto &format : formats) {
-      if (format.format == VK_FORMAT_R8G8B8A8_UNORM || format.format == VK_FORMAT_B8G8R8A8_UNORM) {
-        chosen = format;
-        break;
+    if (hdr) {
+      for (const auto &format : formats) {
+        if (format.colorSpace != VK_COLOR_SPACE_HDR10_ST2084_EXT) {
+          continue;
+        }
+        if (format.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ||
+            format.format == VK_FORMAT_A2R10G10B10_UNORM_PACK32 ||
+            format.format == VK_FORMAT_R16G16B16A16_SFLOAT) {
+          chosen = format;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        LOGW("this surface cannot present HDR10, and an HDR stream has nothing else to be shown as");
+        return false;
+      }
+    } else {
+      for (const auto &format : formats) {
+        if (format.format == VK_FORMAT_R8G8B8A8_UNORM || format.format == VK_FORMAT_B8G8R8A8_UNORM) {
+          chosen = format;
+          found = true;
+          break;
+        }
       }
     }
     swapchain_format = chosen.format;
+    swapchain_colour_space = chosen.colorSpace;
 
     swapchain_extent = caps.currentExtent;
     if (swapchain_extent.width == UINT32_MAX) {
@@ -245,7 +275,9 @@ namespace nova_vk {
     info.presentMode = present_mode;
     info.clipped = VK_TRUE;
 
-    LOGI("swapchain: %u images, present mode %d", images, static_cast<int>(present_mode));
+    LOGI("swapchain: %u images, present mode %d, format %d, colour space %d (%s)", images,
+         static_cast<int>(present_mode), static_cast<int>(swapchain_format),
+         static_cast<int>(swapchain_colour_space), hdr ? "HDR10 PQ" : "SDR");
     if (vk.vkCreateSwapchainKHR(device.device, &info, nullptr, &swapchain) != VK_SUCCESS) {
       LOGW("could not create a swapchain");
       return false;
@@ -370,17 +402,22 @@ namespace nova_vk {
       {frame_width >> chroma_shift, frame_height >> chroma_shift},
     };
 
+    // Sixteen bits a sample for HDR, because PQ spends most of its code space on the dark end and
+    // eight bits of it bands where it shows. Eight for SDR, which is what the stream carries.
+    const VkFormat plane_format = hdr ? VK_FORMAT_R16_UNORM : VK_FORMAT_R8_UNORM;
+    const VkDeviceSize bytes_a_sample = hdr ? 2 : 1;
+
     VkDeviceSize offset = 0;
     for (int i = 0; i < 3; i++) {
       planes[i].width = extents[i][0];
       planes[i].height = extents[i][1];
       planes[i].offset = offset;
-      offset += static_cast<VkDeviceSize>(planes[i].width) * planes[i].height;
+      offset += static_cast<VkDeviceSize>(planes[i].width) * planes[i].height * bytes_a_sample;
 
       VkImageCreateInfo info = {};
       info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
       info.imageType = VK_IMAGE_TYPE_2D;
-      info.format = VK_FORMAT_R8_UNORM;
+      info.format = plane_format;
       info.extent = {planes[i].width, planes[i].height, 1};
       info.mipLevels = 1;
       info.arrayLayers = 1;
@@ -412,7 +449,7 @@ namespace nova_vk {
       view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
       view.image = planes[i].image;
       view.viewType = VK_IMAGE_VIEW_TYPE_2D;
-      view.format = VK_FORMAT_R8_UNORM;
+      view.format = plane_format;
       view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
       view.subresourceRange.levelCount = 1;
       view.subresourceRange.layerCount = 1;
@@ -590,10 +627,19 @@ namespace nova_vk {
     dynamic.dynamicStateCount = 2;
     dynamic.pDynamicStates = dynamic_states;
 
+    // The colour matrix, pushed rather than compiled in, so the vendored shader blob serves both
+    // colourimetries and there is one code path to be wrong in rather than two.
+    VkPushConstantRange matrix_range = {};
+    matrix_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    matrix_range.offset = 0;
+    matrix_range.size = sizeof(colour_matrix_t);
+
     VkPipelineLayoutCreateInfo layout = {};
     layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     layout.setLayoutCount = 1;
     layout.pSetLayouts = &set_layout;
+    layout.pushConstantRangeCount = 1;
+    layout.pPushConstantRanges = &matrix_range;
     if (vk.vkCreatePipelineLayout(device.device, &layout, nullptr, &pipeline_layout) != VK_SUCCESS) {
       return false;
     }
@@ -706,8 +752,8 @@ namespace nova_vk {
       buffers.planes[i].image = planes[i].image;
       buffers.planes[i].width = planes[i].width;
       buffers.planes[i].height = planes[i].height;
-      buffers.planes[i].image_format = VK_FORMAT_R8_UNORM;
-      buffers.planes[i].view_format = VK_FORMAT_R8_UNORM;
+      buffers.planes[i].image_format = hdr ? VK_FORMAT_R16_UNORM : VK_FORMAT_R8_UNORM;
+      buffers.planes[i].view_format = buffers.planes[i].image_format;
       buffers.planes[i].mip_level = 0;
       buffers.planes[i].layer = 0;
       buffers.planes[i].aspect = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -905,6 +951,9 @@ namespace nova_vk {
     vk.vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
     vk.vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    const auto matrix = colour_matrix();
+    vk.vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                          sizeof(matrix), &matrix);
     vk.vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout,
                                0, 1, &descriptor_set, 0, nullptr);
     vk.vkCmdDraw(command_buffer, 3, 1, 0, 0);
@@ -1030,9 +1079,9 @@ namespace nova_vk {
 }  // namespace nova_vk
 
 extern "C" void *pyrowave_renderer_create(ANativeWindow *window, uint32_t width, uint32_t height,
-                                          bool chroma_444) {
+                                          bool chroma_444, bool hdr) {
   auto *renderer = new nova_vk::renderer_t();
-  if (!renderer->create(window, width, height, chroma_444)) {
+  if (!renderer->create(window, width, height, chroma_444, hdr)) {
     delete renderer;
     return nullptr;
   }

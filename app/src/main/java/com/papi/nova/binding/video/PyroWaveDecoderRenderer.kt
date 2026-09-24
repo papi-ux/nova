@@ -89,8 +89,17 @@ class PyroWaveDecoderRenderer(
         // The format the host and client settled on says which chroma this stream carries, and the
         // decoder has to be built for it: it reads the chroma out of every frame's sequence header
         // and refuses one that disagrees with how it was made.
-        val chroma444 = (format and MoonBridge.VIDEO_FORMAT_PYROWAVE_444) != 0
-        handle = PyroWave.createRenderer(target, width, height, chroma444)
+        val chroma444 = (format and
+            (MoonBridge.VIDEO_FORMAT_PYROWAVE_444 or MoonBridge.VIDEO_FORMAT_PYROWAVE_444_10BIT)) != 0
+
+        // The colourimetry, from the format the two ends settled on. It decides the swapchain, the
+        // precision of the decoded planes and the matrix the present shader inverts, and nothing would
+        // refuse a mismatch: an HDR frame shown as Rec. 709 is dark and oversaturated, and an SDR frame
+        // shown as PQ is washed out, and neither says anything.
+        val hdr = (format and
+            (MoonBridge.VIDEO_FORMAT_PYROWAVE_10BIT or MoonBridge.VIDEO_FORMAT_PYROWAVE_444_10BIT)) != 0
+
+        handle = PyroWave.createRenderer(target, width, height, chroma444, hdr)
         if (handle == 0L) {
             LimeLog.severe("PyroWave: could not make a ${width}x$height renderer")
             return -2
