@@ -31,7 +31,7 @@ int main(int argc,char** argv) {
     QTemporaryDir config; qputenv("XDG_CONFIG_HOME",config.path().toUtf8()); QGuiApplication app(argc,argv);
     QCoreApplication::setOrganizationName("NovaDeckTests"); QCoreApplication::setApplicationName("GameTools");
     game_tools_fixture::Host host; DeckGameTools tools; DeckPlaySettings settings(config.filePath("play.ini")); DeckGameShortcuts shortcuts;
-    settings.setVideoDecodeSupport({.h264={4096,4096},.hevc={1920,1200}});
+    settings.setVideoDecodeSupport({.h264={4096,4096},.hevc={1920,1200},.pyrowave={1920,1200}});
     tools.setTarget("host",host.resolver());
     tools.setPreviewPublisher([](const auto&,const auto&,QVariantList items) { int index=0; for(auto& raw:items) {auto value=raw.toMap(); value.remove("previewPath"); value["preview"]="image://art/"+QString::number(index++);raw=value;}return items;});
     QQmlEngine engine; engine.addImageProvider("art",new Artwork);
@@ -84,6 +84,58 @@ int main(int argc,char** argv) {
     QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();}); item("play-setup-tuning")->forceActiveFocus(); settle();
     capture("play-setup-1280");
     QMetaObject::invokeMethod(root.get(),"large");window->resize(960,600);settle();capture("play-setup-960-large");
+    const auto setupState = [&] { QVariant state; check(QMetaObject::invokeMethod(setup,"state",Q_RETURN_ARG(QVariant,state)),"setup state unavailable"); return state.toMap(); };
+    const auto codecChoices = [&] { return setupState()["streamPlan"].toMap()["codecs"].toList(); };
+    const auto chooseCodec = [&](const QString& codec) {
+        item("play-setup-codec")->forceActiveFocus(); QTest::keyClick(window,Qt::Key_Return); settle();
+        check(picker->property("opened").toBool(),"codec picker not open");
+        const auto choices = codecChoices(); int index = -1;
+        for (int i=0; i<choices.size(); ++i) if (choices[i].toMap()["videoCodec"]==codec) index=i;
+        check(index>=0,"requested codec missing from picker");
+        item(qPrintable(QString("play-setup-choice-%1").arg(index)))->forceActiveFocus();
+        QTest::keyClick(window,Qt::Key_Return); wait([&]{return !tools.busy();});
+        check(settings.load("host","game")["configuration"].toMap()["videoCodec"]==codec,"codec choice not saved");
+    };
+    setup->setProperty("streamCapabilities",QVariantMap{{"h264",true},{"hevc",true},{"pyrowave",true},{"maxFps",120}}); settle();
+    check(settings.saveChoice("host","game",{{"encoderBackend","nvenc"}}),"saved encoder setup failed");
+    QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();});
+    check(!setupState()["setupAllowed"].toBool(),"unavailable saved encoder admitted");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    chooseCodec("pyrowave");
+    const auto pyroState=setupState(); const auto pyroConfig=pyroState["streamPlan"].toMap()["configuration"].toMap();
+    check(pyroState["setupAllowed"].toBool() && pyroState["streamPlan"].toMap()["playable"].toBool(),"saved encoder blocked PyroWave");
+    check(pyroConfig["encoderBackend"].toString().isEmpty() && pyroConfig["profilePreference"]=="quality","PyroWave review lost tuning or retained encoder");
+    check(settings.load("host","game")["configuration"].toMap()["encoderBackend"]=="nvenc","PyroWave erased saved encoder");
+    check(!encoder->isEnabled() && encoder->property("value").toString().contains("Vulkan")
+        && encoder->property("scopeLabel")=="Selected by codec","PyroWave encoder row is misleading");
+    for (const auto& raw:pyroState["readPlan"].toMap()["facts"].toList()) {
+        const auto fact=raw.toMap(); if(fact["key"]=="Host plan")
+            check(!fact["detail"].toString().contains("Codec:") && !fact["detail"].toString().contains("Color:"),"generic host plan contradicted PyroWave selection");
+    }
+    item("play-setup-codec")->forceActiveFocus(); QTest::keyClick(window,Qt::Key_Down); settle();
+    check(window->activeFocusItem()==item("play-setup-tuning"),"D-pad focused fixed PyroWave encoder");
+    capture("play-setup-pyrowave-960-large");
+    chooseCodec("h264");
+    check(encoder->isEnabled() && !setupState()["setupAllowed"].toBool()
+        && setupState()["streamPlan"].toMap()["configuration"].toMap()["encoderBackend"]=="nvenc","switching codec failed to restore saved encoder");
+    check(settings.saveChoice("host","game",{{"encoderBackend","vaapi"}}),"encoder reset failed");
+    QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();});
+    encoder->forceActiveFocus(); QTest::keyClick(window,Qt::Key_Return); settle();
+    check(picker->property("opened").toBool(),"encoder picker not reopened");
+    check(settings.saveChoice("host","game",{{"videoCodec","pyrowave"}}),"external codec save failed");
+    QMetaObject::invokeMethod(setup,"reloadChoices"); wait([&]{return !tools.busy();});
+    check(!picker->property("opened").toBool(),"stale encoder picker remained open");
+    check(window->activeFocusItem()==item("play-setup-codec"),"stale encoder picker did not return focus to codec");
+    setup->setProperty("streamCapabilities",QVariantMap{{"h264",true},{"maxFps",120}}); settle();
+    check(!setupState()["streamPlan"].toMap()["playable"].toBool()
+        && setupState()["streamPlan"].toMap()["reason"].toString().contains("PC"),"withdrawn host codec stayed playable or lacked guidance");
+    check(settings.load("host","game")["configuration"].toMap()["videoCodec"]=="pyrowave","capability withdrawal erased codec preference");
+    chooseCodec("h264");
+#else
+    for (const auto& choice:codecChoices()) check(choice.toMap()["videoCodec"]!="pyrowave","disabled build offered PyroWave");
+#endif
+    check(settings.saveChoice("host","game",{{"encoderBackend","vaapi"}}),"final encoder reset failed");
+    QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();});
     QMetaObject::invokeMethod(root.get(),"art");wait([&]{return !tools.busy();});
     auto* search=item("artwork-search");search->forceActiveFocus();QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
     QTest::keyClick(window,Qt::Key_Down);settle();check(window->activeFocusItem()==item("artwork-result-0"),"search to candidate focus lost");

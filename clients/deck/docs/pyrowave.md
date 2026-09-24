@@ -7,8 +7,15 @@ uses GameStream transport.
 Build the native client with `-DNOVA_DECK_BUILD_PYROWAVE=ON` and the pinned
 `pyrowave-shared` 0.6.0 development package. The experimental Flatpak manifest is
 `packaging/flatpak/com.papi_ux.Nova.pyrowave.json`. The regular manifest keeps the
-feature disabled. In Video & Stream, choose **PyroWave · Experimental** explicitly;
+feature disabled. In **Play Setup → Video Codec**, choose **PyroWave · Experimental** explicitly;
 Auto does not select it.
+
+The Encoder row then shows **PyroWave · Vulkan**, selected by the codec. Saved
+NVENC, VA-API or other encoder choices remain available when switching back to
+another codec, but are not sent with a PyroWave launch. Tuning presets still apply
+and require the usual host authorization. An unsupported build, host, GPU or
+stream size explains why PyroWave cannot start; an explicit choice never falls
+back silently to another codec.
 
 ## Packaging and compatibility
 

@@ -134,6 +134,10 @@ bool writeChoices(QSettings& settings, const QString& legacyKey, QVariantMap cho
 }
 }
 
+QString DeckPlayConfiguration::launchEncoderBackend() const {
+    return videoCodec == "pyrowave" ? QString{} : encoderBackend;
+}
+
 QVariantMap DeckPlayConfiguration::toMap() const {
     return {{"width", width}, {"height", height}, {"fps", fps}, {"bitrateKbps", bitrateKbps},
         {"faceButtonLayout", faceButtonLayout}, {"launchMode", launchMode}, {"videoCodec", videoCodec}, {"profilePreference", profilePreference}, {"encoderBackend", encoderBackend}};
@@ -379,6 +383,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     const QVariantMap& planner, const QVariantMap& display, bool spaceSession) const {
     const auto requested = DeckPlayConfiguration::fromMap(values);
     auto effective = requested.value_or(DeckPlayConfiguration{});
+    effective.encoderBackend = effective.launchEncoderBackend();
     DeckStreamCapabilities limits;
     limits.valid = capabilities.value("valid", true).toBool();
     limits.h264 = capabilities.value("h264", true).toBool();
@@ -434,9 +439,19 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     }
     if (!rates.empty() && effective.fps > rates.back().toMap().value("fps").toInt())
         effective.fps = rates.back().toMap().value("fps").toInt();
+    QString pyrowaveUnavailable;
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (spaceSession) pyrowaveUnavailable = "PyroWave is not available in Spaces. Choose Auto or H.264.";
+    else if (!limits.pyrowave) pyrowaveUnavailable = "This PC does not offer compatible PyroWave support. Use a matching enabled Polaris build or choose another codec.";
+    else if (videoSupport_.pyrowave.maxWidth <= 0 || videoSupport_.pyrowave.maxHeight <= 0)
+        pyrowaveUnavailable = "PyroWave Vulkan decoding is unavailable on this Linux device. Choose another codec.";
+    else pyrowaveUnavailable = "This stream size exceeds this device's PyroWave decoder limits. Choose a smaller size or another codec.";
+#else
+    pyrowaveUnavailable = "This Nova build does not include PyroWave. Use an enabled experimental build or choose another codec.";
+#endif
     QString reason;
     if (!requested || !limits.valid) reason = "Stream capabilities could not be verified. Refresh this PC and try again.";
-    else if (!selectedFormat) reason = spaceSession && effective.videoCodec == "hevc"
+    else if (!selectedFormat) reason = effective.videoCodec == "pyrowave" ? pyrowaveUnavailable : spaceSession && effective.videoCodec == "hevc"
         ? "Spaces currently use H.264. Choose Auto or H.264 to play here."
         : "The selected codec is unavailable for this PC and stream size. Choose Auto or another codec, or refresh this PC.";
     else if (rates.empty()) reason = "This PC cannot provide a supported frame rate. Check its streaming settings.";
@@ -459,7 +474,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     }) {
         const bool available = stream::selectSdrVideoFormat(codec, limits.h264, limits.hevc, videoSupport_, effective.width, effective.height, limits.pyrowave) != 0;
         const QString label = QString(codec) == "auto" ? "Auto" : QString(codec) == "hevc" ? "HEVC" : QString(codec) == "pyrowave" ? "PyroWave · Experimental" : "H.264";
-        const QString detail = !available ? (spaceSession && QString(codec) == "hevc" ? "Spaces currently use H.264." : "Unavailable for this PC and stream size.")
+        const QString detail = !available ? (QString(codec) == "pyrowave" ? pyrowaveUnavailable : spaceSession && QString(codec) == "hevc" ? "Spaces currently use H.264." : "Unavailable for this PC and stream size.")
             : QString(codec) == "auto" ? "Prefer HEVC when both devices support it; otherwise use H.264."
             : QString(codec) == "pyrowave" ? "High-bandwidth GPU codec for fast local networks. Requires matching Polaris support. SDR only."
             : QString(codec) == "hevc" ? "Use HEVC for more efficient video compression. HDR is not available yet."
@@ -468,7 +483,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     }
     const QString codecDetail = requested && requested->videoCodec == "auto" && selectedFormat
         ? (selectedFormat == VIDEO_FORMAT_H265 ? "Auto selected HEVC. HDR is not available yet." : "Auto selected H.264; HEVC is unavailable for this stream.")
-        : effective.videoCodec == "pyrowave" ? "PyroWave needs a fast local network and a higher bitrate for fine detail. Higher resolution or frame rate needs more bandwidth. HDR is not available yet."
+        : effective.videoCodec == "pyrowave" ? "Uses the PC's Vulkan encoder. Your encoder preference stays saved for other codecs. Needs a fast local network and a higher bitrate for fine detail. SDR only; HDR is not supported."
         : "HDR is not available yet.";
     return {{"configuration", effective.toMap()}, {"playable", reason.isEmpty()}, {"reason", reason},
         {"adjustment", reason.isEmpty() ? adjustment : QString{}}, {"resolutions", resolutions}, {"rates", rates},

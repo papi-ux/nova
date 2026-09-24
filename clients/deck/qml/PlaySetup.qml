@@ -9,6 +9,7 @@ FocusScope {
     property var hostSettingsController: null
     property var gameTools: null
     readonly property var toolsState: gameTools ? gameTools.state : ({})
+    readonly property bool codecManagesEncoder: configuration.videoCodec === "pyrowave"
     readonly property var encoderChoices: [{ encoderBackend: "", label: "Host default", detail: "Let the PC choose its encoder." }].concat((toolsState.settings || {}).encoders || [])
     readonly property var presetChoices: [
         { profilePreference: "auto", label: "Auto", detail: "Use the host's automatic launch preset." },
@@ -17,9 +18,9 @@ FocusScope {
         { profilePreference: "stability", label: "Stability", detail: "Ask the host to favor a steady stream." }
     ]
     readonly property bool setupAllowed: !gameTools || (!toolsState.writing && !toolsState.uncertain
-        && ((!configuration.encoderBackend && (configuration.profilePreference || "auto") === "auto")
+        && ((!plan.configuration.encoderBackend && (configuration.profilePreference || "auto") === "auto")
             || (!toolsState.busy && toolsState.available && Object.keys(toolsState.settings || {}).length > 0
-                && encoderChoices.some(choice => choice.encoderBackend === (configuration.encoderBackend || "")))))
+                && encoderChoices.some(choice => choice.encoderBackend === (plan.configuration.encoderBackend || "")))))
     readonly property var requestedConfiguration: {
         const result = Object.assign({}, configuration)
         if (result.profilePreference === "high_fps" && !overrides.fps)
@@ -71,7 +72,7 @@ FocusScope {
     property string error: ""
     property string notice: ""
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
-    readonly property var rows: [resolution, rate, bitrate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible)
+    readonly property var rows: [resolution, rate, bitrate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible && (row !== encoder || !codecManagesEncoder))
     signal choiceOpened()
     signal focusPlayRequested()
     signal backRequested()
@@ -96,6 +97,7 @@ FocusScope {
                 && JSON.stringify(picker.choices.filter(c => c.customField === undefined)) !== JSON.stringify(plan.rates)) || (picker.returnFocus === videoCodec
                 && JSON.stringify(picker.choices) !== JSON.stringify(plan.codecs)))) picker.close()
     }
+    onCodecManagesEncoderChanged: if (codecManagesEncoder && picker && picker.opened && picker.returnFocus === encoder) picker.close()
 
     function prepare() {
         customEditor.close()
@@ -201,7 +203,9 @@ FocusScope {
         { key: "Buttons", value: effectiveFaceButtonLayout === "positions" ? "Match positions" : "Match labels",
             detail: overrides.faceButtonLayout ? "This game" : "Device default" },
         { key: "Host plan", value: toolsState.busy ? "Checking…" : ((toolsState.plan || {}).label || (toolsState.plan || {}).preset || "Not supplied"),
-            detail: ((toolsState.plan || {}).fields || []).filter(f => f.key !== "target_fps").map(hostPlanFact).join("\n") || (toolsState.copy || "The host confirms its settings when the game starts.") },
+            detail: ((toolsState.plan || {}).fields || []).filter(f => f.key !== "target_fps"
+                && (!codecManagesEncoder || (f.key !== "preferred_codec" && f.key !== "hdr"))).map(hostPlanFact).join("\n")
+                || (toolsState.copy || "The host confirms its settings when the game starts.") },
         { key: "Launch", value: modeLabel(configuration.launchMode), detail: spaceDestination ? "Uses this Space's launch settings."
             : configuration.launchMode === "default" ? (launchPolicy.known ? "PC default: " + modeLabel(launchPolicy.hostDefault) : "Uses your PC's launch settings.")
             : "Applies to this launch; the PC default stays unchanged." }
@@ -222,10 +226,11 @@ FocusScope {
         property string field: ""
         property string explanation: ""
         property string defaultExplanation: ""
+        property string scopeLabel: field ? (overrides[field] ? "This game" : "Default") : "This game's choices"
         text: label + ": " + value
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(60 * unit, 52 * unit * NovaTheme.fontScale)
-        Accessible.description: (overrides[field] ? "This game. " : "Default. ") + explanation
+        Accessible.description: scopeLabel + ". " + explanation
         onActiveFocusChanged: if (activeFocus) focusedRow = position
         Keys.onUpPressed: position > 0 ? rows[position - 1].forceActiveFocus() : focusPlayRequested()
         Keys.onDownPressed: position < rows.length - 1 ? rows[position + 1].forceActiveFocus() : focusPlayRequested()
@@ -236,7 +241,7 @@ FocusScope {
             ColumnLayout {
                 spacing: 2 * unit
                 Copy { text: label; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text; font.pixelSize: 17 * unit * NovaTheme.fontScale }
-                Copy { text: parent.parent.parent === steamLaunch ? "This game · On PC" : field ? (overrides[field] ? "This game" : "Default") : "This game's choices"; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale }
+                Copy { text: parent.parent.parent === steamLaunch ? "This game · On PC" : scopeLabel; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale }
             }
             Copy {
                 Layout.fillWidth: true
@@ -420,12 +425,15 @@ FocusScope {
                 }
                 Setting {
                     id: encoder; objectName: "play-setup-encoder"
-                    visible: !!gameTools && !spaceSession && (encoderChoices.length > 1 || !!configuration.encoderBackend)
+                    visible: codecManagesEncoder || (!!gameTools && !spaceSession && (encoderChoices.length > 1 || !!configuration.encoderBackend))
+                    enabled: setup.editable && !codecManagesEncoder
                     field: "encoderBackend"; label: "Encoder"
-                    value: (encoderChoices.find(c => c.encoderBackend === (configuration.encoderBackend || "")) || {}).label || "Unavailable choice"
-                    explanation: "This launch only. Exact encoders must still be available when the game starts."
+                    value: codecManagesEncoder ? "PyroWave · Vulkan" : (encoderChoices.find(c => c.encoderBackend === (configuration.encoderBackend || "")) || {}).label || "Unavailable choice"
+                    scopeLabel: codecManagesEncoder ? "Selected by codec" : overrides.encoderBackend ? "This game" : "Default"
+                    explanation: codecManagesEncoder ? "PyroWave selects the PC's Vulkan encoder. Your encoder preference stays saved for other codecs."
+                        : "This launch only. Exact encoders must still be available when the game starts."
                     defaultExplanation: "Use the PC's encoder selection."
-                    onClicked: picker.choose(encoder, "Encoder", encoderChoices, Math.max(0, encoderChoices.findIndex(c => c.encoderBackend === (configuration.encoderBackend || ""))))
+                    onClicked: if (!codecManagesEncoder) picker.choose(encoder, "Encoder", encoderChoices, Math.max(0, encoderChoices.findIndex(c => c.encoderBackend === (configuration.encoderBackend || ""))))
                 }
                 Setting {
                     id: tuning; objectName: "play-setup-tuning"
@@ -530,7 +538,7 @@ FocusScope {
         // Reusing the delegates can briefly report the previously focused row.
         // Reopen from the saved choice, never that transient focus notification.
         onOpened: focusChoice(selectedIndex)
-        onClosed: if (returnFocus) returnFocus.forceActiveFocus()
+        onClosed: if (returnFocus) (returnFocus === encoder && codecManagesEncoder ? videoCodec : returnFocus).forceActiveFocus()
         background: Rectangle { color: NovaTheme.panel; radius: 12 * unit; border.color: NovaTheme.divider }
         contentItem: NovaScrollColumn {
             spacing: 14 * unit

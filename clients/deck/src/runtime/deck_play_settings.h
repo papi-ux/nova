@@ -27,6 +27,8 @@ struct DeckPlayConfiguration {
     QString videoCodec = "h264"; // Preserve the existing device default.
     QString profilePreference = "auto";
     QString encoderBackend;
+    // Keep the saved backend for other codecs; PyroWave chooses Vulkan per session.
+    QString launchEncoderBackend() const;
     QVariantMap toMap() const;
     static std::optional<DeckPlayConfiguration> fromMap(const QVariantMap& values);
 };

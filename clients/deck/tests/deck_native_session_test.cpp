@@ -258,6 +258,55 @@ void testRevalidatedPresetAndEncoder() {
     }
 }
 
+void testPyrowaveEncoderOverride() {
+    for (int scenario = 0; scenario < 5; ++scenario) {
+        Host host; Driver driver;
+        std::atomic<int> checks{0};
+        host.decoderSupport.pyrowave = scenario == 4 ? DeckDecodeLimits{} : DeckDecodeLimits{1920, 1200};
+        host.verifyStream = [scenario](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+            nova::deck::DeckStreamCapabilities capabilities;
+            capabilities.pyrowave = scenario != 3;
+            return capabilities;
+        };
+        host.serverInfoOverride = "<root status_code=\"200\"><appversion>7.1</appversion>"
+            "<ServerCodecModeSupport>8388609</ServerCodecModeSupport></root>";
+        host.authorizeSetup = [&](const QString& preset, const QString& encoder, const auto& cancelled) {
+            ++checks;
+            require(preset == "quality" && encoder.isEmpty() && !cancelled(), "PyroWave authorized a saved conventional encoder");
+            return scenario != 2;
+        };
+        auto values = DeckPlayConfiguration{}.toMap();
+        values["videoCodec"] = "pyrowave";
+        values["encoderBackend"] = "nvenc";
+        values["profilePreference"] = scenario == 0 ? "auto" : "quality";
+        DeckNativeSessionController controller(true, host.resolver(), driver);
+        require(controller.startConfigured("host", "game", values), "PyroWave configuration was not reviewed asynchronously");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        const bool allowed = scenario < 2;
+        const int expectedChecks = scenario == 1 || scenario == 2 ? 1 : 0;
+#else
+        const bool allowed = false;
+        const int expectedChecks = 0;
+#endif
+        if (allowed) {
+            until([&] { return phase(controller) == "active"; });
+            require(host.launchRequest.find("encoderBackend=") == std::string::npos &&
+                host.launchRequest.find("expectedEncoder=") == std::string::npos, "PyroWave sent a conventional encoder override");
+            require(scenario != 1 || host.launchRequest.find("profilePreference=quality") != std::string::npos,
+                "PyroWave lost the authorized tuning preference");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+            require(driver.receivedConfiguration.supportedVideoFormats == VIDEO_FORMAT_PYROWAVE,
+                "PyroWave silently selected another codec");
+#endif
+            controller.stop();
+        }
+        settled(controller);
+        require(checks == expectedChecks && values.value("encoderBackend") == "nvenc", "codec review changed saved choices or checked unavailable tuning");
+        if (!allowed) require(host.launches == 0 && host.resumes == 0 && host.cancels == 0 && driver.starts == 0,
+            "unsupported codec or refused tuning mutated the host");
+    }
+}
+
 void testReviewedConfiguration() {
     Host host;
     Driver driver;
@@ -2022,6 +2071,7 @@ int main(int argc, char** argv) {
     testPresentationLifetime();
     testReviewedConfiguration();
     testRevalidatedPresetAndEncoder();
+    testPyrowaveEncoderOverride();
     {
         Host host;
         Driver driver;

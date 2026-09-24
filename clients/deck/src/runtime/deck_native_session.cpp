@@ -753,15 +753,6 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             target->request.bitrateKbps = configuration->bitrateKbps;
         }
         target->request.profilePreference.clear(); target->request.encoderBackend.clear();
-        if (!resume && configuration && (configuration->profilePreference != "auto" || !configuration->encoderBackend.isEmpty())) {
-            if (!target->authorizeSetup || !target->authorizeSetup(configuration->profilePreference, configuration->encoderBackend,
-                    [shared] { return shared->cancelled.load(); }) || !resolver(hostId, gameId)) {
-                finish(shared->cancelled ? "cancelled" : "failed", "The preset or encoder is no longer available. Refresh this PC and review Play Setup.");
-                return;
-            }
-            target->request.profilePreference = configuration->profilePreference.toStdString();
-            target->request.encoderBackend = configuration->encoderBackend.toStdString();
-        }
         target->request.streamMode.clear();
         target->request.audioConfiguration = audio.channels == 8 ? AUDIO_CONFIGURATION_71_SURROUND
             : audio.channels == 6 ? AUDIO_CONFIGURATION_51_SURROUND : AUDIO_CONFIGURATION_STEREO;
@@ -793,6 +784,16 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         if (!target->request.videoFormat) {
             finish("failed", "The selected video codec is no longer available. Review Play Setup again before starting.");
             return;
+        }
+        const auto encoderBackend = configuration ? configuration->launchEncoderBackend() : QString{};
+        if (!resume && configuration && (configuration->profilePreference != "auto" || !encoderBackend.isEmpty())) {
+            if (!target->authorizeSetup || !target->authorizeSetup(configuration->profilePreference, encoderBackend,
+                    [shared] { return shared->cancelled.load(); }) || !resolver(hostId, gameId)) {
+                finish(shared->cancelled ? "cancelled" : "failed", "The preset or encoder is no longer available. Refresh this PC and review Play Setup.");
+                return;
+            }
+            target->request.profilePreference = configuration->profilePreference.toStdString();
+            target->request.encoderBackend = encoderBackend.toStdString();
         }
         if (!resume && configuration && configuration->launchMode != "default") {
             const auto mode = configuration->launchMode.toStdString();
