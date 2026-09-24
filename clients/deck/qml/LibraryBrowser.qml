@@ -16,6 +16,7 @@ FocusScope {
     property var hostSettingsController: null
     property var windowController: null
     property var desktopInput: null
+    property var updateController: null
     required property var settingsProvider
     property var hostPower: null
     property var gamepad: null
@@ -58,7 +59,7 @@ FocusScope {
     property var savedView: ({})
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
     readonly property bool blocked: refreshState.busy && !refreshState.automatic
-    readonly property bool launchEnabled: refreshState.destinationPlayable !== false && !refreshState.busy && !refreshState.failed && !sessionBusy
+    readonly property bool launchEnabled: refreshState.destinationPlayable !== false && !refreshState.busy && !refreshState.failed && !sessionBusy && !(updateController && updateController.busy)
         && selectedId.length > 0 && selectedId !== "game-empty-state"
     readonly property bool browsing: grid.activeFocus || (grid.currentItem && grid.currentItem.activeFocus)
         || emptyState.activeFocus
@@ -160,6 +161,7 @@ FocusScope {
         onClosed: Qt.callLater(artworkButton.forceActiveFocus)
     }
     function openGameLink(id) {
+        if (updateController && updateController.busy) return false
         clearConstraints()
         const index = visibleGames.findIndex(game => game.id === id)
         if (index < 0) return false
@@ -560,7 +562,7 @@ FocusScope {
                 ChromeButton {
                     id: settingsButton
                     objectName: "library-settings"
-                    text: "Settings"
+                    text: browser.updateController && browser.updateController.state.restartRequired ? "Finish Update" : browser.updateController && browser.updateController.state.available ? "Update Available" : "Settings"
                     enabled: !sessionBusy
                     onClicked: settingsHub.open()
                     Keys.onLeftPressed: systemButton.forceActiveFocus()
@@ -1128,7 +1130,7 @@ FocusScope {
             ChromeButton {
                 id: playButton
                 objectName: "game-detail-play"
-                text: refreshState.busy ? "Updating…" : refreshState.destinationPlayable === false ? refreshState.destinationPlayLabel : "Play"
+                text: browser.updateController && browser.updateController.busy ? "Updating Nova…" : refreshState.busy ? "Updating…" : refreshState.destinationPlayable === false ? refreshState.destinationPlayLabel : "Play"
                 primary: true
                 Layout.preferredWidth: 190 * unit
                 Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
@@ -1195,6 +1197,7 @@ FocusScope {
         id: settingsHub
         windowController: browser.windowController
         desktopInput: browser.desktopInput
+        updateController: browser.updateController
         settingsProvider: browser.settingsProvider
         hostController: browser.hostSettingsController
         libraryPreferences: preferences

@@ -807,6 +807,7 @@ ApplicationWindow {
         hostPower: novaHostPower
         gamepad: novaGamepad
         id: androidLibrary
+        updateController: novaUpdates
         anchors.fill: parent
         visible: novaStandalone
         enabled: novaStandalone
@@ -823,7 +824,10 @@ ApplicationWindow {
         onChooseHost: focusSelectedHost()
         onRefreshRequested: refreshLibrary()
         onManagePcs: { root.managePcsRequested = true; root.close() }
-        onPlayRequested: game => { selectGameForPreview(game); nativePreview.open() }
+        onPlayRequested: game => {
+            if (novaUpdates.busy) return
+            selectGameForPreview(game); nativePreview.open()
+        }
     }
 
     FocusScope {

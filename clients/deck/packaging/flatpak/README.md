@@ -2,6 +2,12 @@
 
 `com.papi_ux.Nova` runs on `org.kde.Platform` 6.10. The desktop entry and newly registered Steam shortcuts open the standalone Nova interface, with Nova-owned pairing and in-app streaming. This is a development preview; release acceptance is still tracked in the Deck parity checklist.
 
+Signed channel builds support **Settings → Nova → Nova Updates**, including
+optional automatic installation while idle. Ordinary bundles built with the
+commands below do not configure an update feed. See the
+[Linux update guide](../../../../docs/linux-updates.md) for feed staging,
+publication and migration from an existing bundle.
+
 Build a bundle from a checkout with its submodules initialised (moonlight-common-c is in-tree):
 
     flatpak install --user flathub org.kde.Platform//6.10 org.kde.Sdk//6.10

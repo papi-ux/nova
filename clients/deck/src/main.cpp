@@ -13,6 +13,7 @@
 #include "runtime/deck_native_session.h"
 #include "runtime/deck_rumble.h"
 #include "runtime/deck_sleep_monitor.h"
+#include "runtime/deck_updates.h"
 #include "runtime/deck_play_settings.h"
 #include "runtime/deck_display_capabilities.h"
 #include "runtime/deck_pairing_controller.h"
@@ -1702,6 +1703,8 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     nova::deck::runtime::DeckGameTools gameTools;
     nova::deck::runtime::DeckHostPowerController hostPower;
     nova::deck::runtime::DeckHostSettingsController hostSettings;
+    nova::deck::runtime::DeckUpdates updates(nova::deck::runtime::DeckUpdates::installedOptions(standalone));
+    QObject::connect(&updates, &nova::deck::runtime::DeckUpdates::quitRequested, &app, &QCoreApplication::quit);
     const auto updatePowerTarget = [&] {
         const auto& snapshot = libraryRefresh.snapshot();
         QString name;
@@ -1713,23 +1716,30 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     updatePowerTarget();
     const auto coordinateHostActions = [&] {
         const bool streaming = nativeSession.busy() || nativeSession.systemSleeping();
-        hostPower.setSessionActive(streaming || hostSettings.busy() || gameTools.busy());
+        const bool maintenance = updates.busy();
+        updates.setBlocked(streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
+        hostPower.setSessionActive(streaming || maintenance || hostSettings.busy() || gameTools.busy());
         // Read-only game-plan checks must not revoke the open host-settings
         // review after a local default edit. Mutations retain mutual exclusion.
-        hostSettings.setSessionActive(streaming || hostPower.busy() || gameTools.writing());
-        gameTools.setSessionActive(streaming || hostPower.busy() || hostSettings.busy());
-        libraryRefresh.setSessionBusy(streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy());
-        if (standalone && !streaming) nativeSession.setTargetResolver(hostPower.busy() || hostSettings.busy() || gameTools.writing() ? nova::deck::runtime::DeckNativeTargetResolver{} : libraryRefresh.targetResolver());
+        hostSettings.setSessionActive(streaming || maintenance || hostPower.busy() || gameTools.writing());
+        gameTools.setSessionActive(streaming || maintenance || hostPower.busy() || hostSettings.busy());
+        libraryRefresh.setSessionBusy(streaming || maintenance || hostPower.busy() || hostSettings.busy() || gameTools.busy());
+        if (standalone && !streaming) nativeSession.setTargetResolver(maintenance || libraryRefresh.busy() || hostPower.busy() || hostSettings.busy() || gameTools.writing() ? nova::deck::runtime::DeckNativeTargetResolver{} : libraryRefresh.targetResolver());
     };
+    // The newest controller owns these connections so shutdown cannot invoke
+    // the coordinator after its update/session guards have been destroyed.
+    QObject::connect(&updates, &nova::deck::runtime::DeckUpdates::busyChanged, &updates, coordinateHostActions);
+    QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::stateChanged, &updates, coordinateHostActions);
+    coordinateHostActions();
     QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::stateChanged,
-        &libraryRefresh, coordinateHostActions);
+        &updates, coordinateHostActions);
     QObject::connect(&hostPower, &nova::deck::runtime::DeckHostPowerController::stateChanged,
-        &libraryRefresh, coordinateHostActions);
+        &updates, coordinateHostActions);
     QObject::connect(&hostSettings, &nova::deck::runtime::DeckHostSettingsController::stateChanged,
-        &libraryRefresh, coordinateHostActions);
+        &updates, coordinateHostActions);
     QObject::connect(&sleepMonitor, &nova::deck::runtime::DeckSleepMonitor::sleepingChanged,
         &hostPower, [&](bool sleeping) { if (sleeping) hostPower.cancel(); });
-    QObject::connect(&gameTools, &nova::deck::runtime::DeckGameTools::stateChanged, &libraryRefresh, coordinateHostActions);
+    QObject::connect(&gameTools, &nova::deck::runtime::DeckGameTools::stateChanged, &updates, coordinateHostActions);
     gamepadBridge.setNativeSession(&nativeSession);
     nova::deck::runtime::DeckPlaySettings playSettings;
     nova::deck::runtime::DeckDesktopInputBridge desktopInput(nativeSession, playSettings);
@@ -1771,6 +1781,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaHostPower", &hostPower);
     engine.rootContext()->setContextProperty("novaHostSettings", &hostSettings);
     engine.rootContext()->setContextProperty("novaNativeSession", &nativeSession);
+    engine.rootContext()->setContextProperty("novaUpdates", &updates);
     engine.rootContext()->setContextProperty("novaPlaySettings", &playSettings);
     engine.rootContext()->setContextProperty("novaWindowController", &windowController);
     engine.rootContext()->setContextProperty("novaDesktopInput", &desktopInput);
@@ -1811,13 +1822,13 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
             if (standalone && libraryRefresh.busy()) nativeSession.setTargetResolver({});
         });
     QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::snapshotChanged,
-        &engine, [&] {
+        &updates, [&] {
             if (!standalone) return;
             updatePowerTarget();
             const auto& snapshot = libraryRefresh.snapshot();
             const nova::deck::backend::DeckLiveReadOnlyStateProvider provider(snapshot, readOnlyPreflightService);
             const auto state = provider.stateForScenario("live");
-            nativeSession.setTargetResolver(libraryRefresh.targetResolver());
+            coordinateHostActions();
             auto* context = engine.rootContext();
             auto publicState = toReadOnlyStateModel(state);
             publicState.insert("destinationId", libraryRefresh.state().value("destinationId"));

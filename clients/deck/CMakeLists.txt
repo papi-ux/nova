@@ -3,6 +3,16 @@ cmake_minimum_required(VERSION 3.24)
 # The release version, kept equal to versionName in app/build.gradle by NovaReleaseMetadataTest.
 project(NovaDeck VERSION 1.4.12 LANGUAGES C CXX)
 
+# Only builds exported to a signed update feed enable the in-app updater.
+set(NOVA_DECK_UPDATE_CHANNEL "" CACHE STRING "Flatpak update branch: stable, beta or pyrowave")
+set(NOVA_DECK_UPDATE_URL "https://papi-ux.github.io/nova" CACHE STRING "Nova update catalog base URL")
+if(NOT NOVA_DECK_UPDATE_CHANNEL MATCHES "^(|stable|beta|pyrowave)$")
+    message(FATAL_ERROR "Unknown Nova update channel")
+endif()
+if(NOT NOVA_DECK_UPDATE_URL MATCHES "^https://[A-Za-z0-9./_-]+$")
+    message(FATAL_ERROR "Nova update feed must be an HTTPS URL without query or credentials")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -85,6 +95,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_rumble.cpp
     src/runtime/deck_rumble_linux.cpp
     src/runtime/deck_sleep_monitor.cpp
+    src/runtime/deck_updates.cpp
     src/runtime/deck_native_target.cpp
     src/polaris/deck_game_tools.cpp
     src/runtime/deck_game_shortcuts.cpp
@@ -112,6 +123,9 @@ add_library(nova_deck_core STATIC
 set_target_properties(nova_deck_core PROPERTIES AUTOMOC ON)
 
 target_compile_definitions(nova_deck_core PRIVATE NOVA_DECK_NATIVE_MEDIA=1)
+target_compile_definitions(nova_deck_core PRIVATE
+    NOVA_DECK_UPDATE_CHANNEL="${NOVA_DECK_UPDATE_CHANNEL}"
+    NOVA_DECK_UPDATE_URL="${NOVA_DECK_UPDATE_URL}")
 
 set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
     ${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c
@@ -119,6 +133,12 @@ set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
     "Path to the checked-out moonlight-common-c source tree used by the Deck stream skeleton"
 )
 option(NOVA_DECK_BUILD_PYROWAVE "Build the experimental pinned PyroWave codec" OFF)
+if(NOVA_DECK_UPDATE_CHANNEL STREQUAL "pyrowave" AND NOT NOVA_DECK_BUILD_PYROWAVE)
+    message(FATAL_ERROR "The PyroWave update channel must include the codec")
+endif()
+if(NOVA_DECK_UPDATE_CHANNEL MATCHES "^(stable|beta)$" AND NOVA_DECK_BUILD_PYROWAVE)
+    message(FATAL_ERROR "Use the separate pyrowave update channel for codec-enabled builds")
+endif()
 if(NOVA_DECK_BUILD_PYROWAVE)
     # Keep the Android submodule unchanged. Only this optional native build
     # consumes the private, version-negotiated GameStream extension.
@@ -369,6 +389,11 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_sleep_monitor_test COMMAND ${DBUS_RUN_SESSION} --
         ${CMAKE_COMMAND} -E env NOVA_DECK_PRIVATE_SLEEP_BUS=1 $<TARGET_FILE:nova_deck_sleep_monitor_test>)
     set_tests_properties(nova_deck_sleep_monitor_test PROPERTIES TIMEOUT 20)
+    add_executable(nova_deck_updates_test tests/deck_updates_test.cpp)
+    target_link_libraries(nova_deck_updates_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_updates_test COMMAND ${DBUS_RUN_SESSION} --
+        ${CMAKE_COMMAND} -E env NOVA_DECK_PRIVATE_UPDATE_BUS=1 $<TARGET_FILE:nova_deck_updates_test>)
+    set_tests_properties(nova_deck_updates_test PROPERTIES TIMEOUT 30)
     foreach(name IN ITEMS display_capabilities frame_delivery)
         add_executable(nova_deck_${name}_test tests/deck_${name}_test.cpp)
         target_link_libraries(nova_deck_${name}_test PRIVATE nova_deck_core)
@@ -640,6 +665,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/StreamProfileEditor.qml
                 qml/AppearanceSettings.qml
                 qml/SettingsHub.qml
+                qml/UpdateSettings.qml
                 qml/VideoScaleSettings.qml
                 qml/DeadzoneSettings.qml
                 qml/LibraryLayout.js
