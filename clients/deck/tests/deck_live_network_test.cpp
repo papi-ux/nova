@@ -226,6 +226,47 @@ void testDerivedCertificateCannotReceiveHttp() {
     require(https.requests == 0);
 }
 
+void testSlowHostShutdownKeepsItsReceipt() {
+    using namespace nova::deck;
+    QTemporaryDir directory;
+    require(directory.isValid());
+    const auto server = createIdentity(directory.path(), "shutdown-server");
+    const auto client = createIdentity(directory.path(), "shutdown-client");
+    TlsServer https(server);
+    https.trustClient(client.cert);
+    require(https.listen(QHostAddress::LocalHost, 0));
+    polaris::DeckPolarisClient connection({"127.0.0.1", https.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()},
+        std::chrono::milliseconds(150));
+    const auto fetch = stream::fetcherOverPolarisClient(connection);
+    https.eventStream = [](QSslSocket* socket) {
+        QTimer::singleShot(4500, socket, [socket] {
+            const QByteArray body = "<root status_code=\"200\"><cancel>1</cancel></root>";
+            socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: "
+                + QByteArray::number(body.size()) + "\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        });
+    };
+    const auto ended = stream::requestHostSessionCancel(fetch, "fixture-session");
+    require(ended.cancelled && https.requests == 1 && https.paths.back() == "/cancel");
+    // Waiting for shutdown must not lengthen a later ordinary read.
+    QElapsedTimer elapsed;
+    elapsed.start();
+    require(!fetch("/serverinfo").transportOk && elapsed.elapsed() < 1500);
+    https.eventStream = {};
+    https.handler = [](const QUrl&) {
+        return std::pair{403, QByteArray("denied")};
+    };
+    auto before = https.requests;
+    require(!stream::requestHostSessionCancel(fetch, "fixture-session").cancelled && https.requests == before + 1);
+    // An exact-pin failure still refuses cancellation before sending HTTP.
+    polaris::DeckPolarisClient wrongPin({"127.0.0.1", https.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), client.cert.toStdString()});
+    before = https.requests;
+    require(!stream::requestHostSessionCancel(stream::fetcherOverPolarisClient(wrongPin), "fixture-session").cancelled);
+    require(https.requests == before);
+}
+
 void testResponseDeadlineSurvivesIncomingBytes() {
     using namespace nova::deck::polaris;
     QTemporaryDir directory;
@@ -1357,6 +1398,7 @@ int main(int argc, char** argv) {
     testSilentHttpStillUsesPinnedHttps(false);
     testSilentHttpStillUsesPinnedHttps(true);
     testDerivedCertificateCannotReceiveHttp();
+    testSlowHostShutdownKeepsItsReceipt();
     testStandardHostLibraryAndLaunch();
     testResponseDeadlineSurvivesIncomingBytes();
     testFreshLaunchModeAuthority();
