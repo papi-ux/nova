@@ -50,7 +50,9 @@ Both client implementations must use the same contract:
 - DESCRIBE advertises `a=rtpmap:99 PYROWAVE/90000` and
   `a=fmtp:99 pyrowave-186f0393-sdr420-v1`. Match complete attributes for payload
   99, including the exact profile token, before selecting the decoder. Both LF
-  and CRLF are accepted. Missing, conflicting or duplicate attributes are refused.
+  and CRLF, spaces or tabs after the payload identifier, and trailing horizontal
+  whitespace are accepted. Missing, conflicting or duplicate attributes are refused,
+  including conflicts using different whitespace or a zero-padded payload identifier.
 - ANNOUNCE selects `bitStreamFormat=3`, accepting the single offered profile.
   No separate revision echo is required. Explicit selection fails when the
   offered profile is incompatible; it never silently chooses another codec.
