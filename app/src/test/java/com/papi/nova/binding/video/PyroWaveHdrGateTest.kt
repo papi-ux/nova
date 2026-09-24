@@ -38,6 +38,20 @@ class PyroWaveHdrGateTest {
     }
 
     @Test
+    fun theHostIsAskedWhetherItServesHdrAndNotWhichCodecItServesItWith() {
+        val connection = File("src/main/java/com/papi/nova/nvstream/NvConnection.kt").readText()
+        assertTrue(
+            "the host HDR capability check is back to two literal HEVC and AV1 bits, so a host that " +
+                "serves HDR only on this codec is told its GPU cannot stream HDR",
+            connection.contains("(context.serverCodecModeSupport and HOST_SERVES_HDR) == 0"),
+        )
+        assertTrue(
+            "the PyroWave HDR10 capability bit is not one of the bits that mean the host serves HDR",
+            connection.contains("private const val HOST_SERVES_HDR = 0x200 or 0x20000 or 0x02000000"),
+        )
+    }
+
+    @Test
     fun theDefaultIsStillTheTwoHardwareProfiles() {
         val base = File("src/main/java/com/papi/nova/binding/video/NovaVideoRenderer.kt").readText()
         val body = base.substringAfter("open val isHdr10Supported: Boolean")
