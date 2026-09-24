@@ -1449,7 +1449,7 @@ if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROW
  // On its own or not at all. Offering H.264 beside it would let a host that cannot serve the
         // codec hand back H.264 instead, which looks like it worked and is the hardest kind of wrong
         // to notice. The library refuses the session with a reason instead.
-        supportedVideoFormats = MoonBridge.VIDEO_FORMAT_PYROWAVE
+        supportedVideoFormats = MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444
 
  // Said rather than silently corrected, because the bitrate is the player's to choose and a
         // stream that quietly used four times the bandwidth asked for would be worse than a soft

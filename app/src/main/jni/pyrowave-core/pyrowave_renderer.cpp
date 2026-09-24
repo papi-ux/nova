@@ -99,7 +99,8 @@ namespace nova_vk {
     return UINT32_MAX;
   }
 
-  bool renderer_t::create(ANativeWindow *native_window, uint32_t width, uint32_t height) {
+  bool renderer_t::create(ANativeWindow *native_window, uint32_t width, uint32_t height,
+                          bool chroma_444) {
     destroy();
 
     if (!native_window || width == 0 || height == 0) {
@@ -108,6 +109,7 @@ namespace nova_vk {
     window = native_window;
     frame_width = width;
     frame_height = height;
+    chroma_shift = chroma_444 ? 0 : 1;
 
     if (!device.create(true)) {
       return false;
@@ -125,8 +127,8 @@ namespace nova_vk {
       return false;
     }
 
-    LOGI("renderer ready: %ux%u into a %ux%u surface", frame_width, frame_height,
-         swapchain_extent.width, swapchain_extent.height);
+    LOGI("renderer ready: %ux%u %s into a %ux%u surface", frame_width, frame_height,
+         chroma_shift == 0 ? "4:4:4" : "4:2:0", swapchain_extent.width, swapchain_extent.height);
     return true;
   }
 
@@ -331,7 +333,8 @@ namespace nova_vk {
     info.device = device.codec;
     info.width = static_cast<int>(frame_width);
     info.height = static_cast<int>(frame_height);
-    info.chroma = PYROWAVE_CHROMA_SUBSAMPLING_420;
+    info.chroma = chroma_shift == 0 ? PYROWAVE_CHROMA_SUBSAMPLING_444
+                                    : PYROWAVE_CHROMA_SUBSAMPLING_420;
 
     // The compute path, on hardware that says it would rather have the fragment one.
     //
@@ -363,8 +366,8 @@ namespace nova_vk {
   bool renderer_t::create_planes() {
     const uint32_t extents[3][2] = {
       {frame_width, frame_height},
-      {frame_width / 2, frame_height / 2},
-      {frame_width / 2, frame_height / 2},
+      {frame_width >> chroma_shift, frame_height >> chroma_shift},
+      {frame_width >> chroma_shift, frame_height >> chroma_shift},
     };
 
     VkDeviceSize offset = 0;
@@ -743,6 +746,19 @@ namespace nova_vk {
     // not lose them one at a time: it reassembles a whole frame under FEC or drops it, so a frame
     // that arrives here incomplete arrived corrupt.
     //
+    // The sequence number this frame carries, read the way the decoder reads it.
+    //
+    // push_packet judges every frame by this and says nothing: a frame whose sequence looks like it
+    // belongs to the past is dropped and success is still returned. The field is three bits, so it
+    // wraps every eight frames, and "the past" is any gap of more than four. Logging it beside the
+    // outcome is the only way to see that happening.
+    uint32_t frame_sequence = 0;
+    if (size >= 4) {
+      uint32_t first = 0;
+      std::memcpy(&first, bitstream, sizeof(first));
+      frame_sequence = (first >> 28) & 0x7;
+    }
+
     // A frame that lost blocks is still a frame, and drawing it is the reason to have this codec.
     //
     // This used to insist on a whole one, on the reasoning that the transport reassembles a frame
@@ -795,15 +811,21 @@ namespace nova_vk {
       // floor separates them, so say how many of these have happened and whether the decoder has
       // ever produced anything.
       unusable_frames++;
-      if (unusable_frames <= 3 || unusable_frames % 25 == 0) {
-        LOGW("frame %llu unusable: %zu bytes, decoder has%s produced a frame before",
-             static_cast<unsigned long long>(unusable_frames), size,
-             decoder_warmed ? "" : " not");
+      if (unusable_frames <= 40) {
+        LOGW("unusable %llu: seq %u, %zu bytes (last drawn seq %u)",
+             static_cast<unsigned long long>(unusable_frames), frame_sequence, size,
+             last_drawn_sequence);
       }
       return false;
     }
 
     decoder_warmed = true;
+    if (drawn_frames < 40) {
+      LOGI("drawn %llu: seq %u, %zu bytes", static_cast<unsigned long long>(drawn_frames),
+           frame_sequence, size);
+    }
+    drawn_frames++;
+    last_drawn_sequence = frame_sequence;
     if (partial) {
       partial_frames++;
       if (partial_frames == 1 || partial_frames % 120 == 0) {
@@ -1007,9 +1029,10 @@ namespace nova_vk {
 
 }  // namespace nova_vk
 
-extern "C" void *pyrowave_renderer_create(ANativeWindow *window, uint32_t width, uint32_t height) {
+extern "C" void *pyrowave_renderer_create(ANativeWindow *window, uint32_t width, uint32_t height,
+                                          bool chroma_444) {
   auto *renderer = new nova_vk::renderer_t();
-  if (!renderer->create(window, width, height)) {
+  if (!renderer->create(window, width, height, chroma_444)) {
     delete renderer;
     return nullptr;
   }

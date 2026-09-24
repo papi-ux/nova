@@ -1,0 +1,81 @@
+From 126bdee18ef366de29ec2f348df7427f0e4794a6 Mon Sep 17 00:00:00 2001
+From: papi <papi@papi-ux.com>
+Date: Thu, 24 Sep 2026 03:51:57 -0400
+Subject: [PATCH 6/6] feat(video): negotiate PyroWave 4:4:4
+
+A second format above the first, and a capability bit beside it. A client that wants a
+chroma sample per pixel asks for both formats and takes 4:4:4 when the host says it has it,
+which is the only time it is safe: the chroma travels in every frame sequence header, so a
+decoder built for the wrong one refuses every frame rather than degrading.
+
+The 4:4:4 format joins VIDEO_FORMAT_MASK_YUV444, which means the chromaSamplingType
+attribute this library already sends carries the request and needs no mechanism of its own.
+
+A client that asked only for 4:4:4 against a host without it is refused with a reason rather
+than handed 4:2:0 it cannot read.
+---
+ src/Limelight.h      |  8 +++++++-
+ src/RtspConnection.c | 17 ++++++++++++++++-
+ 2 files changed, 23 insertions(+), 2 deletions(-)
+
+diff --git a/src/Limelight.h b/src/Limelight.h
+index 28120bd..86b2884 100644
+--- a/src/Limelight.h
++++ b/src/Limelight.h
+@@ -235,6 +235,7 @@ typedef struct _DECODE_UNIT {
+ // that does not know the codec never sets its serverCodecModeSupport bit, and a client that does
+ // not know it never sets this one, so the two of them negotiate exactly as they did before.
+ #define VIDEO_FORMAT_PYROWAVE        0x10000 // PyroWave 4:2:0 8-bit
++#define VIDEO_FORMAT_PYROWAVE_444    0x20000 // PyroWave 4:4:4 8-bit
+ 
+ // What the host has to say before this client will accept the codec from it.
+ //
+@@ -256,7 +257,11 @@ typedef struct _DECODE_UNIT {
+ #define VIDEO_FORMAT_MASK_AV1      0xF000
+ #define VIDEO_FORMAT_MASK_PYROWAVE 0xF0000
+ #define VIDEO_FORMAT_MASK_10BIT    0xAA00
+-#define VIDEO_FORMAT_MASK_YUV444   0xCC04
++// PyroWave's 4:4:4 format joins this one so the chromaSamplingType attribute below is emitted for
++// it without a second mechanism. Chroma is the one thing about this codec that does not need an
++// agreement out of band: it travels in every frame's sequence header, and a decoder created for the
++// wrong one refuses the frame and says so.
++#define VIDEO_FORMAT_MASK_YUV444   0x2CC04
+ 
+ // If set in the renderer capabilities field, this flag will cause audio/video data to
+ // be submitted directly from the receive thread. This should only be specified if the
+@@ -537,6 +542,7 @@ void LiInitializeConnectionCallbacks(PCONNECTION_LISTENER_CALLBACKS clCallbacks)
+ #define SCM_AV1_HIGH8_444   0x00200000 // Sunshine extension
+ #define SCM_AV1_HIGH10_444  0x00400000 // Sunshine extension
+ #define SCM_PYROWAVE        0x00800000 // Polaris extension
++#define SCM_PYROWAVE_444    0x01000000 // Polaris extension
+ 
+ // SCM masks to identify various codec capabilities
+ #define SCM_MASK_H264   (SCM_H264 | SCM_H264_HIGH8_444)
+diff --git a/src/RtspConnection.c b/src/RtspConnection.c
+index b3235b8..5426cfc 100644
+--- a/src/RtspConnection.c
++++ b/src/RtspConnection.c
+@@ -1158,7 +1158,22 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+                 goto Exit;
+             }
+ 
+-            NegotiatedVideoFormat = VIDEO_FORMAT_PYROWAVE;
++            // 4:4:4 when both ends have it, and never on the strength of one end alone. The
++            // chroma travels in every frame's sequence header, so a decoder built for the wrong one
++            // refuses the lot; and a client that asked only for 4:4:4 would rather be told than be
++            // handed 4:2:0 it cannot read.
++            if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE_444) &&
++                (serverInfo->serverCodecModeSupport & SCM_PYROWAVE_444)) {
++                NegotiatedVideoFormat = VIDEO_FORMAT_PYROWAVE_444;
++            }
++            else if (StreamConfig.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE) {
++                NegotiatedVideoFormat = VIDEO_FORMAT_PYROWAVE;
++            }
++            else {
++                Limelog("This host does not offer PyroWave with the chroma this client asked for\n");
++                ret = ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE;
++                goto Exit;
++            }
+         }
+         else if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_AV1) && strstr(response.payload, "AV1/90000")) {
+             if ((serverInfo->serverCodecModeSupport & SCM_AV1_HIGH10_444) && (StreamConfig.supportedVideoFormats & VIDEO_FORMAT_AV1_HIGH10_444)) {

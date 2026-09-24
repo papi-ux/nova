@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <vector>
 
@@ -34,8 +35,11 @@ namespace nova_vk {
      * @param window The Surface to draw into, retained for the renderer's lifetime by the caller.
      * @param width Frame width in luma samples.
      * @param height Frame height in luma samples.
+     * @param chroma_444 Whether the stream carries a chroma sample per pixel rather than per four.
+     *   It has to match what the host encoded: the decoder reads the chroma out of each frame's
+     *   sequence header and refuses one that disagrees with how it was created.
      */
-    bool create(ANativeWindow *window, uint32_t width, uint32_t height);
+    bool create(ANativeWindow *window, uint32_t width, uint32_t height, bool chroma_444);
 
     /**
      * Decode one complete frame's bitstream on the GPU and show it.
@@ -111,6 +115,9 @@ namespace nova_vk {
     uint32_t frame_width = 0;
     uint32_t frame_height = 0;
 
+    /// Zero when every pixel has its own chroma sample, one when four share.
+    uint32_t chroma_shift = 1;
+
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkFormat swapchain_format = VK_FORMAT_UNDEFINED;
@@ -164,6 +171,10 @@ namespace nova_vk {
 
     /// Frames that could not be drawn at all, even partially.
     uint64_t unusable_frames = 0;
+
+    /// Frames drawn, and the sequence number of the last one, for reading the pattern of refusals.
+    uint64_t drawn_frames = 0;
+    uint32_t last_drawn_sequence = 0;
   };
 
 }  // namespace nova_vk

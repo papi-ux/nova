@@ -9,7 +9,8 @@
 extern "C" {
 #endif
 
-void *pyrowave_renderer_create(ANativeWindow *window, uint32_t width, uint32_t height);
+void *pyrowave_renderer_create(ANativeWindow *window, uint32_t width, uint32_t height,
+                               bool chroma_444);
 
 // One encoded frame, decoded on the GPU and shown. What a stream uses.
 bool pyrowave_renderer_decode_and_present(void *handle, const uint8_t *bitstream, size_t size);

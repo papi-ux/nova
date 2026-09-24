@@ -86,7 +86,11 @@ class PyroWaveDecoderRenderer(
             return -1
         }
 
-        handle = PyroWave.createRenderer(target, width, height)
+        // The format the host and client settled on says which chroma this stream carries, and the
+        // decoder has to be built for it: it reads the chroma out of every frame's sequence header
+        // and refuses one that disagrees with how it was made.
+        val chroma444 = (format and MoonBridge.VIDEO_FORMAT_PYROWAVE_444) != 0
+        handle = PyroWave.createRenderer(target, width, height, chroma444)
         if (handle == 0L) {
             LimeLog.severe("PyroWave: could not make a ${width}x$height renderer")
             return -2

@@ -1,7 +1,7 @@
 From a44de1eb1d4402e216dcc82165d7c2e8a5e6884d Mon Sep 17 00:00:00 2001
 From: papi <papi@papi-ux.com>
 Date: Wed, 23 Sep 2026 21:44:06 -0400
-Subject: [PATCH 1/5] feat(video): negotiate PyroWave
+Subject: [PATCH 1/6] feat(video): negotiate PyroWave
 
 A format number, a server capability bit, one arm in the DESCRIBE ladder and one
 attribute in the SDP. The library never sees a PyroWave byte: it carries the payload

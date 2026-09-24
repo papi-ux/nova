@@ -256,7 +256,7 @@ Java_com_papi_nova_binding_video_PyroWave_nativePresentSelfTest(
             break;
         }
 
-        renderer = pyrowave_renderer_create(window, Width, Height);
+        renderer = pyrowave_renderer_create(window, Width, Height, false);
         if (renderer == NULL) { outcome = -26; break; }
 
         // Twice, because the second frame is the one that proves the barriers are right: the first
@@ -302,7 +302,7 @@ typedef struct {
  */
 JNIEXPORT jlong JNICALL
 Java_com_papi_nova_binding_video_PyroWave_nativeCreateRenderer(
-        JNIEnv *env, jclass clazz, jobject surface, jint width, jint height) {
+        JNIEnv *env, jclass clazz, jobject surface, jint width, jint height, jboolean chroma444) {
     (void) clazz;
 
     if (surface == NULL || width <= 0 || height <= 0) {
@@ -320,14 +320,15 @@ Java_com_papi_nova_binding_video_PyroWave_nativeCreateRenderer(
         return 0;
     }
 
-    session->renderer = pyrowave_renderer_create(session->window, (uint32_t) width, (uint32_t) height);
+    const bool chroma_444 = chroma444 == JNI_TRUE;
+    session->renderer = pyrowave_renderer_create(session->window, (uint32_t) width, (uint32_t) height, chroma_444);
     if (session->renderer == NULL) {
         ANativeWindow_release(session->window);
         free(session);
         return 0;
     }
 
-    LOGI("renderer for a session: %dx%d", width, height);
+    LOGI("renderer for a session: %dx%d %s", width, height, chroma_444 ? "4:4:4" : "4:2:0");
     return (jlong) (uintptr_t) session;
 }
 
@@ -424,7 +425,7 @@ Java_com_papi_nova_binding_video_PyroWave_nativeGpuDecodeSelfTest(
     }
 
     jint outcome = -1;
-    void *renderer = pyrowave_renderer_create(window, Width, Height);
+    void *renderer = pyrowave_renderer_create(window, Width, Height, false);
 
     if (renderer == NULL) {
         outcome = -32;
