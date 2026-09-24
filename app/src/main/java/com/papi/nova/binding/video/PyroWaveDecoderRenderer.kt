@@ -70,6 +70,21 @@ class PyroWaveDecoderRenderer(
             val kbps = recommendedKbps(width, height, fps)
             return if (kbps <= 0) 0 else (kbps + 999) / 1000
         }
+
+        /**
+         * How many frames the transport did not deliver between two that it did.
+         *
+         * Zero before the first frame, because there is nothing to have missed yet and a first frame
+         * numbered in the thousands would otherwise read as a thousand losses. Zero for a number that
+         * does not advance, which is a repeat rather than a gap, and zero for one that goes backwards,
+         * which is a stream numbering itself from the start again.
+         */
+        fun framesMissedBetween(previous: Int, next: Int): Int {
+            if (previous <= 0 || next <= previous) {
+                return 0
+            }
+            return next - previous - 1
+        }
     }
 
     private var surface: Surface? = null
@@ -94,6 +109,19 @@ class PyroWaveDecoderRenderer(
         private set
     var framesRefused: Long = 0
         private set
+
+    /**
+     * Frames the transport never delivered, counted from the gaps in the numbers that arrive.
+     *
+     * The same way MediaCodecDecoderRenderer counts it, and the only kind of loss this codec can
+     * suffer: a frame either arrives whole or is not offered at all, because the library reassembles
+     * it or drops it before this sees it.
+     */
+    var framesMissing: Long = 0
+        private set
+
+    private var lastFrameNumber = 0
+    private var windowMissing: Long = 0
 
     // What the library asks.
 
@@ -150,6 +178,16 @@ class PyroWaveDecoderRenderer(
         if (handle == 0L || decodeUnitData == null || decodeUnitLength <= 0) {
             return MoonBridge.DR_NEED_IDR
         }
+
+        // A gap in the numbering is a frame the transport did not deliver. A stream that starts its
+        // numbering over is not a gap, so the run restarts with it.
+        if (frameNumber < lastFrameNumber) {
+            lastFrameNumber = 0
+        }
+        val missing = framesMissedBetween(lastFrameNumber, frameNumber).toLong()
+        windowMissing += missing
+        framesMissing += missing
+        lastFrameNumber = frameNumber
 
         // Every frame of this codec is a keyframe, so a frame that fails to decode costs exactly
         // itself: the next one stands alone and there is no reference chain to repair. Asking for an
@@ -225,20 +263,25 @@ class PyroWaveDecoderRenderer(
                 rttMs = (rttInfo shr 32).toInt(),
                 rttVarianceMs = rttInfo.toInt(),
                 decodeTimeMs = decodeMs,
-                // Frames this renderer was handed and could not draw. Not network loss: the
-                // transport reassembles a frame or drops it before this sees it, so anything counted
-                // here arrived and was unusable.
-                packetLossPct = if (windowFrames > 0) {
-                    (windowFrames - windowDrawn).toDouble() / windowFrames.toDouble() * 100.0
+                // What the network lost, which is what this field is read as: the HUD prints it as
+                // packet loss and turns red on it.
+                //
+                // It used to be the frames this renderer was handed and could not draw, with a comment
+                // saying those are not network loss. They are not, and putting them here blamed the
+                // network for a fault on this device, which is the one place a player cannot fix it.
+                // They are still visible: drawn frames and received frames are both reported above, a
+                // gap between them is a refusal, and every refusal is logged.
+                packetLossPct = if (windowFrames + windowMissing > 0) {
+                    windowMissing.toDouble() / (windowFrames + windowMissing).toDouble() * 100.0
                 }
                 else {
                     0.0
                 },
                 monotonicTimestampMs = now,
-                framesExpected = framesShown + framesRefused,
+                framesExpected = framesShown + framesRefused + framesMissing,
                 framesReceived = framesShown + framesRefused,
                 framesRendered = framesShown,
-                framesLost = framesRefused,
+                framesLost = framesMissing,
                 hostProcessingLatencyMs = windowHostLatencyFrames
                     .takeIf { it > 0 }
                     ?.let { windowHostLatency.toDouble() / 10.0 / it.toDouble() },
@@ -247,6 +290,7 @@ class PyroWaveDecoderRenderer(
 
         windowStartedMs = now
         windowFrames = 0
+        windowMissing = 0
         windowDrawn = 0
         windowDecodeNs = 0
         windowHostLatency = 0
@@ -258,14 +302,17 @@ class PyroWaveDecoderRenderer(
             PyroWave.destroyRenderer(handle)
             handle = 0
         }
-        LimeLog.info("PyroWave: $framesShown frames shown, $framesRefused refused")
+        LimeLog.info(
+            "PyroWave: $framesShown frames shown, $framesRefused refused, $framesMissing never arrived",
+        )
     }
 
     override fun getCapabilities(): Int = 0
 
     override fun setHdrMode(enabled: Boolean, hdrMetadata: ByteArray?) {
-        // SDR only, and the host refuses the stream rather than negotiating otherwise, so there is
-        // nothing to switch here and nothing to warn about that has not already been said.
+        // Nothing to switch. This renderer's colourimetry is decided by the format the session
+        // negotiated and built into the swapchain at creation, so a stream is HDR or it is not for its
+        // whole life, and the metadata carries nothing this presentation path reads.
     }
 
     // Where the picture goes.
