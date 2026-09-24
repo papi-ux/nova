@@ -1,7 +1,7 @@
 # Experimental PyroWave on Linux
 
 PyroWave is an optional Vulkan compute codec for a fast local network. It requires
-matching Nova and Polaris builds. This implementation uses GameStream transport;
+Nova and Polaris builds supporting the same codec profile. This implementation uses GameStream transport;
 it does not connect to Punktfunk's QUIC service.
 
 Build the native client with `-DNOVA_DECK_BUILD_PYROWAVE=ON` and the pinned
@@ -23,9 +23,15 @@ Both client implementations must use the same contract:
 - Upstream PyroWave commit `186f0393b77f7755953b5ecde994bb1cec2e4155`, C API 0.6.0.
 - Client format `0x10000`; server capability `0x00800000`; SDP `bitStreamFormat=3`.
 - DESCRIBE advertises `a=rtpmap:99 PYROWAVE/90000` and
-  `a=x-polaris-pyrowave:pyrowave-186f0393-sdr420-v1`.
-- ANNOUNCE includes `x-polaris-pyrowave:pyrowave-186f0393-sdr420-v1`.
-  The revision must match exactly. Do not silently negotiate a different codec.
+  `a=fmtp:99 pyrowave-186f0393-sdr420-v1`. Match complete attributes for payload
+  99, including the exact profile token, before selecting the decoder. Both LF
+  and CRLF are accepted. Missing, conflicting or duplicate attributes are refused.
+- ANNOUNCE selects `bitStreamFormat=3`, accepting the single offered profile.
+  No separate revision echo is required. Explicit selection fails when the
+  offered profile is incompatible; it never silently chooses another codec.
+- `PolarisPyrowaveBitstream` in serverinfo and `pyrowave_bitstream` in capture
+  capabilities are optional early compatibility hints. A present hint must match;
+  an absent hint leaves the mandatory RTSP check to decide compatibility.
 - SDR 8-bit 4:2:0, full-range Rec.709 (`encoderCscMode=3`, `dynamicRangeMode=0`,
   `chromaSamplingType=0`). Even output dimensions, 16 through 4096 per axis.
 - One GameStream decode unit contains one complete **raw upstream bitstream**.
@@ -41,10 +47,14 @@ Both client implementations must use the same contract:
 
 The C API version alone does not identify a stable bitstream. Update both peers
 and the negotiated revision together when changing the pinned upstream codec.
+The token identifies this codec profile, not an application release: compatible
+Nova and Polaris releases can reuse it. The dependency pins are not yet verified
+against the token automatically across both projects; keep the feature opt-in.
 
 ## Validation
 
 `nova_pyrowave_parser_test` exercises malformed inner payloads without a GPU.
+`nova_pyrowave_protocol_test` rejects missing, ambiguous or inexact SDP profiles.
 `nova_pyrowave_test` exercises moving frames, sequence wrap, restart and exported
 frame ownership. `nova_deck_pyrowave_presenter_test` verifies Vulkan decode through
 the actual EGL shader with distinct chroma values and checks frame lifetime.

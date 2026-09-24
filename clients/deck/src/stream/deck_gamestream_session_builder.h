@@ -26,7 +26,7 @@ struct DeckServerInfo {
     std::optional<bool> currentGameOwned;
     std::optional<bool> paired;
     std::string currentSessionToken;   ///< backend-only, never a QML value
-    std::string pyrowaveBitstream;
+    std::optional<std::string> pyrowaveBitstream; ///< absent defers to RTSP negotiation
 };
 
 /// Parse the serverinfo fields a launch needs. Pure; nullopt on a bad root or a

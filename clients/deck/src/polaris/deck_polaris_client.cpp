@@ -330,7 +330,8 @@ std::optional<DeckPolarisCapabilities> parseCapabilities(const std::string_view 
             if (codec.toString().trimmed().compare("h264", Qt::CaseInsensitive) == 0) stream.h264 = true;
             if (codec.toString().trimmed().compare("hevc", Qt::CaseInsensitive) == 0) stream.hevc = true;
 #ifdef NOVA_DECK_BUILD_PYROWAVE
-            if (codec.toString() == "pyrowave" && capture.value("pyrowave_bitstream").toString() == "pyrowave-186f0393-sdr420-v1")
+            if (codec.toString() == "pyrowave" && (!capture.contains("pyrowave_bitstream") ||
+                capture.value("pyrowave_bitstream").toString() == "pyrowave-186f0393-sdr420-v1"))
                 stream.pyrowave = true;
 #endif
         }

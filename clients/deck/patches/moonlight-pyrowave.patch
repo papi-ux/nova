@@ -6,12 +6,13 @@
 +#define SCM_PYROWAVE        0x00800000 // Nova/Polaris pinned SDR420 extension
 --- a/src/RtspConnection.c
 +++ b/src/RtspConnection.c
-@@ -1076 +1076,11 @@
+@@ -2,0 +3 @@
++#include "NovaPyrowaveProtocol.h"
+@@ -1076 +1077,10 @@
 -        if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_AV1) && strstr(response.payload, "AV1/90000")) {
 +        if (StreamConfig.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE) {
 +            if (!(serverInfo->serverCodecModeSupport & SCM_PYROWAVE) ||
-+                !strstr(response.payload, "PYROWAVE/90000") ||
-+                !strstr(response.payload, "a=x-polaris-pyrowave:pyrowave-186f0393-sdr420-v1\r\n")) {
++                !nova_pyrowave_description_compatible(response.payload)) {
 +                Limelog("Host does not offer the required PyroWave bitstream revision\n");
 +                ret = -1;
 +                goto Exit;
@@ -21,11 +22,10 @@
 +        else if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_AV1) && strstr(response.payload, "AV1/90000")) {
 --- a/src/SdpGenerator.c
 +++ b/src/SdpGenerator.c
-@@ -433 +433,5 @@
+@@ -433 +433,4 @@
 -        if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_AV1) {
 +        if (NegotiatedVideoFormat == VIDEO_FORMAT_PYROWAVE) {
 +            err |= addAttributeString(&optionHead, "x-nv-vqos[0].bitStreamFormat", "3");
-+            err |= addAttributeString(&optionHead, "x-polaris-pyrowave", "pyrowave-186f0393-sdr420-v1");
 +        }
 +        else if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_AV1) {
 --- a/src/VideoDepacketizer.c

@@ -55,7 +55,8 @@ std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
     }
     info.currentGameUuid = values.value("currentgameuuid").toStdString();
     info.currentSessionToken = values.value("currentgamesessiontoken").toStdString();
-    info.pyrowaveBitstream = values.value("PolarisPyrowaveBitstream").toStdString();
+    if (values.contains("PolarisPyrowaveBitstream"))
+        info.pyrowaveBitstream = values.value("PolarisPyrowaveBitstream").toStdString();
     return info;
 }
 
@@ -117,7 +118,8 @@ DeckSessionBuildResult buildStreamConnection(
     // is the legacy H.264 default, never implicit HEVC or Main10 support.
     int requiredCodec = request.videoCodec == "h264" ? SCM_H264 : request.videoCodec == "hevc" ? SCM_HEVC : 0;
 #ifdef NOVA_DECK_BUILD_PYROWAVE
-    if (request.videoCodec == "pyrowave" && serverInfo->pyrowaveBitstream == nova::pyrowave::bitstreamId)
+    if (request.videoCodec == "pyrowave" && (!serverInfo->pyrowaveBitstream ||
+        *serverInfo->pyrowaveBitstream == nova::pyrowave::bitstreamId))
         requiredCodec = SCM_PYROWAVE;
 #endif
     const int availableCodecs = serverInfo->serverCodecModeSupport == 0 ? SCM_H264 : serverInfo->serverCodecModeSupport;

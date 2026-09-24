@@ -51,7 +51,12 @@ void testParsesCapabilities() {
     assert(hevcOnly && hevcOnly->streamCapabilities.valid && !hevcOnly->streamCapabilities.h264);
     assert(hevcOnly->streamCapabilities.supports(1920, 1080, 240));
     assert(!hevcOnly->streamCapabilities.supports(1920, 1080, 241));
-    assert(!parseCapabilities(R"({"capture":{"codecs":["pyrowave"]}})")->streamCapabilities.pyrowave);
+    const auto pyroWithoutHint = parseCapabilities(R"({"capture":{"codecs":["pyrowave"]}})");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    assert(pyroWithoutHint->streamCapabilities.pyrowave); // RTSP must still prove the profile.
+#else
+    assert(!pyroWithoutHint->streamCapabilities.pyrowave);
+#endif
     assert(!parseCapabilities(R"({"capture":{"codecs":["pyrowave"],"pyrowave_bitstream":"wrong"}})")->streamCapabilities.pyrowave);
     const auto pyro = parseCapabilities(R"({"capture":{"codecs":["pyrowave"],"pyrowave_bitstream":"pyrowave-186f0393-sdr420-v1"}})");
 #ifdef NOVA_DECK_BUILD_PYROWAVE

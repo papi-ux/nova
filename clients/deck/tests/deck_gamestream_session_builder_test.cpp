@@ -314,16 +314,16 @@ void testHostCancel() {
 
 void testPyrowaveAdmission() {
     auto request = sampleRequest(); request.videoCodec = "pyrowave";
-    for (const auto* revision : {"", "pyrowave-incompatible", "pyrowave-186f0393-sdr420-v1"}) {
+    for (const auto* revision : {"absent", "", "pyrowave-incompatible", "pyrowave-186f0393-sdr420-v1"}) {
         FakeHost host;
         host.table["/serverinfo"] = {true, 200,
             "<root status_code=\"200\"><appversion>7.1.431.-1</appversion>"
-            "<ServerCodecModeSupport>8388608</ServerCodecModeSupport>"
-            "<PolarisPyrowaveBitstream>" + std::string(revision) + "</PolarisPyrowaveBitstream></root>"};
+            "<ServerCodecModeSupport>8388609</ServerCodecModeSupport>" +
+            (std::string(revision) == "absent" ? std::string{} : "<PolarisPyrowaveBitstream>" + std::string(revision) + "</PolarisPyrowaveBitstream>") + "</root>"};
         host.table["/launch"] = {true, 200, kLaunchOk};
         const auto result = buildStreamConnection(host.fetcher(), "192.0.2.10", request, fixedKeys());
 #ifdef NOVA_DECK_BUILD_PYROWAVE
-        const bool supported = std::string(revision) == "pyrowave-186f0393-sdr420-v1";
+        const bool supported = std::string(revision) == "absent" || std::string(revision) == "pyrowave-186f0393-sdr420-v1";
 #else
         const bool supported = false;
 #endif
@@ -331,6 +331,8 @@ void testPyrowaveAdmission() {
         assert(host.seen.size() == (supported ? 2 : 1));
         if (supported) assert(result.connectionInfo.colorRange == COLOR_RANGE_FULL);
         else assert(result.sessionSelectionRejected && !result.hostSessionStarted);
+        auto h264 = request; h264.videoCodec = "h264";
+        assert(buildStreamConnection(host.fetcher(), "192.0.2.10", h264, fixedKeys()).ok);
     }
     assert(!parseServerInfo("<root status_code=\"200\"><appversion>7</appversion>"
         "<PolarisPyrowaveBitstream>a</PolarisPyrowaveBitstream>"
