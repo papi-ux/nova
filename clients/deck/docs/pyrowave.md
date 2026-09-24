@@ -1,8 +1,8 @@
 # Experimental PyroWave on Linux
 
 PyroWave is an optional Vulkan compute codec for a fast local network. It requires
-Nova and Polaris builds supporting the same codec profile. This implementation uses GameStream transport;
-it does not connect to Punktfunk's QUIC service.
+Nova and Polaris builds supporting the same codec profile. This implementation
+uses GameStream transport.
 
 Build the native client with `-DNOVA_DECK_BUILD_PYROWAVE=ON` and the pinned
 `pyrowave-shared` 0.6.0 development package. The experimental Flatpak manifest is
@@ -29,7 +29,7 @@ options of the actual bundles before comparing results.
 The host currently converts CPU BGRA capture to full-range Rec.709 YUV420 before
 Vulkan encoding. The Linux client decodes on Vulkan and exports three R8 DMA-BUF
 planes for its EGL presenter. There is no production CPU decode fallback.
-HDR, 4:4:4, Spaces, and a Punktfunk connection are outside this first route.
+HDR, 4:4:4 and Spaces are outside this first route.
 High refresh rates and sustained performance still need device measurements.
 
 ## HUD and live bitrate
@@ -123,5 +123,4 @@ This starts and stops the selected paired host application. Use an isolated test
 host for automated checks. Decoded-frame evidence does not establish physical
 presentation, input/audio quality, or performance on a Steam Deck.
 
-References: [upstream](https://github.com/Themaister/pyrowave) and
-[Punktfunk's PyroWave overview](https://docs.punktfunk.unom.io/docs/pyrowave).
+Reference: [upstream PyroWave](https://github.com/Themaister/pyrowave).
