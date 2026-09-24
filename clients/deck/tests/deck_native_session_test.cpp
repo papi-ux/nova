@@ -131,6 +131,7 @@ struct Host {
     DeckHudHostFactory hostTelemetry;
     std::function<bool(const QString&, const QString&, const std::function<bool()>&)> authorizeSetup;
     std::function<bool(const std::string&, const std::function<bool()>&)> authorizeMode;
+    decltype(DeckNativeLaunchTarget::resolveLaunchTopology) resolveTopology;
     std::function<std::optional<nova::deck::DeckStreamCapabilities>(const std::function<bool()>&)> verifyStream;
 
     DeckNativeTargetResolver resolver() {
@@ -144,6 +145,7 @@ struct Host {
             target.appUuid = appUuid;
             target.authorizeSetup = authorizeSetup;
             target.authorizeLaunchMode = authorizeMode;
+            target.resolveLaunchTopology = resolveTopology;
             target.verifyStreamCapabilities = verifyStream;
             target.probeVideoSupport = [this] { return decoderSupport; };
             target.hostTelemetry = hostTelemetry;
@@ -255,6 +257,47 @@ void testRevalidatedPresetAndEncoder() {
                 host.launchRequest.find("encoderBackend=vaapi") != std::string::npos, "admitted setup did not reach host launch");
             controller.stop(); settled(controller);
         }
+    }
+}
+
+void testResolvedLaunchProfile() {
+    for (int scenario = 0; scenario < 5; ++scenario) {
+        Host host; Driver driver; Barrier check;
+        host.authorizeMode = [](const auto&, const auto&) { return true; };
+        host.verifyStream = [](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+            nova::deck::DeckStreamCapabilities caps; caps.maxFps = 90; return caps;
+        };
+        host.resolveTopology = [&](const DeckStreamRequest& request, const auto& cancelled) -> std::optional<std::string> {
+            require(request.width == 1280 && request.height == 800 && request.fps == 90 && request.bitrateKbps == 200000 &&
+                request.streamMode == "headless_stream", "profile review lost the selected settings");
+            if (scenario == 3 || scenario == 4) check.wait();
+            if (cancelled() || scenario == 1) return {};
+            return scenario == 2 ? "" : "headless_stream";
+        };
+        DeckNativeSessionController controller(true, host.resolver(), driver);
+        require(controller.setDisplayRateLimitReader([] { return 90; }), "display limit not set");
+        auto configuration = DeckPlayConfiguration{1280, 800, 90, 200000}.toMap(); configuration["launchMode"] = "headless_stream";
+        require(controller.startConfigured("host", "game", configuration), "resolved profile launch did not start");
+        if (scenario == 3 || scenario == 4) {
+            until([&] { return check.entered.load(); });
+            if (scenario == 3) controller.stop(); else host.rejectResolve = true;
+            check.release();
+        }
+        if (scenario == 0 || scenario == 2) {
+            until([&] { return phase(controller) == "active"; });
+            require(host.launchRequest.find("mode=1280x800x90") != std::string::npos &&
+                host.launchRequest.find("&streamMode=headless_stream&displayModeExplicit=1") != std::string::npos,
+                "launch lost explicit display choices");
+            require((host.launchRequest.find("&resolvedProfile=1&bitrateKbps=200000&resolvedHdr=0&expectedTopology=headless_stream") != std::string::npos) == (scenario == 0),
+                "resolved profile or legacy host envelope changed");
+            require(driver.receivedConfiguration.bitrate == 200000 && driver.receivedConfiguration.fps == 90,
+                "launch and media settings disagree");
+            controller.stop();
+        }
+        settled(controller);
+        if (scenario == 1 || scenario == 3 || scenario == 4)
+            require(host.launches == 0 && host.resumes == 0 && host.cancels == 0 && driver.starts == 0,
+                "refused, cancelled or stale plan reached host launch");
     }
 }
 
@@ -2071,6 +2114,7 @@ int main(int argc, char** argv) {
     testPresentationLifetime();
     testReviewedConfiguration();
     testRevalidatedPresetAndEncoder();
+    testResolvedLaunchProfile();
     testPyrowaveEncoderOverride();
     {
         Host host;

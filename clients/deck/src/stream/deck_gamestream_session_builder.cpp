@@ -155,6 +155,7 @@ DeckSessionBuildResult buildStreamConnection(
             selected.sessionToken = serverInfo->currentSessionToken;
             // A resume retains the host's running display/launch mode.
             selected.streamMode.clear();
+            selected.expectedTopology.clear();
         }
     }
     result.resumed = selected.resume;

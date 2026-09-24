@@ -18,6 +18,13 @@ inline std::string plan() {
     return host_settings_fixture::json({{"source","deterministic_preset_v1"},{"resolved_profile",QJsonObject{{"policy_version",1},{"preset","quality"},{"preset_label","Quality"},{"fields",fields}}}});
 }
 inline QVariantMap candidate() { return {{"provider","steamgriddb"},{"provider_game_id","42"},{"title","Moonlit Harbor"},{"steam_appid","123"}}; }
+inline QJsonObject launchPlan(const QString& game = "game") {
+    auto result = QJsonDocument::fromJson(QByteArray::fromStdString(plan())).object();
+    result["topology_resolution"] = QJsonObject{{"requested", "headless_stream"}, {"resolved", "headless_stream"},
+        {"app_uuid", game}, {"locked", true}, {"normalized", false}, {"source", "client_launch_request"}, {"reason_code", "explicit_topology_lock"}};
+    result["encoder_resolution"] = QJsonObject{{"resolved", "vaapi"}, {"locked", true}};
+    return result;
+}
 inline QString token(int index = 0) { return QString(31, 'a') + QString::number(index); }
 inline std::string search() {
     auto c = QJsonObject::fromVariantMap(candidate()); c["preview"] = QJsonObject{{"poster","/polaris/v1/games/game/artwork/candidate/" + token() + "/poster"}};
