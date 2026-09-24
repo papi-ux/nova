@@ -203,6 +203,23 @@ object PyroWave {
         }
     }
 
+    /**
+     * Decode the bundled frame on the GPU and show it, with nothing in host memory between.
+     *
+     * @return 0 when a frame reached the screen, a negative code when it did not, or null when
+     *   there is no native library to ask.
+     */
+    fun gpuDecodeSelfTest(context: Context, surface: Surface): Int? {
+        if (!loaded) return null
+        return try {
+            val bitstream = context.assets.open(SELF_TEST_ASSET).use { it.readBytes() }
+            nativeGpuDecodeSelfTest(surface, bitstream)
+        } catch (e: Exception) {
+            LimeLog.warning("PyroWave: decode self test could not run: " + e.message)
+            null
+        }
+    }
+
     private const val SELF_TEST_ASSET = "pyrowave/selftest-34x30.pw"
 
     // Kept in step with the constants in pyrowave_jni.c.
@@ -212,6 +229,9 @@ object PyroWave {
         1 -> Probe.FRAGMENT
         else -> null
     }
+
+    @JvmStatic
+    private external fun nativeGpuDecodeSelfTest(surface: Surface, bitstream: ByteArray): Int
 
     @JvmStatic
     private external fun nativeApiVersion(): String

@@ -149,7 +149,12 @@ namespace nova_vk {
     loader.get_queue_family_properties(physical_device, &count, families.data());
     for (uint32_t i = 0; i < count; i++) {
       // One graphics capable queue is what the codec asks for, and what presentation needs.
-      if (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+      // Compute as well as graphics, because the decoder records compute work into this family's
+      // command buffers and presenting needs the graphics half. Vulkan guarantees at least one family
+      // with both, so requiring it costs nothing and asserting it here beats a decoder that records
+      // into a command buffer its queue cannot execute.
+      constexpr VkQueueFlags wanted = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT;
+      if ((families[i].queueFlags & wanted) == wanted) {
         graphics_family = i;
         break;
       }

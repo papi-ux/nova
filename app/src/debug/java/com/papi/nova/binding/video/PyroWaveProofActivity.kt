@@ -30,11 +30,17 @@ class PyroWaveProofActivity : Activity(), SurfaceHolder.Callback {
         // Off the main thread: it makes a Vulkan device, a swapchain and a pipeline, none of which
         // belong in the callback that is holding up the first frame of the window.
         Thread {
-            val outcome = PyroWave.presentSelfTest(applicationContext, holder.surface)
-            val message = when (outcome) {
-                null -> "PyroWave: no native library"
-                0 -> "PyroWave: a frame reached the screen"
-                else -> "PyroWave: presentation failed ($outcome)"
+            // The GPU path first, because it is the one a stream uses. The host memory path runs
+            // after it on the same surface, so a disagreement between the two says where the fault
+            // is: same picture and the decode targets are right, different and they are not.
+            val uploaded = PyroWave.presentSelfTest(applicationContext, holder.surface)
+            val decoded = PyroWave.gpuDecodeSelfTest(applicationContext, holder.surface)
+            val message = when {
+                decoded == null || uploaded == null -> "PyroWave: no native library"
+                decoded == 0 && uploaded == 0 -> "PyroWave: both paths put a frame on the screen"
+                decoded == 0 -> "PyroWave: GPU decode drew, the upload path failed ($uploaded)"
+                uploaded == 0 -> "PyroWave: the upload path drew, GPU decode failed ($decoded)"
+                else -> "PyroWave: neither path drew (GPU $decoded, upload $uploaded)"
             }
             LimeLog.info(message)
             runOnUiThread { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }

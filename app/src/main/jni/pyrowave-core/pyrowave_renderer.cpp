@@ -119,7 +119,8 @@ namespace nova_vk {
     }
 
     if (!create_surface(native_window) || !create_swapchain() || !create_render_pass() ||
-        !create_planes() || !create_descriptors() || !create_pipeline() || !create_frame_resources()) {
+        !create_planes() || !create_descriptors() || !create_pipeline() || !create_frame_resources() ||
+        !create_decoder()) {
       destroy();
       return false;
     }
@@ -292,6 +293,40 @@ namespace nova_vk {
     return true;
   }
 
+  bool renderer_t::create_decoder() {
+    pyrowave_decoder_create_info info = {};
+    info.device = device.codec;
+    info.width = static_cast<int>(frame_width);
+    info.height = static_cast<int>(frame_height);
+    info.chroma = PYROWAVE_CHROMA_SUBSAMPLING_420;
+
+    // The compute path, on hardware that says it would rather have the fragment one.
+    //
+    // pyrowave_decoder_device_prefers_fragment_path() returns true on both Android devices this has
+    // been run on, and it is telling the truth about what the hardware likes: the fragment path
+    // exists because mobile GPUs have weak compute. But upstream's own roundtrip test fails on that
+    // path on those same devices, and the compute path decodes bit exactly on both. A slower answer
+    // that is right beats a faster one that is wrong, so this is a deliberate refusal of the advice
+    // and it should be revisited when upstream's fragment path passes its own test.
+    info.fragment_path = false;
+
+    const auto result = pyrowave_decoder_create(&info, &decoder);
+    if (result != PYROWAVE_SUCCESS) {
+      LOGW("could not make a %ux%u decoder (%d)", frame_width, frame_height, static_cast<int>(result));
+      decoder = nullptr;
+      return false;
+    }
+
+    // Says which queue the command buffer handed over later belongs to, which for the compute path
+    // is a compute capable one. The device picked a family with both bits for exactly this.
+    if (pyrowave_device_set_queue_type(device.codec, VK_QUEUE_COMPUTE_BIT) != PYROWAVE_SUCCESS) {
+      LOGW("this device will not take compute work for the decoder");
+      return false;
+    }
+
+    return true;
+  }
+
   bool renderer_t::create_planes() {
     const uint32_t extents[3][2] = {
       {frame_width, frame_height},
@@ -315,7 +350,10 @@ namespace nova_vk {
       info.arrayLayers = 1;
       info.samples = VK_SAMPLE_COUNT_1_BIT;
       info.tiling = VK_IMAGE_TILING_OPTIMAL;
-      info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+      // Storage as well, because the decoder writes these with a compute shader. Sampled for the
+      // draw, transfer for the bring-up path that uploads a known picture instead of decoding one.
+      info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                   VK_IMAGE_USAGE_STORAGE_BIT;
       info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
       info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
       if (vk.vkCreateImage(device.device, &info, nullptr, &planes[i].image) != VK_SUCCESS) {
@@ -433,7 +471,11 @@ namespace nova_vk {
     for (uint32_t i = 0; i < 3; i++) {
       images[i].sampler = sampler;
       images[i].imageView = planes[i].view;
-      images[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      // GENERAL rather than the read only layout a texture would normally sit in, because the
+      // decoder writes these as storage images and the codec performs no layout transitions of its
+      // own in the GPU paths. One resting layout for writing and reading means no transition per
+      // frame and no pair of paths to keep in step.
+      images[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
       writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
       writes[i].dstSet = descriptor_set;
@@ -581,6 +623,114 @@ namespace nova_vk {
     return true;
   }
 
+  void renderer_t::barrier_planes(VkCommandBuffer cmd, VkPipelineStageFlags from,
+                                  VkAccessFlags from_access, VkPipelineStageFlags to,
+                                  VkAccessFlags to_access) {
+    VkImageMemoryBarrier barriers[3] = {};
+    for (int i = 0; i < 3; i++) {
+      barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      // UNDEFINED the first time and GENERAL after, which is the only transition these images ever
+      // make. Discarding the previous contents on the first pass is correct: nothing has read them.
+      barriers[i].oldLayout = planes_initialised ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED;
+      barriers[i].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+      barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      barriers[i].image = planes[i].image;
+      barriers[i].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+      barriers[i].srcAccessMask = planes_initialised ? from_access : 0;
+      barriers[i].dstAccessMask = to_access;
+    }
+    vk.vkCmdPipelineBarrier(cmd, planes_initialised ? from : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                            to, 0, 0, nullptr, 0, nullptr, 3, barriers);
+
+    // Set here rather than at the end of a frame, because two of these run per frame and the second
+    // has to see the layout the first one left. Marking it later made the post barrier claim the
+    // images were still UNDEFINED and discard what the decode had just written into them.
+    planes_initialised = true;
+  }
+
+  bool renderer_t::record_decode(VkCommandBuffer cmd) {
+    barrier_planes(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+
+    // The images are described rather than handed over: Nova made them, so the codec takes views of
+    // them. Each view's extent is its own image's, which is the luma size only for the first; the
+    // note in the codec's header about using luma dimensions is about one planar image backing three
+    // views, and these are three separate single channel images.
+    pyrowave_gpu_buffers buffers = {};
+    for (int i = 0; i < 3; i++) {
+      buffers.planes[i].image = planes[i].image;
+      buffers.planes[i].width = planes[i].width;
+      buffers.planes[i].height = planes[i].height;
+      buffers.planes[i].image_format = VK_FORMAT_R8_UNORM;
+      buffers.planes[i].view_format = VK_FORMAT_R8_UNORM;
+      buffers.planes[i].mip_level = 0;
+      buffers.planes[i].layer = 0;
+      buffers.planes[i].aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+      buffers.planes[i].swizzle = VK_COMPONENT_SWIZZLE_IDENTITY;
+      buffers.planes[i].layout = VK_IMAGE_LAYOUT_GENERAL;
+    }
+
+    // Into this command buffer rather than one of the codec's own, so that the decode and the draw
+    // that reads its output are one submit under one fence. Cleared straight after, because the
+    // codec keeps the handle and would record the next call into a buffer already submitted.
+    pyrowave_device_set_command_buffer(device.codec, cmd);
+    const auto result = pyrowave_decoder_decode_gpu_buffer(decoder, nullptr, nullptr, &buffers);
+    pyrowave_device_set_command_buffer(device.codec, VK_NULL_HANDLE);
+
+    if (result != PYROWAVE_SUCCESS) {
+      LOGW("the decode failed (%d)", static_cast<int>(result));
+      return false;
+    }
+
+    barrier_planes(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+    return true;
+  }
+
+  bool renderer_t::decode_and_present(const uint8_t *bitstream, std::size_t size) {
+    if (!swapchain || !decoder || !bitstream || size == 0) {
+      return false;
+    }
+
+    vk.vkWaitForFences(device.device, 1, &in_flight, VK_TRUE, UINT64_MAX);
+    vk.vkResetFences(device.device, 1, &in_flight);
+
+    // One push for the whole frame. The bitstream delimits itself, so the decoder walks the blocks
+    // inside it and this is the same work as pushing each of the codec's packets in turn.
+    //
+    // Complete or nothing. The codec can decode a frame that lost packets, and this transport does
+    // not lose them one at a time: it reassembles a whole frame under FEC or drops it, so a frame
+    // that arrives here incomplete arrived corrupt.
+    //
+    // Twice, at most, and only ever for the first frame of a decoder's life. A decoder that has
+    // never been pushed to accepts its first frame, reports success and counts none of its blocks,
+    // so the frame never becomes ready; clearing and pushing the same bytes again works every time.
+    // Measured on two devices rather than reasoned about, and narrowed: clearing at creation does
+    // not help, so whatever the push leaves behind is what clearing then fixes. The codec's own CPU
+    // entry point does not need any of this, which is the part still unexplained and the reason
+    // this is a retry with a comment rather than a line of setup.
+    for (int attempt = 0; attempt < 2; attempt++) {
+      const auto pushed = pyrowave_decoder_push_packet(decoder, bitstream, size);
+      if (pushed != PYROWAVE_SUCCESS) {
+        LOGW("the decoder refused the frame (%d)", static_cast<int>(pushed));
+        return false;
+      }
+
+      if (pyrowave_decoder_decode_is_ready(decoder, false)) {
+        break;
+      }
+
+      if (attempt == 1) {
+        LOGW("the frame is not a whole frame (%zu bytes)", size);
+        return false;
+      }
+      pyrowave_decoder_clear(decoder);
+    }
+
+    return present_recorded([this](VkCommandBuffer cmd) { return record_decode(cmd); });
+  }
+
   bool renderer_t::present(const uint8_t *luma, const uint8_t *cb, const uint8_t *cr) {
     if (!swapchain || !luma || !cb || !cr) {
       return false;
@@ -593,58 +743,45 @@ namespace nova_vk {
       return false;
     }
 
-    uint32_t index = 0;
-    const auto acquire = vk.vkAcquireNextImageKHR(
-      device.device, swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &index);
-    if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR) {
-      LOGW("could not acquire a swapchain image (%d)", static_cast<int>(acquire));
-      return false;
-    }
+    return present_recorded([this](VkCommandBuffer cmd) {
+      barrier_planes(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
 
+      for (int i = 0; i < 3; i++) {
+        VkBufferImageCopy copy = {};
+        copy.bufferOffset = planes[i].offset;
+        copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        copy.imageExtent = {planes[i].width, planes[i].height, 1};
+        vk.vkCmdCopyBufferToImage(cmd, staging, planes[i].image, VK_IMAGE_LAYOUT_GENERAL, 1, &copy);
+      }
+
+      barrier_planes(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+      return true;
+    });
+  }
+
+  bool renderer_t::present_recorded(const std::function<bool(VkCommandBuffer)> &fill_planes) {
     VkCommandBufferBeginInfo begin = {};
     begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vk.vkBeginCommandBuffer(command_buffer, &begin);
 
-    // The planes go from wherever they were to a copy target, take the upload, then become
-    // something the fragment shader can sample. Both transitions every frame, because the first one
-    // starts from UNDEFINED on the first pass and from SHADER_READ_ONLY after that.
-    VkImageMemoryBarrier to_transfer[3] = {};
-    VkImageMemoryBarrier to_shader[3] = {};
-    for (int i = 0; i < 3; i++) {
-      to_transfer[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-      to_transfer[i].oldLayout = planes_initialised ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                                    : VK_IMAGE_LAYOUT_UNDEFINED;
-      to_transfer[i].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-      to_transfer[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-      to_transfer[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-      to_transfer[i].image = planes[i].image;
-      to_transfer[i].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-      to_transfer[i].srcAccessMask = planes_initialised ? VK_ACCESS_SHADER_READ_BIT : 0;
-      to_transfer[i].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-      to_shader[i] = to_transfer[i];
-      to_shader[i].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-      to_shader[i].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-      to_shader[i].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-      to_shader[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    // Recorded before a swapchain image is asked for, so that a decode that fails does not leave an
+    // acquired image with nothing presenting it and a semaphore signalled with nothing waiting on it.
+    if (!fill_planes(command_buffer)) {
+      vk.vkEndCommandBuffer(command_buffer);
+      return false;
     }
 
-    vk.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 3, to_transfer);
-
-    for (int i = 0; i < 3; i++) {
-      VkBufferImageCopy copy = {};
-      copy.bufferOffset = planes[i].offset;
-      copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-      copy.imageExtent = {planes[i].width, planes[i].height, 1};
-      vk.vkCmdCopyBufferToImage(command_buffer, staging, planes[i].image,
-                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+    uint32_t index = 0;
+    const auto acquire = vk.vkAcquireNextImageKHR(
+      device.device, swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &index);
+    if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR) {
+      LOGW("could not acquire a swapchain image (%d)", static_cast<int>(acquire));
+      vk.vkEndCommandBuffer(command_buffer);
+      return false;
     }
-
-    vk.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 3, to_shader);
-    planes_initialised = true;
 
     VkRenderPassBeginInfo pass = {};
     pass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -721,6 +858,16 @@ namespace nova_vk {
       vk.vkDeviceWaitIdle(device.device);
     }
 
+    // Before anything else Vulkan, and before device_t's destructor takes the codec device with it:
+    // the codec requires every decoder to be gone before its device is, and it idles the GPU itself
+    // on the way out. Also clears any command buffer still set on the device, since the one this
+    // renderer lent it is about to stop existing.
+    if (decoder) {
+      pyrowave_device_set_command_buffer(device.codec, VK_NULL_HANDLE);
+      pyrowave_decoder_destroy(decoder);
+      decoder = nullptr;
+    }
+
     if (device.device) {
       if (in_flight) vk.vkDestroyFence(device.device, in_flight, nullptr);
       if (rendered) vk.vkDestroySemaphore(device.device, rendered, nullptr);
@@ -783,6 +930,10 @@ extern "C" void *pyrowave_renderer_create(ANativeWindow *window, uint32_t width,
 
 extern "C" bool pyrowave_renderer_present(void *handle, const uint8_t *luma, const uint8_t *cb, const uint8_t *cr) {
   return handle && static_cast<nova_vk::renderer_t *>(handle)->present(luma, cb, cr);
+}
+
+extern "C" bool pyrowave_renderer_decode_and_present(void *handle, const uint8_t *bitstream, size_t size) {
+  return handle && static_cast<nova_vk::renderer_t *>(handle)->decode_and_present(bitstream, size);
 }
 
 extern "C" void pyrowave_renderer_destroy(void *handle) {

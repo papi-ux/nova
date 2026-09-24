@@ -277,3 +277,59 @@ Java_com_papi_nova_binding_video_PyroWave_nativePresentSelfTest(
     ANativeWindow_release(window);
     return outcome;
 }
+
+/**
+ * The same frame, decoded on the GPU straight into the images the shader samples.
+ *
+ * What a stream uses, and the whole of it: the renderer owns the decoder, so the frame goes in as
+ * bytes and comes out as pixels with nothing in host memory between them.
+ *
+ * Kept beside the host memory self test rather than replacing it, because the pair is a diagnosis.
+ * The other one decodes through the codec's CPU entry point and uploads the result, so if this one
+ * shows a wrong picture and that one shows a right one, the fault is in the decode targets or the
+ * barriers around them, and not in the codec, the shader or the swapchain.
+ *
+ * @return 0 when a frame reached the screen, or a negative code.
+ */
+JNIEXPORT jint JNICALL
+Java_com_papi_nova_binding_video_PyroWave_nativeGpuDecodeSelfTest(
+        JNIEnv *env, jclass clazz, jobject surface, jbyteArray bitstream) {
+    (void) clazz;
+
+    enum { Width = 34, Height = 30 };
+
+    ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
+    if (window == NULL) {
+        return -30;
+    }
+
+    const jsize size = (*env)->GetArrayLength(env, bitstream);
+    jbyte *payload = (*env)->GetByteArrayElements(env, bitstream, NULL);
+    if (payload == NULL || size <= 0) {
+        ANativeWindow_release(window);
+        return -31;
+    }
+
+    jint outcome = -1;
+    void *renderer = pyrowave_renderer_create(window, Width, Height);
+
+    if (renderer == NULL) {
+        outcome = -32;
+    }
+    // Twice, because the second frame is the one that proves the barriers are right. The first
+    // transitions the plane images from UNDEFINED, which is allowed to discard whatever was there
+    // and would hide a missing dependency between the decode and the draw that reads it.
+    else if (!pyrowave_renderer_decode_and_present(renderer, (const uint8_t *) payload, (size_t) size) ||
+             !pyrowave_renderer_decode_and_present(renderer, (const uint8_t *) payload, (size_t) size)) {
+        outcome = -33;
+    }
+    else {
+        LOGI("decode self test: a frame reached the screen without touching host memory");
+        outcome = 0;
+    }
+
+    if (renderer != NULL) pyrowave_renderer_destroy(renderer);
+    (*env)->ReleaseByteArrayElements(env, bitstream, payload, JNI_ABORT);
+    ANativeWindow_release(window);
+    return outcome;
+}
