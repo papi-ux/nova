@@ -50,6 +50,9 @@ class MoonBridge {
         const val VIDEO_FORMAT_H265 = 0x0100
         const val VIDEO_FORMAT_H265_MAIN10 = 0x0200
         const val VIDEO_FORMAT_AV1_MAIN8 = 0x1000
+
+        // Above the four profile nibbles, which are full. Kept in step with Limelight.h.
+        const val VIDEO_FORMAT_PYROWAVE = 0x10000
         const val VIDEO_FORMAT_AV1_MAIN10 = 0x2000
 
         const val VIDEO_FORMAT_MASK_H264 = 0x000F

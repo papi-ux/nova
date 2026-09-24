@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.view.Display
 import androidx.preference.PreferenceManager
+import com.papi.nova.BuildConfig
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.utils.AndroidStreamDisplayTarget
@@ -29,6 +30,16 @@ class PreferenceConfiguration {
         FORCE_AV1,
         FORCE_HEVC,
         FORCE_H264,
+
+        /**
+         * PyroWave, offered in debug builds only while it is being brought up.
+         *
+         * Unlike the others this is not a preference among codecs a host will already stream. Asking
+         * for it is exclusive: the client offers this format and nothing else, so a host that cannot
+         * serve the exact profile refuses the session with a reason rather than quietly returning
+         * H.264 under the name of the codec that was chosen.
+         */
+        FORCE_PYROWAVE,
     }
 
     enum class AnalogStickForScrolling {
@@ -499,6 +510,11 @@ class PreferenceConfiguration {
                 "forceav1" -> FormatOption.FORCE_AV1
                 "forceh265" -> FormatOption.FORCE_HEVC
                 "neverh265" -> FormatOption.FORCE_H264
+                // Honoured only where the picker offers it. A release build that inherited the
+                // value, from a profile, a backup, or a debug build on the same device, streams as
+                // it always did rather than asking for a codec it does not expose.
+                "forcepyrowave" ->
+                    if (BuildConfig.DEBUG) FormatOption.FORCE_PYROWAVE else FormatOption.AUTO
                 else -> FormatOption.AUTO
             }
         }

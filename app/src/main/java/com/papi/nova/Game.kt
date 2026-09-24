@@ -1191,7 +1191,9 @@ performanceOverlayView!!.setVisibility(View.VISIBLE)
 performanceOverlayBig!!.setVisibility(View.VISIBLE)
 }
 
-decoderRenderer = MediaCodecDecoderRenderer(
+decoderRenderer = if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE)
+com.papi.nova.binding.video.PyroWaveDecoderRenderer()
+else MediaCodecDecoderRenderer(
 this,
 prefConfig,
 object : CrashListener {
@@ -1442,6 +1444,15 @@ NovaSnackbar.showError(this, getString(R.string.nova_decoder_no_av1))
 
  // H.264 is always supported
         var supportedVideoFormats:Int = MoonBridge.VIDEO_FORMAT_H264
+if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE)
+{
+ // On its own or not at all. Offering H.264 beside it would let a host that cannot serve the
+        // codec hand back H.264 instead, which looks like it worked and is the hardest kind of wrong
+        // to notice. The library refuses the session with a reason instead.
+        supportedVideoFormats = MoonBridge.VIDEO_FORMAT_PYROWAVE
+}
+else
+{
 if (decoderRenderer!!.isHevcSupported)
 {
 supportedVideoFormats = supportedVideoFormats or MoonBridge.VIDEO_FORMAT_H265
@@ -1456,6 +1467,7 @@ supportedVideoFormats = supportedVideoFormats or MoonBridge.VIDEO_FORMAT_AV1_MAI
 if (willStreamHdr && decoderRenderer!!.isAv1Main10Supported)
 {
 supportedVideoFormats = supportedVideoFormats or MoonBridge.VIDEO_FORMAT_AV1_MAIN10
+}
 }
 }
 var gamepadMask:Int = ControllerHandler.getAttachedControllerMask(this).toInt()
