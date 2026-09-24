@@ -1,0 +1,146 @@
+From 8e7e39b646a6e07f4a09684e952b3d0c8cefe58c Mon Sep 17 00:00:00 2001
+From: papi <papi@papi-ux.com>
+Date: Wed, 23 Sep 2026 22:40:54 -0400
+Subject: [PATCH 3/5] feat(video): match the whole profile line, and refuse
+ rather than fall through
+
+Two ways the previous version accepted a stream it should not have.
+
+The profile check was a substring search over the whole SDP. The token this client knows
+is a prefix of every longer one that begins the same way, so a "-v1" client accepted a
+"-v10" host, and a token that turned up inside any unrelated attribute passed just as
+well. Now the payload has to carry one rtpmap for payload 99 naming the codec and one
+fmtp for 99 whose entire value is the token. A second fmtp:99 saying something else is a
+refusal and not a choice: a host offering two profiles for one payload type has not said
+which of them it will send.
+
+And asking for this codec now fails instead of falling down the ladder. A client sets the
+PyroWave bit because the user chose the codec, never as part of an "everything I can
+decode" set, so a host that cannot serve it is an error. Falling through handed the user
+H.264 under the name of the codec they picked, which looks like it worked and is the
+hardest kind of wrong to notice.
+
+Sixteen cases were run against the matcher under the address and undefined behaviour
+sanitizers before this landed: both directions of a token that is a prefix of the other,
+the token in a foreign attribute, each half of the pair without the other, two fmtp lines
+agreeing and disagreeing, payload 990 sharing its first two digits with 99, a foreign
+codec on 99, an ordinary Moonlight SDP, an empty payload, tab separators, CRLF, no
+trailing newline, and trailing spaces. The Linux client reached the same conclusions
+separately and has its own equivalent under test, so the two want reconciling into one
+implementation when this fork is published.
+---
+ src/RtspConnection.c | 93 ++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 82 insertions(+), 11 deletions(-)
+
+diff --git a/src/RtspConnection.c b/src/RtspConnection.c
+index bf68997..caa3f63 100644
+--- a/src/RtspConnection.c
++++ b/src/RtspConnection.c
+@@ -927,6 +927,73 @@ bool parseSdpAttributeToInt(const char* payload, const char* name, int* val) {
+ }
+ 
+ // Perform RTSP Handshake with the streaming server machine as part of the connection process
++// Counts an SDP attribute line whose name matches, and says whether its value was the expected one.
++static void countSdpAttribute(const char* line, const char* end, const char* name,
++                              const char* expected, int* matches, int* mismatches) {
++    size_t nameLength = strlen(name);
++    size_t expectedLength = strlen(expected);
++    const char* value;
++
++    if ((size_t)(end - line) <= nameLength || memcmp(line, name, nameLength) != 0) {
++        return;
++    }
++
++    // The separator is not optional. Without checking it, "a=fmtp:990" reads as a line about
++    // payload 99, and so does every longer payload number starting with those digits.
++    value = line + nameLength;
++    if (*value != ' ' && *value != '\t') {
++        return;
++    }
++
++    while (value < end && (*value == ' ' || *value == '\t')) {
++        value++;
++    }
++    while (end > value && (end[-1] == ' ' || end[-1] == '\t')) {
++        end--;
++    }
++
++    if ((size_t)(end - value) == expectedLength && memcmp(value, expected, expectedLength) == 0) {
++        (*matches)++;
++    }
++    else if (mismatches != NULL) {
++        (*mismatches)++;
++    }
++}
++
++// Whether this SDP offers exactly the PyroWave profile this client implements, for payload 99.
++//
++// Deliberately not a substring search over the payload. The token this client knows is a prefix of
++// every longer one that begins the same way, so a "-v1" client accepts a "-v10" host; and a token
++// that turned up inside some unrelated attribute would pass just as well. Either way the client goes
++// on to decode a profile it does not implement, which is a picture that is merely wrong.
++//
++// So the payload has to carry one rtpmap for 99 naming the codec, and one fmtp for 99 whose whole
++// value is the token. A second fmtp:99 saying something else is a refusal and not a choice: a host
++// offering two profiles for one payload type has not said which of them it will send.
++static bool sdpOffersPyroWaveProfile(const char* payload) {
++    int codecLines = 0;
++    int profileLines = 0;
++    int otherProfileLines = 0;
++    const char* line = payload;
++
++    while (*line != 0) {
++        const char* end = line;
++        while (*end != 0 && *end != '\r' && *end != '\n') {
++            end++;
++        }
++
++        countSdpAttribute(line, end, "a=rtpmap:99", "PYROWAVE/90000", &codecLines, NULL);
++        countSdpAttribute(line, end, "a=fmtp:99", PYROWAVE_PROFILE_TOKEN, &profileLines, &otherProfileLines);
++
++        line = end;
++        while (*line == '\r' || *line == '\n') {
++            line++;
++        }
++    }
++
++    return codecLines == 1 && profileLines == 1 && otherProfileLines == 0;
++}
++
+ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+     int ret;
+ 
+@@ -1073,18 +1140,22 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+             goto Exit;
+         }
+         
+-        if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_PYROWAVE) &&
+-            (serverInfo->serverCodecModeSupport & SCM_PYROWAVE) &&
+-            strstr(response.payload, "PYROWAVE/90000") &&
+-            strstr(response.payload, PYROWAVE_PROFILE_TOKEN)) {
+-            // Ahead of the others because this one has no ladder to fall down. Every format below
+-            // is reached by preference among profiles of a codec the client can always decode; this
+-            // one is either what the user asked for or it is not offered at all. Tested last, a host
+-            // that also speaks AV1 would take AV1 and the explicit choice would vanish silently.
++        if (StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_PYROWAVE) {
++            // Asking for this codec is exclusive, and asking for it is always deliberate: a client
++            // sets this bit because the user chose the codec, never as part of an "everything I can
++            // decode" set. Nova's codec picker is what holds up that end.
+             //
+-            // That reasoning depends on the bit being opt-in: a client must set
+-            // VIDEO_FORMAT_PYROWAVE only when the codec was chosen deliberately, never as part of an
+-            // "everything I can decode" set. Nova's codec picker is what holds up that end.
++            // So a host that cannot serve it is an error and not a reason to drop down the ladder
++            // below. Falling through would hand the user H.264 under the name of the codec they
++            // picked, which looks like it worked and is the hardest kind of wrong to notice.
++            if (!(serverInfo->serverCodecModeSupport & SCM_PYROWAVE) ||
++                !sdpOffersPyroWaveProfile(response.payload)) {
++                Limelog("This host does not offer the PyroWave profile this client implements (%s)\n",
++                        PYROWAVE_PROFILE_TOKEN);
++                ret = -1;
++                goto Exit;
++            }
++
+             NegotiatedVideoFormat = VIDEO_FORMAT_PYROWAVE;
+         }
+         else if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_AV1) && strstr(response.payload, "AV1/90000")) {

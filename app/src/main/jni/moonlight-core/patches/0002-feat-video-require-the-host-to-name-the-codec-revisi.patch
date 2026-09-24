@@ -1,0 +1,61 @@
+From 8cce880a6f46325fc75c82bfedf8cb8ebb3479a7 Mon Sep 17 00:00:00 2001
+From: papi <papi@papi-ux.com>
+Date: Wed, 23 Sep 2026 22:06:46 -0400
+Subject: [PATCH 2/5] feat(video): require the host to name the codec revision
+ and the colours
+
+PyroWave carries neither in its bitstream. Its API and its bitstream are both unstable
+before 1.0, so an encoder and a decoder built a few commits apart agree on every byte of
+this protocol and still produce noise, and the fields the bitstream reserves for
+primaries, transfer function and range are not written by anything yet, so they arrive as
+zero. Both facts are agreements rather than data, and a client that guesses wrong renders
+a picture that is merely wrong.
+
+So the host says which it is and the client will not ask for the codec until it reads
+that exact string back. It is a brittle handshake on purpose: while this codec ships
+behind a build flag on both ends, a refusal with a reason beats a stream nobody can
+explain.
+---
+ src/Limelight.h      | 14 ++++++++++++++
+ src/RtspConnection.c |  3 ++-
+ 2 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/src/Limelight.h b/src/Limelight.h
+index 16b567a..eb3156f 100644
+--- a/src/Limelight.h
++++ b/src/Limelight.h
+@@ -236,6 +236,20 @@ typedef struct _DECODE_UNIT {
+ // not know it never sets this one, so the two of them negotiate exactly as they did before.
+ #define VIDEO_FORMAT_PYROWAVE        0x10000 // PyroWave 4:2:0 8-bit
+ 
++// What the host has to say before this client will accept the codec from it.
++//
++// The codec revision and the colourimetry, neither of which a decoder can work out for itself. Its
++// bitstream and its C API are both unstable before 1.0, so an encoder and a decoder built a few
++// commits apart agree on every byte of this protocol and still produce noise; and the bitstream
++// reserves fields for primaries, transfer function and range that nothing writes yet, so the frames
++// being full range Rec. 709 SDR 4:2:0 is an agreement and not something in the stream.
++//
++// A client is expected to fail this comparison rather than guess. A wrong guess is a picture that is
++// merely wrong, with nothing in any log to say why.
++//
++// Moves with the PyroWave library this client is built against.
++#define PYROWAVE_PROFILE_TOKEN "pyrowave-186f0393-sdr420-v1"
++
+ // Masks for clients to use to match video codecs without profile-specific details.
+ #define VIDEO_FORMAT_MASK_H264     0x000F
+ #define VIDEO_FORMAT_MASK_H265     0x0F00
+diff --git a/src/RtspConnection.c b/src/RtspConnection.c
+index 465e27c..bf68997 100644
+--- a/src/RtspConnection.c
++++ b/src/RtspConnection.c
+@@ -1075,7 +1075,8 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+         
+         if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_PYROWAVE) &&
+             (serverInfo->serverCodecModeSupport & SCM_PYROWAVE) &&
+-            strstr(response.payload, "PYROWAVE/90000")) {
++            strstr(response.payload, "PYROWAVE/90000") &&
++            strstr(response.payload, PYROWAVE_PROFILE_TOKEN)) {
+             // Ahead of the others because this one has no ladder to fall down. Every format below
+             // is reached by preference among profiles of a codec the client can always decode; this
+             // one is either what the user asked for or it is not offered at all. Tested last, a host

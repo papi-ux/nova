@@ -1,0 +1,45 @@
+From 54e5ee7228ed6810066be7f34429f723b8c85118 Mon Sep 17 00:00:00 2001
+From: papi <papi@papi-ux.com>
+Date: Wed, 23 Sep 2026 23:56:21 -0400
+Subject: [PATCH 5/5] feat(video): give the PyroWave refusal a code of its own
+
+A client that asked for the codec and found no matching profile returned -1, which every
+caller reads as a handshake that failed, and a handshake that failed sends someone to check
+their firewall. This is not that: the codec was not on offer and the network is fine.
+
+Proven live against a host without the codec, which now refuses with a reason about the
+codec instead of a list of ports.
+---
+ src/Limelight.h      | 5 +++++
+ src/RtspConnection.c | 2 +-
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/src/Limelight.h b/src/Limelight.h
+index eb3156f..28120bd 100644
+--- a/src/Limelight.h
++++ b/src/Limelight.h
+@@ -457,6 +457,11 @@ typedef void(*ConnListenerConnectionTerminated)(int errorCode);
+ // supported on GFE 3.22+.
+ #define ML_ERROR_FRAME_CONVERSION -104
+ 
++// The client asked for PyroWave and the host did not offer the exact profile it implements. Distinct
++// from a handshake that failed, because the two want opposite things from whoever reads them: this
++// one is a codec that was not on offer, and there is nothing wrong with the network.
++#define ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE -105
++
+ // This callback is invoked to log debug message
+ typedef void(*ConnListenerLogMessage)(const char* format, ...);
+ 
+diff --git a/src/RtspConnection.c b/src/RtspConnection.c
+index ce4d3d1..b3235b8 100644
+--- a/src/RtspConnection.c
++++ b/src/RtspConnection.c
+@@ -1154,7 +1154,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+                 !sdpOffersPyroWaveProfile(response.payload)) {
+                 Limelog("This host does not offer the PyroWave profile this client implements (%s)\n",
+                         PYROWAVE_PROFILE_TOKEN);
+-                ret = -1;
++                ret = ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE;
+                 goto Exit;
+             }
+ 
