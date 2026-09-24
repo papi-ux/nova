@@ -764,14 +764,6 @@ ApplicationWindow {
         contentItem: Item { id: hostPickerContent }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.NoButton
-        hoverEnabled: true
-        cursorShape: Qt.BlankCursor
-        z: 1000
-    }
-
     property bool gameLinkPending: Object.keys(novaGameLink).length > 0
     property bool gameLinkStarted: false
     property string gameLinkError: ""
