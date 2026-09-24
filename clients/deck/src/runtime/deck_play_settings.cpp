@@ -461,14 +461,14 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
         const QString label = QString(codec) == "auto" ? "Auto" : QString(codec) == "hevc" ? "HEVC" : QString(codec) == "pyrowave" ? "PyroWave · Experimental" : "H.264";
         const QString detail = !available ? (spaceSession && QString(codec) == "hevc" ? "Spaces currently use H.264." : "Unavailable for this PC and stream size.")
             : QString(codec) == "auto" ? "Prefer HEVC when both devices support it; otherwise use H.264."
-            : QString(codec) == "pyrowave" ? "High-bandwidth GPU codec for wired networks. Requires matching Polaris support. SDR only."
+            : QString(codec) == "pyrowave" ? "High-bandwidth GPU codec for fast local networks. Requires matching Polaris support. SDR only."
             : QString(codec) == "hevc" ? "Use HEVC for more efficient video compression. HDR is not available yet."
             : "Use H.264 for broad compatibility. HDR is not available yet.";
         codecs.append(QVariantMap{{"videoCodec", codec}, {"label", label + (available ? "" : " · Unavailable")}, {"detail", detail}});
     }
     const QString codecDetail = requested && requested->videoCodec == "auto" && selectedFormat
         ? (selectedFormat == VIDEO_FORMAT_H265 ? "Auto selected HEVC. HDR is not available yet." : "Auto selected H.264; HEVC is unavailable for this stream.")
-        : effective.videoCodec == "pyrowave" ? "PyroWave uses much more bandwidth. Start around 100 Mbps at 1280 × 800 or 200 Mbps at 1080p, both at 60 fps. HDR is not available yet."
+        : effective.videoCodec == "pyrowave" ? "PyroWave needs a fast local network and a higher bitrate for fine detail. Higher resolution or frame rate needs more bandwidth. HDR is not available yet."
         : "HDR is not available yet.";
     return {{"configuration", effective.toMap()}, {"playable", reason.isEmpty()}, {"reason", reason},
         {"adjustment", reason.isEmpty() ? adjustment : QString{}}, {"resolutions", resolutions}, {"rates", rates},

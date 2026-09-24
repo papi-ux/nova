@@ -414,8 +414,8 @@ FocusScope {
                     field: "videoCodec"
                     explanation: "Choose video compression for this game. The plan shows the codec the next stream will use."
                     defaultExplanation: "Use Nova's compatible H.264 default."
-                    label: "Video codec"; value: configuration.videoCodec === "auto" ? "Auto" : configuration.videoCodec === "hevc" ? "HEVC" : "H.264"
-                    onClicked: picker.choose(videoCodec, "Video codec", plan.codecs,
+                    label: "Video Codec"; value: configuration.videoCodec === "auto" ? "Auto" : configuration.videoCodec === "hevc" ? "HEVC" : configuration.videoCodec === "pyrowave" ? "PyroWave" : "H.264"
+                    onClicked: picker.choose(videoCodec, "Video Codec", plan.codecs,
                         Math.max(0, plan.codecs.findIndex(choice => choice.videoCodec === configuration.videoCodec)))
                 }
                 Setting {

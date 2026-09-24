@@ -87,6 +87,10 @@ int main(int argc,char** argv) {
         && settings.load("host","game")["configuration"].toMap()["bitrateKbps"]==225500,"individual reset ignored new defaults or erased bitrate");
     click("play-setup-bitrate");click("play-setup-choice-5");item("stream-profile-bitrate")->setProperty("text","99");click("stream-profile-back");
     check(DeckPlaySettings(config.filePath("play.ini")).load("host","game")["configuration"].toMap()["bitrateKbps"]==225500,"cancel mutated saved choice");
+    check(settings.saveChoice("host","game",{{"videoCodec","pyrowave"}}),"PyroWave choice did not save");
+    auto* setup=root->findChild<QObject*>("play-setup");
+    check(setup && QMetaObject::invokeMethod(setup,"prepare"),"Play Setup could not refresh");settle();
+    check(item("play-setup-codec")->property("value")=="PyroWave","saved PyroWave choice was labelled H.264");
     check(!warnings,"display/settings screens emitted warnings");
     std::cout<<"Custom stream/device scopes, numeric touch entry, controller focus, reset, timeout and large text passed.\n";
 }
