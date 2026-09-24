@@ -3,8 +3,8 @@
 What Nova adds to the streaming library so it can negotiate PyroWave, kept here as a patch series
 rather than as a fork.
 
-Seven commits, 270 lines across five files, most of it comment: the format numbers and the profile
-tokens in `Limelight.h`, the negotiation arm in `RtspConnection.c`, the SDP matcher in its own
+Eight commits, 281 lines across five files, most of it comment: the format numbers, the masks and the
+profile tokens in `Limelight.h`, the negotiation arm in `RtspConnection.c`, the SDP matcher in its own
 `PyroWaveSdp.h`, one attribute in `SdpGenerator.c`, and two words in `VideoDepacketizer.c`. The
 library never sees a PyroWave byte; it carries the payload opaquely and hands it to the renderer.
 

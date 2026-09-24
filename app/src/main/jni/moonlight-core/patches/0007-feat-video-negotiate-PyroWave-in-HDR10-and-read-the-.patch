@@ -1,7 +1,7 @@
 From d98c661198f454c992e53ae6a3a395bccd9f755c Mon Sep 17 00:00:00 2001
 From: papi <papi@papi-ux.com>
 Date: Thu, 24 Sep 2026 07:44:40 -0400
-Subject: [PATCH 7/7] feat(video): negotiate PyroWave in HDR10, and read the
+Subject: [PATCH 7/8] feat(video): negotiate PyroWave in HDR10, and read the
  profile as a list
 
 A host that can carry both colourimetries offers one token for each, in one fmtp

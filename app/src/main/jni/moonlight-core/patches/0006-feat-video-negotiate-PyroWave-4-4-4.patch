@@ -1,7 +1,7 @@
 From 126bdee18ef366de29ec2f348df7427f0e4794a6 Mon Sep 17 00:00:00 2001
 From: papi <papi@papi-ux.com>
 Date: Thu, 24 Sep 2026 03:51:57 -0400
-Subject: [PATCH 6/7] feat(video): negotiate PyroWave 4:4:4
+Subject: [PATCH 6/8] feat(video): negotiate PyroWave 4:4:4
 
 A second format above the first, and a capability bit beside it. A client that wants a
 chroma sample per pixel asks for both formats and takes 4:4:4 when the host says it has it,

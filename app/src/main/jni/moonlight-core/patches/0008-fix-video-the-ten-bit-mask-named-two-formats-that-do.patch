@@ -1,0 +1,56 @@
+From cf4d2ec23a83415e9f2b9af997eb0fbfc312fe45 Mon Sep 17 00:00:00 2001
+From: papi <papi@papi-ux.com>
+Date: Thu, 24 Sep 2026 11:44:57 -0400
+Subject: [PATCH 8/8] fix(video): the ten bit mask named two formats that do
+ not exist
+
+VIDEO_FORMAT_MASK_10BIT was written as 0xC0AA00 when it needed to be 0xCAA00. The
+two PyroWave bits sat a nibble too far left, so the mask named two formats nothing
+defines and left out both it was supposed to add.
+
+Its own comment says what that costs. The mask is the only thing that makes the SDP
+generator send dynamicRangeMode 1, and that field is how the host learns a stream
+is HDR. So every HDR stream on this codec announced dynamicRangeMode 0 and was
+served full range Rec. 709, while the client had already picked a ten bit format
+from the profile list and built a PQ BT.2020 swapchain to present it in. That is a
+dark, oversaturated picture with nothing in any log, which is the exact failure the
+comment was written to prevent.
+
+Both masks are spelled out of the names they are made of now. A literal was the
+mistake, and the 4:4:4 mask beside it is one nibble away from losing the
+chromaSamplingType attribute the same silent way, so it is written the same way
+even though its value was right.
+---
+ src/Limelight.h | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/src/Limelight.h b/src/Limelight.h
+index 69cf24a..32a2db7 100644
+--- a/src/Limelight.h
++++ b/src/Limelight.h
+@@ -268,12 +268,23 @@ typedef struct _DECODE_UNIT {
+ // dynamicRangeMode 1 for them without a second mechanism. That field is how a Sunshine host learns a
+ // stream is HDR, so a ten bit format that stayed out of this mask would negotiate as SDR and be
+ // decoded as Rec. 709.
+-#define VIDEO_FORMAT_MASK_10BIT    0xC0AA00
++//
++// Written out of the names rather than as a literal, because as a literal it was wrong: 0xC0AA00 has
++// the two PyroWave bits a nibble too far left, so it named two formats that do not exist and left
++// out both that do. Every HDR stream on this codec announced dynamicRangeMode 0 and was served
++// Rec. 709 while the client presented it as PQ BT.2020, which is the dark, oversaturated picture the
++// paragraph above predicted, with nothing in any log.
++#define VIDEO_FORMAT_MASK_10BIT    (VIDEO_FORMAT_H265_MAIN10 | VIDEO_FORMAT_H265_REXT10_444 | \
++                                    VIDEO_FORMAT_AV1_MAIN10 | VIDEO_FORMAT_AV1_HIGH10_444 | \
++                                    VIDEO_FORMAT_PYROWAVE_10BIT | VIDEO_FORMAT_PYROWAVE_444_10BIT)
+ // PyroWave's 4:4:4 format joins this one so the chromaSamplingType attribute below is emitted for
+ // it without a second mechanism. Chroma is the one thing about this codec that does not need an
+ // agreement out of band: it travels in every frame's sequence header, and a decoder created for the
+ // wrong one refuses the frame and says so.
+-#define VIDEO_FORMAT_MASK_YUV444   0xACC04
++#define VIDEO_FORMAT_MASK_YUV444   (VIDEO_FORMAT_H264_HIGH8_444 | VIDEO_FORMAT_H265_REXT8_444 | \
++                                    VIDEO_FORMAT_H265_REXT10_444 | VIDEO_FORMAT_AV1_HIGH8_444 | \
++                                    VIDEO_FORMAT_AV1_HIGH10_444 | VIDEO_FORMAT_PYROWAVE_444 | \
++                                    VIDEO_FORMAT_PYROWAVE_444_10BIT)
+ 
+ // If set in the renderer capabilities field, this flag will cause audio/video data to
+ // be submitted directly from the receive thread. This should only be specified if the

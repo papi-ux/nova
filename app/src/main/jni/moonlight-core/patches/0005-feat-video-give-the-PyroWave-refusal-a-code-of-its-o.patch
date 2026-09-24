@@ -1,7 +1,7 @@
 From 54e5ee7228ed6810066be7f34429f723b8c85118 Mon Sep 17 00:00:00 2001
 From: papi <papi@papi-ux.com>
 Date: Wed, 23 Sep 2026 23:56:21 -0400
-Subject: [PATCH 5/7] feat(video): give the PyroWave refusal a code of its own
+Subject: [PATCH 5/8] feat(video): give the PyroWave refusal a code of its own
 
 A client that asked for the codec and found no matching profile returned -1, which every
 caller reads as a handshake that failed, and a handshake that failed sends someone to check

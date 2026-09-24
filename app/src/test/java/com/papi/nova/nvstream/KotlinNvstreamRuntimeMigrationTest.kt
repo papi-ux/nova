@@ -52,7 +52,9 @@ class KotlinNvstreamRuntimeMigrationTest {
 
         assertEquals(0x0001, MoonBridge.VIDEO_FORMAT_H264)
         assertEquals(0x0100, MoonBridge.VIDEO_FORMAT_H265)
-        assertEquals(0x2200, MoonBridge.VIDEO_FORMAT_MASK_10BIT)
+        // Upstream's 0x2200 plus the two PyroWave ten bit formats, which is the whole of what this
+        // side means by ten bit. See PyroWaveTenBitNegotiationTest for why they are in it.
+        assertEquals(0xC2200, MoonBridge.VIDEO_FORMAT_MASK_10BIT)
         assertEquals(-5501, MoonBridge.LI_ERR_UNSUPPORTED)
         assertEquals((-1).toByte(), MoonBridge.LI_TILT_UNKNOWN)
         assertEquals((-1).toShort(), MoonBridge.LI_ROT_UNKNOWN)
