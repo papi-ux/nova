@@ -38,8 +38,9 @@ struct DeckStreamCapabilities {
     bool h264 = true; // Missing legacy metadata keeps GameStream's H.264 default.
     double maxFps = 0; // Zero means not advertised, never inferred from a game HDR badge.
     bool hevc = false; // Explicit 8-bit HEVC support only.
+    bool pyrowave = false; // Requires the exact pinned native extension.
     bool supports(int width, int height, int fps) const {
-        return valid && (h264 || hevc) && supportedDeckResolution(width, height) &&
+        return valid && (h264 || hevc || pyrowave) && supportedDeckResolution(width, height) &&
             supportedDeckProfileRate(fps) && (maxFps == 0 || fps <= maxFps) &&
             (fps <= 60 || maxFps >= fps); // High rates require an advertised host limit.
     }

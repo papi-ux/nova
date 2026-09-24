@@ -118,6 +118,23 @@ set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
     CACHE PATH
     "Path to the checked-out moonlight-common-c source tree used by the Deck stream skeleton"
 )
+option(NOVA_DECK_BUILD_PYROWAVE "Build the experimental pinned PyroWave codec" OFF)
+if(NOVA_DECK_BUILD_PYROWAVE)
+    # Keep the Android submodule unchanged. Only this optional native build
+    # consumes the private, version-negotiated GameStream extension.
+    find_program(NOVA_PATCH_EXECUTABLE patch REQUIRED)
+    set(NOVA_DECK_PYROWAVE_MOONLIGHT_DIR "${CMAKE_CURRENT_BINARY_DIR}/moonlight-pyrowave-source")
+    file(COPY "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/" DESTINATION "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}"
+        PATTERN ".git" EXCLUDE)
+    execute_process(COMMAND "${NOVA_PATCH_EXECUTABLE}" --batch -p1 -i
+        "${CMAKE_CURRENT_SOURCE_DIR}/patches/moonlight-pyrowave.patch"
+        WORKING_DIRECTORY "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}"
+        RESULT_VARIABLE NOVA_DECK_PYROWAVE_PATCH_RESULT OUTPUT_QUIET)
+    if(NOT NOVA_DECK_PYROWAVE_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Pinned PyroWave transport patch did not apply")
+    endif()
+    set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}")
+endif()
 if(EXISTS "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/Limelight.h")
     # moonlight-common-c defaults to a shared library when BUILD_SHARED_LIBS is
     # unset; the Deck shell links it statically so an installed binary (the
@@ -163,6 +180,17 @@ target_compile_definitions(nova_deck_core
 )
 
 include(CTest)
+if(NOVA_DECK_BUILD_PYROWAVE)
+    add_subdirectory(pyrowave)
+    target_link_libraries(nova_deck_core PUBLIC nova_pyrowave)
+    target_compile_definitions(nova_deck_core PUBLIC NOVA_DECK_BUILD_PYROWAVE=1)
+    if(BUILD_TESTING)
+        add_executable(nova_deck_pyrowave_presenter_test tests/deck_pyrowave_presenter_test.cpp)
+        target_link_libraries(nova_deck_pyrowave_presenter_test PRIVATE nova_deck_core)
+        add_test(NAME nova_deck_pyrowave_presenter_test COMMAND nova_deck_pyrowave_presenter_test)
+        set_tests_properties(nova_deck_pyrowave_presenter_test PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
+    endif()
+endif()
 option(NOVA_DECK_BUILD_HDR_VALIDATION "Build local Main10 color and Vulkan window validation" OFF)
 option(NOVA_DECK_BUILD_VULKAN_STREAM "Build the opt-in Vulkan native stream UI" OFF)
 if(NOVA_DECK_BUILD_HDR_VALIDATION OR NOVA_DECK_BUILD_VULKAN_STREAM)

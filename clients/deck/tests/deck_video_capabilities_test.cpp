@@ -35,6 +35,14 @@ int main(int argc, char** argv) {
         av_buffer_unref(&wrongDevice);
     }
 
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    const DeckVideoDecodeSupport pyro{.pyrowave = {1920, 1080}};
+    require(selectSdrVideoFormat("pyrowave", false, false, pyro, 1280, 800, true) == VIDEO_FORMAT_PYROWAVE, "explicit PyroWave rejected");
+    require(selectSdrVideoFormat("auto", false, false, pyro, 1280, 800, true) == 0, "Auto selected experimental PyroWave");
+    require(selectSdrVideoFormat("pyrowave", true, true, pyro, 1280, 800, false) == 0, "PyroWave admitted without host support");
+    require(selectSdrVideoFormat("pyrowave", true, true, pyro, 2560, 1440, true) == 0, "PyroWave ignored decoder limits");
+#endif
+
     // Retained two-frame x265 Main (not Main Still Picture) Annex-B sample.
     // Software decode is deterministic even on hosts without VAAPI. It proves
     // the actual codec/profile/color route, not hardware presentation or HDR.

@@ -20,6 +20,9 @@
 #include <QtCore/QSize>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QSGRenderNode>
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+#include "codec.h"
+#endif
 
 class QQuickWindow;
 class QSGTexture;
@@ -179,7 +182,7 @@ public:
         Resource& resource);
     static bool proveOpenGlShaderCompositionForCurrentContext(
         Resource& resource,
-        const QSize& size);
+        const QSize& size, std::vector<std::uint8_t>* rgba = nullptr);
     // Draws existing GL textures with Qt's transform, opacity and clip state.
     // Texture composition alone does not prove a VAAPI/EGL import.
     static bool composeOpenGlTexture(Resource& resource, const QSGRenderNode& node,
@@ -242,6 +245,9 @@ public:
     DeckQrhiVaapiFrameLease& operator=(DeckQrhiVaapiFrameLease&&) = delete;
 
     static std::shared_ptr<DeckQrhiVaapiFrameLease> cloneHardwareFrame(const AVFrame& frame);
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    static std::shared_ptr<DeckQrhiVaapiFrameLease> retainPyrowaveFrame(const nova::pyrowave::GpuImage& frame);
+#endif
     bool valid() const;
     std::uintptr_t surfaceId() const;
     // Immutable frame and side data; valid only while this lease is retained.
@@ -428,6 +434,9 @@ private:
     AVBufferRef* hardwareDevice_ = nullptr;
     AVCodecContext* codecContext_ = nullptr;
     AVFrame* decodedFrame_ = nullptr;
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    std::unique_ptr<nova::pyrowave::Codec> pyrowave_;
+#endif
     DeckQrhiVaapiPresentationHandoff presentationHandoff_{};
     DeckVaapiPreviewFramePump previewFramePump_{presentationHandoff_};
 };

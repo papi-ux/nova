@@ -51,6 +51,14 @@ void testParsesCapabilities() {
     assert(hevcOnly && hevcOnly->streamCapabilities.valid && !hevcOnly->streamCapabilities.h264);
     assert(hevcOnly->streamCapabilities.supports(1920, 1080, 240));
     assert(!hevcOnly->streamCapabilities.supports(1920, 1080, 241));
+    assert(!parseCapabilities(R"({"capture":{"codecs":["pyrowave"]}})")->streamCapabilities.pyrowave);
+    assert(!parseCapabilities(R"({"capture":{"codecs":["pyrowave"],"pyrowave_bitstream":"wrong"}})")->streamCapabilities.pyrowave);
+    const auto pyro = parseCapabilities(R"({"capture":{"codecs":["pyrowave"],"pyrowave_bitstream":"pyrowave-186f0393-sdr420-v1"}})");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    assert(pyro && pyro->streamCapabilities.pyrowave && pyro->streamCapabilities.supports(1280, 800, 60));
+#else
+    assert(pyro && !pyro->streamCapabilities.pyrowave);
+#endif
     const auto limited = parseCapabilities(R"({"capture":{"codecs":["H264"],"max_fps":30}})");
     assert(limited && limited->streamCapabilities.supports(1280, 800, 30) && !limited->streamCapabilities.supports(1280, 800, 60));
     assert(parseCapabilities("{}")->streamCapabilities.supports(1280, 800, 60));

@@ -8,6 +8,9 @@
 
 #include <chrono>
 #include <thread>
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+#include "codec.h"
+#endif
 
 namespace nova::deck::stream {
 
@@ -18,7 +21,7 @@ std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
     // Only direct, unique scalar fields may supply identity/ownership. This
     // also avoids last-value-wins behavior on conflicting session snapshots.
     const QSet<QString> fields{"appversion", "GfeVersion", "ServerCodecModeSupport",
-        "currentgame", "currentgameuuid", "currentgameowned", "currentgamesessiontoken", "PairStatus"};
+        "currentgame", "currentgameuuid", "currentgameowned", "currentgamesessiontoken", "PairStatus", "PolarisPyrowaveBitstream"};
     QMap<QString, QString> values;
     while (reader.readNextStartElement()) {
         const auto name = reader.name().toString();
@@ -52,6 +55,7 @@ std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
     }
     info.currentGameUuid = values.value("currentgameuuid").toStdString();
     info.currentSessionToken = values.value("currentgamesessiontoken").toStdString();
+    info.pyrowaveBitstream = values.value("PolarisPyrowaveBitstream").toStdString();
     return info;
 }
 
@@ -111,7 +115,11 @@ DeckSessionBuildResult buildStreamConnection(
     }
     // Resolve against fresh serverinfo before any launch/resume mutation. Zero
     // is the legacy H.264 default, never implicit HEVC or Main10 support.
-    const int requiredCodec = request.videoCodec == "h264" ? SCM_H264 : request.videoCodec == "hevc" ? SCM_HEVC : 0;
+    int requiredCodec = request.videoCodec == "h264" ? SCM_H264 : request.videoCodec == "hevc" ? SCM_HEVC : 0;
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (request.videoCodec == "pyrowave" && serverInfo->pyrowaveBitstream == nova::pyrowave::bitstreamId)
+        requiredCodec = SCM_PYROWAVE;
+#endif
     const int availableCodecs = serverInfo->serverCodecModeSupport == 0 ? SCM_H264 : serverInfo->serverCodecModeSupport;
     if (!requiredCodec || !(availableCodecs & requiredCodec)) {
         result.sessionSelectionRejected = true;
@@ -191,6 +199,7 @@ DeckSessionBuildResult buildStreamConnection(
     result.connectionInfo.gfeVersion = serverInfo->gfeVersion;
     result.connectionInfo.rtspSessionUrl = launch.rtspSessionUrl;
     result.connectionInfo.serverCodecModeSupport = serverInfo->serverCodecModeSupport;
+    if (request.videoCodec == "pyrowave") result.connectionInfo.colorRange = COLOR_RANGE_FULL;
     result.connectionInfo.keys = keys;
     result.connectionInfo.hostSessionToken = launch.sessionToken;
     return result;

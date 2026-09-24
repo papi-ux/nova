@@ -20,6 +20,9 @@ DeckLaunchRequest launchRequestForStream(const DeckStreamRequest& request, const
     launch.playLocalAudio = request.playHostAudio;
     launch.videoCodec = request.videoFormat == VIDEO_FORMAT_H264 ? "h264"
         : request.videoFormat == VIDEO_FORMAT_H265 ? "hevc" : "unsupported";
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (request.videoFormat == VIDEO_FORMAT_PYROWAVE) launch.videoCodec = "pyrowave";
+#endif
     return launch;
 }
 
@@ -68,7 +71,11 @@ void* nextOpaqueCallbackContext() {
 bool isValidStreamRequest(const DeckStreamRequest& request) {
     return request.width > 0 && request.height > 0 && request.fps > 0 && request.bitrateKbps > 0 &&
         request.audioConfiguration != 0 &&
-        (request.videoFormat == VIDEO_FORMAT_H264 || request.videoFormat == VIDEO_FORMAT_H265);
+        (request.videoFormat == VIDEO_FORMAT_H264 || request.videoFormat == VIDEO_FORMAT_H265
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+            || request.videoFormat == VIDEO_FORMAT_PYROWAVE
+#endif
+        );
 }
 
 class DefaultMoonlightConnectionDriver final : public DeckMoonlightConnectionDriver {

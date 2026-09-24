@@ -14,7 +14,7 @@ struct DeckDecodeLimits {
 
 // Decoder support only. Main10 never implies an HDR display/presenter.
 struct DeckVideoDecodeSupport {
-    DeckDecodeLimits h264, hevc, main10;
+    DeckDecodeLimits h264, hevc, main10, pyrowave;
     bool supports(int videoFormat, int width, int height) const;
 };
 
@@ -25,6 +25,6 @@ DeckVideoDecodeSupport detectVideoDecodeSupport();
 
 // Auto prefers HEVC only when both endpoints support this stream size.
 int selectSdrVideoFormat(std::string_view preference, bool hostH264, bool hostHevc,
-    const DeckVideoDecodeSupport& decoder, int width, int height);
+    const DeckVideoDecodeSupport& decoder, int width, int height, bool hostPyrowave = false);
 
 } // namespace nova::deck::stream

@@ -312,6 +312,31 @@ void testHostCancel() {
     }
 }
 
+void testPyrowaveAdmission() {
+    auto request = sampleRequest(); request.videoCodec = "pyrowave";
+    for (const auto* revision : {"", "pyrowave-incompatible", "pyrowave-186f0393-sdr420-v1"}) {
+        FakeHost host;
+        host.table["/serverinfo"] = {true, 200,
+            "<root status_code=\"200\"><appversion>7.1.431.-1</appversion>"
+            "<ServerCodecModeSupport>8388608</ServerCodecModeSupport>"
+            "<PolarisPyrowaveBitstream>" + std::string(revision) + "</PolarisPyrowaveBitstream></root>"};
+        host.table["/launch"] = {true, 200, kLaunchOk};
+        const auto result = buildStreamConnection(host.fetcher(), "192.0.2.10", request, fixedKeys());
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        const bool supported = std::string(revision) == "pyrowave-186f0393-sdr420-v1";
+#else
+        const bool supported = false;
+#endif
+        assert(result.ok == supported);
+        assert(host.seen.size() == (supported ? 2 : 1));
+        if (supported) assert(result.connectionInfo.colorRange == COLOR_RANGE_FULL);
+        else assert(result.sessionSelectionRejected && !result.hostSessionStarted);
+    }
+    assert(!parseServerInfo("<root status_code=\"200\"><appversion>7</appversion>"
+        "<PolarisPyrowaveBitstream>a</PolarisPyrowaveBitstream>"
+        "<PolarisPyrowaveBitstream>b</PolarisPyrowaveBitstream></root>"));
+}
+
 void testFetcherOverPolarisClient() {
     // An unusable identity never reaches the network and is a transport failure,
     // not an answer, so the builder reports the host as unreachable.
@@ -336,6 +361,7 @@ int main(int argc, char** argv) {
     testBuildOk();
     testUnsupportedCodecNeverLaunches();
     testHevcAdmission();
+    testPyrowaveAdmission();
     testBuildFailures();
     testHostCancel();
     testOwnedResumeSelection();

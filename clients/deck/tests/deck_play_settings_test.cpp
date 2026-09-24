@@ -152,6 +152,23 @@ int main(int argc, char** argv) {
     require(settings.streamPlan(automaticCodec, bothCodecs, {}, {}, true).value("videoLabel") == "H.264 · SDR", "Space Auto upgraded codec");
     require(settings.streamPlan(forcedHevc, {{"h264", false}, {"hevc", true}}, {}).value("playable").toBool(), "HEVC-only PC rejected");
     require(!DeckPlaySettings{}.streamPlan(defaults, bothCodecs, {}).value("playable").toBool(), "unprobed decoder allowed playback");
+    {
+        DeckPlaySettings pyroSettings(directory.filePath("pyrowave.ini"));
+        pyroSettings.setVideoDecodeSupport({.h264 = {4096, 4096}, .pyrowave = {1920, 1200}});
+        auto pyro = defaults; pyro["videoCodec"] = "pyrowave";
+        const QVariantMap host{{"h264", true}, {"pyrowave", true}};
+        require(pyroSettings.saveChoice("pc", "game", {{"videoCodec", "pyrowave"}}), "PyroWave preference could not be saved");
+        require(DeckPlaySettings(directory.filePath("pyrowave.ini")).load("pc", "game").value("configuration").toMap().value("videoCodec") == "pyrowave", "PyroWave preference did not survive restart");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        require(pyroSettings.streamPlan(pyro, host, {}).value("videoLabel") == "PyroWave · SDR", "explicit PyroWave selection lost its codec");
+        require(pyroSettings.streamPlan(pyro, host, {}).value("playable").toBool(), "supported PyroWave selection could not play");
+        require(!pyroSettings.streamPlan(pyro, host, {}, {}, true).value("playable").toBool(), "Space selected PyroWave");
+#else
+        require(!pyroSettings.streamPlan(pyro, host, {}).value("playable").toBool(), "disabled build selected PyroWave");
+#endif
+        require(!pyroSettings.streamPlan(pyro, {}, {}).value("playable").toBool(), "missing host codec silently fell back");
+        require(pyroSettings.streamPlan(automaticCodec, host, {}).value("videoLabel") == "H.264 · SDR", "Auto selected experimental PyroWave");
+    }
     require(settings.saveChoice("codec-pc", "game", {{"videoCodec", "auto"}}), "codec choice not saved");
     require(DeckPlaySettings(file).load("codec-pc", "game").value("configuration").toMap().value("videoCodec") == "auto" &&
         settings.load("codec-pc", "another").value("configuration").toMap().value("videoCodec") == "h264", "codec choice lost scope/persistence");

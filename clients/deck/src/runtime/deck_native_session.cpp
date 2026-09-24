@@ -789,7 +789,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         const auto videoSupport = target->probeVideoSupport ? target->probeVideoSupport() : DeckVideoDecodeSupport{};
         target->request.videoFormat = selectSdrVideoFormat(configuration ? configuration->videoCodec.toStdString() : "h264",
             capabilities->h264, capabilities->hevc && !polaris::isSpaceGame(gameId.toStdString()), videoSupport,
-            target->request.width, target->request.height);
+            target->request.width, target->request.height, capabilities->pyrowave && !polaris::isSpaceGame(gameId.toStdString()));
         if (!target->request.videoFormat) {
             finish("failed", "The selected video codec is no longer available. Review Play Setup again before starting.");
             return;

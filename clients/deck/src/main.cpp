@@ -815,7 +815,8 @@ QVariantList toLibraryGameModel(const std::vector<nova::deck::backend::DeckPubli
         item.insert("launchPolicy", QVariantMap{{"known", game.launchPolicy.known},
             {"hostDefault", toQString(game.launchPolicy.hostDefault)}, {"allowed", launchModes}});
         item.insert("streamCapabilities", QVariantMap{{"valid", game.streamCapabilities.valid},
-            {"h264", game.streamCapabilities.h264}, {"hevc", game.streamCapabilities.hevc}, {"maxFps", game.streamCapabilities.maxFps}});
+            {"h264", game.streamCapabilities.h264}, {"hevc", game.streamCapabilities.hevc},
+            {"pyrowave", game.streamCapabilities.pyrowave}, {"maxFps", game.streamCapabilities.maxFps}});
         QVariantList resolutions;
         for (const auto& choice : game.displayPlanner.choices)
             resolutions.append(QVariantMap{{"width", choice.width}, {"height", choice.height},
@@ -1178,6 +1179,7 @@ struct NativeLaunchOptions {
     int width = 1280;
     int height = 800;
     int fps = 60;
+    int videoFormat = VIDEO_FORMAT_H264;
     bool modeValid = true;
 };
 
@@ -1187,6 +1189,12 @@ NativeLaunchOptions parseNativeLaunchOptions(const QStringList& arguments) {
     options.appIdOverride = intArgumentAfter(arguments, QStringLiteral("--native-app-id"), 0);
     options.waitMs = intArgumentAfter(arguments, QStringLiteral("--native-wait-ms"), 15000);
     options.bitrateKbps = intArgumentAfter(arguments, QStringLiteral("--native-bitrate-kbps"), 20000);
+    const auto codec = stringArgumentAfter(arguments, QStringLiteral("--native-codec"));
+    if (codec == "hevc") options.videoFormat = VIDEO_FORMAT_H265;
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    else if (codec == "pyrowave") options.videoFormat = VIDEO_FORMAT_PYROWAVE;
+#endif
+    else if (!codec.isEmpty() && codec != "h264") options.modeValid = false;
     const QString mode = stringArgumentAfter(arguments, QStringLiteral("--native-mode"));
     if (!mode.isEmpty()) {
         const QStringList parts = mode.split(QLatin1Char('x'));
@@ -1198,7 +1206,7 @@ NativeLaunchOptions parseNativeLaunchOptions(const QStringList& arguments) {
             options.height = parts[1].toInt(&hOk);
             options.fps = parts[2].toInt(&fOk);
         }
-        options.modeValid = wOk && hOk && fOk && options.width > 0 && options.height > 0 && options.fps > 0;
+        options.modeValid = options.modeValid && wOk && hOk && fOk && options.width > 0 && options.height > 0 && options.fps > 0;
     }
     return options;
 }
@@ -1236,7 +1244,7 @@ int nativeLaunchCommand(
     using nova::deck::stream::DeckStreamSessionState;
     const NativeLaunchOptions options = parseNativeLaunchOptions(arguments);
     if (!options.modeValid) {
-        std::cout << "nova-deck native: --native-mode must look like 1280x800x60" << std::endl;
+        std::cout << "nova-deck native: invalid --native-mode or unavailable --native-codec" << std::endl;
         return 2;
     }
     if (!identity || !snapshot || snapshot->selectedHostId.empty()) {
@@ -1309,6 +1317,7 @@ int nativeLaunchCommand(
         .height = options.height,
         .fps = options.fps,
         .bitrateKbps = options.bitrateKbps,
+        .videoFormat = options.videoFormat,
     };
     const auto launch = nova::deck::stream::launchRequestForStream(request, appId);
     const auto keys = nova::deck::stream::generateStreamKeys();
