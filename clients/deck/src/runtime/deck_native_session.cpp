@@ -2,6 +2,7 @@
 #include "runtime/deck_session_failure_message.h"
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_rumble.h"
+#include <QDebug>
 #include <QScopeGuard>
 extern "C" {
 #include <libavutil/frame.h>
@@ -851,6 +852,14 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             built.connectionInfo, target->fetch, !built.resumed);
         if (started.hostCancelRequested) cleanupConfirmed = started.hostCancelled;
         const bool active = started.networkStarted;
+        if (!active && !shared->cancelled) {
+            const auto status = gate.connectionStatus();
+            // Keep failure diagnostics useful without logging endpoints, keys
+            // or raw transport messages from the connection handshake.
+            qWarning() << "Nova native connection setup failed: stage" << status.failedStage
+                << "error" << status.failedStageErrorCode
+                << "termination" << status.terminationErrorCode;
+        }
         if (active && !shared->cancelled) {
             if (target->hostTelemetry && !built.connectionInfo.hostSessionToken.empty()) {
                 try {
