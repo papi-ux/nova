@@ -763,6 +763,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
                         $<TARGET_FILE:nova-deck> --play-setup)
                 set_tests_properties(nova_deck_play_setup_route_test PROPERTIES TIMEOUT 80)
+                add_test(NAME nova_deck_text_readability_test
+                    COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
+                        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
+                        $<TARGET_FILE:nova-deck> --readability)
+                set_tests_properties(nova_deck_text_readability_test PROPERTIES TIMEOUT 120 RESOURCE_LOCK nova_deck_x11)
                 add_test(NAME nova_deck_launch_modes_route_test
                     COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py

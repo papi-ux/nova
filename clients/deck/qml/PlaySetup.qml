@@ -214,8 +214,8 @@ FocusScope {
         textFormat: Text.PlainText
         color: NovaTheme.text
         font.pixelSize: 20 * unit * NovaTheme.fontScale
-        wrapMode: Text.WordWrap
-        elide: Text.ElideRight
+        wrapMode: Text.Wrap
+        elide: Text.ElideNone
     }
     component Action: NovaButton { unit: setup.unit }
     component Setting: Action {
@@ -243,18 +243,20 @@ FocusScope {
         contentItem: RowLayout {
             spacing: 12 * unit
             ColumnLayout {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 spacing: 2 * unit
-                Copy { text: label; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text; font.pixelSize: 17 * unit * NovaTheme.fontScale }
-                Copy { text: parent.parent.parent === steamLaunch ? "This game · On PC" : scopeLabel; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale; font.weight: Font.Normal }
+                Copy { Layout.fillWidth: true; text: label; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text; font.pixelSize: 17 * unit * NovaTheme.fontScale }
+                Copy { Layout.fillWidth: true; text: parent.parent.parent === steamLaunch ? "This game · On PC" : scopeLabel; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale; font.weight: Font.Normal }
             }
             Copy {
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1.2
                 text: value
                 horizontalAlignment: Text.AlignRight
                 color: parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text
                 font.weight: Font.DemiBold
                 font.pixelSize: 20 * unit * NovaTheme.fontScale
-                maximumLineCount: 1
             }
         }
     }
@@ -280,7 +282,6 @@ FocusScope {
         Copy {
             Layout.fillWidth: true
             text: gameTitle + " · " + destinationName + " · " + hostName
-            maximumLineCount: 1
             color: NovaTheme.secondary
         }
         Copy {
@@ -495,7 +496,7 @@ FocusScope {
         anchors.bottom: parent.bottom
         anchors.margins: 32 * unit
         width: 240 * unit
-        height: 60 * unit
+        height: Math.max(60 * unit, implicitHeight)
         onClicked: backRequested()
         Keys.onRightPressed: focusPlayRequested()
         Keys.onUpPressed: focusSettings()

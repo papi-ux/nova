@@ -85,7 +85,7 @@ Popup {
                 Keys.onRightPressed: back.forceActiveFocus(); Keys.onLeftPressed: searchButton.forceActiveFocus(); Keys.onDownPressed: searchButton.forceActiveFocus() }
             Action { id: back; objectName: "artwork-back"; text: "Back"; onClicked: studio.close(); Keys.onDownPressed: searchButton.forceActiveFocus(); Keys.onLeftPressed: placement.enabled ? placement.forceActiveFocus() : searchButton.forceActiveFocus() }
         }
-        Copy { text: game.title || ""; color: NovaTheme.secondary; Layout.fillWidth: true; maximumLineCount: 1; elide: Text.ElideRight }
+        Copy { text: game.title || ""; color: NovaTheme.secondary; Layout.fillWidth: true; wrapMode: Text.Wrap }
         RowLayout {
             Layout.fillWidth: true
             TextField {
@@ -182,7 +182,7 @@ Popup {
                         }
                     }
                 }
-                Copy { Layout.fillWidth: true; text: choosing ? "Match: " + ((studioState.candidate || {}).title || "") : "Search, choose a game match, then select images." }
+                Copy { Layout.fillWidth: true; text: choosing ? "Match: " + ((studioState.candidate || {}).title || "") : (studio.items[studio.current] || {}).title || "Search, choose a game match, then select images." }
                 Copy { Layout.fillWidth: true; color: NovaTheme.secondary; text: "Selections stay in preview until you apply them. Saved artwork is shared through this PC." }
                 Copy { Layout.fillWidth: true; text: studioState.copy || ""; color: studioState.uncertain ? NovaTheme.warning : NovaTheme.secondary }
             }

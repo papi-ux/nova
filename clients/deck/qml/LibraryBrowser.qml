@@ -306,7 +306,7 @@ FocusScope {
     component ChromeButton: NovaButton {
         unit: browser.unit
         quiet: true
-        implicitWidth: 128 * unit
+        implicitWidth: Math.max(128 * unit, contentItem.implicitWidth + leftPadding + rightPadding)
         font.pixelSize: 16 * unit * NovaTheme.fontScale
         font.weight: Font.Medium
     }
@@ -336,7 +336,8 @@ FocusScope {
         color: NovaTheme.text
         textFormat: Text.PlainText
         font.pixelSize: 18 * unit * NovaTheme.fontScale
-        elide: Text.ElideRight
+        elide: Text.ElideNone
+        wrapMode: Text.Wrap
     }
     component ChoicePopup: Popup {
         id: chooser
@@ -504,73 +505,84 @@ FocusScope {
         visible: !detailOpen
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.max(56, 60 * unit)
+            Layout.preferredHeight: Math.max(56, headerRows.implicitHeight + 8 * unit)
             radius: 10 * unit
             color: "transparent"
-            RowLayout {
+            GridLayout {
+                id: headerRows
                 anchors.fill: parent
                 anchors.margins: 4 * unit
-                spacing: 12 * unit
-                ChromeButton {
-                    id: hostButton
-                    objectName: "library-host-button"
-                    text: host.displayName || "Choose a PC"
-                    Layout.preferredWidth: Math.min(320 * unit, browser.width * 0.36)
-                    enabled: !refreshState.busy && !sessionBusy
-                    onClicked: chooseHost()
-                    Keys.onRightPressed: destinationButton.visible ? destinationButton.forceActiveFocus() : optionsButton.forceActiveFocus()
-                    Keys.onDownPressed: focusGame()
-                    Keys.onLeftPressed: systemButton.forceActiveFocus()
-                }
-                ChromeButton {
-                    id: destinationButton
-                    objectName: "library-destination"
-                    visible: libraryController && refreshState.spaces && refreshState.spaces.supported
-                    Layout.preferredWidth: Math.min(230 * unit, browser.width * 0.23)
-                    text: refreshState.destinationName || "Where to play"
-                    Accessible.description: "Choose Desktop or a permitted Space on this PC"
-                    enabled: !refreshState.busy && !sessionBusy
-                    onClicked: destinations.open()
-                    Keys.onLeftPressed: hostButton.forceActiveFocus()
-                    Keys.onRightPressed: optionsButton.forceActiveFocus()
-                    Keys.onDownPressed: focusGame()
-                }
-                CopyLabel {
+                columns: browser.width < 1100 * NovaTheme.fontScale ? 1 : 2
+                columnSpacing: 12 * unit
+                rowSpacing: 4 * unit
+                RowLayout {
                     Layout.fillWidth: true
-                    text: refreshState.busy ? "Updating games…" : ""
-                    color: NovaTheme.secondary
-                    font.pixelSize: 16 * unit * NovaTheme.fontScale
+                    spacing: 12 * unit
+                    ChromeButton {
+                        id: hostButton
+                        objectName: "library-host-button"
+                        text: host.displayName || "Choose a PC"
+                        Layout.preferredWidth: Math.min(320 * unit, browser.width * 0.36)
+                        enabled: !refreshState.busy && !sessionBusy
+                        onClicked: chooseHost()
+                        Keys.onRightPressed: destinationButton.visible ? destinationButton.forceActiveFocus() : optionsButton.forceActiveFocus()
+                        Keys.onDownPressed: focusGame()
+                        Keys.onLeftPressed: systemButton.forceActiveFocus()
+                    }
+                    ChromeButton {
+                        id: destinationButton
+                        objectName: "library-destination"
+                        visible: libraryController && refreshState.spaces && refreshState.spaces.supported
+                        Layout.preferredWidth: Math.min(230 * unit, browser.width * 0.23)
+                        text: refreshState.destinationName || "Where to play"
+                        Accessible.description: "Choose Desktop or a permitted Space on this PC"
+                        enabled: !refreshState.busy && !sessionBusy
+                        onClicked: destinations.open()
+                        Keys.onLeftPressed: hostButton.forceActiveFocus()
+                        Keys.onRightPressed: optionsButton.forceActiveFocus()
+                        Keys.onDownPressed: focusGame()
+                    }
+                    CopyLabel {
+                        Layout.fillWidth: true
+                        text: refreshState.busy ? "Updating games…" : ""
+                        color: NovaTheme.secondary
+                        font.pixelSize: 16 * unit * NovaTheme.fontScale
+                    }
                 }
-                ChromeButton {
-                    id: optionsButton
-                    objectName: "library-options"
-                    text: "Options"
-                    enabled: !blocked
-                    onClicked: options.open()
-                    Keys.onLeftPressed: destinationButton.visible ? destinationButton.forceActiveFocus() : hostButton.forceActiveFocus()
-                    Keys.onRightPressed: systemButton.forceActiveFocus()
-                    Keys.onDownPressed: search.forceActiveFocus()
-                }
-                ChromeButton {
-                    id: systemButton
-                    objectName: "library-system"
-                    text: "System"
-                    enabled: !blocked
-                    onClicked: systemMenu.open()
-                    Keys.onLeftPressed: optionsButton.forceActiveFocus()
-                    Keys.onRightPressed: settingsButton.forceActiveFocus()
-                    Keys.onDownPressed: focusGame()
-                }
-                ChromeButton {
-                    id: settingsButton
-                    objectName: "library-settings"
-                    readonly property bool hasUpdate: !!browser.updateController && (browser.updateController.state.restartRequired || browser.updateController.state.available)
-                    text: hasUpdate ? "Updates" : "Settings"
-                    Accessible.description: hasUpdate ? "Review the Nova update" : "Nova settings"
-                    enabled: !sessionBusy
-                    onClicked: hasUpdate ? settingsHub.openUpdates() : settingsHub.open()
-                    Keys.onLeftPressed: systemButton.forceActiveFocus()
-                    Keys.onDownPressed: focusGame()
+                RowLayout {
+                    Layout.alignment: Qt.AlignRight
+                    spacing: 12 * unit
+                    ChromeButton {
+                        id: optionsButton
+                        objectName: "library-options"
+                        text: "Options"
+                        enabled: !blocked
+                        onClicked: options.open()
+                        Keys.onLeftPressed: destinationButton.visible ? destinationButton.forceActiveFocus() : hostButton.forceActiveFocus()
+                        Keys.onRightPressed: systemButton.forceActiveFocus()
+                        Keys.onDownPressed: search.forceActiveFocus()
+                    }
+                    ChromeButton {
+                        id: systemButton
+                        objectName: "library-system"
+                        text: "System"
+                        enabled: !blocked
+                        onClicked: systemMenu.open()
+                        Keys.onLeftPressed: optionsButton.forceActiveFocus()
+                        Keys.onRightPressed: settingsButton.forceActiveFocus()
+                        Keys.onDownPressed: focusGame()
+                    }
+                    ChromeButton {
+                        id: settingsButton
+                        objectName: "library-settings"
+                        readonly property bool hasUpdate: !!browser.updateController && (browser.updateController.state.restartRequired || browser.updateController.state.available)
+                        text: hasUpdate ? "Updates" : "Settings"
+                        Accessible.description: hasUpdate ? "Review the Nova update" : "Nova settings"
+                        enabled: !sessionBusy
+                        onClicked: hasUpdate ? settingsHub.openUpdates() : settingsHub.open()
+                        Keys.onLeftPressed: systemButton.forceActiveFocus()
+                        Keys.onDownPressed: focusGame()
+                    }
                 }
             }
         }
@@ -695,9 +707,10 @@ FocusScope {
             Item {
                 id: stageHero
                 Layout.fillWidth: true
-                Layout.preferredHeight: 146 * unit
+                Layout.preferredHeight: Math.max(146 * unit, stageSummary.implicitHeight)
                 visible: stageMode && visibleGames.length > 0
                 ColumnLayout {
+                    id: stageSummary
                     anchors.fill: parent
                     anchors.leftMargin: 8 * unit
                     spacing: 10 * unit
@@ -719,7 +732,6 @@ FocusScope {
                             text: selectedGame.title || ""
                             font.pixelSize: 36 * unit * NovaTheme.fontScale
                             font.weight: Font.Bold
-                            maximumLineCount: 1
                         }
                     }
                     CopyLabel {
@@ -765,7 +777,7 @@ FocusScope {
                     enabled: !blocked
                     opacity: blocked ? 0.55 : 1
                     flow: stageMode ? GridView.FlowTopToBottom : GridView.FlowLeftToRight
-                    readonly property int layoutColumns: LibraryLayout.columns(width, height, preferences.layoutMode, unit)
+                    readonly property int layoutColumns: LibraryLayout.columns(width, height, preferences.layoutMode, unit, NovaTheme.fontScale)
                     cellWidth: stageMode ? Math.max(80 * unit, (height - 20 * unit) / 1.5 + 24 * unit)
                         : width / layoutColumns
                     cellHeight: stageMode ? height : (cellWidth - 24 * unit) * 1.5 + 20 * unit
@@ -803,6 +815,9 @@ FocusScope {
                             Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                             Behavior on opacity { NumberAnimation { duration: 180 } }
                             padding: 0
+                            leftPadding: 0; rightPadding: 0
+                            topPadding: 0; bottomPadding: 0
+                            topInset: 0; bottomInset: 0
                             Accessible.name: modelData.title + ". Open details"
                             onActiveFocusChanged: if (activeFocus) selectIndex(index)
                             onClicked: openDetails(index)
@@ -837,13 +852,13 @@ FocusScope {
                                     }
                                     CopyLabel {
                                         anchors.centerIn: parent
-                                        width: parent.width - 30 * unit
+                                        width: parent.width - 24 * unit
                                         visible: poster.status !== Image.Ready
                                         text: modelData.title
                                         font.pixelSize: (stageMode ? 20 : preferences.layoutMode === "compact" ? 16 : 23) * unit * NovaTheme.fontScale
                                         font.weight: Font.DemiBold
                                         horizontalAlignment: Text.AlignHCenter
-                                        wrapMode: Text.WordWrap
+                                        wrapMode: Text.Wrap
                                         maximumLineCount: 5
                                     }
                                 }
@@ -1020,7 +1035,6 @@ FocusScope {
                         font.weight: Font.Bold
                         font.letterSpacing: -1 * unit
                         wrapMode: Text.WordWrap
-                        maximumLineCount: 2
                     }
                 }
                 CopyLabel {
@@ -1029,7 +1043,6 @@ FocusScope {
                     font.pixelSize: 14 * unit * NovaTheme.fontScale
                     color: NovaTheme.secondary
                     wrapMode: Text.WordWrap
-                    maximumLineCount: 2
                 }
                 Rectangle {
                     Layout.preferredWidth: Math.min(detailBody.width, 440 * unit)
@@ -1113,7 +1126,6 @@ FocusScope {
                         color: NovaTheme.muted
                         font.pixelSize: 12 * unit * NovaTheme.fontScale
                         wrapMode: Text.WordWrap
-                        maximumLineCount: 2
                     }
                 }
                 CopyLabel {
@@ -1124,7 +1136,6 @@ FocusScope {
                     color: NovaTheme.secondary
                     font.pixelSize: 14 * unit * NovaTheme.fontScale
                     wrapMode: Text.WordWrap
-                    maximumLineCount: 2
                 }
                 CopyLabel {
                     Layout.fillWidth: true
@@ -1145,7 +1156,7 @@ FocusScope {
             border.color: NovaTheme.focus
             border.width: 2
         }
-        RowLayout {
+        ColumnLayout {
             id: detailActions
             anchors.left: parent.left
             anchors.right: parent.right
@@ -1153,44 +1164,52 @@ FocusScope {
             anchors.leftMargin: 48 * unit
             anchors.rightMargin: 48 * unit
             anchors.bottomMargin: 74 * unit
-            spacing: 24 * unit
-            ChromeButton {
-                id: playButton
-                objectName: "game-detail-play"
-                text: browser.updateController && browser.updateController.busy ? "Updating Nova…" : refreshState.busy ? "Updating…" : refreshState.destinationPlayable === false ? refreshState.destinationPlayLabel : "Play"
-                primary: true
-                Layout.preferredWidth: 190 * unit
-                Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
-                enabled: launchEnabled
-                onClicked: playRequested(selectedGame)
-                Keys.onUpPressed: {
-                    if (detailViewport.contentHeight > detailViewport.height) {
-                        detailViewport.contentY = Math.max(0, detailViewport.contentHeight - detailViewport.height)
-                        detailViewport.forceActiveFocus()
-                    } else detailBack.forceActiveFocus()
+            spacing: 12 * unit
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 24 * unit
+                ChromeButton {
+                    id: playButton
+                    objectName: "game-detail-play"
+                    text: browser.updateController && browser.updateController.busy ? "Updating Nova…" : refreshState.busy ? "Updating…" : refreshState.destinationPlayable === false ? refreshState.destinationPlayLabel : "Play"
+                    primary: true
+                    Layout.preferredWidth: 190 * unit
+                    Layout.minimumWidth: implicitWidth
+                    Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
+                    enabled: launchEnabled
+                    onClicked: playRequested(selectedGame)
+                    Keys.onUpPressed: {
+                        if (detailViewport.contentHeight > detailViewport.height) {
+                            detailViewport.contentY = Math.max(0, detailViewport.contentHeight - detailViewport.height)
+                            detailViewport.forceActiveFocus()
+                        } else detailBack.forceActiveFocus()
+                    }
+                    Keys.onLeftPressed: detailBack.forceActiveFocus()
+                    Keys.onRightPressed: artworkButton.forceActiveFocus()
                 }
-                Keys.onLeftPressed: detailBack.forceActiveFocus()
-                Keys.onRightPressed: artworkButton.forceActiveFocus()
-            }
-            ChromeButton {
-                id: artworkButton; objectName: "game-detail-artwork"
-                text: "Artwork"
-                visible: !!gameTools
-                enabled: !sessionBusy && !refreshState.busy
-                Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
-                onClicked: (selectedGame.spaceId || (selectedGame.id || "").startsWith("space.")) ? spaceArtwork.open() : artworkStudio.open()
-                Keys.onLeftPressed: playButton.forceActiveFocus()
-                Keys.onRightPressed: shortcutButton.forceActiveFocus()
-                Keys.onUpPressed: detailBack.forceActiveFocus()
-            }
-            ChromeButton {
-                id: shortcutButton; objectName: "game-detail-shortcut"; text: "Add to Steam"
-                visible: !!gameShortcuts; enabled: !sessionBusy && !refreshState.busy
-                Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
-                onClicked: shortcutSheet.open()
-                Keys.onLeftPressed: artworkButton.forceActiveFocus()
-                Keys.onRightPressed: detailBack.forceActiveFocus()
-                Keys.onUpPressed: detailBack.forceActiveFocus()
+                ChromeButton {
+                    id: artworkButton; objectName: "game-detail-artwork"
+                    text: "Artwork"
+                    Layout.minimumWidth: implicitWidth
+                    visible: !!gameTools
+                    enabled: !sessionBusy && !refreshState.busy
+                    Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
+                    onClicked: (selectedGame.spaceId || (selectedGame.id || "").startsWith("space.")) ? spaceArtwork.open() : artworkStudio.open()
+                    Keys.onLeftPressed: playButton.forceActiveFocus()
+                    Keys.onRightPressed: shortcutButton.forceActiveFocus()
+                    Keys.onUpPressed: detailBack.forceActiveFocus()
+                }
+                ChromeButton {
+                    id: shortcutButton; objectName: "game-detail-shortcut"; text: "Add to Steam"
+                    Layout.minimumWidth: implicitWidth
+                    visible: !!gameShortcuts; enabled: !sessionBusy && !refreshState.busy
+                    Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
+                    onClicked: shortcutSheet.open()
+                    Keys.onLeftPressed: artworkButton.forceActiveFocus()
+                    Keys.onRightPressed: detailBack.forceActiveFocus()
+                    Keys.onUpPressed: detailBack.forceActiveFocus()
+                }
+                Item { Layout.fillWidth: true }
             }
             CopyLabel {
                 Layout.fillWidth: true
