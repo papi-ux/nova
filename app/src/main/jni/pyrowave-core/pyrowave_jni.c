@@ -55,3 +55,111 @@ Java_com_papi_nova_binding_video_PyroWave_nativeProbeDecoder(JNIEnv *env, jclass
     LOGI("usable Vulkan device, prefers fragment path: %d", (int) prefers_fragment);
     return prefers_fragment ? PROBE_FRAGMENT : PROBE_COMPUTE;
 }
+
+/**
+ * Decode one known frame and report how far off it came out.
+ *
+ * The frame is 34x30 of a fixed gradient, encoded on a desktop and shipped with the app, and the
+ * expected pixels are regenerated here from the same formula rather than shipped beside it. So this
+ * answers the only question that matters before any of the streaming work is worth doing: can this
+ * device decode what a host will send, exactly.
+ *
+ * It decodes to a CPU buffer, which a real session never will. That is deliberate: it removes the
+ * swapchain, the surface and the presentation clock from the answer, so a failure here is the codec
+ * and nothing else.
+ *
+ * @return the largest luma error in the frame, 0 meaning exact, or a negative code on failure.
+ */
+JNIEXPORT jint JNICALL
+Java_com_papi_nova_binding_video_PyroWave_nativeDecodeSelfTest(
+        JNIEnv *env, jclass clazz, jbyteArray bitstream, jboolean fragment_path) {
+    (void) clazz;
+
+    enum { Width = 34, Height = 30 };
+
+    const jsize size = (*env)->GetArrayLength(env, bitstream);
+    if (size <= 0) {
+        return -10;
+    }
+    jbyte *payload = (*env)->GetByteArrayElements(env, bitstream, NULL);
+    if (payload == NULL) {
+        return -11;
+    }
+
+    jint outcome = -1;
+    pyrowave_device device = NULL;
+    pyrowave_decoder decoder = NULL;
+
+    do {
+        if (pyrowave_create_default_device(&device) != PYROWAVE_SUCCESS || device == NULL) {
+            outcome = -12;
+            break;
+        }
+
+        pyrowave_decoder_create_info info = {0};
+        info.device = device;
+        info.width = Width;
+        info.height = Height;
+        info.chroma = PYROWAVE_CHROMA_SUBSAMPLING_420;
+        info.fragment_path = fragment_path ? true : false;
+        if (pyrowave_decoder_create(&info, &decoder) != PYROWAVE_SUCCESS || decoder == NULL) {
+            outcome = -13;
+            break;
+        }
+
+        if (pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS) {
+            outcome = -14;
+            break;
+        }
+        if (!pyrowave_decoder_decode_is_ready(decoder, false)) {
+            outcome = -15;
+            break;
+        }
+
+        uint8_t luma[Height][Width];
+        uint8_t cb[Height][Width];
+        uint8_t cr[Height][Width];
+
+        pyrowave_cpu_buffer out = {0};
+        out.format = PYROWAVE_CPU_BUFFER_FORMAT_YUV420P;
+        out.width = Width;
+        out.height = Height;
+        out.data[0] = &luma[0][0];
+        out.data[1] = &cb[0][0];
+        out.data[2] = &cr[0][0];
+        out.row_stride_in_bytes[0] = sizeof(luma[0]);
+        out.row_stride_in_bytes[1] = sizeof(cb[0]);
+        out.row_stride_in_bytes[2] = sizeof(cr[0]);
+        out.plane_size_in_bytes[0] = sizeof(luma);
+        out.plane_size_in_bytes[1] = sizeof(cb);
+        out.plane_size_in_bytes[2] = sizeof(cr);
+
+        if (pyrowave_decoder_decode_cpu_buffer_synchronous(decoder, &out) != PYROWAVE_SUCCESS) {
+            outcome = -16;
+            break;
+        }
+
+        int worst = 0;
+        for (int y = 0; y < Height; y++) {
+            for (int x = 0; x < Width; x++) {
+                const int expected = (uint8_t) (3 * x + 5 * y);
+                const int delta = (int) luma[y][x] - expected;
+                const int magnitude = delta < 0 ? -delta : delta;
+                if (magnitude > worst) {
+                    worst = magnitude;
+                }
+            }
+        }
+        LOGI("decode self test: worst luma error %d (fragment path %d)", worst, (int) fragment_path);
+        outcome = worst;
+    } while (0);
+
+    if (decoder != NULL) {
+        pyrowave_decoder_destroy(decoder);
+    }
+    if (device != NULL) {
+        pyrowave_device_destroy(device);
+    }
+    (*env)->ReleaseByteArrayElements(env, bitstream, payload, JNI_ABORT);
+    return outcome;
+}

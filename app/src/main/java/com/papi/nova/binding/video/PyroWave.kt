@@ -90,21 +90,101 @@ object PyroWave {
             }
         }
 
-        val answer = nativeProbeDecoder()
-        val probe = fromNative(answer) ?: Probe.UNUSABLE
+        val probe = measure(context)
         prefs.edit()
             .putString(KEY_FINGERPRINT, fingerprint)
-            .putInt(KEY_RESULT, answer)
+            .putInt(KEY_RESULT, toNative(probe))
             .apply()
-        LimeLog.info("PyroWave: probe says $probe (version ${apiVersion()})")
         cached = probe
         return probe
+    }
+
+    /**
+     * Decide by decoding, because a device that accepts the shaders is not the same as a device
+     * that gets them right.
+     *
+     * Both devices this was written against create a Vulkan device happily and then decode with
+     * about a tenth of full scale of luma error on the path upstream recommends for them. A probe
+     * that only asked "is there a device" would have said yes to both and handed the player a
+     * picture with visible banding in it.
+     *
+     * So: run a known frame through, and believe the pixels. Compute first, because that is the
+     * path that works; the recommended path is tried only if compute fails, and never silently.
+     */
+    private fun measure(context: Context): Probe {
+        val recommendation = fromNative(nativeProbeDecoder())
+        if (recommendation == null || recommendation == Probe.UNUSABLE) {
+            LimeLog.info("PyroWave: no usable Vulkan device")
+            return Probe.UNUSABLE
+        }
+
+        val compute = decodeSelfTest(context, fragmentPath = false)
+        if (compute != null && compute <= MAX_SELF_TEST_ERROR) {
+            LimeLog.info(
+                "PyroWave: compute path decodes within $compute of exact " +
+                    "(upstream recommends ${recommendation.name.lowercase()}, version ${apiVersion()})"
+            )
+            return Probe.COMPUTE
+        }
+
+        val fragment = decodeSelfTest(context, fragmentPath = true)
+        if (fragment != null && fragment <= MAX_SELF_TEST_ERROR) {
+            LimeLog.info("PyroWave: only the fragment path decodes correctly here (error $fragment)")
+            return Probe.FRAGMENT
+        }
+
+        LimeLog.warning(
+            "PyroWave: this device decodes incorrectly on both paths " +
+                "(compute $compute, fragment $fragment); the codec will not be offered"
+        )
+        return Probe.UNUSABLE
+    }
+
+    /**
+     * How wrong a decode may be and still count as working.
+     *
+     * One step of an eight bit sample. The reference frame is encoded with a budget far above what
+     * it needs, so an exact decoder returns zero and anything above one is a driver getting the
+     * arithmetic wrong rather than a codec making a choice.
+     */
+    private const val MAX_SELF_TEST_ERROR = 1
+
+    private fun toNative(probe: Probe): Int = when (probe) {
+        Probe.UNUSABLE -> -1
+        Probe.COMPUTE -> 0
+        Probe.FRAGMENT -> 1
+        Probe.UNKNOWN -> Int.MIN_VALUE
     }
 
     /** The probe result if one has been taken, without taking one. */
     @JvmStatic
     val lastProbe: Probe
         get() = cached
+
+    /**
+     * Decode a known frame on this device and report the worst luma error, or null when it could
+     * not be run at all.
+     *
+     * Zero means this device decodes exactly what a host will send. Anything above it is a driver
+     * that compiles the shaders and then gets the arithmetic wrong, which is a real state: both
+     * devices this was written against do exactly that on the path upstream recommends for them.
+     *
+     * Costs a Vulkan device and a decode, so it is for diagnostics and for deciding, not for a
+     * stream start.
+     */
+    @JvmStatic
+    fun decodeSelfTest(context: Context, fragmentPath: Boolean = false): Int? {
+        if (!loaded) return null
+        return try {
+            val bitstream = context.assets.open(SELF_TEST_ASSET).use { it.readBytes() }
+            nativeDecodeSelfTest(bitstream, fragmentPath)
+        } catch (e: Exception) {
+            LimeLog.warning("PyroWave: self test could not run: " + e.message)
+            null
+        }
+    }
+
+    private const val SELF_TEST_ASSET = "pyrowave/selftest-34x30.pw"
 
     // Kept in step with the constants in pyrowave_jni.c.
     private fun fromNative(value: Int): Probe? = when (value) {
@@ -119,4 +199,7 @@ object PyroWave {
 
     @JvmStatic
     private external fun nativeProbeDecoder(): Int
+
+    @JvmStatic
+    private external fun nativeDecodeSelfTest(bitstream: ByteArray, fragmentPath: Boolean): Int
 }
