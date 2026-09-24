@@ -10,6 +10,22 @@ Build the native client with `-DNOVA_DECK_BUILD_PYROWAVE=ON` and the pinned
 feature disabled. In Video & Stream, choose **PyroWave · Experimental** explicitly;
 Auto does not select it.
 
+## Packaging and compatibility
+
+The regular and experimental Flatpak manifests use the same application ID,
+`com.papi_ux.Nova`. Installing the experimental bundle updates that application;
+it is not a second, independent installation. Keep a copy of the previous bundle
+before testing an upgrade. Android's separate beta application ID does not apply
+to the Linux Flatpak.
+
+The release workflow currently builds the regular, PyroWave-disabled manifest.
+A beta intended to include PyroWave must explicitly build and verify the
+experimental manifest and a matching enabled Polaris package. A beta tag alone
+does not enable the codec. Check the source revision, dependency pins and build
+options of the actual bundles before comparing results.
+
+## Rendering limits
+
 The host currently converts CPU BGRA capture to full-range Rec.709 YUV420 before
 Vulkan encoding. The Linux client decodes on Vulkan and exports three R8 DMA-BUF
 planes for its EGL presenter. There is no production CPU decode fallback.
