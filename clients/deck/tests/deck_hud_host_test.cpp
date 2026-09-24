@@ -63,6 +63,12 @@ void parserAndReducer() {
     auto actual = view(o);
     require(actual.value("tuningLabel") == "Tuning: Applying" && actual.value("appliedBitrate") == "20.0M" &&
         actual.value("qualityLimit") == "20.0M", "requested bitrate substituted for encoder acknowledgement");
+    auto requested = applying; requested["requested_bitrate_kbps"] = 150000;
+    o["live_tuning"] = requested;
+    const auto pending = view(o);
+    require(pending.value("requestedBitrate") == "150.0M" && pending.value("appliedBitrate") == "20.0M",
+        "requested and applied bitrates were conflated");
+    o["live_tuning"] = applying;
     const auto serialized = QJsonDocument::fromVariant(actual).toJson();
     require(!serialized.contains("private-") && !serialized.contains("fixture-") && !serialized.contains("aaaaaaaa"), "private host data escaped projection");
     // Explicit malformed canonical data must never resurrect a legacy acknowledgement.

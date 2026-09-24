@@ -1361,6 +1361,8 @@ int nativeLaunchCommand(
                 std::cout << "nova-deck native: t=" << deadline.elapsed() << "ms"
                           << " decodedHardwareFrames=" << renderer.decodedHardwareFrames
                           << " submitCalls=" << renderer.submitCalls
+                          << " videoBytes=" << renderer.videoBytes
+                          << " refusedFrames=" << renderer.refusedFrames
                           << " audioSampleCalls=" << audio.sampleCalls
                           << " audioDecodedFrames=" << audio.decodedFrames
                           << " audioSubmittedFrames=" << audio.submittedFrames
@@ -1395,6 +1397,10 @@ int nativeLaunchCommand(
               << " submitCalls=" << renderer.submitCalls
               << " decodedHardwareFrames=" << renderer.decodedHardwareFrames
               << " presentedHardwareFrames=" << renderer.presentedHardwareFrames
+              << " videoBytes=" << renderer.videoBytes
+              << " refusedFrames=" << renderer.refusedFrames
+              << " videoWorkSamples=" << renderer.videoWorkSamples
+              << " videoWorkMicros=" << renderer.videoWorkMicros
               << " stopCalls=" << renderer.stopCalls
               << " cleanupCalls=" << renderer.cleanupCalls
               << " videoFormat=" << renderer.videoFormat

@@ -24,7 +24,7 @@ QVariantMap DeckHudHostReducer::unavailable() {
     return {{"hostFresh", false}, {"hostRefreshing", false}, {"healthLabel", "Host readings unavailable"}, {"healthTone", "muted"},
         {"hostTone", "muted"}, {"netTone", "muted"}, {"clientTone", "muted"},
         {"tuningLabel", "Tuning: Unknown"}, {"tuningTone", "muted"},
-        {"appliedBitrate", "--"}, {"qualityLimit", "--"},
+        {"appliedBitrate", "--"}, {"requestedBitrate", "--"}, {"qualityLimit", "--"},
         {"canTune", false}, {"tuningKnown", false}, {"tuningEnabled", false}, {"tuningBusy", false},
         {"tuningCopy", "Live Tuning is unavailable for this stream."},
         {"canSetBitrate", false}, {"appliedBitrateKbps", 0}, {"bitrateRequestKbps", 0}, {"bitrateBusy", false},
@@ -66,6 +66,7 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
             : live.state == "adjusting" ? "Tuning: Adjusting" : "Tuning: On";
         out["tuningTone"] = live.enabled ? (live.supported ? "info" : "muted") : "muted";
         out["qualityLimit"] = bitrate(live.qualityLimit);
+        out["requestedBitrate"] = bitrate(live.requested);
         out["tuningKnown"] = true; out["tuningEnabled"] = live.enabled;
         out["canTune"] = s.hostTuningAllowed && live.generation > 0;
         out["tuningCopy"] = !s.hostTuningAllowed ? "This session doesn't allow host tuning."

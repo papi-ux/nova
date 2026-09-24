@@ -226,6 +226,9 @@ struct DeckRendererLifecycle {
     int decodedHardwareFrames = 0;
     int presentedHardwareFrames = 0;
     std::uint64_t incomingFrames = 0, videoBytes = 0;
+    // Time in the decoder submission callback, including waits and handoff.
+    // These are not GPU-only timings or network-loss counters.
+    std::uint64_t videoWorkMicros = 0, videoWorkSamples = 0, refusedFrames = 0;
     std::uint64_t hostLatencyTenths = 0, hostLatencySamples = 0;
     bool lastFrameWasHardwareBacked = false;
     std::string runtimeStatus;

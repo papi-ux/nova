@@ -46,12 +46,15 @@ QJsonObject measurement(const QVariant& value) {
 QJsonObject deckSupportReport(const QVariantMap& hud) {
     const bool hostFresh = flag(hud, "hostFresh"), clientFresh = flag(hud, "fresh");
     QJsonObject host{{"available", hostFresh}}, client{{"available", clientFresh}}, net;
-    for (const auto& pair : {std::pair{"appliedBitrate", "encoder_applied_mbps"}, {"qualityLimit", "quality_ceiling_mbps"}})
+    for (const auto& pair : {std::pair{"appliedBitrate", "encoder_applied_mbps"}, {"requestedBitrate", "requested_mbps"}, {"qualityLimit", "quality_ceiling_mbps"}})
         host[pair.second] = hostFresh ? number(hud.value(pair.first), "M", 300) : QJsonValue(QJsonValue::Null);
     host["processing_ms"] = clientFresh ? number(hud.value("host"), "ms") : QJsonValue(QJsonValue::Null);
     for (const auto& pair : {std::pair{"incoming", "incoming_fps"}, {"decoded", "decoded_fps"}, {"fps", "composed_fps"}})
         client[pair.second] = clientFresh ? number(hud.value(pair.first), "", 1000) : QJsonValue(QJsonValue::Null);
-    client["codec"] = choice(hud.value("codec"), {"H.264", "HEVC", "HEVC10", "AV1", "AV1 Main10"});
+    client["codec"] = choice(hud.value("codec"), {"H.264", "HEVC", "HEVC10", "AV1", "AV1 Main10", "PyroWave"});
+    client["decoder_callback_ms"] = clientFresh ? number(hud.value("videoWork"), "ms") : QJsonValue(QJsonValue::Null);
+    const auto refused = clientFresh ? number(hud.value("refused"), "") : QJsonValue(QJsonValue::Null);
+    client["decoder_refused_frames"] = !refused.isNull() && std::floor(refused.toDouble()) == refused.toDouble() ? refused : QJsonValue(QJsonValue::Null);
     const auto resolution = hud.value("resolution").toString();
     const auto dimensions = QRegularExpression("\\A([1-9][0-9]{1,3})×([1-9][0-9]{1,3})\\z").match(resolution.left(32));
     if (resolution.size() <= 32 && dimensions.hasMatch()) {
@@ -89,7 +92,9 @@ QJsonObject deckSupportReport(const QVariantMap& hud) {
         {"client", "Nova Deck"}, {"version", QRegularExpression("\\A[0-9]{1,3}(?:\\.[0-9]{1,3}){2,3}\\z").match(version).hasMatch() ? version : "local-preview"},
         {"host", host}, {"network", net}, {"client_readings", client}, {"doctor", doctor},
         {"limitations", QJsonArray{"Composed FPS measures app draws, not panel presentation.",
-            "Decoder latency and client media loss are not measured.", "Control-channel retries do not establish video loss."}},
+            "Decoder callback time includes waits and frame handoff; it is not GPU-only decode latency.",
+            "Decoder refusals are cumulative for this session, not a measurement of network loss.",
+            "Client media loss is not measured. Control-channel retries do not establish video loss."}},
         {"privacy", "Saved locally. No names, addresses, pairing data, session identities, artwork, journal contents or raw logs are included."}};
 }
 QString deckSupportReportDirectory() {

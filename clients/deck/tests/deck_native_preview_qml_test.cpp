@@ -728,7 +728,8 @@ int main(int argc, char** argv) {
 
 
     session.tuning = {{"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", true}, {"tuningBusy", false},
-        {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"bitrateCopy", "Choose a fixed bitrate. Applying it turns Live Tuning off."}};
+        {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"requestedBitrate", "20.0M"}, {"codec", "PyroWave"},
+        {"bitrateCopy", "Choose a fixed bitrate. Applying it turns Live Tuning off."}};
     emit session.hudChanged(); settle();
     auto* bitrateAction = root->findChild<QQuickItem*>("native-live-bitrate");
     auto* bitratePopup = root->findChild<QObject*>("live-bitrate-popup");
@@ -746,6 +747,7 @@ int main(int argc, char** argv) {
     require(!bitratePopup->property("opened").toBool(), "event refresh opened a stale bitrate draft");
     session.tuning = readyBitrate; emit session.hudChanged(); settle();
     key(*window, Qt::Key_Return); focused(*window, bitrateMinus, "picker did not focus the decrement control");
+    require(bitratePopup->findChild<QQuickItem*>("live-bitrate-pyrowave-guidance")->isVisible(), "PyroWave bitrate guidance missing");
     key(*window, Qt::Key_Right); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 21000 && session.bitrateWrites == 0, "draft adjustment mutated host");
     key(*window, Qt::Key_Down); focused(*window, bitrateApply, "Apply not reachable from increment");

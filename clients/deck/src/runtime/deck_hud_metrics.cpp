@@ -8,6 +8,7 @@ QVariantMap DeckHudMetrics::empty() {
     const QVariantMap local{{"fps", "--"}, {"incoming", "--"}, {"decoded", "--"}, {"target", ""},
         {"host", "--"}, {"rtt", "--"}, {"jitter", "--"}, {"bitrate", "--"},
         {"resolution", "--"}, {"codec", "--"}, {"history", QVariantList{}},
+        {"videoWork", "--"}, {"refused", "--"},
         {"fresh", false}, {"truth", "Waiting for stream readings"}};
     for (auto it = local.cbegin(); it != local.cend(); ++it) result.insert(it.key(), it.value());
     return result;
@@ -23,6 +24,7 @@ QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
     const auto elapsed = previous ? s.atMs - previous->atMs : 0;
     if (!previous || elapsed < 500 || elapsed > 2500 || s.incoming < previous->incoming ||
         s.bytes < previous->bytes || s.decoded < previous->decoded || s.composed < previous->composed ||
+        s.videoWorkMicros < previous->videoWorkMicros || s.videoWorkSamples < previous->videoWorkSamples || s.refused < previous->refused ||
         s.hostLatencySamples < previous->hostLatencySamples || s.hostLatencyTenths < previous->hostLatencyTenths ||
         s.compositionAvailable != previous->compositionAvailable) {
         history_.clear(); return out;
@@ -34,6 +36,10 @@ QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
     out["incoming"] = QString::number(rate(s.incoming - previous->incoming), 'f', 1);
     out["decoded"] = QString::number(rate(s.decoded - previous->decoded), 'f', 1);
     out["bitrate"] = QString::number(rate(s.bytes - previous->bytes) * 8 / 1000000, 'f', 1) + "M";
+    const auto workSamples = s.videoWorkSamples - previous->videoWorkSamples;
+    if (workSamples) out["videoWork"] = QString::number(
+        (s.videoWorkMicros - previous->videoWorkMicros) / (1000.0 * workSamples), 'f', 2) + "ms";
+    if (s.videoWorkSamples) out["refused"] = QString::number(s.refused);
     if (s.compositionAvailable) {
         out["fps"] = QString::number(fps, 'f', 1);
         history_.append(fps);

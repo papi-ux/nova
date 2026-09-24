@@ -899,6 +899,9 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 sample.atMs = lastHudSample;
                 sample.incoming = renderer.incomingFrames; sample.bytes = renderer.videoBytes;
                 sample.decoded = std::max(0, renderer.decodedHardwareFrames);
+                sample.videoWorkMicros = renderer.videoWorkMicros;
+                sample.videoWorkSamples = renderer.videoWorkSamples;
+                sample.refused = renderer.refusedFrames;
                 sample.hostLatencySamples = renderer.hostLatencySamples;
                 sample.hostLatencyTenths = renderer.hostLatencyTenths;
                 sample.width = renderer.width; sample.height = renderer.height;
@@ -906,6 +909,9 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 sample.codec = renderer.videoFormat == VIDEO_FORMAT_H264 ? "H.264"
                     : renderer.videoFormat == VIDEO_FORMAT_H265 ? "HEVC"
                     : renderer.videoFormat == VIDEO_FORMAT_H265_MAIN10 ? "HEVC10" : "";
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+                if (renderer.videoFormat == VIDEO_FORMAT_PYROWAVE) sample.codec = "PyroWave";
+#endif
                 std::uint32_t rtt = 0, variation = 0;
                 if (driver.estimatedRtt(rtt, variation)) { sample.rttMs = rtt; sample.rttVariationMs = variation; }
                 const std::lock_guard lock(shared->mutex);

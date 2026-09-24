@@ -144,6 +144,24 @@ int main(int argc, char** argv) try {
         }
     if (hostFixture) for (int y : {4, height - 5}) for (int c = 0; c < 3; ++c)
         require(pixels[(y * width + width / 2) * 4 + c] <= 18, "host letterbox is not black");
+    DeckVaapiFfmpegRenderer renderer;
+    require(renderer.setup(VIDEO_FORMAT_PYROWAVE, width, height, 60, nullptr, 0) == DR_OK, "renderer setup failed");
+    LENTRY entry{};
+    entry.data = reinterpret_cast<char*>(encoded.data()); entry.length = int(encoded.size());
+    entry.bufferType = BUFFER_TYPE_PICDATA;
+    DECODE_UNIT unit{};
+    unit.frameNumber = 1; unit.frameType = FRAME_TYPE_IDR; unit.fullLength = entry.length; unit.bufferList = &entry;
+    require(renderer.submitDecodeUnit(&unit) == DR_OK, "renderer refused valid frame");
+    encoded[0] ^= 2;
+    require(renderer.submitDecodeUnit(&unit) == DR_NEED_IDR, "renderer accepted invalid frame");
+    encoded[0] ^= 2;
+    require(renderer.submitDecodeUnit(&unit) == DR_OK, "renderer failed to recover");
+    const auto measured = renderer.lifecycle();
+    require(measured.incomingFrames == 3 && measured.decodedHardwareFrames == 2 && measured.refusedFrames == 1 &&
+        measured.videoWorkSamples == 3 && measured.videoWorkMicros > 0 && measured.lastRuntimeError.empty(),
+        "renderer metrics conflate decoder refusal with transport loss or retain a recovered error");
+    require(renderer.setup(VIDEO_FORMAT_PYROWAVE, width, height, 60, nullptr, 0) == DR_OK, "renderer restart failed");
+    require(renderer.lifecycle().refusedFrames == 0 && renderer.lifecycle().videoWorkSamples == 0, "restart kept old counters");
     std::cout << "PyroWave Vulkan -> DMA-BUF -> Nova EGL renderer color and lifetime checks passed\n";
     return 0;
 } catch (const std::exception& error) {

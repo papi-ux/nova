@@ -106,6 +106,13 @@ Item {
                     font.pixelSize: 9 * hud.scale
                     elide: Text.ElideRight
                 }
+                Text {
+                    objectName: "hud-requested-bitrate"
+                    Layout.fillWidth: true
+                    text: hud.value("requestedBitrate") + " requested"
+                    color: NovaTheme.secondary; font.pixelSize: 9 * hud.scale
+                    elide: Text.ElideRight
+                }
             }
         }
         Text {
@@ -134,7 +141,7 @@ Item {
                 model: [
                     { title: "HOST", tone: hud.readings.hostTone, facts: [["HOST", hud.value("host")], ["RES", hud.value("resolution")], ["CODEC", hud.value("codec")], ["BIT", hud.value("appliedBitrate")]] },
                     { title: "NET", tone: hud.readings.netTone, facts: [["RTT", hud.value("rtt")], ["JIT", hud.value("jitter")], ["LOSS", "--"], ["IN", hud.value("incoming")], ["VIDEO", hud.value("bitrate")]] },
-                    { title: "CLIENT", tone: hud.readings.clientTone, facts: [["DEC FPS", hud.value("decoded")], ["OUT", hud.value("fps")], ["1% LOW", "--"], ["DROPS", "--"]] }
+                    { title: "CLIENT", tone: hud.readings.clientTone, facts: [["DEC FPS", hud.value("decoded")], ["OUT", hud.value("fps")], ["WORK", hud.value("videoWork")], ["REFUSED", hud.value("refused")]] }
                 ]
                 ColumnLayout {
                     required property var modelData

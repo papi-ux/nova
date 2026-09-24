@@ -35,9 +35,17 @@ Popup {
         Label {
             objectName: "live-bitrate-applied"
             Layout.fillWidth: true
-            text: "Encoder applied: " + bitrate.format(bitrate.status.appliedBitrateKbps || 0)
+            text: "Requested: " + (bitrate.status.requestedBitrate || "--") + " · Encoder applied: " + bitrate.format(bitrate.status.appliedBitrateKbps || 0)
             color: NovaTheme.secondary; wrapMode: Text.WordWrap
             font.pixelSize: 18 * bitrate.unit * NovaTheme.fontScale
+        }
+        Label {
+            objectName: "live-bitrate-pyrowave-guidance"
+            visible: bitrate.status.codec === "PyroWave"
+            Layout.fillWidth: true
+            text: "PyroWave needs a high bitrate for fine detail. Compare picture sharpness and received video bitrate as you adjust it."
+            color: NovaTheme.secondary; wrapMode: Text.WordWrap
+            font.pixelSize: 16 * bitrate.unit * NovaTheme.fontScale
         }
         RowLayout {
             Layout.fillWidth: true

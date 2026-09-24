@@ -29,6 +29,7 @@ extern "C" {
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -1667,6 +1668,7 @@ int DeckVaapiFfmpegRenderer::setup(
     lifecycle_.decodedHardwareFrames = 0;
     lifecycle_.presentedHardwareFrames = 0;
     lifecycle_.incomingFrames = lifecycle_.videoBytes = 0;
+    lifecycle_.videoWorkMicros = lifecycle_.videoWorkSamples = lifecycle_.refusedFrames = 0;
     lifecycle_.hostLatencyTenths = lifecycle_.hostLatencySamples = 0;
     lifecycle_.lastFrameWasHardwareBacked = false;
     lifecycle_.lastRuntimeError.clear();
@@ -1780,13 +1782,27 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         return DR_NEED_IDR;
     }
 
+    struct SubmissionObservation {
+        DeckRendererLifecycle& lifecycle;
+        std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+        bool accepted = false;
+        ~SubmissionObservation() {
+            lifecycle.videoWorkMicros += std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - started).count();
+            ++lifecycle.videoWorkSamples;
+            if (!accepted) ++lifecycle.refusedFrames;
+        }
+    } observation{lifecycle_};
+
 #ifdef NOVA_DECK_BUILD_PYROWAVE
-    if (pyrowave_ && (decodeUnit->fullLength <= 0 || std::size_t(decodeUnit->fullLength) > nova::pyrowave::maxFrameBytes))
+    if (pyrowave_ && (decodeUnit->fullLength <= 0 || std::size_t(decodeUnit->fullLength) > nova::pyrowave::maxFrameBytes)) {
+        lifecycle_.lastRuntimeError = "Invalid PyroWave decode unit length";
         return DR_NEED_IDR;
+    }
 #endif
     const std::vector<std::uint8_t> bytes = copyDecodeUnitBytes(decodeUnit);
     if (bytes.empty()) {
-        lifecycle_.lastRuntimeError = "decode unit did not contain Annex-B video bytes";
+        lifecycle_.lastRuntimeError = "decode unit did not contain video bytes";
         return DR_NEED_IDR;
     }
 
@@ -1814,6 +1830,8 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
             .frameLease = std::move(lease), .source = "pyrowave-vulkan-dmabuf-sdr"};
         if (previewFramePump_.enqueueDecodedFrame(descriptor) && previewFramePump_.flushNewest())
             ++lifecycle_.presentedHardwareFrames;
+        observation.accepted = true;
+        lifecycle_.lastRuntimeError.clear();
         return DR_OK;
     }
 #endif
@@ -1864,6 +1882,8 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
                 ++lifecycle_.presentedHardwareFrames;
             }
             av_frame_unref(decodedFrame_);
+            observation.accepted = true;
+            lifecycle_.lastRuntimeError.clear();
             return DR_OK;
         }
         av_frame_unref(decodedFrame_);
