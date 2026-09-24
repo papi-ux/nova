@@ -161,6 +161,9 @@ namespace nova_vk {
 
     /// Frames drawn with some blocks missing, for anyone asking how the link is behaving.
     uint64_t partial_frames = 0;
+
+    /// Frames that could not be drawn at all, even partially.
+    uint64_t unusable_frames = 0;
   };
 
 }  // namespace nova_vk

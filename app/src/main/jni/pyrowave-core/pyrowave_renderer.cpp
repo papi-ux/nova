@@ -788,7 +788,18 @@ namespace nova_vk {
     }
 
     if (!ready) {
-      LOGW("the frame lost too much to draw (%zu bytes)", size);
+      // Temporary, for the burst of unusable frames at the start of a session. Two stories fit what
+      // has been seen so far and they want different fixes: either the decoder is still warming and
+      // is counting none of the blocks it parses, or the link really is losing enough of each frame
+      // that even a partial decode is out of reach. Whether a frame ever gets close to the codec's
+      // floor separates them, so say how many of these have happened and whether the decoder has
+      // ever produced anything.
+      unusable_frames++;
+      if (unusable_frames <= 3 || unusable_frames % 25 == 0) {
+        LOGW("frame %llu unusable: %zu bytes, decoder has%s produced a frame before",
+             static_cast<unsigned long long>(unusable_frames), size,
+             decoder_warmed ? "" : " not");
+      }
       return false;
     }
 
