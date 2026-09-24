@@ -23,18 +23,21 @@ measured from complete video payloads delivered to the decoder; it excludes audi
 FEC, transport headers and packets that never become a complete frame. It is not
 the encoder's maximum bitrate. Simple scenes can use less than the budget.
 
-The debug HUD and local support report distinguish the requested bitrate, the
+The debug HUD and local support report distinguish the PC's requested encoder target, the
 encoder-confirmed applied bitrate, and the measured received video bitrate.
 `WORK` is average time in the decoder submission callback, including validation,
 GPU waits and frame handoff; it excludes Qt composition and is not GPU-only timing.
 `REFUSED` is the cumulative number of decoder callback refusals in this session.
 It is not a network-loss count. Stale measurements become unavailable.
 
-**Command Center → Live bitrate** changes the current stream after the matching
+**Command Center → Live Bitrate** changes the current stream after the matching
 host confirms that its encoder accepted the target. This explicit fixed-rate
 choice turns automatic Live Tuning off and supersedes pending Doctor bitrate
 changes. It does not change the saved Play Setup. The host's configured bitrate
 bounds still apply; a bounded or refused target must not be shown as applied.
+The picker keeps **Your last request**, **PC target**, and **Encoder applied**
+separate. If the PC reports a different target, Nova explains the mismatch and
+leaves the saved preference alone; it never retries or calls that request applied.
 
 PyroWave's host encoder can update its per-frame budget without restarting the
 stream. The budget follows the negotiated rational frame rate and remains subject

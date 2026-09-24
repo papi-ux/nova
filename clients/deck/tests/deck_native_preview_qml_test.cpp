@@ -728,7 +728,7 @@ int main(int argc, char** argv) {
 
 
     session.tuning = {{"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", true}, {"tuningBusy", false},
-        {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"requestedBitrate", "20.0M"}, {"codec", "PyroWave"},
+        {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"requestedBitrateKbps", 20000}, {"codec", "PyroWave"},
         {"bitrateCopy", "Choose a fixed bitrate. Applying it turns Live Tuning off."}};
     emit session.hudChanged(); settle();
     auto* bitrateAction = root->findChild<QQuickItem*>("native-live-bitrate");
@@ -769,10 +769,14 @@ int main(int argc, char** argv) {
     key(*window, Qt::Key_Return);
     bitratePopup->setProperty("draftKbps", 300000); bitratePlus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 300000, "picker exceeded upper bound");
-    session.tuning["appliedBitrateKbps"] = 200000; session.tuning["requestedBitrate"] = "200.0M";
-    session.tuning["bitrateCopy"] = "Applied 200 Mbps. Live Tuning is off.";
+    session.tuning["appliedBitrateKbps"] = 200000; session.tuning["requestedBitrateKbps"] = 200000;
+    session.tuning["bitrateRequestKbps"] = 300000;
+    session.tuning["bitrateCopy"] = "Your 300 Mbps request wasn't confirmed. The PC reports a 200 Mbps target. Check the PC's bitrate limits and current settings.";
     emit session.hudChanged(); settle(); key(*window, Qt::Key_Down);
     focused(*window, bitrateApply, "high-rate picker lost Apply focus");
+    const auto rateLabels = bitratePopup->findChild<QObject*>("live-bitrate-applied")->property("text").toString();
+    require(rateLabels.contains("Your last request: 300 Mbps") && rateLabels.contains("PC target: 200 Mbps") &&
+        rateLabels.contains("Encoder applied: 200 Mbps"), "local request was conflated with the PC target or encoder acknowledgement");
     screenshot("live-bitrate-high-rate-large-960.png");
     require(bitrateApply->mapToScene(QPointF(0, bitrateApply->height())).y() <= window->height(), "high-rate feedback clipped with large text");
     bitratePopup->setProperty("draftKbps", 1000); bitrateMinus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);

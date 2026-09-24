@@ -66,7 +66,7 @@ void parserAndReducer() {
     auto requested = applying; requested["requested_bitrate_kbps"] = 150000;
     o["live_tuning"] = requested;
     const auto pending = view(o);
-    require(pending.value("requestedBitrate") == "150.0M" && pending.value("appliedBitrate") == "20.0M",
+    require(pending.value("requestedBitrate") == "150.0M" && pending.value("requestedBitrateKbps") == 150000 && pending.value("appliedBitrate") == "20.0M",
         "requested and applied bitrates were conflated");
     o["live_tuning"] = applying;
     const auto serialized = QJsonDocument::fromVariant(actual).toJson();
@@ -385,6 +385,8 @@ void fixedBitrateSaves() {
             if (scenario == 2) require(message.contains("wasn't confirmed") && actual.value("appliedBitrateKbps") == 20000, "ack timeout fabricated bitrate");
             if (scenario == 8) require(message.contains("Couldn't confirm") && actual.value("appliedBitrateKbps") == 15000, "lost receipt suppressed fresh truth or claimed save confirmation");
             if (scenario == 11 || scenario == 12) require(!actual.value("canSetBitrate").toBool() && actual.value("appliedBitrateKbps") == 0, "failed resync retained fixed-rate authority");
+            if (scenario == 14) require(message.contains("15.0Mbps request wasn't confirmed") && message.contains("16.0Mbps target") &&
+                message.contains("PC's bitrate limits"), "different host target lacked actionable feedback");
         }
         const int count = writes; QThread::msleep(30); require(writes == count, "fixed target retried automatically");
     }

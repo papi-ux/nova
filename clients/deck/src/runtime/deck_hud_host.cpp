@@ -27,7 +27,7 @@ QVariantMap DeckHudHostReducer::unavailable() {
         {"appliedBitrate", "--"}, {"requestedBitrate", "--"}, {"qualityLimit", "--"},
         {"canTune", false}, {"tuningKnown", false}, {"tuningEnabled", false}, {"tuningBusy", false},
         {"tuningCopy", "Live Tuning is unavailable for this stream."},
-        {"canSetBitrate", false}, {"appliedBitrateKbps", 0}, {"bitrateRequestKbps", 0}, {"bitrateBusy", false},
+        {"canSetBitrate", false}, {"appliedBitrateKbps", 0}, {"requestedBitrateKbps", 0}, {"bitrateRequestKbps", 0}, {"bitrateBusy", false},
         {"bitrateCopy", "Live bitrate is unavailable for this stream."},
         {"canSyncProfile", false}, {"syncBusy", false}, {"syncPhase", "idle"}, {"syncCopy", ""}, {"syncVersion", 0},
         {"doctor", QVariantMap{}}, {"canRefreshDiagnostics", false}, {"diagnosticsRefreshing", false}};
@@ -67,6 +67,7 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
         out["tuningTone"] = live.enabled ? (live.supported ? "info" : "muted") : "muted";
         out["qualityLimit"] = bitrate(live.qualityLimit);
         out["requestedBitrate"] = bitrate(live.requested);
+        out["requestedBitrateKbps"] = live.requested;
         out["tuningKnown"] = true; out["tuningEnabled"] = live.enabled;
         out["canTune"] = s.hostTuningAllowed && live.generation > 0;
         out["tuningCopy"] = !s.hostTuningAllowed ? "This session doesn't allow host tuning."
@@ -284,11 +285,15 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                     state->message = "Refreshing host state before confirming the encoder…";
                     return; // Keep the existing deadline; an event is not a failed GET.
                 }
-                const bool matching = state->refreshVersion == version && !state->eventFatal && view.value("canSetBitrate").toBool() && result.value->live &&
-                    sameSession(*result.value->live, awaiting->observed) && !result.value->live->enabled &&
-                    result.value->live->qualityLimit == awaiting->bitrateKbps;
+                const bool sameOwner = state->refreshVersion == version && !state->eventFatal && view.value("canSetBitrate").toBool() && result.value->live &&
+                    sameSession(*result.value->live, awaiting->observed);
+                const bool differentTarget = sameOwner && !result.value->live->enabled && result.value->live->qualityLimit > 0 &&
+                    result.value->live->qualityLimit != awaiting->bitrateKbps;
+                const bool matching = sameOwner && !result.value->live->enabled && result.value->live->qualityLimit == awaiting->bitrateKbps;
                 const bool applied = matching && result.value->live->applied == awaiting->bitrateKbps;
                 if (applied) state->message = "Applied " + bitrate(awaiting->bitrateKbps) + "bps. Live Tuning is off.";
+                else if (differentTarget) state->message = "Your " + bitrate(awaiting->bitrateKbps) + "bps request wasn't confirmed. The PC reports a " +
+                    bitrate(result.value->live->qualityLimit) + "bps target. Check the PC's bitrate limits and current settings.";
                 else if (!matching || expired) state->message = "The encoder change wasn't confirmed. Check the current bitrate before trying again.";
                 else state->message = "Requested " + bitrate(awaiting->bitrateKbps) + "bps. Waiting for the encoder…";
                 if (awaiting->profile) {

@@ -25,7 +25,7 @@ Popup {
     background: Rectangle { color: NovaTheme.panel; radius: 12 * bitrate.unit; border.color: NovaTheme.divider }
     contentItem: NovaScrollColumn {
         spacing: 14 * bitrate.unit
-        Label { text: "Live bitrate"; color: NovaTheme.text; font.pixelSize: 28 * bitrate.unit * NovaTheme.fontScale; font.bold: true }
+        Label { text: "Live Bitrate"; color: NovaTheme.text; font.pixelSize: 28 * bitrate.unit * NovaTheme.fontScale; font.bold: true }
         Label {
             Layout.fillWidth: true
             text: "Turns Live Tuning off and replaces pending Doctor bitrate changes. Play Setup stays unchanged."
@@ -35,7 +35,9 @@ Popup {
         Label {
             objectName: "live-bitrate-applied"
             Layout.fillWidth: true
-            text: "Requested: " + (bitrate.status.requestedBitrate || "--") + "\nEncoder applied: " + bitrate.format(bitrate.status.appliedBitrateKbps || 0)
+            text: (bitrate.status.bitrateRequestKbps > 0 ? "Your last request: " + bitrate.format(bitrate.status.bitrateRequestKbps) + "\n" : "")
+                + "PC target: " + bitrate.format(bitrate.status.requestedBitrateKbps || 0)
+                + "\nEncoder applied: " + bitrate.format(bitrate.status.appliedBitrateKbps || 0)
             color: NovaTheme.secondary; wrapMode: Text.WordWrap
             font.pixelSize: 18 * bitrate.unit * NovaTheme.fontScale
         }

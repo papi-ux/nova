@@ -527,7 +527,7 @@ Popup {
                     objectName: "native-live-bitrate"
                     Layout.fillWidth: true; unit: nativePreview.unit
                     enabled: nativePlaying && (liveTuningAction.status.canSetBitrate === true || liveTuningAction.status.bitrateBusy === true || liveTuningAction.status.hostRefreshing === true)
-                    text: "Live bitrate · " + (liveTuningAction.status.hostRefreshing ? "Refreshing…" : liveTuningAction.status.appliedBitrateKbps > 0 ? liveBitrate.format(liveTuningAction.status.appliedBitrateKbps) : "Unavailable")
+                    text: "Live Bitrate · " + (liveTuningAction.status.hostRefreshing ? "Refreshing…" : liveTuningAction.status.appliedBitrateKbps > 0 ? liveBitrate.format(liveTuningAction.status.appliedBitrateKbps) : "Unavailable")
                     onClicked: if (!liveTuningAction.status.hostRefreshing) liveBitrate.open()
                     onEnabledChanged: if (!enabled && activeFocus && nativePlaying) inGameHud.forceActiveFocus()
                     onActiveFocusChanged: if (!activeFocus && !enabled && nativePlaying && session.controlsVisible)

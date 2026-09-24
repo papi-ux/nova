@@ -114,7 +114,7 @@ ApplicationWindow {
     require(hud->position() != original && root->property("gameTaps").toInt() == 1, "HUD drag did not move or leaked a gameplay tap"); bounds();
     require(item("hud-tuning")->property("text") == "Tuning: Applying" &&
         item("hud-applied-limit")->property("text") == "20.0M applied / 25.0M limit" &&
-        item("hud-requested-bitrate")->property("text") == "25.0M requested" &&
+        item("hud-requested-bitrate")->property("text") == "25.0M PC target" &&
         item("hud-health-label")->property("text") == "Display override", "HUD lost host state or applied bitrate");
     auto stale = root->property("sample").value<QJSValue>().toVariant().toMap();
     stale.remove("healthLabel"); stale.remove("healthTone"); stale.remove("tuningLabel");

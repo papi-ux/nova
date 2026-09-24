@@ -109,7 +109,7 @@ Item {
                 Text {
                     objectName: "hud-requested-bitrate"
                     Layout.fillWidth: true
-                    text: hud.value("requestedBitrate") + " requested"
+                    text: hud.value("requestedBitrate") + " PC target"
                     color: NovaTheme.secondary; font.pixelSize: 9 * hud.scale
                     elide: Text.ElideRight
                 }
