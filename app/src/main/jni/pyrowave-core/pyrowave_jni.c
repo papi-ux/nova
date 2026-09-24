@@ -4,6 +4,8 @@
 
 #include <pyrowave/pyrowave.h>
 
+#include "pyrowave_device_c.h"
+
 #include <android/log.h>
 #include <jni.h>
 #include <stdio.h>
@@ -40,9 +42,9 @@ Java_com_papi_nova_binding_video_PyroWave_nativeProbeDecoder(JNIEnv *env, jclass
     (void) clazz;
 
     pyrowave_device device = NULL;
-    pyrowave_result result = pyrowave_create_default_device(&device);
-    if (result != PYROWAVE_SUCCESS || device == NULL) {
-        LOGI("no usable Vulkan device (result %d)", (int) result);
+    void *owned = pyrowave_device_acquire(false, &device);
+    if (owned == NULL || device == NULL) {
+        LOGI("no usable Vulkan device");
         return PROBE_UNUSABLE;
     }
 
@@ -50,7 +52,17 @@ Java_com_papi_nova_binding_video_PyroWave_nativeProbeDecoder(JNIEnv *env, jclass
     // was written against it recommends it and then decodes visibly wrong there, so the answer is
     // recorded rather than obeyed, and the caller decides.
     const bool prefers_fragment = pyrowave_decoder_device_prefers_fragment_path(device);
-    pyrowave_device_destroy(device);
+    pyrowave_device_release(owned);
+
+    // Presentation is a second question: a device the codec accepts is not automatically one that
+    // carries VK_KHR_swapchain. Asked here so a device that can decode but never show it says so
+    // now rather than at the first frame.
+    pyrowave_device presenting = NULL;
+    void *presenting_owned = pyrowave_device_acquire(true, &presenting);
+    LOGI("presentation capable: %d", presenting_owned != NULL ? 1 : 0);
+    if (presenting_owned != NULL) {
+        pyrowave_device_release(presenting_owned);
+    }
 
     LOGI("usable Vulkan device, prefers fragment path: %d", (int) prefers_fragment);
     return prefers_fragment ? PROBE_FRAGMENT : PROBE_COMPUTE;
@@ -89,9 +101,11 @@ Java_com_papi_nova_binding_video_PyroWave_nativeDecodeSelfTest(
     jint outcome = -1;
     pyrowave_device device = NULL;
     pyrowave_decoder decoder = NULL;
+    void *owned = NULL;
 
     do {
-        if (pyrowave_create_default_device(&device) != PYROWAVE_SUCCESS || device == NULL) {
+        owned = pyrowave_device_acquire(false, &device);
+        if (owned == NULL || device == NULL) {
             outcome = -12;
             break;
         }
@@ -157,8 +171,8 @@ Java_com_papi_nova_binding_video_PyroWave_nativeDecodeSelfTest(
     if (decoder != NULL) {
         pyrowave_decoder_destroy(decoder);
     }
-    if (device != NULL) {
-        pyrowave_device_destroy(device);
+    if (owned != NULL) {
+        pyrowave_device_release(owned);
     }
     (*env)->ReleaseByteArrayElements(env, bitstream, payload, JNI_ABORT);
     return outcome;
