@@ -17,6 +17,7 @@ int main() {
                            map + "\na=fmtp:98 " NOVA_PYROWAVE_PROFILE_TOKEN "\n",
                            map + "\n" + profile + "\n" + profile,
                            map + "\n" + profile + "\na=fmtp:99 incompatible",
+                           map + "\n" + profile + "\na=rtpmap:99 H264/90000",
                            map + "\n" + profile + "\n" + map})
         require(!nova_pyrowave_description_compatible(bad.c_str()));
     std::cout << "PyroWave SDP exact profile, line endings and ambiguity rejection passed\n";
