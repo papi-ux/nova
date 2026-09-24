@@ -56,7 +56,10 @@ against the token automatically across both projects; keep the feature opt-in.
 `nova_pyrowave_parser_test` exercises malformed inner payloads without a GPU.
 `nova_pyrowave_protocol_test` rejects missing, ambiguous or inexact SDP profiles.
 `nova_pyrowave_test` exercises moving frames, sequence wrap, restart and exported
-frame ownership. `nova_deck_pyrowave_presenter_test` verifies Vulkan decode through
+frame ownership. It also starts a fresh GPU decoder at every sequence value,
+without a preceding CPU-output decode or capability probe, and checks that a
+rejected GPU frame preserves the previous image and permits the next valid frame.
+`nova_deck_pyrowave_presenter_test` verifies Vulkan decode through
 the actual EGL shader with distinct chroma values and checks frame lifetime.
 
 For a matched host check, run Polaris's `PyroWaveEncodeTests.*` with

@@ -31,6 +31,7 @@ int main() try {
     std::fill(source.planes[2].begin(), source.planes[2].end(), 128);
     Image output;
     std::vector<std::uint8_t> frame;
+    unsigned freshGpuSequences = 0;
     for (int index = 0; index < 12; ++index) {
         for (int y = 0; y < height; ++y)
             for (int x = 0; x < width; ++x)
@@ -39,6 +40,17 @@ int main() try {
         require(encoder.encode(source, 400000, frame), encoder.error().c_str());
         require(unpackFrame(frame, width, height, packets), "own frame failed bitstream validation");
         require(frame.size() > packetBytes, "did not exercise a frame spanning coefficient packet boundaries");
+        // Exercise every sequence value on a fresh GPU decoder. A preceding CPU
+        // decode or gray capability probe must not hide first-frame readiness bugs.
+        if (index < 8) {
+            Codec cold;
+            require(cold.open(width, height, false), cold.error().c_str());
+            GpuImage first;
+            require(cold.decodeGpu(frame, first), cold.error().c_str());
+            require(first.owner && first.width == width && first.height == height,
+                "fresh GPU decoder did not produce the first moving frame");
+            freshGpuSequences |= 1u << ((frame[3] >> 4) & 7);
+        }
         require(decoder.decode(frame, output), decoder.error().c_str());
         require(output.valid(), "decoded image invalid");
         double sum = 0;
@@ -46,6 +58,7 @@ int main() try {
             sum += std::abs(int(source.planes[0][i]) - int(output.planes[0][i]));
         require(sum / source.planes[0].size() < 8, "decoded luma diverged from moving source");
     }
+    require(freshGpuSequences == 0xff, "fresh GPU test did not cover all sequence values");
     const auto previous = output.planes;
     auto reject = [&](const std::vector<std::uint8_t>& bad) {
         require(!decoder.decode(bad, output), "malformed frame decoded");
@@ -66,10 +79,15 @@ int main() try {
     decoder.close();
     require(decoder.open(width, height, false), decoder.error().c_str());
     require(encoder.encode(source, 400000, frame), encoder.error().c_str());
-    require(decoder.decode(frame, output), decoder.error().c_str());
     GpuImage gpu;
     require(decoder.decodeGpu(frame, gpu), decoder.error().c_str());
     require(gpu.owner && gpu.width == width && gpu.height == height, "missing GPU frame owner");
+    const auto previousOwner = gpu.owner.get();
+    bad = frame; bad[0] ^= 2;
+    require(!decoder.decodeGpu(bad, gpu), "malformed GPU frame decoded");
+    require(!decoder.error().empty() && gpu.owner.get() == previousOwner,
+        "failed GPU decode lost its error or replaced the display image");
+    require(decoder.decodeGpu(frame, gpu), decoder.error().c_str());
     decoder.close();
     for (const auto& plane : gpu.planes)
         require(plane.fd >= 0 && fcntl(plane.fd, F_GETFD) >= 0 && plane.pitch > 0 && plane.size > 0,
@@ -77,7 +95,8 @@ int main() try {
     const auto fd = gpu.planes[0].fd;
     gpu = {};
     require(fcntl(fd, F_GETFD) == -1, "GPU frame leaked its DMA-BUF descriptor");
-    std::cout << "PyroWave: moving-frame roundtrip, sequence wrap, restart, and malformed bitstreams passed\n";
+    std::cout << "PyroWave: fresh GPU decode for all eight sequences, moving-frame roundtrip, "
+                 "restart, malformed bitstreams, and DMA-BUF lifetime passed\n";
     return 0;
 } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
