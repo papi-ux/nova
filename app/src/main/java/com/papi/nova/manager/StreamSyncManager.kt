@@ -419,7 +419,11 @@ class StreamSyncManager private constructor() {
             // Whether this build carries the compute codec at all. Not yet whether it can decode
             // with it: that needs a Vulkan device the library will accept, which is a separate
             // question with a separate answer. A host reads this to know why it was never offered.
-            put(json, "supports_pyrowave", PyroWave.isLibraryAvailable)
+            // Two different questions. Carrying the library is a property of the build; being able
+            // to decode with it is a property of the driver, and a host that wants to know why this
+            // device was never offered the codec needs to be able to tell those apart.
+            put(json, "supports_pyrowave", PyroWave.probe(context) != PyroWave.Probe.UNUSABLE)
+            put(json, "pyrowave_probe", PyroWave.probe(context).name.lowercase())
             PyroWave.apiVersion().takeIf { it.isNotEmpty() }?.let { put(json, "pyrowave_version", it) }
 
             if (renderer != null) {
