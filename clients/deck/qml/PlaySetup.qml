@@ -9,6 +9,14 @@ FocusScope {
     property var hostSettingsController: null
     property var gameTools: null
     readonly property var toolsState: gameTools ? gameTools.state : ({})
+    // The host plan is cleared for the whole of every review, and a review is restarted 150 ms after
+    // any saved choice, so reading it as it stands answers "is the client asking right now" rather
+    // than "has this PC described this game". This answers the second question, and only prepare()
+    // takes it back, because a different game has not been described yet. It deliberately does not
+    // drop on a plan-less state: a superseded review reports one on its way out, with nothing busy
+    // and no plan yet, and the row would lose its presets for exactly the moment this is about.
+    property bool hostPlanKnown: false
+    onToolsStateChanged: if (Object.keys(toolsState.plan || ({})).length > 0) hostPlanKnown = true
     readonly property bool codecManagesEncoder: configuration.videoCodec === "pyrowave"
     readonly property var encoderChoices: [{ encoderBackend: "", label: "Host default", detail: "Let the PC choose its encoder." }].concat((toolsState.settings || {}).encoders || [])
     readonly property var presetChoices: [
@@ -110,6 +118,7 @@ FocusScope {
         overrides = saved.overrides || ({})
         error = ""
         notice = ""
+        hostPlanKnown = false
         if (gameTools && !spaceSession) gameTools.prepare(hostId, gameId, plan.configuration)
         if (!launchModeAllowed && launchPolicy.known) {
             if (save({ launchMode: "default" })) notice = "Your saved launch mode is no longer available. Using host default."
@@ -442,12 +451,12 @@ FocusScope {
                 }
                 Setting {
                     id: tuning; objectName: "play-setup-tuning"
-                    visible: !!gameTools && !spaceSession && (Object.keys(toolsState.plan || {}).length > 0 || (configuration.profilePreference || "auto") !== "auto")
+                    visible: !!gameTools && !spaceSession && (hostPlanKnown || (configuration.profilePreference || "auto") !== "auto")
                     field: "profilePreference"; label: "Tuning"
                     value: (presetChoices.find(c => c.profilePreference === (configuration.profilePreference || "auto")) || presetChoices[0]).label
                     explanation: "Ask for a launch preset. The host plan shows what the PC granted; explicit stream choices stay in effect."
                     defaultExplanation: "Use the automatic launch preset."
-                    onClicked: picker.choose(tuning, "Tuning", Object.keys(toolsState.plan || {}).length ? presetChoices : [presetChoices[0]],
+                    onClicked: picker.choose(tuning, "Tuning", hostPlanKnown ? presetChoices : [presetChoices[0]],
                         Math.max(0, presetChoices.findIndex(c => c.profilePreference === (configuration.profilePreference || "auto"))))
                 }
                 Setting {
