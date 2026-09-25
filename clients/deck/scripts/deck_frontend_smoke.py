@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Visible Deck Game Mode frontend smoke route for the Nova Deck shell.
+"""Visible Deck Game Mode frontend smoke route for the Nova Linux shell.
 
 After source sync this route runs inside a rootless Podman container with network
 removed. It builds the Deck Qt shell, launches the real QML frontend on the
@@ -138,7 +138,7 @@ def build_container_shell(
             f"cd {q(source_dir)}",
             f"rm -rf {q(artifact_dir)} && mkdir -p {q(artifact_dir)}",
             "printf '%s\n' "
-            "\"Nova Deck frontend smoke\" "
+            "\"Nova Linux frontend smoke\" "
             "\"target_window=1280x800\" "
             "\"network=none\" "
             "\"QT_QPA_PLATFORM=$QT_QPA_PLATFORM\" "
@@ -239,7 +239,7 @@ def build_container_shell(
             f"! grep -E {q(r'([0-9]{1,3}[.]){3}[0-9]{1,3}|BEGIN [A-Z ]+|raw[A-Z]')} {q(backend_readonly_matrix_smoke)}",
             f"! grep -E {q(r'([0-9]{1,3}[.]){3}[0-9]{1,3}|BEGIN [A-Z ]+|raw[A-Z]')} {q(expanded_frame_smoke)}",
             "{ "
-            "printf '%s\n' 'Nova Deck frontend smoke summary'; "
+            "printf '%s\n' 'Nova Linux frontend smoke summary'; "
             "printf '%s\n' 'window=1280x800'; "
             "printf '%s\n' 'offline=true'; "
             "printf '%s\n' 'host_library_visible=review-frame-capture'; "
@@ -281,7 +281,7 @@ def build_container_shell(
             "printf '%s\n' 'expanded_frame_smoke=expanded-diagnostics-frame-smoke.txt'; "
             f"test -s {q(frame_capture)} && printf '%s\n' 'frame_capture=frontend-frame-capture.png' || printf '%s\n' 'frame_capture=missing'; "
             f"test -s {q(expanded_frame_capture)} && printf '%s\n' 'expanded_frame_capture=frontend-expanded-diagnostics-capture.png' || printf '%s\n' 'expanded_frame_capture=missing'; "
-            f"grep -E 'Nova Deck product preview fixture pump|frontend smoke capture|backend-dto-interaction-smoke artifact' {q(qml_runtime_log)} || true; "
+            f"grep -E 'Nova Linux product preview fixture pump|frontend smoke capture|backend-dto-interaction-smoke artifact' {q(qml_runtime_log)} || true; "
             f"}} > {q(smoke_summary)}",
         ]
     )

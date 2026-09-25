@@ -64,6 +64,6 @@ int main(int argc, char** argv) {
     const QUrlQuery query(url);
     require(url.path() == "/launch" && query.queryItemValue("appid") == "7" &&
         query.queryItemValue("uniqueid") == "public&id" && !query.queryItemValue("uuid").isEmpty() &&
-        query.queryItemValue("devicename") == "Nova Deck" && !query.hasQueryItem("id"), "GameStream identifiers corrupted request parameters");
+        query.queryItemValue("devicename") == "Nova Linux" && !query.hasQueryItem("id"), "GameStream identifiers corrupted request parameters");
     std::cout << "Standard-host library parsing passed: complete XML, authority status, limits, app ids and request identifiers\n";
 }

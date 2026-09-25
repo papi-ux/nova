@@ -359,8 +359,8 @@ class NovaReleaseMetadataTest {
             "Nova-Android-armeabi-v7a.apk.sha256",
             "Nova-Android-x86_64.apk",
             "Nova-Android-x86_64.apk.sha256",
-            "Nova-Deck-x86_64-alpha.flatpak",
-            "Nova-Deck-x86_64-alpha.flatpak.sha256",
+            "Nova-Linux-x86_64-alpha.flatpak",
+            "Nova-Linux-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertConsecutive(stageLines, listOf(
@@ -395,8 +395,8 @@ class NovaReleaseMetadataTest {
             "Nova-Android-armeabi-v7a.apk.sha256",
             "Nova-Android-x86_64.apk",
             "Nova-Android-x86_64.apk.sha256",
-            "Nova-Deck-x86_64-alpha.flatpak",
-            "Nova-Deck-x86_64-alpha.flatpak.sha256",
+            "Nova-Linux-x86_64-alpha.flatpak",
+            "Nova-Linux-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertTrue(uploadLines.contains(
@@ -420,8 +420,8 @@ class NovaReleaseMetadataTest {
             "Nova-Android-armeabi-v7a.apk.sha256",
             "Nova-Android-x86_64.apk",
             "Nova-Android-x86_64.apk.sha256",
-            "Nova-Deck-x86_64-alpha.flatpak",
-            "Nova-Deck-x86_64-alpha.flatpak.sha256",
+            "Nova-Linux-x86_64-alpha.flatpak",
+            "Nova-Linux-x86_64-alpha.flatpak.sha256",
         )
         for (asset in exactAssetNames) {
             assertTrue(verifyLines.contains(asset))

@@ -135,7 +135,7 @@ polaris::DeckPolarisResult<std::vector<DeckStandardApp>> parseStandardAppList(st
 }
 
 std::string standardHostTarget(const std::string& path, const std::string& clientId) {
-    return path + (path.find('?') == std::string::npos ? "?" : "&") + "devicename=Nova%20Deck&uniqueid=" +
+    return path + (path.find('?') == std::string::npos ? "?" : "&") + "devicename=Nova%20Linux&uniqueid=" +
         QUrl::toPercentEncoding(QString::fromStdString(clientId)).toStdString() + "&uuid=" +
         QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
 }

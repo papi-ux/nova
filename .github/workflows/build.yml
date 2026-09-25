@@ -55,12 +55,10 @@ jobs:
         run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight tools.test_native_optimization tools.test_pyrowave_timing
 
   deck:
-    name: Deck client build and tests
+    name: Linux client build and tests
     runs-on: ubuntu-latest
-    # The Deck client ships to SteamOS, which is Arch based. Ubuntu's Qt is 6.4
-    # and the client uses QSGRenderNode APIs that are not in it, so building
-    # here on Ubuntu would be testing a platform nothing ships to. Arch is the
-    # closest widely available stand-in for the target.
+    # Arch supplies the current Qt APIs used by the Linux client and also covers
+    # SteamOS's Arch lineage. The distributable Flatpak uses its pinned KDE runtime.
     container: archlinux:latest
 
     steps:
@@ -108,9 +106,9 @@ jobs:
         run: ctest --test-dir build-deck --output-on-failure
 
   deck-flatpak:
-    name: Deck Alpha Flatpak
+    name: Linux Alpha Flatpak
     needs: deck
-    # The Deck client ships as an Alpha beside each release: one Flatpak bundle, built from
+    # The Linux client ships as an Alpha beside each release: one Flatpak bundle, built from
     # the tagged source in the runtime its manifest names. Manual runs build it too, so a
     # release tag is never the first time the bundle is built.
     if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
@@ -125,10 +123,10 @@ jobs:
           ref: ${{ github.sha }}
           submodules: recursive
 
-      - name: Build the Deck Flatpak bundle
+      - name: Build the Linux Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: Nova-Deck-x86_64-alpha.flatpak
+          bundle: Nova-Linux-x86_64-alpha.flatpak
           manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.json
           # A release is built from its own tree every time; a cache keyed per commit never hits.
           cache: false
@@ -137,8 +135,8 @@ jobs:
       - name: Keep the bundle for the release
         uses: actions/upload-artifact@v7
         with:
-          name: nova-deck-flatpak
-          path: Nova-Deck-x86_64-alpha.flatpak
+          name: nova-linux-flatpak
+          path: Nova-Linux-x86_64-alpha.flatpak
           if-no-files-found: error
           # Long enough to re-run a failed release job without rebuilding the bundle.
           retention-days: 14
@@ -385,21 +383,21 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      # A tag always has the Deck bundle, since deck-flatpak runs for every tag. If it did
+      # A tag always has the Linux bundle, since deck-flatpak runs for every tag. If it did
       # not build, the release refuses below for a missing asset rather than shipping without it.
-      - name: Add the Deck Alpha bundle
+      - name: Add the Linux Alpha bundle
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/download-artifact@v8
         with:
-          name: nova-deck-flatpak
+          name: nova-linux-flatpak
           path: ${{ env.APK_ASSET_DIR }}
 
-      - name: Checksum the Deck Alpha bundle
+      - name: Checksum the Linux Alpha bundle
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
           cd "${APK_ASSET_DIR}"
-          sha256sum Nova-Deck-x86_64-alpha.flatpak > Nova-Deck-x86_64-alpha.flatpak.sha256
+          sha256sum Nova-Linux-x86_64-alpha.flatpak > Nova-Linux-x86_64-alpha.flatpak.sha256
 
       - name: Verify release tag matches built source
         if: startsWith(github.ref, 'refs/tags/v')
@@ -445,8 +443,8 @@ jobs:
             Nova-Android-armeabi-v7a.apk.sha256
             Nova-Android-x86_64.apk
             Nova-Android-x86_64.apk.sha256
-            Nova-Deck-x86_64-alpha.flatpak
-            Nova-Deck-x86_64-alpha.flatpak.sha256
+            Nova-Linux-x86_64-alpha.flatpak
+            Nova-Linux-x86_64-alpha.flatpak.sha256
           )
           release_assets=()
           for asset_name in "${expected_asset_names[@]}"; do
@@ -520,8 +518,8 @@ jobs:
             Nova-Android-armeabi-v7a.apk.sha256
             Nova-Android-x86_64.apk
             Nova-Android-x86_64.apk.sha256
-            Nova-Deck-x86_64-alpha.flatpak
-            Nova-Deck-x86_64-alpha.flatpak.sha256
+            Nova-Linux-x86_64-alpha.flatpak
+            Nova-Linux-x86_64-alpha.flatpak.sha256
           )
           release_assets=()
           for asset_name in "${expected_asset_names[@]}"; do
@@ -544,8 +542,8 @@ jobs:
             Nova-Android-armeabi-v7a.apk.sha256
             Nova-Android-x86_64.apk
             Nova-Android-x86_64.apk.sha256
-            Nova-Deck-x86_64-alpha.flatpak
-            Nova-Deck-x86_64-alpha.flatpak.sha256
+            Nova-Linux-x86_64-alpha.flatpak
+            Nova-Linux-x86_64-alpha.flatpak.sha256
           )
           mapfile -t published_assets < <(
             gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | sort

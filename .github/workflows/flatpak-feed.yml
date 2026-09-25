@@ -159,7 +159,7 @@ jobs:
           mkdir -p bundles
           flatpak build-bundle --repo-url="$NOVA_FEED_URL/repo" --gpg-keys="$RUNNER_TEMP/nova-public.gpg" \
             --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
-            site/repo "bundles/Nova-Linux-${NOVA_CHANNEL}.flatpak" com.papi_ux.Nova "$NOVA_CHANNEL"
+            site/repo "bundles/Nova-Linux-x86_64-${NOVA_CHANNEL}.flatpak" com.papi_ux.Nova "$NOVA_CHANNEL"
           ostree --repo=site/repo fsck
           # Independently verify both summary and commit signatures before publishing.
           ostree --repo=verification init --mode=archive-z2

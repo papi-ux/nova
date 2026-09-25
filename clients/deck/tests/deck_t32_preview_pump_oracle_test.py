@@ -22,15 +22,15 @@ CTEST_LOG = """Test project /var/tmp/nova-t31-src/build/deck-t31
 100% tests passed, 0 tests failed out of 8
 """
 
-QSG_LOG = """Nova Deck QSGRenderNode VAAPI/EGL render path status=ready objects=1 layers=2 ready=1 planned=1 readiness stayed false until shader composition proof Hardware-backed VAAPI frame decoded and exported as DRM_PRIME dmabuf metadata; Qt Quick render-target readiness is proven
-Nova Deck QSGRenderNode scenegraph smoke passed: product render-node path entered 2 consecutive render passes; imported two DRM_PRIME layers, proved shader composition, then reported ready
+QSG_LOG = """Nova Linux QSGRenderNode VAAPI/EGL render path status=ready objects=1 layers=2 ready=1 planned=1 readiness stayed false until shader composition proof Hardware-backed VAAPI frame decoded and exported as DRM_PRIME dmabuf metadata; Qt Quick render-target readiness is proven
+Nova Linux QSGRenderNode scenegraph smoke passed: product render-node path entered 2 consecutive render passes; imported two DRM_PRIME layers, proved shader composition, then reported ready
 """
 
 READY_LAST_TEST_LOG = """4/4 Testing: nova_deck_qsg_render_node_scenegraph_smoke
 Output:
 ----------------------------------------------------------
-Nova Deck QSGRenderNode VAAPI/EGL render path status=ready objects=1 layers=2 ready=1 planned=1 readiness stayed false until shader composition proof Hardware-backed VAAPI frame decoded and exported as DRM_PRIME dmabuf metadata; Qt Quick render-target readiness is proven
-Nova Deck QSGRenderNode scenegraph smoke passed: product render-node path entered 2 consecutive render passes; imported two DRM_PRIME layers, proved shader composition, then reported ready
+Nova Linux QSGRenderNode VAAPI/EGL render path status=ready objects=1 layers=2 ready=1 planned=1 readiness stayed false until shader composition proof Hardware-backed VAAPI frame decoded and exported as DRM_PRIME dmabuf metadata; Qt Quick render-target readiness is proven
+Nova Linux QSGRenderNode scenegraph smoke passed: product render-node path entered 2 consecutive render passes; imported two DRM_PRIME layers, proved shader composition, then reported ready
 <end of output>
 """
 

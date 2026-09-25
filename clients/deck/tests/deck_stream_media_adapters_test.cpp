@@ -1559,14 +1559,14 @@ int main(int argc, char** argv) {
             NOVA_TEST_REQUIRE(liveReadyReadiness.ready);
             NOVA_TEST_REQUIRE(liveReadyReadiness.statusCode == std::string("ready"));
             NOVA_TEST_REQUIRE(liveReadyReadiness.detail.find("2-layer DRM_PRIME Y/UV") != std::string::npos);
-            std::cout << "Nova Deck live EGL two-layer composition "
+            std::cout << "Nova Linux live EGL two-layer composition "
                       << liveReadyReadiness.statusCode << ' '
                       << "objects=" << liveReadyReadiness.importPlan.drmPrimeObjectCount << ' '
                       << "layers=" << liveReadyReadiness.importPlan.drmPrimeLayerCount << ' '
                       << liveEglContext.detail() << ' '
                       << liveReadyReadiness.detail << '\n';
         }
-        std::cout << "Nova Deck VAAPI/EGL presenter readiness "
+        std::cout << "Nova Linux VAAPI/EGL presenter readiness "
                   << realFrameReadiness.statusCode << ' '
                   << "objects=" << realFrameReadiness.importPlan.drmPrimeObjectCount << ' '
                   << "layers=" << realFrameReadiness.importPlan.drmPrimeLayerCount << ' '

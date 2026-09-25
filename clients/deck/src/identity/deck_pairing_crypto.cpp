@@ -54,7 +54,7 @@ std::optional<Credentials> generate() {
         !X509_gmtime_adj(X509_getm_notBefore(cert.get()), -300) ||
         !X509_gmtime_adj(X509_getm_notAfter(cert.get()), 20L * 365 * 24 * 60 * 60) ||
         !X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-            reinterpret_cast<const unsigned char*>("Nova Deck Client"), -1, -1, 0) ||
+            reinterpret_cast<const unsigned char*>("Nova Linux Client"), -1, -1, 0) ||
         !X509_set_issuer_name(cert.get(), name) || !X509_set_pubkey(cert.get(), key.get()) ||
         X509_sign(cert.get(), key.get(), EVP_sha256()) <= 0) return std::nullopt;
     Ptr<BIO, BIO_free> certBio(BIO_new(BIO_s_mem()), BIO_free), keyBio(BIO_new(BIO_s_mem()), BIO_free);

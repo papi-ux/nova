@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Nova Linux (Alpha)** is the name of the native client for x86_64 Linux desktops, laptops and handhelds, including Steam Deck. New release bundles use `Nova-Linux-x86_64-alpha.flatpak` and a matching checksum. Hardware-specific codec, HDR and frame-rate limits still apply.
+
 ## 1.4.13 - 2026-09-24
 
 A new codec you can try on a wired link, a Desktop entry that answers for itself, and a Command Center that stays where you left it. Nova 1.4.13 is matched with Polaris 1.4.13.

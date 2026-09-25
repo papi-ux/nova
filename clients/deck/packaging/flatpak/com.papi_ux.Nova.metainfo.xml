@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>com.papi_ux.Nova</id>
-  <name>Nova</name>
-  <summary>Your Polaris library, streamed to the Steam Deck</summary>
+  <name>Nova Linux</name>
+  <summary>Stream your PC games to Linux desktops, laptops and handhelds</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <description>
-    <p>Nova pairs with a Polaris host, shows the games it offers with their artwork, and streams the one you pick with native video, audio and controls. This build is an Alpha.</p>
+    <p>Nova Linux pairs with a Polaris host, shows the games it offers with their artwork, and streams the one you pick with native video, audio and controls. This Alpha targets x86_64 Linux desktops, laptops and handhelds, including Steam Deck. Available codecs, HDR and frame rates depend on the device, drivers, display and host.</p>
   </description>
   <launchable type="desktop-id">com.papi_ux.Nova.desktop</launchable>
   <url type="homepage">https://papi-ux.com/</url>

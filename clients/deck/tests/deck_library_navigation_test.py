@@ -1888,7 +1888,7 @@ def main():
         try:
             prefix = "game-" if args.host_power or args.filters or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "gamestream-app-"
             wait(lambda s: s.get("host") == "a" and s.get("focus") == ("space.room-a.big-picture-v1" if args.spaces else prefix+"7"))
-            window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+            window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
             command("xdotool", "windowfocus", "--sync", window)
             wait(lambda s: s.get("windowActive"))
             keys("Right")
@@ -1996,7 +1996,7 @@ def main():
                     "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "17000"],
                     env=env, stdout=output, stderr=output)
                 wait(lambda s: s.get("host") == "a" and not s.get("busy") and s.get("focus") == "space.room-a.big-picture-v1")
-                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Right", "Return", "Return")
                 wait(lambda s: s.get("nativePreviewOpen") and s["playSetup"]["configuration"]["bitrateKbps"] == 40000)
@@ -2026,7 +2026,7 @@ def main():
                     "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "12000"],
                     env=env, stdout=output, stderr=output)
                 wait(lambda s: s.get("host") == "a" and not s.get("busy") and s.get("focus") == "space.room-a.big-picture-v1")
-                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Return", "Return")
                 wait(lambda s: s.get("nativePreviewOpen") and s["playSetup"]["configuration"]["height"] == 720)
@@ -2050,7 +2050,7 @@ def main():
                     "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "7000"],
                     env=env, stdout=output, stderr=output)
                 wait(lambda s: s.get("host") == "a" and s.get("focus") == "game-7")
-                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Return", "Return")
                 wait(lambda s: s.get("nativePreviewOpen") and s.get("playSetup", {}).get("configuration", {}).get("fps") == 30)
@@ -2066,7 +2066,7 @@ def main():
                     "--frontend-smoke-library-state", str(observation),
                     "--frontend-smoke-exit-after-ms", "6000"], env=env, stdout=output, stderr=output)
                 wait(lambda s: s.get("host") == "a" and s.get("focus") == ("game-7" if args.launch_modes or args.stream_plan else "gamestream-app-7"))
-                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Return", "Return")
                 expected = {"width": 1280, "height": 800, "fps": 60, "bitrateKbps": 20000, "faceButtonLayout": "default", "launchMode": "desktop_display", "videoCodec": "h264", "profilePreference": "auto", "encoderBackend": ""} if args.launch_modes else {"width": 1920, "height": 1080, "fps": 30, "bitrateKbps": 30000, "faceButtonLayout": "positions", "launchMode": "default", "videoCodec": "h264", "profilePreference": "auto", "encoderBackend": ""}

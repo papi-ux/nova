@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repeatable Deck-side rootless Podman validation route for Nova Deck preview smokes.
+"""Repeatable Deck-side rootless Podman validation route for Nova Linux preview smokes.
 
 The route is intentionally local/offline once source is present on the Steam Deck:
 it builds the checked-out source inside the known Deck Arch/Qt buildtools image,
