@@ -38,7 +38,7 @@ inline std::string choices(const QString& kind, bool expired = false) {
 template<class T> nova::deck::polaris::DeckPolarisResult<T> ok(T value) { return {nova::deck::polaris::DeckPolarisRequestStatus::Ok,200,{},std::move(value)}; }
 struct Host {
     std::atomic<bool> valid{true}, allowed{true}, lost{false}, hold{false}, entered{false}, expired{false};
-    std::atomic<int> writes{0};
+    std::atomic<int> writes{0}, planRequests{0};
     QString steam = "direct";
     nova::deck::runtime::DeckGameToolsResolver resolver() {
         return [this]() -> std::optional<nova::deck::runtime::DeckGameToolsTarget> {
@@ -48,6 +48,7 @@ struct Host {
                     entered = true;
                     while (hold && !cancelled()) QThread::msleep(1);
                     if (cancelled()) return DeckPolarisResult<QVariantMap>{};
+                    if (action == "plan") ++planRequests;
                     if (action == "apply" || action == "reset" || action == "refreshArt" || action == "steam") {
                         ++writes;
                         if (lost) return DeckPolarisResult<QVariantMap>{DeckPolarisRequestStatus::Timeout,0,{}, {}};

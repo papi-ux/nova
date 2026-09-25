@@ -64,7 +64,11 @@ int main(int argc,char** argv) {
     auto* encoder=item("play-setup-encoder"); encoder->forceActiveFocus(); settle(); QTest::keyClick(window,Qt::Key_Return);
     auto* picker=root->findChild<QObject*>("play-setup-picker");check(picker,"encoder picker missing");
     wait([&]{return picker->property("opened").toBool();});
-    QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
+    // Saving schedules a debounced review. Idle can be true before it starts;
+    // wait for this plan reply before interacting with the host-dependent row.
+    const auto previousPlans = host.planRequests.load();
+    QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);
+    wait([&]{return host.planRequests.load() > previousPlans && !tools.busy();});
     check(settings.load("host","game")["configuration"].toMap()["encoderBackend"]=="vaapi","D-pad encoder not saved");
     check(window->activeFocusItem()==encoder,"host review stole encoder focus");
     item("play-setup-tuning")->forceActiveFocus();QTest::keyClick(window,Qt::Key_Return);
