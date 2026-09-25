@@ -102,12 +102,23 @@ class NovaReleaseMetadataTest {
         assertTrue(releaseWorkflow.contains("published_notes="))
         assertTrue(!releaseWorkflow.contains("--generate-notes"))
         assertTrue(releaseScript.contains("-PnovaAbis=arm64-v8a,armeabi-v7a,x86_64"))
-        for (asset in listOf(
-            "Nova-Android-arm64-v8a.apk",
-            "Nova-Android-armeabi-v7a.apk",
-            "Nova-Android-x86_64.apk",
-        )) {
-            assertTrue(releaseScript.contains(asset))
+        // The names are chosen from the channel now rather than written out, because a beta
+        // installs beside stable under com.papi.nova.pre and must not publish under stable's
+        // filenames: anything keyed on those, including Nova's own documented Obtainium entry,
+        // would fetch the beta while tracking the stable package and fail to read it at all.
+        assertTrue(
+            "the release script must publish a stable release under the stable asset names",
+            releaseScript.contains("asset_prefix=Nova-Android"),
+        )
+        assertTrue(
+            "the release script must publish a beta under its own asset names",
+            releaseScript.contains("asset_prefix=Nova-Beta-Android"),
+        )
+        for (abi in listOf("arm64-v8a", "armeabi-v7a", "x86_64")) {
+            assertTrue(
+                "the release script must name the $abi asset it uploads",
+                releaseScript.contains("\${asset_prefix}-$abi.apk"),
+            )
         }
         assertTrue(storeNotes.isFile)
         assertTrue(
@@ -242,9 +253,18 @@ class NovaReleaseMetadataTest {
             "apk_files=(\"\${APK_DIR}\"/*\"\${NOVA_APK_VARIANT}\"-unsigned.apk)"
         ))
 
-        // An asset name carries the ABI, never the channel, so every published stable link keeps
-        // resolving and Obtainium needs no second configuration.
-        assertTrue(selectLines.contains("asset_name=\"Nova-Android-\${abi}.apk\""))
+        // An asset name carries the channel as well as the ABI.
+        //
+        // It used to carry only the ABI, so that every published stable link kept resolving and
+        // Obtainium needed no second configuration. The second half of that was wrong. A beta
+        // installs beside stable under com.papi.nova.pre, and publishing it under stable's exact
+        // filenames meant anything keyed on those names fetched a beta while tracking the stable
+        // package: Nova's own documented Obtainium entry pins id com.papi.nova and the filter
+        // Nova-Android-arm64-v8a.apk, and reported that it could not read the package at all.
+        //
+        // Stable keeps its names, so the first half still holds and every published link is
+        // untouched. Only a beta is renamed, and it gets an Obtainium entry of its own.
+        assertTrue(selectLines.contains("asset_name=\"\${NOVA_ASSET_PREFIX}-\${abi}.apk\""))
     }
 
     @Test
@@ -353,12 +373,12 @@ class NovaReleaseMetadataTest {
         ))
         assertConsecutive(stageLines, listOf(
             "expected_asset_names=(",
-            "Nova-Android-arm64-v8a.apk",
-            "Nova-Android-arm64-v8a.apk.sha256",
-            "Nova-Android-armeabi-v7a.apk",
-            "Nova-Android-armeabi-v7a.apk.sha256",
-            "Nova-Android-x86_64.apk",
-            "Nova-Android-x86_64.apk.sha256",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
             "Nova-Deck-x86_64-alpha.flatpak",
             "Nova-Deck-x86_64-alpha.flatpak.sha256",
             ")",
@@ -389,12 +409,12 @@ class NovaReleaseMetadataTest {
         assertNoHeredoc(uploadLines, "Release asset upload")
         assertConsecutive(uploadLines, listOf(
             "expected_asset_names=(",
-            "Nova-Android-arm64-v8a.apk",
-            "Nova-Android-arm64-v8a.apk.sha256",
-            "Nova-Android-armeabi-v7a.apk",
-            "Nova-Android-armeabi-v7a.apk.sha256",
-            "Nova-Android-x86_64.apk",
-            "Nova-Android-x86_64.apk.sha256",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
             "Nova-Deck-x86_64-alpha.flatpak",
             "Nova-Deck-x86_64-alpha.flatpak.sha256",
             ")",
@@ -414,12 +434,12 @@ class NovaReleaseMetadataTest {
         val verifyLines = workflowRunLines(verify)
         assertNoHeredoc(verifyLines, "Release asset verification")
         val exactAssetNames = listOf(
-            "Nova-Android-arm64-v8a.apk",
-            "Nova-Android-arm64-v8a.apk.sha256",
-            "Nova-Android-armeabi-v7a.apk",
-            "Nova-Android-armeabi-v7a.apk.sha256",
-            "Nova-Android-x86_64.apk",
-            "Nova-Android-x86_64.apk.sha256",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
             "Nova-Deck-x86_64-alpha.flatpak",
             "Nova-Deck-x86_64-alpha.flatpak.sha256",
         )

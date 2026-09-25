@@ -95,6 +95,15 @@ if [[ -n "$(working_tree_dirt)" ]]; then
 fi
 require_exact_master_head
 
+# The same rule the release workflow applies: a beta publishes under its own asset
+# names, because it installs beside stable under its own application id and must not
+# be fetched by anything tracking stable's filenames.
+if [ -n "$channel_suffix" ]; then
+  asset_prefix=Nova-Beta-Android
+else
+  asset_prefix=Nova-Android
+fi
+
 git tag -a "$tag" -m "Nova ${tag}"
 if ! git push --atomic origin \
   HEAD:refs/heads/master \
@@ -109,9 +118,9 @@ cat <<EOF
 Tagged ${tag}.
 
 GitHub Actions will create or update the public release and upload:
-  - Nova-Android-arm64-v8a.apk
-  - Nova-Android-armeabi-v7a.apk
-  - Nova-Android-x86_64.apk
+  - ${asset_prefix}-arm64-v8a.apk
+  - ${asset_prefix}-armeabi-v7a.apk
+  - ${asset_prefix}-x86_64.apk
   - matching .sha256 files
 
 Release URL:
