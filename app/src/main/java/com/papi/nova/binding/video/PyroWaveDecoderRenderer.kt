@@ -88,7 +88,7 @@ class PyroWaveDecoderRenderer(
     }
 
     private var surface: Surface? = null
-    private var handle: Long = 0
+    private val renderer = PyroWaveRendererLifetime(PyroWave::destroyRenderer)
     private var format: Int = 0
     private var width: Int = 0
     private var height: Int = 0
@@ -149,7 +149,9 @@ class PyroWaveDecoderRenderer(
         val hdr = (format and
             (MoonBridge.VIDEO_FORMAT_PYROWAVE_10BIT or MoonBridge.VIDEO_FORMAT_PYROWAVE_444_10BIT)) != 0
 
-        handle = PyroWave.createRenderer(target, width, height, chroma444, hdr)
+        val handle = renderer.create {
+            PyroWave.createRenderer(target, width, height, chroma444, hdr)
+        }
         if (handle == 0L) {
             LimeLog.severe("PyroWave: could not make a ${width}x$height renderer")
             return -2
@@ -175,7 +177,7 @@ class PyroWaveDecoderRenderer(
         receiveTimeMs: Long,
         enqueueTimeMs: Long,
     ): Int {
-        if (handle == 0L || decodeUnitData == null || decodeUnitLength <= 0) {
+        if (decodeUnitData == null || decodeUnitLength <= 0) {
             return MoonBridge.DR_NEED_IDR
         }
 
@@ -201,7 +203,9 @@ class PyroWaveDecoderRenderer(
         }
 
         val startedNs = System.nanoTime()
-        val drew = PyroWave.decodeAndPresent(handle, decodeUnitData, decodeUnitLength)
+        val drew = renderer.useOrNull { handle ->
+            PyroWave.decodeAndPresent(handle, decodeUnitData, decodeUnitLength)
+        } ?: return MoonBridge.DR_NEED_IDR
         val elapsedNs = System.nanoTime() - startedNs
 
         // Decode and present together, because that is what the call does: the compute work and the
@@ -298,10 +302,7 @@ class PyroWaveDecoderRenderer(
     }
 
     override fun cleanup() {
-        if (handle != 0L) {
-            PyroWave.destroyRenderer(handle)
-            handle = 0
-        }
+        renderer.close()
         LimeLog.info(
             "PyroWave: $framesShown frames shown, $framesRefused refused, $framesMissing never arrived",
         )
@@ -322,13 +323,9 @@ class PyroWaveDecoderRenderer(
     }
 
     override fun prepareForStop() {
-        // The renderer holds the swapchain that holds the surface, so it goes before the surface
-        // does. Destroying it here rather than in cleanup is what keeps a surface teardown from
-        // pulling the ground out from under a submit in flight.
-        if (handle != 0L) {
-            PyroWave.destroyRenderer(handle)
-            handle = 0
-        }
+        // Stop admitting frames and wait for the current native call before releasing the
+        // swapchain. Surface teardown can run before the network decode thread has stopped.
+        renderer.close()
     }
 
     override fun refreshDisplayParameters() {

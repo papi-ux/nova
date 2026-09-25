@@ -22,6 +22,10 @@ class AndroidAudioRenderer(
 ) : AudioRenderer {
     private var track: AudioTrack? = null
     private var playbackStats = AudioPlaybackStats()
+    private var bufferTuner: AudioBufferTuner? = null
+    private var nextBufferCheckNs = 0L
+    private var writtenAudioFrames = 0L
+    private var playbackThreadConfigured = false
     @Volatile
     private var trackStarted = false
     @Volatile
@@ -120,8 +124,32 @@ class AndroidAudioRenderer(
             }
 
             try {
-                track = createAudioTrack(channelConfig, sampleRate, bufferSize, lowLatency)
+                // Reserve up to 60 ms, but initially expose the same two-packet
+                // buffer as before. Only observed underruns increase that delay.
+                // AudioTrack permits resizing the effective buffer within its capacity.
+                val capacityBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    max(bufferSize, sampleRate * 60 / 1000 * audioConfiguration.channelCount * 2)
+                } else {
+                    bufferSize
+                }
+                val created = createAudioTrack(channelConfig, sampleRate, capacityBytes, lowLatency)
+                track = created
+                bufferTuner = null
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    try {
+                        created.setBufferSizeInFrames(bufferSize / (audioConfiguration.channelCount * 2))
+                        bufferTuner = AudioBufferTuner(
+                            samplesPerFrame,
+                            minOf(sampleRate * 60 / 1000, created.bufferCapacityInFrames),
+                        )
+                    } catch (e: RuntimeException) {
+                        LimeLog.warning("Nova: audio buffer tuning unavailable: ${e.javaClass.simpleName}")
+                    }
+                }
                 trackStarted = false
+                playbackThreadConfigured = false
+                nextBufferCheckNs = 0L
+                writtenAudioFrames = 0L
                 playbackStats = AudioPlaybackStats()
                 LimeLog.info("Audio track configuration: $bufferSize $lowLatency")
                 break
@@ -140,20 +168,18 @@ class AndroidAudioRenderer(
 
     override fun playDecodedAudio(audioData: ShortArray) {
         val audioTrack = track ?: return
-        if (!trackStarted) {
+        if (!playbackThreadConfigured) {
             // Setup runs on a different thread. Apply the audio priority here,
             // on the dedicated native playback thread that exits with this stream.
             configurePlaybackThread()
-            audioTrack.play()
-            trackStarted = true
-            logRoutedAudioDevice(audioTrack)
+            playbackThreadConfigured = true
         }
 
         val startNs = System.nanoTime()
         hapticEngine?.feedAudioShort(audioData, audioTrack.sampleRate, audioTrack.channelCount)
         val hapticsEndNs = System.nanoTime()
         val pendingMs = MoonBridge.getPendingAudioDuration()
-        val skipped = pendingMs >= 40
+        val skipped = shouldSkipAudio(audioTrack, pendingMs)
         val writeStartNs = System.nanoTime()
         val writeResult = if (!skipped) {
             audioTrack.write(audioData, 0, audioData.size)
@@ -161,12 +187,50 @@ class AndroidAudioRenderer(
             LimeLog.info("Too much pending audio data: $pendingMs ms")
             0
         }
+        if (writeResult > 0) writtenAudioFrames += writeResult / audioTrack.channelCount
+        // Prime with actual PCM before starting an empty output buffer.
+        if (!trackStarted && writeResult > 0) {
+            audioTrack.play()
+            trackStarted = true
+            logRoutedAudioDevice(audioTrack)
+        }
         val endNs = System.nanoTime()
+        tuneAudioBuffer(audioTrack, endNs)
         playbackStats.record(
             startNs, hapticsEndNs, writeStartNs, endNs,
             pendingMs, audioData.size, skipped, writeResult
         )
         if (playbackStats.reportDue(endNs)) reportPlaybackStats(audioTrack, endNs)
+    }
+
+    private fun shouldSkipAudio(audioTrack: AudioTrack, pendingMs: Int): Boolean {
+        if (pendingMs < 40) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        return try {
+            AudioQueueBudget.shouldSkip(
+                pendingMs, writtenAudioFrames, audioTrack.playbackHeadPosition,
+                audioTrack.bufferSizeInFrames, audioTrack.sampleRate,
+            )
+        } catch (_: RuntimeException) {
+            true
+        }
+    }
+
+    private fun tuneAudioBuffer(audioTrack: AudioTrack, nowNs: Long) {
+        val tuner = bufferTuner ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || nowNs < nextBufferCheckNs) return
+        nextBufferCheckNs = nowNs + 500_000_000L
+        try {
+            val current = audioTrack.bufferSizeInFrames
+            val wanted = tuner.sizeForUnderruns(audioTrack.underrunCount, current)
+            if (wanted > current) {
+                val actual = audioTrack.setBufferSizeInFrames(wanted)
+                LimeLog.info("Nova: audio buffer adjusted frames=$current->$actual")
+            }
+        } catch (e: RuntimeException) {
+            bufferTuner = null
+            LimeLog.warning("Nova: audio buffer tuning stopped: ${e.javaClass.simpleName}")
+        }
     }
 
     private fun configurePlaybackThread() {
