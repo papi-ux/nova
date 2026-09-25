@@ -272,8 +272,11 @@ class NovaComposeBuildConfigurationTest {
             workflow.contains("""*armeabi-v7a*) abi="armeabi-v7a" ;;""")
         )
         assertTrue(
+            // By the channel-chosen name: a beta publishes as Nova-Beta-Android-* because it
+            // installs beside stable under its own application id, and must not be fetched by
+            // anything tracking stable's filenames. The 32-bit ARM asset is still required.
             "tag release verification should require the 32-bit ARM public APK",
-            workflow.contains("Nova-Android-armeabi-v7a.apk")
+            workflow.contains("\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk")
         )
         assertTrue(
             "tag release verification should require exact equality with three APKs, the Deck Alpha bundle and a checksum for each",

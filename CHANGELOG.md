@@ -34,6 +34,7 @@ A new codec you can try on a wired link, a Desktop entry that answers for itself
 **Beta releases**
 
 - A beta is published as a prerelease, tagged `v1.4.13-beta.N`, and installs beside your stable Nova rather than replacing it. Nothing reaches you unless you go and get it.
+- A beta's APKs are named `Nova-Beta-Android-<abi>.apk`, so an updater watching the stable filenames never picks one up by accident. To follow the beta channel, add it to Obtainium as its own app: [add Nova Beta to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova.pre%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%20Beta%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22Nova-Beta-Android-arm64-v8a%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%2C%5C%22includePrereleases%5C%22%3Atrue%7D%22%7D). It tracks `com.papi.nova.pre`, which is the package a beta installs as.
 
 ## 1.4.12 - 2026-09-22
 

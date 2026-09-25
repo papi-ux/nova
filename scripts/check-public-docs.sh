@@ -134,13 +134,16 @@ if stage.count('echo "publish_draft=true"') != 2 or "is_draft=" in stage:
 if stage.find("published_notes=") < stage.find("gh release edit"):
     raise SystemExit("Release notes must be read back after staging")
 
+# The APK names are chosen from the release channel, because a beta installs beside
+# stable under its own application id and must not publish under stable's filenames.
+# The Deck bundle is not channel-specific.
 expected_assets = (
-    "Nova-Android-arm64-v8a.apk",
-    "Nova-Android-arm64-v8a.apk.sha256",
-    "Nova-Android-armeabi-v7a.apk",
-    "Nova-Android-armeabi-v7a.apk.sha256",
-    "Nova-Android-x86_64.apk",
-    "Nova-Android-x86_64.apk.sha256",
+    '"${NOVA_ASSET_PREFIX}-arm64-v8a.apk"',
+    '"${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256"',
+    '"${NOVA_ASSET_PREFIX}-armeabi-v7a.apk"',
+    '"${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256"',
+    '"${NOVA_ASSET_PREFIX}-x86_64.apk"',
+    '"${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"',
     "Nova-Deck-x86_64-alpha.flatpak",
     "Nova-Deck-x86_64-alpha.flatpak.sha256",
 )
@@ -151,7 +154,11 @@ for asset in expected_assets:
         raise SystemExit(f"Release verification must name {asset} exactly once")
 PY
 python3 scripts/test_extract_release_notes.py
-grep -Fq "Nova-Android-\${abi}.apk" .github/workflows/build.yml
+grep -Fq "\${NOVA_ASSET_PREFIX}-\${abi}.apk" .github/workflows/build.yml
+# Stable still resolves to the names every published link uses.
+grep -Fq "stable) asset_prefix=Nova-Android ;;" .github/workflows/build.yml
+# And a beta does not, which is the whole point.
+grep -Fq "prerelease) asset_prefix=Nova-Beta-Android ;;" .github/workflows/build.yml
 grep -Fq "F-Droid and IzzyOnDroid Packaging Notes" docs/fdroid.md
 grep -Fq 'buildConfigField "boolean", "FDROID_BUILD"' app/build.gradle
 grep -Fq "BuildConfig.FDROID_BUILD" app/src/main/java/com/papi/nova/preferences/StreamSettings.kt

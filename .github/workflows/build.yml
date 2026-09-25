@@ -254,6 +254,21 @@ jobs:
             fi
           fi
 
+          # A beta installs beside stable under its own application id, so it must not
+          # publish under stable's asset names. Anything keyed on the filename, which
+          # includes Nova's own documented Obtainium entry, would otherwise fetch a
+          # com.papi.nova.pre package while tracking com.papi.nova and report that it
+          # could not read the package at all.
+          case "${channel}" in
+            stable) asset_prefix=Nova-Android ;;
+            prerelease) asset_prefix=Nova-Beta-Android ;;
+            *)
+              echo "no asset prefix defined for channel ${channel}" >&2
+              exit 1
+              ;;
+          esac
+          echo "NOVA_ASSET_PREFIX=${asset_prefix}" >> "$GITHUB_ENV"
+
           echo "NOVA_RELEASE_CHANNEL=${channel}" >> "$GITHUB_ENV"
           echo "NOVA_BUILD_TYPE=${build_type}" >> "$GITHUB_ENV"
           echo "NOVA_APK_VARIANT=${variant}" >> "$GITHUB_ENV"
@@ -352,9 +367,9 @@ jobs:
             esac
 
             if [[ "$apk_name" == *-unsigned.apk ]]; then
-              asset_name="Nova-Android-${abi}-unsigned.apk"
+              asset_name="${NOVA_ASSET_PREFIX}-${abi}-unsigned.apk"
             else
-              asset_name="Nova-Android-${abi}.apk"
+              asset_name="${NOVA_ASSET_PREFIX}-${abi}.apk"
             fi
 
             cp "$apk" "${APK_ASSET_DIR}/${asset_name}"
@@ -439,12 +454,12 @@ jobs:
           shopt -s nullglob
 
           expected_asset_names=(
-            Nova-Android-arm64-v8a.apk
-            Nova-Android-arm64-v8a.apk.sha256
-            Nova-Android-armeabi-v7a.apk
-            Nova-Android-armeabi-v7a.apk.sha256
-            Nova-Android-x86_64.apk
-            Nova-Android-x86_64.apk.sha256
+            "${NOVA_ASSET_PREFIX}-arm64-v8a.apk"
+            "${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256"
+            "${NOVA_ASSET_PREFIX}-armeabi-v7a.apk"
+            "${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256"
+            "${NOVA_ASSET_PREFIX}-x86_64.apk"
+            "${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"
             Nova-Deck-x86_64-alpha.flatpak
             Nova-Deck-x86_64-alpha.flatpak.sha256
           )
@@ -514,12 +529,12 @@ jobs:
           shopt -s nullglob
 
           expected_asset_names=(
-            Nova-Android-arm64-v8a.apk
-            Nova-Android-arm64-v8a.apk.sha256
-            Nova-Android-armeabi-v7a.apk
-            Nova-Android-armeabi-v7a.apk.sha256
-            Nova-Android-x86_64.apk
-            Nova-Android-x86_64.apk.sha256
+            "${NOVA_ASSET_PREFIX}-arm64-v8a.apk"
+            "${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256"
+            "${NOVA_ASSET_PREFIX}-armeabi-v7a.apk"
+            "${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256"
+            "${NOVA_ASSET_PREFIX}-x86_64.apk"
+            "${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"
             Nova-Deck-x86_64-alpha.flatpak
             Nova-Deck-x86_64-alpha.flatpak.sha256
           )
@@ -538,12 +553,12 @@ jobs:
           set -euo pipefail
 
           expected_assets=(
-            Nova-Android-arm64-v8a.apk
-            Nova-Android-arm64-v8a.apk.sha256
-            Nova-Android-armeabi-v7a.apk
-            Nova-Android-armeabi-v7a.apk.sha256
-            Nova-Android-x86_64.apk
-            Nova-Android-x86_64.apk.sha256
+            "${NOVA_ASSET_PREFIX}-arm64-v8a.apk"
+            "${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256"
+            "${NOVA_ASSET_PREFIX}-armeabi-v7a.apk"
+            "${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256"
+            "${NOVA_ASSET_PREFIX}-x86_64.apk"
+            "${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"
             Nova-Deck-x86_64-alpha.flatpak
             Nova-Deck-x86_64-alpha.flatpak.sha256
           )
