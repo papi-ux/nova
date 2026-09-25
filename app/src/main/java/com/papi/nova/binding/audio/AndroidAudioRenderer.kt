@@ -24,6 +24,7 @@ class AndroidAudioRenderer(
     private var playbackStats = AudioPlaybackStats()
     private var bufferTuner: AudioBufferTuner? = null
     private var nextBufferCheckNs = 0L
+    private var writtenAudioFrames = 0L
     private var playbackThreadConfigured = false
     @Volatile
     private var trackStarted = false
@@ -148,6 +149,7 @@ class AndroidAudioRenderer(
                 trackStarted = false
                 playbackThreadConfigured = false
                 nextBufferCheckNs = 0L
+                writtenAudioFrames = 0L
                 playbackStats = AudioPlaybackStats()
                 LimeLog.info("Audio track configuration: $bufferSize $lowLatency")
                 break
@@ -177,7 +179,7 @@ class AndroidAudioRenderer(
         hapticEngine?.feedAudioShort(audioData, audioTrack.sampleRate, audioTrack.channelCount)
         val hapticsEndNs = System.nanoTime()
         val pendingMs = MoonBridge.getPendingAudioDuration()
-        val skipped = pendingMs >= 40
+        val skipped = shouldSkipAudio(audioTrack, pendingMs)
         val writeStartNs = System.nanoTime()
         val writeResult = if (!skipped) {
             audioTrack.write(audioData, 0, audioData.size)
@@ -185,6 +187,7 @@ class AndroidAudioRenderer(
             LimeLog.info("Too much pending audio data: $pendingMs ms")
             0
         }
+        if (writeResult > 0) writtenAudioFrames += writeResult / audioTrack.channelCount
         // Prime with actual PCM before starting an empty output buffer.
         if (!trackStarted && writeResult > 0) {
             audioTrack.play()
@@ -198,6 +201,19 @@ class AndroidAudioRenderer(
             pendingMs, audioData.size, skipped, writeResult
         )
         if (playbackStats.reportDue(endNs)) reportPlaybackStats(audioTrack, endNs)
+    }
+
+    private fun shouldSkipAudio(audioTrack: AudioTrack, pendingMs: Int): Boolean {
+        if (pendingMs < 40) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        return try {
+            AudioQueueBudget.shouldSkip(
+                pendingMs, writtenAudioFrames, audioTrack.playbackHeadPosition,
+                audioTrack.bufferSizeInFrames, audioTrack.sampleRate,
+            )
+        } catch (_: RuntimeException) {
+            true
+        }
     }
 
     private fun tuneAudioBuffer(audioTrack: AudioTrack, nowNs: Long) {
