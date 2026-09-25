@@ -266,13 +266,7 @@ jobs:
       # Dual-plane is the plan of record, so moonlight-common-c stays. What is temporary is this
       # extension to a protocol Nova does not own, which is why it is a patch series and not a fork.
       - name: Apply the PyroWave protocol patches
-        run: |
-          set -euo pipefail
-          cd app/src/main/jni/moonlight-core/moonlight-common-c
-          git -c user.name=nova -c user.email=nova@papi-ux.com am ../patches/*.patch
-          # Assert rather than trust: a partial apply would leave a library that builds and cannot
-          # negotiate, which is the failure this whole step exists to prevent.
-          grep -q PYROWAVE_PROFILE_TOKEN src/RtspConnection.c
+        run: bash tools/apply-native-patches.sh
 
       - name: Build release APK
         run: |

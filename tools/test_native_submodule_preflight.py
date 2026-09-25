@@ -8,6 +8,7 @@ APP_BUILD = REPO_ROOT / "app" / "build.gradle"
 README = REPO_ROOT / "README.md"
 TECHNICAL_OVERVIEW = REPO_ROOT / "docs" / "technical-overview.md"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "build.yml"
+APPLY_SCRIPT = REPO_ROOT / "tools" / "apply-native-patches.sh"
 
 
 class NativeSubmodulePreflightTest(unittest.TestCase):
@@ -63,26 +64,47 @@ class NativeSubmodulePreflightTest(unittest.TestCase):
             "not only the word externalNativeBuild, which no task here is called",
         )
 
-    def test_ci_applies_the_protocol_patches_before_building_native_code(self):
-        """A checkout is unpatched, so CI has to patch it or build a library that cannot negotiate.
+    def test_every_workflow_that_builds_native_code_applies_the_patches_first(self):
+        """A checkout is unpatched, so anything that compiles native code has to patch it first.
 
         The submodule is pinned at its upstream commit and Nova's protocol changes live beside it as
-        a patch series. Nothing applies them on a fresh checkout, so without this step the library
-        does not know the format: a client that asks for PyroWave gets a session that negotiates
-        something else while Nova has already built a PyroWave renderer.
+        a patch series. Nothing applies them on a fresh checkout, so without this the library does not
+        know the format: a client that asks for PyroWave gets a session that negotiates something else
+        while Nova has already built a PyroWave renderer.
+
+        This asks the question per workflow rather than naming one, because the first version of this
+        fix patched the release build and forgot CodeQL, which also assembles. The freshly wired
+        Gradle guard is what caught that, and this is what stops the next one.
         """
-        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertTrue(APPLY_SCRIPT.is_file(), f"{APPLY_SCRIPT} is missing")
+        script = APPLY_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("am ", script, "the script does not apply the patch series")
+        self.assertIn(
+            "grep -q PYROWAVE_PROFILE_TOKEN",
+            script,
+            "the script applies the patches without checking they took; a partial apply leaves a "
+            "library that builds and cannot negotiate",
+        )
 
-        apply_at = workflow.find("am ../patches/*.patch")
-        self.assertNotEqual(apply_at, -1, "CI never applies the protocol patch series")
+        assembling = []
+        for workflow in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+            text = workflow.read_text(encoding="utf-8")
+            build_at = text.find("assembleNonRoot_game")
+            if build_at == -1:
+                continue
+            assembling.append(workflow.name)
+            apply_at = text.find("tools/apply-native-patches.sh")
+            self.assertNotEqual(
+                apply_at, -1, f"{workflow.name} assembles native code without applying the patches"
+            )
+            self.assertLess(
+                apply_at, build_at, f"{workflow.name} applies the patches after it assembles"
+            )
 
-        # Asserted rather than trusted: a partial apply leaves a library that builds and cannot
-        # negotiate, which is the whole failure the step exists to prevent.
-        verify_at = workflow.find("grep -q PYROWAVE_PROFILE_TOKEN", apply_at)
-        self.assertNotEqual(verify_at, -1, "CI applies the patches without checking they took")
-
-        build_at = workflow.find('"assembleNonRoot_game${NOVA_BUILD_TYPE}"', verify_at)
-        self.assertNotEqual(build_at, -1, "the patches are applied after the APK is built")
+        # Both of the ones that exist today. A new one is welcome; a new one that skips the script is
+        # what this test is for.
+        self.assertIn("build.yml", assembling)
+        self.assertIn("codeql.yml", assembling)
 
     def test_docs_describe_clone_recovery_ndk_and_prebuilt_scope(self):
         readme = README.read_text(encoding="utf-8")

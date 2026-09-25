@@ -48,6 +48,9 @@ jobs:
       - name: Install NDK
         run: sdkmanager "ndk;27.0.12077973"
 
+      - name: Apply the PyroWave protocol patches
+        run: bash tools/apply-native-patches.sh
+
       - name: Build for CodeQL
         run: ./gradlew --no-build-cache --no-configuration-cache --rerun-tasks -PnovaAbis=x86_64 assembleNonRoot_gameDebug
 
