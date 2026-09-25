@@ -20,6 +20,8 @@ struct DeckNativeLaunchTarget {
     // Fresh pinned catalog and game-contract check, only for explicit modes.
     std::function<bool(const std::string&, const std::function<bool()>&)> authorizeLaunchMode;
     std::function<bool(const QString&, const QString&, const std::function<bool()>&)> authorizeSetup;
+    // Nullopt refuses launch; empty string retains the legacy host contract.
+    std::function<std::optional<std::string>(const stream::DeckStreamRequest&, const std::function<bool()>&)> resolveLaunchTopology;
     DeckStreamCapabilities streamCapabilities;
     std::function<std::optional<DeckStreamCapabilities>(const std::function<bool()>&)> verifyStreamCapabilities;
     std::function<stream::DeckVideoDecodeSupport()> probeVideoSupport;

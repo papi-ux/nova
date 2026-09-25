@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 
 Button {
     id: control
@@ -9,6 +10,11 @@ Button {
     property bool quiet: false
     implicitHeight: Math.max(48, 52 * unit, (contentItem ? contentItem.implicitHeight : font.pixelSize) + 20 * unit)
     implicitWidth: Math.max(150 * unit, (contentItem ? contentItem.implicitWidth : 100) + 32 * unit)
+    Layout.minimumHeight: implicitHeight
+    topPadding: 10 * unit
+    bottomPadding: 10 * unit
+    topInset: 0
+    bottomInset: 0
     leftPadding: 16 * unit
     rightPadding: 16 * unit
     font.pixelSize: 18 * unit * NovaTheme.fontScale
@@ -23,7 +29,8 @@ Button {
         color: control.activeFocus ? NovaTheme.focusText : NovaTheme.text
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
+        wrapMode: Text.Wrap
+        elide: Text.ElideNone
     }
     background: Rectangle {
         radius: 8 * control.unit

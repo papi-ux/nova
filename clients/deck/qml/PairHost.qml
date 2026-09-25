@@ -183,6 +183,10 @@ ApplicationWindow {
             spacing: 20
             Button {
                 id: trustedButton
+                implicitHeight: Math.max(60, contentItem.implicitHeight + 20)
+                Layout.minimumHeight: implicitHeight
+                topPadding: 10; bottomPadding: 10
+                topInset: 0; bottomInset: 0
                 objectName: "pair-trusted"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 60
@@ -204,6 +208,7 @@ ApplicationWindow {
                     text: trustedButton.text; color: trustedButton.activeFocus ? NovaTheme.window : "white"
                     font.pixelSize: 22 * NovaTheme.fontScale; font.bold: true
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    wrapMode: Text.Wrap
                 }
                 background: Rectangle {
                     radius: 12; color: trustedButton.activeFocus ? NovaTheme.focus : NovaTheme.raised
@@ -214,6 +219,10 @@ ApplicationWindow {
             }
             Button {
                 id: pairButton
+                implicitHeight: Math.max(60, contentItem.implicitHeight + 20)
+                Layout.minimumHeight: implicitHeight
+                topPadding: 10; bottomPadding: 10
+                topInset: 0; bottomInset: 0
                 objectName: "pair-primary"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 60
@@ -235,6 +244,7 @@ ApplicationWindow {
                     text: pairButton.text; color: pairButton.activeFocus ? NovaTheme.window : "white"
                     font.pixelSize: 22 * NovaTheme.fontScale; font.bold: true
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    wrapMode: Text.Wrap
                 }
                 background: Rectangle {
                     radius: 12; color: pairButton.activeFocus ? NovaTheme.focus : NovaTheme.raised
@@ -245,6 +255,10 @@ ApplicationWindow {
             }
             Button {
                 id: cancelButton
+                implicitHeight: Math.max(60, contentItem.implicitHeight + 20)
+                Layout.minimumHeight: implicitHeight
+                topPadding: 10; bottomPadding: 10
+                topInset: 0; bottomInset: 0
                 objectName: "pair-cancel"
                 Layout.preferredWidth: 140
                 Layout.preferredHeight: 60
@@ -258,6 +272,7 @@ ApplicationWindow {
                     text: cancelButton.text; color: cancelButton.activeFocus ? NovaTheme.window : "white"
                     font.pixelSize: 22 * NovaTheme.fontScale; font.bold: true
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    wrapMode: Text.Wrap
                 }
                 background: Rectangle {
                     radius: 12; color: cancelButton.activeFocus ? NovaTheme.focus : NovaTheme.raised

@@ -763,6 +763,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
                         $<TARGET_FILE:nova-deck> --play-setup)
                 set_tests_properties(nova_deck_play_setup_route_test PROPERTIES TIMEOUT 80)
+                add_test(NAME nova_deck_text_readability_test
+                    COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
+                        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
+                        $<TARGET_FILE:nova-deck> --readability)
+                set_tests_properties(nova_deck_text_readability_test PROPERTIES TIMEOUT 120 RESOURCE_LOCK nova_deck_x11)
                 add_test(NAME nova_deck_launch_modes_route_test
                     COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
@@ -903,7 +908,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             target_link_libraries(nova_deck_game_tools_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
             target_compile_definitions(nova_deck_game_tools_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             add_test(NAME nova_deck_game_tools_qml_test COMMAND nova_deck_game_tools_qml_test)
-            set_tests_properties(nova_deck_game_tools_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+            set_tests_properties(nova_deck_game_tools_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Material" TIMEOUT 30)
             add_executable(nova_deck_native_preview_qml_test tests/deck_native_preview_qml_test.cpp tests/deck_preview_fixture.h)
             target_link_libraries(nova_deck_native_preview_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
             target_compile_definitions(nova_deck_native_preview_qml_test PRIVATE

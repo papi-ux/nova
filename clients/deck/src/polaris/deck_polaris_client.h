@@ -177,7 +177,10 @@ public:
         DeckPolarisTlsIdentity identity,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(4000));
 
-    [[nodiscard]] DeckPolarisResult<std::string> get(const std::string& path, std::size_t maxBodyBytes = 4 * 1024 * 1024) const;
+    // A bounded per-operation deadline can accommodate host teardown without
+    // lengthening ordinary reads or launch requests.
+    [[nodiscard]] DeckPolarisResult<std::string> get(const std::string& path, std::size_t maxBodyBytes = 4 * 1024 * 1024,
+        std::optional<std::chrono::milliseconds> timeout = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckPolarisCapabilities> fetchCapabilities() const;
     [[nodiscard]] DeckPolarisResult<DeckPolarisGamesPage> fetchGamesPage(int limit, int offset, bool desktop = false) const;
     [[nodiscard]] DeckPolarisResult<std::vector<DeckPolarisGame>> fetchAllGames(int pageSize = 100,
@@ -226,7 +229,8 @@ public:
 private:
     struct Session;
     DeckPolarisResult<std::string> request(const std::string& path, std::size_t maxBodyBytes,
-        bool post, const std::function<bool()>& cancelled = {}, std::string postBody = "{}", bool remove = false) const;
+        bool post, const std::function<bool()>& cancelled = {}, std::string postBody = "{}", bool remove = false,
+        std::optional<std::chrono::milliseconds> timeout = {}) const;
 
     DeckPolarisEndpoint endpoint_;
     DeckPolarisTlsIdentity identity_;

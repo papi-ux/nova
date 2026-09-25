@@ -48,7 +48,13 @@ int main(int argc,char** argv) {
     auto root=std::unique_ptr<QObject>(component.create());if(!root)std::cerr<<component.errorString().toStdString();check(bool(root),"QML failed");
     auto* window=qobject_cast<QQuickWindow*>(root.get());check(window,"no window");
     const auto item=[&](const char* name){auto* result=find(window->contentItem(),name);check(result,name);return result;};
-    const auto click=[&](const char* name){item(name)->forceActiveFocus();settle();QTest::keyClick(window,Qt::Key_Return);settle();};
+    const auto settlePopups=[&]{wait([&]{
+        // Material's popup animation can outlast a fixed event-loop delay.
+        for(auto* child:root->findChildren<QObject*>())
+            if(child->inherits("QQuickPopup") && child->property("visible").toBool()!=child->property("opened").toBool())return false;
+        return true;
+    });};
+    const auto click=[&](const char* name){item(name)->forceActiveFocus();settle();QTest::keyClick(window,Qt::Key_Return);settlePopups();};
     const auto capture=[&](const char* name){if(argc>1){QDir().mkpath(argv[1]);check(window->grabWindow().save(QString::fromLocal8Bit(argv[1])+"/"+name+".png"),"capture failed");}};
     settle();check(!warnings,"initial QML warnings");
     click("play-setup-resolution");click("play-setup-choice-4");
@@ -59,7 +65,7 @@ int main(int argc,char** argv) {
     click("play-setup-bitrate");click("play-setup-choice-4");
     auto* field=item("stream-profile-bitrate");field->forceActiveFocus();settle();
     auto* touch=QTest::createTouchDevice();const auto point=field->mapToScene(QPointF(field->width()/2,field->height()/2)).toPoint();
-    QTest::touchEvent(window,touch).press(0,point,window).commit();QTest::touchEvent(window,touch).release(0,point,window).commit();settle();
+    QTest::touchEvent(window,touch).press(0,point,window).commit();QTest::touchEvent(window,touch).release(0,point,window).commit();settlePopups();
     auto* entry=item("endpoint-keyboard-entry");entry->forceActiveFocus();QTest::keyClick(window,Qt::Key_A,Qt::ControlModifier);
     for(const auto key:{Qt::Key_2,Qt::Key_2,Qt::Key_5,Qt::Key_Period,Qt::Key_5})QTest::keyClick(window,key);
     check(entry->property("text")=="225.5","numeric pad rejected decimal bitrate");
