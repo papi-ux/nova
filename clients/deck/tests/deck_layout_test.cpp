@@ -71,7 +71,7 @@ int main() {
     assert(profile.width == 1280);
     assert(profile.height == 800);
     assert(profile.fullscreenPreferred);
-    assert(profile.shellName == std::string_view("Nova Deck"));
+    assert(profile.shellName == std::string_view("Nova Linux"));
 
 #ifndef NOVA_DECK_MAIN_QML_SOURCE
 #error "NOVA_DECK_MAIN_QML_SOURCE must point at the Deck QML shell for layout regression checks"
@@ -405,7 +405,7 @@ int main() {
     assert(!launchIntent.boundary.allowsProcessExecution);
     assert(!launchIntent.boundary.allowsMoonlight);
     assert(!launchIntent.boundary.allowsHostMutation);
-    assert(launchIntent.boundary.reason == "Nova Deck shows a copyable preview plan only; games, streams, and network launches stay off.");
+    assert(launchIntent.boundary.reason == "Nova Linux shows a copyable preview plan only; games, streams, and network launches stay off.");
     assert(!launchIntent.executable);
     assert(launchIntent.safetyLabel == "Preview only — not executable");
     assert(launchIntent.host.addressClass == nova::deck::DeckHostAddressClass::DemoOnly);

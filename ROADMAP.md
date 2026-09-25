@@ -18,8 +18,9 @@ For the shared host-and-client view, see the
 
 ## What stays true
 
-- Android is available today. The native Steam Deck client is available as an
-  Alpha Flatpak starting with v1.4.12; full Linux support and parity are in progress.
+- Android is available today. Nova Linux is available as an Alpha Flatpak for
+  x86_64 desktops, laptops and handhelds, including Steam Deck; compatibility
+  validation and feature parity are in progress.
 - Nova remains usable with Moonlight-compatible hosts for standard pairing,
   launch, and streaming.
 - Polaris provides the richest host-aware experience: launch modes, live host

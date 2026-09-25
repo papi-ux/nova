@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Local-only Nova Deck Game Mode capture harness.
+"""Local-only Nova Linux Game Mode capture harness.
 
 This script is intentionally conservative: it enumerates Nova-ish windows,
-selects only a 1280x800-ish Nova Deck product window, targets input at that
+selects only a 1280x800-ish Nova Linux product window, targets input at that
 window id, records proof artifacts, and fails closed on helper/ambiguous
 windows. It does not launch Moonlight, Sunshine, games, network discovery,
 Polaris endpoints, or public publishing actions.
@@ -28,7 +28,7 @@ EXPECTED_WIDTH = 1280
 EXPECTED_HEIGHT = 800
 DEFAULT_TOLERANCE = 4
 DEFAULT_WINDOW_NAME = "Nova"
-TARGET_TITLE_RE = re.compile(r"^Nova Deck$", re.IGNORECASE)
+TARGET_TITLE_RE = re.compile(r"^Nova Linux$", re.IGNORECASE)
 HELPER_RE = re.compile(r"helper|splash|popup|tooltip|steamwebhelper|gamescope|overlay", re.IGNORECASE)
 SENSITIVE_ENV_KEY_RE = re.compile(
     r"token|secret|password|passwd|api_key|private_key|access_key|credential|cookie|cert",
@@ -161,13 +161,13 @@ def select_nova_deck_window(
             return pid_matches[0]
         if len(pid_matches) > 1:
             ids = ", ".join(c.window_id for c in pid_matches)
-            raise SelectionError(f"ambiguous Nova Deck windows for pid {expected_pid}: {ids}")
+            raise SelectionError(f"ambiguous Nova Linux windows for pid {expected_pid}: {ids}")
     if not plausible:
         details = json.dumps([c.as_dict() for c in candidates], indent=2)
-        raise SelectionError(f"no 1280x800 Nova Deck window found; candidates={details}")
+        raise SelectionError(f"no 1280x800 Nova Linux window found; candidates={details}")
     if len(plausible) > 1:
         ids = ", ".join(c.window_id for c in plausible)
-        raise SelectionError(f"ambiguous Nova Deck windows: {ids}")
+        raise SelectionError(f"ambiguous Nova Linux windows: {ids}")
     return plausible[0]
 
 
@@ -368,8 +368,8 @@ def run_live(args: argparse.Namespace) -> int:
 
 def run_self_test() -> int:
     candidates = [
-        WindowCandidate("0x02", "Nova Deck", geometry=Geometry(0, 0, 1280, 800), pid=4242),
-        WindowCandidate("0x01", "Nova Deck helper", geometry=Geometry(0, 0, 1, 1), pid=4100),
+        WindowCandidate("0x02", "Nova Linux", geometry=Geometry(0, 0, 1280, 800), pid=4242),
+        WindowCandidate("0x01", "Nova Linux helper", geometry=Geometry(0, 0, 1, 1), pid=4100),
     ]
     selected = select_nova_deck_window(candidates, expected_pid=4242)
     assert selected.window_id == "0x02"
@@ -379,8 +379,8 @@ def run_self_test() -> int:
     assert capture_cmd.index("x11grab") < capture_cmd.index("-i") < capture_cmd.index("-update")
     try:
         select_nova_deck_window([
-            WindowCandidate("0x02", "Nova Deck", geometry=Geometry(0, 0, 1280, 800), pid=1),
-            WindowCandidate("0x03", "Nova Deck", geometry=Geometry(0, 0, 1280, 800), pid=2),
+            WindowCandidate("0x02", "Nova Linux", geometry=Geometry(0, 0, 1280, 800), pid=1),
+            WindowCandidate("0x03", "Nova Linux", geometry=Geometry(0, 0, 1280, 800), pid=2),
         ])
     except SelectionError as exc:
         assert "ambiguous" in str(exc)
@@ -391,7 +391,7 @@ def run_self_test() -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Nova Deck Game Mode capture harness")
+    parser = argparse.ArgumentParser(description="Nova Linux Game Mode capture harness")
     parser.add_argument("--artifact-root", default="nova-deck-gamemode-capture-artifacts")
     parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME)
     parser.add_argument("--expected-pid", type=int)

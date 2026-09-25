@@ -329,7 +329,7 @@ void testStandardHostLibraryAndLaunch() {
             if (path == "/polaris/v1/games") { require(scenario == 6); return {403, "denied library"}; }
             const QUrlQuery query(url);
             require(query.queryItemValue("uniqueid").toStdString() == identity.clientCertificateFingerprintSha256());
-            require(!query.queryItemValue("uuid").isEmpty() && query.queryItemValue("devicename") == "Nova Deck");
+            require(!query.queryItemValue("uuid").isEmpty() && query.queryItemValue("devicename") == "Nova Linux");
             if (path == "/serverinfo") return {200, xml(
                 QByteArray("<uniqueid>") + (scenario == 7 ? "different-host" : "standard-host") + "</uniqueid><PairStatus>" +
                 (scenario == 8 ? "0" : "1") + "</PairStatus><appversion>7.1.431.0</appversion><GfeVersion>3.23</GfeVersion><ServerCodecModeSupport>1</ServerCodecModeSupport>")};

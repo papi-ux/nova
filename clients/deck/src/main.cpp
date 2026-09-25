@@ -996,12 +996,12 @@ void captureFrontendSmokeFrame(QQuickWindow* window, const QString& frontendSmok
     }
     const QImage frame = window->grabWindow();
     if (!frame.isNull() && frame.save(frontendSmokeCapturePath)) {
-        qInfo().noquote() << "Nova Deck frontend smoke capture"
+        qInfo().noquote() << "Nova Linux frontend smoke capture"
                           << frontendSmokeCapturePath
                           << QStringLiteral("size=%1x%2").arg(frame.width()).arg(frame.height());
         return;
     }
-    qWarning().noquote() << "Nova Deck frontend smoke capture failed" << frontendSmokeCapturePath;
+    qWarning().noquote() << "Nova Linux frontend smoke capture failed" << frontendSmokeCapturePath;
 }
 
 QString boolLabel(const QVariant& value) {
@@ -1026,13 +1026,13 @@ void writeBackendDtoInteractionSmokeArtifact(QObject* rootObject, const QString&
 
     QFile artifact(artifactPath);
     if (!artifact.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        qWarning().noquote() << "Nova Deck backend-dto-interaction-smoke artifact failed" << artifactPath;
+        qWarning().noquote() << "Nova Linux backend-dto-interaction-smoke artifact failed" << artifactPath;
         return;
     }
 
     const QVariantMap report = returned.toMap();
     QTextStream stream(&artifact);
-    stream << "Nova Deck backend DTO interaction smoke\n";
+    stream << "Nova Linux backend DTO interaction smoke\n";
     stream << "invoked=" << (invoked ? "true" : "false") << "\n";
     stream << "preflight_button=" << report.value(QStringLiteral("preflightButton")).toString() << "\n";
     stream << "diagnostics_button=" << report.value(QStringLiteral("diagnosticsButton")).toString() << "\n";
@@ -1055,7 +1055,7 @@ void writeBackendDtoInteractionSmokeArtifact(QObject* rootObject, const QString&
     stream << "diagnostics_copy=" << report.value(QStringLiteral("diagnosticsCopyText")).toString() << "\n";
     artifact.close();
 
-    qInfo().noquote() << "Nova Deck backend-dto-interaction-smoke artifact" << artifactPath;
+    qInfo().noquote() << "Nova Linux backend-dto-interaction-smoke artifact" << artifactPath;
 }
 
 void writeBackendReadOnlyStateMatrixSmokeArtifact(QObject* rootObject, const QString& artifactPath) {
@@ -1076,12 +1076,12 @@ void writeBackendReadOnlyStateMatrixSmokeArtifact(QObject* rootObject, const QSt
 
     QFile artifact(artifactPath);
     if (!artifact.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        qWarning().noquote() << "Nova Deck backend-readonly-state-matrix-smoke artifact failed" << artifactPath;
+        qWarning().noquote() << "Nova Linux backend-readonly-state-matrix-smoke artifact failed" << artifactPath;
         return;
     }
 
     QTextStream stream(&artifact);
-    stream << "Nova Deck backend read-only state matrix smoke\n";
+    stream << "Nova Linux backend read-only state matrix smoke\n";
     stream << "invoked=" << (invoked ? "true" : "false") << "\n";
     const QVariantList states = returned.toList();
     for (const auto& row : states) {
@@ -1114,7 +1114,7 @@ void writeBackendReadOnlyStateMatrixSmokeArtifact(QObject* rootObject, const QSt
     }
     artifact.close();
 
-    qInfo().noquote() << "Nova Deck backend-readonly-state-matrix-smoke artifact" << artifactPath;
+    qInfo().noquote() << "Nova Linux backend-readonly-state-matrix-smoke artifact" << artifactPath;
 }
 
 void writeExpandedDiagnosticsFrameSmokeArtifact(QObject* rootObject, const QString& artifactPath) {
@@ -1135,13 +1135,13 @@ void writeExpandedDiagnosticsFrameSmokeArtifact(QObject* rootObject, const QStri
 
     QFile artifact(artifactPath);
     if (!artifact.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        qWarning().noquote() << "Nova Deck expanded-diagnostics-frame-smoke artifact failed" << artifactPath;
+        qWarning().noquote() << "Nova Linux expanded-diagnostics-frame-smoke artifact failed" << artifactPath;
         return;
     }
 
     const QVariantMap report = returned.toMap();
     QTextStream stream(&artifact);
-    stream << "Nova Deck expanded diagnostics frame smoke\n";
+    stream << "Nova Linux expanded diagnostics frame smoke\n";
     stream << "invoked=" << (invoked ? "true" : "false") << "\n";
     stream << "liveExpandedBy=" << report.value(QStringLiteral("liveExpandedBy")).toString() << "\n";
     stream << "expandedFrameFocusTarget=" << report.value(QStringLiteral("expandedFrameFocusTarget")).toString() << "\n";
@@ -1169,7 +1169,7 @@ void writeExpandedDiagnosticsFrameSmokeArtifact(QObject* rootObject, const QStri
     stream << "expandedBlockersCopy=" << report.value(QStringLiteral("expandedBlockersCopy")).toString() << "\n";
     artifact.close();
 
-    qInfo().noquote() << "Nova Deck expanded-diagnostics-frame-smoke artifact" << artifactPath;
+    qInfo().noquote() << "Nova Linux expanded-diagnostics-frame-smoke artifact" << artifactPath;
 }
 
 struct NativeLaunchOptions {
@@ -1668,7 +1668,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
                 ? std::string("Deck shell loaded; EGLImage presenter waits for a VAAPI frame and Qt Quick render target before host streaming starts")
                 : mediaProbe.runtimeStatus,
         });
-    qInfo().noquote() << "Nova Deck VAAPI/EGL presenter readiness"
+    qInfo().noquote() << "Nova Linux VAAPI/EGL presenter readiness"
                       << QString::fromStdString(presenterReadiness.statusCode)
                       << QString::fromStdString(presenterReadiness.detail);
 
@@ -1976,7 +1976,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
                         QCoreApplication::exit(1);
                         return;
                     }
-                    qInfo("Nova Deck native preview surface attached; waiting for an explicit start");
+                    qInfo("Nova Linux native preview surface attached; waiting for an explicit start");
                 }
                 QObject* previewSurfaceObject = object->findChild<QObject*>("nova-product-preview-surface");
                 if (auto* previewSurface = dynamic_cast<nova::deck::stream::DeckQtQuickRhiVaapiItem*>(previewSurfaceObject)) {
@@ -1984,11 +1984,11 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
                     QObject::connect(previewSurface, &QObject::destroyed, &app, [&productPreviewPipeline]() {
                         productPreviewPipeline.attachBorrowedSink(nullptr);
                     });
-                    qInfo().noquote() << "Nova Deck product preview fixture pump"
+                    qInfo().noquote() << "Nova Linux product preview fixture pump"
                                       << "decoded-frame-sink-attached"
                                       << "product preview surface is attached; waiting for a real decoded hardware frame from the Deck media adapter before reporting render readiness";
                 } else {
-                    qInfo().noquote() << "Nova Deck product preview fixture pump"
+                    qInfo().noquote() << "Nova Linux product preview fixture pump"
                                       << "deck-target-unavailable"
                                       << "product preview surface object was not created by QML";
                 }
@@ -1999,7 +1999,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
                         captureFrontendSmokeFrame(window, frontendSmokeCapturePath);
                     });
                 } else {
-                    qWarning().noquote() << "Nova Deck frontend smoke capture failed: root object is not a QQuickWindow";
+                    qWarning().noquote() << "Nova Linux frontend smoke capture failed: root object is not a QQuickWindow";
                 }
             }
             if (!librarySmokeStatePath.isEmpty() && object != nullptr) {
@@ -2038,7 +2038,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
                         captureFrontendSmokeFrame(window, expandedDiagnosticsCapturePath);
                     });
                 } else {
-                    qWarning().noquote() << "Nova Deck expanded diagnostics capture failed: root object is not a QQuickWindow";
+                    qWarning().noquote() << "Nova Linux expanded diagnostics capture failed: root object is not a QQuickWindow";
                 }
             }
             if (frontendSmokeExitAfterMs > 0 && object != nullptr) {
@@ -2086,7 +2086,9 @@ int main(int argc, char *argv[]) {
     } else if (qEnvironmentVariableIsEmpty("QSG_RHI_BACKEND")) qputenv("QSG_RHI_BACKEND", "opengl");
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("Nova"));
+    // Keep the existing settings namespace so upgrades retain preferences.
     QCoreApplication::setApplicationName(QStringLiteral("NovaDeck"));
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("Nova Linux"));
 #ifdef NOVA_DECK_VERSION
     // A support report names this version; a build without it reports local-preview.
     QCoreApplication::setApplicationVersion(QStringLiteral(NOVA_DECK_VERSION));

@@ -1,6 +1,6 @@
-# Nova Flatpak (Deck and Linux desktops)
+# Nova Linux Flatpak (Alpha)
 
-`com.papi_ux.Nova` runs on `org.kde.Platform` 6.10. The desktop entry and newly registered Steam shortcuts open the standalone Nova interface, with Nova-owned pairing and in-app streaming. This is a development preview; release acceptance is still tracked in the Deck parity checklist.
+`com.papi_ux.Nova` runs on `org.kde.Platform` 6.10. The desktop entry and newly registered Steam shortcuts open the standalone Nova interface, with Nova-owned pairing and in-app streaming. This Alpha targets x86_64 Linux desktops, laptops and handhelds, including Steam Deck. Steam is optional. Codec, HDR and frame-rate availability depends on the device, drivers, display and host; device acceptance remains tracked in the Linux roadmap and Deck parity checklist.
 
 Signed channel builds support **Settings → Nova → Nova Updates**, including
 optional automatic installation while idle. Ordinary bundles built with the
@@ -12,21 +12,22 @@ Build a bundle from a checkout with its submodules initialised (moonlight-common
 
     flatpak install --user flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
     flatpak-builder --user --force-clean --repo=build/flatpak-repo build/flatpak clients/deck/packaging/flatpak/com.papi_ux.Nova.json
-    flatpak build-bundle build/flatpak-repo build/Nova.flatpak com.papi_ux.Nova
+    flatpak build-bundle build/flatpak-repo build/Nova-Linux-x86_64-alpha.flatpak com.papi_ux.Nova
 
-Install and run it (Desktop Mode on a Deck, or any desktop):
+Install and run it from a Linux desktop (Desktop Mode on Steam Deck):
 
-    flatpak install --user build/Nova.flatpak
+    flatpak install --user build/Nova-Linux-x86_64-alpha.flatpak
     flatpak run com.papi_ux.Nova --standalone
 
-Permissions, and why: network for paired hosts and local service discovery; `org.freedesktop.Avahi` on the system bus for explicit Find PCs searches; display sockets and dri for the shell; `input` for the Deck's controls; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
+Permissions, and why: network for paired hosts and local service discovery; `org.freedesktop.Avahi` on the system bus for explicit Find PCs searches; display sockets and dri for the shell; `input` for game controllers; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
 
 The native streaming path uses `xdg-run/pipewire-0` for direct
 PipeWire audio output. This exposes the default PipeWire socket, not the whole
 runtime directory. Packaging this audio backend does not establish standalone
 Deck release readiness.
 
-Register Nova with Steam from Desktop Mode, with Steam closed:
+Optionally register Nova with Steam on a Linux device, with Steam closed
+(use Desktop Mode on Steam Deck):
 
     flatpak run com.papi_ux.Nova --register-steam-shortcut
 

@@ -69,7 +69,7 @@ QString pairingCopy(PairStatus status) {
     case PairStatus::Rejected: return "The host did not approve pairing. Check its pairing settings and try again.";
     case PairStatus::Malformed: return "The host sent an invalid pairing response.";
     case PairStatus::WrongPin: return "The PIN did not match. Try again with a new PIN.";
-    case PairStatus::Unsupported: return "This host uses an older pairing protocol that Nova's Deck preview does not support yet.";
+    case PairStatus::Unsupported: return "This host uses an older pairing protocol that Nova Linux does not support yet.";
     case PairStatus::AlreadySaved: return "This PC is already saved in Nova. Its existing certificate has been kept.";
     case PairStatus::StoreFailed: return "Nova could not safely read or save its pairing. Existing credentials have been kept.";
     case PairStatus::TrustedUnavailable: return "Trusted Pair is not available from this network. Use PIN pairing instead.";
@@ -200,7 +200,7 @@ PairResult pairHost(const PairEndpoint& endpoint, const crypto::Credentials& cre
         request.path = path;
         request.query = std::move(args);
         request.query.addQueryItem("uniqueid", transactionId);
-        request.query.addQueryItem("devicename", "Nova Deck");
+        request.query.addQueryItem("devicename", "Nova Linux");
         request.query.addQueryItem("uuid", QUuid::createUuid().toString(QUuid::WithoutBraces));
         return transport(request);
     };
@@ -326,7 +326,7 @@ UnpairResult unpairHost(const DeckMoonlightHostRecord& host, const PairTransport
     request.httpsPort = host.nativeHttpsPort > 0 ? host.nativeHttpsPort : polarisHttpsPortForMoonlightHttpPort(endpoint->httpPort);
     if (request.httpsPort < 1 || request.httpsPort > 65535) return {PairStatus::Malformed};
     request.serverCertificate = QByteArray::fromStdString(host.serverCertificatePem);
-    request.query = QUrlQuery{{"uniqueid", QUuid::createUuid().toString(QUuid::WithoutBraces)}, {"devicename", "Nova Deck"}};
+    request.query = QUrlQuery{{"uniqueid", QUuid::createUuid().toString(QUuid::WithoutBraces)}, {"devicename", "Nova Linux"}};
     request.path = "/serverinfo";
     if (cancelled && cancelled()) return {PairStatus::Cancelled};
     const auto info = transport(request);
