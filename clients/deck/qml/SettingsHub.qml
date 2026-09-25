@@ -175,7 +175,13 @@ Popup {
         category = id; search.clear(); rows.contentY = 0; error = ""
     }
     function focusRow(index) {
-        if (!shown.length) { clearSearch.forceActiveFocus(); return }
+        if (!shown.length) {
+            // An unavailable optional feature can leave a category empty without
+            // a search query. Clear is hidden then; keep the controller on a
+            // visible action so OK and Back remain usable.
+            (clearSearch.visible ? clearSearch : done).forceActiveFocus()
+            return
+        }
         const i = Math.max(0, Math.min(index, shown.length - 1))
         rowItems.itemAt(i).focusAction()
     }

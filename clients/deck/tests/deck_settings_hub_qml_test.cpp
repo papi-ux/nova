@@ -68,6 +68,7 @@ int main(int argc, char** argv) {
             QtObject { id:input; property var mouseState:({available:relativeAvailable}) }
             property bool available:true
             property var provider:settings
+            property bool updatesAvailable:true
             property int updateChecks:0
             property int updateInstalls:0
             property int updateFinishes:0
@@ -91,7 +92,7 @@ int main(int argc, char** argv) {
             function openUpdates() { hub.openUpdates() }
             function syncPreferences() { NovaTheme.preferences.sync(); NovaHudPreferences.preferences.sync(); NovaStreamPreferences.preferences.sync(); prefs.sync() }
             NovaButton { id:open; objectName:"open-settings"; text:"Settings"; onClicked:hub.open() }
-            SettingsHub { id:hub; updateController:updater; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
+            SettingsHub { id:hub; updateController:updatesAvailable ? updater : null; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
         }
     )", QUrl());
     auto root = std::unique_ptr<QObject>(component.create()); if (!root) std::cerr << component.errorString().toStdString(); check(bool(root), "QML failed");
@@ -120,6 +121,19 @@ int main(int argc, char** argv) {
     click("open-settings"); focused("settings-category-all");
     check(reads == 0 && writes == 0, "opening hub touched host");
     capture("settings-all-1280");
+    // No updater backend leaves the Nova category empty. Directions and OK must
+    // still reach a visible exit without a pointer or an invisible Clear action.
+    root->setProperty("updatesAvailable", false); settle();
+    for (int i = 0; i < 7; ++i) key(Qt::Key_Down);
+    focused("settings-category-app"); key(Qt::Key_Return); key(Qt::Key_Right);
+    focused("settings-back"); key(Qt::Key_Left); focused("settings-category-app");
+    key(Qt::Key_Right); focused("settings-back"); key(Qt::Key_Return);
+    focused("open-settings");
+    root->setProperty("updatesAvailable", true); settle();
+    key(Qt::Key_Return); focused("settings-category-app");
+    for (int i = 0; i < 7; ++i) key(Qt::Key_Up);
+    focused("settings-category-all"); key(Qt::Key_Return);
+
     key(Qt::Key_Down); focused("settings-category-stream"); key(Qt::Key_Return); key(Qt::Key_Right); focused("settings-row-stream");
     key(Qt::Key_Down); focused("settings-row-window"); click("settings-row-window");
     click("settings-choice-1");
