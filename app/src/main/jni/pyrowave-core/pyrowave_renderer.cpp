@@ -6,7 +6,9 @@
 #include "shaders/present_vert_spv.h"
 
 #include <android/log.h>
+#include <sys/system_properties.h>
 
+#include <chrono>
 #include <cstring>
 
 #define LOG_TAG "PyroWave"
@@ -52,9 +54,18 @@ namespace nova_vk {
 
 #define NOVA_VK_DECLARE(name) PFN_##name name = nullptr;
 
+// Optional diagnostics must never make an otherwise usable device fail initialization.
+#define NOVA_VK_TIMING_DEVICE_FUNCTIONS(X) \
+  X(vkCreateQueryPool) X(vkDestroyQueryPool) X(vkCmdResetQueryPool) \
+  X(vkCmdWriteTimestamp) X(vkGetQueryPoolResults)
+#define NOVA_VK_TIMING_INSTANCE_FUNCTIONS(X) \
+  X(vkGetPhysicalDeviceProperties) X(vkGetPhysicalDeviceQueueFamilyProperties)
+
     struct api_t {
       NOVA_VK_INSTANCE_FUNCTIONS(NOVA_VK_DECLARE)
       NOVA_VK_DEVICE_FUNCTIONS(NOVA_VK_DECLARE)
+      NOVA_VK_TIMING_DEVICE_FUNCTIONS(NOVA_VK_DECLARE)
+      NOVA_VK_TIMING_INSTANCE_FUNCTIONS(NOVA_VK_DECLARE)
 
       bool resolve(PFN_vkGetInstanceProcAddr get_instance_proc_addr, VkInstance instance, VkDevice device) {
         auto get_device_proc_addr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
@@ -81,6 +92,15 @@ namespace nova_vk {
     };
 
     api_t vk;
+
+    uint64_t monotonic_ns() {
+      return std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    void finish_timing(timing_metric_t &metric, uint64_t start_ns) {
+      if (start_ns) metric.add((monotonic_ns() - start_ns) / 1e6);
+    }
 
   }  // namespace
 
@@ -130,7 +150,98 @@ namespace nova_vk {
 
     LOGI("renderer ready: %ux%u %s into a %ux%u surface", frame_width, frame_height,
          chroma_shift == 0 ? "4:4:4" : "4:2:0", swapchain_extent.width, swapchain_extent.height);
+    create_timing();
     return true;
+  }
+
+  void renderer_t::create_timing() {
+    char value[PROP_VALUE_MAX] = {};
+    __system_property_get("debug.nova.pyrowave_timing", value);
+    timing_enabled = std::strcmp(value, "1") == 0;
+    if (!timing_enabled) return;
+    timing_window_ns = monotonic_ns();
+
+    auto get_instance = device.get_instance_proc_addr();
+    auto get_device = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
+      get_instance(device.instance, "vkGetDeviceProcAddr"));
+    bool available = get_device != nullptr;
+#define NOVA_VK_TIMING_INSTANCE(name) \
+    vk.name = reinterpret_cast<PFN_##name>(get_instance(device.instance, #name)); \
+    available = available && vk.name != nullptr;
+    NOVA_VK_TIMING_INSTANCE_FUNCTIONS(NOVA_VK_TIMING_INSTANCE)
+#undef NOVA_VK_TIMING_INSTANCE
+#define NOVA_VK_TIMING_DEVICE(name) \
+    vk.name = get_device ? reinterpret_cast<PFN_##name>(get_device(device.device, #name)) : nullptr; \
+    available = available && vk.name != nullptr;
+    NOVA_VK_TIMING_DEVICE_FUNCTIONS(NOVA_VK_TIMING_DEVICE)
+#undef NOVA_VK_TIMING_DEVICE
+    if (!available) {
+      LOGI("timing enabled: CPU only (timestamp entry points unavailable)");
+      return;
+    }
+
+    uint32_t count = 0;
+    vk.vkGetPhysicalDeviceQueueFamilyProperties(device.physical_device, &count, nullptr);
+    std::vector<VkQueueFamilyProperties> families(count);
+    vk.vkGetPhysicalDeviceQueueFamilyProperties(device.physical_device, &count, families.data());
+    VkPhysicalDeviceProperties properties = {};
+    vk.vkGetPhysicalDeviceProperties(device.physical_device, &properties);
+    timestamp_bits = device.graphics_family < count ? families[device.graphics_family].timestampValidBits : 0;
+    timestamp_period_ns = properties.limits.timestampPeriod;
+    if (timestamp_bits == 0 || timestamp_bits > 64 || !std::isfinite(timestamp_period_ns) ||
+        timestamp_period_ns <= 0) {
+      LOGI("timing enabled: CPU only (queue timestamps unsupported)");
+      return;
+    }
+    VkQueryPoolCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    info.queryCount = 3;
+    if (vk.vkCreateQueryPool(device.device, &info, nullptr, &timing_queries) != VK_SUCCESS) {
+      timing_queries = VK_NULL_HANDLE;
+      LOGI("timing enabled: CPU only (query pool unavailable)");
+      return;
+    }
+    LOGI("timing enabled: GPU bits=%u period_ns=%.6f; intervals include barriers and GPU waits",
+         timestamp_bits, timestamp_period_ns);
+  }
+
+  void renderer_t::collect_gpu_timing() {
+    if (!timing_queries) return;
+    timestamp_result_t queries[3] = {};
+    const auto result = vk.vkGetQueryPoolResults(device.device, timing_queries, 0, 3, sizeof(queries),
+      queries, sizeof(queries[0]), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
+    gpu_intervals_t intervals = {};
+    if (result == VK_SUCCESS && timestamp_intervals(queries, timestamp_bits, timestamp_period_ns, intervals)) {
+      gpu_planes.add(intervals.planes_ms);
+      gpu_draw.add(intervals.draw_ms);
+    } else {
+      ++timing_unavailable;
+    }
+  }
+
+  void renderer_t::report_timing(bool final) {
+    if (!timing_enabled) return;
+    const auto now = monotonic_ns();
+    if (!final && now - timing_window_ns < 5000000000ULL) return;
+    // Each triple is mean/max/count; -1 means no measurement, not zero GPU work. The draw interval
+    // ends at command completion, not scanout, and may include the swapchain semaphore wait.
+#define NOVA_TIMING_VALUES(metric) metric.mean(), metric.maximum(), static_cast<unsigned long long>(metric.count)
+    LOGI("timing final=%d window_ms=%.1f gpu_unavailable=%llu "
+         "gpu_planes_ms=%.3f/%.3f/%llu gpu_draw_ms=%.3f/%.3f/%llu "
+         "cpu_fence_ms=%.3f/%.3f/%llu cpu_prepare_ms=%.3f/%.3f/%llu "
+         "cpu_record_ms=%.3f/%.3f/%llu cpu_acquire_ms=%.3f/%.3f/%llu "
+         "cpu_submit_ms=%.3f/%.3f/%llu cpu_present_ms=%.3f/%.3f/%llu",
+         final, (now - timing_window_ns) / 1e6, static_cast<unsigned long long>(timing_unavailable),
+         NOVA_TIMING_VALUES(gpu_planes), NOVA_TIMING_VALUES(gpu_draw), NOVA_TIMING_VALUES(cpu_fence),
+         NOVA_TIMING_VALUES(cpu_prepare), NOVA_TIMING_VALUES(cpu_record), NOVA_TIMING_VALUES(cpu_acquire),
+         NOVA_TIMING_VALUES(cpu_submit), NOVA_TIMING_VALUES(cpu_present));
+#undef NOVA_TIMING_VALUES
+    gpu_planes = {}; gpu_draw = {};
+    cpu_fence = {}; cpu_prepare = {}; cpu_record = {};
+    cpu_acquire = {}; cpu_submit = {}; cpu_present = {};
+    timing_unavailable = 0;
+    timing_window_ns = now;
   }
 
   bool renderer_t::create_surface(ANativeWindow *native_window) {
@@ -707,10 +818,17 @@ namespace nova_vk {
 
   void renderer_t::await_last_frame() {
     if (!frame_submitted) {
+      report_timing();
       return;
     }
-    vk.vkWaitForFences(device.device, 1, &in_flight, VK_TRUE, UINT64_MAX);
+    const auto start = timing_enabled ? monotonic_ns() : 0;
+    const auto waited = vk.vkWaitForFences(device.device, 1, &in_flight, VK_TRUE, UINT64_MAX);
+    finish_timing(cpu_fence, start);
+    // Never read a query from a refused/failed submit, or before GPU completion. No WAIT flag:
+    // unavailable measurements are counted and skipped instead of adding another blocking wait.
+    if (waited == VK_SUCCESS) collect_gpu_timing();
     frame_submitted = false;
+    report_timing();
   }
 
   void renderer_t::barrier_planes(VkCommandBuffer cmd, VkPipelineStageFlags from,
@@ -829,10 +947,12 @@ namespace nova_vk {
     bool ready = false;
     bool partial = false;
     const int attempts = decoder_warmed ? 1 : 2;
+    const auto prepare_start = timing_enabled ? monotonic_ns() : 0;
 
     for (int attempt = 0; attempt < attempts && !ready; attempt++) {
       const auto pushed = pyrowave_decoder_push_packet(decoder, bitstream, size);
       if (pushed != PYROWAVE_SUCCESS) {
+        finish_timing(cpu_prepare, prepare_start);
         LOGW("the decoder refused the frame (%d)", static_cast<int>(pushed));
         return false;
       }
@@ -849,6 +969,7 @@ namespace nova_vk {
       }
     }
 
+    finish_timing(cpu_prepare, prepare_start);
     if (!ready) {
       // Temporary, for the burst of unusable frames at the start of a session. Two stories fit what
       // has been seen so far and they want different fixes: either the decoder is still warming and
@@ -916,17 +1037,29 @@ namespace nova_vk {
     begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vk.vkBeginCommandBuffer(command_buffer, &begin);
+    if (timing_queries) {
+      vk.vkCmdResetQueryPool(command_buffer, timing_queries, 0, 3);
+      vk.vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, timing_queries, 0);
+    }
 
     // Recorded before a swapchain image is asked for, so that a decode that fails does not leave an
     // acquired image with nothing presenting it and a semaphore signalled with nothing waiting on it.
-    if (!fill_planes(command_buffer)) {
+    const auto record_start = timing_enabled ? monotonic_ns() : 0;
+    const bool filled = fill_planes(command_buffer);
+    finish_timing(cpu_record, record_start);
+    if (!filled) {
       vk.vkEndCommandBuffer(command_buffer);
       return false;
     }
+    if (timing_queries) {
+      vk.vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timing_queries, 1);
+    }
 
     uint32_t index = 0;
+    const auto acquire_start = timing_enabled ? monotonic_ns() : 0;
     const auto acquire = vk.vkAcquireNextImageKHR(
       device.device, swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &index);
+    finish_timing(cpu_acquire, acquire_start);
     if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR) {
       LOGW("could not acquire a swapchain image (%d)", static_cast<int>(acquire));
       vk.vkEndCommandBuffer(command_buffer);
@@ -958,6 +1091,9 @@ namespace nova_vk {
                                0, 1, &descriptor_set, 0, nullptr);
     vk.vkCmdDraw(command_buffer, 3, 1, 0, 0);
     vk.vkCmdEndRenderPass(command_buffer);
+    if (timing_queries) {
+      vk.vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timing_queries, 2);
+    }
     vk.vkEndCommandBuffer(command_buffer);
 
     const VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -973,7 +1109,10 @@ namespace nova_vk {
     // Here and nowhere earlier. Everything above this line can still refuse the frame, and a fence
     // reset for work that is then never submitted is a wait that never ends.
     vk.vkResetFences(device.device, 1, &in_flight);
-    if (vk.vkQueueSubmit(device.graphics_queue, 1, &submit, in_flight) != VK_SUCCESS) {
+    const auto submit_start = timing_enabled ? monotonic_ns() : 0;
+    const auto submitted = vk.vkQueueSubmit(device.graphics_queue, 1, &submit, in_flight);
+    finish_timing(cpu_submit, submit_start);
+    if (submitted != VK_SUCCESS) {
       LOGW("could not submit the frame");
       // Left unsignalled, which is why nothing will wait on it: the next frame resets it again
       // before its own submit, and resetting an already unsignalled fence is allowed.
@@ -988,7 +1127,9 @@ namespace nova_vk {
     present_info.swapchainCount = 1;
     present_info.pSwapchains = &swapchain;
     present_info.pImageIndices = &index;
+    const auto present_start = timing_enabled ? monotonic_ns() : 0;
     const auto presented = vk.vkQueuePresentKHR(device.graphics_queue, &present_info);
+    finish_timing(cpu_present, present_start);
     if (presented != VK_SUCCESS && presented != VK_SUBOPTIMAL_KHR) {
       LOGW("could not present (%d)", static_cast<int>(presented));
       return false;
@@ -1014,8 +1155,12 @@ namespace nova_vk {
 
   void renderer_t::destroy() {
     if (device.device && vk.vkDeviceWaitIdle) {
-      vk.vkDeviceWaitIdle(device.device);
+      const auto waited = vk.vkDeviceWaitIdle(device.device);
+      if (waited == VK_SUCCESS && frame_submitted) collect_gpu_timing();
     }
+    report_timing(true);
+    timing_enabled = false;
+    frame_submitted = false;
 
     // Before anything else Vulkan, and before device_t's destructor takes the codec device with it:
     // the codec requires every decoder to be gone before its device is, and it idles the GPU itself
@@ -1028,6 +1173,7 @@ namespace nova_vk {
     }
 
     if (device.device) {
+      if (timing_queries) vk.vkDestroyQueryPool(device.device, timing_queries, nullptr);
       if (in_flight) vk.vkDestroyFence(device.device, in_flight, nullptr);
       if (rendered) vk.vkDestroySemaphore(device.device, rendered, nullptr);
       if (acquired) vk.vkDestroySemaphore(device.device, acquired, nullptr);
@@ -1054,6 +1200,10 @@ namespace nova_vk {
     }
 
     in_flight = VK_NULL_HANDLE;
+    timing_queries = VK_NULL_HANDLE;
+    timestamp_bits = 0;
+    timestamp_period_ns = 0;
+    timing_window_ns = 0;
     rendered = VK_NULL_HANDLE;
     acquired = VK_NULL_HANDLE;
     command_pool = VK_NULL_HANDLE;

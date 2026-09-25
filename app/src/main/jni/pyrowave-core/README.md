@@ -37,3 +37,43 @@ has to match Polaris's `third-party/pyrowave` submodule. That agreement is what
 `PYROWAVE_PROFILE_TOKEN` carries in the RTSP handshake, so all three move together: this checkout,
 that submodule, and the token. Two of them agreeing and the third not is a stream that decodes to
 noise, which is the failure the token exists to turn into a refusal.
+
+## Measuring the Android renderer
+
+Native code uses `APP_OPTIM=release` even in debug APKs. Symbols and APK debuggability remain
+available. For an unoptimized source debugger build, pass `-PnovaNativeOptimization=debug` to
+Gradle. `-PnovaNativeDebugChecks=false` is a separate measurement setting: the default debug
+checks deliberately inject FEC loss and must be disabled when measuring delivery performance.
+The prebuilt codec is already a Release build and is unaffected by these switches.
+
+GPU/CPU timing is off by default. Enable it on the test device before starting a new stream:
+
+```sh
+adb -s DEVICE shell setprop debug.nova.pyrowave_timing 1
+adb -s DEVICE logcat -s PyroWave:I
+```
+
+Set the property to `0` and start a new stream to disable it. It is read at renderer creation;
+changing it during a stream takes effect after reconnecting. No overlay is required.
+
+The `timing` log line contains five-second windows and a final partial window at shutdown.
+Each metric is **mean milliseconds / maximum milliseconds / sample count**. `-1/-1/0` means
+unavailable, not zero work. CPU counts can differ after a refused frame and at window boundaries.
+
+- `gpu_planes_ms`: start of GPU commands through plane decode (or the test path's plane upload),
+  including its barriers.
+- `gpu_draw_ms`: the following draw interval through command completion, including barriers and
+  any GPU wait for the swapchain image. This is not display scanout or end-to-end latency.
+- `cpu_fence_ms`: time in the renderer's existing wait for the previous submitted frame.
+- `cpu_prepare_ms`: packet parsing/readiness checks, including the first-frame retry if needed.
+- `cpu_record_ms`: CPU time recording plane decode/upload commands.
+- `cpu_acquire_ms`, `cpu_submit_ms`, `cpu_present_ms`: time inside the corresponding Vulkan calls.
+
+Timestamp reads occur only after the existing frame fence (or device idle at shutdown), without
+`VK_QUERY_RESULT_WAIT_BIT`. Unavailable reads are counted separately. A device without timestamp
+support, or whose query pool cannot be created, retains CPU timing and continues streaming.
+Timestamps can perturb GPU scheduling; compare enabled and disabled runs with the same scene,
+resolution, FPS, host settings and network before drawing performance conclusions.
+
+Portable checks: `python3 -m unittest tools.test_pyrowave_timing tools.test_native_optimization`.
+The latter needs initialized native submodules and the pinned NDK under `ANDROID_HOME`.

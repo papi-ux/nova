@@ -38,6 +38,12 @@ if (!(nativeDebugChecksValue in ["true", "false"])) {
 }
 def nativeDebugChecks = nativeDebugChecksValue == "true"
 
+// Application.mk optimizes every variant by default; retain an explicit unoptimized debugger build.
+def nativeOptimization = providers.gradleProperty("novaNativeOptimization").orNull
+if (nativeOptimization != null && !(nativeOptimization in ["release", "debug"])) {
+    throw new GradleException("novaNativeOptimization must be release or debug")
+}
+
 def moonlightCommonCPath = "src/main/jni/moonlight-core/moonlight-common-c"
 def moonlightCommonCDir = file(moonlightCommonCPath)
 def moonlightCommonCRequiredPaths = [
@@ -150,6 +156,9 @@ android {
             ndkBuild {
                 arguments "NOVA_NATIVE_DEBUG_CHECKS=" + (nativeDebugChecks ? "1" : "0")
                 arguments "NOVA_AUDIO_RECEIVE_DIAGNOSTICS=" + (audioReceiveDiagnostics ? "1" : "0")
+                if (nativeOptimization != null) {
+                    arguments "APP_OPTIM=" + nativeOptimization
+                }
             }
         }
     }
