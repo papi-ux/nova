@@ -63,17 +63,25 @@ int main(int argc,char** argv) {
     check(!warnings,"initial QML warnings");
     auto* encoder=item("play-setup-encoder"); encoder->forceActiveFocus(); settle(); QTest::keyClick(window,Qt::Key_Return);
     auto* picker=root->findChild<QObject*>("play-setup-picker");check(picker,"encoder picker missing");
+    auto* setup=root->findChild<QObject*>("play-setup");check(setup,"play setup missing");
+    const auto setupState = [&] { QVariant state; check(QMetaObject::invokeMethod(setup,"state",Q_RETURN_ARG(QVariant,state)),"setup state unavailable"); return state.toMap(); };
     wait([&]{return picker->property("opened").toBool();});
     QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
     check(settings.load("host","game")["configuration"].toMap()["encoderBackend"]=="vaapi","D-pad encoder not saved");
     check(window->activeFocusItem()==encoder,"host review stole encoder focus");
+    // Open Tuning while the host plan is being reviewed again. Saving a choice restarts a 150 ms
+    // timer that reviews the plan, and a review clears it first, so a device slower than this one
+    // reaches the row with no plan in hand. It must still offer every preset: the host described
+    // this game a moment ago and is being asked to confirm, which is not new information about it.
+    host.hold = true; check(tools.review(settings.load("host","game")["configuration"].toMap()),"review refused");
+    wait([&]{return setupState()["hostPlan"].toMap()["plan"].toMap().isEmpty();});
     item("play-setup-tuning")->forceActiveFocus();QTest::keyClick(window,Qt::Key_Return);
     wait([&]{return picker->property("opened").toBool();});
+    check(picker->property("choices").toList().size()>1,"Tuning offered one preset while the plan was under review");
+    host.hold = false;
     QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
     check(settings.load("host","game")["configuration"].toMap()["profilePreference"]=="quality","preset not saved");
-    auto* setup = root->findChild<QObject*>("play-setup");
-    const auto effectiveFps = [&] { QVariant state; check(QMetaObject::invokeMethod(setup,"state",Q_RETURN_ARG(QVariant,state)),"setup state unavailable");
-        return state.toMap()["streamPlan"].toMap()["configuration"].toMap()["fps"].toInt(); };
+    const auto effectiveFps = [&] { return setupState()["streamPlan"].toMap()["configuration"].toMap()["fps"].toInt(); };
     check(settings.saveChoice("host","game",{{"profilePreference","high_fps"}}),"High FPS save failed");
     QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();}); check(effectiveFps()==60,"High FPS bypassed unknown host frame-rate support");
     setup->setProperty("streamCapabilities",QVariantMap{{"h264",true},{"maxFps",120}}); settle();
@@ -87,7 +95,6 @@ int main(int argc,char** argv) {
     QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();}); item("play-setup-tuning")->forceActiveFocus(); settle();
     capture("play-setup-1280");
     QMetaObject::invokeMethod(root.get(),"large");window->resize(960,600);settle();capture("play-setup-960-large");
-    const auto setupState = [&] { QVariant state; check(QMetaObject::invokeMethod(setup,"state",Q_RETURN_ARG(QVariant,state)),"setup state unavailable"); return state.toMap(); };
     const auto codecChoices = [&] { return setupState()["streamPlan"].toMap()["codecs"].toList(); };
     const auto chooseCodec = [&](const QString& codec) {
         item("play-setup-codec")->forceActiveFocus(); QTest::keyClick(window,Qt::Key_Return);
