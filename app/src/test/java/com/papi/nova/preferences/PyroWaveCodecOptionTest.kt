@@ -14,10 +14,11 @@ import org.robolectric.annotation.Config
 /**
  * The PyroWave codec option, which is only a real option where the picker offers it.
  *
- * The entry lives in the debug resource set, so a release build has no way to select it. This is
- * the other half of that switch: the value being honoured only where it can be chosen, so a release
- * build that inherited it, from a profile, a backup, or a debug build on the same device, streams
- * as it always did instead of asking a host for a codec it cannot decode.
+ * The entry lives in its own resource set, which a debug build and a beta get and a release does
+ * not, so a release has no way to select it. This is the other half of that switch: the value being
+ * honoured only where it can be chosen, so a release build that inherited it, from a profile, a
+ * backup, or a beta installed beside it, streams as it always did instead of asking a host for a
+ * codec it cannot decode.
  */
 @Config(sdk = [33], shadows = [ShadowMoonBridge::class])
 @RunWith(RobolectricTestRunner::class)
@@ -36,7 +37,7 @@ class PyroWaveCodecOptionTest {
 
     @Test
     fun theCodecIsSelectableOnlyWhereThePickerOffersIt() {
-        val expected = if (BuildConfig.DEBUG) {
+        val expected = if (BuildConfig.EXPERIMENTAL_CODECS) {
             PreferenceConfiguration.FormatOption.FORCE_PYROWAVE
         } else {
             PreferenceConfiguration.FormatOption.AUTO

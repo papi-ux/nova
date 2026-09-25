@@ -137,6 +137,10 @@ android {
         // only by the benchmark build type below - every other build type
         // gets this false default, same pattern FDROID_BUILD uses.
         buildConfigField "boolean", "BENCHMARK_BUILD", "false"
+        // Whether this build may offer a codec that is still an experiment. A debug build and a beta
+        // may; a release may not. It gates the value as well as the picker entry, so a release that
+        // inherited the preference from a profile or a backup still streams as it always did.
+        buildConfigField "boolean", "EXPERIMENTAL_CODECS", "false"
 
         // Generate native debug symbols to allow Google Play to symbolicate our native crashes
         ndk.debugSymbolLevel = 'FULL'
@@ -238,6 +242,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
+            buildConfigField "boolean", "EXPERIMENTAL_CODECS", "true"
             resValue "string", "app_label", "Nova Debug"
             resValue "string", "app_label_root", "Nova Debug (Root)"
             resValue "string", "app_label_game", "Nova Debug (Game)"
@@ -292,6 +297,8 @@ android {
 
         preRelease {
             initWith release
+            // After initWith, which copies release's value over.
+            buildConfigField "boolean", "EXPERIMENTAL_CODECS", "true"
             applicationIdSuffix ".pre"
             versionNameSuffix novaVersionSuffix
             resValue "string", "app_label", "Nova Pre"
@@ -332,6 +339,12 @@ android {
             resValue "string", "app_label_game", "Nova Benchmark (Game)"
             buildConfigField "boolean", "BENCHMARK_BUILD", "true"
         }
+    }
+
+    sourceSets {
+        // The experimental codec picker entry, for the two build types that may offer it.
+        debug.res.srcDirs += 'src/experimental/res'
+        preRelease.res.srcDirs += 'src/experimental/res'
     }
 
     externalNativeBuild {
