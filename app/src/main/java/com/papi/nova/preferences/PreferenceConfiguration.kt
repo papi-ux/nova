@@ -526,7 +526,7 @@ class PreferenceConfiguration {
                 // value, from a profile, a backup, or a debug build on the same device, streams as
                 // it always did rather than asking for a codec it does not expose.
                 "forcepyrowave" ->
-                    if (BuildConfig.DEBUG) FormatOption.FORCE_PYROWAVE else FormatOption.AUTO
+                    if (BuildConfig.EXPERIMENTAL_CODECS) FormatOption.FORCE_PYROWAVE else FormatOption.AUTO
                 else -> FormatOption.AUTO
             }
         }

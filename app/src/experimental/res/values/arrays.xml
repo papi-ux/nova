@@ -2,9 +2,12 @@
 <!--
   The codec picker, with one extra entry.
 
-  A debug source set replaces an array of the same name rather than adding to it, so these are the
-  release entries plus PyroWave. It lives here because the entry is the switch: a release build has
-  no way to select the codec, and PreferenceConfiguration ignores the value even if it finds it.
+  A source set replaces an array of the same name rather than adding to it, so these are the release
+  entries plus PyroWave. They live in their own set because two build types need them, a debug build
+  and a beta, and a release build must not have them.
+
+  The entry is the switch. A build without it has no way to select the codec, and
+  PreferenceConfiguration ignores the value even if it finds one, so the two halves agree.
 -->
 <resources>
     <string-array name="video_format_names">
