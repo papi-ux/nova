@@ -258,6 +258,16 @@ jobs:
           echo "NOVA_BUILD_TYPE=${build_type}" >> "$GITHUB_ENV"
           echo "NOVA_APK_VARIANT=${variant}" >> "$GITHUB_ENV"
 
+      # The submodule is pinned at its upstream commit and Nova's protocol changes live beside it as
+      # a patch series, so a checkout has to be patched before anything native is built. Without this
+      # the library does not know the format: a client that asks for PyroWave gets a session that
+      # negotiates something else while Nova has already built a PyroWave renderer.
+      #
+      # Dual-plane is the plan of record, so moonlight-common-c stays. What is temporary is this
+      # extension to a protocol Nova does not own, which is why it is a patch series and not a fork.
+      - name: Apply the PyroWave protocol patches
+        run: bash tools/apply-native-patches.sh
+
       - name: Build release APK
         run: |
           set -euo pipefail
