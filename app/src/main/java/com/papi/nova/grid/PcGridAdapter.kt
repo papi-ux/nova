@@ -605,7 +605,9 @@ class PcGridAdapter(
     }
 
     companion object {
-        private const val TAG_PC_HOLDER = R.id.status_dot
+        // Not const: a resource id is not a compile-time constant, and Kotlin 2.4 folds a
+        // const initialised from one to its placeholder, so View.setTag rejects the key.
+        private val TAG_PC_HOLDER = R.id.status_dot
         private val SERVER_ROW_REFRESH_PAYLOAD = Any()
 
         private fun getLayoutIdForPreferences(prefs: PreferenceConfiguration): Int = R.layout.pc_grid_item
