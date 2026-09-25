@@ -2,7 +2,7 @@ package com.papi.nova.manager
 
 import android.content.Context
 import android.view.Display
-import com.papi.nova.binding.video.MediaCodecDecoderRenderer
+import com.papi.nova.binding.video.NovaVideoRenderer
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
 import java.io.File
@@ -27,6 +27,9 @@ class KotlinStreamSyncManagerMigrationTest {
         assertTrue("$path should be migrated to Kotlin", File("$path.kt").exists())
     }
 
+    // The renderer parameter widened from MediaCodecDecoderRenderer to NovaVideoRenderer when a
+    // second renderer became possible. What this test is for is unchanged: these methods stay
+    // static, Java callable and JSONObject returning after the Kotlin migration.
     @Test
     fun streamSyncManagerKeepsJavaCompatibleApis() {
         val intType = Int::class.javaPrimitiveType!!
@@ -91,7 +94,7 @@ class KotlinStreamSyncManagerMigrationTest {
                 "buildDeviceCapabilities",
                 Context::class.java,
                 Display::class.java,
-                MediaCodecDecoderRenderer::class.java,
+                NovaVideoRenderer::class.java,
                 intType,
                 booleanType,
                 booleanType
@@ -102,7 +105,7 @@ class KotlinStreamSyncManagerMigrationTest {
             StreamSyncManager::class.java.getMethod(
                 "buildClientRuntime",
                 Context::class.java,
-                MediaCodecDecoderRenderer::class.java,
+                NovaVideoRenderer::class.java,
                 floatType,
                 intType,
                 String::class.java,

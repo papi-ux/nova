@@ -83,6 +83,7 @@ import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.nvstream.http.PairingManager.PairState
 import com.papi.nova.nvstream.wol.WakeOnLanSender
 import com.papi.nova.preferences.AddComputerManually
+import com.papi.nova.binding.video.PyroWave
 import com.papi.nova.preferences.GlPreferences
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.preferences.NovaUpdateCheckResult
@@ -1641,6 +1642,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
         UiHelper.setLocale(this)
         inForeground = true
+
+        // Beside the GL renderer probe, which asks the same kind of question: something about this
+        // device that only the driver can answer and that never changes until the driver does. Off
+        // the main thread because making a Vulkan device costs about a tenth of a second, and the
+        // answer is wanted long before anyone presses Play, not during the frame that starts the app.
+        Thread { PyroWave.probe(applicationContext) }.start()
 
         val glPrefs = GlPreferences.readPreferences(this)
         if (glPrefs.savedFingerprint != Build.FINGERPRINT || glPrefs.glRenderer.isEmpty()) {

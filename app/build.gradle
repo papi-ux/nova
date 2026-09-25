@@ -49,6 +49,11 @@ def moonlightCommonCRequiredFiles = moonlightCommonCRequiredPaths.collect { rela
     [relativePath: relativePath, sourceFile: file("${moonlightCommonCPath}/${relativePath}")]
 }
 
+// Resolved here rather than inside the task, because the configuration cache will not let a task
+// body reach back into the build script for a file.
+def moonlightNegotiationSource = file("${moonlightCommonCPath}/src/RtspConnection.c")
+def moonlightPatchesPath = "src/main/jni/moonlight-core/patches"
+
 TaskProvider<Task> verifyMoonlightCommonCSubmodule = tasks.register("verifyMoonlightCommonCSubmodule") {
     group = "verification"
     description = "Verifies that the moonlight-common-c git submodule is initialized before native builds run."
@@ -75,6 +80,27 @@ If you are cloning from scratch, prefer:
 
 Missing expected files:
 ${missingPaths.collect { "  - ${moonlightCommonCPath}/${it}" }.join("\n")}
+""".stripIndent().trim())
+        }
+
+        // PyroWave is negotiated inside the streaming library, and Nova carries those changes as a
+        // patch series rather than a fork. Without them the library does not know the format, so a
+        // client that asks for it gets a session that negotiates something else while Nova has
+        // already built a PyroWave renderer: a failure with no good error to give. Cheaper to find
+        // out here, where the fix is one command.
+        if (moonlightNegotiationSource.isFile() &&
+                !moonlightNegotiationSource.text.contains("PYROWAVE_PROFILE_TOKEN")) {
+            throw new GradleException("""
+The moonlight-common-c submodule is missing Nova's PyroWave protocol patches.
+
+From the repository root:
+
+    cd ${moonlightCommonCPath}
+    git checkout -b polaris-pyrowave
+    git am ../patches/*.patch
+
+See ${moonlightPatchesPath}/README.md for what they are and why they are a patch series rather
+than a fork.
 """.stripIndent().trim())
         }
     }

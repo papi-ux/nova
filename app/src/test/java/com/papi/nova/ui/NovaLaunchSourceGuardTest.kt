@@ -730,7 +730,10 @@ class NovaLaunchSourceGuardTest {
         )
         val launchSetup = game.section(
             "watchOnlyRequested = this@Game.getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false)",
-            "decoderRenderer = MediaCodecDecoderRenderer("
+            // Where the decoder is chosen, which is the end of launch setup and all this section
+            // cares about. It stopped being a plain construction when a second renderer arrived and
+            // the choice became conditional; the boundary still means the same place.
+            "decoderRenderer = if (prefConfig!!.videoFormat"
         )
         assertTrue(
             "Game should read explicit stream dimensions before selecting the decoder resolution",

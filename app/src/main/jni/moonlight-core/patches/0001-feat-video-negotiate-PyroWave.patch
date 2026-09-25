@@ -1,0 +1,132 @@
+From a44de1eb1d4402e216dcc82165d7c2e8a5e6884d Mon Sep 17 00:00:00 2001
+From: papi <papi@papi-ux.com>
+Date: Wed, 23 Sep 2026 21:44:06 -0400
+Subject: [PATCH 1/8] feat(video): negotiate PyroWave
+
+A format number, a server capability bit, one arm in the DESCRIBE ladder and one
+attribute in the SDP. The library never sees a PyroWave byte: it carries the payload
+opaquely and hands it to the renderer, which is the only part that knows what a wavelet
+coefficient is.
+
+Thirty four lines, and most of them are comment, because AV1 already did the hard part.
+Every codec specific branch in the depacketizer asks "is this H.264 or HEVC?" and takes
+an opaque path when the answer is no, so the exact payload length field, the
+trust the frame header IDR detection and the skipped NALU walk all work for a codec
+nobody anticipated. Reference frame invalidation reports unsupported on its own, since
+the expression ORs three masks and an intra only codec matches none of them. The one
+place an unfamiliar format tripped an assertion was the IDR buffer layout check, which
+now accepts picture data for this codec the way it already did for AV1.
+
+The format lives at 0x10000 because the four profile nibbles below it are full. A nibble
+is reserved rather than a single bit, so a later 10 bit or 4:4:4 variant is one line
+instead of another relocation.
+
+Tested ahead of the other formats, which is the one ordering decision here. The formats
+below are profiles of codecs a client can always decode, reached by preference and
+falling back on their own. This one is either what the user asked for or it is not on
+offer. Tested last it would lose to AV1 on a host that speaks both, and the user's
+explicit choice would disappear without a word. That trade only holds while the bit is
+opt in, so the comment says so where the next reader will need it: a client sets this
+format when the codec was chosen, never as part of an "everything I can decode" set.
+---
+ src/Limelight.h         | 19 ++++++++++++++-----
+ src/RtspConnection.c    | 15 ++++++++++++++-
+ src/SdpGenerator.c      |  5 ++++-
+ src/VideoDepacketizer.c |  4 ++--
+ 4 files changed, 34 insertions(+), 9 deletions(-)
+
+diff --git a/src/Limelight.h b/src/Limelight.h
+index 8ab72b7..16b567a 100644
+--- a/src/Limelight.h
++++ b/src/Limelight.h
+@@ -229,12 +229,20 @@ typedef struct _DECODE_UNIT {
+ #define VIDEO_FORMAT_AV1_HIGH8_444   0x4000 // AV1 High 4:4:4 8-bit profile
+ #define VIDEO_FORMAT_AV1_HIGH10_444  0x8000 // AV1 High 4:4:4 10-bit profile
+ 
++// PyroWave, an intra-only wavelet codec carried between Polaris and Nova only.
++//
++// Above the low sixteen bits, because the four profile nibbles there are fully allocated. A host
++// that does not know the codec never sets its serverCodecModeSupport bit, and a client that does
++// not know it never sets this one, so the two of them negotiate exactly as they did before.
++#define VIDEO_FORMAT_PYROWAVE        0x10000 // PyroWave 4:2:0 8-bit
++
+ // Masks for clients to use to match video codecs without profile-specific details.
+-#define VIDEO_FORMAT_MASK_H264   0x000F
+-#define VIDEO_FORMAT_MASK_H265   0x0F00
+-#define VIDEO_FORMAT_MASK_AV1    0xF000
+-#define VIDEO_FORMAT_MASK_10BIT  0xAA00
+-#define VIDEO_FORMAT_MASK_YUV444 0xCC04
++#define VIDEO_FORMAT_MASK_H264     0x000F
++#define VIDEO_FORMAT_MASK_H265     0x0F00
++#define VIDEO_FORMAT_MASK_AV1      0xF000
++#define VIDEO_FORMAT_MASK_PYROWAVE 0xF0000
++#define VIDEO_FORMAT_MASK_10BIT    0xAA00
++#define VIDEO_FORMAT_MASK_YUV444   0xCC04
+ 
+ // If set in the renderer capabilities field, this flag will cause audio/video data to
+ // be submitted directly from the receive thread. This should only be specified if the
+@@ -509,6 +517,7 @@ void LiInitializeConnectionCallbacks(PCONNECTION_LISTENER_CALLBACKS clCallbacks)
+ #define SCM_HEVC_REXT10_444 0x00100000 // Sunshine extension
+ #define SCM_AV1_HIGH8_444   0x00200000 // Sunshine extension
+ #define SCM_AV1_HIGH10_444  0x00400000 // Sunshine extension
++#define SCM_PYROWAVE        0x00800000 // Polaris extension
+ 
+ // SCM masks to identify various codec capabilities
+ #define SCM_MASK_H264   (SCM_H264 | SCM_H264_HIGH8_444)
+diff --git a/src/RtspConnection.c b/src/RtspConnection.c
+index 6f2a183..465e27c 100644
+--- a/src/RtspConnection.c
++++ b/src/RtspConnection.c
+@@ -1073,7 +1073,20 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+             goto Exit;
+         }
+         
+-        if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_AV1) && strstr(response.payload, "AV1/90000")) {
++        if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_PYROWAVE) &&
++            (serverInfo->serverCodecModeSupport & SCM_PYROWAVE) &&
++            strstr(response.payload, "PYROWAVE/90000")) {
++            // Ahead of the others because this one has no ladder to fall down. Every format below
++            // is reached by preference among profiles of a codec the client can always decode; this
++            // one is either what the user asked for or it is not offered at all. Tested last, a host
++            // that also speaks AV1 would take AV1 and the explicit choice would vanish silently.
++            //
++            // That reasoning depends on the bit being opt-in: a client must set
++            // VIDEO_FORMAT_PYROWAVE only when the codec was chosen deliberately, never as part of an
++            // "everything I can decode" set. Nova's codec picker is what holds up that end.
++            NegotiatedVideoFormat = VIDEO_FORMAT_PYROWAVE;
++        }
++        else if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_AV1) && strstr(response.payload, "AV1/90000")) {
+             if ((serverInfo->serverCodecModeSupport & SCM_AV1_HIGH10_444) && (StreamConfig.supportedVideoFormats & VIDEO_FORMAT_AV1_HIGH10_444)) {
+                 NegotiatedVideoFormat = VIDEO_FORMAT_AV1_HIGH10_444;
+             }
+diff --git a/src/SdpGenerator.c b/src/SdpGenerator.c
+index a2f9789..86120a4 100644
+--- a/src/SdpGenerator.c
++++ b/src/SdpGenerator.c
+@@ -430,7 +430,10 @@ static PSDP_OPTION getAttributesList(char*urlSafeAddr) {
+         snprintf(payloadStr, sizeof(payloadStr), "%d", slicesPerFrame);
+         err |= addAttributeString(&optionHead, "x-nv-video[0].videoEncoderSlicesPerFrame", payloadStr);
+ 
+-        if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_AV1) {
++        if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_PYROWAVE) {
++            err |= addAttributeString(&optionHead, "x-nv-vqos[0].bitStreamFormat", "3");
++        }
++        else if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_AV1) {
+             err |= addAttributeString(&optionHead, "x-nv-vqos[0].bitStreamFormat", "2");
+         }
+         else if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_H265) {
+diff --git a/src/VideoDepacketizer.c b/src/VideoDepacketizer.c
+index b5321c1..cdb53f8 100644
+--- a/src/VideoDepacketizer.c
++++ b/src/VideoDepacketizer.c
+@@ -212,8 +212,8 @@ void validateDecodeUnitForPlayback(PDECODE_UNIT decodeUnit) {
+             LC_ASSERT_VT(decodeUnit->bufferList->next->next->bufferType == BUFFER_TYPE_PPS);
+             LC_ASSERT_VT(decodeUnit->bufferList->next->next->next != NULL);
+         }
+-        else if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_AV1) {
+-            // We don't parse the AV1 bitstream
++        else if (NegotiatedVideoFormat & (VIDEO_FORMAT_MASK_AV1 | VIDEO_FORMAT_MASK_PYROWAVE)) {
++            // We don't parse the AV1 or PyroWave bitstreams
+             LC_ASSERT_VT(decodeUnit->bufferList->bufferType == BUFFER_TYPE_PICDATA);
+         }
+         else {

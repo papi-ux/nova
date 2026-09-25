@@ -50,12 +50,33 @@ class MoonBridge {
         const val VIDEO_FORMAT_H265 = 0x0100
         const val VIDEO_FORMAT_H265_MAIN10 = 0x0200
         const val VIDEO_FORMAT_AV1_MAIN8 = 0x1000
+
+        // Above the four profile nibbles, which are full. Kept in step with Limelight.h.
+        const val VIDEO_FORMAT_PYROWAVE = 0x10000
+        const val VIDEO_FORMAT_PYROWAVE_444 = 0x20000
+        const val VIDEO_FORMAT_PYROWAVE_10BIT = 0x40000
+        const val VIDEO_FORMAT_PYROWAVE_444_10BIT = 0x80000
+
+        /// Every PyroWave format, for the exclusive mask and for asking what a stream turned out to be.
+        const val VIDEO_FORMAT_MASK_PYROWAVE = 0xF0000
+
+        // Kept in step with Limelight.h. The host did not offer the PyroWave profile this client
+        // implements, which is a codec answer and not a network one.
+        const val ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE = -105
         const val VIDEO_FORMAT_AV1_MAIN10 = 0x2000
 
         const val VIDEO_FORMAT_MASK_H264 = 0x000F
         const val VIDEO_FORMAT_MASK_H265 = 0x0F00
         const val VIDEO_FORMAT_MASK_AV1 = 0xF000
-        const val VIDEO_FORMAT_MASK_10BIT = 0x2200
+        // The two PyroWave ten bit formats join the two this had, because this constant is how every
+        // question on this side about whether a stream is ten bit gets asked, and one of them decides
+        // the HDR flag on the launch request. Without them a PyroWave HDR stream asked the host for an
+        // SDR session and then presented what came back as PQ BT.2020.
+        //
+        // Not the HEVC and AV1 4:4:4 ten bit formats: upstream leaves those out of this too, and this
+        // client does not offer them.
+        const val VIDEO_FORMAT_MASK_10BIT =
+            0x2200 or VIDEO_FORMAT_PYROWAVE_10BIT or VIDEO_FORMAT_PYROWAVE_444_10BIT
 
         const val BUFFER_TYPE_PICDATA = 0
         const val BUFFER_TYPE_SPS = 1

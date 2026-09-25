@@ -32,7 +32,7 @@ class BenchmarkRunExportTest {
         manifestSha256: String? = "a".repeat(64),
         startedElapsedRealtimeNs: Long = 1_000_000_000_000L,
         stoppedElapsedRealtimeNs: Long = 1_120_000_000_000L,
-    ) = MediaCodecDecoderRenderer.BenchmarkRunResult(
+    ) = BenchmarkRunResult(
         runId = runId,
         capture = capture,
         initialStreamGeneration = initialStreamGeneration,

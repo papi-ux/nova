@@ -282,6 +282,9 @@ data class NovaHudUiState(
                 lower.contains("hevc") || lower.contains("h265") -> "HEVC"
                 lower.contains("avc") || lower.contains("h264") -> "H264"
                 lower.contains("vp9") -> "VP9"
+                // Four characters like the rest of them. The full name is eight and the row it sits in
+                // has space for about seven, so it arrived on screen as PYROWA with an ellipsis.
+                lower.contains("pyrowave") || lower.contains("pyro") -> "PYRO"
                 else -> value.uppercase()
             }
         }

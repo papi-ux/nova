@@ -1,0 +1,57 @@
+From 59d70a9087b2d6deccbebc2195736c0b95c1df4e Mon Sep 17 00:00:00 2001
+From: papi <papi@papi-ux.com>
+Date: Wed, 23 Sep 2026 23:26:43 -0400
+Subject: [PATCH 4/8] fix(video): a second codec claiming payload 99 is a
+ refusal
+
+The matcher counted rtpmap lines for 99 that named this codec and ignored ones that named
+something else, so a host offering both PYROWAVE/90000 and H264/90000 for the same payload
+type passed, and the client went on to decode whichever arrived. It is now counted and
+refused, the same way a second fmtp already was: a host that maps one payload type twice
+has not said which of them it will send, and picking one would be a guess.
+
+Found by the Linux client owner, who reproduced it against this committed matcher rather
+than reading it. Nineteen cases now, run under the address and undefined behaviour
+sanitizers: both orderings of the conflicting pair, the same codec line twice, and the
+sixteen that were already there.
+---
+ src/RtspConnection.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/RtspConnection.c b/src/RtspConnection.c
+index caa3f63..ce4d3d1 100644
+--- a/src/RtspConnection.c
++++ b/src/RtspConnection.c
+@@ -968,10 +968,12 @@ static void countSdpAttribute(const char* line, const char* end, const char* nam
+ // on to decode a profile it does not implement, which is a picture that is merely wrong.
+ //
+ // So the payload has to carry one rtpmap for 99 naming the codec, and one fmtp for 99 whose whole
+-// value is the token. A second fmtp:99 saying something else is a refusal and not a choice: a host
+-// offering two profiles for one payload type has not said which of them it will send.
++// value is the token, and nothing else claiming payload 99. A second mapping saying something else
++// is a refusal and not a choice: a host that offers two codecs or two profiles for one payload type
++// has not said which of them it will send, and picking one would be a guess.
+ static bool sdpOffersPyroWaveProfile(const char* payload) {
+     int codecLines = 0;
++    int otherCodecLines = 0;
+     int profileLines = 0;
+     int otherProfileLines = 0;
+     const char* line = payload;
+@@ -982,7 +984,7 @@ static bool sdpOffersPyroWaveProfile(const char* payload) {
+             end++;
+         }
+ 
+-        countSdpAttribute(line, end, "a=rtpmap:99", "PYROWAVE/90000", &codecLines, NULL);
++        countSdpAttribute(line, end, "a=rtpmap:99", "PYROWAVE/90000", &codecLines, &otherCodecLines);
+         countSdpAttribute(line, end, "a=fmtp:99", PYROWAVE_PROFILE_TOKEN, &profileLines, &otherProfileLines);
+ 
+         line = end;
+@@ -991,7 +993,7 @@ static bool sdpOffersPyroWaveProfile(const char* payload) {
+         }
+     }
+ 
+-    return codecLines == 1 && profileLines == 1 && otherProfileLines == 0;
++    return codecLines == 1 && otherCodecLines == 0 && profileLines == 1 && otherProfileLines == 0;
+ }
+ 
+ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
