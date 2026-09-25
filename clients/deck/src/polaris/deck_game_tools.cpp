@@ -167,6 +167,21 @@ std::optional<QVariantMap> gameToolReply(const QString& game, const QString& act
         }
         if (fields.isEmpty()) return {};
         result = {{"fields", fields}, {"preset", bounded(p.value("preset"), 64)}, {"label", bounded(p.value("preset_label"), 80)}};
+        // A displayable preview is not necessarily the profile the player chose.
+        // Only an exact, freshly resolved SDR plan can authorize the launch envelope.
+        const auto topology = o.value("topology_resolution").toObject();
+        const auto resolved = bounded(topology.value("resolved"), 64);
+        const auto requested = v.value("launchMode", "default").toString();
+        const auto encoder = v.value("encoderBackend").toString();
+        const auto resolvedEncoder = o.value("encoder_resolution").toObject();
+        if (gameToolRequest(game, "plan", v) && (isSessionLaunchMode(resolved.toStdString()) || resolved == "headless_dongle") &&
+            topology.value("app_uuid") == game && topology.value("locked").isBool() && topology.value("normalized").isBool() &&
+            !bounded(topology.value("source"), 80).isEmpty() && !bounded(topology.value("reason_code"), 128).isEmpty() &&
+            (requested == "default" || (resolved == requested && topology.value("requested") == requested && topology.value("locked") == QJsonValue(true))) &&
+            width.toInt() == v.value("width").toInt() && height.toInt() == v.value("height").toInt() &&
+            fps.toDouble() == v.value("fps").toInt() && bitrate.toInt() == v.value("bitrateKbps").toInt() && field("hdr") == QJsonValue(false) &&
+            (encoder.isEmpty() || (resolvedEncoder.value("resolved") == encoder && resolvedEncoder.value("locked") == QJsonValue(true))))
+            result["launchTopology"] = resolved;
     } else if (action == "steam") {
         // The controller independently reads the fresh catalog to confirm the write.
         if (o.value("status") != QJsonValue(true)) return {};

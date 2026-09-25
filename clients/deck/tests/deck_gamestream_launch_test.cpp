@@ -74,9 +74,18 @@ void testLaunchTarget() {
     assert(buildLaunchTarget(request, keys) == expected);
     auto withMode = request;
     withMode.streamMode = "headless_stream";
-    assert(buildLaunchTarget(withMode, keys) == expected + "&streamMode=headless_stream");
+    assert(buildLaunchTarget(withMode, keys) == expected + "&streamMode=headless_stream&displayModeExplicit=1");
     withMode.streamMode = "desktop_display&appid=9";
-    assert(buildLaunchTarget(withMode, keys) == expected + "&streamMode=desktop_display%26appid%3D9");
+    assert(buildLaunchTarget(withMode, keys) == expected + "&streamMode=desktop_display%26appid%3D9&displayModeExplicit=1");
+    auto resolved = request;
+    resolved.bitrateKbps = 200000;
+    resolved.expectedTopology = "headless_stream";
+    assert(buildLaunchTarget(resolved, keys) == expected + "&resolvedProfile=1&bitrateKbps=200000&resolvedHdr=0&expectedTopology=headless_stream");
+    resolved.encoderBackend = "vaapi";
+    assert(buildLaunchTarget(resolved, keys).ends_with("&expectedEncoder=vaapi"));
+    resolved.streamMode = "headless_stream";
+    resolved.resume = true;
+    assert(buildLaunchTarget(resolved, keys) == "/resume" + expected.substr(7));
 
     // A host extra query is appended verbatim after the built parameters.
     DeckLaunchRequest withExtra = request;
