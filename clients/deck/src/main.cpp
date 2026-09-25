@@ -1492,7 +1492,10 @@ int registerSteamShortcutCommand(const QStringList& arguments) {
 }
 
 bool runPairingSetup(QGuiApplication& app, const QStringList& arguments, bool managePcs = false) {
+    nova::deck::runtime::DeckPlaySettings pairingPreferences;
     nova::deck::runtime::DeckPairingController pairing;
+    QObject::connect(&pairing, &nova::deck::runtime::DeckPairingController::hostPaired,
+        &pairingPreferences, [&](const QString& hostId) { pairingPreferences.initializeKeepInStep(hostId); });
     nova::deck::runtime::DeckHostDiscovery discovery;
     QtDeckGamepadBridge gamepad;
     nova::deck::runtime::DeckWindowController windowController;
@@ -1703,6 +1706,8 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     nova::deck::runtime::DeckGameTools gameTools;
     nova::deck::runtime::DeckHostPowerController hostPower;
     nova::deck::runtime::DeckHostSettingsController hostSettings;
+    QObject::connect(&app, &QCoreApplication::aboutToQuit,
+        &hostSettings, &nova::deck::runtime::DeckHostSettingsController::shutdown);
     nova::deck::runtime::DeckUpdates updates(nova::deck::runtime::DeckUpdates::installedOptions(standalone));
     QObject::connect(&updates, &nova::deck::runtime::DeckUpdates::quitRequested, &app, &QCoreApplication::quit);
     const auto updatePowerTarget = [&] {
@@ -1722,6 +1727,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
         // Read-only game-plan checks must not revoke the open host-settings
         // review after a local default edit. Mutations retain mutual exclusion.
         hostSettings.setSessionActive(streaming || maintenance || hostPower.busy() || gameTools.writing());
+        hostSettings.setBackgroundBlocked(libraryRefresh.busy());
         gameTools.setSessionActive(streaming || maintenance || hostPower.busy() || hostSettings.busy());
         libraryRefresh.setSessionBusy(streaming || maintenance || hostPower.busy() || hostSettings.busy() || gameTools.busy());
         if (standalone && !streaming) nativeSession.setTargetResolver(maintenance || libraryRefresh.busy() || hostPower.busy() || hostSettings.busy() || gameTools.writing() ? nova::deck::runtime::DeckNativeTargetResolver{} : libraryRefresh.targetResolver());

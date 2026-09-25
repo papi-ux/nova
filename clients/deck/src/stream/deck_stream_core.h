@@ -36,6 +36,7 @@ struct DeckStreamRequest {
     std::string streamMode; // Verified one-launch override; empty follows the host.
     bool playHostAudio = false; // Session request only; never writes host-wide settings.
     std::string profilePreference, encoderBackend;
+    std::string expectedTopology; // Freshly verified Polaris launch profile; never applied on resume.
     int videoFormat = VIDEO_FORMAT_H264; // One reviewed SDR format, never a capability mask.
 };
 

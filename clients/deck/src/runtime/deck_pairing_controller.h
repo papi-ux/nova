@@ -28,6 +28,7 @@ public:
     Q_INVOKABLE bool removeHost(const QString& hostId, bool localOnly);
     Q_INVOKABLE void reset();
 signals:
+    void hostPaired(const QString& hostId);
     void stateChanged();
     void savedHostsChanged();
 private:

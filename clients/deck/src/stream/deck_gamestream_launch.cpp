@@ -128,10 +128,20 @@ std::string buildLaunchTarget(const DeckLaunchRequest& request, const DeckStream
     appendParam(out, first, "remoteControllersBitmap", std::to_string(request.gamepadMask));
     appendParam(out, first, "gcmap", std::to_string(request.gamepadMask));
     appendParam(out, first, "gcpersist", request.persistGamepads ? "1" : "0");
-    if (!request.streamMode.empty()) appendParam(out, first, "streamMode", percentEncoded(request.streamMode));
+    if (!request.resume && !request.streamMode.empty()) {
+        appendParam(out, first, "streamMode", percentEncoded(request.streamMode));
+        appendParam(out, first, "displayModeExplicit", "1");
+    }
     if (request.resume && !request.sessionToken.empty()) appendParam(out, first, "sessiontoken", percentEncoded(request.sessionToken));
     if (!request.resume && !request.profilePreference.empty()) appendParam(out, first, "profilePreference", percentEncoded(request.profilePreference));
     if (!request.resume && !request.encoderBackend.empty()) appendParam(out, first, "encoderBackend", percentEncoded(request.encoderBackend));
+    if (!request.resume && !request.expectedTopology.empty()) {
+        appendParam(out, first, "resolvedProfile", "1");
+        appendParam(out, first, "bitrateKbps", std::to_string(request.bitrateKbps));
+        appendParam(out, first, "resolvedHdr", "0");
+        appendParam(out, first, "expectedTopology", percentEncoded(request.expectedTopology));
+        if (!request.encoderBackend.empty()) appendParam(out, first, "expectedEncoder", percentEncoded(request.encoderBackend));
+    }
     appendEncodedExtraQuery(out, request.extraQuery);
     return out;
 }

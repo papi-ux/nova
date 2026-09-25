@@ -93,7 +93,11 @@ bool DeckPairingController::startPairing(const QString& address, int httpPort, b
             QString copy = pairingCopy(result.status);
             if (result.authorizationMayRemain)
                 copy += " Remove Nova Deck from the host's paired devices before retrying; cleanup could not be confirmed.";
-            finish(result.status == PairStatus::Ok ? "paired" : result.status == PairStatus::Cancelled ? "cancelled" : "failed", copy);
+            if (result.status == PairStatus::Ok && result.host) {
+                auto next = runtime::state("paired", copy, false);
+                next["hostId"] = QString::fromStdString(result.host->stableId());
+                shared->publish(std::move(next));
+            } else finish(result.status == PairStatus::Cancelled ? "cancelled" : "failed", copy);
         } catch (...) {
             finish("failed", "Pairing could not finish. Check the host's paired devices before retrying.");
         }
@@ -124,6 +128,8 @@ void DeckPairingController::poll() {
         timer_.stop();
         next["busy"] = false;
         refreshHosts();
+        if (next.value("phase") == "paired" && !next.value("hostId").toString().isEmpty())
+            emit hostPaired(next.value("hostId").toString());
     } else {
         next["busy"] = true;
         if (shared_->cancelled) next = runtime::state("cancelling", removing_ ? "Waiting for the PC's response…" : "Cancelling pairing…", true);

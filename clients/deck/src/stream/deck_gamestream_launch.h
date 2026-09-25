@@ -57,6 +57,9 @@ struct DeckLaunchRequest {
     std::string streamMode; ///< verified per-session mode; empty omits the parameter
     std::string sessionToken; ///< backend-only expected session identity for resume
     std::string profilePreference, encoderBackend;
+    int bitrateKbps = 20000;
+    // Nonempty only after a fresh Polaris plan matches the reviewed SDR settings.
+    std::string expectedTopology;
     std::string videoCodec = "h264"; ///< local serverinfo admission only; never a URL parameter
 };
 

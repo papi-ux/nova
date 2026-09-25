@@ -195,6 +195,8 @@ void testOwnedResumeSelection() {
     auto request = sampleRequest();
     request.appUuid = "fixture-game";
     request.streamMode = "headless_stream";
+    request.expectedTopology = "headless_stream";
+    request.bitrateKbps = 200000;
     for (const auto mode : {DeckSessionStartMode::PlayOrResume, DeckSessionStartMode::ResumeOnly}) {
         FakeHost host;
         host.table["/serverinfo"] = {true, 200, resumeInfo(identity + authority)};
@@ -205,6 +207,8 @@ void testOwnedResumeSelection() {
         assert(host.seen.size() == 2 && host.seen[1].starts_with("/resume?"));
         assert(host.seen[1].find("&sessiontoken=old-token") != std::string::npos);
         assert(host.seen[1].find("streamMode=") == std::string::npos);
+        for (const auto* parameter : {"resolvedProfile=", "expectedTopology=", "bitrateKbps=", "resolvedHdr=", "displayModeExplicit="})
+            assert(host.seen[1].find(parameter) == std::string::npos);
         assert(result.connectionInfo.hostSessionToken == "old-token");
     }
     const std::vector<std::string> refused{

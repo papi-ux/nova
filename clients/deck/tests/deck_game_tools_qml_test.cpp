@@ -61,12 +61,15 @@ int main(int argc,char** argv) {
     const auto capture=[&](const char* name){if(argc>1){QDir().mkpath(argv[1]);check(window->grabWindow().save(QString::fromLocal8Bit(argv[1])+"/"+name+".png"),"capture failed");}};
     wait([&]{return !tools.busy();});
     check(!warnings,"initial QML warnings");
-    auto* encoder=item("play-setup-encoder"); encoder->forceActiveFocus(); settle(); QTest::keyClick(window,Qt::Key_Return);settle();
-    auto* picker=root->findChild<QObject*>("play-setup-picker");check(picker && picker->property("opened").toBool(),"encoder picker not open");
+    auto* encoder=item("play-setup-encoder"); encoder->forceActiveFocus(); settle(); QTest::keyClick(window,Qt::Key_Return);
+    auto* picker=root->findChild<QObject*>("play-setup-picker");check(picker,"encoder picker missing");
+    wait([&]{return picker->property("opened").toBool();});
     QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
     check(settings.load("host","game")["configuration"].toMap()["encoderBackend"]=="vaapi","D-pad encoder not saved");
     check(window->activeFocusItem()==encoder,"host review stole encoder focus");
-    item("play-setup-tuning")->forceActiveFocus();QTest::keyClick(window,Qt::Key_Return);settle();QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
+    item("play-setup-tuning")->forceActiveFocus();QTest::keyClick(window,Qt::Key_Return);
+    wait([&]{return picker->property("opened").toBool();});
+    QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
     check(settings.load("host","game")["configuration"].toMap()["profilePreference"]=="quality","preset not saved");
     auto* setup = root->findChild<QObject*>("play-setup");
     const auto effectiveFps = [&] { QVariant state; check(QMetaObject::invokeMethod(setup,"state",Q_RETURN_ARG(QVariant,state)),"setup state unavailable");
@@ -87,12 +90,13 @@ int main(int argc,char** argv) {
     const auto setupState = [&] { QVariant state; check(QMetaObject::invokeMethod(setup,"state",Q_RETURN_ARG(QVariant,state)),"setup state unavailable"); return state.toMap(); };
     const auto codecChoices = [&] { return setupState()["streamPlan"].toMap()["codecs"].toList(); };
     const auto chooseCodec = [&](const QString& codec) {
-        item("play-setup-codec")->forceActiveFocus(); QTest::keyClick(window,Qt::Key_Return); settle();
-        check(picker->property("opened").toBool(),"codec picker not open");
+        item("play-setup-codec")->forceActiveFocus(); QTest::keyClick(window,Qt::Key_Return);
+        wait([&]{return picker->property("opened").toBool();});
         const auto choices = codecChoices(); int index = -1;
         for (int i=0; i<choices.size(); ++i) if (choices[i].toMap()["videoCodec"]==codec) index=i;
         check(index>=0,"requested codec missing from picker");
         item(qPrintable(QString("play-setup-choice-%1").arg(index)))->forceActiveFocus();
+        if (codec == "pyrowave") { settle(); capture("video-codec-pyrowave-960-large"); }
         QTest::keyClick(window,Qt::Key_Return); wait([&]{return !tools.busy();});
         check(settings.load("host","game")["configuration"].toMap()["videoCodec"]==codec,"codec choice not saved");
     };
@@ -120,8 +124,8 @@ int main(int argc,char** argv) {
         && setupState()["streamPlan"].toMap()["configuration"].toMap()["encoderBackend"]=="nvenc","switching codec failed to restore saved encoder");
     check(settings.saveChoice("host","game",{{"encoderBackend","vaapi"}}),"encoder reset failed");
     QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();});
-    encoder->forceActiveFocus(); QTest::keyClick(window,Qt::Key_Return); settle();
-    check(picker->property("opened").toBool(),"encoder picker not reopened");
+    encoder->forceActiveFocus(); QTest::keyClick(window,Qt::Key_Return);
+    wait([&]{return picker->property("opened").toBool();});
     check(settings.saveChoice("host","game",{{"videoCodec","pyrowave"}}),"external codec save failed");
     QMetaObject::invokeMethod(setup,"reloadChoices"); wait([&]{return !tools.busy();});
     check(!picker->property("opened").toBool(),"stale encoder picker remained open");

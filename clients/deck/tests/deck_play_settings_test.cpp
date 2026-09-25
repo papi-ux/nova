@@ -201,6 +201,12 @@ int main(int argc, char** argv) {
     require(settings.keepInStep("one") == "off" && !settings.saveKeepInStep(" ", "on") && !settings.saveKeepInStep("one", "yes"), "invalid sync setting admitted");
     require(settings.saveKeepInStep("one", "on") && DeckPlaySettings(file).keepInStep("one") == "on" && settings.keepInStep("two") == "off", "sync persistence lost PC scope");
     require(settings.saveKeepInStep("one", "paused") && DeckPlaySettings(file).keepInStep("one") == "paused", "pending sync state lost on restart");
+    require(settings.initializeKeepInStep("new") && DeckPlaySettings(file).keepInStep("new") == "pending", "new pairing did not request an initial profile check");
+    require(settings.initializeKeepInStep("one") && settings.keepInStep("one") == "paused", "re-pairing resumed an uncertain save");
+    require(settings.saveKeepInStep("off-host", "off") && settings.initializeKeepInStep("off-host") &&
+        settings.keepInStep("off-host") == "off", "re-pairing changed explicit Off");
+    require(settings.keepInStep("existing-unset") == "off", "upgrade enabled an existing pairing without a choice");
+    require(settings.saveKeepInStep("new", "review") && DeckPlaySettings(file).keepInStep("new") == "review", "profile conflict did not persist");
     const auto audioDefaults = DeckAudioConfiguration{}.toMap();
     const auto surround = DeckAudioConfiguration{8, true}.toMap();
     {
