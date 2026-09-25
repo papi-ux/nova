@@ -1,6 +1,8 @@
 #include "stream/deck_stream_media_adapters.h"
+#include "runtime/deck_play_settings.h"
 #include <QCoreApplication>
 #include <QFile>
+#include <QTemporaryDir>
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/hwcontext.h>
@@ -83,7 +85,28 @@ int main(int argc, char** argv) {
     av_frame_free(&frame);
     avcodec_free_context(&decoder);
     const auto detected = DeckLinuxMediaProbe::detect().videoDecodeSupport;
+    const auto launchSupport = detectVideoDecodeSupport();
+    require(detected.pyrowave.maxWidth == launchSupport.pyrowave.maxWidth &&
+        detected.pyrowave.maxHeight == launchSupport.pyrowave.maxHeight,
+        "startup hid PyroWave support available at stream launch");
+    const auto withoutVaapi = probeVideoDecodeSupport(nullptr);
+    require(withoutVaapi.pyrowave.maxWidth == launchSupport.pyrowave.maxWidth &&
+        withoutVaapi.pyrowave.maxHeight == launchSupport.pyrowave.maxHeight,
+        "PyroWave support incorrectly depended on a VAAPI device");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (launchSupport.pyrowave.supports(1280, 800)) {
+        QTemporaryDir settingsDirectory;
+        require(settingsDirectory.isValid(), "temporary settings directory unavailable");
+        nova::deck::runtime::DeckPlaySettings settings(settingsDirectory.filePath("settings.ini"));
+        settings.setVideoDecodeSupport(detected);
+        auto configuration = nova::deck::runtime::DeckPlayConfiguration{}.toMap();
+        configuration["videoCodec"] = "pyrowave";
+        const auto plan = settings.streamPlan(configuration, {{"pyrowave", true}, {"maxFps", 60}}, {});
+        require(plan.value("playable").toBool(), "startup capability snapshot disabled Play for supported PyroWave");
+    }
+#endif
     std::cout << "Codec policy and HEVC Main software decode passed; runtime VAAPI 1280x800 support: H264="
         << detected.h264.supports(1280, 800) << " HEVC=" << detected.hevc.supports(1280, 800)
-        << " Main10=" << detected.main10.supports(1280, 800) << ". Hardware playback is a separate acceptance check.\n";
+        << " Main10=" << detected.main10.supports(1280, 800) << " PyroWave=" << detected.pyrowave.supports(1280, 800)
+        << ". Hardware playback is a separate acceptance check.\n";
 }

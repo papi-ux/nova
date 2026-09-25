@@ -6,7 +6,8 @@ Flickable {
     id: viewport
     default property alias contents: column.data
     property alias spacing: column.spacing
-    property bool reserveScrollBarSpace: false
+    // Keep wrapped text stable as a popup grows or its scrollbar appears.
+    property bool reserveScrollBarSpace: true
     implicitHeight: column.implicitHeight
     contentHeight: column.implicitHeight
     contentWidth: width

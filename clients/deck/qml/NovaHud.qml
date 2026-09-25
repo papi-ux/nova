@@ -41,7 +41,7 @@ Item {
         color: NovaTheme.text
         font.pixelSize: 13 * hud.scale
         font.family: "monospace"
-        elide: Text.ElideRight
+        wrapMode: Text.Wrap
     }
     ColumnLayout {
         id: contents
@@ -95,7 +95,7 @@ Item {
                     textFormat: Text.PlainText
                     color: hud.tone(hud.readings.tuningTone)
                     font.pixelSize: 11 * hud.scale; font.bold: true
-                    elide: Text.ElideRight
+                    wrapMode: Text.Wrap
                 }
                 Text {
                     objectName: "hud-applied-limit"
@@ -104,14 +104,14 @@ Item {
                     textFormat: Text.PlainText
                     color: NovaTheme.secondary
                     font.pixelSize: 9 * hud.scale
-                    elide: Text.ElideRight
+                    wrapMode: Text.Wrap
                 }
                 Text {
                     objectName: "hud-requested-bitrate"
                     Layout.fillWidth: true
                     text: hud.value("requestedBitrate") + " PC target"
                     color: NovaTheme.secondary; font.pixelSize: 9 * hud.scale
-                    elide: Text.ElideRight
+                    wrapMode: Text.Wrap
                 }
             }
         }

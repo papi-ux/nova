@@ -21,7 +21,7 @@ struct DeckHostSettingsController::Job {
     std::optional<DeckHostSettings> settings;
     QString phase = "unavailable", copy = "Couldn't verify these settings. Refresh to try again.";
     bool useProfile = false;
-    bool automatic = false, restoreSync = false;
+    bool automatic = false, restoreSync = false, enableSyncAfterImport = false;
     QVariantMap novaDefaults;
     std::function<bool()> identityValid;
 };
@@ -31,8 +31,11 @@ DeckHostSettingsController::DeckHostSettingsController(QObject* parent) : QObjec
     clock_.start();
     syncTimer_.setInterval(3000); // Frozen Android host-settings polling interval.
     connect(&syncTimer_, &QTimer::timeout, this, [this] {
-        if (opened_ && windowActive_ && (!sessionActive_ || readOnly_) && !busy() && resolver_ && (syncView_ || keepInStep() == "on")) start({}, {}, true);
+        if (!closing_ && opened_ && windowActive_ && (!sessionActive_ || readOnly_) && !busy() && resolver_ &&
+            (syncView_ || keepInStep() == "on" || keepInStep() == "pending")) start({}, {}, true);
     });
+    backgroundTimer_.setSingleShot(true);
+    connect(&backgroundTimer_, &QTimer::timeout, this, &DeckHostSettingsController::checkBackground);
     syncTimer_.start();
     publish("idle", "Open Every Game to check this PC's defaults.");
 }
@@ -49,15 +52,16 @@ void DeckHostSettingsController::publish(QString phase, QString copy) {
     const bool matched = settings_ && settings_->hasProfile() && settings_->overrideDisplay() == display && settings_->overrideBitrate() == bitrate;
     const bool canSend = ready && playSettings_ && settings_->displayOverride && settings_->bitrateOverride;
     const bool canUse = ready && playSettings_ && playSettings_->defaultsFromHost(settings_->overrideDisplay(), settings_->overrideBitrate()).has_value();
+    const auto sync = keepInStep();
     const QString profileState = !settings_ ? "Not verified" : !settings_->hasProfile() ? "No Polaris profile"
         : matched ? "Matches Nova" : "Different from Nova";
     QVariantList actions;
     const auto action = [&](QString id, QString label, QString detail, bool enabled) {
         actions.append(QVariantMap{{"id", id}, {"label", label}, {"detail", detail}, {"enabled", enabled}});
     };
-    action("match", "Match Nova", "Save Nova's default resolution, frame rate and bitrate for this paired device on Polaris.", canSend && !matched);
+    action("match", sync == "review" ? "Use Nova & Sync" : "Match Nova", "Save Nova's default resolution, frame rate and bitrate for this paired device on Polaris.", canSend && !matched);
     action("send", "Send Nova", "Send Nova's current stream defaults to this paired-device profile. Per-game choices are not sent.", canSend);
-    action("use", "Use Polaris", settings_ && settings_->hasProfile() && playSettings_ && !canUse && ready
+    action("use", sync == "review" ? "Use Polaris & Sync" : "Use Polaris", settings_ && settings_->hasProfile() && playSettings_ && !canUse && ready
         ? "This profile uses stream settings Nova Deck does not support yet. Nothing will be partly imported."
         : "Use the Polaris profile as Nova's defaults on this device, across PCs. Existing per-game overrides stay in place.", canUse);
     action("clear", "Clear profile", "Remove this paired device's resolution and bitrate overrides on Polaris. Nova's defaults stay in place.",
@@ -66,12 +70,15 @@ void DeckHostSettingsController::publish(QString phase, QString copy) {
     factory.remove("videoCodec"); factory.remove("profilePreference"); factory.remove("encoderBackend");
     action("reset", "Reset Nova defaults", "Restore 1280 × 800, 60 fps and 20 Mbps on this device. Keep per-game choices and the Polaris profile.",
         opened_ && windowActive_ && !readOnly_ && !sessionActive_ && !busy() && playSettings_ && (nova != factory || keepInStep() != "off"));
-    const auto sync = keepInStep();
     const QString syncCopy = job_ && job_->restoreSync && !job_->cancelled
         ? "Saving Nova's defaults to this paired PC profile. Choose Off to stop further automatic updates."
         : sync == "paused"
         ? "Keep in step is paused. Refresh to check both profiles, then choose Resume. No automatic save will be retried."
-        : "While this settings view is open, keep this paired PC profile matched to Nova's device defaults. Per-game choices stay separate. Use Polaris, Clear profile and Reset turn this off.";
+        : sync == "review"
+        ? "Polaris already has different stream settings. Choose Use Nova & Sync or Use Polaris & Sync before automatic syncing starts."
+        : sync == "pending"
+        ? "Keep in step is on for this new pairing. Nova will check the existing Polaris profile before its first automatic save."
+        : "Keep this paired PC profile matched to Nova's resolution, frame rate and bitrate while idle, including outside Settings. Per-game choices stay separate. Use Polaris, Clear profile and Reset turn this off.";
     QVariantMap next{{"phase", phase_}, {"copy", copy}, {"hostId", hostId_}, {"hostName", name_},
         {"supported", bool(resolver_)}, {"busy", busy()}, {"readOnly", readOnly_},
         {"canRefresh", opened_ && windowActive_ && (!sessionActive_ || readOnly_) && !busy()},
@@ -80,6 +87,7 @@ void DeckHostSettingsController::publish(QString phase, QString copy) {
         {"profileReview", settings_ ? settings_->profileReview() : QVariantMap{}},
         {"novaDefaults", nova}, {"novaDisplay", display}, {"novaBitrate", bitrate},
         {"keepInStep", sync}, {"keepInStepCopy", syncCopy}, {"canEnableSync", canSend && sync != "on"},
+        {"syncNeedsReview", !busy() && (sync == "review" || sync == "paused")},
         {"canDisableSync", !readOnly_ && !sessionActive_ && playSettings_ && !hostId_.isEmpty() && sync != "off"},
         {"canEditDefaults", opened_ && windowActive_ && !readOnly_ && !sessionActive_ && !busy() && playSettings_},
         {"canChangeResumeTimeout", ready && settings_->resumeTimeoutControl},
@@ -94,30 +102,68 @@ void DeckHostSettingsController::setPlaySettings(DeckPlaySettings* settings) {
             if (job_ && job_->automatic && job_->restoreSync) {
                 cancel();
                 publish("idle", "Nova's defaults changed during a save. Refresh before resuming Keep in step.");
-            } else publish(phase_, state_.value("copy").toString());
+            } else { publish(phase_, state_.value("copy").toString()); queueBackgroundCheck(); }
         });
     publish(phase_, state_.value("copy").toString());
+    queueBackgroundCheck();
 }
 void DeckHostSettingsController::cancel() {
     ++generation_;
-    if (job_) job_->cancelled = true;
+    if (job_) {
+        if (job_->automatic && !job_->restoreSync) backgroundPending_ = true;
+        job_->cancelled = true;
+    }
     settings_.reset(); idle_ = false;
 }
 void DeckHostSettingsController::setTarget(QString hostId, QString name, DeckHostSettingsResolver resolver) {
+    const bool connected = hostId != hostId_ || (!resolver_ && resolver);
     cancel(); hostId_ = std::move(hostId); name_ = std::move(name); resolver_ = std::move(resolver);
     publish("idle", "Refresh to check the selected PC's defaults.");
+    if (connected) queueBackgroundCheck();
 }
 void DeckHostSettingsController::setSessionActive(bool active) {
     if (sessionActive_ == active) return;
     sessionActive_ = active;
     if (active) cancel();
     publish("idle", active ? "Disconnect before changing host defaults." : "Refresh to check the host defaults.");
+    if (!active) queueBackgroundCheck();
 }
 void DeckHostSettingsController::setWindowActive(bool active) {
     if (windowActive_ == active) return;
     windowActive_ = active;
     if (!active) { cancel(); publish("idle", "Refresh after returning to Nova to check the current defaults."); }
-    else publish(phase_, state_.value("copy").toString());
+    else { publish(phase_, state_.value("copy").toString()); queueBackgroundCheck(); }
+}
+bool DeckHostSettingsController::automaticEligible() const {
+    return !closing_ && windowActive_ && !sessionActive_ && !busy() && resolver_ && playSettings_ &&
+        (opened_ ? !readOnly_ : !interactionPaused_ && !backgroundBlocked_);
+}
+void DeckHostSettingsController::queueBackgroundCheck() {
+    if (closing_ || (keepInStep() != "on" && keepInStep() != "pending")) return;
+    backgroundPending_ = true;
+    if (!backgroundTimer_.isActive()) backgroundTimer_.start(250);
+}
+void DeckHostSettingsController::checkBackground() {
+    if (closing_ || !backgroundPending_) return;
+    if (keepInStep() != "on" && keepInStep() != "pending") { backgroundPending_ = false; return; }
+    if (!automaticEligible()) { backgroundTimer_.start(1000); return; }
+    backgroundPending_ = false;
+    start({}, {}, true);
+}
+void DeckHostSettingsController::setBackgroundBlocked(bool blocked) {
+    if (backgroundBlocked_ == blocked) return;
+    backgroundBlocked_ = blocked;
+    if (blocked && !opened_ && job_ && job_->automatic) cancel();
+    if (!blocked && backgroundPending_ && !backgroundTimer_.isActive()) backgroundTimer_.start(250);
+}
+void DeckHostSettingsController::setInteractionPaused(bool paused) {
+    if (interactionPaused_ == paused) return;
+    interactionPaused_ = paused;
+    if (paused && !opened_ && job_ && job_->automatic) cancel();
+    if (!paused && backgroundPending_ && !backgroundTimer_.isActive()) backgroundTimer_.start(250);
+}
+void DeckHostSettingsController::shutdown() {
+    closing_ = true; syncTimer_.stop(); backgroundTimer_.stop(); cancel(); backgroundPending_ = false;
 }
 void DeckHostSettingsController::open() { cancel(); opened_ = true; readOnly_ = syncView_ = false; refresh(); }
 void DeckHostSettingsController::openSync(bool readOnly) {
@@ -125,7 +171,10 @@ void DeckHostSettingsController::openSync(bool readOnly) {
     publish("idle", readOnly ? "Refresh to compare the saved profiles. Changes stay locked during play." : "Refresh to compare Nova and Polaris.");
     refresh();
 }
-void DeckHostSettingsController::close() { opened_ = false; cancel(); publish("idle", "Open Every Game to check this PC's defaults."); }
+void DeckHostSettingsController::close() {
+    opened_ = readOnly_ = syncView_ = false;
+    cancel(); publish("idle", "Keep in step checks this PC while Nova is idle."); queueBackgroundCheck();
+}
 bool DeckHostSettingsController::refresh() {
     if (busy() || !opened_ || !windowActive_ || (sessionActive_ && !readOnly_)) return false;
     if (!resolver_ || hostId_.isEmpty()) { publish("unavailable", "Every Game requires a paired Polaris PC. Refresh the library or check its pairing."); return false; }
@@ -140,6 +189,8 @@ bool DeckHostSettingsController::profileAction(const QString& action) {
     for (const auto& item : state_.value("profileActions").toList())
         if (item.toMap().value("id") == action) enabled = item.toMap().value("enabled").toBool();
     if (!enabled || !playSettings_) return false;
+    const bool resolveFromPolaris = action == "use" && keepInStep() == "review";
+    if ((action == "match" || action == "send") && keepInStep() == "review" && !playSettings_->saveKeepInStep(hostId_, "on")) return false;
     // These explicit choices would otherwise be undone by the next sync poll.
     if ((action == "use" || action == "clear" || action == "reset") && keepInStep() != "off" && !setKeepInStep(false)) return false;
     if (action == "reset") {
@@ -147,7 +198,7 @@ bool DeckHostSettingsController::profileAction(const QString& action) {
         publish(phase_, "Nova's stream defaults were reset. Per-game choices and the Polaris profile were kept.");
         emit novaDefaultsChanged(); return true;
     }
-    start({}, action); return true;
+    start({}, action, false, -1, resolveFromPolaris); return true;
 }
 bool DeckHostSettingsController::saveDefaults(const QVariantMap& values, const QVariantMap& expected) {
     if (!state_.value("canEditDefaults").toBool() || !playSettings_ || playSettings_->streamDefaults() != expected) return false;
@@ -177,23 +228,35 @@ bool DeckHostSettingsController::setKeepInStep(bool enabled) {
         return false;
     }
     pausedHosts_.remove(hostId_);
+    if (!enabled) { backgroundPending_ = false; backgroundTimer_.stop(); }
     if (!enabled && job_ && (job_->automatic || job_->restoreSync)) cancel();
     publish(phase_, enabled ? "Keep in step is on for this PC." : "Keep in step is off for this PC.");
     if (enabled) maybeKeepInStep();
     return true;
 }
 void DeckHostSettingsController::maybeKeepInStep() {
-    if (keepInStep() != "on" || !opened_ || !windowActive_ || readOnly_ || sessionActive_ || busy() || !idle_ || !settings_ || !playSettings_) return;
+    if ((keepInStep() != "on" && keepInStep() != "pending") || !automaticEligible() || !idle_ || !settings_) return;
     if (!settings_->displayOverride || !settings_->bitrateOverride) {
         pauseKeepInStep(); publish(phase_, "This PC no longer allows profile updates. Keep in step is paused."); return;
     }
     const auto nova = playSettings_->streamDefaults();
-    if (settings_->overrideDisplay() == profileDisplay(nova) && settings_->overrideBitrate() == nova.value("bitrateKbps").toInt()) return;
-    if (lastSync_.contains(hostId_) && clock_.elapsed() - lastSync_.value(hostId_) < 5000) return;
+    const bool matched = settings_->overrideDisplay() == profileDisplay(nova) && settings_->overrideBitrate() == nova.value("bitrateKbps").toInt();
+    if (keepInStep() == "pending") {
+        const QString next = settings_->hasProfile() && !matched ? "review" : "on";
+        if (!playSettings_->saveKeepInStep(hostId_, next)) { pauseKeepInStep(); publish(phase_, "Couldn't save Keep in step. No automatic request was sent."); return; }
+        publish(phase_, state_.value("copy").toString());
+        if (next == "review") return;
+    }
+    if (matched) return;
+    if (lastSync_.contains(hostId_) && clock_.elapsed() - lastSync_.value(hostId_) < 5000) {
+        backgroundPending_ = true;
+        backgroundTimer_.start(int(5000 - (clock_.elapsed() - lastSync_.value(hostId_))));
+        return;
+    }
     lastSync_[hostId_] = clock_.elapsed();
     start({}, "send", true);
 }
-void DeckHostSettingsController::start(const QString& mode, const QString& profileAction, bool automatic, int resumeTimeout) {
+void DeckHostSettingsController::start(const QString& mode, const QString& profileAction, bool automatic, int resumeTimeout, bool enableSyncAfterImport) {
     const bool reading = mode.isEmpty() && profileAction.isEmpty() && resumeTimeout < 0;
     if (!reading && (readOnly_ || sessionActive_)) return;
     const bool syncWrite = !reading && resumeTimeout < 0 && profileAction != "use" && keepInStep() == "on";
@@ -206,6 +269,7 @@ void DeckHostSettingsController::start(const QString& mode, const QString& profi
     }
     auto job = std::make_shared<Job>(); job_ = job; job->generation = generation_; job->hostId = hostId_;
     job->automatic = automatic; job->restoreSync = syncWrite;
+    job->enableSyncAfterImport = enableSyncAfterImport;
     job->novaDefaults = playSettings_ ? playSettings_->streamDefaults() : QVariantMap{};
     const auto reviewed = settings_;
     if (!automatic) { settings_.reset(); idle_ = false; }
@@ -299,7 +363,14 @@ void DeckHostSettingsController::poll() {
                 job->copy = "Nova's defaults changed. Review the current values before using Polaris.";
             } else if (!imported) job->copy = "This profile uses unsupported stream settings. Nova's defaults were kept.";
             else if (!playSettings_->saveStreamDefaults(*imported)) job->copy = "Couldn't save Nova's defaults. Nothing was changed.";
-            else { job->copy = "Saved as Nova's defaults on this device. Per-game overrides were kept."; emit novaDefaultsChanged(); }
+            else {
+                job->copy = "Saved as Nova's defaults on this device. Per-game overrides were kept.";
+                if (job->enableSyncAfterImport) {
+                    if (playSettings_->saveKeepInStep(hostId_, "on")) job->copy += " Keep in step is on.";
+                    else { pauseKeepInStep(); job->copy += " Keep in step could not be saved and is paused."; }
+                }
+                emit novaDefaultsChanged();
+            }
         }
         if (job->restoreSync) {
             if (job->sent && job->phase == "ready" && playSettings_ && job->identityValid && job->identityValid() &&
@@ -317,5 +388,9 @@ void DeckHostSettingsController::poll() {
     // A fresh read may schedule one guarded save. No retry follows a failed,
     // stale or cancelled write, including after close/reopen or restart.
     if (!job->sent && !job->restoreSync && job->generation == generation_ && !job->cancelled && job->phase == "ready") maybeKeepInStep();
+    if (job->automatic && !job->sent && !job->restoreSync && job->generation == generation_ && !job->cancelled &&
+        job->phase == "ready" && !job->idle && (keepInStep() == "on" || keepInStep() == "pending")) {
+        backgroundPending_ = true; backgroundTimer_.start(5000);
+    }
 }
 }

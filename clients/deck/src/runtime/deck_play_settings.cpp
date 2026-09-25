@@ -313,12 +313,19 @@ QString DeckPlaySettings::keepInStep(const QString& hostId) const {
     const auto value = store(fileName_)->value(key);
     if (value.metaType().id() != QMetaType::QString) return "off";
     const auto state = value.toString();
-    return state == "on" || state == "paused" ? state : "off";
+    return state == "on" || state == "paused" || state == "pending" || state == "review" ? state : "off";
 }
-
+bool DeckPlaySettings::initializeKeepInStep(const QString& hostId) {
+    const auto key = syncKey(hostId);
+    if (key.isEmpty()) return false;
+    auto settings = store(fileName_);
+    // Called only after a newly completed pairing. Existing Off, paused and
+    // invalid records must never become permission for an automatic write.
+    return settings->contains(key) || writeValue(*settings, key, "pending");
+}
 bool DeckPlaySettings::saveKeepInStep(const QString& hostId, const QString& state) {
     const auto key = syncKey(hostId);
-    if (key.isEmpty() || (state != "off" && state != "on" && state != "paused")) return false;
+    if (key.isEmpty() || (state != "off" && state != "on" && state != "paused" && state != "pending" && state != "review")) return false;
     auto settings = store(fileName_);
     return writeValue(*settings, key, state);
 }

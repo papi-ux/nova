@@ -55,6 +55,34 @@ int main(int argc, char** argv) {
     check(gameToolRequest("game","reset",{})->method == "DELETE", "reset contract drift");
     check(gameToolReply("game","settings",{},game_tools_fixture::settings())->value("encoders").toList().size() == 1, "unavailable encoder exposed");
     check(gameToolReply("game","plan",config,game_tools_fixture::plan())->value("fields").toList().size() == 5, "resolved fields missing");
+    {
+        auto values = config; values["width"] = 1280; values["height"] = 800; values["fps"] = 60;
+        values["bitrateKbps"] = 20000; values["launchMode"] = "headless_stream"; values["encoderBackend"] = "vaapi";
+        const auto authorizes = [&](const QJsonObject& json, const QVariantMap& requested) {
+            const auto reply = gameToolReply("game", "plan", requested, host_settings_fixture::json(json));
+            return reply && reply->value("launchTopology") == "headless_stream";
+        };
+        const auto plan = game_tools_fixture::launchPlan();
+        check(authorizes(plan, values), "exact resolved plan could not authorize launch");
+        for (const auto* key : {"width", "height", "fps", "bitrateKbps"}) {
+            auto changed = values; changed[key] = changed[key].toInt() + 1;
+            check(!authorizes(plan, changed), "different stream settings authorized launch");
+        }
+        for (const auto* key : {"launchMode", "encoderBackend"}) {
+            auto changed = values; changed[key] = key == QString("launchMode") ? "host_virtual_display" : "nvenc";
+            check(!authorizes(plan, changed), "different launch choice authorized launch");
+        }
+        for (const auto* key : {"resolved", "requested", "app_uuid", "locked", "normalized", "source", "reason_code"}) {
+            auto changed = plan; auto topology = changed["topology_resolution"].toObject(); topology.remove(key); changed["topology_resolution"] = topology;
+            check(!authorizes(changed, values), "incomplete topology authorized launch");
+        }
+        auto hdr = plan; auto profile = hdr["resolved_profile"].toObject(); auto fields = profile["fields"].toObject();
+        auto value = fields["hdr"].toObject(); value["value"] = true; fields["hdr"] = value; profile["fields"] = fields; hdr["resolved_profile"] = profile;
+        check(!authorizes(hdr, values), "HDR plan authorized an SDR launch");
+        check(!gameToolReply("game", "plan", values, game_tools_fixture::plan())->contains("launchTopology"), "legacy preview authorized exact launch");
+        values["launchMode"] = "default"; values["encoderBackend"] = "";
+        check(authorizes(plan, values), "host default could not use a verified topology");
+    }
     for (const int fps : {15, 120, 144, 165, 240}) {
         auto high = config; high["fps"] = fps; high["bitrateKbps"] = 225500;
         const auto request = gameToolRequest("game", "plan", high);
@@ -75,10 +103,13 @@ int main(int argc, char** argv) {
     check(!settings.saveChoice("host","game",{{"encoderBackend","vaapi&appid=9"}}), "injected encoder saved");
     check(settings.resetChoice("host","game","profilePreference") && settings.load("host","game")["configuration"].toMap()["encoderBackend"] == "vaapi", "reset touched sibling setting");
     nova::deck::stream::DeckStreamRequest stream; stream.profilePreference = "quality"; stream.encoderBackend = "vaapi";
+    stream.bitrateKbps = 200000; stream.expectedTopology = "headless_stream";
     auto launch = nova::deck::stream::launchRequestForStream(stream,42,"game");
     const auto keys = nova::deck::stream::buildStreamKeys({},1);
     auto path = nova::deck::stream::buildLaunchTarget(launch,keys);
     check(path.find("profilePreference=quality") != std::string::npos && path.find("encoderBackend=vaapi") != std::string::npos,"choices lost before launch");
+    check(path.find("&resolvedProfile=1&bitrateKbps=200000&resolvedHdr=0&expectedTopology=headless_stream&expectedEncoder=vaapi") != std::string::npos,
+        "reviewed profile lost before launch");
     launch.resume = true; path = nova::deck::stream::buildLaunchTarget(launch,keys);
     check(path.find("profilePreference=") == std::string::npos && path.find("encoderBackend=") == std::string::npos,"resume changed launch settings");
     game_tools_fixture::Host host; DeckGameTools tools; tools.setTarget("host",host.resolver());
