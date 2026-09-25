@@ -527,7 +527,10 @@ class NovaThemeResourcesTest {
     @Test
     fun noAvcDecoderErrorDismissesSessionProgressOverlayBeforeDialog() {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
-        val noAvcBlock = game.substringAfter("if (!decoderRenderer!!.isAvcSupported)").substringBefore("return")
+        // The condition, not the whole line: it gained a second clause when a renderer arrived that
+        // reports no H.264 because it offers none, and this test is about what the block does rather
+        // than what decides to enter it.
+        val noAvcBlock = game.substringAfter("!decoderRenderer!!.isAvcSupported").substringBefore("return")
 
         assertTrue("No-AVC decoder error path should dismiss the verbose session progress overlay before showing the fatal dialog", noAvcBlock.contains("novaProgressOverlay?.dismiss()"))
         assertTrue("No-AVC decoder error path should still dismiss the legacy spinner for compatibility", noAvcBlock.contains("spinner!!.dismiss()"))

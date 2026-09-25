@@ -25,7 +25,9 @@ import com.papi.nova.binding.input.virtual_controller.VirtualController
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardController
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardLayoutController
 import com.papi.nova.binding.video.CrashListener
+import com.papi.nova.binding.video.BenchmarkRunResult
 import com.papi.nova.binding.video.MediaCodecDecoderRenderer
+import com.papi.nova.binding.video.NovaVideoRenderer
 import com.papi.nova.binding.video.MediaCodecHelper
 import com.papi.nova.binding.video.PerfOverlayListener
 import com.papi.nova.binding.video.PerfOverlaySample
@@ -337,7 +339,7 @@ private var performanceOverlayView:View? = null
 
 private var performanceOverlayBig:TextView? = null
 
-private var decoderRenderer:MediaCodecDecoderRenderer? = null
+private var decoderRenderer:NovaVideoRenderer? = null
 private var reportedCrash:Boolean = false
 
 private var highPerfWifiLock:WifiManager.WifiLock? = null
@@ -1189,7 +1191,9 @@ performanceOverlayView!!.setVisibility(View.VISIBLE)
 performanceOverlayBig!!.setVisibility(View.VISIBLE)
 }
 
-decoderRenderer = MediaCodecDecoderRenderer(
+decoderRenderer = if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE)
+com.papi.nova.binding.video.PyroWaveDecoderRenderer(this)
+else MediaCodecDecoderRenderer(
 this,
 prefConfig,
 object : CrashListener {
@@ -1260,7 +1264,7 @@ LimeLog.info("Balanced: preferLowerDelays=false, timeout=2000us")
 catch (ignored:Throwable) {}
 
  // Don't stream HDR if the decoder can't support it
-if (willStreamHdr && !decoderRenderer!!.isHevcMain10Hdr10Supported && !decoderRenderer!!.isAv1Main10Supported)
+if (willStreamHdr && !decoderRenderer!!.isHdr10Supported)
 {
 willStreamHdr = false
 NovaSnackbar.showError(this, getString(R.string.nova_hdr_decoder_unsupported))
@@ -1440,6 +1444,42 @@ NovaSnackbar.showError(this, getString(R.string.nova_decoder_no_av1))
 
  // H.264 is always supported
         var supportedVideoFormats:Int = MoonBridge.VIDEO_FORMAT_H264
+if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE)
+{
+ // On its own or not at all. Offering H.264 beside it would let a host that cannot serve the
+        // codec hand back H.264 instead, which looks like it worked and is the hardest kind of wrong
+        // to notice. The library refuses the session with a reason instead.
+        //
+        // The ten bit formats only when this display can show HDR10, which is the same question the
+        // rest of Nova already asks before requesting an HDR stream. Asking for HDR on a panel that
+        // cannot present it would end the session at the swapchain, because an HDR stream has nothing
+        // to be shown as: the frames are PQ encoded BT.2020 and an sRGB surface makes them dark and
+        // oversaturated rather than merely different.
+        supportedVideoFormats = if (willStreamHdr)
+        {
+            MoonBridge.VIDEO_FORMAT_PYROWAVE_10BIT or MoonBridge.VIDEO_FORMAT_PYROWAVE_444_10BIT
+        }
+        else
+        {
+            MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444
+        }
+
+ // Said rather than silently corrected, because the bitrate is the player's to choose and a
+        // stream that quietly used four times the bandwidth asked for would be worse than a soft
+        // picture. Every frame of this codec is a keyframe, so a budget that would carry H.264
+        // comfortably leaves this one nothing to spend on detail, and the result looks like a broken
+        // codec rather than a starved one.
+        val wantedMbps = com.papi.nova.binding.video.PyroWaveDecoderRenderer.advisedMbps(
+prefConfig!!.width, prefConfig!!.height, prefConfig!!.fps.toInt())
+if (wantedMbps > 0 && prefConfig!!.bitrate < wantedMbps * 1000)
+{
+LimeLog.warning("PyroWave: " + prefConfig!!.bitrate + " kbps for " + prefConfig!!.width + "x" +
+prefConfig!!.height + " at " + prefConfig!!.fps.toInt() + "; it wants about " + wantedMbps + " Mbps")
+NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, wantedMbps))
+}
+}
+else
+{
 if (decoderRenderer!!.isHevcSupported)
 {
 supportedVideoFormats = supportedVideoFormats or MoonBridge.VIDEO_FORMAT_H265
@@ -1454,6 +1494,7 @@ supportedVideoFormats = supportedVideoFormats or MoonBridge.VIDEO_FORMAT_AV1_MAI
 if (willStreamHdr && decoderRenderer!!.isAv1Main10Supported)
 {
 supportedVideoFormats = supportedVideoFormats or MoonBridge.VIDEO_FORMAT_AV1_MAIN10
+}
 }
 }
 var gamepadMask:Int = ControllerHandler.getAttachedControllerMask(this).toInt()
@@ -1741,7 +1782,13 @@ initVirtualController()
 initKeyboardController()
 }
 
-if (!decoderRenderer!!.isAvcSupported)
+  // H.264 is the floor for every codec that negotiates against it, so a device with no AVC decoder
+        // cannot stream at all and is told so here. PyroWave is not one of those: it reports no H.264
+        // because it offers no H.264, deliberately, and telling someone who chose it that their device
+        // cannot decode a codec they did not ask for is a wrong answer to a question nobody asked. A
+        // host that cannot serve it refuses the session later, with a reason that is about the codec.
+        if (!decoderRenderer!!.isAvcSupported &&
+prefConfig!!.videoFormat != PreferenceConfiguration.FormatOption.FORCE_PYROWAVE)
 {
 novaProgressOverlay?.dismiss()
 if (spinner != null)
@@ -5472,6 +5519,12 @@ NovaSnackbar.showError(this@Game, getString(R.string.video_decoder_init_failed))
 }
 
 var dialogText:String = getResources().getString(R.string.conn_error_msg) + " " + stage + " (error " + errorCode + ")"
+ // The codec that was asked for was not on offer, which the generic sentence turns into a
+                    // firewall hunt. Nothing is wrong with the network and no port will fix it.
+                    if (errorCode == MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE)
+{
+dialogText = getResources().getString(R.string.nova_pyrowave_profile_unavailable)
+}
  // A Polaris host says why it refused; that beats "error 503" and a generic sentence.
 val hostRefusal = conn?.lastHostRefusal
 if (hostRefusal != null && errorCode != 0)
@@ -5498,7 +5551,10 @@ else -> {
                         }
 }
 
-if (portFlags != 0)
+ // Not when the refusal was about the codec. The ports are reported for whatever the handshake
+                    // happened to be using, and listing them under a sentence that just said the network is
+                    // fine sends someone to open ports that are already open.
+                    if (portFlags != 0 && errorCode != MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE)
 {
 dialogText += ("\n\n" + getResources().getString(R.string.check_ports_msg) + "\n" +
 MoonBridge.stringifyPortFlags(portFlags, "\n"))
@@ -7466,7 +7522,7 @@ companion object {
  }
 
  @JvmStatic
- fun stopBenchmarkCapture():MediaCodecDecoderRenderer.BenchmarkRunResult? {
+ fun stopBenchmarkCapture():BenchmarkRunResult? {
   return instance?.decoderRenderer?.stopBenchmarkCapture()
  }
 

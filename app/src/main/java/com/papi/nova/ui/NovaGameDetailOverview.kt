@@ -1117,7 +1117,12 @@ private fun novaGameDetailStatusText(
     return listOf(
         // A Host Virtual launch adds a screen to the desk, which is worth saying before Play.
         // This named the host's default instead, so a Host Virtual launch read Private Stream.
-        PolarisStreamDisplayMode.labelForMode(uiState.playMode).takeIf { uiState.playUsesVirtualDisplay },
+        //
+        // The host's own answer outranks the request when the two differ. Desktop asks for a Host
+        // Virtual Display and Polaris resolves Mirror Desktop, because its semantics are the
+        // desktop, so promising a new screen here was wrong about what pressing Play does.
+        summary?.resolvedTopologyLabel?.takeIf { it.isNotBlank() }
+            ?: PolarisStreamDisplayMode.labelForMode(uiState.playMode).takeIf { uiState.playUsesVirtualDisplay },
         summary?.selectedLine,
         summary?.limitingLine?.takeIf { it.isNotBlank() } ?: summary?.freshnessLine,
     ).filter { !it.isNullOrBlank() }.joinToString("  ·  ")

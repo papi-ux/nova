@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+## 1.4.13 - 2026-09-24
+
+A new codec you can try on a wired link, a Desktop entry that answers for itself, and a Command Center that stays where you left it. Nova 1.4.13 is matched with Polaris 1.4.13.
+
+**PyroWave, a new codec (experimental, beta builds only)**
+
+- Nova can decode PyroWave, an intra only wavelet codec that runs as plain Vulkan compute rather than on a hardware video decoder. A lost packet costs one frame instead of everything up to the next keyframe.
+- Pick it under Video codec in Play Setup. It appears only in a beta build, installed beside your stable Nova, and only a Polaris 1.4.13 host can serve it.
+- It wants a wired link at a couple of hundred megabits. It is not a codec for wifi, and it is not a replacement for HEVC or AV1.
+- 4:4:4 and HDR10 both work. HDR is off unless you turn it on, because a device that cannot present it would be refused the stream rather than given an SDR one.
+- The HUD reports the network's loss rather than your device's, and it tells you the bitrate this codec wants rather than judging it at a setting it cannot meet.
+- A frame that lost a packet is still drawn, so a lossy moment looks like a lossy moment instead of a freeze.
+
+**Desktop, and the screen it runs on**
+
+- Desktop opens from a client that has picked a display mode of its own. Nova used to be refused by the host for asking, and the refusal now says what it was about.
+- The Desktop entry answers for itself. It mirrors the screen on the desk by default, whatever the host's default display is, and its picker offers only what can actually happen.
+- **Screen To Add** and **Screen Scale** are per device, in Play Setup. A screen the host creates is sized from this device rather than from the stream, and the scale decides whether it can be read: a 2560x1600 desktop is comfortable on a monitor and unusable on a ten inch tablet.
+
+**Command Center**
+
+- It stays open when you change a setting, instead of closing and making you find your way back.
+- The Play Setup legend follows the card you are on by name rather than by position.
+
+**Nova for Steam Deck (Alpha)**
+
+- It says what the host said. A refused launch now carries the host's own reason instead of a generic failure.
+- It ships Nova's own icon.
+
+**Beta releases**
+
+- A beta is published as a prerelease, tagged `v1.4.13-beta.N`, and installs beside your stable Nova rather than replacing it. Nothing reaches you unless you go and get it.
+
 ## 1.4.12 - 2026-09-22
 
 Nova comes to the Steam Deck as an Alpha, Spaces open Heroic and Lutris beside Steam, and Watch works whatever size your screen is. Nova 1.4.12 is matched with Polaris 1.4.12.

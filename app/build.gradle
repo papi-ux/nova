@@ -49,6 +49,11 @@ def moonlightCommonCRequiredFiles = moonlightCommonCRequiredPaths.collect { rela
     [relativePath: relativePath, sourceFile: file("${moonlightCommonCPath}/${relativePath}")]
 }
 
+// Resolved here rather than inside the task, because the configuration cache will not let a task
+// body reach back into the build script for a file.
+def moonlightNegotiationSource = file("${moonlightCommonCPath}/src/RtspConnection.c")
+def moonlightPatchesPath = "src/main/jni/moonlight-core/patches"
+
 TaskProvider<Task> verifyMoonlightCommonCSubmodule = tasks.register("verifyMoonlightCommonCSubmodule") {
     group = "verification"
     description = "Verifies that the moonlight-common-c git submodule is initialized before native builds run."
@@ -77,6 +82,27 @@ Missing expected files:
 ${missingPaths.collect { "  - ${moonlightCommonCPath}/${it}" }.join("\n")}
 """.stripIndent().trim())
         }
+
+        // PyroWave is negotiated inside the streaming library, and Nova carries those changes as a
+        // patch series rather than a fork. Without them the library does not know the format, so a
+        // client that asks for it gets a session that negotiates something else while Nova has
+        // already built a PyroWave renderer: a failure with no good error to give. Cheaper to find
+        // out here, where the fix is one command.
+        if (moonlightNegotiationSource.isFile() &&
+                !moonlightNegotiationSource.text.contains("PYROWAVE_PROFILE_TOKEN")) {
+            throw new GradleException("""
+The moonlight-common-c submodule is missing Nova's PyroWave protocol patches.
+
+From the repository root:
+
+    cd ${moonlightCommonCPath}
+    git checkout -b polaris-pyrowave
+    git am ../patches/*.patch
+
+See ${moonlightPatchesPath}/README.md for what they are and why they are a patch series rather
+than a fork.
+""".stripIndent().trim())
+        }
     }
 }
 
@@ -102,8 +128,8 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionName "1.4.12"
-        versionCode = 53
+        versionName "1.4.13"
+        versionCode = 54
 
         buildConfigField "boolean", "FDROID_BUILD", fdroidBuild.toString()
 
@@ -111,6 +137,10 @@ android {
         // only by the benchmark build type below - every other build type
         // gets this false default, same pattern FDROID_BUILD uses.
         buildConfigField "boolean", "BENCHMARK_BUILD", "false"
+        // Whether this build may offer a codec that is still an experiment. A debug build and a beta
+        // may; a release may not. It gates the value as well as the picker entry, so a release that
+        // inherited the preference from a profile or a backup still streams as it always did.
+        buildConfigField "boolean", "EXPERIMENTAL_CODECS", "false"
 
         // Generate native debug symbols to allow Google Play to symbolicate our native crashes
         ndk.debugSymbolLevel = 'FULL'
@@ -212,6 +242,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
+            buildConfigField "boolean", "EXPERIMENTAL_CODECS", "true"
             resValue "string", "app_label", "Nova Debug"
             resValue "string", "app_label_root", "Nova Debug (Root)"
             resValue "string", "app_label_game", "Nova Debug (Game)"
@@ -266,6 +297,8 @@ android {
 
         preRelease {
             initWith release
+            // After initWith, which copies release's value over.
+            buildConfigField "boolean", "EXPERIMENTAL_CODECS", "true"
             applicationIdSuffix ".pre"
             versionNameSuffix novaVersionSuffix
             resValue "string", "app_label", "Nova Pre"
@@ -306,6 +339,12 @@ android {
             resValue "string", "app_label_game", "Nova Benchmark (Game)"
             buildConfigField "boolean", "BENCHMARK_BUILD", "true"
         }
+    }
+
+    sourceSets {
+        // The experimental codec picker entry, for the two build types that may offer it.
+        debug.res.srcDirs += 'src/experimental/res'
+        preRelease.res.srcDirs += 'src/experimental/res'
     }
 
     externalNativeBuild {

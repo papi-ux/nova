@@ -136,6 +136,9 @@ data class StreamPolicyUiState(
                 lower.contains("av1") -> "AV1"
                 lower.contains("hevc") || lower.contains("h265") -> "HEVC"
                 lower.contains("h264") || lower.contains("avc") -> "H.264"
+                // Its own name rather than an uppercased one, because this label has room for it and
+                // PYROWAVE shouted where the others do not.
+                lower.contains("pyrowave") || lower.contains("pyro") -> "PyroWave"
                 codec.isBlank() -> ""
                 else -> codec.uppercase()
             }

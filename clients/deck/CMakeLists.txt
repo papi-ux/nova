@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 # The release version, kept equal to versionName in app/build.gradle by NovaReleaseMetadataTest.
-project(NovaDeck VERSION 1.4.12 LANGUAGES C CXX)
+project(NovaDeck VERSION 1.4.13 LANGUAGES C CXX)
 
 # Only builds exported to a signed update feed enable the in-app updater.
 set(NOVA_DECK_UPDATE_CHANNEL "" CACHE STRING "Flatpak update branch: stable, beta or pyrowave")

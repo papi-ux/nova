@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.view.Display
 import androidx.preference.PreferenceManager
+import com.papi.nova.BuildConfig
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.utils.AndroidStreamDisplayTarget
@@ -29,6 +30,16 @@ class PreferenceConfiguration {
         FORCE_AV1,
         FORCE_HEVC,
         FORCE_H264,
+
+        /**
+         * PyroWave, offered in debug builds only while it is being brought up.
+         *
+         * Unlike the others this is not a preference among codecs a host will already stream. Asking
+         * for it is exclusive: the client offers this format and nothing else, so a host that cannot
+         * serve the exact profile refuses the session with a reason rather than quietly returning
+         * H.264 under the name of the codec that was chosen.
+         */
+        FORCE_PYROWAVE,
     }
 
     enum class AnalogStickForScrolling {
@@ -285,6 +296,18 @@ class PreferenceConfiguration {
         private const val DEFAULT_HIDE_OSC_WHEN_HAS_GAMEPAD = true
         private const val ONLY_L3_R3_DEFAULT = false
         private const val SHOW_GUIDE_BUTTON_DEFAULT = true
+        /**
+         * Off until the player asks.
+         *
+         * It was turned on by default and turned back, because asking is a promise on this codec even
+         * though it is not on the others. Requesting HDR offers the ten bit formats and nothing else,
+         * so a panel that cannot present them has no eight bit offer to fall back to: the renderer
+         * fails at its swapchain and the session dies, where HEVC would simply have streamed SDR.
+         *
+         * Turning this back on wants two things first: the request gated on the panel rather than on
+         * the preference alone, and both depths offered so a host or a client that cannot do HDR can
+         * still be served.
+         */
         private const val DEFAULT_ENABLE_HDR = false
         private const val DEFAULT_ENABLE_PIP = false
         private const val DEFAULT_ENABLE_PERF_OVERLAY = false
@@ -499,6 +522,11 @@ class PreferenceConfiguration {
                 "forceav1" -> FormatOption.FORCE_AV1
                 "forceh265" -> FormatOption.FORCE_HEVC
                 "neverh265" -> FormatOption.FORCE_H264
+                // Honoured only where the picker offers it. A release build that inherited the
+                // value, from a profile, a backup, or a debug build on the same device, streams as
+                // it always did rather than asking for a codec it does not expose.
+                "forcepyrowave" ->
+                    if (BuildConfig.EXPERIMENTAL_CODECS) FormatOption.FORCE_PYROWAVE else FormatOption.AUTO
                 else -> FormatOption.AUTO
             }
         }

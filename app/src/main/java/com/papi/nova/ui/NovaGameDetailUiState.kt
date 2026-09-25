@@ -57,6 +57,8 @@ data class NovaGameDetailUiState(
     val hostStreamDisplayMode: String,
     val hostStreamDisplayModeLabel: String,
     val hostStreamDisplayModeUnavailableReason: String,
+    /** Whether this entry takes the host's Default Display when nobody chose for it. */
+    val followsHostDefault: Boolean = true,
     /** True only when this client stored a per-game launch-mode override. */
     val hasExplicitOverride: Boolean,
     /**
@@ -238,6 +240,7 @@ data class NovaGameDetailUiState(
                 hostStreamDisplayMode = hostStreamDisplayMode,
                 hostStreamDisplayModeLabel = hostStreamDisplayModeLabel,
                 hostStreamDisplayModeUnavailableReason = hostStreamDisplayModeUnavailableReason,
+                followsHostDefault = game.launchMode?.followsHostDefault != false,
                 hasExplicitOverride = !perGameOverride.isNullOrBlank(),
                 hostProfileLabel = hostProfileLabel(clientSettings),
                 runsInSpace = NovaSpaceUiState.isSpace(game),

@@ -1,0 +1,9 @@
+Nova 1.4.13
+
+Desktop opens from a client that has picked its own display mode, and the Desktop entry answers for itself: it mirrors the screen on the desk by default and offers only what can actually happen.
+
+Screen To Add and Screen Scale are per device in Play Setup, so a screen the host creates is sized and scaled for whatever asked for it.
+
+The Command Center stays open when you change a setting.
+
+On Steam Deck, a refused launch says what the host said.

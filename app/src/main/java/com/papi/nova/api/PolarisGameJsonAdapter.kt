@@ -16,7 +16,8 @@ object PolarisGameJsonAdapter {
                 preferredMode = PolarisGame.normalizeLaunchMode(modeJson.optString("preferred_mode", "")),
                 recommendedMode = PolarisGame.normalizeLaunchMode(modeJson.optString("recommended_mode", "")),
                 allowedModes = PolarisGame.normalizeLaunchModes(fetchStringArray(modeJson.optJSONArray("allowed_modes")), defaultWhenEmpty = true),
-                modeReason = modeJson.optString("mode_reason", "")
+                modeReason = modeJson.optString("mode_reason", ""),
+                followsHostDefault = modeJson.optBoolean("follows_host_default", true)
             )
         }
         val steamLaunch = json.optJSONObject("steam_launch")?.let { launchJson ->

@@ -183,7 +183,15 @@ data class PolarisGame(
         @SerialName("preferred_mode") val preferredMode: String = "",
         @SerialName("recommended_mode") val recommendedMode: String = "",
         @SerialName("allowed_modes") val allowedModes: List<String> = emptyList(),
-        @SerialName("mode_reason") val modeReason: String = ""
+        @SerialName("mode_reason") val modeReason: String = "",
+        /**
+         * Whether this entry takes the host's configured display when nobody chose for it.
+         *
+         * The Desktop entry does not: it is the desktop, so mirroring is its own answer rather than
+         * a preference inherited from however the host prefers to run games. Defaults true, which is
+         * both what every other entry wants and what a host too old to say anything meant.
+         */
+        @SerialName("follows_host_default") val followsHostDefault: Boolean = true
     ) {
         fun allows(mode: String): Boolean = normalizeLaunchModes(allowedModes).contains(normalizeLaunchMode(mode))
     }

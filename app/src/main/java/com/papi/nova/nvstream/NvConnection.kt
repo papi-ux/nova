@@ -210,7 +210,7 @@ class NvConnection(
         val hostWatchProfile = NvHTTP.parseCurrentGameWatchProfile(serverInfo)
 
         context.negotiatedHdr = (streamConfig.getSupportedVideoFormats() and MoonBridge.VIDEO_FORMAT_MASK_10BIT) != 0
-        if ((context.serverCodecModeSupport and 0x20200) == 0 && context.negotiatedHdr) {
+        if ((context.serverCodecModeSupport and HOST_SERVES_HDR) == 0 && context.negotiatedHdr) {
             if (streamConfig.getResolvedProfile()) {
                 listener.displayMessage(
                     "The host can no longer honor the resolved HDR profile. " +
@@ -898,6 +898,15 @@ class NvConnection(
     }
 
     companion object {
+        /**
+         * The host capability bits that mean this host can serve an HDR stream.
+         *
+         * HEVC Main10 and AV1 Main10, which is what this was, plus PyroWave's own HDR10. A host that
+         * advertises only the last of those is still an HDR host, and asking only about the first two
+         * told it that its GPU cannot stream HDR and served SDR instead.
+         */
+        private const val HOST_SERVES_HDR = 0x200 or 0x20000 or 0x02000000
+
         private var connectionAllowed = Semaphore(1)
 
         private fun generateRiAesKey(): SecretKey {

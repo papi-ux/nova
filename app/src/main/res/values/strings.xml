@@ -337,13 +337,15 @@
     <string name="nova_play_setup_mode_dongle_detail">Moves the desktop to a dummy plug. Privacy blanks the real panel after one-time portal approval is saved; the approval session keeps it on. Off keeps it active. Configure this once as the host default.</string>
     <string name="nova_play_setup_mode_mirror_detail">Streams everything visible on the host, including notifications.</string>
     <string name="nova_play_setup_mode_takeover_detail">Moves the live Hyprland desktop to a temporary streaming display, then restores the physical monitors when streaming ends.</string>
-    <string name="nova_play_setup_band_private">Private — your desktop stays untouched</string>
-    <string name="nova_play_setup_band_host">Host display — uses or swaps the host screen</string>
-    <string name="nova_play_setup_host_default_entry_detail">Follow the host\'s Default Display — currently %1$s</string>
+    <string name="nova_play_setup_band_private">Private: your desktop stays untouched</string>
+    <string name="nova_play_setup_band_host">Host display: uses or swaps the host screen</string>
+    <string name="nova_play_setup_host_default_entry_detail">Follow the host\'s Default Display, currently %1$s</string>
+    <string name="nova_play_setup_host_default_entry_own_detail">Let this entry answer, currently %1$s</string>
     <string name="nova_play_setup_ai_pick">Host match</string>
     <string name="nova_play_setup_fact_host_profile">Host profile</string>
     <string name="nova_play_setup_host_overridden">This game overrides it. Every other game follows the host.</string>
     <string name="nova_play_setup_host_followed">This game follows it.</string>
+    <string name="nova_play_setup_host_not_followed">This entry answers for itself, and uses %1$s.</string>
     <string name="nova_play_setup_host_safe_fallback">This host mode is not ready, so this launch uses %1$s instead.</string>
     <string name="nova_play_setup_every_game">Every Game</string>
     <string name="nova_play_setup_pref_auto">Uses this launch request and paired-device settings, normalized only for current capabilities.</string>
@@ -362,7 +364,7 @@
     <string name="nova_play_setup_host_intro">Every game that doesn\'t choose for itself gets this.</string>
     <string name="nova_play_setup_fact_desired">Desired</string>
     <string name="nova_play_setup_fact_effective">Effective</string>
-    <string name="nova_play_setup_host_effective_pending">Not what this session is running — the change applies at relaunch.</string>
+    <string name="nova_play_setup_host_effective_pending">Not what this session is running. The change applies at relaunch.</string>
     <string name="nova_play_setup_host_effective_matches">What sessions are actually getting right now.</string>
     <string name="nova_play_setup_host_default_display">Default Display</string>
     <string name="nova_play_setup_host_default_display_caption">Which display new sessions get on this host</string>
@@ -391,6 +393,16 @@
          nouns, because the strip explains a change not yet made. -->
     <string name="nova_play_setup_where_caption">Which display Polaris makes for this session</string>
     <string name="nova_play_setup_strip_where">If you changed where it runs</string>
+    <string name="nova_play_setup_screen_to_add">Screen To Add</string>
+    <string name="nova_play_setup_screen_to_add_caption">How big a display Polaris creates for this device</string>
+    <string name="nova_play_setup_strip_screen_to_add">If you changed the screen to add</string>
+    <string name="nova_play_setup_screen_to_add_device">Match this device</string>
+    <string name="nova_play_setup_screen_to_add_stream">Follow the stream</string>
+    <string name="nova_play_setup_screen_to_add_stream_consequence">The screen is made the size you stream at, which may not be this screen\'s shape.</string>
+    <string name="nova_play_setup_screen_scale">Screen Scale</string>
+    <string name="nova_play_setup_screen_scale_caption">How big things are on the display Polaris creates</string>
+    <string name="nova_play_setup_strip_screen_scale">If you changed the screen scale</string>
+    <string name="nova_play_setup_screen_scale_device">Match this device</string>
     <string name="nova_play_setup_place_legend">About this place</string>
     <string name="nova_play_setup_resolution">Resolution</string>
     <string name="nova_play_setup_resolution_caption">The display is made to match this handheld</string>
@@ -588,7 +600,7 @@
     <string name="nova_polaris_sync_unset">Unset</string>
     <string name="nova_polaris_sync_close">Close</string>
     <string name="nova_polaris_sync_close_cd">Close Polaris Sync</string>
-    <string name="nova_polaris_sync_status_saved_relaunch">Saved — applies after relaunch</string>
+    <string name="nova_polaris_sync_status_saved_relaunch">Saved, applies after relaunch</string>
     <string name="nova_polaris_sync_status_selected">Selected</string>
     <string name="nova_polaris_sync_status_active_now">Active now</string>
     <string name="nova_polaris_sync_status_available">Available</string>
@@ -805,7 +817,7 @@
     <string name="summary_seekbar_metered_bitrate">High bitrates consume more data, lower bitrates improve smoothness in metered networks.\nSet 0 for ¼ of the above bitrate settings.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="title_resolution_scale_factor">Resolution Scale Factor</string>
-    <string name="summary_resolution_scale_factor">Server side requested virtual screen resolution will be multiplied by this factor. Streaming resolution are not affected.\ne.g. 120% will make 2000x1000 become 2400x1200.\nSetting a higher scale factor will improve image quality for some games.\nRequires a host that supports virtual display scaling.</string>
+    <string name="summary_resolution_scale_factor">Multiplies the resolution this session renders and streams.\ne.g. 120% makes 1920x1080 into 2304x1296: more detail, more bandwidth, and everything on screen a little smaller.\nTo make a desktop Polaris creates readable instead, use Screen Scale in Play Setup.</string>
     <string name="resolution_prefix_native">Native</string>
     <string name="resolution_prefix_native_fullscreen">Native Full-Screen</string>
     <string name="resolution_prefix_native_landscape">(Landscape)</string>
@@ -1151,8 +1163,8 @@
     <string name="nova_lock_overlay_unlocking">Unlocking…</string>
     <string name="nova_lock_overlay_unlock_failed">Unlock request failed</string>
     <string name="nova_pairing_auto_success">Paired automatically with this host</string>
-    <string name="nova_pairing_auto_fallback_pin">Automatic pairing failed — switching to PIN</string>
-    <string name="nova_pairing_auto_unsupported">This host doesn\'t support automatic pairing — update Polaris or pair with OTP/PIN</string>
+    <string name="nova_pairing_auto_fallback_pin">Automatic pairing failed, switching to PIN</string>
+    <string name="nova_pairing_auto_unsupported">This host doesn\'t support automatic pairing. Update Polaris or pair with OTP/PIN</string>
     <string name="nova_launch_deterministic_host_required">Update Polaris before launching. This Nova version requires deterministic launch profiles and will not use legacy recovery or AI launch settings.</string>
     <string name="nova_launch_host_unreachable">Nova could not reach Polaris to set this launch up. Check that the host is awake and on the network, then try again.</string>
     <string name="nova_launch_retry">Nova could not finish setting this launch up. Go back to the library and try again.</string>
@@ -1759,7 +1771,7 @@
     <string name="nova_library_launch_missing_session">Missing Polaris session details for launch</string>
     <string name="nova_library_resume_missing_session">Missing Polaris session details for resume</string>
     <!-- Were English literals in PcView.handleQrScanResult. -->
-    <string name="nova_qr_invalid_code">Invalid QR code — expected a Polaris pairing code</string>
+    <string name="nova_qr_invalid_code">Invalid QR code, expected a Polaris pairing code</string>
     <string name="nova_qr_missing_pairing_data">QR code is missing pairing data</string>
     <!-- Were English literals in StreamSettings. -->
     <string name="nova_settings_opening_legacy">Opening legacy settings for %1$s</string>
@@ -1867,4 +1879,6 @@
     <string name="nova_space_leave_action">Leave Space</string>
     <string name="nova_space_leave_caption">Ends this Space’s game session. Games, saves and sign-in stay in the Space.</string>
     <string name="pcview_card_hint_spaces">Spaces available. Change Space from the library.</string>
+    <string name="nova_pyrowave_profile_unavailable">This host does not offer the PyroWave profile this build of Nova can decode. Both ends have to carry the same codec revision. Nothing is wrong with your network.</string>
+    <string name="nova_pyrowave_bitrate_low">PyroWave asks for about %1$d Mbps at this resolution and frame rate. Every frame is a keyframe, so a smaller budget goes on the frame rather than on the detail.</string>
 </resources>

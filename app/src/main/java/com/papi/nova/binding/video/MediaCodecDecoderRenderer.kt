@@ -54,13 +54,13 @@ class MediaCodecDecoderRenderer(
     private val invertResolution: Boolean,
     private val glRenderer: String,
     private val perfListener: PerfOverlayListener,
-) : VideoDecoderRenderer(), Choreographer.FrameCallback {
+) : NovaVideoRenderer(), Choreographer.FrameCallback {
     private var preferLowerDelays = false
 
     @Volatile
     private var forceTightThresholds = false
 
-    fun setForceTightThresholds(v: Boolean) {
+    override fun setForceTightThresholds(v: Boolean) {
         forceTightThresholds = v
     }
 
@@ -80,7 +80,7 @@ class MediaCodecDecoderRenderer(
     @Volatile
     private var preferLowerDelaysTimeoutUs = 2000
 
-    fun setPreferLowerDelaysTimeoutUs(us: Int) {
+    override fun setPreferLowerDelaysTimeoutUs(us: Int) {
         preferLowerDelaysTimeoutUs = max(0, us)
     }
 
@@ -177,7 +177,7 @@ class MediaCodecDecoderRenderer(
         }
     }
 
-    fun setPreferLowerDelays(v: Boolean) {
+    override fun setPreferLowerDelays(v: Boolean) {
         preferLowerDelays = v
     }
 
@@ -215,7 +215,7 @@ class MediaCodecDecoderRenderer(
 
     @Volatile
     private var activeDecoderNameValue = ""
-    val activeDecoderName: String
+    override val activeDecoderName: String
         get() = activeDecoderNameValue
     private var renderTarget: Surface? = null
 
@@ -345,18 +345,6 @@ class MediaCodecDecoderRenderer(
      * mismatch), the harness-provided run parameters echoed back
      * verbatim, and both elapsed-realtime endpoints.
      */
-    class BenchmarkRunResult(
-        val runId: String,
-        val capture: BenchmarkStageCapture,
-        val initialStreamGeneration: Int,
-        val terminalStreamGeneration: Int,
-        val expectedDurationNs: Long,
-        val durationToleranceNs: Long,
-        val drainGraceNs: Long,
-        val manifestSha256: String?,
-        val startedElapsedRealtimeNs: Long,
-        val stoppedElapsedRealtimeNs: Long,
-    )
 
     @Volatile
     private var benchmarkRun: BenchmarkRunState? = null
@@ -372,7 +360,7 @@ class MediaCodecDecoderRenderer(
      * (see BenchmarkRunState's doc comment) has no drain step of its own,
      * so drainGraceNs is never acted on here.
      */
-    fun armBenchmarkCapture(
+    override fun armBenchmarkCapture(
         runId: String,
         expectedDurationNs: Long,
         durationToleranceNs: Long,
@@ -400,7 +388,7 @@ class MediaCodecDecoderRenderer(
      * doc comment) has no separate drain step, so stop IS the drain point.
      * Returns null if none was armed.
      */
-    fun stopBenchmarkCapture(): BenchmarkRunResult? {
+    override fun stopBenchmarkCapture(): BenchmarkRunResult? {
         val run = benchmarkRun ?: return null
         benchmarkRun = null
         return BenchmarkRunResult(
@@ -662,17 +650,17 @@ class MediaCodecDecoderRenderer(
         return decoderInfo
     }
 
-    fun setRenderTarget(renderTarget: Surface?) {
+    override fun setRenderTarget(renderTarget: Surface?) {
         this.renderTarget = renderTarget
     }
 
-    val isHevcSupported: Boolean
+    override val isHevcSupported: Boolean
         get() = hevcDecoder != null
 
-    val isAvcSupported: Boolean
+    override val isAvcSupported: Boolean
         get() = avcDecoder != null
 
-    val isHevcMain10Hdr10Supported: Boolean
+    override val isHevcMain10Hdr10Supported: Boolean
         get() {
         val decoder = hevcDecoder ?: return false
 
@@ -686,10 +674,10 @@ class MediaCodecDecoderRenderer(
         return false
     }
 
-    val isAv1Supported: Boolean
+    override val isAv1Supported: Boolean
         get() = av1Decoder != null
 
-    val isAv1Main10Supported: Boolean
+    override val isAv1Main10Supported: Boolean
         get() {
         val decoder = av1Decoder ?: return false
 
@@ -703,7 +691,7 @@ class MediaCodecDecoderRenderer(
         return false
     }
 
-    fun getPreferredColorSpace(): Int {
+    override fun getPreferredColorSpace(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O || hevcDecoder != null || av1Decoder != null) {
             MoonBridge.COLORSPACE_REC_709
         } else {
@@ -711,7 +699,7 @@ class MediaCodecDecoderRenderer(
         }
     }
 
-    fun getPreferredColorRange(): Int {
+    override fun getPreferredColorRange(): Int {
         return if (prefs.fullRange) {
             MoonBridge.COLOR_RANGE_FULL
         } else {
@@ -719,16 +707,16 @@ class MediaCodecDecoderRenderer(
         }
     }
 
-    fun notifyVideoForeground() {
+    override fun notifyVideoForeground() {
         foreground = true
         refreshDisplayParameters()
     }
 
-    fun setPerfTextWanted(wanted: Boolean) {
+    override fun setPerfTextWanted(wanted: Boolean) {
         perfTextWanted = wanted
     }
 
-    fun refreshDisplayParameters() {
+    override fun refreshDisplayParameters() {
         cachedAppVsyncOffsetNanos = runCatching {
             activity.windowManager.defaultDisplay.appVsyncOffsetNanos
         }.getOrDefault(0L)
@@ -785,11 +773,11 @@ class MediaCodecDecoderRenderer(
         return sb.toString()
     }
 
-    fun notifyVideoBackground() {
+    override fun notifyVideoBackground() {
         foreground = false
     }
 
-    val activeVideoFormat: Int
+    override val activeVideoFormat: Int
         get() = videoFormat
 
     private fun createBaseMediaFormat(mimeType: String): MediaFormat {
@@ -1576,7 +1564,7 @@ class MediaCodecDecoderRenderer(
         startChoreographerThread()
     }
 
-    fun prepareForStop() {
+    override fun prepareForStop() {
         stopping = true
 
         if (!stopPrepared.compareAndSet(false, true)) {
@@ -2056,30 +2044,30 @@ class MediaCodecDecoderRenderer(
         return capabilities
     }
 
-    fun getAverageEndToEndLatency(): Int {
+    override fun getAverageEndToEndLatency(): Int {
         if (globalVideoStats.totalFramesReceived == 0) {
             return 0
         }
         return (globalVideoStats.totalTimeMs / globalVideoStats.totalFramesReceived).toInt()
     }
 
-    fun getAverageDecoderLatency(): Int {
+    override fun getAverageDecoderLatency(): Int {
         if (globalVideoStats.totalFramesReceived == 0) {
             return 0
         }
         return (globalVideoStats.decoderTimeMs / globalVideoStats.totalFramesReceived).toInt()
     }
 
-    fun performanceWasTracked(): Boolean? {
+    override fun performanceWasTracked(): Boolean? {
         return minDecodeTime < Float.MAX_VALUE
     }
 
     @SuppressLint("DefaultLocale")
-    fun getMinDecoderLatency(): String {
+    override fun getMinDecoderLatency(): String {
         return String.format("%1$.2f", minDecodeTime)
     }
 
-    fun getMinDecoderLatencyFullLog(): String {
+    override fun getMinDecoderLatencyFullLog(): String {
         return minDecodeTimeFullLog
     }
 

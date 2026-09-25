@@ -543,6 +543,60 @@ class NovaGameDetailUiStateTest {
         assertFalse(state.hasExplicitOverride)
     }
 
+    @Test
+    fun theDesktopEntryKeepsMirroringWhenTheHostPrefersAScreenOfItsOwn() {
+        // The live shape from pc-papi: host default is Host Virtual Display, and the Desktop entry
+        // says it does not follow it. Play must read Mirror Desktop, because opening the desktop on
+        // a screen the host made for games is not what anybody asked for by pressing Play.
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                name = "Desktop",
+                launchMode = PolarisGame.LaunchModeContract(
+                    preferredMode = "desktop_display",
+                    recommendedMode = "desktop_display",
+                    allowedModes = listOf("desktop_display", "host_virtual_display"),
+                    followsHostDefault = false,
+                ),
+            ),
+            defaultToVirtualDisplay = true,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = "host_virtual_display")
+            ),
+            profilePreference = "auto",
+        )
+
+        assertEquals(PolarisGame.MODE_DESKTOP_DISPLAY, state.playMode)
+        assertFalse(state.playUsesVirtualDisplay)
+        // The page reads this to stop saying the entry follows a default it ignores, and to stop
+        // printing the host's sentence about creating a screen under a Mirror Desktop headline.
+        assertFalse(state.followsHostDefault)
+    }
+
+    @Test
+    fun aDeliberateChoiceStillOutranksTheDesktopEntrysOwnAnswer() {
+        // The point is the default, not the choice. Someone who picks a screen of their own for the
+        // desktop gets one, and the picker still offers it.
+        val state = NovaGameDetailUiState.from(
+            game = game(
+                name = "Desktop",
+                launchMode = PolarisGame.LaunchModeContract(
+                    preferredMode = "desktop_display",
+                    recommendedMode = "desktop_display",
+                    allowedModes = listOf("desktop_display", "host_virtual_display"),
+                    followsHostDefault = false,
+                ),
+            ),
+            defaultToVirtualDisplay = true,
+            clientSettings = PolarisClientSettings(
+                desired = PolarisClientSettings.Desired(streamDisplayMode = "host_virtual_display")
+            ),
+            profilePreference = "auto",
+            launchModeOverride = "host_virtual_display",
+        )
+
+        assertEquals(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY, state.playMode)
+    }
+
     private fun game(
         name: String = "Portal",
         runtime: String = "native",
