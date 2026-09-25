@@ -29,6 +29,19 @@ fi
 
 tag="v${requested}"
 
+# Dirt that should stop a release, which is everything except one expected thing.
+#
+# The protocol patches deliberately move moonlight-common-c's HEAD off its pinned commit, because a
+# tree that can build native code is a patched tree. So that submodule reading as worktree-modified
+# is the normal state here, and refusing to tag on it would mean never being able to tag at all.
+#
+# Only the worktree-modified spelling is tolerated, and only for that one path. A staged change to
+# the pin itself lands in the first column instead and is still reported, so a wrong pin cannot ride
+# out on this exemption.
+working_tree_dirt() {
+  git status --porcelain | grep -v '^ M app/src/main/jni/moonlight-core/moonlight-common-c$' || true
+}
+
 require_exact_master_head() {
   local current_branch local_head remote_master
 
@@ -57,8 +70,9 @@ if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ -n "$(git status --porcelain)" ]]; then
+if [[ -n "$(working_tree_dirt)" ]]; then
   echo "Working tree is not clean. Commit release prep before tagging." >&2
+  working_tree_dirt >&2
   exit 1
 fi
 
@@ -66,10 +80,17 @@ require_exact_master_head
 
 bash scripts/check-public-docs.sh
 bash scripts/check-public-surface.sh
+
+# The library cannot negotiate PyroWave unpatched, and the Gradle guard refuses to build it that way,
+# so the validation build below needs this first. Idempotent, so a tree that is already patched is
+# left alone.
+bash tools/apply-native-patches.sh
+
 ./gradlew -PnovaAbis=arm64-v8a,armeabi-v7a,x86_64 "${gradle_channel_flags[@]}" "assembleNonRoot_game${build_type}"
 
-if [[ -n "$(git status --porcelain)" ]]; then
+if [[ -n "$(working_tree_dirt)" ]]; then
   echo "Release validation changed the working tree; refusing to tag." >&2
+  working_tree_dirt >&2
   exit 1
 fi
 require_exact_master_head
