@@ -92,7 +92,7 @@ bool DeckPairingController::startPairing(const QString& address, int httpPort, b
             }
             QString copy = pairingCopy(result.status);
             if (result.authorizationMayRemain)
-                copy += " Remove Nova Linux from the host's paired devices before retrying; cleanup could not be confirmed.";
+                copy += " Remove this device (Nova Linux or Nova Deck) from the host's paired devices before retrying; cleanup could not be confirmed.";
             if (result.status == PairStatus::Ok && result.host) {
                 auto next = runtime::state("paired", copy, false);
                 next["hostId"] = QString::fromStdString(result.host->stableId());
@@ -198,7 +198,7 @@ bool DeckPairingController::removeHost(const QString& hostId, bool localOnly) {
                     : "The PC confirmed unpairing, but Nova could not remove its saved record. Use Forget on This Device after checking the saved list.");
                 return;
             }
-            finish("removed", localOnly ? "Forgotten on this device. Remove Nova Linux from the PC's paired devices to revoke its access."
+            finish("removed", localOnly ? "Forgotten on this device. Remove this device (Nova Linux or Nova Deck) from the PC's paired devices to revoke its access."
                 : "The PC confirmed unpairing. Its saved record is removed; you can pair it again.");
         } catch (...) { finish("failed", "The change could not be confirmed. Check the host's paired devices and the saved list."); }
     });
