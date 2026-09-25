@@ -285,7 +285,7 @@ int main(int argc, char** argv) {
     key(*window, Qt::Key_Return);
     require(fixture.removals == 2 && fixture.localOnly, "explicit local forget did not select its separate action");
     fixture.clearHosts();
-    fixture.set("removed", "Forgotten on this Deck. Remove Nova Deck from the PC's paired devices to revoke its access.", false);
+    fixture.set("removed", "Forgotten on this device. Remove Nova Linux from the PC's paired devices to revoke its access.", false);
     settle();
     require(window->activeFocusItem() == add, "empty saved list must focus Add PC");
     key(*window, Qt::Key_Return);

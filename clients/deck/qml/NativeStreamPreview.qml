@@ -318,7 +318,7 @@ Popup {
                 }
                 Label {
                     width: parent.width
-                    text: nativeSessionState.sleeping ? "Stream paused for sleep. Resume after waking your Deck."
+                    text: nativeSessionState.sleeping ? "Stream paused for sleep. Resume after waking your device."
                         : (nativeSessionState.automaticReconnect ? "Reconnecting (" + nativeSessionState.reconnectAttempt + " of 4). " : "")
                         + (resumeError || nativeSessionState.copy) + (nativePlaying ? " " + session.controllerHint : "")
                         + (nativePlaying && nativeSessionState.audioCopy ? " " + nativeSessionState.audioCopy : "")

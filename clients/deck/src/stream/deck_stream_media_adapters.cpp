@@ -1501,7 +1501,7 @@ void DeckQtQuickRhiVaapiRenderNode::render(const RenderState* state) {
             DeckQrhiVaapiDrmPrimeDescriptor drmPrimeDescriptor = descriptor_.frameLease->exportDrmPrimeDescriptor();
             readinessReport_ = DeckVaapiEglImagePresenter::readinessReportForDecodedFrameProof(drmPrimeDescriptor, lastImportPlan_);
         }
-        qInfo().noquote() << "Nova Deck QSGRenderNode VAAPI/EGL render path"
+        qInfo().noquote() << "Nova Linux QSGRenderNode VAAPI/EGL render path"
                           << "status=" + QString::fromStdString(readinessReport_.statusCode)
                           << "objects=" + QString::number(readinessReport_.importPlan.drmPrimeObjectCount)
                           << "layers=" + QString::number(readinessReport_.importPlan.drmPrimeLayerCount)
@@ -1509,7 +1509,7 @@ void DeckQtQuickRhiVaapiRenderNode::render(const RenderState* state) {
                           << "planned=" + QString::number(readinessReport_.hardwarePresenterPlanned ? 1 : 0)
                           << "readiness stayed false until shader composition proof"
                           << QString::fromStdString(readinessReport_.detail);
-        qInfo().noquote() << "Nova Deck VAAPI/EGL presenter readiness"
+        qInfo().noquote() << "Nova Linux VAAPI/EGL presenter readiness"
                           << QString::fromStdString(readinessReport_.statusCode)
                           << QString::fromStdString(readinessReport_.detail);
         return;
@@ -1535,7 +1535,7 @@ void DeckQtQuickRhiVaapiRenderNode::render(const RenderState* state) {
             readinessReport_ = DeckVaapiEglImagePresenter::readinessReportForPlan(lastImportPlan_);
         }
     }
-    qInfo().noquote() << "Nova Deck QSGRenderNode VAAPI/EGL render path"
+    qInfo().noquote() << "Nova Linux QSGRenderNode VAAPI/EGL render path"
                       << "status=" + QString::fromStdString(readinessReport_.statusCode)
                       << "objects=" + QString::number(readinessReport_.importPlan.drmPrimeObjectCount)
                       << "layers=" + QString::number(readinessReport_.importPlan.drmPrimeLayerCount)
@@ -1543,7 +1543,7 @@ void DeckQtQuickRhiVaapiRenderNode::render(const RenderState* state) {
                       << "planned=" + QString::number(readinessReport_.hardwarePresenterPlanned ? 1 : 0)
                       << "readiness stayed false until shader composition proof"
                       << QString::fromStdString(readinessReport_.detail);
-    qInfo().noquote() << "Nova Deck VAAPI/EGL presenter readiness"
+    qInfo().noquote() << "Nova Linux VAAPI/EGL presenter readiness"
                       << QString::fromStdString(readinessReport_.statusCode)
                       << QString::fromStdString(readinessReport_.detail);
 }

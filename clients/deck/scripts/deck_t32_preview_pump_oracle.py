@@ -81,12 +81,12 @@ def validate_artifacts(artifact_dir: Path) -> list[str]:
     )
     require_regex(
         qsg_log,
-        r"Nova Deck QSGRenderNode VAAPI/EGL render path .*status=ready.*objects=1.*layers=2.*ready=1",
+        r"Nova Linux QSGRenderNode VAAPI/EGL render path .*status=ready.*objects=1.*layers=2.*ready=1",
         "gamescope QSG ready render proof",
     )
     require_regex(
         qsg_log,
-        r"Nova Deck QSGRenderNode scenegraph smoke passed: .*imported two DRM_PRIME layers",
+        r"Nova Linux QSGRenderNode scenegraph smoke passed: .*imported two DRM_PRIME layers",
         "gamescope QSG rerun binary",
     )
     require_contains(

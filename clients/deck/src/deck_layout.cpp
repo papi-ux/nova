@@ -11,7 +11,7 @@ namespace {
 constexpr std::string_view kPreviewStateLabel = "Preview only — not executable";
 constexpr std::string_view kPreviewBoundaryId = "deck-launch-preview-only";
 constexpr std::string_view kPreviewBoundaryLabel = "Safe preview: no game, stream, or network launch starts from this screen.";
-constexpr std::string_view kPreviewBoundaryReason = "Nova Deck shows a copyable preview plan only; games, streams, and network launches stay off.";
+constexpr std::string_view kPreviewBoundaryReason = "Nova Linux shows a copyable preview plan only; games, streams, and network launches stay off.";
 constexpr std::string_view kCopyIdleStatusLabel = "A Copy preview saves this safe plan locally for inspection. No game, stream, or network launch starts.";
 constexpr std::string_view kCopySuccessToast = "Preview text copied for inspection only — still not executable.";
 constexpr std::string_view kCopyInertToast = "No preview text to copy — preview-only action stayed inert.";
@@ -121,7 +121,7 @@ DeckWindowProfile defaultWindowProfile() {
         .width = 1280,
         .height = 800,
         .fullscreenPreferred = true,
-        .shellName = "Nova Deck",
+        .shellName = "Nova Linux",
     };
 }
 

@@ -1,9 +1,12 @@
-# Nova Native Linux Client
+# Nova Linux (Alpha)
 
-This directory contains Nova's native Linux client for Steam Deck, laptops,
-desktops and other handhelds. The Qt/QML interface supports Nova-owned pairing,
+Nova Linux is the native client for x86_64 Linux desktops, laptops and
+handhelds, including Steam Deck. The Qt/QML interface supports Nova-owned pairing,
 libraries, Play Setup and in-app GameStream video/audio/input. The Flatpak opens
 standalone Nova; Moonlight handoff remains an explicit legacy route.
+
+Release bundles use `Nova-Linux-x86_64-alpha.flatpak`; see the
+[Flatpak install guide](packaging/flatpak/README.md).
 
 The [Linux client roadmap](../../docs/linux-client-roadmap.md) records the current
 implementation, tested compatibility and remaining gaps. The

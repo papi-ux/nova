@@ -182,7 +182,7 @@ def main():
                 wait_for_ui_observations(observation, app)
         try:
             wait(lambda s: s.get("game") == game["id"])
-            window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+            window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
             command("xdotool", "windowfocus", "--sync", window)
             if hub_only:
                 def hub(s=None): return (state() if s is None else s).get("settingsHub", {})
@@ -372,7 +372,7 @@ def main():
                 assert len(settings_writes) == 2 and host_state()["status"]["settings"]["desiredResumeTimeout"] == 1800
                 app.terminate(); app.wait(timeout=8); app = start()
                 wait(lambda s: s.get("game") == "game-7")
-                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window); keys("Return", "Return")
                 wait(lambda s: s.get("nativePreviewOpen") and s.get("playSetup", {}).get("configuration", {}).get("fps") == 45)
                 assert state()["playSetup"]["configuration"]["width"] == 2560 and state()["playSetup"]["configuration"]["bitrateKbps"] == 27500
