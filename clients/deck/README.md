@@ -1,29 +1,94 @@
-# Nova Deck Client
+# Nova Native Linux Client
 
-This directory contains Nova's native Steam Deck development client. It has a
-Qt shell, live library reads, a Moonlight handoff, and an opt-in asynchronous
-native GameStream preview with hardware decoding and Opus/PipeWire audio. It is
-not yet a supported Deck release. The active [release parity checklist](../../docs/deck-release-parity.md)
-requires standalone pairing, in-app media and controls, Android product parity,
-and OLED HDR10 at 90 fps together.
+This directory contains Nova's native Linux client for Steam Deck, laptops,
+desktops and other handhelds. The Qt/QML interface supports Nova-owned pairing,
+libraries, Play Setup and in-app GameStream video/audio/input. The Flatpak opens
+standalone Nova; Moonlight handoff remains an explicit legacy route.
 
-Current status:
+The [Linux client roadmap](../../docs/linux-client-roadmap.md) records the current
+implementation, tested compatibility and remaining gaps. The
+[release parity checklist](../../docs/deck-release-parity.md) retains the Deck
+LCD/OLED, HDR90, product parity and physical acceptance requirements. This is an
+Alpha client; a successful build does not validate every Linux configuration.
 
-- CMake builds a small native core library on Linux/SteamOS-capable development hosts.
-- Qt 6/QML shell builds when Qt Quick and QuickControls2 development packages are installed.
-- Fallback build path keeps the core/controller/library smoke runnable without Qt.
-- The shell consumes a generated sample Polaris game fixture shaped after shared/polaris/model/src/commonMain/kotlin/com/papi/nova/shared/polaris/model/PolarisGame.kt.
+Current implementation includes:
+
+- Standalone PIN/Trusted Pair and explicit local PC discovery.
+- VA-API video, Opus/PipeWire audio, controllers, keyboard and direct/relative mouse input.
+- Desktop fullscreen/window controls, display-aware rates through 240 fps and
+  host-validated bitrate settings.
+- Native themes, accessible text sizing and controller/mouse/touch UI navigation.
+
+Building requires Qt 6.10 or newer and the native Linux media/input dependencies,
+even when the QML shell target is disabled. The implementation notes below retain
+historical context; use the linked roadmap as the current completion ledger.
+
+## Linux window controls
+
+Choose **Settings → Video & Stream → Window Mode**, use the fullscreen/windowed
+button in **Command Center**, or press **Ctrl + Alt + Shift + F**. During play,
+switching modes releases held input and opens Command Center; explicitly resume
+when ready. Escape continues to go to the game while gameplay owns input.
+
+Desktop launches default to a window and Game Mode defaults to fullscreen. Each
+environment remembers its own mode, size, maximized state and display. A removed
+monitor cannot leave restored geometry outside the available screen; Wayland
+chooses window placement. The optional Vulkan stream window shares the selected
+mode while keeping its own normal size, so returning to the library does not
+resize that window while GPU work is still draining.
+
+Regression coverage includes actual QML controls, held-input release, persistence,
+Vulkan cancel/reopen under GPU pressure, and separate isolated X11/Wayland
+compositor runs. Physical Deck Game Mode, mixed-DPI monitor transitions and
+installed Flatpak upgrade checks remain acceptance work.
+
+## Local PC search
+
+In pairing, choose **Find PCs on This Network**, select the intended endpoint,
+then choose **Trusted Pair** or **Pair with PIN**. Selection fills the address and
+HTTP port; discovery never grants trust or pairs automatically. PCs with the same
+name remain distinguishable by address, port and network.
+
+Search uses Avahi 0.8+ on the Linux device. It browses local streaming service
+advertisements for eight seconds, supports multiple interfaces and scoped IPv6,
+and expires retained results after one minute. PCs must be awake and advertising;
+manual entry remains available when multicast or the discovery service is
+unavailable. The Flatpak manifest permits the Avahi system-bus calls.
+
+## Linux frame rates and bitrate
+
+Play Setup offers 120, 144, 165 and 240 fps when the PC advertises support and the
+current display can accommodate them. Standard fractional display refresh rates
+retain their nominal choices (for example, 239.76 Hz permits 240 fps). Custom
+whole-number rates follow the current Polaris profile contract, 15–240 fps.
+
+The old 100 Mbps numeric-parser limit and 150 Mbps host-plan request limit are
+removed. Decimal custom bitrates now reach storage, defaults, Sync, host planning,
+launch and recovery without those client-side ceilings. Polaris currently accepts
+1–300 Mbps for profiles and live bitrate changes; this remains an explicit host
+constraint. Neither a requested rate nor the capability check proves measured
+240 FPS playback or a sustained network bitrate.
+
+Preferences survive a move to a slower display. Play Setup explains any lower
+frame rate used for that stream and leaves the saved preference intact. Launch
+rechecks the display and host; resume and reconnect preserve the reviewed values.
+Tests cover 240 FPS transport configuration, recovery, bounded frame delivery,
+225.5 Mbps custom entry and host plans, plus existing scope/authorization guards.
 
 ## Local Android v1.4.11 parity work
 
 The standalone library now shares theme colors and focus controls across pairing,
 PC management, browsing, Play Setup, audio, rumble and the streaming overlay.
-System → Appearance offers six themes and 100/115/130% text size. Compact uses a
+System → Appearance offers five themes and 100/115/130% text size. Compact uses a
 dense portrait-poster grid; scrollable forms keep controller focus visible at
 smaller window sizes.
 
-Appearance also has separate **Command Center button** and **Controller shortcut
-hint** switches. They apply during play and persist on the Deck, independently
+The Linux client no longer offers Material You. Existing selections migrate to
+Polaris Aurora on startup while preserving text size, library layout and other
+settings. The remaining five themes keep their saved choices.
+
+Appearance also has separate **Command Center Button** and **Controller Shortcut
+Hint** switches. They apply during play and persist on the device, independently
 of NovaHUD. The floating button uses the Deck's Menu symbol; the shortcut shows
 the View/Menu symbols instead of text button names. Hiding both keeps the chord
 and Escape available. Without a controller, the touch button remains available;
@@ -45,7 +110,7 @@ scrolls independently, leaving Play reachable; Play still opens stream setup.
 
 `nova_deck_library_polish_test` drives the actual app against isolated mTLS
 fixtures: missing/zero/partial durations, delayed or denied artwork, all layouts,
-six themes, 130% text, small windows, pointer selection and controller focus.
+five themes, 130% text, small windows, pointer selection and controller focus.
 Local source, screenshots, checks and Flatpak evidence are retained in
 `build/deck-library-polish/EVIDENCE.md`. This package excludes the unfinished
 persistent Doctor receipt/report work. Installed acceptance remains separate.
@@ -133,9 +198,17 @@ limits and full Sync remain on the parity queue.
 Both host changes and successful local imports/resets invalidate an old Play
 review. Local validation and the isolated package are recorded in
 `build/deck-profile-sync/EVIDENCE.md`.
-Every Game now includes **Keep in step**, saved separately for each PC and off
-by default. While this view is open and Nova is active, it checks every three
-seconds and sends differing device defaults at most once every five seconds.
+Every Game includes **Keep in step**, saved separately for each PC. New pairings
+start with it on; existing pairings and saved Off choices are preserved. Before
+the first automatic save, Nova checks the paired-device profile. If Polaris has
+different settings, the library shows **Review Sync** and no automatic write is
+sent until the player chooses **Use Nova & Sync** or **Use Polaris & Sync**.
+
+While Nova is active and idle, it checks when connecting to the selected PC,
+returning to Nova, finishing a session or changing device defaults, including
+outside Settings. Library refreshes and other open interactions defer the work.
+An active game on the PC also defers it. The open settings view checks every three
+seconds; automatic saves are limited to once every five seconds.
 It uses the same fresh pairing, capability, reviewed-profile and idle checks as
 manual actions. It does not copy per-game choices or alter the PC's display mode.
 Periodic checks preserve controller focus and the comparison being read.
@@ -146,9 +219,14 @@ interrupted writes leave it paused, including after restart. Refresh only reads
 back while paused; Resume is explicit. Off cancels pending automatic work, though
 an already dispatched request may have reached the PC. Use Polaris, Clear profile
 and Reset Nova defaults turn it off first so a later poll cannot undo that choice.
+The first-pairing **Use Polaris & Sync** choice imports the reviewed profile and
+enables sync only after the local defaults are saved. A paused sync is also shown
+in the library so recovery does not depend on finding the settings screen.
 The host still has no profile revision CAS; the GET/POST race and resolved-launch
 truth remain outside this client slice. Evidence and local package:
-`build/deck-keep-in-step/EVIDENCE.md`. Physical acceptance remains open.
+`build/deck-keep-in-step/EVIDENCE.md`. New-pairing defaults, background deferral,
+conflict resolution and interrupted saves have isolated controller and mTLS UI
+coverage. Physical acceptance of the new background behavior remains open.
 
 Appearance startup now reads theme and text size without writing missing defaults
 over saved values. A partial record containing only a larger text size keeps that
@@ -631,7 +709,7 @@ release, next-session isolation, touch/D-pad/keyboard confirmation and return
 focus at 1280×800 and 960×600.
 
 After a successful disconnect, **Resume game** reconnects using the previous
-stream settings, with **Back to details** still available. The backend retains
+stream settings, with **Back to Details** still available. The backend retains
 the host/game IDs, app identity, reviewed configuration and session token only
 in memory; no token enters QML or settings. Resume resolves the current saved
 pairing/library again, checks the live paired ownership and exact app/session,
@@ -769,9 +847,9 @@ The native tests need CMake, C/C++ compilers, OpenSSL crypto development headers
 
 For the Qt shell on Fedora, install the Qt 6 development packages if CMake warns that Qt6 Quick or QuickControls2 is missing:
 
-    sudo dnf install cmake gcc-c++ openssl qt6-qtbase-devel qt6-qtdeclarative-devel
+    sudo dnf install cmake gcc-c++ openssl qt6-qtbase-devel qt6-qtbase-private-devel qt6-qtdeclarative-devel wayland-devel wayland-protocols-devel libxcb-devel
 
-On Fedora, qt6-qtdeclarative-devel provides cmake(Qt6QuickControls2). SteamOS package names may differ; the required CMake components are Qt6 Core, Qt6 Gui, Qt6 Network, Qt6 DBus, Qt6 Qml, Qt6 Quick, and Qt6 QuickControls2.
+On Fedora, qt6-qtdeclarative-devel provides cmake(Qt6QuickControls2). SteamOS package names may differ; the required CMake components are Qt6 Core, Qt6 Gui, Qt6 Network, Qt6 DBus, Qt6 Qml, Qt6 Quick, Qt6 QuickControls2, Qt6 WaylandClient and Qt6 GuiPrivate (Qt 6.10 or newer). The Wayland surface interface uses matching Qt private headers; keep those headers at the same version as the Qt runtime. Relative-pointer and pointer-constraints bindings are generated from wayland-protocols; X11 uses XCB XInput2. Tests also use XCB XTEST. The KDE 6.10 Flatpak SDK includes these dependencies.
 
 Primary design reference:
 
@@ -910,8 +988,8 @@ offline caching and event/reconnect-driven invalidation remain open.
 
 The details Play action now opens Android's two-column **Play Setup** review:
 what will happen on the selected PC, and what the player can change. The local
-stream choices are 1280×800, 1280×720, 1920×1080 or 1920×1200; 30/60 fps plus
-90 fps when the current display and PC permit it; and 10, 20, 30
+stream choices are 1280×800, 1280×720, 1920×1080 or 1920×1200; 30/60/90/120/144/165/240 fps
+when the current display and PC permit it; and 10, 20, 30
 or 40 Mbps. Audio follows the device preferences in System. Choices save immediately for this PC/game
 on this device. Reset removes only that override and restores 1280×800, 60 fps,
 20 Mbps. Opening or editing the review sends no host mutation.
@@ -935,7 +1013,7 @@ the actual mTLS library route through restart and 1280×800/960×600 captures.
 
 This completes the local per-game client stream-choice slice of P07/P13/P27.
 Android's host/Space destination, automatic/custom display
-planning, rates above 90 fps, encoder, tuning/presets,
+planning, encoder, tuning/presets,
 Steam launch behavior and Every Game host scope still need implementation.
 HDR and physical Deck stream acceptance remain open.
 
@@ -944,7 +1022,7 @@ HDR and physical Deck stream acceptance remain open.
 Play Setup now offers Android's **Match labels**, **Match positions**, and an
 inherited **Device default** for each PC/game. Match labels sends A/B/X/Y by
 their names. Match positions swaps A/B and X/Y for a Switch-style layout.
-**System → Face buttons** sets the device default; an explicit game choice takes
+**System → Face Buttons** sets the device default; an explicit game choice takes
 precedence. The review shows the effective layout before Play. Reset returns
 that game's stream choices to defaults and its buttons to device inheritance,
 without changing another game's override or the device default.
@@ -1039,7 +1117,7 @@ restart and reviewed 1280×800/960×600 fixture captures.
 
 This implements the current SDR stream review, not the full Android display
 planner. Peak-mode enumeration, automatic display selection,
-custom and higher resolutions, rates above 90 fps, Main10/HDR presentation and the Android
+custom and higher resolutions, Main10/HDR presentation and the Android
 resolved-profile/encoder/tuning contracts remain open. No physical Deck
 acceptance is added by these local checks.
 
@@ -1375,7 +1453,7 @@ tests establish graph submission and lifecycle behavior only.
 
 ### Controller rumble (local development)
 
-**System → Controller rumble** implements Android's `checkbox_enable_rumble`:
+**System → Controller Rumble** implements Android's `checkbox_enable_rumble`:
 enabled by default, device-wide persistence and application to the next new
 stream. Reset rumble default affects only that preference; audio, face-button
 layout and per-game stream choices retain their scope. Failed writes retain the
@@ -1481,7 +1559,7 @@ acceptance. Development and tests remain local.
 ### Custom stream profiles and PC resume timeout (local development)
 
 Choose **Custom…** in Play Setup's Resolution, Frame rate or Bitrate picker. The
-numeric form accepts even sizes from 320–4096 × 240–4096, whole-number 30–90 fps,
+numeric form accepts even sizes from 320–4096 × 240–4096, whole-number 15–240 fps,
 and 1–300 Mbps, including decimal Mbps. Save affects only that game's selected
 field; Cancel leaves its preferences unchanged. Available host recommendations
 include safe advanced sizes. Codec/decoder, host and current-display checks still
@@ -1491,9 +1569,8 @@ establish hardware or physical playback support.
 **Every Game → Edit Nova stream defaults** edits the inherited profile on this
 device across PCs. Existing game overrides stay in place, and resetting one game
 choice uses these current defaults. Keep in step can copy the device profile to
-the selected paired PC while Every Game is open. Supported Polaris profile imports
-retain custom values exactly. Fractional rates and rates above 90 fps remain
-unavailable.
+the selected paired PC while Nova is idle, including outside Settings. Supported Polaris profile imports
+retain custom values exactly. Fractional stream frame rates remain unavailable.
 
 **Every Game → Resume timeout** appears when Polaris advertises support. The
 1/5/10/30-minute choices affect the PC for all paired devices; the form distinguishes
@@ -1553,8 +1630,8 @@ next-launch trials are not included. Evidence: `build/deck-doctor-recovery/EVIDE
 
 ### Settings hub
 
-Open **Settings** in the library header to browse Video & stream, Audio, Controls,
-Appearance, In-game UI and Polaris Sync. Search matches setting names and related
+Open **Settings** in the library header to browse Video & Stream, Audio, Controls,
+Appearance, In-Game UI and Polaris Sync. Search matches setting names and related
 terms across all categories; tap the field or press A to type with Nova's keyboard.
 The category rail starts with focus. Right enters the settings, Left returns to
 the rail, and Back returns from an editor to the same setting.
@@ -1575,8 +1652,9 @@ Active-stream Sync controls are described below. Evidence: `../../build/deck-set
 
 Open **System → Polaris Sync** from the library to compare Nova's device defaults
 with this PC's paired profile and use the existing profile actions. Per-game
-settings stay separate. The screen refreshes while open; automatic writes still
-require Keep in step to be explicitly enabled.
+settings stay separate. Keep in step starts on for new pairings after the initial
+profile check; conflicting profiles require a choice through **Review Sync**.
+Existing pairings keep their saved setting. The screen also refreshes while open.
 
 During a game, **Command Center → Polaris Sync** compares saved profiles with the
 encoder's current bitrate and offers **Match Nova**, **Send Nova** and **Clear
@@ -1598,7 +1676,7 @@ Installed Deck and physical acceptance remain pending.
 
 ### Video scaling
 
-Choose **Settings → Video & stream → Video scaling**, or open **Video scaling**
+Choose **Settings → Video & Stream → Video Scaling**, or open **Video Scaling**
 in Command Center during a game:
 
 - **Fit** shows the whole picture, with black bars when its shape differs from
@@ -1618,7 +1696,7 @@ acceptance remain pending.
 
 ### Video frame pacing
 
-Open **Settings → Video & stream → Video frame pacing**:
+Open **Settings → Video & Stream → Video Frame Pacing**:
 
 - **Prefer lowest latency** keeps the newest decoded frame and hands it to the
   renderer as soon as possible. This remains the default.
@@ -1639,7 +1717,7 @@ acceptance on a Deck display.
 
 ### Stick deadzone
 
-Open **Settings → Controls → Stick deadzone**. Use the slider or 1% buttons to
+Open **Settings → Controls → Stick Deadzone**. Use the slider or 1% buttons to
 choose −20% through +20%, then **Save**. Positive values ignore small movements
 near the center; negative values boost small movements and may amplify drift.
 The Android default is 5%. At zero or below, a tiny 1% center floor remains.
@@ -1664,14 +1742,25 @@ The active native stream now forwards physical keyboard keys and direct mouse
 pointer movement, five mouse buttons, and vertical/horizontal wheel scrolling.
 Close Command Center to send input to the PC. **Ctrl + Alt + Shift + M** opens
 Command Center; plain **Escape** goes to the game. The Deck View/Menu shortcut
-and touch access remain available. Nova's HUD and Command Center clicks remain
+and touch access remain available. In Direct Pointer mode, Nova's HUD and Command Center clicks remain
 local, including drags that leave their bounds.
 
-This first mouse mode follows the displayed picture. Fit excludes letterbox
+Direct Pointer follows the displayed picture and remains the default for existing installations. Fit excludes letterbox
 bars; Fill maps into the cropped source, and Stretch follows the full image.
 Non-square pixel aspect is included. This is suitable for desktop applications
-and pointer-driven menus; **relative mouse capture for aiming is still open**.
-Touchscreen/trackpad gestures, pixel-only scrolling, IME/text composition and
+and pointer-driven menus. **Relative Aiming** is available in Settings and
+Command Center: X11 uses a confined grab and raw XInput2 motion; Wayland uses
+relative-pointer and pointer-constraints protocols on the actual presentation
+surface. The cursor hides during capture and returns on release. Physical mouse
+buttons belong to the game in this mode, including when the hidden cursor is
+above a HUD control; the keyboard/controller shortcuts and touch stay local.
+Missing protocols, a competing grab or a refused lock leave controls open with
+an actionable message. Mode changes require Resume. Adjacent relative samples
+retain total distance and subpixel fractions; motion is not bounded by the
+screen edge. Pixel-only touchpad scrolling is forwarded as high-resolution wheel
+units (one unit per pixel), while wheel notches retain 120 units per notch.
+
+Touchscreen/trackpad gestures beyond scrolling, IME/text composition and
 non-US text-entry preferences are not included in this slice. Physical Linux
 keyboard scancodes use US game-key positions; native left/right modifiers and
 keypad digits remain distinct, with logical Qt fallback for injected events.
@@ -1687,4 +1776,11 @@ The real library or Vulkan presentation window owns forwarding, preventing the
 redirected Quick overlay from sending an event twice. Existing controller routing,
 permissions, pairing and stream settings are preserved. Local evidence:
 `../../build/deck-desktop-input/EVIDENCE.md`. Installed mouse/keyboard, Steam Input
-and device-removal behavior still require physical acceptance.
+and device-removal behavior still require physical acceptance. The relative
+mouse slice additionally passes Xvfb raw-motion/edge/cursor/subscription checks,
+X11 session release tests, and an isolated KWin Wayland/EIS motion/lock/release
+check. The EIS input source exists only in the disposable test compositor.
+Settings and Command Center regressions cover persisted mode, unavailable
+capture, keyboard navigation, and enlarged text. Retained local evidence:
+`../../build/linux-mouse/EVIDENCE.md`; these checks do not claim installed Flatpak
+or physical game acceptance.

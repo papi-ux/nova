@@ -9,6 +9,7 @@ FocusScope {
     property var hostSettingsController: null
     property var gameTools: null
     readonly property var toolsState: gameTools ? gameTools.state : ({})
+    readonly property bool codecManagesEncoder: configuration.videoCodec === "pyrowave"
     readonly property var encoderChoices: [{ encoderBackend: "", label: "Host default", detail: "Let the PC choose its encoder." }].concat((toolsState.settings || {}).encoders || [])
     readonly property var presetChoices: [
         { profilePreference: "auto", label: "Auto", detail: "Use the host's automatic launch preset." },
@@ -17,13 +18,14 @@ FocusScope {
         { profilePreference: "stability", label: "Stability", detail: "Ask the host to favor a steady stream." }
     ]
     readonly property bool setupAllowed: !gameTools || (!toolsState.writing && !toolsState.uncertain
-        && ((!configuration.encoderBackend && (configuration.profilePreference || "auto") === "auto")
+        && ((!plan.configuration.encoderBackend && (configuration.profilePreference || "auto") === "auto")
             || (!toolsState.busy && toolsState.available && Object.keys(toolsState.settings || {}).length > 0
-                && encoderChoices.some(choice => choice.encoderBackend === (configuration.encoderBackend || "")))))
+                && encoderChoices.some(choice => choice.encoderBackend === (plan.configuration.encoderBackend || "")))))
     readonly property var requestedConfiguration: {
         const result = Object.assign({}, configuration)
         if (result.profilePreference === "high_fps" && !overrides.fps)
-            result.fps = Math.max(30, settingsProvider.displayRateLimit(displayCapabilities.known ? displayCapabilities.refreshHz : 0))
+            result.fps = Math.max(settingsProvider.streamLimits.minFps, Math.min(settingsProvider.streamLimits.maxFps,
+                settingsProvider.displayRateLimit(displayCapabilities.known ? displayCapabilities.refreshHz : 0)))
         return result
     }
     Timer { id: planRefresh; interval: 150; onTriggered: if (setup.gameTools && setup.visible) setup.gameTools.review(setup.plan.configuration) }
@@ -36,7 +38,7 @@ FocusScope {
     property string destinationId: "desktop"
     property string destinationName: "Desktop"
     readonly property bool spaceDestination: destinationId.length > 0 && destinationId !== "desktop"
-    property string returnLabel: "Back to details"
+    property string returnLabel: "Back to Details"
     property var configuration: ({ width: 1280, height: 800, fps: 60, bitrateKbps: 20000, faceButtonLayout: "default", launchMode: "default", videoCodec: "h264" })
     property var launchPolicy: ({ known: false, hostDefault: "", allowed: [] })
     property var streamCapabilities: ({})
@@ -70,7 +72,7 @@ FocusScope {
     property string error: ""
     property string notice: ""
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
-    readonly property var rows: [resolution, rate, bitrate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible)
+    readonly property var rows: [resolution, rate, bitrate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible && (row !== encoder || !codecManagesEncoder))
     signal choiceOpened()
     signal focusPlayRequested()
     signal backRequested()
@@ -95,6 +97,7 @@ FocusScope {
                 && JSON.stringify(picker.choices.filter(c => c.customField === undefined)) !== JSON.stringify(plan.rates)) || (picker.returnFocus === videoCodec
                 && JSON.stringify(picker.choices) !== JSON.stringify(plan.codecs)))) picker.close()
     }
+    onCodecManagesEncoderChanged: if (codecManagesEncoder && picker && picker.opened && picker.returnFocus === encoder) picker.close()
 
     function prepare() {
         customEditor.close()
@@ -174,7 +177,7 @@ FocusScope {
             || (mode === "headless_dongle" ? "Headless Dongle" : "Host default")
     }
     function hostPlanFact(field) {
-        const labels = { display_mode: "Display", target_bitrate_kbps: "Bitrate", target_fps: "Frame rate", preferred_codec: "Codec", hdr: "Color" }
+        const labels = { display_mode: "Display", target_bitrate_kbps: "Bitrate", target_fps: "Frame Rate", preferred_codec: "Codec", hdr: "Color" }
         let value = field.value
         if (field.key === "display_mode") { const parts = value.split("x"); value = parts[0] + " × " + parts[1] + " · " + parts[2] + " fps" }
         if (field.key === "target_bitrate_kbps") value = (Number(value) / 1000) + " Mbps"
@@ -200,7 +203,9 @@ FocusScope {
         { key: "Buttons", value: effectiveFaceButtonLayout === "positions" ? "Match positions" : "Match labels",
             detail: overrides.faceButtonLayout ? "This game" : "Device default" },
         { key: "Host plan", value: toolsState.busy ? "Checking…" : ((toolsState.plan || {}).label || (toolsState.plan || {}).preset || "Not supplied"),
-            detail: ((toolsState.plan || {}).fields || []).filter(f => f.key !== "target_fps").map(hostPlanFact).join("\n") || (toolsState.copy || "The host confirms its settings when the game starts.") },
+            detail: ((toolsState.plan || {}).fields || []).filter(f => f.key !== "target_fps"
+                && (!codecManagesEncoder || (f.key !== "preferred_codec" && f.key !== "hdr"))).map(hostPlanFact).join("\n")
+                || (toolsState.copy || "The host confirms its settings when the game starts.") },
         { key: "Launch", value: modeLabel(configuration.launchMode), detail: spaceDestination ? "Uses this Space's launch settings."
             : configuration.launchMode === "default" ? (launchPolicy.known ? "PC default: " + modeLabel(launchPolicy.hostDefault) : "Uses your PC's launch settings.")
             : "Applies to this launch; the PC default stays unchanged." }
@@ -209,8 +214,8 @@ FocusScope {
         textFormat: Text.PlainText
         color: NovaTheme.text
         font.pixelSize: 20 * unit * NovaTheme.fontScale
-        wrapMode: Text.WordWrap
-        elide: Text.ElideRight
+        wrapMode: Text.Wrap
+        elide: Text.ElideNone
     }
     component Action: NovaButton { unit: setup.unit }
     component Setting: Action {
@@ -221,10 +226,15 @@ FocusScope {
         property string field: ""
         property string explanation: ""
         property string defaultExplanation: ""
+        property string scopeLabel: field ? (overrides[field] ? "This game" : "Default") : "This game's choices"
         text: label + ": " + value
         Layout.fillWidth: true
-        Layout.preferredHeight: Math.max(60 * unit, 52 * unit * NovaTheme.fontScale)
-        Accessible.description: (overrides[field] ? "This game. " : "Default. ") + explanation
+        // Both text lines and the active style's padding must fit inside the
+        // button, including large text and Linux font substitutions.
+        Layout.preferredHeight: Math.max(60 * unit, implicitHeight)
+        topPadding: 10 * unit
+        bottomPadding: 10 * unit
+        Accessible.description: scopeLabel + ". " + explanation
         onActiveFocusChanged: if (activeFocus) focusedRow = position
         Keys.onUpPressed: position > 0 ? rows[position - 1].forceActiveFocus() : focusPlayRequested()
         Keys.onDownPressed: position < rows.length - 1 ? rows[position + 1].forceActiveFocus() : focusPlayRequested()
@@ -233,18 +243,20 @@ FocusScope {
         contentItem: RowLayout {
             spacing: 12 * unit
             ColumnLayout {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 spacing: 2 * unit
-                Copy { text: label; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text; font.pixelSize: 17 * unit * NovaTheme.fontScale }
-                Copy { text: parent.parent.parent === steamLaunch ? "This game · On PC" : field ? (overrides[field] ? "This game" : "Default") : "This game's choices"; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale }
+                Copy { Layout.fillWidth: true; text: label; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text; font.pixelSize: 17 * unit * NovaTheme.fontScale }
+                Copy { Layout.fillWidth: true; text: parent.parent.parent === steamLaunch ? "This game · On PC" : scopeLabel; color: parent.parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale; font.weight: Font.Normal }
             }
             Copy {
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1.2
                 text: value
                 horizontalAlignment: Text.AlignRight
                 color: parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text
                 font.weight: Font.DemiBold
                 font.pixelSize: 20 * unit * NovaTheme.fontScale
-                maximumLineCount: 1
             }
         }
     }
@@ -270,7 +282,6 @@ FocusScope {
         Copy {
             Layout.fillWidth: true
             text: gameTitle + " · " + destinationName + " · " + hostName
-            maximumLineCount: 1
             color: NovaTheme.secondary
         }
         Copy {
@@ -368,8 +379,8 @@ FocusScope {
                     field: "fps"
                     explanation: "Higher frame rates make motion smoother. The plan accounts for the current display and PC limits."
                     defaultExplanation: "Use Nova's current device-default frame rate, adjusted to the display and PC when needed."
-                    label: "Frame rate"; value: plan.configuration.fps + " fps" + (plan.adjustment ? " · Adjusted" : "")
-                    onClicked: if (plan.rates.length) picker.choose(rate, "Frame rate", plan.rates,
+                    label: "Frame Rate"; value: plan.configuration.fps + " fps" + (plan.adjustment ? " · Adjusted" : "")
+                    onClicked: if (plan.rates.length) picker.choose(rate, "Frame Rate", plan.rates,
                         Math.max(0, plan.rates.findIndex(choice => choice.fps === plan.configuration.fps)))
                 }
                 Setting {
@@ -390,10 +401,10 @@ FocusScope {
                     field: "faceButtonLayout"
                     explanation: "Match the labels or positions on your controller, or inherit the device setting."
                     defaultExplanation: "Follow the face-button default in System."
-                    label: "Face buttons"
+                    label: "Face Buttons"
                     value: configuration.faceButtonLayout === "default" ? "Device default"
                         : configuration.faceButtonLayout === "positions" ? "Match positions" : "Match labels"
-                    onClicked: picker.choose(faceButtons, "Face buttons", [
+                    onClicked: picker.choose(faceButtons, "Face Buttons", [
                         { label: "Device default", detail: "Use the default in System for games without an override.", faceButtonLayout: "default" },
                         { label: "Match labels", detail: "Send A as A, B as B, X as X and Y as Y.", faceButtonLayout: "labels" },
                         { label: "Match positions", detail: "Swap A/B and X/Y so your pad's positions match a Switch-style layout.", faceButtonLayout: "positions" }
@@ -404,27 +415,30 @@ FocusScope {
                     field: "launchMode"
                     explanation: spaceDestination ? "The selected Space provides its own launch settings." : "Choose where the game runs for this session, or use the PC's default."
                     defaultExplanation: spaceDestination ? "Use this Space's launch settings." : "Follow the PC's configured default launch mode."
-                    label: "Launch mode"; value: modeLabel(configuration.launchMode)
-                    onClicked: picker.choose(launchMode, "Launch mode", launchChoices,
+                    label: "Launch Mode"; value: modeLabel(configuration.launchMode)
+                    onClicked: picker.choose(launchMode, "Launch Mode", launchChoices,
                         Math.max(0, launchChoices.findIndex(choice => choice.launchMode === configuration.launchMode)))
                 }
                 Setting {
                     id: videoCodec; objectName: "play-setup-codec"
                     field: "videoCodec"
                     explanation: "Choose video compression for this game. The plan shows the codec the next stream will use."
-                    defaultExplanation: "Use Nova Deck's compatible H.264 default."
-                    label: "Video codec"; value: configuration.videoCodec === "auto" ? "Auto" : configuration.videoCodec === "hevc" ? "HEVC" : "H.264"
-                    onClicked: picker.choose(videoCodec, "Video codec", plan.codecs,
+                    defaultExplanation: "Use Nova's compatible H.264 default."
+                    label: "Video Codec"; value: configuration.videoCodec === "auto" ? "Auto" : configuration.videoCodec === "hevc" ? "HEVC" : configuration.videoCodec === "pyrowave" ? "PyroWave" : "H.264"
+                    onClicked: picker.choose(videoCodec, "Video Codec", plan.codecs,
                         Math.max(0, plan.codecs.findIndex(choice => choice.videoCodec === configuration.videoCodec)))
                 }
                 Setting {
                     id: encoder; objectName: "play-setup-encoder"
-                    visible: !!gameTools && !spaceSession && (encoderChoices.length > 1 || !!configuration.encoderBackend)
+                    visible: codecManagesEncoder || (!!gameTools && !spaceSession && (encoderChoices.length > 1 || !!configuration.encoderBackend))
+                    enabled: setup.editable && !codecManagesEncoder
                     field: "encoderBackend"; label: "Encoder"
-                    value: (encoderChoices.find(c => c.encoderBackend === (configuration.encoderBackend || "")) || {}).label || "Unavailable choice"
-                    explanation: "This launch only. Exact encoders must still be available when the game starts."
+                    value: codecManagesEncoder ? "PyroWave · Vulkan" : (encoderChoices.find(c => c.encoderBackend === (configuration.encoderBackend || "")) || {}).label || "Unavailable choice"
+                    scopeLabel: codecManagesEncoder ? "Selected by codec" : overrides.encoderBackend ? "This game" : "Default"
+                    explanation: codecManagesEncoder ? "PyroWave selects the PC's Vulkan encoder. Your encoder preference stays saved for other codecs."
+                        : "This launch only. Exact encoders must still be available when the game starts."
                     defaultExplanation: "Use the PC's encoder selection."
-                    onClicked: picker.choose(encoder, "Encoder", encoderChoices, Math.max(0, encoderChoices.findIndex(c => c.encoderBackend === (configuration.encoderBackend || ""))))
+                    onClicked: if (!codecManagesEncoder) picker.choose(encoder, "Encoder", encoderChoices, Math.max(0, encoderChoices.findIndex(c => c.encoderBackend === (configuration.encoderBackend || ""))))
                 }
                 Setting {
                     id: tuning; objectName: "play-setup-tuning"
@@ -482,7 +496,7 @@ FocusScope {
         anchors.bottom: parent.bottom
         anchors.margins: 32 * unit
         width: 240 * unit
-        height: 60 * unit
+        height: Math.max(60 * unit, implicitHeight)
         onClicked: backRequested()
         Keys.onRightPressed: focusPlayRequested()
         Keys.onUpPressed: focusSettings()
@@ -529,7 +543,7 @@ FocusScope {
         // Reusing the delegates can briefly report the previously focused row.
         // Reopen from the saved choice, never that transient focus notification.
         onOpened: focusChoice(selectedIndex)
-        onClosed: if (returnFocus) returnFocus.forceActiveFocus()
+        onClosed: if (returnFocus) (returnFocus === encoder && codecManagesEncoder ? videoCodec : returnFocus).forceActiveFocus()
         background: Rectangle { color: NovaTheme.panel; radius: 12 * unit; border.color: NovaTheme.divider }
         contentItem: NovaScrollColumn {
             spacing: 14 * unit

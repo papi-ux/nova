@@ -9,13 +9,16 @@ int main() {
     s.width = 1280; s.height = 800; s.targetFps = 90; s.codec = "H.264"; s.compositionAvailable = true;
     require(metrics.sample(s).value("fps") == "--", "target FPS became an observed rate");
     s.atMs = 1000; s.incoming = 60; s.decoded = 58; s.composed = 55; s.bytes = 2500000;
+    s.videoWorkSamples = 60; s.videoWorkMicros = 120000; s.refused = 2;
     s.rttMs = 12; s.rttVariationMs = 2; s.hostLatencyTenths = 120; s.hostLatencySamples = 6;
     auto view = metrics.sample(s);
     require(view.value("fps") == "55.0" && view.value("incoming") == "60.0" && view.value("decoded") == "58.0", "distinct frame stages collapsed");
     require(view.value("bitrate") == "20.0M" && view.value("host") == "2.0ms" && view.value("rtt") == "12ms", "wrong sample units");
     require(!view.contains("loss") && !view.contains("lowOnePercent"), "unsupported loss or one-percent-low was invented");
+    require(view.value("videoWork") == "2.00ms" && view.value("refused") == "2", "decoder work or refusal count was lost");
     s.atMs = 2000; s.rttMs.reset(); s.rttVariationMs = 8;
     view = metrics.sample(s);
+    require(view.value("videoWork") == "--" && view.value("refused") == "2", "idle interval fabricated work or lost cumulative refusals");
     require(view.value("fps") == "0.0" && view.value("host") == "--" && view.value("rtt") == "--" && view.value("jitter") == "--", "stalled video or missing telemetry kept stale values");
     s.atMs = 8000;
     require(metrics.sample(s).value("fps") == "--", "long gap became a valid average");

@@ -1,0 +1,306 @@
+# Nova Linux client roadmap
+
+Approved scope: 2026-09-23. Nova's native client targets Linux laptops, desktops
+and handhelds, with Steam Deck as a supported device profile. Work continues in
+`clients/deck/`; this scope change does not rename the package or application ID.
+
+The [v1.4.12 Alpha](https://github.com/papi-ux/nova/releases/tag/v1.4.12) already
+contains standalone PIN/Trusted Pair, libraries, Play Setup, native video/audio,
+Command Center, NovaHUD and initial controller/keyboard/direct-pointer input.
+The [Android parity inventory](deck-release-parity.md) remains the capability
+baseline. Its September 17 status column is historical, not today's coding queue.
+
+This roadmap adds Linux-wide usability and 240 fps to the implementation scope.
+It retains Deck LCD SDR60 and OLED SDR90/HDR90 acceptance. Configurable rates,
+successful negotiation and physically presented frames are separate results;
+none establishes the others. HDR10+ and the Nordstern transport remain separate
+research work.
+
+## Installed starting point
+
+Reported on 2026-09-23: the most recent Nova installations on the Steam Deck and
+Linux machines came from the Flatpak distributed through the Nova GitHub
+repository. Use those installed Flatpaks as the starting point for reproduction
+and upgrade testing, including their sandbox permissions and existing settings
+and pairing data.
+
+Record each installation's version, Flatpak commit and corresponding release
+asset/hash before upgrade testing. Read-only inspection of one Linux system
+installation on 2026-09-23 found version `1.4.12`, ref
+`app/com.papi_ux.Nova/x86_64/master`, runtime `org.kde.Platform/x86_64/6.10`,
+and Flatpak commit `34d695f01f442f36d417bb1b82e24ac3e4f6b341af53374ae455929f5a26df71`.
+The Deck and other Linux installations still need individual identity read-back;
+release-asset hash correspondence is not established by the Flatpak commit alone.
+The distribution source is confirmed by the user. The source audit commit below
+must not be assumed to match those installations.
+
+## Approved additions
+
+Rows below are planned unless updated in the implementation status section.
+Existing partial behavior is called out so it can be extended rather than rebuilt.
+
+| ID | Work | Completion criteria |
+|---|---|---|
+| L01 | Linux laptops, desktops and handhelds | Audit and address windowing, display scaling, external monitors, GPU/decoder selection, audio routing, input and packaging gaps. Publish an explicit tested compatibility matrix rather than infer support from the Steam Deck result. |
+| L02 | Continue UI/UX optimization and backend wiring | Library, details, Play Setup, pairing, settings, Command Center and recovery remain usable with mouse/keyboard, controller and touch. Resize and text scaling preserve readable content, reachable actions and visible focus. Complete unfinished UI/backend flows with real state and actionable errors. |
+| L03 | Remove arbitrary bitrate and frame-rate caps | Replace Deck-specific hard-coded ceilings with validated custom values and actual host/protocol/media constraints. Include 120, 144, 165 and 240 fps choices where supported. Carry the exact reviewed values through persistence, defaults, Sync, launch, resume, reconnect, media and pacing; explain unsupported combinations without silently rewriting saved choices. |
+| L04 | Fullscreen and desktop window behavior | Provide visible windowed/fullscreen controls and a keyboard shortcut; remember window geometry and mode, handle monitor changes, scaling and focus restoration, and keep both normal and Vulkan presentation paths consistent. Game Mode continues to work. |
+| L05 | Complete mouse implementation | Extend existing direct-pointer forwarding with relative capture for aiming, reliable capture/release and cursor behavior. Preserve buttons, wheel direction and scaling/cropping coordinates. Overlay shortcuts stay local; focus loss, device removal, monitor/window transitions and teardown release held input. Cover Wayland and X11 separately. |
+| L06 | Remove Material You from Linux | Remove the theme option and its implementation from the native client. Existing saved selections fall back to Polaris Aurora without resetting text size or other preferences. Retain the other themes and accessibility choices; Android keeps its own theme behavior. |
+| L07 | Find hosts on local/trusted networks | Add a user-visible search with selectable compatible hosts, progress, cancellation, deduplication and empty/error states. Selection feeds the existing pairing flow without requiring an IP address. Retain manual entry and PIN fallback. Discovery never grants trust or bypasses certificate checks; Trusted Pair remains a host-authorized decision. |
+| L08 | Consistent interface copy | Use consistent title capitalization for headings, categories and named actions, including **Video & Stream**, while retaining sentence case for explanatory text. Audit related help text, search terms, error messages, clipping and wrapping at supported text sizes. |
+
+Removing Material You is an approved native-platform adaptation to P21, rather
+than a reason to omit the remaining appearance or accessibility capabilities.
+The host-search requirement means finding compatible PCs on a local/trusted
+network; it does not mean changing Linux Wi-Fi or firewall configuration.
+
+## Implementation status
+
+2026-09-23: the first appearance/copy slice is implemented locally and has passed
+focused Linux verification:
+
+- L06 removes Material You and migrates its saved selection to Polaris Aurora.
+  The Linux settings regression verifies persistence and preservation of text
+  size, library layout and game overrides. The actual-app appearance route
+  passes for all five remaining themes, large text, focus and restart.
+- L08 standardizes settings/category titles and corresponding appearance,
+  audio, rumble, scaling and navigation labels. Audio/rumble help applies to
+  Linux devices generally. The wider interface-copy audit remains open.
+- Linux builds and all seven focused checks pass: settings migration, appearance,
+  native preview, settings route, library experience, audio settings and library
+  polish. Screenshots at 1280x800 and 960x600 with enlarged text were reviewed.
+  The source slice is ready for review; installed Flatpak upgrade acceptance and
+  publication remain pending.
+
+The desktop-window slice (L04) is also implemented locally:
+
+- Settings → Video & Stream → Window Mode and the in-game Command Center
+  switch between fullscreen and windowed. Ctrl + Alt + Shift + F works in the
+  library, pairing/PC management and both stream presentation paths.
+- Desktop and Game Mode remember their own mode, normal size, maximized state
+  and display choice. Restored geometry is constrained to the available screen;
+  Wayland leaves positioning to the compositor. Within a running session, the
+  library and Vulkan presentation retain their own normal geometry.
+- Mode/display changes release held stream input and leave Command Center open
+  until the player resumes. Vulkan handoff remains responsive under a stalled
+  GPU, including cancellation, fullscreen switching and reopening.
+- Eight focused Linux checks pass, covering geometry/persistence, native input,
+  Settings and Command Center, actual-app Settings, Vulkan overlays, refusal and
+  GPU pressure. Separate isolated X11 and Wayland compositor checks verify actual
+  fullscreen dimensions and restoration after resize. These checks do not close
+  the physical Game Mode, mixed-DPI/multi-monitor or installed Flatpak gates.
+
+The rate-policy slice (L03) is implemented locally:
+
+- The 90 fps device ceiling is removed from review, saved profiles, capability
+  checks and frame delivery. Supported displays/hosts offer 120/144/165/240 fps;
+  custom integral values follow the current Polaris profile range of 15–240 fps.
+- Removed the hidden 100 Mbps number-parser ceiling and the separate 150 Mbps
+  host-plan ceiling. The current Polaris host contract still accepts 1–300 Mbps;
+  raising that host limit requires a matching host/protocol change, not a client
+  claim of unlimited bitrate. The limits were rechecked against host source.
+- Tests cover high-rate persistence, Sync import, capability and display changes,
+  launch, disconnect/resume and reconnect, bounded pacing, QML custom entry and
+  actual-app review/settings routes. Existing pairing/session authority remains
+  in force. Physical 240 FPS cadence and Flatpak upgrade acceptance remain open.
+
+The relative mouse slice (L05) is implemented locally:
+
+- Direct Pointer remains the saved/default behavior. Relative Aiming adds X11 raw
+  motion and Wayland pointer locking, hidden-cursor aiming and explicit release
+  through Command Center, focus/window changes and mode changes.
+- Settings and Command Center expose the mode, retain a path back to Direct
+  Pointer on unsupported compositors, and explain capture refusal. Fractional
+  motion and relative distance are retained; pixel-only scrolling is forwarded.
+- Focused transport, settings, session and UI regressions pass. Xvfb and an
+  isolated KWin Wayland compositor both pass native relative motion beyond
+  display edges, cursor restoration, release and recapture. Physical input,
+  hotplug, installed Flatpak and game acceptance remain open.
+
+The local search slice (L07) is implemented locally:
+
+- Find PCs browses local streaming advertisements on explicit request, displays
+  separate endpoints for same-name PCs, and fills the address/HTTP port only
+  after selection. Trusted Pair and PIN keep their existing authorization and
+  certificate checks; advertisements never confer trust.
+- Searches are bounded to eight seconds, 64 resolve attempts and 32 displayed
+  endpoints. Duplicate advertisements collapse; removed, cancelled and expired
+  results cannot be selected. IPv6 link-local endpoints retain interface scope.
+- A private D-Bus regression covers service loss, malformed/stale records,
+  cancellation and multiple interfaces. Pairing UI coverage includes selection,
+  manual recovery, unchanged pairing routes, keyboard focus and 960x600 at
+  130% text. A live read-only Avahi query completed successfully. Flatpak adds
+  the Avahi system-bus permission; Avahi 0.8+ must run on the Linux device.
+
+## Source audit and implementation order
+
+Source baseline: [`c822632`](https://github.com/papi-ux/nova/commit/c822632), after
+the Alpha integration and host-refusal/icon fixes. These are source observations,
+not installed-device acceptance.
+
+1. **Linux appearance and copy (L06/L08).** `qml/NovaTheme.qml` still offers
+   `material_you`; `qml/SettingsHub.qml` contains `Video & stream`. Update the
+   picker, saved-theme fallback and affected help/search text together. Review
+   the actual appearance/settings screens with saved legacy preferences and
+   enlarged text. This is the first implementation slice.
+2. **Window and input behavior (L04/L05).** The shell has a fullscreen preference
+   and the Vulkan view follows the library window's visibility, but that is not
+   a complete user-facing mode toggle. Start in `qml/Main.qml`, `src/main.cpp`,
+   `src/runtime/deck_vulkan_session_view.cpp` and
+   `src/runtime/deck_desktop_input_bridge.*`. Preserve session-worker ownership
+   and release-on-focus-loss behavior while adding desktop controls and relative
+   input. Validate compositor-specific capture rather than assuming X11 and
+   Wayland are interchangeable.
+3. **Rate policy from UI to stream (L03).** The custom editor, saved configuration,
+   host capability filter and pacing controller currently enforce a 90 fps
+   ceiling. Bitrate checks also exist at 300 Mbps, with a narrower preset parser.
+   Audit `qml/StreamProfileEditor.qml`, `qml/LiveBitrate.qml`,
+   `src/runtime/deck_play_settings.cpp`, `deck_display_capabilities.*`,
+   `deck_frame_pacing.h`, `src/polaris/deck_stream_capabilities.h`,
+   `deck_game_tools.cpp`, `deck_host_settings.cpp` and the native session/media
+   path. Separate client policy from real wire/host limits before changing them;
+   retain overflow, malformed-value and allocation checks. Trace any host-owned
+   limits to Polaris and record required host changes explicitly.
+4. **Host search (L07).** `qml/PairHost.qml` and
+   `src/runtime/deck_pairing_controller.*` currently ask for a name/address and
+   already provide Trusted Pair and PIN. Add a bounded asynchronous discovery
+   provider and results model, then connect selection to those existing flows.
+   Exercise multiple interfaces, unavailable discovery services, stale results,
+   same-name hosts, cancellation and host changes before pairing.
+5. **Continuous Linux UI/compatibility work (L01/L02).** Apply responsive layout,
+   focus and copy fixes throughout the slices above. Keep the residual parity
+   work below visible; a desktop screenshot or a build alone cannot close it.
+
+Source paths in this section are relative to `clients/deck/`. Each slice records
+its exact change, relevant automated checks, visual evidence where applicable,
+and any remaining installed/hardware validation in its review.
+
+## Compatibility and acceptance matrix
+
+The initial matrix must cover these dimensions; the audit determines the named
+distributions, versions, GPUs and devices before they are advertised as tested.
+
+| Dimension | Required coverage |
+|---|---|
+| Device and session | Steam Deck LCD/OLED in Game Mode and Desktop Mode; a Linux laptop and a desktop without a Steam dependency; handheld, mouse/keyboard and controller use. |
+| Window system and display | Wayland and X11; windowed/fullscreen transitions; resize, fractional/high-DPI scaling, mixed-DPI external monitors, monitor disconnect and selected-display refresh changes. |
+| Graphics and media | AMD, Intel and NVIDIA compatibility audit; decoder/render-device selection including hybrid laptops; supported codecs, SDR/HDR, truthful unavailable/fallback states and A/V synchronization. Do not label an untested combination supported. |
+| Rates | Retain Deck SDR60/SDR90/HDR90 profiles. Validate high-refresh Linux profiles through 240 fps on capable hardware, distinguishing requested, negotiated, decoded, submitted, presented, repeated and dropped frames. Test bitrate values above the old client ceiling where the host/protocol supports them. |
+| Audio and input | Speakers, headphones and external/routed audio; controller hotplug and Steam Input; direct/relative mouse, keyboard, overlays, focus changes and held-input release. |
+| Network and identity | Local discovery, manual entry, Trusted Pair and PIN, pinned/revoked identity, multiple interfaces, network loss and stale discovery results; Polaris and standard compatible hosts; permitted and denied Spaces. |
+| Distribution and lifecycle | Fresh install and upgrade from the repository-distributed Flatpaks already installed on Deck/Linux, with exact artifact identities and preserved pairing/settings; persistence/reset, desktop launch and optional Steam entry; cancellation, host restart, disconnect/end-game and resource cleanup. Retain the 60-minute soak, 20 launch/stop cycles and five suspend/resume cycles. |
+
+Implementation can proceed before all hardware is available. A missing physical
+result remains explicitly unverified; a configuration option or fixture test is
+not evidence of 240 unique frames per second or HDR output. The combined
+HDR10+ at 240 fps research goal is not implied by separate SDR240 and HDR10 work.
+
+## Existing work carried forward
+
+These additions supplement, rather than replace, the remaining P01-P28 work:
+
+- Main10/HDR negotiation and actual HDR90 presentation, media pacing and A/V sync.
+- Remaining QR/Wake-on-LAN, resume/watch/Spaces and standard-host compatibility.
+- Touch/trackpad, text entry, virtual controls, gyro and advanced feedback.
+- Remaining library/artwork refresh and offline behavior, Stage actions and full
+  Space artwork editing where the host API permits it.
+- HUD metrics, richer Doctor explanations and support/recovery actions, settings
+  import/export, audio effects and remaining native settings equivalents.
+- Companion/external-display and background/session behavior.
+- Installed-artifact trust, ownership, lifecycle, compatibility and distribution
+  acceptance. Preserve Android regression and release checks.
+
+Update the [cross-product acceptance contract](https://github.com/papi-ux/polaris-nightly/blob/main/docs/deck-release-acceptance-v1.md)
+with the expanded Linux profiles and evidence before admitting a supported Linux
+release. Retain its existing Deck requirements and the separation from Nordstern
+protocol research. Alpha publication does not mark these gates accepted.
+
+## Linux compatibility audit of this candidate
+
+The client is a native Linux application with no Steam dependency for standalone
+pairing/library/streaming. Steam registration remains optional. The following
+results and remaining gaps were checked against this candidate's source:
+
+| Area | Candidate evidence | Remaining acceptance or implementation |
+|---|---|---|
+| Desktop UI | Fedora 44 / Qt 6.11.2, Xvfb, KWin X11 and Wayland; window/fullscreen restore, direct/relative input and 960x600 at 130% text | Actual Deck Game Mode, laptop/desktop physical input, mixed-DPI external displays and display removal |
+| Rate controls | Host/profile validation and full launch/resume/reconnect preserve up to 240 fps and 300 Mbps; display ceilings follow the active monitor | Physical 120/144/165/240 cadence, decoder throughput and network capacity; higher bitrate still requires a matching Polaris contract change |
+| Decode/GPU | H.264/HEVC VA-API capability checks and DRM/EGL presentation are present | Automatic FFmpeg VA-API device selection is still used for both probe and decode. There is no explicit hybrid-GPU selector, native NVDEC backend or software-decoder fallback. NVIDIA-only and cross-GPU import are not advertised as validated |
+| Audio | PipeWire autoconnect permits routing/reconnection and preserves channel mapping; existing tests cover buffering/recovery | No in-app output-device picker; physical speaker/headphone/external-output changes and A/V sync remain acceptance work |
+| Discovery | Local Avahi browse works on the build host; private service/UI regressions cover endpoint selection and lifecycle | Hosts must advertise; Avahi 0.8+ is needed on the device. VPN/routed networks and networks blocking multicast may need manual entry |
+| Packaging/HDR | Same application ID and settings paths; added Avahi permission and matching Qt input dependencies | The shipped manifest still leaves the experimental Vulkan path disabled. A development Vulkan build is not evidence that the repository Flatpak supports HDR. HDR packaging/presentation and upgrades from the user's exact installed artifacts remain separate gates |
+
+These are concrete coverage limits, not a claim that every Linux hardware and
+compositor combination is supported. The remaining parity and physical release
+gates above remain open.
+
+### Candidate validation checkpoint — 2026-09-23
+
+The Fedora 44 / Qt 6.11.2 development build completed all 118 scheduled checks:
+116 passed after correcting two test-fixture assumptions, and two graphics-
+dependent checks skipped (`vulkan_import_hardware` and the offscreen QSG smoke).
+The fixes give the standard-host screenshot an explicit display size and isolate
+route tests from checkout metadata and user preferences. Their focused rerun
+passed. No production geometry or pairing guard was relaxed to satisfy them.
+
+The actual Flatpak manifest also built in the KDE 6.10 SDK (Qt 6.10.3); shell and
+pairing startup smokes passed with isolated settings/identity paths. The bundle
+is a local, unpublished candidate. The installed Linux Flatpak recorded above was
+not replaced. This closes build/headless regression coverage for these slices,
+not physical upgrade, gameplay, HDR or high-refresh acceptance.
+
+### Installed Linux upgrade checkpoint — 2026-09-23
+
+The repository-distributed 1.4.12 system Flatpak was upgraded on a Fedora 44
+KDE Wayland desktop with an NVIDIA RTX 4090 and a 7680×2160/120 Hz HDR display.
+The original bundle and private user data were backed up first. The paired
+identity stayed byte-identical and every existing preference retained its value.
+The candidate loaded the live library and added only its window preferences.
+The fullscreen shortcut switched from 1280×800 to the actual display bounds and
+restored the saved window. The installed sandbox can reach Avahi 0.8.
+
+On-device checks found and fixed two concrete NVIDIA compatibility defects:
+
+- The decoder exposed maximum picture dimensions through VA-API configuration
+  attributes while leaving surface-attribute flags unset. Nova now uses reported
+  configuration limits and keeps the stricter limit when both queries provide
+  dimensions. Unknown profiles, formats and dimensions remain unsupported.
+- The driver exported NV12 chroma as RG88, while the EGL presenter accepted only
+  GR88. Both layouts are now admitted without relabeling the exported format or
+  modifier. A hardware-only decode/import probe compared unequal chroma values
+  against a downloaded hardware reference. The production scenegraph test also
+  verifies visible red pixels, so a blank draw cannot satisfy that check.
+
+The new capability regression fails against the old implementation and passes
+with the fix. Six targeted capability/session/profile/media checks passed;
+the media regression and GL composition check passed after the layout fix.
+The production scenegraph smoke passed on the actual NVIDIA GPU inside the
+installed Flatpak runtime, using the same packaged core library. These results
+supplement the earlier full regression run; they are not one combined test run.
+
+A native eight-second H.264 stream decoded 176 hardware frames, submitted audio
+and confirmed host cancellation. That is approximately 22 decoded fps against
+a 60 fps request, not cadence acceptance. Visible Mirror Desktop streaming and
+the Command Center's confirmed End Session action then passed. The host returned
+to idle and the physical display geometry/HDR setting remained unchanged.
+The host's default virtual-display route produced a black stream; it remains an
+open host/display compatibility result. Authenticated status probes sometimes
+timed out during streaming, so they do not provide an in-stream health proof.
+
+The original Flatpak was restored and could still read its paired library; the
+candidate was then reinstalled. Identity and all original preferences survived
+the upgrade, tests and rollback. Small HEVC fixture runs that allowed FFmpeg CPU
+fallback are excluded from hardware evidence.
+
+The installed candidate bundle has SHA-256
+`a6edc121edddbaa440a1df8d7f47d83909db5a5c25dd38f6bd48914b6efe28bb`
+and Flatpak commit
+`78730edcc62486c783664bc482bb6082e68cf6a4c6c059e396354db2eb6bc6b5`.
+Its product sources are `860b85f`; the subsequent scenegraph change strengthens
+the test only. The artifact is still an unpublished 1.4.12 candidate.
+
+Deck/Game Mode and laptop access, physical mouse/controller/hotplug tests,
+audible A/V sync, sustained gameplay, high-refresh cadence and HDR negotiation/
+packaging/output remain open. This desktop result does not admit NVIDIA systems
+in general, hybrid GPUs, or a supported HDR/240 fps release.

@@ -4,7 +4,7 @@ import QtCore
 
 QtObject {
     id: theme
-    // Names and colors follow Android Nova v1.4.11. This store contains only
+    // Native Linux themes share Nova's palette. This store contains only
     // device appearance choices; pairing and host/session authority stay in C++.
     // Read startup values without automatic property write-back. With a partial
     // record, Settings can queue defaults for later properties before loading
@@ -13,17 +13,19 @@ QtObject {
     property string selectedTheme: "polaris"
     property real selectedTextScale: 1
     Component.onCompleted: {
-        selectedTheme = preferences.value("themeId", "polaris")
+        const savedTheme = preferences.value("themeId", "polaris")
+        selectedTheme = savedTheme === "material_you" ? "polaris" : savedTheme
         selectedTextScale = preferences.value("textScale", 1)
+        // Retire the Android theme without rewriting unrelated saved choices.
+        if (savedTheme === "material_you")
+            preferences.setValue("themeId", "polaris")
     }
-    property SystemPalette systemPalette: SystemPalette { colorGroup: SystemPalette.Active }
     readonly property var choices: [
         { id: "polaris", title: "Polaris Aurora" },
         { id: "portable_chrome", title: "Portable Chrome" },
         { id: "oled", title: "Console OLED" },
         { id: "miami", title: "Miami Nebula" },
-        { id: "high_contrast", title: "High Contrast" },
-        { id: "material_you", title: "Material You" }
+        { id: "high_contrast", title: "High Contrast" }
     ]
     readonly property string themeId: choices.some(choice => choice.id === selectedTheme)
         ? selectedTheme : selectedTheme === "psp" ? "portable_chrome" : "polaris"
@@ -35,8 +37,7 @@ QtObject {
         portable_chrome: { window: "#14161A", panel: "#1E2228", raised: "#262B33", input: "#1A1D22", text: "#C9D1D9", secondary: "#9AA4AF", muted: "#838D9C", divider: "#3A424C", accent: "#5A93D6" },
         oled: { window: "#000000", panel: "#0A0A0E", raised: "#101016", input: "#0A0A0E", text: "#E0E6ED", secondary: "#A8B0B8", muted: "#87919B", divider: "#363640", accent: "#8B80FF" },
         miami: { window: "#130817", panel: "#241429", raised: "#341E3A", input: "#2C1734", text: "#FFF1F7", secondary: "#FFD3E2", muted: "#85C7D4", divider: "#6C3C6F", accent: "#FF5CAB" },
-        high_contrast: { window: "#05070C", panel: "#0F172A", raised: "#172033", input: "#111827", text: "#FFFFFF", secondary: "#E5E7EB", muted: "#CBD5E1", divider: "#DBEAFE", accent: "#60A5FA" },
-        material_you: { window: "#17141C", panel: "#28232E", raised: "#34303B", input: "#211D26", text: "#E9E0EF", secondary: "#CAC4D0", muted: "#AAA3B2", divider: "#605968", accent: systemPalette.highlight }
+        high_contrast: { window: "#05070C", panel: "#0F172A", raised: "#172033", input: "#111827", text: "#FFFFFF", secondary: "#E5E7EB", muted: "#CBD5E1", divider: "#DBEAFE", accent: "#60A5FA" }
     })[themeId]
     readonly property color window: colors.window
     readonly property color panel: colors.panel

@@ -3,6 +3,16 @@ cmake_minimum_required(VERSION 3.24)
 # The release version, kept equal to versionName in app/build.gradle by NovaReleaseMetadataTest.
 project(NovaDeck VERSION 1.4.13 LANGUAGES C CXX)
 
+# Only builds exported to a signed update feed enable the in-app updater.
+set(NOVA_DECK_UPDATE_CHANNEL "" CACHE STRING "Flatpak update branch: stable, beta or pyrowave")
+set(NOVA_DECK_UPDATE_URL "https://papi-ux.github.io/nova" CACHE STRING "Nova update catalog base URL")
+if(NOT NOVA_DECK_UPDATE_CHANNEL MATCHES "^(|stable|beta|pyrowave)$")
+    message(FATAL_ERROR "Unknown Nova update channel")
+endif()
+if(NOT NOVA_DECK_UPDATE_URL MATCHES "^https://[A-Za-z0-9./_-]+$")
+    message(FATAL_ERROR "Nova update feed must be an HTTPS URL without query or credentials")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -26,7 +36,25 @@ pkg_check_modules(NOVA_DECK_LINUX_AUDIO REQUIRED IMPORTED_TARGET
     libpulse
     opus
 )
-find_package(Qt6 REQUIRED COMPONENTS Quick Network DBus)
+find_package(Qt6 6.10 REQUIRED COMPONENTS Quick Network DBus WaylandClient GuiPrivate)
+pkg_check_modules(NOVA_DECK_POINTER REQUIRED IMPORTED_TARGET wayland-client xcb xcb-xinput)
+pkg_get_variable(NOVA_DECK_WAYLAND_PROTOCOLS wayland-protocols pkgdatadir)
+find_program(NOVA_DECK_WAYLAND_SCANNER wayland-scanner REQUIRED)
+set(NOVA_DECK_POINTER_PROTOCOL_SOURCES)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/pointer-protocols")
+foreach(protocol IN ITEMS relative-pointer pointer-constraints)
+    set(xml "${NOVA_DECK_WAYLAND_PROTOCOLS}/unstable/${protocol}/${protocol}-unstable-v1.xml")
+    if(NOT EXISTS "${xml}")
+        message(FATAL_ERROR "wayland-protocols is required for Linux relative mouse capture: missing ${xml}")
+    endif()
+    set(code "${CMAKE_CURRENT_BINARY_DIR}/pointer-protocols/${protocol}-protocol.c")
+    set(header "${CMAKE_CURRENT_BINARY_DIR}/pointer-protocols/${protocol}-client-protocol.h")
+    add_custom_command(OUTPUT "${code}" "${header}"
+        COMMAND "${NOVA_DECK_WAYLAND_SCANNER}" private-code "${xml}" "${code}"
+        COMMAND "${NOVA_DECK_WAYLAND_SCANNER}" client-header "${xml}" "${header}"
+        DEPENDS "${xml}" VERBATIM)
+    list(APPEND NOVA_DECK_POINTER_PROTOCOL_SOURCES "${code}" "${header}")
+endforeach()
 find_package(OpenSSL 1.1.1 REQUIRED COMPONENTS Crypto)
 
 add_library(nova_deck_core STATIC
@@ -61,9 +89,13 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_native_session.cpp
     src/runtime/deck_input_hub.cpp
     src/runtime/deck_desktop_input_bridge.cpp
+    src/runtime/deck_relative_pointer.cpp
+    ${NOVA_DECK_POINTER_PROTOCOL_SOURCES}
+    src/runtime/deck_window_controller.cpp
     src/runtime/deck_rumble.cpp
     src/runtime/deck_rumble_linux.cpp
     src/runtime/deck_sleep_monitor.cpp
+    src/runtime/deck_updates.cpp
     src/runtime/deck_native_target.cpp
     src/polaris/deck_game_tools.cpp
     src/runtime/deck_game_shortcuts.cpp
@@ -85,17 +117,45 @@ add_library(nova_deck_core STATIC
     src/polaris/deck_session_events.cpp
     src/runtime/deck_library_controller.cpp
     src/runtime/deck_library_artwork.cpp
+    src/runtime/deck_host_discovery.cpp
     src/runtime/deck_pairing_controller.cpp
 )
 set_target_properties(nova_deck_core PROPERTIES AUTOMOC ON)
 
 target_compile_definitions(nova_deck_core PRIVATE NOVA_DECK_NATIVE_MEDIA=1)
+target_compile_definitions(nova_deck_core PRIVATE
+    NOVA_DECK_UPDATE_CHANNEL="${NOVA_DECK_UPDATE_CHANNEL}"
+    NOVA_DECK_UPDATE_URL="${NOVA_DECK_UPDATE_URL}")
 
 set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
     ${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c
     CACHE PATH
     "Path to the checked-out moonlight-common-c source tree used by the Deck stream skeleton"
 )
+option(NOVA_DECK_BUILD_PYROWAVE "Build the experimental pinned PyroWave codec" OFF)
+if(NOVA_DECK_UPDATE_CHANNEL STREQUAL "pyrowave" AND NOT NOVA_DECK_BUILD_PYROWAVE)
+    message(FATAL_ERROR "The PyroWave update channel must include the codec")
+endif()
+if(NOVA_DECK_UPDATE_CHANNEL MATCHES "^(stable|beta)$" AND NOVA_DECK_BUILD_PYROWAVE)
+    message(FATAL_ERROR "Use the separate pyrowave update channel for codec-enabled builds")
+endif()
+if(NOVA_DECK_BUILD_PYROWAVE)
+    # Keep the Android submodule unchanged. Only this optional native build
+    # consumes the private, version-negotiated GameStream extension.
+    find_program(NOVA_PATCH_EXECUTABLE patch REQUIRED)
+    set(NOVA_DECK_PYROWAVE_MOONLIGHT_DIR "${CMAKE_CURRENT_BINARY_DIR}/moonlight-pyrowave-source")
+    file(COPY "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/" DESTINATION "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}"
+        PATTERN ".git" EXCLUDE)
+    execute_process(COMMAND "${NOVA_PATCH_EXECUTABLE}" --batch -p1 -i
+        "${CMAKE_CURRENT_SOURCE_DIR}/patches/moonlight-pyrowave.patch"
+        WORKING_DIRECTORY "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}"
+        RESULT_VARIABLE NOVA_DECK_PYROWAVE_PATCH_RESULT OUTPUT_QUIET)
+    if(NOT NOVA_DECK_PYROWAVE_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Pinned PyroWave transport patch did not apply")
+    endif()
+    configure_file(pyrowave/protocol.h "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}/src/NovaPyrowaveProtocol.h" COPYONLY)
+    set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}")
+endif()
 if(EXISTS "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/Limelight.h")
     # moonlight-common-c defaults to a shared library when BUILD_SHARED_LIBS is
     # unset; the Deck shell links it statically so an installed binary (the
@@ -114,6 +174,8 @@ endif()
 target_include_directories(nova_deck_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+    PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/pointer-protocols
 )
 target_link_libraries(nova_deck_core
     PUBLIC
@@ -123,6 +185,10 @@ target_link_libraries(nova_deck_core
         Qt6::Network
         Qt6::DBus
         OpenSSL::Crypto
+    PRIVATE
+        Qt6::GuiPrivate
+        Qt6::WaylandClient
+        PkgConfig::NOVA_DECK_POINTER
 )
 include(GNUInstallDirs)
 target_compile_definitions(nova_deck_core
@@ -135,6 +201,17 @@ target_compile_definitions(nova_deck_core
 )
 
 include(CTest)
+if(NOVA_DECK_BUILD_PYROWAVE)
+    add_subdirectory(pyrowave)
+    target_link_libraries(nova_deck_core PUBLIC nova_pyrowave)
+    target_compile_definitions(nova_deck_core PUBLIC NOVA_DECK_BUILD_PYROWAVE=1)
+    if(BUILD_TESTING)
+        add_executable(nova_deck_pyrowave_presenter_test tests/deck_pyrowave_presenter_test.cpp)
+        target_link_libraries(nova_deck_pyrowave_presenter_test PRIVATE nova_deck_core)
+        add_test(NAME nova_deck_pyrowave_presenter_test COMMAND nova_deck_pyrowave_presenter_test)
+        set_tests_properties(nova_deck_pyrowave_presenter_test PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
+    endif()
+endif()
 option(NOVA_DECK_BUILD_HDR_VALIDATION "Build local Main10 color and Vulkan window validation" OFF)
 option(NOVA_DECK_BUILD_VULKAN_STREAM "Build the opt-in Vulkan native stream UI" OFF)
 if(NOVA_DECK_BUILD_HDR_VALIDATION OR NOVA_DECK_BUILD_VULKAN_STREAM)
@@ -165,6 +242,10 @@ if(BUILD_TESTING)
         NOVA_DECK_HEVC_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/hevc-main-sdr.b64")
     add_test(NAME nova_deck_video_capabilities_test COMMAND nova_deck_video_capabilities_test)
     set_tests_properties(nova_deck_video_capabilities_test PROPERTIES TIMEOUT 20)
+    add_executable(nova_deck_vaapi_capabilities_test tests/deck_vaapi_capabilities_test.cpp)
+    target_link_libraries(nova_deck_vaapi_capabilities_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_vaapi_capabilities_test COMMAND nova_deck_vaapi_capabilities_test)
+    set_tests_properties(nova_deck_vaapi_capabilities_test PROPERTIES TIMEOUT 20)
     if(NOVA_DECK_BUILD_HDR_VALIDATION)
         add_executable(nova_deck_video_scale_test tests/deck_video_scale_test.cpp)
         target_link_libraries(nova_deck_video_scale_test PRIVATE nova_deck_hdr_render)
@@ -222,6 +303,10 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_host_settings_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_host_settings_test COMMAND nova_deck_host_settings_test)
     set_tests_properties(nova_deck_host_settings_test PROPERTIES TIMEOUT 45)
+    add_executable(nova_deck_background_sync_test tests/deck_background_sync_test.cpp)
+    target_link_libraries(nova_deck_background_sync_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_background_sync_test COMMAND nova_deck_background_sync_test)
+    set_tests_properties(nova_deck_background_sync_test PROPERTIES TIMEOUT 70)
     add_executable(nova_deck_hud_host_test tests/deck_hud_host_test.cpp)
     add_executable(nova_deck_session_sync_test tests/deck_session_sync_test.cpp)
     target_link_libraries(nova_deck_session_sync_test PRIVATE nova_deck_core)
@@ -277,6 +362,19 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_controller_input_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_controller_input_test COMMAND nova_deck_controller_input_test)
     add_executable(nova_deck_native_session_test tests/deck_native_session_test.cpp)
+    add_executable(nova_deck_window_controller_test tests/deck_window_controller_test.cpp)
+    target_link_libraries(nova_deck_window_controller_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_window_controller_test COMMAND nova_deck_window_controller_test)
+    pkg_check_modules(NOVA_DECK_XTEST REQUIRED IMPORTED_TARGET xcb-xtest)
+    add_executable(nova_deck_relative_pointer_test tests/deck_relative_pointer_test.cpp)
+    target_link_libraries(nova_deck_relative_pointer_test PRIVATE nova_deck_core PkgConfig::NOVA_DECK_XTEST)
+    find_program(NOVA_DECK_TEST_XVFB_RUN xvfb-run)
+    if(NOVA_DECK_TEST_XVFB_RUN)
+        add_test(NAME nova_deck_relative_pointer_test COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24" $<TARGET_FILE:nova_deck_relative_pointer_test>)
+        set_tests_properties(nova_deck_relative_pointer_test PROPERTIES TIMEOUT 20 ENVIRONMENT "QT_QPA_PLATFORM=xcb;QT_QUICK_BACKEND=software")
+        add_test(NAME nova_deck_relative_session_test COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24" $<TARGET_FILE:nova_deck_native_session_test> --desktop-only)
+        set_tests_properties(nova_deck_relative_session_test PROPERTIES TIMEOUT 20 ENVIRONMENT "QT_QPA_PLATFORM=xcb;QT_QUICK_BACKEND=software")
+    endif()
     add_executable(nova_deck_desktop_input_test tests/deck_desktop_input_test.cpp)
     target_link_libraries(nova_deck_desktop_input_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_desktop_input_test COMMAND nova_deck_desktop_input_test)
@@ -284,11 +382,22 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_native_session_test COMMAND nova_deck_native_session_test)
     set_tests_properties(nova_deck_native_session_test PROPERTIES TIMEOUT 60)
     find_program(DBUS_RUN_SESSION dbus-run-session REQUIRED)
+    add_executable(nova_deck_host_discovery_test tests/deck_host_discovery_test.cpp)
+    target_link_libraries(nova_deck_host_discovery_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_host_discovery_test COMMAND ${DBUS_RUN_SESSION} --
+        ${CMAKE_COMMAND} -E env NOVA_DECK_PRIVATE_DISCOVERY_BUS=1 $<TARGET_FILE:nova_deck_host_discovery_test>)
+    set_tests_properties(nova_deck_host_discovery_test PROPERTIES TIMEOUT 25)
+
     add_executable(nova_deck_sleep_monitor_test tests/deck_sleep_monitor_test.cpp)
     target_link_libraries(nova_deck_sleep_monitor_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_sleep_monitor_test COMMAND ${DBUS_RUN_SESSION} --
         ${CMAKE_COMMAND} -E env NOVA_DECK_PRIVATE_SLEEP_BUS=1 $<TARGET_FILE:nova_deck_sleep_monitor_test>)
     set_tests_properties(nova_deck_sleep_monitor_test PROPERTIES TIMEOUT 20)
+    add_executable(nova_deck_updates_test tests/deck_updates_test.cpp)
+    target_link_libraries(nova_deck_updates_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_updates_test COMMAND ${DBUS_RUN_SESSION} --
+        ${CMAKE_COMMAND} -E env NOVA_DECK_PRIVATE_UPDATE_BUS=1 $<TARGET_FILE:nova_deck_updates_test>)
+    set_tests_properties(nova_deck_updates_test PROPERTIES TIMEOUT 30)
     foreach(name IN ITEMS display_capabilities frame_delivery)
         add_executable(nova_deck_${name}_test tests/deck_${name}_test.cpp)
         target_link_libraries(nova_deck_${name}_test PRIVATE nova_deck_core)
@@ -560,6 +669,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/StreamProfileEditor.qml
                 qml/AppearanceSettings.qml
                 qml/SettingsHub.qml
+                qml/UpdateSettings.qml
                 qml/VideoScaleSettings.qml
                 qml/DeadzoneSettings.qml
                 qml/LibraryLayout.js
@@ -576,6 +686,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/LogoPlacement.qml
                 qml/LogoArtwork.qml
                 qml/PlaySetup.qml
+                qml/HostSearch.qml
                 qml/PairHost.qml
                 qml/EndpointKeyboard.qml
                 qml/SavedPcs.qml
@@ -652,6 +763,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
                         $<TARGET_FILE:nova-deck> --play-setup)
                 set_tests_properties(nova_deck_play_setup_route_test PROPERTIES TIMEOUT 80)
+                add_test(NAME nova_deck_text_readability_test
+                    COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
+                        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
+                        $<TARGET_FILE:nova-deck> --readability)
+                set_tests_properties(nova_deck_text_readability_test PROPERTIES TIMEOUT 120 RESOURCE_LOCK nova_deck_x11)
                 add_test(NAME nova_deck_launch_modes_route_test
                     COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
@@ -712,6 +828,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
                         $<TARGET_FILE:nova-deck> --keep-in-step)
                 set_tests_properties(nova_deck_keep_in_step_route_test PROPERTIES TIMEOUT 95 RESOURCE_LOCK nova_deck_x11)
+                add_test(NAME nova_deck_background_sync_route_test
+                    COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
+                        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
+                        $<TARGET_FILE:nova-deck> --background-sync)
+                set_tests_properties(nova_deck_background_sync_route_test PROPERTIES TIMEOUT 60 RESOURCE_LOCK nova_deck_x11)
                 add_test(NAME nova_deck_library_polish_test
                     COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
@@ -787,7 +908,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             target_link_libraries(nova_deck_game_tools_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
             target_compile_definitions(nova_deck_game_tools_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             add_test(NAME nova_deck_game_tools_qml_test COMMAND nova_deck_game_tools_qml_test)
-            set_tests_properties(nova_deck_game_tools_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+            set_tests_properties(nova_deck_game_tools_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Material" TIMEOUT 30)
             add_executable(nova_deck_native_preview_qml_test tests/deck_native_preview_qml_test.cpp tests/deck_preview_fixture.h)
             target_link_libraries(nova_deck_native_preview_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
             target_compile_definitions(nova_deck_native_preview_qml_test PRIVATE

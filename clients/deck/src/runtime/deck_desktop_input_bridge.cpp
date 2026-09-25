@@ -3,16 +3,29 @@
 #include <QMouseEvent>
 #include <QQuickItem>
 #include <QWheelEvent>
+#include <QScopedValueRollback>
 #include <algorithm>
 
 namespace nova::deck::runtime {
 using namespace stream;
 DeckDesktopInputBridge::DeckDesktopInputBridge(DeckNativeSessionController& session, DeckPlaySettings& settings, QObject* parent)
-    : QObject(parent), session_(session), settings_(settings) {
+    : QObject(parent), session_(session), settings_(settings), relative_(this), mouseMode_(settings.mouseMode()) {
     qApp->installEventFilter(this);
-    const auto sync = [this] { router_.capture(capturing()); };
+    const auto sync = [this] { syncCapture(); };
     connect(&session_, &DeckNativeSessionController::controlsChanged, this, sync);
     connect(&session_, &DeckNativeSessionController::stateChanged, this, sync);
+    connect(&settings_, &DeckPlaySettings::mouseModeChanged, this, [this] {
+        mouseMode_ = settings_.mouseMode();
+        session_.showControls(); syncCapture(); emit mouseStateChanged();
+    });
+    connect(&relative_, &DeckRelativePointer::changed, this, &DeckDesktopInputBridge::mouseStateChanged);
+    connect(&relative_, &DeckRelativePointer::lost, this, [this] {
+        if (capturing() && mouseMode_ == "relative") session_.showControls();
+    });
+    connect(&relative_, &DeckRelativePointer::motion, this, [this](double x, double y) {
+        if (!capturing() || mouseMode_ != "relative") return;
+        for (const auto& packet : motion_.move(x, y)) session_.sendDesktopInput(packet);
+    });
     connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
         if (state != Qt::ApplicationActive) { session_.setInputFocus(false); router_.focusLost(); localGesture_ = false; }
     });
@@ -21,12 +34,25 @@ DeckDesktopInputBridge::~DeckDesktopInputBridge() { watchWindow(nullptr, nullptr
 void DeckDesktopInputBridge::watchWindow(QWindow* window, QObject* content) {
     if (window == window_ && content == content_) return;
     if (window_) session_.showControls();
+    relative_.stop(); motion_.reset();
     disconnect(destroyed_);
     router_.focusLost(); localGesture_ = false;
     window_ = window; content_ = content;
     if (window_) destroyed_ = connect(window_, &QObject::destroyed, this, [this] {
         session_.setInputFocus(false); router_.focusLost(); content_ = nullptr;
     });
+}
+QVariantMap DeckDesktopInputBridge::mouseState() const {
+    return {{"available", relative_.available()}, {"active", relative_.active()},
+        {"pending", relative_.pending()}, {"error", relative_.error()}};
+}
+void DeckDesktopInputBridge::syncCapture() {
+    if (syncing_) return;
+    const QScopedValueRollback<bool> guard(syncing_, true);
+    const bool active = capturing();
+    router_.capture(active);
+    if (!active || mouseMode_ != "relative") { relative_.stop(); motion_.reset(); return; }
+    if (!relative_.start(window_)) { session_.showControls(); router_.capture(false); }
 }
 bool DeckDesktopInputBridge::capturing() const {
     return window_ && window_->isActive() && session_.capturesDesktopInput();
@@ -45,12 +71,14 @@ void DeckDesktopInputBridge::submit(const std::optional<DeckDesktopPacket>& pack
 bool DeckDesktopInputBridge::eventFilter(QObject* watched, QEvent* event) {
     if (watched != window_ || !window_) return false;
     if (event->type() == QEvent::FocusOut || event->type() == QEvent::Hide || event->type() == QEvent::Close) {
+        relative_.stop(); motion_.reset();
         session_.setInputFocus(false); router_.focusLost(); localGesture_ = false;
         return false;
     }
     if (event->type() == QEvent::FocusIn) { session_.setInputFocus(true); return false; }
     const bool active = capturing();
     router_.capture(active);
+    const bool aiming = active && mouseMode_ == "relative";
     if (event->type() == QEvent::ShortcutOverride && active) { event->accept(); return true; }
     if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
         auto& key = *static_cast<QKeyEvent*>(event);
@@ -78,6 +106,13 @@ bool DeckDesktopInputBridge::eventFilter(QObject* watched, QEvent* event) {
         if (mouse.source() != Qt::MouseEventNotSynthesized) return false;
         const bool press = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick;
         const bool release = event->type() == QEvent::MouseButtonRelease;
+        if (aiming) {
+            // The hidden desktop cursor may still lie over a local HUD button.
+            // Captured physical mouse input belongs to the game until released.
+            if (press) submit(router_.button(deckDesktopButton(mouse.button()), true, relative_.active()));
+            if (release) submit(router_.button(deckDesktopButton(mouse.button()), false));
+            return true;
+        }
         if (!active || localGesture_ || (!router_.dragging() && localPointer(mouse.position()))) {
             if (press) { localGesture_ = true; router_.button(deckDesktopButton(mouse.button()), true, false); }
             if (release) { router_.button(deckDesktopButton(mouse.button()), false); if (!mouse.buttons()) localGesture_ = false; }
@@ -91,18 +126,20 @@ bool DeckDesktopInputBridge::eventFilter(QObject* watched, QEvent* event) {
     }
     if (event->type() == QEvent::Wheel && active) {
         const auto& wheel = *static_cast<QWheelEvent*>(event);
-        if (localGesture_ || localPointer(wheel.position())) return false;
-        const auto mapped = position(wheel.position(), false);
-        if (!mapped) return true;
-        submit(mapped);
-        // Both Qt and GameStream use 120 units per wheel notch. Pixel-only
-        // touchpad gestures need a separate, explicit sensitivity policy.
-        const auto delta = wheel.angleDelta();
+        if (!aiming) {
+            if (localGesture_ || localPointer(wheel.position())) return false;
+            const auto mapped = position(wheel.position(), false);
+            if (!mapped) return true;
+            submit(mapped);
+        } else if (!relative_.active()) return true;
+        // Both Qt and GameStream use 120 units per notch. Pixel-only touchpad
+        // gestures retain direction and use one high-resolution unit per pixel.
+        const auto delta = wheel.angleDelta().isNull() ? wheel.pixelDelta() : wheel.angleDelta();
         if (!delta.isNull()) session_.sendDesktopInput({DeckDesktopPacket::Scroll, 0,
             std::clamp(delta.x(), -32768, 32767), std::clamp(delta.y(), -32768, 32767)});
         return true;
     }
-    if (event->type() == QEvent::Leave && router_.dragging()) session_.showControls();
+    if (event->type() == QEvent::Leave && !aiming && router_.dragging()) session_.showControls();
     return false;
 }
 }

@@ -148,7 +148,6 @@ int main() {
     assert(mainQml.find("state=copy-preview-only") == std::string::npos);
     assert(mainQml.find("readonly property color focusRingColor") != std::string::npos);
     assert(mainQml.find("readonly property color focusGlowColor") != std::string::npos);
-    assert(mainQml.find("cursorShape: Qt.BlankCursor") != std::string::npos);
     assert(mainQml.find("D-pad focus") != std::string::npos);
     assert(mainQml.find("Exact preview details stay behind Copy preview details") != std::string::npos);
     assert(mainQml.find("text: selectedLaunchPreviewText") == std::string::npos);

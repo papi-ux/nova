@@ -3,6 +3,7 @@
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_native_session.h"
 #include "runtime/deck_desktop_input_bridge.h"
+#include "runtime/deck_window_controller.h"
 #include "deck_doctor_fixture.h"
 
 #include <QCoreApplication>
@@ -130,6 +131,7 @@ struct Host {
     DeckHudHostFactory hostTelemetry;
     std::function<bool(const QString&, const QString&, const std::function<bool()>&)> authorizeSetup;
     std::function<bool(const std::string&, const std::function<bool()>&)> authorizeMode;
+    decltype(DeckNativeLaunchTarget::resolveLaunchTopology) resolveTopology;
     std::function<std::optional<nova::deck::DeckStreamCapabilities>(const std::function<bool()>&)> verifyStream;
 
     DeckNativeTargetResolver resolver() {
@@ -143,6 +145,7 @@ struct Host {
             target.appUuid = appUuid;
             target.authorizeSetup = authorizeSetup;
             target.authorizeLaunchMode = authorizeMode;
+            target.resolveLaunchTopology = resolveTopology;
             target.verifyStreamCapabilities = verifyStream;
             target.probeVideoSupport = [this] { return decoderSupport; };
             target.hostTelemetry = hostTelemetry;
@@ -254,6 +257,96 @@ void testRevalidatedPresetAndEncoder() {
                 host.launchRequest.find("encoderBackend=vaapi") != std::string::npos, "admitted setup did not reach host launch");
             controller.stop(); settled(controller);
         }
+    }
+}
+
+void testResolvedLaunchProfile() {
+    for (int scenario = 0; scenario < 5; ++scenario) {
+        Host host; Driver driver; Barrier check;
+        host.authorizeMode = [](const auto&, const auto&) { return true; };
+        host.verifyStream = [](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+            nova::deck::DeckStreamCapabilities caps; caps.maxFps = 90; return caps;
+        };
+        host.resolveTopology = [&](const DeckStreamRequest& request, const auto& cancelled) -> std::optional<std::string> {
+            require(request.width == 1280 && request.height == 800 && request.fps == 90 && request.bitrateKbps == 200000 &&
+                request.streamMode == "headless_stream", "profile review lost the selected settings");
+            if (scenario == 3 || scenario == 4) check.wait();
+            if (cancelled() || scenario == 1) return {};
+            return scenario == 2 ? "" : "headless_stream";
+        };
+        DeckNativeSessionController controller(true, host.resolver(), driver);
+        require(controller.setDisplayRateLimitReader([] { return 90; }), "display limit not set");
+        auto configuration = DeckPlayConfiguration{1280, 800, 90, 200000}.toMap(); configuration["launchMode"] = "headless_stream";
+        require(controller.startConfigured("host", "game", configuration), "resolved profile launch did not start");
+        if (scenario == 3 || scenario == 4) {
+            until([&] { return check.entered.load(); });
+            if (scenario == 3) controller.stop(); else host.rejectResolve = true;
+            check.release();
+        }
+        if (scenario == 0 || scenario == 2) {
+            until([&] { return phase(controller) == "active"; });
+            require(host.launchRequest.find("mode=1280x800x90") != std::string::npos &&
+                host.launchRequest.find("&streamMode=headless_stream&displayModeExplicit=1") != std::string::npos,
+                "launch lost explicit display choices");
+            require((host.launchRequest.find("&resolvedProfile=1&bitrateKbps=200000&resolvedHdr=0&expectedTopology=headless_stream") != std::string::npos) == (scenario == 0),
+                "resolved profile or legacy host envelope changed");
+            require(driver.receivedConfiguration.bitrate == 200000 && driver.receivedConfiguration.fps == 90,
+                "launch and media settings disagree");
+            controller.stop();
+        }
+        settled(controller);
+        if (scenario == 1 || scenario == 3 || scenario == 4)
+            require(host.launches == 0 && host.resumes == 0 && host.cancels == 0 && driver.starts == 0,
+                "refused, cancelled or stale plan reached host launch");
+    }
+}
+
+void testPyrowaveEncoderOverride() {
+    for (int scenario = 0; scenario < 5; ++scenario) {
+        Host host; Driver driver;
+        std::atomic<int> checks{0};
+        host.decoderSupport.pyrowave = scenario == 4 ? DeckDecodeLimits{} : DeckDecodeLimits{1920, 1200};
+        host.verifyStream = [scenario](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+            nova::deck::DeckStreamCapabilities capabilities;
+            capabilities.pyrowave = scenario != 3;
+            return capabilities;
+        };
+        host.serverInfoOverride = "<root status_code=\"200\"><appversion>7.1</appversion>"
+            "<ServerCodecModeSupport>8388609</ServerCodecModeSupport></root>";
+        host.authorizeSetup = [&](const QString& preset, const QString& encoder, const auto& cancelled) {
+            ++checks;
+            require(preset == "quality" && encoder.isEmpty() && !cancelled(), "PyroWave authorized a saved conventional encoder");
+            return scenario != 2;
+        };
+        auto values = DeckPlayConfiguration{}.toMap();
+        values["videoCodec"] = "pyrowave";
+        values["encoderBackend"] = "nvenc";
+        values["profilePreference"] = scenario == 0 ? "auto" : "quality";
+        DeckNativeSessionController controller(true, host.resolver(), driver);
+        require(controller.startConfigured("host", "game", values), "PyroWave configuration was not reviewed asynchronously");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        const bool allowed = scenario < 2;
+        const int expectedChecks = scenario == 1 || scenario == 2 ? 1 : 0;
+#else
+        const bool allowed = false;
+        const int expectedChecks = 0;
+#endif
+        if (allowed) {
+            until([&] { return phase(controller) == "active"; });
+            require(host.launchRequest.find("encoderBackend=") == std::string::npos &&
+                host.launchRequest.find("expectedEncoder=") == std::string::npos, "PyroWave sent a conventional encoder override");
+            require(scenario != 1 || host.launchRequest.find("profilePreference=quality") != std::string::npos,
+                "PyroWave lost the authorized tuning preference");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+            require(driver.receivedConfiguration.supportedVideoFormats == VIDEO_FORMAT_PYROWAVE,
+                "PyroWave silently selected another codec");
+#endif
+            controller.stop();
+        }
+        settled(controller);
+        require(checks == expectedChecks && values.value("encoderBackend") == "nvenc", "codec review changed saved choices or checked unavailable tuning");
+        if (!allowed) require(host.launches == 0 && host.resumes == 0 && host.cancels == 0 && driver.starts == 0,
+            "unsupported codec or refused tuning mutated the host");
     }
 }
 
@@ -402,26 +495,26 @@ void testVideoCodecAtLaunch() {
     }
 }
 
-void testDisplayRateAtLaunch() {
-    const auto values = DeckPlayConfiguration{1280, 800, 90, 20000}.toMap();
+void testDisplayRateAtLaunch(int fps) {
+    const auto values = DeckPlayConfiguration{1280, 800, fps, 225500}.toMap();
     {
         Host host;
         Driver driver;
         DeckNativeSessionController controller(true, host.resolver(), driver);
         require(!controller.startConfigured("host", "game", values) && host.resolves == 0,
-            "unverified display allowed a 90 FPS request");
+            "unverified display allowed a high FPS request");
     }
     for (int scenario = 0; scenario < 6; ++scenario) {
         Host host;
         Driver driver;
         host.driver = &driver;
         Barrier check;
-        std::atomic<int> displayLimit{90};
+        std::atomic<int> displayLimit{fps};
         host.verifyStream = [&](const std::function<bool()>& cancelled) -> std::optional<nova::deck::DeckStreamCapabilities> {
             if (scenario == 3 || scenario == 5) check.wait();
             if (cancelled()) return {};
             nova::deck::DeckStreamCapabilities caps;
-            caps.maxFps = scenario == 1 ? 60 : scenario == 2 ? 0 : 120;
+            caps.maxFps = scenario == 1 ? 60 : scenario == 2 ? 0 : 360;
             return caps;
         };
         if (scenario == 4) host.blockPath = "/serverinfo";
@@ -442,17 +535,17 @@ void testDisplayRateAtLaunch() {
         }
         if (scenario == 0) {
             until([&] { return phase(controller) == "active"; });
-            require(host.launchRequest.find("mode=1280x800x90") != std::string::npos && driver.receivedConfiguration.fps == 90,
-                "90 FPS review did not reach both launch and stream configuration");
+            require(host.launchRequest.find("mode=1280x800x" + std::to_string(fps)) != std::string::npos && driver.receivedConfiguration.fps == fps && driver.receivedConfiguration.bitrate == 225500,
+                "high FPS review did not reach both launch and stream configuration");
             displayLimit = 60;
             QElapsedTimer timer; timer.start();
             while (timer.elapsed() < 50) { QCoreApplication::processEvents(); QThread::msleep(1); }
-            require(phase(controller) == "active" && driver.receivedConfiguration.fps == 90 && driver.stops == 0,
+            require(phase(controller) == "active" && driver.receivedConfiguration.fps == fps && driver.stops == 0,
                 "display change renegotiated or ended an active game");
             controller.stop();
         }
         settled(controller);
-        if (scenario == 0) require(driver.stops == 1 && host.cancels == 1, "90 FPS stream broke cleanup");
+        if (scenario == 0) require(driver.stops == 1 && host.cancels == 1, "high FPS stream broke cleanup");
         else {
             require(host.launches == 0 && driver.starts == 0 && host.cancels == 0,
                 "unsupported, changed or cancelled display plan launched a game");
@@ -948,17 +1041,19 @@ std::string ownedRunningGame(const std::string& app = "17", const std::string& t
         "</currentgameowned><currentgamesessiontoken>" + token + "</currentgamesessiontoken></root>";
 }
 
-void testDisconnectedResume() {
+void testDisconnectedResume(int fps) {
     Host host;
     host.appUuid = "game";
     Driver driver;
     host.driver = &driver;
     InputRecorder input(driver);
+    host.verifyStream = [](const auto&) { nova::deck::DeckStreamCapabilities caps; caps.maxFps = 240; return std::optional(caps); };
     DeckNativeSessionController controller(true, host.resolver(), driver, input.sender());
+    require(controller.setDisplayRateLimitReader([] { return 240; }), "high-rate recovery display fixture failed");
     controller.setInputFocus(true);
     controller.updateController({}, true);
     require(!controller.resumeDisconnected("host", "game"), "resume without a ticket was accepted");
-    DeckPlayConfiguration configuration{1920, 1080, 30, 30000, "positions"};
+    DeckPlayConfiguration configuration{1920, 1080, fps, 225500, "positions"};
     require(controller.startConfigured("host", "game", configuration.toMap()), "resume fixture did not launch");
     until([&] { return phase(controller) == "active"; });
     controller.resumeInput();
@@ -980,8 +1075,8 @@ void testDisconnectedResume() {
     require(host.launches == 1 && host.resumes == 1 && host.cancels == 0, "resume launched/replaced/quit a game");
     require(host.resumeRequest.starts_with("/resume?") && host.resumeRequest.find("sessiontoken=private-token") != std::string::npos,
         "resume did not name its exact session");
-    require(driver.receivedConfiguration.width == 1920 && driver.receivedConfiguration.fps == 30 &&
-        driver.receivedConfiguration.bitrate == 30000, "resume lost reviewed stream settings");
+    require(driver.receivedConfiguration.width == 1920 && driver.receivedConfiguration.fps == fps &&
+        driver.receivedConfiguration.bitrate == 225500, "resume lost reviewed stream settings");
     controller.resumeInput();
     require(controller.controllerHint().contains("Release"), "resume replayed a held game button");
     controller.updateController({}, true);
@@ -1004,16 +1099,18 @@ void testDisconnectedResume() {
         "resumed connection failure ended the existing game");
 }
 
-void testInterruptedRecovery() {
+void testInterruptedRecovery(int fps) {
     Host host;
     host.appUuid = "game";
     Driver driver;
     host.driver = &driver;
     InputRecorder input(driver);
+    host.verifyStream = [](const auto&) { nova::deck::DeckStreamCapabilities caps; caps.maxFps = 240; return std::optional(caps); };
     DeckNativeSessionController controller(true, host.resolver(), driver, input.sender());
+    require(controller.setDisplayRateLimitReader([] { return 240; }), "high-rate recovery display fixture failed");
     controller.setInputFocus(true);
     controller.updateController({}, true);
-    const DeckPlayConfiguration config{1920, 1080, 30, 30000, "positions"};
+    const DeckPlayConfiguration config{1920, 1080, fps, 225500, "positions"};
     require(!controller.reconnect("host", "game"), "idle reconnect reached a host");
     require(controller.startConfigured("host", "game", config.toMap()), "recovery fixture did not start");
     until([&] { return phase(controller) == "active"; });
@@ -1053,8 +1150,8 @@ void testInterruptedRecovery() {
     require(controller.reconnect("host", "game"), "second manual reconnect was refused");
     until([&] { return phase(controller) == "active"; });
     require(controller.controlsVisible() && driver.receivedConfiguration.width == 1920 &&
-        driver.receivedConfiguration.height == 1080 && driver.receivedConfiguration.fps == 30 &&
-        driver.receivedConfiguration.bitrate == 30000, "reconnect lost configuration or auto-captured input");
+        driver.receivedConfiguration.height == 1080 && driver.receivedConfiguration.fps == fps &&
+        driver.receivedConfiguration.bitrate == 225500, "reconnect lost configuration or auto-captured input");
     controller.resumeInput();
     require(controller.controllerHint().contains("Release"), "reconnect replayed held controls");
     controller.updateController({}, true);
@@ -1663,9 +1760,12 @@ void testDesktopWindowRouting() {
     DeckNativeSessionController controller(true,host.resolver(),driver,[](const auto&) { return 0; },nullptr,desktop.sender());
     DeckPlaySettings settings;
     DeckDesktopInputBridge bridge(controller,settings);
+    DeckWindowController windowController;
+    QObject::connect(&windowController, &DeckWindowController::modeAboutToChange, &controller, &DeckNativeSessionController::showControls);
     QQuickWindow window, unrelated;
     window.resize(1280,800); window.show(); window.requestActivate();
     bridge.watchWindow(&window,&window);
+    windowController.watchWindow(&window);
     until([&] { return window.isActive(); }); controller.setInputFocus(true);
     const auto key=[&](int code,bool down,Qt::KeyboardModifiers mods=Qt::NoModifier,bool repeat=false,QWindow* target=nullptr) {
         QKeyEvent event(down ? QEvent::KeyPress : QEvent::KeyRelease,code,mods,{},repeat);
@@ -1697,6 +1797,9 @@ void testDesktopWindowRouting() {
     QWheelEvent wheel({640,400},window.mapToGlobal(QPointF(640,400)),{},QPoint(120,-240),Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
     QCoreApplication::sendEvent(&window,&wheel);
     until([&] { return desktop.seen({DeckDesktopPacket::Scroll,0,120,-240}); });
+    QWheelEvent pixels({640,400},window.mapToGlobal(QPointF(640,400)),QPoint(-13,27),{},Qt::NoButton,Qt::NoModifier,Qt::ScrollUpdate,false);
+    QCoreApplication::sendEvent(&window,&pixels);
+    until([&] { return desktop.seen({DeckDesktopPacket::Scroll,0,-13,27}); });
     QQuickItem local(window.contentItem()); local.setParent(&window);
     local.setObjectName("native-show-controls"); local.setPosition({10,10}); local.setSize({100,100});
     const auto count=desktop.snapshot().size();
@@ -1718,6 +1821,42 @@ void testDesktopWindowRouting() {
     require(controller.controlsVisible() && !desktop.seen({DeckDesktopPacket::Key,'M',0,0,true}),"focus loss or local shortcut guard failed");
     controller.setInputFocus(true); controller.resumeInput();
     key(Qt::Key_B,true,Qt::NoModifier,true); key(Qt::Key_B,false);
+    key(Qt::Key_C,true);
+    until([&] { return desktop.seen({DeckDesktopPacket::Key,'C',0,0,true}); });
+    const bool previousMode = windowController.fullscreen();
+    key(Qt::Key_F,true,Qt::ControlModifier|Qt::AltModifier|Qt::ShiftModifier);
+    key(Qt::Key_F,false);
+    until([&] { return desktop.seen({DeckDesktopPacket::Key,'C'}); });
+    require(windowController.fullscreen()!=previousMode && controller.controlsVisible() &&
+        !desktop.seen({DeckDesktopPacket::Key,'F',0,0,true}), "fullscreen chord leaked or left held input");
+    key(Qt::Key_C,false);
+    require(settings.setMouseMode("relative") && controller.controlsVisible(), "mouse mode switched during captured play");
+    controller.setInputFocus(true); controller.resumeInput();
+    if (bridge.mouseState().value("available").toBool()) {
+        until([&] { return bridge.mouseState().value("active").toBool(); });
+        auto* relative = bridge.findChild<DeckRelativePointer*>(); require(relative, "missing relative backend");
+        relative->motion(0.25, -0.25); relative->motion(0.75, -0.75);
+        until([&] { return desktop.seen({DeckDesktopPacket::Relative,0,1,-1}); });
+        // Physical clicks over the hidden local HUD pointer belong to the game.
+        mouse(QEvent::MouseButtonPress,{30,30},Qt::RightButton,Qt::RightButton);
+        until([&] { return desktop.seen({DeckDesktopPacket::Button,3,0,0,true}); });
+        QEvent leave(QEvent::Leave); QCoreApplication::sendEvent(&window,&leave);
+        require(!controller.controlsVisible(), "pointer edge released relative capture");
+        QCoreApplication::sendEvent(&window,&focusOut);
+        until([&] { return desktop.seen({DeckDesktopPacket::Button,3}); });
+        require(controller.controlsVisible() && !bridge.mouseState().value("active").toBool(), "focus loss retained capture");
+        controller.setInputFocus(true); controller.resumeInput();
+        until([&] { return bridge.mouseState().value("active").toBool(); });
+        mouse(QEvent::MouseButtonRelease,{30,30},Qt::RightButton,Qt::NoButton);
+        mouse(QEvent::MouseButtonPress,{30,30},Qt::MiddleButton,Qt::MiddleButton);
+        until([&] { return desktop.seen({DeckDesktopPacket::Button,2,0,0,true}); });
+        require(settings.setMouseMode("direct"), "could not return to direct pointer");
+        until([&] { return desktop.seen({DeckDesktopPacket::Button,2}); });
+        require(controller.controlsVisible() && !bridge.mouseState().value("active").toBool(), "mode change retained capture");
+    } else {
+        require(controller.controlsVisible() && !bridge.mouseState().value("error").toString().isEmpty(), "unsupported relative mode silently swallowed pointer");
+        require(settings.setMouseMode("direct"), "unavailable backend blocked direct pointer");
+    }
     controller.closeSession(); settled(controller);
     require(host.cancels==0,"desktop window close ended game");
 }
@@ -1960,12 +2099,13 @@ int main(int argc, char** argv) {
     QFile userDirs(settingsDirectory.path()+"/user-dirs.dirs");
     require(userDirs.open(QIODevice::WriteOnly), "missing user directories fixture");
     userDirs.write("XDG_DOCUMENTS_DIR=\""+settingsDirectory.path().toUtf8()+"/Documents\"\n"); userDirs.close();
-    qputenv("QT_QPA_PLATFORM","offscreen");
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) qputenv("QT_QPA_PLATFORM","offscreen");
     qputenv("QT_QUICK_BACKEND","software");
     QGuiApplication app(argc, argv);
     require(deckSupportReportDirectory().startsWith(settingsDirectory.path()+"/"), "support report destination is not isolated");
     QCoreApplication::setOrganizationName("NovaDeckTests");
     QCoreApplication::setApplicationName("NativeSession");
+    if (app.arguments().contains("--desktop-only")) { testDesktopWindowRouting(); return 0; }
     testDesktopWorkerOwnership();
     testDesktopWindowRouting();
     QSettings::setDefaultFormat(QSettings::IniFormat);
@@ -1974,6 +2114,8 @@ int main(int argc, char** argv) {
     testPresentationLifetime();
     testReviewedConfiguration();
     testRevalidatedPresetAndEncoder();
+    testResolvedLaunchProfile();
+    testPyrowaveEncoderOverride();
     {
         Host host;
         Driver driver;
@@ -1991,7 +2133,7 @@ int main(int argc, char** argv) {
     testLaunchModeAuthorization();
     testStreamCapabilitiesAtLaunch();
     testVideoCodecAtLaunch();
-    testDisplayRateAtLaunch();
+    for (const int fps : {90, 120, 144, 165, 240}) testDisplayRateAtLaunch(fps);
     testBackendTargetAuthority();
     testCancelDuringHttp("/serverinfo");
     testCancelDuringHttp("/launch");
@@ -2009,8 +2151,8 @@ int main(int argc, char** argv) {
     testSyncProfileSessionBoundary();
     testConfiguredFaceButtons();
     testDisconnectAndExitChoice();
-    testDisconnectedResume();
-    testInterruptedRecovery();
+    for (const int fps : {30, 240}) testDisconnectedResume(fps);
+    for (const int fps : {30, 240}) testInterruptedRecovery(fps);
     testInterruptionScopeAndGracefulEnd();
     testResumeFailuresAndCancellation();
     testQueuedInputBoundaries();

@@ -2,6 +2,7 @@
 #include "runtime/deck_native_session.h"
 #include "runtime/deck_display_capabilities.h"
 #include "runtime/deck_desktop_input_bridge.h"
+#include "runtime/deck_window_controller.h"
 #include "stream/deck_vulkan_video_window.h"
 #include <QQuickItem>
 
@@ -14,7 +15,7 @@ class DeckVulkanSessionView final : public QObject {
     Q_PROPERTY(bool ready READ ready NOTIFY changed)
     Q_PROPERTY(QString error READ error NOTIFY changed)
 public:
-    DeckVulkanSessionView(DeckNativeSessionController& session, DeckDisplayCapabilities& display, DeckPlaySettings& settings, DeckDesktopInputBridge& desktopInput,
+    DeckVulkanSessionView(DeckNativeSessionController& session, DeckDisplayCapabilities& display, DeckPlaySettings& settings, DeckDesktopInputBridge& desktopInput, DeckWindowController& windowController,
         bool allowSoftware = false, QObject* parent = nullptr);
     ~DeckVulkanSessionView() override;
     bool ready() const { return ready_; }
@@ -29,6 +30,7 @@ private:
     DeckNativeSessionController& session_;
     DeckDisplayCapabilities& display_;
     DeckDesktopInputBridge& desktopInput_;
+    DeckWindowController& windowController_;
     stream::DeckVulkanVideoWindow window_;
     QPointer<QObject> popup_;
     QPointer<QQuickItem> originalParent_;

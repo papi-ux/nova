@@ -71,7 +71,7 @@ jobs:
         run: |
           pacman -Syu --noconfirm --needed \
             git gcc cmake ninja pkgconf \
-            qt6-base qt6-declarative \
+            qt6-base qt6-declarative qt6-wayland wayland wayland-protocols \
             ffmpeg libva libdrm mesa \
             libpulse pipewire pipewire-audio opus openssl dbus python \
             libplacebo vulkan-headers vulkan-swrast \
@@ -94,6 +94,9 @@ jobs:
 
       - name: Configure
         run: cmake -S clients/deck -B build-deck -G Ninja
+
+      - name: Check Linux update feed preparation
+        run: python3 -m unittest tools.test_nova_flatpak_feed
 
       - name: Build
         run: cmake --build build-deck

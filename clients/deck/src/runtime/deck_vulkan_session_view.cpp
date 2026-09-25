@@ -4,8 +4,8 @@
 
 namespace nova::deck::runtime {
 DeckVulkanSessionView::DeckVulkanSessionView(DeckNativeSessionController& session,
-        DeckDisplayCapabilities& display, DeckPlaySettings& settings, DeckDesktopInputBridge& desktopInput, bool allowSoftware, QObject* parent)
-    : QObject(parent), session_(session), display_(display), desktopInput_(desktopInput), window_(allowSoftware) {
+        DeckDisplayCapabilities& display, DeckPlaySettings& settings, DeckDesktopInputBridge& desktopInput, DeckWindowController& windowController, bool allowSoftware, QObject* parent)
+    : QObject(parent), session_(session), display_(display), desktopInput_(desktopInput), windowController_(windowController), window_(allowSoftware) {
     window_.setTitle(QStringLiteral("Nova"));
     window_.enableQuickOverlay();
     const auto updateScale = [this, &settings] {
@@ -59,8 +59,7 @@ void DeckVulkanSessionView::attach(QObject* popup) {
     popup->setProperty("parent", QVariant::fromValue(overlay->contentItem()));
     desktopInput_.watchWindow(&window_, popup);
     display_.watchWindow(&window_);
-    if (library_->visibility() == QWindow::FullScreen) window_.showFullScreen();
-    else window_.show();
+    windowController_.watchWindow(&window_);
     window_.requestActivate();
     popupDestroyed_ = connect(popup, &QObject::destroyed, this, [this] {
         if (session_.busy()) session_.closeSession();
@@ -87,6 +86,7 @@ void DeckVulkanSessionView::restore(bool keepPopup) {
     }
     display_.watchWindow(library_);
     desktopInput_.watchWindow(library_, library_);
+    windowController_.watchWindow(library_);
     // Return input to the library immediately; retain the native surface until
     // the render worker has drained it. A reopen cancels native destruction.
     window_.retireSurface();

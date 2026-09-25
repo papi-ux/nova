@@ -29,6 +29,8 @@ Popup {
     required property var session
     property var inputHub: null
     readonly property var players: inputHub ? inputHub.players : []
+    property var windowController: null
+    property var desktopInput: null
     required property var settingsProvider
     property var hostSettingsController: null
     property var gameTools: null
@@ -43,7 +45,7 @@ Popup {
     property string destinationId: "desktop"
     property string destinationName: "Desktop"
     property bool destinationPlayable: true
-    property string returnLabel: "Back to details"
+    property string returnLabel: "Back to Details"
     property string reviewedHostId: ""
     property string reviewedGameId: ""
     property string reviewedHostName: ""
@@ -168,14 +170,21 @@ Popup {
         property bool destructive: false
         property real textScale: nativePreview.unit
         Accessible.description: caption
+        implicitHeight: Math.max(52, contentItem.implicitHeight + 20 * nativePreview.unit)
+        Layout.minimumHeight: implicitHeight
+        topPadding: 10 * nativePreview.unit; bottomPadding: 10 * nativePreview.unit
+        topInset: 0; bottomInset: 0
         contentItem: Item {
+            implicitHeight: actionLabels.implicitHeight
             Column {
+                id: actionLabels
                 anchors.centerIn: parent
                 width: parent.width
                 spacing: 4
                 Text {
                     width: parent.width
                     text: action.text; textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
                     color: action.activeFocus ? NovaTheme.window : "white"
                     font.pixelSize: 20 * action.textScale * NovaTheme.fontScale; font.bold: true
                     horizontalAlignment: Text.AlignHCenter
@@ -302,7 +311,7 @@ Popup {
                     text: reviewedGameTitle
                     textFormat: Text.PlainText
                     width: parent.width
-                    elide: Text.ElideRight
+                    wrapMode: Text.Wrap
                     color: NovaTheme.text
                     font.pixelSize: 26 * NovaTheme.fontScale
                     font.bold: true
@@ -331,29 +340,33 @@ Popup {
             color: NovaTheme.alpha(NovaTheme.panel, NovaTheme.highContrast ? 1 : 0.94)
             border.color: NovaTheme.divider
             Label {
-                anchors.left: parent.left; anchors.top: parent.top
+                id: commandTitle
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
                 anchors.margins: 24 * nativePreview.unit
                 text: "Command Center"
+                wrapMode: Text.Wrap
                 color: NovaTheme.text
                 font.pixelSize: 28 * nativePreview.unit * NovaTheme.fontScale
                 font.bold: true
             }
             Label {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                id: commandGame
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: commandTitle.bottom
                 anchors.leftMargin: 24 * nativePreview.unit; anchors.rightMargin: 24 * nativePreview.unit
-                anchors.topMargin: 66 * nativePreview.unit
+                anchors.topMargin: 12 * nativePreview.unit
                 text: reviewedGameTitle + " · " + reviewedHostName
                 textFormat: Text.PlainText
                 color: NovaTheme.secondary
                 font.pixelSize: 18 * nativePreview.unit * NovaTheme.fontScale
-                elide: Text.ElideRight
+                wrapMode: Text.Wrap
             }
             Item {
                 id: commandHeader
-                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: commandGame.bottom
                 anchors.margins: 24 * nativePreview.unit
-                anchors.topMargin: 108 * nativePreview.unit
-                height: 90 * nativePreview.unit
+                anchors.topMargin: 16 * nativePreview.unit
+                height: Math.max(90 * nativePreview.unit, nativePreviewAction.implicitHeight,
+                    nativeDisconnectAction.implicitHeight, nativeEndAction.implicitHeight)
                 readonly property real buttonWidth: (width - (nativeDisconnectAction.visible ? 24 : 12) * nativePreview.unit)
                     / (nativeDisconnectAction.visible ? 3 : 2)
             }
@@ -374,11 +387,21 @@ Popup {
                 Label {
                     objectName: "native-desktop-input-help"
                     Layout.fillWidth: true
-                    text: "Keyboard: Ctrl + Alt + Shift + M opens Command Center. Escape goes to your game.\nMouse: direct pointer control for desktop apps and menus. Relative mouse aiming is not available yet."
+                    text: "Keyboard: Ctrl + Alt + Shift + M opens Command Center and releases the mouse. Ctrl + Alt + Shift + F switches fullscreen. Escape goes to your game.\nMouse: " + (nativePreview.settingsProvider.mouseMode === "relative"
+                        ? "Relative Aiming. Resume captures the mouse for aiming without screen edges."
+                        : "Direct Pointer for desktop apps and menus.")
                     textFormat: Text.PlainText
                     wrapMode: Text.WordWrap
                     color: NovaTheme.secondary
                     font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
+                }
+                Label {
+                    objectName: "native-mouse-capture-error"
+                    Layout.fillWidth: true
+                    visible: nativePreview.settingsProvider.mouseMode === "relative" && text.length > 0
+                    text: nativePreview.desktopInput ? nativePreview.desktopInput.mouseState.error : ""
+                    textFormat: Text.PlainText; wrapMode: Text.WordWrap
+                    color: NovaTheme.warning; font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
                 }
                 Label {
                     text: "Players"; color: NovaTheme.text
@@ -436,9 +459,28 @@ Popup {
                 NovaButton {
                     id: inGameScale; objectName: "native-video-scale"
                     Layout.fillWidth: true; unit: nativePreview.unit
-                    text: "Video scaling · " + (nativePreview.settingsProvider.videoScaleMode === "fill" ? "Fill" : nativePreview.settingsProvider.videoScaleMode === "stretch" ? "Stretch" : "Fit")
+                    text: "Video Scaling · " + (nativePreview.settingsProvider.videoScaleMode === "fill" ? "Fill" : nativePreview.settingsProvider.videoScaleMode === "stretch" ? "Stretch" : "Fit")
                     onClicked: videoScaling.open()
                     Keys.onUpPressed: inGameAppearance.forceActiveFocus()
+                    Keys.onDownPressed: inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameMouse.visible && inGameMouse.enabled ? inGameMouse.forceActiveFocus() : inGameHud.forceActiveFocus()
+                }
+                NovaButton {
+                    id: inGameWindow; objectName: "native-window-mode"
+                    visible: !!nativePreview.windowController
+                    Layout.fillWidth: true; unit: nativePreview.unit
+                    text: nativePreview.windowController && nativePreview.windowController.fullscreen ? "Switch to Windowed" : "Switch to Fullscreen"
+                    onClicked: nativePreview.windowController.toggleFullscreen()
+                    Keys.onUpPressed: inGameScale.forceActiveFocus()
+                    Keys.onDownPressed: inGameMouse.visible && inGameMouse.enabled ? inGameMouse.forceActiveFocus() : inGameHud.forceActiveFocus()
+                }
+                NovaButton {
+                    id: inGameMouse; objectName: "native-mouse-mode"
+                    visible: !!nativePreview.desktopInput
+                    enabled: nativePreview.settingsProvider.mouseMode === "relative" || (!!nativePreview.desktopInput && nativePreview.desktopInput.mouseState.available)
+                    Layout.fillWidth: true; unit: nativePreview.unit
+                    text: "Mouse Mode · " + (nativePreview.settingsProvider.mouseMode === "relative" ? "Relative Aiming" : "Direct Pointer")
+                    onClicked: nativePreview.settingsProvider.setMouseMode(nativePreview.settingsProvider.mouseMode === "relative" ? "direct" : "relative")
+                    Keys.onUpPressed: inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameScale.forceActiveFocus()
                     Keys.onDownPressed: inGameHud.forceActiveFocus()
                 }
                 NovaButton {
@@ -448,7 +490,7 @@ Popup {
                     unit: nativePreview.unit
                     text: "NovaHUD · " + (NovaHudPreferences.enabled ? NovaHudPreferences.title : "Off")
                     onClicked: hudSettings.open()
-                    Keys.onUpPressed: inGameScale.forceActiveFocus()
+                    Keys.onUpPressed: inGameMouse.visible && inGameMouse.enabled ? inGameMouse.forceActiveFocus() : inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameScale.forceActiveFocus()
                     Keys.onDownPressed: liveTuningAction.enabled ? liveTuningAction.forceActiveFocus() : doctorAction.forceActiveFocus()
                 }
                 NovaButton {
@@ -496,7 +538,7 @@ Popup {
                     objectName: "native-live-bitrate"
                     Layout.fillWidth: true; unit: nativePreview.unit
                     enabled: nativePlaying && (liveTuningAction.status.canSetBitrate === true || liveTuningAction.status.bitrateBusy === true || liveTuningAction.status.hostRefreshing === true)
-                    text: "Live bitrate · " + (liveTuningAction.status.hostRefreshing ? "Refreshing…" : liveTuningAction.status.appliedBitrateKbps > 0 ? liveBitrate.format(liveTuningAction.status.appliedBitrateKbps) : "Unavailable")
+                    text: "Live Bitrate · " + (liveTuningAction.status.hostRefreshing ? "Refreshing…" : liveTuningAction.status.appliedBitrateKbps > 0 ? liveBitrate.format(liveTuningAction.status.appliedBitrateKbps) : "Unavailable")
                     onClicked: if (!liveTuningAction.status.hostRefreshing) liveBitrate.open()
                     onEnabledChanged: if (!enabled && activeFocus && nativePlaying) inGameHud.forceActiveFocus()
                     onActiveFocusChanged: if (!activeFocus && !enabled && nativePlaying && session.controlsVisible)
@@ -579,13 +621,16 @@ Popup {
         }
         Button {
             id: nativePreviewAction
+            implicitHeight: contentItem.implicitHeight + 20 * nativePreview.unit
+            topPadding: 10 * nativePreview.unit; bottomPadding: 10 * nativePreview.unit
+            topInset: 0; bottomInset: 0
             objectName: "native-preview-action"
             x: nativePlaying ? commandCenter.x + commandHeader.x : nativePreview.attempted
                 ? (parent.width - width) / 2 : parent.width - width - 32 * nativePreview.unit
             y: nativePlaying ? commandCenter.y + commandHeader.y
                 : parent.height - height - (recoveryAvailable ? 112 : 32) * nativePreview.unit
             width: nativePlaying ? commandHeader.buttonWidth : (nativePreview.attempted ? 440 : 280) * nativePreview.unit
-            height: nativePlaying ? commandHeader.height : 60 * nativePreview.unit
+            height: nativePlaying ? commandHeader.height : Math.max(60 * nativePreview.unit, implicitHeight)
             text: nativeSessionState.sleeping ? "Waiting for wake" : !nativePreview.attempted ? "Play"
                 : nativePlaying ? "Close" : reconnectAvailable ? "Reconnect" : resumeAvailable ? "Resume game"
                 : nativeSessionState.busy ? (nativeSessionState.automaticReconnect ? "Cancel reconnect" : "Cancel connection") : nativePreview.returnLabel
@@ -599,6 +644,7 @@ Popup {
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
+                wrapMode: Text.Wrap
             }
             background: Rectangle {
                 radius: 12
@@ -643,7 +689,7 @@ Popup {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottomMargin: 24 * nativePreview.unit
             width: 440 * nativePreview.unit
-            height: 60 * nativePreview.unit
+            height: Math.max(60 * nativePreview.unit, implicitHeight)
             visible: recoveryAvailable
             text: nativePreview.returnLabel
             onClicked: nativePreview.close()
@@ -699,7 +745,7 @@ Popup {
             parent: nativeStreamContent
             anchors.centerIn: parent
             width: Math.min(620, parent.width - 48)
-            height: 310
+            height: Math.min(implicitHeight, parent.height - 48)
             padding: 24
             modal: true
             focus: true
@@ -713,21 +759,24 @@ Popup {
                 else nativePreviewAction.forceActiveFocus()
             })
             background: Rectangle { color: "#152238"; radius: 18; border.color: NovaTheme.divider; border.width: 1 }
-            contentItem: Column {
+            contentItem: NovaScrollColumn {
                 spacing: 14
                 Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
                     text: "End this game?"
                     color: NovaTheme.text; font.pixelSize: 26 * NovaTheme.fontScale; font.bold: true
                 }
                 Label {
-                    width: parent.width
+                    Layout.fillWidth: true
                     text: "This closes the game on your PC. Unsaved progress may be lost."
                     color: NovaTheme.secondary; font.pixelSize: 18 * NovaTheme.fontScale; wrapMode: Text.WordWrap
                 }
                 SessionAction {
                     id: stayAction
                     objectName: "native-end-stay"
-                    width: parent.width; height: 56
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.max(56, implicitHeight)
                     textScale: 1
                     text: "Keep playing"
                     onClicked: endConfirmation.close()
@@ -738,7 +787,8 @@ Popup {
                 SessionAction {
                     id: confirmEndAction
                     objectName: "native-end-confirm"
-                    width: parent.width; height: 56
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.max(56, implicitHeight)
                     textScale: 1
                     text: "End game"; destructive: true
                     function endGame() {

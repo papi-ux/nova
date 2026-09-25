@@ -55,6 +55,29 @@ signals:
 private:
     QVariantMap model{{"phase", "idle"}, {"copy", "Enter the PC's address. Nova will give you a PIN to enter on the host."}, {"busy", false}, {"pin", ""}};
 };
+class DiscoveryFixture : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QVariantMap state READ state NOTIFY stateChanged)
+    Q_PROPERTY(QVariantList hosts READ hosts NOTIFY hostsChanged)
+public:
+    int starts = 0; bool busy = false; QVariantList results;
+    QVariantMap state() const { return {{"busy",busy},{"copy",busy ? "Searching this network…" : "Select a PC, then pair."}}; }
+    QVariantList hosts() const { return results; }
+    Q_INVOKABLE void start() { ++starts; busy=true; results.clear(); emit hostsChanged(); emit stateChanged(); }
+    Q_INVOKABLE void pause() { busy=false; emit stateChanged(); }
+    Q_INVOKABLE void stop() { busy=false; results.clear(); emit hostsChanged(); emit stateChanged(); }
+    Q_INVOKABLE QVariantMap endpoint(const QString& id) const {
+        for(const auto& item:results) if(item.toMap().value("id")==id) return item.toMap();
+        return {};
+    }
+    void publish() {
+        results = {QVariantMap{{"id","a"},{"name","Gaming PC"},{"address","192.0.2.10"},{"port",47989},{"network","Wired Network"}},
+                   QVariantMap{{"id","b"},{"name","Gaming PC"},{"address","192.0.2.11"},{"port",48000},{"network","Wi-Fi"}}};
+        emit hostsChanged();
+    }
+signals:
+    void hostsChanged(); void stateChanged();
+};
 class GamepadFixture : public QObject {
     Q_OBJECT
 public:
@@ -102,9 +125,11 @@ int main(int argc, char** argv) {
     QCoreApplication::setApplicationName("Pairing");
     app.setQuitOnLastWindowClosed(false);
     PairFixture fixture;
+    DiscoveryFixture discovery;
     GamepadFixture gamepad;
     QQmlEngine engine;
     engine.rootContext()->setContextProperty("novaPairing", &fixture);
+    engine.rootContext()->setContextProperty("novaDiscovery", &discovery);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepad);
     QQmlComponent component(&engine, QUrl::fromLocalFile(QStringLiteral(NOVA_DECK_QML_DIRECTORY) + "/PairHost.qml"));
     require(component.isReady(), qPrintable(component.errorString()));
@@ -203,7 +228,7 @@ int main(int argc, char** argv) {
     require(fixture.starts == 2, "retry did not start a fresh attempt");
     fixture.set("paired", "PC paired with Nova. Open your library to choose a game.", false);
     settle();
-    require(primary->property("text") == "Open library" && !pin->isVisible() && !address->isEnabled(), "paired state did not clear the PIN or offer library");
+    require(primary->property("text") == "Open Library" && !pin->isVisible() && !address->isEnabled(), "paired state did not clear the PIN or offer library");
     capture("pairing-complete-fixture.png");
     key(*window, Qt::Key_Return);
     require(!window->isVisible() && root->property("openLibrary").toBool(), "paired continuation must request the native library");
@@ -321,7 +346,7 @@ int main(int argc, char** argv) {
     require(fixture.trustedStarts == 2, "trusted retry did not start exactly once");
     fixture.set("paired", "PC paired with Nova. Open your library to choose a game.", false);
     settle();
-    require(!trusted->isVisible() && primary->hasActiveFocus() && primary->property("text") == "Open library",
+    require(!trusted->isVisible() && primary->hasActiveFocus() && primary->property("text") == "Open Library",
         "trusted success did not focus Open library");
     key(*window, Qt::Key_Return);
     require(!window->isVisible() && root->property("openLibrary").toBool(), "trusted pairing did not continue to library");
@@ -378,6 +403,37 @@ int main(int argc, char** argv) {
     key(*window, Qt::Key_Right);
     visibleFocus();
     capture("saved-pcs-large-confirm-960.png");
-    std::cout << "Pairing QML passed: PIN setup, saved PCs, explicit unpair/forget, focus, retry, safe close and large-text scrolling\n";
+    root.reset(); fixture.reset(); root.reset(component.create());
+    window = qobject_cast<QQuickWindow*>(root.get()); window->resize(960,600); settle();
+    require(discovery.starts==0,"opening pairing automatically searched the network");
+    auto* search = root->findChild<QQuickItem*>("pair-search");
+    search->forceActiveFocus(); key(*window,Qt::Key_Return);
+    require(discovery.starts==1 && discovery.busy,"Find PCs did not start a search");
+    discovery.publish(); settle();
+    key(*window,Qt::Key_Down); require(window->activeFocusItem()->objectName()=="host-search-result-0","search results unreachable");
+    key(*window,Qt::Key_Down); require(window->activeFocusItem()->objectName()=="host-search-result-1","same-name PCs not separately selectable");
+    visibleFocus(); capture("pairing-search-large-960.png");
+    const int trustedBefore=fixture.trustedStarts, pinsBefore=fixture.starts;
+    key(*window,Qt::Key_Return);
+    require(root->findChild<QQuickItem*>("pair-address")->property("text")=="192.0.2.11" &&
+        root->findChild<QQuickItem*>("pair-port")->property("text")=="48000" && !discovery.busy &&
+        fixture.trustedStarts==trustedBefore && fixture.starts==pinsBefore,"search selection paired automatically or filled wrong endpoint");
+    require(window->activeFocusItem()->objectName()=="pair-trusted","search selection did not focus pairing");
+    key(*window,Qt::Key_Return);
+    require(fixture.trustedStarts==trustedBefore+1 && fixture.selectedAddress=="192.0.2.11" && fixture.selectedPort==48000,"discovered endpoint bypassed existing Trusted Pair flow");
+    fixture.reset(); settle();
+    discovery.stop(); // Expired/removed results cannot be paired from a stale row.
+    root->findChild<QQuickItem*>("pair-trusted")->forceActiveFocus(); key(*window,Qt::Key_Return);
+    require(fixture.trustedStarts==trustedBefore+1 && !root->property("discoveryError").toString().isEmpty(),"expired result still paired");
+    root->findChild<QQuickItem*>("pair-address")->setProperty("text","manual-pc");
+    root->findChild<QQuickItem*>("pair-primary")->forceActiveFocus(); key(*window,Qt::Key_Return);
+    require(fixture.starts==pinsBefore+1 && fixture.selectedAddress=="manual-pc","manual entry did not recover from unavailable search");
+    fixture.reset(); settle(); search->forceActiveFocus(); key(*window,Qt::Key_Return);
+    discovery.publish(); settle(); key(*window,Qt::Key_Down);
+    discovery.results.removeFirst(); emit discovery.hostsChanged(); settle();
+    require(window->activeFocusItem()->objectName()=="host-search-start","removed result lost keyboard focus");
+    emit gamepad.secondaryActionPressed(1); settle();
+    require(!discovery.busy && discovery.results.isEmpty() && search->hasActiveFocus(),"Back retained discovery or lost pairing focus");
+    std::cout << "Pairing QML passed: PIN setup, saved PCs, explicit unpair/forget, focus, retry, safe close, local search and large-text scrolling\n";
 }
 #include "deck_pairing_qml_test.moc"

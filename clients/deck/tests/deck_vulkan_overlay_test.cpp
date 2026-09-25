@@ -120,7 +120,8 @@ int main(int argc, char** argv) {
     DeckDisplayCapabilities display;
     DeckPlaySettings settings(config.filePath("play.ini"));
     DeckDesktopInputBridge desktopInput(owner, settings);
-    DeckVulkanSessionView view(owner, display, settings, desktopInput, true);
+    DeckWindowController windowController;
+    DeckVulkanSessionView view(owner, display, settings, desktopInput, windowController, true);
     PreviewSession session;
     PreviewPlayers players(session);
     settings.setVideoDecodeSupport({.h264 = {4096, 4096}});
@@ -130,6 +131,7 @@ int main(int argc, char** argv) {
     engine.rootContext()->setContextProperty("testSettings", &settings);
     engine.rootContext()->setContextProperty("testDisplay", &display);
     engine.rootContext()->setContextProperty("testView", &view);
+    engine.rootContext()->setContextProperty("testWindowController", &windowController);
     QQmlComponent component(&engine);
     component.setData("import QtQuick\nimport QtQuick.Controls\nimport \"" +
         QUrl::fromLocalFile(NOVA_DECK_QML_DIRECTORY).toEncoded() + "\"\n" + R"(
@@ -139,6 +141,7 @@ int main(int argc, char** argv) {
             NativeStreamPreview {
                 id: preview
                 presentationBridge: testView
+                windowController: testWindowController
                 session: testSession; inputHub: testPlayers; settingsProvider: testSettings
                 displayCapabilities: testDisplay.state
                 hostId: "fixture-host"; gameId: "fixture-game"
@@ -159,6 +162,7 @@ int main(int argc, char** argv) {
     auto* controls = root->findChild<QQuickItem*>("native-show-controls");
     auto* resolution = root->findChild<QQuickItem*>("play-setup-resolution");
     require(library && preview && play && end && controls && resolution, "missing production controls");
+    windowController.watchWindow(library);
     auto* target = view.window();
     auto* overlay = target->quickOverlayWindow();
     const auto focused = [&](QQuickItem* item) {
@@ -236,6 +240,7 @@ int main(int argc, char** argv) {
             QTest::touchEvent(target, touch).release(0, point, target).commit();
             require(root->findChild<QObject*>("play-setup-picker")->property("opened").toBool(), "touch input blocked behind GPU");
             QMetaObject::invokeMethod(preview, "leave");
+            windowController.setFullscreen(phase == 0);
             latency.restart();
             QMetaObject::invokeMethod(preview, "close");
             wait([&] { return !target->isVisible() && library->isActive(); }, "cancel did not return to library");
@@ -292,6 +297,9 @@ int main(int argc, char** argv) {
         wait([&] { return target->isActive() && preview->property("opened").toBool(); }, "preview did not activate");
         require(preview->property("externalVideo").toBool(), "popup stayed on the library");
         focused(play);
+        windowController.setFullscreen(cycle == 0);
+        require(target->visibility() == (cycle == 0 ? QWindow::FullScreen : QWindow::Windowed),
+            "Vulkan presentation ignored window mode");
         require(play->isEnabled() && session.starts == 0, "review launched or remained disabled");
         key(target, Qt::Key_Down); focused(resolution);
         key(target, Qt::Key_Return);
@@ -301,6 +309,8 @@ int main(int argc, char** argv) {
             QMetaObject::invokeMethod(preview, "close");
             wait([&] { return !target->isVisible() && library->isActive(); }, "close did not restore library");
             require(!view.ready() && !preview->property("externalVideo").toBool(), "close retained native presentation");
+            require(library->visibility() == (cycle == 0 ? QWindow::FullScreen : QWindow::Windowed),
+                "Vulkan return lost selected window mode");
         }
     }
     play->forceActiveFocus(); key(target, Qt::Key_Return);
@@ -323,6 +333,18 @@ int main(int argc, char** argv) {
     QMetaObject::invokeMethod(preview,"leave"); QTest::qWait(150); focused(scaleAction);
     require(!scalePopup->property("opened").toBool() && session.controlsVisible(),"scaling Back resumed or stranded editor");
     require(settings.resetVideoScaleMode() && target->videoScaleMode()==DeckVideoScaleMode::Fit,"scaling reset missed Vulkan bridge");
+    auto* windowAction=root->findChild<QQuickItem*>("native-window-mode");
+    require(windowAction && windowAction->isVisible(), "window control missing from Command Center");
+    key(target, Qt::Key_Down); focused(windowAction);
+    key(target, Qt::Key_Return);
+    require(windowController.fullscreen() && target->visibility() == QWindow::FullScreen && session.controlsVisible(),
+        "Command Center failed to enter fullscreen safely");
+    capture("vulkan-fullscreen-control.png");
+    key(target, Qt::Key_Down); focused(root->findChild<QQuickItem*>("native-hud-settings"));
+    key(target, Qt::Key_Up); focused(windowAction);
+    key(target, Qt::Key_Return);
+    require(!windowController.fullscreen() && target->visibility() == QWindow::Windowed && session.starts == 1,
+        "Command Center failed to restore windowed mode or relaunched stream");
     play->forceActiveFocus();
     capture("vulkan-command-center.png");
     key(target, Qt::Key_Right); key(target, Qt::Key_Right); focused(end);

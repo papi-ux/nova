@@ -54,7 +54,7 @@ DeckShortcutWriteResult writeGameShortcut(const std::vector<std::filesystem::pat
     DeckShortcutWriteResult result;
     const auto stopped = [&] { const auto running = steamRunning ? steamRunning() : std::nullopt; return running && !*running; };
     if (shortcut.canonicalId.empty() || !decodeGameLink(QString::fromStdString(shortcut.canonicalId))) { result.detail = "This game link is invalid."; return result; }
-    if (!stopped()) { result.detail = "Close Steam in Desktop Mode, then choose Retry. Nova will keep this game ready."; return result; }
+    if (!stopped()) { result.detail = "Close Steam, then choose Retry. On Steam Deck, use Desktop Mode. Nova will keep this game ready."; return result; }
     if (files.empty()) { result.detail = "Open Steam and sign in once, then close it and retry."; return result; }
     // Prepare every image and inspect every VDF before writing. Library URLs,
     // game titles and host IDs never become filesystem names or shell text.
@@ -118,7 +118,7 @@ bool DeckGameShortcuts::add(const QString& game) {
                 return steamClientRunningForAccount(QFile::exists("/.flatpak-info"), getuid());
             };
             const auto initial = running();
-            if (!initial || *initial) { job->result.detail = "Close Steam in Desktop Mode, then choose Retry. Nova will keep this game ready."; return; }
+            if (!initial || *initial) { job->result.detail = "Close Steam, then choose Retry. On Steam Deck, use Desktop Mode. Nova will keep this game ready."; return; }
             std::vector<std::filesystem::path> files;
             for (const auto& root : defaultSteamRoots()) { files = defaultShortcutFiles(root); if (!files.empty()) break; }
             QMap<QString, QImage> artwork;

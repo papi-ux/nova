@@ -1,5 +1,6 @@
 #include "deck_game_tools_fixture.h"
 #include "runtime/deck_host_settings.h"
+#include "runtime/deck_window_controller.h"
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QQmlContext>
@@ -27,6 +28,16 @@ int main(int argc, char** argv) {
     QTemporaryDir config; qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName("NovaDeckTests"); QCoreApplication::setApplicationName("SettingsHub");
+    // Existing Flatpak users may have selected the retired Android theme.
+    // Migrating it must preserve independently saved appearance/library choices.
+    {
+        QSettings previous;
+        previous.setValue("Appearance/themeId", "material_you");
+        previous.setValue("Appearance/textScale", 1.3);
+        previous.setValue("Library/layoutMode", "compact");
+        previous.sync();
+        check(previous.status() == QSettings::NoError, "legacy appearance fixture failed");
+    }
     DeckPlaySettings settings(config.filePath("play.ini"));
     QFile blocker(config.filePath("blocked")); check(blocker.open(QIODevice::WriteOnly), "failure fixture failed"); blocker.close();
     DeckPlaySettings failedSettings(config.filePath("blocked/play.ini"));
@@ -44,27 +55,48 @@ int main(int argc, char** argv) {
         target.writeMode = [&](const auto&, const auto&) { ++writes; return game_tools_fixture::ok(current); };
         return target;
     });
+    DeckWindowController windowController;
     QQmlEngine engine; engine.rootContext()->setContextProperty("settings", &settings); engine.rootContext()->setContextProperty("host", &host);
+    engine.rootContext()->setContextProperty("windowMode", &windowController);
     bool warnings = false;
     QObject::connect(&engine, &QQmlEngine::warnings, [&](const QList<QQmlError>& es) { warnings = true; for (const auto& e : es) std::cerr << e.toString().toStdString() << '\n'; });
     QQmlComponent component(&engine);
     component.setData("import QtQuick\nimport QtQuick.Controls\nimport QtCore\nimport \"" + QUrl::fromLocalFile(NOVA_DECK_QML_DIRECTORY).toEncoded() + "\"\n" + R"(
         ApplicationWindow {
             width:1280; height:800; visible:true; color:NovaTheme.window
+            property bool relativeAvailable:true
+            QtObject { id:input; property var mouseState:({available:relativeAvailable}) }
             property bool available:true
             property var provider:settings
+            property int updateChecks:0
+            property int updateInstalls:0
+            property int updateFinishes:0
+            property var updateState:({supported:true, version:"1.4.12", channel:"beta", available:true, latestVersion:"v1.4.13-beta.1", message:"A Nova update is available.", canCheck:true, canInstall:true, automatic:false, installing:false, restartRequired:false, canFinish:false, blocked:false})
+            QtObject {
+                id:updater
+                property var state:updateState
+                property bool busy:!!state.installing
+                function check() { updateChecks++ }
+                function install() { updateInstalls++; updateState=Object.assign({},updateState,{installing:true,canInstall:false,canCheck:false,progress:35}) }
+                function setAutomatic(value) { updateState=Object.assign({},updateState,{automatic:value}); return true }
+                function finishUpdate() { updateFinishes++ }
+            }
+            readonly property string themeId:NovaTheme.themeId
+            readonly property real fontScale:NovaTheme.fontScale
             Settings { id:prefs; category:"Library"; property string layoutMode:"grid" }
             function large() { NovaTheme.setFontScale(1.3) }
             function contrast() { NovaTheme.setTheme("high_contrast") }
             function resetTheme() { NovaTheme.setTheme("polaris"); NovaTheme.setFontScale(1) }
             function controllerBack() { hub.back() }
+            function openUpdates() { hub.openUpdates() }
             function syncPreferences() { NovaTheme.preferences.sync(); NovaHudPreferences.preferences.sync(); NovaStreamPreferences.preferences.sync(); prefs.sync() }
             NovaButton { id:open; objectName:"open-settings"; text:"Settings"; onClicked:hub.open() }
-            SettingsHub { id:hub; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
+            SettingsHub { id:hub; updateController:updater; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
         }
     )", QUrl());
     auto root = std::unique_ptr<QObject>(component.create()); if (!root) std::cerr << component.errorString().toStdString(); check(bool(root), "QML failed");
     auto* window = qobject_cast<QQuickWindow*>(root.get()); check(window, "no window");
+    windowController.watchWindow(window);
     const auto item = [&](const char* name) { auto* p = find(window->contentItem(), name); check(p, name); return p; };
     const auto click = [&](const char* name) { item(name)->forceActiveFocus(); settle(); QTest::keyClick(window, Qt::Key_Return); settle(); };
     const auto key = [&](Qt::Key k) { QTest::keyClick(window, k); settle(); };
@@ -73,10 +105,29 @@ int main(int argc, char** argv) {
     const auto capture = [&](const char* name) { if (argc > 1) { QDir().mkpath(argv[1]); check(window->grabWindow().save(QString::fromLocal8Bit(argv[1]) + "/" + name + ".png"), "capture failed"); } };
     const auto query = [&](const char* text) { auto* s = item("settings-search"); s->forceActiveFocus(); s->setProperty("text", text); settle(); };
     const auto within = [&](const char* name) { auto* p = item(name); const auto r = p->mapRectToScene(p->boundingRect()); check(r.top() >= 0 && r.bottom() <= window->height() && r.left() >= 0 && r.right() <= window->width(), "control outside window"); };
-    settle(); click("open-settings"); focused("settings-category-all");
+    settle();
+    check(root->property("themeId") == "polaris" && root->property("fontScale").toDouble() == 1.3,
+          "retired theme did not fall back without resetting text size");
+    QMetaObject::invokeMethod(root.get(), "syncPreferences");
+    {
+        QSettings migrated;
+        check(migrated.value("Appearance/themeId") == "polaris" &&
+              migrated.value("Appearance/textScale").toDouble() == 1.3 &&
+              migrated.value("Library/layoutMode") == "compact" && settings.load("host", "game") == override,
+              "theme migration did not persist or crossed preference scope");
+    }
+    QMetaObject::invokeMethod(root.get(), "resetTheme"); settle();
+    click("open-settings"); focused("settings-category-all");
     check(reads == 0 && writes == 0, "opening hub touched host");
     capture("settings-all-1280");
     key(Qt::Key_Down); focused("settings-category-stream"); key(Qt::Key_Return); key(Qt::Key_Right); focused("settings-row-stream");
+    key(Qt::Key_Down); focused("settings-row-window"); click("settings-row-window");
+    click("settings-choice-1");
+    check(windowController.fullscreen() && window->visibility() == QWindow::FullScreen, "Settings did not enter fullscreen");
+    check(QSettings().value("Window/fullscreen").toBool(), "fullscreen preference did not persist");
+    click("settings-row-window"); click("settings-choice-0");
+    check(!windowController.fullscreen() && window->visibility() == QWindow::Windowed && settings.load("host","game")==override,
+          "window mode did not restore or crossed stream preference scope");
     key(Qt::Key_Down); focused("settings-row-scale"); click("settings-row-scale"); focused("video-scale-fit");
     key(Qt::Key_Down); controllerBack(); check(settings.videoScaleMode()=="fit","focus/Back changed scaling"); focused("settings-row-scale");
     click("settings-row-scale"); click("video-scale-fill");
@@ -113,6 +164,15 @@ int main(int argc, char** argv) {
     check(item("settings-search")->property("text") == "rumble", "controller Back applied keyboard draft");
     click("settings-row-rumble"); check(!settings.rumbleEnabled(), "rumble toggle failed");
     click("settings-reset-rumble"); check(settings.rumbleEnabled(), "rumble reset failed");
+    query("mouse"); click("settings-row-mouse"); focused("settings-choice-0");
+    key(Qt::Key_Down); focused("settings-choice-1"); key(Qt::Key_Return);
+    check(settings.mouseMode()=="relative", "relative choice did not persist");
+    root->setProperty("relativeAvailable",false); settle();
+    click("settings-row-mouse"); focused("settings-choice-0");
+    check(!item("settings-choice-1")->isEnabled(), "unsupported relative capture remained selectable");
+    key(Qt::Key_Down); focused("settings-choice-back"); key(Qt::Key_Up); focused("settings-choice-0"); key(Qt::Key_Return);
+    check(settings.mouseMode()=="direct", "unavailable relative backend blocked direct pointer");
+    root->setProperty("relativeAvailable",true); settle();
     query("stick drift"); click("settings-row-deadzone"); focused("deadzone-minus");
     key(Qt::Key_Return); check(settings.stickDeadzonePercent()==5,"deadzone draft saved early");
     controllerBack(); focused("settings-row-deadzone");
@@ -146,6 +206,9 @@ int main(int argc, char** argv) {
     click("settings-row-text"); click("settings-choice-2"); window->resize(960, 600); settle();
     focused("settings-row-text"); within("settings-row-text"); within("settings-back");
     capture("settings-appearance-960-large");
+    query("mouse"); click("settings-row-mouse");
+    key(Qt::Key_Down); focused("settings-choice-1"); within("settings-choice-1"); within("settings-choice-back");
+    capture("mouse-mode-960-large"); controllerBack();
     query("scaling"); click("settings-row-scale");
     within("video-scale-back"); within("video-scale-reset"); capture("video-scaling-960-large");
     click("video-scale-stretch"); check(settings.videoScaleMode()=="stretch","Stretch did not save");
@@ -217,6 +280,29 @@ int main(int argc, char** argv) {
     check(!find(window->contentItem(), "host-defaults-back"), "unavailable PC opened host editor");
     query("text size"); controllerBack(); check(item("settings-search")->property("text").toString().isEmpty(), "Back did not clear query");
     controllerBack(); focused("open-settings");
+    QMetaObject::invokeMethod(root.get(), "openUpdates"); settle();
+    check(find(window->contentItem(), "update-status"), "update shortcut did not open its screen");
+    focused("update-back"); click("update-check");
+    check(root->property("updateChecks").toInt() == 1, "check action was not routed");
+    click("update-automatic"); check(root->property("updateState").toMap()["automatic"].toBool(), "automatic choice not routed");
+    click("update-install");
+    check(root->property("updateInstalls").toInt() == 1 && !item("update-install")->isEnabled(), "duplicate install button remained enabled");
+    item("update-back")->forceActiveFocus(); settle(); within("update-back"); capture("updates-installing-960-large");
+    controllerBack(); focused("settings-row-updates");
+    auto updateState = root->property("updateState").toMap();
+    updateState.insert("installing", false); updateState.insert("restartRequired", true); updateState.insert("canFinish", true);
+    updateState.insert("message", "Update installed. Close and reopen Nova to use it.");
+    root->setProperty("updateState", updateState);
+    click("settings-row-updates"); click("update-finish");
+    check(root->property("updateFinishes").toInt() == 1, "explicit finish action not routed");
+    within("update-finish"); capture("updates-installed-960-large");
+    controllerBack(); focused("settings-row-updates");
+    updateState.insert("supported", false); updateState.insert("restartRequired", false); updateState.insert("available", false);
+    updateState.insert("message", "This copy has no Nova update channel. Install a channel from Nova's Downloads page once to enable in-app updates.");
+    root->setProperty("updateState", updateState);
+    click("settings-row-updates"); item("update-downloads")->forceActiveFocus(); settle(); within("update-downloads");
+    check(!find(window->contentItem(), "update-automatic") && !find(window->contentItem(), "update-check"), "standalone bundle offered updates");
+    capture("updates-setup-960-large"); controllerBack(); focused("settings-row-updates"); controllerBack();
     check(settings.load("host", "game") == override && writes == 0, "hub changed game scope or host");
     DeckPlaySettings restarted(config.filePath("play.ini"));
     check(restarted.audioSettings()["playHostAudio"].toBool() && restarted.rumbleEnabled(), "device settings not persisted");

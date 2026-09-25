@@ -2,6 +2,7 @@
 #include "polaris/deck_spaces.h"
 #include "polaris/deck_launch_modes.h"
 #include "polaris/deck_host_settings.h"
+#include "polaris/deck_stream_capabilities.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -80,7 +81,7 @@ std::optional<DeckGameToolRequest> gameToolRequest(const QString& game, const QS
         const auto preset = v.value("profilePreference", "auto").toString(), encoder = v.value("encoderBackend").toString();
         if (!QStringList{"auto", "quality", "high_fps", "stability"}.contains(preset) || !validEncoderChoice(encoder)) return {};
         const auto w = v.value("width").toInt(), h = v.value("height").toInt(), fps = v.value("fps").toInt(), rate = v.value("bitrateKbps").toInt();
-        if (w < 640 || w > 3840 || h < 480 || h > 2160 || fps < 30 || fps > 90 || rate < 1000 || rate > 150000) return {};
+        if (!supportedDeckResolution(w, h) || !supportedDeckProfileRate(fps) || !supportedDeckProfileBitrate(rate)) return {};
         QString path = "/polaris/v1/optimize?device=steam_deck&game=" + game + "&preference=" + preset +
             QString("&width=%1&height=%2&fps=%3&display_locked=1&bitrate_kbps=%4&bitrate_locked=1&hdr=0&client_max_fps=%3").arg(w).arg(h).arg(fps).arg(rate);
         if (!encoder.isEmpty()) path += "&encoder=" + encoder;
@@ -166,6 +167,21 @@ std::optional<QVariantMap> gameToolReply(const QString& game, const QString& act
         }
         if (fields.isEmpty()) return {};
         result = {{"fields", fields}, {"preset", bounded(p.value("preset"), 64)}, {"label", bounded(p.value("preset_label"), 80)}};
+        // A displayable preview is not necessarily the profile the player chose.
+        // Only an exact, freshly resolved SDR plan can authorize the launch envelope.
+        const auto topology = o.value("topology_resolution").toObject();
+        const auto resolved = bounded(topology.value("resolved"), 64);
+        const auto requested = v.value("launchMode", "default").toString();
+        const auto encoder = v.value("encoderBackend").toString();
+        const auto resolvedEncoder = o.value("encoder_resolution").toObject();
+        if (gameToolRequest(game, "plan", v) && (isSessionLaunchMode(resolved.toStdString()) || resolved == "headless_dongle") &&
+            topology.value("app_uuid") == game && topology.value("locked").isBool() && topology.value("normalized").isBool() &&
+            !bounded(topology.value("source"), 80).isEmpty() && !bounded(topology.value("reason_code"), 128).isEmpty() &&
+            (requested == "default" || (resolved == requested && topology.value("requested") == requested && topology.value("locked") == QJsonValue(true))) &&
+            width.toInt() == v.value("width").toInt() && height.toInt() == v.value("height").toInt() &&
+            fps.toDouble() == v.value("fps").toInt() && bitrate.toInt() == v.value("bitrateKbps").toInt() && field("hdr") == QJsonValue(false) &&
+            (encoder.isEmpty() || (resolvedEncoder.value("resolved") == encoder && resolvedEncoder.value("locked") == QJsonValue(true))))
+            result["launchTopology"] = resolved;
     } else if (action == "steam") {
         // The controller independently reads the fresh catalog to confirm the write.
         if (o.value("status") != QJsonValue(true)) return {};

@@ -23,7 +23,7 @@ Popup {
         Label {
             Layout.fillWidth: true; color: NovaTheme.secondary; textFormat: Text.PlainText; wrapMode: Text.WordWrap
             font.pixelSize: 17 * NovaTheme.fontScale
-            text: "Launch this game directly from Steam using its saved PC, destination and Nova settings. Available poster, backdrop, logo and icon artwork are copied to Steam.\n\nSteam must be closed while the entry is saved. In Desktop Mode, leave Nova open, close Steam, then return here and choose Retry."
+            text: "Optional: add a shortcut to Steam on this Linux device. It opens the game through Nova with your saved PC, destination and stream settings. Nova also works without Steam.\n\nOpen Steam and sign in once before adding a shortcut. Close Steam while the entry is saved, keeping Nova open. On Steam Deck, switch to Desktop Mode first. Available game artwork is copied with the shortcut."
         }
         Label { Layout.fillWidth: true; text: shortcutState.copy || ""; textFormat: Text.PlainText; color: NovaTheme.secondary; wrapMode: Text.WordWrap; font.pixelSize: 17 * NovaTheme.fontScale }
         NovaButton {

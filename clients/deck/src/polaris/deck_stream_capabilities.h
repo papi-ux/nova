@@ -6,17 +6,26 @@
 
 namespace nova::deck {
 
+// Bounds of the current Polaris resolved-profile request contract. These are
+// shared by storage, review, planning and frame delivery, not a Deck hardware cap.
+inline constexpr int deckMinProfileFps = 15;
+inline constexpr int deckMaxProfileFps = 240;
+inline constexpr int deckMinProfileBitrateKbps = 1000;
+inline constexpr int deckMaxProfileBitrateKbps = 300000;
+inline bool supportedDeckProfileRate(int fps) { return fps >= deckMinProfileFps && fps <= deckMaxProfileFps; }
+inline bool supportedDeckProfileBitrate(int bitrate) { return bitrate >= deckMinProfileBitrateKbps && bitrate <= deckMaxProfileBitrateKbps; }
+
 inline int deckDisplayRateLimit(double refreshHz) {
     if (!std::isfinite(refreshHz) || refreshHz <= 0 || refreshHz > 1000) return 60;
-    // Retain the existing two-Hz tolerance for standard 60/90 modes. Other
-    // current modes (40, 45, 50, 72, 75 Hz) have their own whole-number limit.
-    if (refreshHz >= 88) return 90;
-    if (refreshHz >= 58 && refreshHz < 60) return 60;
+    // Preserve nominal rates for standard fractional-refresh modes, extending
+    // the existing 60/90 tolerance to desktop displays. Other modes retain their
+    // own limit; a 360 Hz monitor must never be reported as a 90 Hz display.
+    for (const int nominal : {60, 90, 120, 144, 165, 240, 360})
+        if (refreshHz >= nominal - 2 && refreshHz <= nominal) return nominal;
     return static_cast<int>(std::floor(refreshHz));
 }
 
-// The current native media profile. HDR, AV1 and rates above 90 must
-// extend the decoder/presenter path before becoming selectable preferences.
+// Codec-specific decoder and presenter support is checked separately from rates.
 inline bool supportedDeckResolution(int width, int height) {
     // Storage/protocol bounds. Actual codec-specific hardware limits are
     // checked during review and again on the native launch worker.
@@ -29,9 +38,10 @@ struct DeckStreamCapabilities {
     bool h264 = true; // Missing legacy metadata keeps GameStream's H.264 default.
     double maxFps = 0; // Zero means not advertised, never inferred from a game HDR badge.
     bool hevc = false; // Explicit 8-bit HEVC support only.
+    bool pyrowave = false; // Requires the exact pinned native extension.
     bool supports(int width, int height, int fps) const {
-        return valid && (h264 || hevc) && supportedDeckResolution(width, height) &&
-            (fps >= 30 && fps <= 90) && (maxFps == 0 || fps <= maxFps) &&
+        return valid && (h264 || hevc || pyrowave) && supportedDeckResolution(width, height) &&
+            supportedDeckProfileRate(fps) && (maxFps == 0 || fps <= maxFps) &&
             (fps <= 60 || maxFps >= fps); // High rates require an advertised host limit.
     }
 };

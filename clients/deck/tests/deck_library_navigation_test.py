@@ -1,5 +1,6 @@
 """Drive the real library with keyboard input and two isolated mTLS PCs."""
 import argparse
+import hashlib
 from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -190,7 +191,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
 def appearance_navigation(wait, keys, state, save_capture, window):
     keys("Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
     wait(lambda s: s.get("appearanceOpen") and s.get("focus") == "appearance-theme-polaris")
-    for index, theme in enumerate(("polaris", "portable_chrome", "oled", "miami", "high_contrast", "material_you")):
+    for index, theme in enumerate(("polaris", "portable_chrome", "oled", "miami", "high_contrast")):
         if index:
             keys("Down")
         keys("Return")
@@ -215,7 +216,7 @@ def appearance_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: s.get("appearanceOpen"))
     # Every choice remains reachable at large text. Choose Portable Chrome for
     # the restart check; switching theme must not reset the larger font.
-    keys(*(["Up"] * 4), "Return")
+    keys(*(["Up"] * 3), "Return")
     wait(lambda s: s.get("theme") == "portable_chrome" and s.get("fontScale") == 1.3)
     keys("Escape", "Escape")
 
@@ -897,9 +898,15 @@ def host_power_navigation(wait, keys, state, fixtures, save_capture, window):
     keys("Escape")
     a["power"]["sleep_permitted"] = True
     open_power()
+    previous_hold = state()["hostPowerUi"]["hold"]
     command("xdotool", "windowsize", window, "960", "600")
-    wait(lambda s: s.get("focusVisible") and s.get("hostPowerUi", {}).get("hold", {}).get("x") == 480)
+    # Wait for the resized layout, including its scroll gutter, instead of
+    # assuming the button center is exactly half the window width.
+    wait(lambda s: s.get("width") == 960 and s.get("height") == 600 and
+         s.get("focusVisible") and s.get("focus") == "host-power-hold" and
+         s.get("hostPowerUi", {}).get("hold", {}).get("x") != previous_hold["x"])
     point = state()["hostPowerUi"]["hold"]
+    assert 0 < point["x"] < 960 and 0 < point["y"] < 600, "resized hold control is outside the window"
     command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "mousedown", "1")
     wait(power_phase("countdown"))
     command("xdotool", "mouseup", "1")
@@ -1118,6 +1125,95 @@ def profile_sync_navigation(wait, keys, state, fixtures, save_capture, window):
         {"display_mode": "1280x720x60", "target_bitrate_kbps": 20000}]
 
 
+def readability_navigation(wait, keys, state, save_capture, window):
+    def clean(name):
+        try:
+            wait(lambda s: "textIssues" in s and not s["textIssues"])
+        finally:
+            save_capture(name + ".png")
+    for width, height in ((1280, 800), (960, 600)):
+        command("xdotool", "windowsize", "--sync", window, str(width), str(height))
+        suffix = "-mono-large-" + str(width)
+        clean("library" + suffix)
+        keys("Return")
+        wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+        clean("details" + suffix)
+        keys("Right", "Right")
+        wait(lambda s: s.get("focus") == "game-detail-shortcut" and s.get("focusVisible"))
+        keys("Return")
+        wait(lambda s: s.get("shortcutOpen"))
+        clean("steam-shortcut" + suffix)
+        keys("Escape")
+        wait(lambda s: not s.get("shortcutOpen") and s.get("focus") == "game-detail-shortcut")
+        keys("Left", "Left", "Return")
+        wait(lambda s: s.get("nativePreviewOpen"))
+        clean("play-setup" + suffix)
+        keys("Down", "Down", "Down", "Down", "Down", "Down", "Return")
+        wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
+        clean("codec-picker" + suffix)
+        keys("Escape")
+        wait(lambda s: not s.get("playSetup", {}).get("choicesOpen"))
+        keys("Escape")
+        wait(lambda s: not s.get("nativePreviewOpen") and s.get("focus") == "game-detail-play")
+        keys("Escape")
+        wait(lambda s: not s.get("detailOpen"))
+        point = state()["settingsCenter"]
+        command("xdotool", "mousemove", str(point["x"]), str(point["y"]), "click", "1")
+        wait(lambda s: s.get("settingsHub", {}).get("opened"))
+        clean("settings" + suffix)
+        keys("Right")
+        for index, key in enumerate(state()["settingsHub"]["keys"]):
+            wait(lambda s: s.get("focus") == "settings-row-" + key and s.get("focusVisible"))
+            clean("settings-" + key + suffix)
+            if index + 1 < len(state()["settingsHub"]["keys"]):
+                keys("Down")
+        keys("Escape")
+        wait(lambda s: not s.get("settingsHub", {}).get("opened"))
+        keys("Down")
+        wait(lambda s: s.get("focus", "").startswith("game-"))
+
+
+def background_sync_navigation(wait, keys, state, fixtures, save_capture, window):
+    fixture = fixtures["a"]
+    def sync(s=None):
+        return (state() if s is None else s).get("polarisSync", {})
+    def status(s=None):
+        return sync(s).get("status", {})
+    wait(lambda s: s.get("syncNeedsReview") and status(s).get("keepInStep") == "review")
+    assert not sync()["opened"] and not fixture["settings_posts"], "existing profile was overwritten"
+    command("xdotool", "windowsize", "--sync", window, "960", "600")
+    keys("Up", "Up", "Up")
+    wait(lambda s: s.get("focus") == "library-sync-review" and s.get("focusVisible"))
+    save_capture("background-sync-review-large-960.png")
+    keys("Return")
+    wait(lambda s: sync(s).get("opened") and status(s).get("phase") == "ready")
+    labels = {action["id"]: action["label"] for action in status()["profileActions"]}
+    assert labels["match"] == "Use Nova & Sync" and labels["use"] == "Use Polaris & Sync"
+    # Controller focus must scroll the chosen action into view at large text size.
+    order = ["match", "send", "use", "clear", "reset"]
+    for _ in range(20):
+        focus = state().get("focus", "")
+        if focus == "host-profile-use":
+            break
+        if focus.startswith("host-profile-"):
+            direction = "Down" if order.index(focus.removeprefix("host-profile-")) < 2 else "Up"
+        elif focus.startswith("host-defaults-mode-") or focus == "host-edit-defaults":
+            direction = "Down"
+        else:
+            direction = "Up"
+        keys(direction)
+        wait(lambda s: s.get("focus") != focus)
+    wait(lambda s: s.get("focus") == "host-profile-use" and s.get("focusVisible"))
+    save_capture("background-sync-choose-large-960.png")
+    keys("Return")
+    wait(lambda s: status(s).get("keepInStep") == "on" and status(s).get("novaDisplay") == "1920x1080x30"
+         and not status(s).get("busy"))
+    assert not fixture["settings_posts"], "Use Polaris unexpectedly wrote to the PC"
+    keys("Escape")
+    wait(lambda s: not sync(s).get("opened") and not s.get("syncNeedsReview") and s.get("focusVisible"))
+    save_capture("background-sync-resolved-large-960.png")
+
+
 def keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window):
     fixture = fixtures["a"]
     def status(s=None):
@@ -1281,7 +1377,7 @@ def spaces_snapshot(fixture):
     return {"schema": 1, "status": True, "enabled": True,
             "available": bool(fixture["selected_destination"]), "can_switch": fixture.get("can_switch", True) and bool(fixture["selected_destination"]),
             "selected_space_id": fixture["selected_destination"], "desktop_allowed": fixture["desktop_allowed"],
-            "unavailable_reason": None if fixture["selected_destination"] else "no_space_assigned",
+            "unavailable_reason": None if fixture["selected_destination"] else fixture.get("unavailable_reason", "no_space_assigned"),
             "spaces": [dict(row, selected=row["id"] == fixture["selected_destination"]) for row in fixture["spaces"]]}
 
 
@@ -1381,11 +1477,30 @@ def spaces_navigation(wait, keys, state, fixtures, save_capture, window):
     a["selected_destination"] = ""
     a["desktop_allowed"] = False
     refreshed()
+    assert state()["games"] == ["game-7", "game-42"] and state()["launchEnabled"]
+    assert state()["destinationName"] == "Desktop" and "normal PC permissions" in state()["destination"]["caption"]
+    assert len(a["selections"]) == before, "ordinary Desktop issued a Space selection"
+    assert a["games_queries"][-1].get("environment") == ["desktop"]
+    save_capture("desktop-without-spaces-large-960.png")
+    # Ordinary Desktop still obeys its own permission response.
+    a["games_status"] = 403
+    keys("Return")
+    wait(lambda s: not s.get("busy") and s.get("failed"))
     assert state()["games"] == [] and not state()["launchEnabled"]
-    assert "No Space" in state()["destination"]["caption"]
-    save_capture("destination-none-assigned-large-960.png")
+    a["games_status"] = 200
+    refreshed()
+    assert state()["games"] == ["game-7", "game-42"] and state()["launchEnabled"]
+    # A transient Spaces failure cannot be interpreted as an unassigned device.
+    a["unavailable_reason"] = "reconfiguring"
+    queried = len(a["games_queries"])
+    refreshed()
+    assert state()["games"] == [] and not state()["launchEnabled"] and len(a["games_queries"]) == queried
+    del a["unavailable_reason"]
+    refreshed()
+    assert state()["destinationName"] == "Desktop" and state()["games"] == ["game-7", "game-42"]
     keys("Escape")
     wait(lambda s: not s.get("destination", {}).get("opened") and s.get("focus") == "library-destination")
+    save_capture("desktop-default-library-large-960.png")
 
 
 def main():
@@ -1404,14 +1519,17 @@ def main():
     parser.add_argument("--host-scope", action="store_true")
     parser.add_argument("--profile-sync", action="store_true")
     parser.add_argument("--keep-in-step", action="store_true")
+    parser.add_argument("--background-sync", action="store_true")
+    parser.add_argument("--readability", action="store_true")
     parser.add_argument("--launch-modes", action="store_true")
     parser.add_argument("--stream-plan", action="store_true")
     parser.add_argument("--audio-settings", action="store_true")
     parser.add_argument("--appearance", action="store_true")
     parser.add_argument("--host-power", action="store_true")
     args = parser.parse_args()
-    args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step
+    args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
+    args.artwork = args.artwork or args.readability
     with tempfile.TemporaryDirectory(prefix="nova-library-navigation-") as temporary, ExitStack() as stack:
         root = Path(temporary)
         for name in ("client", "a", "b"):
@@ -1490,8 +1608,10 @@ def main():
                     if "spaces" in fixture:
                         query = parse_qs(urlsplit(self.path).query)
                         fixture["games_queries"].append(query)
-                        if fixture.get("spaces_status", 200) != 404 and (fixture["selected_destination"] != "desktop" or query.get("environment") != ["desktop"]):
+                        ordinary = not fixture["selected_destination"] and not fixture["spaces"] and fixture.get("unavailable_reason", "no_space_assigned") == "no_space_assigned"
+                        if fixture.get("spaces_status", 200) != 404 and ((fixture["selected_destination"] != "desktop" and not ordinary) or query.get("environment") != ["desktop"]):
                             violations.append("desktop library read without matching selection")
+                    status = fixture.get("games_status", 200)
                     body = json.dumps({"games": fixture["metadata"], "total": len(fixture["metadata"])})
                 elif (args.artwork or args.polish or args.spaces) and secure and path.startswith("/polaris/v1/games/") and "/artwork/" in path:
                     fixture["artwork_requests"].append(self.path)
@@ -1533,7 +1653,7 @@ def main():
                 if args.host_scope and self.path == "/polaris/v1/client-settings":
                     data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                     mode_write = set(data) == {"stream_display_mode"} and data["stream_display_mode"] in ("headless_stream", "desktop_display")
-                    profile_write = (args.profile_sync or args.keep_in_step) and (data == {"clear_display_mode": True, "clear_target_bitrate": True} or
+                    profile_write = (args.profile_sync or args.keep_in_step or args.background_sync) and (data == {"clear_display_mode": True, "clear_target_bitrate": True} or
                         (set(data) == {"display_mode", "target_bitrate_kbps"} and data["display_mode"] in ("1280x720x60", "1920x1080x30", "1280x800x60") and data["target_bitrate_kbps"] in (20000, 30000)))
                     if not fixture["host_idle"] or not (mode_write or profile_write):
                         violations.append("unexpected host settings mutation")
@@ -1608,7 +1728,7 @@ def main():
             if args.host_scope and host_id == "a":
                 fixture.update(host_idle=True, settings_posts=[], settings_post_times=[])
                 profile = {"stream_display_mode": "headless_stream", "display_mode": "1280x800x60", "target_bitrate_kbps": 20000}
-                if args.profile_sync or args.keep_in_step:
+                if args.profile_sync or args.keep_in_step or args.background_sync:
                     profile.update(display_mode="1920x1080x30", target_bitrate_kbps=30000)
                 fixture["catalog"] = {"version": 1, "revision": "1", "desired": dict(profile), "effective": dict(profile), "relaunch_required": False,
                     "capabilities": {"display_mode_override": True, "target_bitrate_override": True, "modes": [{"value": mode, "label": label, "available": mode != "headless_dongle", "session_overridable": mode != "headless_dongle",
@@ -1691,6 +1811,10 @@ def main():
             hosts.append({"uuid": host_id, "name": name, "address": "127.0.0.1",
                           "http_port": http.server_port, "https_port": tls.server_port,
                           "server_certificate": (root/f"{host_id}.crt").read_text()})
+        if args.readability:
+            game = fixtures["a"]["metadata"][1]
+            game["name"] = "Control Ultimate Edition — A Journey Through the Oldest House"
+            game["artwork"]["assets"].pop("logo", None)
         identity = root/"identity.json"
         identity.write_text(json.dumps({"version": 1, "certificate": client,
                                        "private_key": (root/"client.key").read_text(), "hosts": hosts}))
@@ -1702,14 +1826,22 @@ def main():
         env = dict(os.environ, NOVA_DECK_IDENTITY_DIR=str(root), NOVA_DECK_GAMEPAD_DEVICE="/dev/null",
                    XDG_CONFIG_HOME=str(root/"config"), QT_QPA_PLATFORM="xcb", QT_QUICK_BACKEND="software", QT_SCALE_FACTOR="1",
                    QT_SCREEN_SCALE_FACTORS="1", QT_FORCE_STDERR_LOGGING="1")
-        if args.spaces:
+        if args.spaces or args.readability:
             (root/"config/Nova").mkdir(parents=True)
             (root/"config/Nova/NovaDeck.conf").write_text("[Appearance]\ntextScale=1.3\n")
+        if args.readability:
+            controls = root/"qtquickcontrols2.conf"
+            controls.write_text("[Controls]\nStyle=Material\n[Material]\nFont\\Family=DejaVu Sans Mono\n")
+            env.update(QT_QUICK_CONTROLS_CONF=str(controls), QT_QUICK_CONTROLS_STYLE="Material")
+        if args.background_sync:
+            # Match the durable preference created only after a new successful pairing.
+            with (root/"config/Nova/NovaDeck.conf").open("a") as config:
+                config.write("\n[PolarisSync]\nv1\\" + hashlib.sha256(b"a").hexdigest() + "=pending\n")
         output = stack.enter_context(log.open("w"))
         auto_args = ["--frontend-smoke-library-refresh-ms", "800"] if args.automatic or args.filters or args.stage or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else []
         app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "55000" if args.keep_in_step else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.filters or args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.filters or args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
                                env=env, stdout=output, stderr=output)
 
         def state():
@@ -1761,7 +1893,11 @@ def main():
             wait(lambda s: s.get("windowActive"))
             keys("Right")
             wait(lambda s: s.get("game") == ("space.room-a.7" if args.spaces else prefix+"42"))
-            if args.keep_in_step:
+            if args.readability:
+                readability_navigation(wait, keys, state, save_capture, window)
+            elif args.background_sync:
+                background_sync_navigation(wait, keys, state, fixtures, save_capture, window)
+            elif args.keep_in_step:
                 keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.profile_sync:
                 profile_sync_navigation(wait, keys, state, fixtures, save_capture, window)
@@ -1849,7 +1985,7 @@ def main():
                      and not s.get("busy") and s.get("launchEnabled"))
             assert identity.read_bytes() == before, "library interaction changed credentials"
             assert not violations, violations
-            app.wait(timeout=100 if args.spaces else 70 if args.polish else 55 if args.host_power else 45 if args.appearance or args.audio_settings or args.filters or args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else 16)
+            app.wait(timeout=100 if args.spaces or args.readability else 70 if args.polish else 55 if args.host_power else 45 if args.appearance or args.audio_settings or args.filters or args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else 16)
             assert app.returncode == 0, log.read_text()
             assert not any(error in log.read_text() for error in (
                 "ReferenceError", "TypeError", "failed to load", "is not a type", "Cannot assign",
@@ -1968,7 +2104,8 @@ def main():
             if app.poll() is None:
                 app.terminate()
                 app.wait(timeout=5)
-    print("Actual library navigation passed: " + ("manual profile import/send/clear, game/device scope, stale/unsupported/lost-reply recovery, large-text focus and restart"
+    print("Actual library navigation passed: " + ("untruncated labels, 130% monospace text, every settings row, controller focus, 1280x800 and 960x600"
+          if args.readability else "manual profile import/send/clear, game/device scope, stale/unsupported/lost-reply recovery, large-text focus and restart"
           if args.profile_sync else "Keep in step scope, throttle, focus, uncertain save, restart and explicit resume/off"
           if args.keep_in_step else "Every Game host defaults, desired/effective truth, stale/busy/denied/lost-reply gates, large text and controller/pointer focus"
           if args.host_scope else "destination-aware plan, independent choices/reset, scope, large-text reading, pointer/controller focus and restart"

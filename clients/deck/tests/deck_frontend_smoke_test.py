@@ -180,6 +180,7 @@ class DeckFrontendSmokeRouteTest(unittest.TestCase):
 
             with (
                 mock.patch.object(smoke, "find_forbidden_route_tokens", return_value=[]),
+                mock.patch.object(smoke, "git_has_path_changes", return_value=False),
                 mock.patch.object(smoke, "run_command") as run_command,
             ):
                 exit_code = smoke.main([
@@ -295,7 +296,9 @@ class DeckFrontendSmokeRouteTest(unittest.TestCase):
     def test_dry_run_prints_sync_validate_pull_and_no_oracle(self):
         stdout = io.StringIO()
 
-        with contextlib.redirect_stdout(stdout):
+        # Route rendering is independent of checkout metadata; the dirty-tree
+        # refusal has its own regression below. This also permits source archives.
+        with contextlib.redirect_stdout(stdout), mock.patch.object(smoke, "git_has_path_changes", return_value=False):
             exit_code = smoke.main([
                 "--dry-run",
                 "--skip-sync",
@@ -413,7 +416,9 @@ class DeckFrontendSmokeRouteTest(unittest.TestCase):
     def test_dry_run_redacts_private_deck_targets(self):
         stdout = io.StringIO()
 
-        with contextlib.redirect_stdout(stdout):
+        # Route rendering is independent of checkout metadata; the dirty-tree
+        # refusal has its own regression below. This also permits source archives.
+        with contextlib.redirect_stdout(stdout), mock.patch.object(smoke, "git_has_path_changes", return_value=False):
             exit_code = smoke.main(["--dry-run"])
 
         text = stdout.getvalue()

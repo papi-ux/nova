@@ -10,6 +10,7 @@ bool DeckDesktopPacket::valid() const {
     case Key: return code > 0 && code <= 255;
     case Button: return code >= BUTTON_LEFT && code <= BUTTON_X2;
     case Position: return x >= 0 && x <= 32766 && y >= 0 && y <= 32766;
+    case Relative:
     case Scroll: return x >= -32768 && x <= 32767 && y >= -32768 && y <= 32767;
     case ReleaseAll: return true;
     }
@@ -24,12 +25,39 @@ int sendDeckDesktopPacket(const DeckDesktopPacket& packet) {
     case DeckDesktopPacket::Button:
         return LiSendMouseButtonEvent(packet.down ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE, packet.code);
     case DeckDesktopPacket::Position: return LiSendMousePositionEvent(packet.x, packet.y, 32767, 32767);
+    case DeckDesktopPacket::Relative: return LiSendMouseMoveEvent(packet.x, packet.y);
     case DeckDesktopPacket::Scroll:
         if (packet.y && LiSendHighResScrollEvent(packet.y) != 0) return -1;
         return packet.x ? LiSendHighResHScrollEvent(packet.x) : 0;
     case DeckDesktopPacket::ReleaseAll: return -1; // Resolved by the worker ledger.
     }
     return -1;
+}
+
+bool coalesceDeckDesktopMotion(DeckDesktopPacket& previous, const DeckDesktopPacket& next) {
+    if (!previous.valid() || !next.valid()) return false;
+    if (previous.kind == DeckDesktopPacket::Position && next.kind == DeckDesktopPacket::Position) {
+        previous = next; return true;
+    }
+    if (previous.kind != DeckDesktopPacket::Relative || next.kind != DeckDesktopPacket::Relative) return false;
+    auto combined = previous; combined.x += next.x; combined.y += next.y;
+    if (!combined.valid()) return false;
+    previous = combined; return true;
+}
+
+std::vector<DeckDesktopPacket> DeckRelativeMotion::move(double x, double y) {
+    // Bound work for malformed device/compositor events, retaining small motion
+    // fractions instead of rounding every high-resolution sample to zero.
+    if (!std::isfinite(x) || !std::isfinite(y) || std::abs(x) > 1'000'000 || std::abs(y) > 1'000'000) return {};
+    x_ += x; y_ += y;
+    int dx = static_cast<int>(x_), dy = static_cast<int>(y_);
+    x_ -= dx; y_ -= dy;
+    std::vector<DeckDesktopPacket> packets;
+    while (dx || dy) {
+        const int px = std::clamp(dx, -32768, 32767), py = std::clamp(dy, -32768, 32767);
+        packets.push_back({DeckDesktopPacket::Relative, 0, px, py}); dx -= px; dy -= py;
+    }
+    return packets;
 }
 
 namespace {

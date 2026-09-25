@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QGuiApplication>
+#include <QImage>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QTimer>
@@ -105,7 +106,7 @@ std::vector<std::uint8_t> makeLocalAnnexBH264IdrSample() {
             "-f",
             "lavfi",
             "-i",
-            "color=c=black:s=128x72:r=1:d=1",
+            "color=c=red:s=128x72:r=1:d=1",
             "-frames:v",
             "1",
             "-c:v",
@@ -255,6 +256,14 @@ int main(int argc, char** argv) {
             "expected scenegraph render pass either to prove ready or report an exact headless backend/context capability")) {
         std::cerr << joinedRecordedMessages();
         return 1;
+    }
+    if (provedReady) {
+        // A successful draw alone can still produce blank video or reversed
+        // chroma. Read the production window after real VAAPI/EGL presentation.
+        const QImage image = window.grabWindow();
+        NOVA_TEST_REQUIRE(!image.isNull());
+        const QColor pixel = image.pixelColor(image.width() / 2, image.height() / 2);
+        NOVA_TEST_REQUIRE(pixel.alpha() > 200 && pixel.red() > 180 && pixel.green() < 100 && pixel.blue() < 100);
     }
 
     renderer.cleanup();

@@ -77,6 +77,7 @@ ApplicationWindow {
         contentItem: Text {
             text: action.text; font: action.font; color: action.activeFocus ? NovaTheme.window : "white"
             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+            wrapMode: Text.Wrap
         }
         background: Rectangle {
             radius: 12; color: action.activeFocus ? NovaTheme.focus : NovaTheme.raised
@@ -112,13 +113,14 @@ ApplicationWindow {
             delegate: Rectangle {
                 required property var modelData
                 required property int index
-                width: hosts.width; height: 72; radius: 12
+                width: hosts.width; height: Math.max(72, hostName.implicitHeight + 36); radius: 12
                 color: NovaTheme.panel
                 border.color: hosts.activeFocus && hosts.currentIndex === index ? NovaTheme.focus : NovaTheme.divider
                 border.width: hosts.activeFocus && hosts.currentIndex === index ? 4 : 1
                 Label {
+                    id: hostName
                     anchors.fill: parent; anchors.margins: 18
-                    text: modelData.name; elide: Text.ElideRight; color: NovaTheme.text; font.pixelSize: 23 * NovaTheme.fontScale
+                    text: modelData.name; wrapMode: Text.Wrap; color: NovaTheme.text; font.pixelSize: 23 * NovaTheme.fontScale
                     verticalAlignment: Text.AlignVCenter
                 }
                 MouseArea { anchors.fill: parent; onClicked: { hosts.currentIndex = index; root.choose() } }
@@ -144,7 +146,7 @@ ApplicationWindow {
                 }
                 Label {
                     Layout.fillWidth: true
-                    text: "Unpair asks this PC to remove Nova's access. Forget only removes the saved PC here; the host may still trust this Deck. You can add the PC again afterward."
+                    text: "Unpair asks this PC to remove Nova's access. Forget only removes the saved PC here; the host may still trust this device. You can add the PC again afterward."
                     color: NovaTheme.secondary; font.pixelSize: 19 * NovaTheme.fontScale; wrapMode: Text.WordWrap
                 }
                 RowLayout {
@@ -155,7 +157,7 @@ ApplicationWindow {
                         Keys.onRightPressed: forget.forceActiveFocus()
                     }
                     Action {
-                        id: forget; objectName: "saved-pcs-forget"; text: "Forget on this Deck"
+                        id: forget; objectName: "saved-pcs-forget"; text: "Forget on This Device"
                         onClicked: novaPairing.removeHost(root.selected.id, true)
                         Keys.onLeftPressed: unpair.forceActiveFocus()
                         Keys.onRightPressed: keep.forceActiveFocus()
@@ -187,7 +189,7 @@ ApplicationWindow {
             }
             Action {
                 id: library; objectName: "saved-pcs-library"
-                text: hosts.count ? "Back to library" : "Close"
+                text: hosts.count ? "Back to Library" : "Close"
                 onClicked: root.finish()
                 Keys.onLeftPressed: add.forceActiveFocus()
                 Keys.onUpPressed: root.focusList()

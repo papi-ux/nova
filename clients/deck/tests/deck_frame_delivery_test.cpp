@@ -14,7 +14,7 @@ namespace { void require(bool ok, const char* message) { if (!ok) { std::cerr <<
 
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
-    for (int fps : {30, 60, 90}) {
+    for (int fps : {15, 30, 60, 90, 120, 144, 165, 240}) {
         DeckFrameCadence cadence;
         require(cadence.configure(DeckFramePacing::Balanced, fps), "valid cadence rejected");
         const std::int64_t period = 1'000'000'000LL / fps;
@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
         require(cadence.delay(1000 * period) == period, "underflow did not rebuffer");
     }
     DeckFrameCadence invalid;
-    require(!invalid.configure(DeckFramePacing::Balanced, 0) && !invalid.configure(DeckFramePacing::Balanced, 91)
+    require(!invalid.configure(DeckFramePacing::Balanced, 0) && !invalid.configure(DeckFramePacing::Balanced, 241)
         && !invalid.configure(static_cast<DeckFramePacing>(100), 60) && invalid.capacity() == 1, "invalid cadence changed defaults");
 
     // Real queued/timer path: bounded buffering, ordered spaced frames, and
@@ -119,5 +119,5 @@ int main(int argc, char** argv) {
         producer.join();
         QCoreApplication::processEvents();
     }
-    std::cout << "Frame delivery passed: 30/60/90 cadence, bounded buffering, deadline/stall recovery, GUI responsiveness, frozen configuration, queued handoff, leases and destruction races\n";
+    std::cout << "Frame delivery passed: 15–240 FPS cadence, bounded buffering, deadline/stall recovery, GUI responsiveness, frozen configuration, queued handoff, leases and destruction races\n";
 }

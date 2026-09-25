@@ -1,5 +1,6 @@
 #include "runtime/deck_input_hub.h"
 #include "runtime/deck_desktop_input_bridge.h"
+#include "runtime/deck_window_controller.h"
 #include "deck_layout.h"
 #include "deck_gamepad.h"
 #include "polaris_game_fixture.h"
@@ -12,9 +13,11 @@
 #include "runtime/deck_native_session.h"
 #include "runtime/deck_rumble.h"
 #include "runtime/deck_sleep_monitor.h"
+#include "runtime/deck_updates.h"
 #include "runtime/deck_play_settings.h"
 #include "runtime/deck_display_capabilities.h"
 #include "runtime/deck_pairing_controller.h"
+#include "runtime/deck_host_discovery.h"
 #include "runtime/deck_library_controller.h"
 #include "runtime/deck_library_artwork.h"
 #include "stream/deck_gamestream_session_builder.h"
@@ -813,7 +816,8 @@ QVariantList toLibraryGameModel(const std::vector<nova::deck::backend::DeckPubli
         item.insert("launchPolicy", QVariantMap{{"known", game.launchPolicy.known},
             {"hostDefault", toQString(game.launchPolicy.hostDefault)}, {"allowed", launchModes}});
         item.insert("streamCapabilities", QVariantMap{{"valid", game.streamCapabilities.valid},
-            {"h264", game.streamCapabilities.h264}, {"hevc", game.streamCapabilities.hevc}, {"maxFps", game.streamCapabilities.maxFps}});
+            {"h264", game.streamCapabilities.h264}, {"hevc", game.streamCapabilities.hevc},
+            {"pyrowave", game.streamCapabilities.pyrowave}, {"maxFps", game.streamCapabilities.maxFps}});
         QVariantList resolutions;
         for (const auto& choice : game.displayPlanner.choices)
             resolutions.append(QVariantMap{{"width", choice.width}, {"height", choice.height},
@@ -1176,6 +1180,7 @@ struct NativeLaunchOptions {
     int width = 1280;
     int height = 800;
     int fps = 60;
+    int videoFormat = VIDEO_FORMAT_H264;
     bool modeValid = true;
 };
 
@@ -1185,6 +1190,12 @@ NativeLaunchOptions parseNativeLaunchOptions(const QStringList& arguments) {
     options.appIdOverride = intArgumentAfter(arguments, QStringLiteral("--native-app-id"), 0);
     options.waitMs = intArgumentAfter(arguments, QStringLiteral("--native-wait-ms"), 15000);
     options.bitrateKbps = intArgumentAfter(arguments, QStringLiteral("--native-bitrate-kbps"), 20000);
+    const auto codec = stringArgumentAfter(arguments, QStringLiteral("--native-codec"));
+    if (codec == "hevc") options.videoFormat = VIDEO_FORMAT_H265;
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    else if (codec == "pyrowave") options.videoFormat = VIDEO_FORMAT_PYROWAVE;
+#endif
+    else if (!codec.isEmpty() && codec != "h264") options.modeValid = false;
     const QString mode = stringArgumentAfter(arguments, QStringLiteral("--native-mode"));
     if (!mode.isEmpty()) {
         const QStringList parts = mode.split(QLatin1Char('x'));
@@ -1196,7 +1207,7 @@ NativeLaunchOptions parseNativeLaunchOptions(const QStringList& arguments) {
             options.height = parts[1].toInt(&hOk);
             options.fps = parts[2].toInt(&fOk);
         }
-        options.modeValid = wOk && hOk && fOk && options.width > 0 && options.height > 0 && options.fps > 0;
+        options.modeValid = options.modeValid && wOk && hOk && fOk && options.width > 0 && options.height > 0 && options.fps > 0;
     }
     return options;
 }
@@ -1234,7 +1245,7 @@ int nativeLaunchCommand(
     using nova::deck::stream::DeckStreamSessionState;
     const NativeLaunchOptions options = parseNativeLaunchOptions(arguments);
     if (!options.modeValid) {
-        std::cout << "nova-deck native: --native-mode must look like 1280x800x60" << std::endl;
+        std::cout << "nova-deck native: invalid --native-mode or unavailable --native-codec" << std::endl;
         return 2;
     }
     if (!identity || !snapshot || snapshot->selectedHostId.empty()) {
@@ -1307,6 +1318,7 @@ int nativeLaunchCommand(
         .height = options.height,
         .fps = options.fps,
         .bitrateKbps = options.bitrateKbps,
+        .videoFormat = options.videoFormat,
     };
     const auto launch = nova::deck::stream::launchRequestForStream(request, appId);
     const auto keys = nova::deck::stream::generateStreamKeys();
@@ -1350,6 +1362,8 @@ int nativeLaunchCommand(
                 std::cout << "nova-deck native: t=" << deadline.elapsed() << "ms"
                           << " decodedHardwareFrames=" << renderer.decodedHardwareFrames
                           << " submitCalls=" << renderer.submitCalls
+                          << " videoBytes=" << renderer.videoBytes
+                          << " refusedFrames=" << renderer.refusedFrames
                           << " audioSampleCalls=" << audio.sampleCalls
                           << " audioDecodedFrames=" << audio.decodedFrames
                           << " audioSubmittedFrames=" << audio.submittedFrames
@@ -1384,6 +1398,10 @@ int nativeLaunchCommand(
               << " submitCalls=" << renderer.submitCalls
               << " decodedHardwareFrames=" << renderer.decodedHardwareFrames
               << " presentedHardwareFrames=" << renderer.presentedHardwareFrames
+              << " videoBytes=" << renderer.videoBytes
+              << " refusedFrames=" << renderer.refusedFrames
+              << " videoWorkSamples=" << renderer.videoWorkSamples
+              << " videoWorkMicros=" << renderer.videoWorkMicros
               << " stopCalls=" << renderer.stopCalls
               << " cleanupCalls=" << renderer.cleanupCalls
               << " videoFormat=" << renderer.videoFormat
@@ -1474,10 +1492,16 @@ int registerSteamShortcutCommand(const QStringList& arguments) {
 }
 
 bool runPairingSetup(QGuiApplication& app, const QStringList& arguments, bool managePcs = false) {
+    nova::deck::runtime::DeckPlaySettings pairingPreferences;
     nova::deck::runtime::DeckPairingController pairing;
+    QObject::connect(&pairing, &nova::deck::runtime::DeckPairingController::hostPaired,
+        &pairingPreferences, [&](const QString& hostId) { pairingPreferences.initializeKeepInStep(hostId); });
+    nova::deck::runtime::DeckHostDiscovery discovery;
     QtDeckGamepadBridge gamepad;
+    nova::deck::runtime::DeckWindowController windowController;
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("novaPairing", &pairing);
+    engine.rootContext()->setContextProperty("novaDiscovery", &discovery);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepad);
     const bool priorQuit = app.quitOnLastWindowClosed();
     app.setQuitOnLastWindowClosed(false);
@@ -1485,6 +1509,7 @@ bool runPairingSetup(QGuiApplication& app, const QStringList& arguments, bool ma
     if (engine.rootObjects().isEmpty()) { app.setQuitOnLastWindowClosed(priorQuit); return false; }
     auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().first());
     if (!window) { app.setQuitOnLastWindowClosed(priorQuit); return false; }
+    windowController.watchWindow(window);
     QEventLoop pairingEventLoop;
     QObject::connect(window, &QWindow::visibleChanged, &pairingEventLoop, [&] { if (!window->isVisible()) pairingEventLoop.quit(); });
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &pairingEventLoop, &QEventLoop::quit);
@@ -1681,6 +1706,10 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     nova::deck::runtime::DeckGameTools gameTools;
     nova::deck::runtime::DeckHostPowerController hostPower;
     nova::deck::runtime::DeckHostSettingsController hostSettings;
+    QObject::connect(&app, &QCoreApplication::aboutToQuit,
+        &hostSettings, &nova::deck::runtime::DeckHostSettingsController::shutdown);
+    nova::deck::runtime::DeckUpdates updates(nova::deck::runtime::DeckUpdates::installedOptions(standalone));
+    QObject::connect(&updates, &nova::deck::runtime::DeckUpdates::quitRequested, &app, &QCoreApplication::quit);
     const auto updatePowerTarget = [&] {
         const auto& snapshot = libraryRefresh.snapshot();
         QString name;
@@ -1692,26 +1721,39 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     updatePowerTarget();
     const auto coordinateHostActions = [&] {
         const bool streaming = nativeSession.busy() || nativeSession.systemSleeping();
-        hostPower.setSessionActive(streaming || hostSettings.busy() || gameTools.busy());
+        const bool maintenance = updates.busy();
+        updates.setBlocked(streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
+        hostPower.setSessionActive(streaming || maintenance || hostSettings.busy() || gameTools.busy());
         // Read-only game-plan checks must not revoke the open host-settings
         // review after a local default edit. Mutations retain mutual exclusion.
-        hostSettings.setSessionActive(streaming || hostPower.busy() || gameTools.writing());
-        gameTools.setSessionActive(streaming || hostPower.busy() || hostSettings.busy());
-        libraryRefresh.setSessionBusy(streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy());
-        if (standalone && !streaming) nativeSession.setTargetResolver(hostPower.busy() || hostSettings.busy() || gameTools.writing() ? nova::deck::runtime::DeckNativeTargetResolver{} : libraryRefresh.targetResolver());
+        hostSettings.setSessionActive(streaming || maintenance || hostPower.busy() || gameTools.writing());
+        hostSettings.setBackgroundBlocked(libraryRefresh.busy());
+        gameTools.setSessionActive(streaming || maintenance || hostPower.busy() || hostSettings.busy());
+        libraryRefresh.setSessionBusy(streaming || maintenance || hostPower.busy() || hostSettings.busy() || gameTools.busy());
+        if (standalone && !streaming) nativeSession.setTargetResolver(maintenance || libraryRefresh.busy() || hostPower.busy() || hostSettings.busy() || gameTools.writing() ? nova::deck::runtime::DeckNativeTargetResolver{} : libraryRefresh.targetResolver());
     };
+    // The newest controller owns these connections so shutdown cannot invoke
+    // the coordinator after its update/session guards have been destroyed.
+    QObject::connect(&updates, &nova::deck::runtime::DeckUpdates::busyChanged, &updates, coordinateHostActions);
+    QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::stateChanged, &updates, coordinateHostActions);
+    coordinateHostActions();
     QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::stateChanged,
-        &libraryRefresh, coordinateHostActions);
+        &updates, coordinateHostActions);
     QObject::connect(&hostPower, &nova::deck::runtime::DeckHostPowerController::stateChanged,
-        &libraryRefresh, coordinateHostActions);
+        &updates, coordinateHostActions);
     QObject::connect(&hostSettings, &nova::deck::runtime::DeckHostSettingsController::stateChanged,
-        &libraryRefresh, coordinateHostActions);
+        &updates, coordinateHostActions);
     QObject::connect(&sleepMonitor, &nova::deck::runtime::DeckSleepMonitor::sleepingChanged,
         &hostPower, [&](bool sleeping) { if (sleeping) hostPower.cancel(); });
-    QObject::connect(&gameTools, &nova::deck::runtime::DeckGameTools::stateChanged, &libraryRefresh, coordinateHostActions);
+    QObject::connect(&gameTools, &nova::deck::runtime::DeckGameTools::stateChanged, &updates, coordinateHostActions);
     gamepadBridge.setNativeSession(&nativeSession);
     nova::deck::runtime::DeckPlaySettings playSettings;
     nova::deck::runtime::DeckDesktopInputBridge desktopInput(nativeSession, playSettings);
+    // Install the local window shortcut after desktop forwarding, so the chord
+    // is consumed before host keyboard input on both presentation paths.
+    nova::deck::runtime::DeckWindowController windowController;
+    QObject::connect(&windowController, &nova::deck::runtime::DeckWindowController::modeAboutToChange,
+        &nativeSession, &nova::deck::runtime::DeckNativeSessionController::showControls);
     playSettings.setVideoDecodeSupport(fixtureVideoSupport
         ? nova::deck::stream::DeckVideoDecodeSupport{.h264 = {4096, 4096}, .hevc = {1920, 1200}}
         : mediaProbe.videoDecodeSupport);
@@ -1719,7 +1761,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
 #ifdef NOVA_DECK_VULKAN_STREAM
     std::unique_ptr<nova::deck::runtime::DeckVulkanSessionView> vulkanSessionView;
     if (appArguments.contains(QStringLiteral("--experimental-vulkan-stream")))
-        vulkanSessionView = std::make_unique<nova::deck::runtime::DeckVulkanSessionView>(nativeSession, displayCapabilities, playSettings, desktopInput);
+        vulkanSessionView = std::make_unique<nova::deck::runtime::DeckVulkanSessionView>(nativeSession, displayCapabilities, playSettings, desktopInput, windowController);
 #endif
     QQmlApplicationEngine engine;
     auto* libraryArtwork = new nova::deck::runtime::DeckLibraryArtwork;
@@ -1745,7 +1787,10 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaHostPower", &hostPower);
     engine.rootContext()->setContextProperty("novaHostSettings", &hostSettings);
     engine.rootContext()->setContextProperty("novaNativeSession", &nativeSession);
+    engine.rootContext()->setContextProperty("novaUpdates", &updates);
     engine.rootContext()->setContextProperty("novaPlaySettings", &playSettings);
+    engine.rootContext()->setContextProperty("novaWindowController", &windowController);
+    engine.rootContext()->setContextProperty("novaDesktopInput", &desktopInput);
 #ifdef NOVA_DECK_VULKAN_STREAM
     engine.rootContext()->setContextProperty("novaVulkanPresentation", vulkanSessionView.get());
 #else
@@ -1783,13 +1828,13 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
             if (standalone && libraryRefresh.busy()) nativeSession.setTargetResolver({});
         });
     QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::snapshotChanged,
-        &engine, [&] {
+        &updates, [&] {
             if (!standalone) return;
             updatePowerTarget();
             const auto& snapshot = libraryRefresh.snapshot();
             const nova::deck::backend::DeckLiveReadOnlyStateProvider provider(snapshot, readOnlyPreflightService);
             const auto state = provider.stateForScenario("live");
-            nativeSession.setTargetResolver(libraryRefresh.targetResolver());
+            coordinateHostActions();
             auto* context = engine.rootContext();
             auto publicState = toReadOnlyStateModel(state);
             publicState.insert("destinationId", libraryRefresh.state().value("destinationId"));
@@ -1897,10 +1942,11 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
         &engine,
         &QQmlApplicationEngine::objectCreated,
         &app,
-        [smokeExit, frontendSmokeExitAfterMs, frontendSmokeCapturePath, graphicsStatePath, librarySmokeStatePath, backendDtoInteractionSmokePath, backendReadOnlyStateMatrixSmokePath, expandedDiagnosticsFrameSmokePath, expandedDiagnosticsCapturePath, &app, &productPreviewPipeline, &nativeSession, &displayCapabilities, &desktopInput](QObject *object) {
+        [smokeExit, frontendSmokeExitAfterMs, frontendSmokeCapturePath, graphicsStatePath, librarySmokeStatePath, backendDtoInteractionSmokePath, backendReadOnlyStateMatrixSmokePath, expandedDiagnosticsFrameSmokePath, expandedDiagnosticsCapturePath, &app, &productPreviewPipeline, &nativeSession, &displayCapabilities, &desktopInput, &windowController](QObject *object) {
             if (object != nullptr) {
                 displayCapabilities.watchWindow(qobject_cast<QWindow*>(object));
                 desktopInput.watchWindow(qobject_cast<QWindow*>(object), object);
+                windowController.watchWindow(qobject_cast<QWindow*>(object));
                 if (auto* window = qobject_cast<QQuickWindow*>(object); window && !graphicsStatePath.isEmpty()) {
                     // Observe the actual render thread, where a context must be
                     // current for DMA-BUF import. A configured backend alone is

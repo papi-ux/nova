@@ -83,10 +83,13 @@ int main(int argc, char** argv) {
         ApplicationWindow {
             width: 1280; height: 800; visible: true
             title: "Nova native controls test"
+            property bool relativeAvailable:true
+            QtObject { id:input; property var mouseState:({available:relativeAvailable, active:false, pending:false, error:""}) }
             function largeText() { NovaTheme.setFontScale(1.3) }
             Button { id: library; objectName: "library"; text: "Library"; focus: true }
             NativeStreamPreview {
                 id: preview
+                desktopInput: input
                 inputHub: testPlayers
                 session: testSession
                 settingsProvider: testSettings
@@ -279,7 +282,7 @@ int main(int argc, char** argv) {
     focused(*window, primary, "stop must move focus off the disappearing End game action");
     session.transition("stopped", false, "Your game has ended.");
     settle();
-    require(primary->property("text") == "Back to details", "completed stop must expose the return action");
+    require(primary->property("text") == "Back to Details", "completed stop must expose the return action");
     screenshot("native-controls-stopped.png");
     key(*window, Qt::Key_Return);
     require(!preview->property("opened").toBool(), "return action must close preview");
@@ -493,7 +496,7 @@ int main(int argc, char** argv) {
     session.allowResume = false;
     session.transition("interrupted", false, "The connection was interrupted. Return to the library and check this PC.");
     settle();
-    require(primary->property("text") == "Back to details" && !resumeReturn->isVisible(), "unverified legacy session offered reconnect");
+    require(primary->property("text") == "Back to Details" && !resumeReturn->isVisible(), "unverified legacy session offered reconnect");
     session.allowResume = true;
     session.transition("interrupted", false, interruptedCopy);
     settle();
@@ -656,6 +659,15 @@ int main(int argc, char** argv) {
         "scaling relaunched or changed the stream profile");
     require(settings.resetVideoScaleMode(),"scaling reset failed"); window->resize(1280,800); settle();
     auto* hudAction = root->findChild<QQuickItem*>("native-hud-settings");
+    auto* mouseAction = root->findChild<QQuickItem*>("native-mouse-mode");
+    require(mouseAction && mouseAction->isEnabled(), "mouse mode action missing");
+    scaleAction->forceActiveFocus(); key(*window,Qt::Key_Down); focused(*window,mouseAction,"mouse mode unreachable");
+    key(*window,Qt::Key_Return); require(settings.mouseMode()=="relative", "Command Center did not choose relative aiming");
+    root->setProperty("relativeAvailable",false); settle();
+    require(mouseAction->isEnabled(), "unavailable capture prevented returning to direct mode");
+    key(*window,Qt::Key_Return); require(settings.mouseMode()=="direct" && !mouseAction->isEnabled(), "unavailable relative capture was selectable");
+    scaleAction->forceActiveFocus(); key(*window,Qt::Key_Down); focused(*window,hudAction,"disabled mouse action trapped focus");
+    root->setProperty("relativeAvailable",true); settle();
     auto* hudPopup = root->findChild<QObject*>("hud-settings-popup");
     auto* hud = root->findChild<QQuickItem*>("nova-stream-hud");
     require(hudAction && hudPopup && hud && !hud->isVisible(), "HUD integration missing or not off by default");
@@ -716,7 +728,8 @@ int main(int argc, char** argv) {
 
 
     session.tuning = {{"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", true}, {"tuningBusy", false},
-        {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"bitrateCopy", "Choose a fixed bitrate. Applying it turns Live Tuning off."}};
+        {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"requestedBitrateKbps", 20000}, {"codec", "PyroWave"},
+        {"bitrateCopy", "Choose a fixed bitrate. Applying it turns Live Tuning off."}};
     emit session.hudChanged(); settle();
     auto* bitrateAction = root->findChild<QQuickItem*>("native-live-bitrate");
     auto* bitratePopup = root->findChild<QObject*>("live-bitrate-popup");
@@ -734,6 +747,7 @@ int main(int argc, char** argv) {
     require(!bitratePopup->property("opened").toBool(), "event refresh opened a stale bitrate draft");
     session.tuning = readyBitrate; emit session.hudChanged(); settle();
     key(*window, Qt::Key_Return); focused(*window, bitrateMinus, "picker did not focus the decrement control");
+    require(bitratePopup->findChild<QQuickItem*>("live-bitrate-pyrowave-guidance")->isVisible(), "PyroWave bitrate guidance missing");
     key(*window, Qt::Key_Right); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 21000 && session.bitrateWrites == 0, "draft adjustment mutated host");
     key(*window, Qt::Key_Down); focused(*window, bitrateApply, "Apply not reachable from increment");
@@ -755,6 +769,16 @@ int main(int argc, char** argv) {
     key(*window, Qt::Key_Return);
     bitratePopup->setProperty("draftKbps", 300000); bitratePlus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 300000, "picker exceeded upper bound");
+    session.tuning["appliedBitrateKbps"] = 200000; session.tuning["requestedBitrateKbps"] = 200000;
+    session.tuning["bitrateRequestKbps"] = 300000;
+    session.tuning["bitrateCopy"] = "Your 300 Mbps request wasn't confirmed. The PC reports a 200 Mbps target. Check the PC's bitrate limits and current settings.";
+    emit session.hudChanged(); settle(); key(*window, Qt::Key_Down);
+    focused(*window, bitrateApply, "high-rate picker lost Apply focus");
+    const auto rateLabels = bitratePopup->findChild<QObject*>("live-bitrate-applied")->property("text").toString();
+    require(rateLabels.contains("Your last request: 300 Mbps") && rateLabels.contains("PC target: 200 Mbps") &&
+        rateLabels.contains("Encoder applied: 200 Mbps"), "local request was conflated with the PC target or encoder acknowledgement");
+    screenshot("live-bitrate-high-rate-large-960.png");
+    require(bitrateApply->mapToScene(QPointF(0, bitrateApply->height())).y() <= window->height(), "high-rate feedback clipped with large text");
     bitratePopup->setProperty("draftKbps", 1000); bitrateMinus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 1000 && session.bitrateWrites == 1, "picker exceeded lower bound or wrote while editing");
     // A touch adjustment edits the draft without submitting it.

@@ -24,13 +24,14 @@ int main(int argc, char** argv) {
         QObject::connect(&display, &DeckDisplayCapabilities::stateChanged, [&] { ++changes; });
         display.refresh();
         require(changes == 0, "unchanged display churned UI state");
-        for (const double hz : {40.0, 45.0, 50.0, 59.94, 60.0, 72.0, 75.0, 87.9, 88.0, 89.94, 90.0, 120.0, 240.0, 0.0, -1.0, 1001.0,
+        for (const double hz : {40.0, 45.0, 50.0, 59.94, 60.0, 72.0, 75.0, 87.9, 88.0, 89.94, 90.0, 119.88, 120.0, 143.85, 144.0, 165.0, 239.76, 240.0, 360.0, 0.0, -1.0, 1001.0,
                 std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
             reported = hz;
             // Exercise the real screen-signal binding, not only direct refresh.
             require(QMetaObject::invokeMethod(window->screen(), "refreshRateChanged", Q_ARG(qreal, hz)), "cannot signal display change");
             const bool known = std::isfinite(hz) && hz > 0 && hz <= 1000;
-            const int expected = !known ? 60 : hz >= 88 ? 90 : hz >= 58 && hz < 60 ? 60 : static_cast<int>(std::floor(hz));
+            const int expected = !known ? 60 : hz >= 358 ? 360 : hz >= 238 ? 240 : hz >= 163 ? 165
+                : hz >= 142 ? 144 : hz >= 118 ? 120 : hz >= 88 ? 90 : hz >= 58 && hz < 60 ? 60 : static_cast<int>(std::floor(hz));
             require(display.state().value("known").toBool() == known && retained() == expected, "invalid refresh classification");
             std::thread worker([&] { require(retained() == expected, "worker did not observe rate change"); });
             worker.join();

@@ -26,6 +26,24 @@ int main(int argc, char** argv) {
     require(directory.isValid(), "missing temporary settings directory");
     const auto file = directory.filePath("play.ini");
     {
+        const auto path = directory.filePath("mouse.ini");
+        DeckPlaySettings settings(path);
+        require(settings.mouseMode() == "direct", "existing installations changed mouse behavior");
+        require(settings.saveChoice("pc", "game", {{"fps", 90}}), "mouse scope fixture failed");
+        const auto game = settings.load("pc", "game"), audio = settings.audioSettings();
+        int changes = 0; QObject::connect(&settings, &DeckPlaySettings::mouseModeChanged, [&] { ++changes; });
+        require(settings.setMouseMode("relative") && DeckPlaySettings(path).mouseMode() == "relative", "mouse mode did not persist");
+        for (const auto* bad : {"", "Relative", " relative", "trackpad"})
+            require(!settings.setMouseMode(bad), "invalid mouse mode accepted");
+        require(settings.resetVideoScaleMode() && settings.resetStreamDefaults() && settings.mouseMode() == "relative", "unrelated reset changed mouse mode");
+        require(settings.setMouseMode("direct") && changes == 2 && settings.load("pc", "game") == game && settings.audioSettings() == audio, "mouse mode write crossed scopes");
+        QSettings corrupt(path, QSettings::IniFormat); corrupt.setValue("Input/v1/mouseMode", true); corrupt.sync();
+        require(settings.mouseMode() == "direct", "invalid saved mouse mode captured pointer");
+        QFile blocker(directory.filePath("mouse-blocked")); require(blocker.open(QIODevice::WriteOnly), "mouse failure fixture failed"); blocker.close();
+        DeckPlaySettings blocked(blocker.fileName() + "/settings.ini");
+        require(!blocked.setMouseMode("relative") && blocked.mouseMode() == "direct", "failed mouse save appeared applied");
+    }
+    {
         const auto path=directory.filePath("deadzone.ini"); DeckPlaySettings input(path);
         int changes=0; QObject::connect(&input,&DeckPlaySettings::stickDeadzonePercentChanged,[&] { ++changes; });
         require(input.stickDeadzonePercent()==5,"deadzone default differs from Android");
@@ -134,6 +152,40 @@ int main(int argc, char** argv) {
     require(settings.streamPlan(automaticCodec, bothCodecs, {}, {}, true).value("videoLabel") == "H.264 · SDR", "Space Auto upgraded codec");
     require(settings.streamPlan(forcedHevc, {{"h264", false}, {"hevc", true}}, {}).value("playable").toBool(), "HEVC-only PC rejected");
     require(!DeckPlaySettings{}.streamPlan(defaults, bothCodecs, {}).value("playable").toBool(), "unprobed decoder allowed playback");
+    {
+        DeckPlaySettings pyroSettings(directory.filePath("pyrowave.ini"));
+        pyroSettings.setVideoDecodeSupport({.h264 = {4096, 4096}, .pyrowave = {1920, 1200}});
+        auto pyro = defaults; pyro["videoCodec"] = "pyrowave";
+        pyro["encoderBackend"] = "nvenc";
+        pyro["profilePreference"] = "quality";
+        const QVariantMap host{{"h264", true}, {"pyrowave", true}};
+        require(pyroSettings.save("pc", "game", pyro), "PyroWave preference could not be saved");
+        require(DeckPlaySettings(directory.filePath("pyrowave.ini")).load("pc", "game").value("configuration").toMap().value("videoCodec") == "pyrowave", "PyroWave preference did not survive restart");
+        const auto pyroPlan = pyroSettings.streamPlan(pyro, host, {});
+        require(pyroPlan.value("configuration").toMap().value("encoderBackend").toString().isEmpty() &&
+            pyroPlan.value("configuration").toMap().value("profilePreference") == "quality", "PyroWave retained an incompatible encoder or erased tuning");
+        require(pyroSettings.load("pc", "game").value("configuration").toMap().value("encoderBackend") == "nvenc" &&
+            pyro.value("encoderBackend") == "nvenc", "review erased the saved encoder preference");
+        require(pyroSettings.saveChoice("pc", "game", {{"videoCodec", "h264"}}), "codec switch failed");
+        const auto switched = DeckPlaySettings(directory.filePath("pyrowave.ini")).load("pc", "game").value("configuration").toMap();
+        require(pyroSettings.streamPlan(switched, host, {}).value("configuration").toMap().value("encoderBackend") == "nvenc", "switching codec lost the saved encoder");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        require(pyroSettings.streamPlan(pyro, host, {}).value("videoLabel") == "PyroWave · SDR", "explicit PyroWave selection lost its codec");
+        require(pyroSettings.streamPlan(pyro, host, {}).value("playable").toBool(), "supported PyroWave selection could not play");
+        require(!pyroSettings.streamPlan(pyro, host, {}, {}, true).value("playable").toBool(), "Space selected PyroWave");
+        require(pyroSettings.streamPlan(pyro, host, {}, {}, true).value("reason").toString().contains("Spaces"), "Space refusal did not explain the codec limit");
+        auto oversized = pyro; oversized["width"] = 2560; oversized["height"] = 1440;
+        require(pyroSettings.streamPlan(oversized, host, {}).value("reason").toString().contains("size"), "size refusal did not explain the decoder limit");
+        DeckPlaySettings noGpu;
+        require(noGpu.streamPlan(pyro, host, {}).value("reason").toString().contains("Vulkan"), "GPU refusal did not explain the missing decoder");
+        require(pyroSettings.streamPlan(pyro, {}, {}).value("reason").toString().contains("PC"), "host refusal did not explain missing support");
+#else
+        require(!pyroSettings.streamPlan(pyro, host, {}).value("playable").toBool(), "disabled build selected PyroWave");
+        require(pyroPlan.value("reason").toString().contains("build"), "disabled build did not explain the missing codec");
+#endif
+        require(!pyroSettings.streamPlan(pyro, {}, {}).value("playable").toBool(), "missing host codec silently fell back");
+        require(pyroSettings.streamPlan(automaticCodec, host, {}).value("videoLabel") == "H.264 · SDR", "Auto selected experimental PyroWave");
+    }
     require(settings.saveChoice("codec-pc", "game", {{"videoCodec", "auto"}}), "codec choice not saved");
     require(DeckPlaySettings(file).load("codec-pc", "game").value("configuration").toMap().value("videoCodec") == "auto" &&
         settings.load("codec-pc", "another").value("configuration").toMap().value("videoCodec") == "h264", "codec choice lost scope/persistence");
@@ -149,6 +201,12 @@ int main(int argc, char** argv) {
     require(settings.keepInStep("one") == "off" && !settings.saveKeepInStep(" ", "on") && !settings.saveKeepInStep("one", "yes"), "invalid sync setting admitted");
     require(settings.saveKeepInStep("one", "on") && DeckPlaySettings(file).keepInStep("one") == "on" && settings.keepInStep("two") == "off", "sync persistence lost PC scope");
     require(settings.saveKeepInStep("one", "paused") && DeckPlaySettings(file).keepInStep("one") == "paused", "pending sync state lost on restart");
+    require(settings.initializeKeepInStep("new") && DeckPlaySettings(file).keepInStep("new") == "pending", "new pairing did not request an initial profile check");
+    require(settings.initializeKeepInStep("one") && settings.keepInStep("one") == "paused", "re-pairing resumed an uncertain save");
+    require(settings.saveKeepInStep("off-host", "off") && settings.initializeKeepInStep("off-host") &&
+        settings.keepInStep("off-host") == "off", "re-pairing changed explicit Off");
+    require(settings.keepInStep("existing-unset") == "off", "upgrade enabled an existing pairing without a choice");
+    require(settings.saveKeepInStep("new", "review") && DeckPlaySettings(file).keepInStep("new") == "review", "profile conflict did not persist");
     const auto audioDefaults = DeckAudioConfiguration{}.toMap();
     const auto surround = DeckAudioConfiguration{8, true}.toMap();
     {
@@ -241,7 +299,7 @@ int main(int argc, char** argv) {
     plan = settings.streamPlan(wide, {{"maxFps", 240}}, {});
     require(plan.value("configuration").toMap() == wide && plan.value("rates").toList().size() == 2,
         "host capabilities exposed an unimplemented client rate or lost preference");
-    for (const auto& unavailable : {QVariantMap{{"valid", false}}, QVariantMap{{"h264", false}}, QVariantMap{{"maxFps", 20}}}) {
+    for (const auto& unavailable : {QVariantMap{{"valid", false}}, QVariantMap{{"h264", false}}, QVariantMap{{"maxFps", 14}}}) {
         plan = settings.streamPlan(defaults, unavailable, {});
         require(!plan.value("playable").toBool() && !plan.value("reason").toString().isEmpty(), "unsupported stream remained playable");
     }
@@ -254,8 +312,21 @@ int main(int argc, char** argv) {
         const bool accepts90 = std::isfinite(hz) && hz >= 88 && hz <= 1000;
         require(result.value("configuration").toMap().value("fps").toInt() == (accepts90 ? 90 : hz == 87.9 ? 87 : 60),
             "display threshold did not match effective FPS");
-        require(result.value("rates").toList().size() == (accepts90 || hz == 87.9 ? 3 : 2), "unsupported display FPS offered");
+        require(result.value("rates").toList().size() == (hz == 120 ? 4 : accepts90 || hz == 87.9 ? 3 : 2), "unsupported display FPS offered");
         require(result.value("adjustment").toString().isEmpty() == accepts90, "display adjustment was hidden");
+    }
+    for (const int fps : {15, 31, 120, 144, 165, 175, 240}) {
+        const auto requested = DeckPlayConfiguration{2560, 1440, fps, 225500}.toMap();
+        const auto high = settings.streamPlan(requested, {{"maxFps", 360}}, {}, {{"known", true}, {"refreshHz", 239.76}});
+        require(high.value("playable").toBool() && high.value("configuration").toMap().value("fps") == fps &&
+            high.value("configuration").toMap().value("bitrateKbps") == 225500 && high.value("adjustment").toString().isEmpty(),
+            "desktop rate or bitrate was capped during review");
+        require(high.value("rates").toList().back().toMap().value("fps") == 240, "240 FPS preset missing on capable display");
+        require(settings.save("linux", "game", requested) && DeckPlaySettings(file).load("linux", "game").value("configuration").toMap() == requested,
+            "high-rate game preference lost on restart");
+        const auto imported = settings.defaultsFromHost(QString("2560x1440x%1").arg(fps), 225500);
+        require(imported && imported->value("fps") == fps && imported->value("bitrateKbps") == 225500,
+            "Sync rejected valid high-rate defaults");
     }
     const QVariantMap fastDisplay{{"known", true}, {"refreshHz", 90}};
     for (const auto& host : {QVariantMap{}, QVariantMap{{"maxFps", 60}}}) {
@@ -287,7 +358,7 @@ int main(int argc, char** argv) {
     require(settings.load("a/b", "c").value("configuration").toMap() == chosen, "host/game key collision");
     require(!settings.save("", "game", chosen) && !settings.save("host", "game-empty-state", chosen), "empty selection persisted");
 
-    for (const auto& bad : QList<QVariant>{true, "60", 29.5, -1, 0, 120, 1e30,
+    for (const auto& bad : QList<QVariant>{true, "60", 29.5, -1, 0, 14, 241, 1e30,
             std::numeric_limits<double>::quiet_NaN()}) {
         auto values = chosen;
         values["fps"] = bad;

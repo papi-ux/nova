@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include "polaris/deck_stream_capabilities.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstddef>
@@ -23,7 +24,7 @@ inline QString deckFramePacingName(DeckFramePacing mode) {
 class DeckFrameCadence {
 public:
     bool configure(DeckFramePacing mode, int fps) {
-        if ((mode != DeckFramePacing::Latency && mode != DeckFramePacing::Balanced) || fps < 30 || fps > 90) return false;
+        if ((mode != DeckFramePacing::Latency && mode != DeckFramePacing::Balanced) || !supportedDeckProfileRate(fps)) return false;
         mode_ = mode; period_ = 1'000'000'000LL / fps; next_ = -1;
         return true;
     }
