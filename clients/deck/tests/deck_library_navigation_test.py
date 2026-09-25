@@ -898,9 +898,15 @@ def host_power_navigation(wait, keys, state, fixtures, save_capture, window):
     keys("Escape")
     a["power"]["sleep_permitted"] = True
     open_power()
+    previous_hold = state()["hostPowerUi"]["hold"]
     command("xdotool", "windowsize", window, "960", "600")
-    wait(lambda s: s.get("focusVisible") and s.get("hostPowerUi", {}).get("hold", {}).get("x") == 480)
+    # Wait for the resized layout, including its scroll gutter, instead of
+    # assuming the button center is exactly half the window width.
+    wait(lambda s: s.get("width") == 960 and s.get("height") == 600 and
+         s.get("focusVisible") and s.get("focus") == "host-power-hold" and
+         s.get("hostPowerUi", {}).get("hold", {}).get("x") != previous_hold["x"])
     point = state()["hostPowerUi"]["hold"]
+    assert 0 < point["x"] < 960 and 0 < point["y"] < 600, "resized hold control is outside the window"
     command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "mousedown", "1")
     wait(power_phase("countdown"))
     command("xdotool", "mouseup", "1")
