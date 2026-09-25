@@ -29,6 +29,7 @@ extern "C" {
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -195,7 +196,7 @@ GLuint createExternalOesPresenterProgram() {
     return createPresenterProgram(fragmentShaderSource);
 }
 
-GLuint createTwoLayerYuvPresenterProgram() {
+GLuint createTwoLayerYuvPresenterProgram(bool planar = false) {
     static constexpr const char* esFragmentShaderSource =
         "precision mediump float;\n"
         "uniform sampler2D u_yTexture;\n"
@@ -225,8 +226,15 @@ GLuint createTwoLayerYuvPresenterProgram() {
         "    float b = y + 1.8556 * uv.x;\n"
         "    fragColor = vec4(clamp(vec3(r, g, b), 0.0, 1.0), 1.0) * u_opacity;\n"
         "}\n";
-    const char* fragmentShaderSource = currentContextUsesOpenGles() ? esFragmentShaderSource : desktopFragmentShaderSource;
-    return createPresenterProgram(fragmentShaderSource);
+    std::string source = currentContextUsesOpenGles() ? esFragmentShaderSource : desktopFragmentShaderSource;
+    if (planar) {
+        const std::string declaration = "uniform sampler2D u_uvTexture;";
+        source.replace(source.find(declaration), declaration.size(), declaration + "\nuniform sampler2D u_vTexture;");
+        const std::string sample = currentContextUsesOpenGles() ? "texture2D" : "texture";
+        const std::string packed = sample + "(u_uvTexture, v_texCoord).rg";
+        source.replace(source.find(packed), packed.size(), "vec2(" + sample + "(u_uvTexture, v_texCoord).r, " + sample + "(u_vTexture, v_texCoord).r)");
+    }
+    return createPresenterProgram(source.c_str());
 }
 
 bool renderPresenterTexture(DeckVaapiEglImagePresenter::Resource& resource, const QRectF& rect,
@@ -234,7 +242,7 @@ bool renderPresenterTexture(DeckVaapiEglImagePresenter::Resource& resource, cons
                             const QSGRenderNode::RenderState* state = nullptr, const QRectF& source = {0, 0, 1, 1}) {
     resource.shaderCompositionProved = false;
     resource.shaderCompositionDetail.clear();
-    const bool hasGlTextures = resource.importedLayerCount == 2
+    const bool hasGlTextures = resource.importedLayerCount >= 2
         ? resource.glTextures[0] != 0 && resource.glTextures[1] != 0
         : resource.glTexture != 0;
     if (!hasGlTextures || transform == nullptr || rect.isEmpty()) {
@@ -242,7 +250,7 @@ bool renderPresenterTexture(DeckVaapiEglImagePresenter::Resource& resource, cons
         return false;
     }
     if (resource.glProgram == 0) {
-        resource.glProgram = resource.importedLayerCount == 2 ? createTwoLayerYuvPresenterProgram() : createExternalOesPresenterProgram();
+        resource.glProgram = resource.importedLayerCount >= 2 ? createTwoLayerYuvPresenterProgram(resource.importedLayerCount == 3) : createExternalOesPresenterProgram();
         if (resource.glProgram == 0) {
             resource.shaderCompositionDetail = "shader composition program creation failed";
             return false;
@@ -301,13 +309,18 @@ bool renderPresenterTexture(DeckVaapiEglImagePresenter::Resource& resource, cons
     glUseProgram(resource.glProgram);
     glUniformMatrix4fv(glGetUniformLocation(resource.glProgram, "u_projection"), 1, GL_FALSE, transform->constData());
     glUniform1f(glGetUniformLocation(resource.glProgram, "u_opacity"), static_cast<float>(opacity));
-    if (resource.importedLayerCount == 2) {
+    if (resource.importedLayerCount >= 2) {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, resource.glTextures[0]);
         glUniform1i(glGetUniformLocation(resource.glProgram, "u_yTexture"), 0);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, resource.glTextures[1]);
         glUniform1i(glGetUniformLocation(resource.glProgram, "u_uvTexture"), 1);
+        if (resource.importedLayerCount == 3) {
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, resource.glTextures[2]);
+            glUniform1i(glGetUniformLocation(resource.glProgram, "u_vTexture"), 2);
+        }
     } else {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_EXTERNAL_OES, resource.glTexture);
@@ -322,7 +335,11 @@ bool renderPresenterTexture(DeckVaapiEglImagePresenter::Resource& resource, cons
     glDisableVertexAttribArray(1);
     if (resource.glVertexArray != 0) bindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    if (resource.importedLayerCount == 2) {
+    if (resource.importedLayerCount >= 2) {
+        if (resource.importedLayerCount == 3) {
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0);
@@ -724,8 +741,8 @@ DeckQrhiVaapiImportPlan DeckVaapiEglImagePresenter::validateDrmPrimeMetadata(con
     if (drmPrimeDescriptor.objectCount <= 0 || drmPrimeDescriptor.layerCount <= 0) {
         return DeckQrhiVaapiImportPlan{ .status = DeckQrhiVaapiImportStatus::IncompleteDrmPrimeMetadata, .drmPrimeObjectCount = drmPrimeDescriptor.objectCount, .drmPrimeLayerCount = drmPrimeDescriptor.layerCount, .detail = "DRM_PRIME descriptor has no dmabuf objects or layers" };
     }
-    if (drmPrimeDescriptor.layerCount > 2) {
-        return DeckQrhiVaapiImportPlan{ .status = DeckQrhiVaapiImportStatus::UnsupportedMultiLayerDrmPrimeImport, .drmPrimeObjectCount = drmPrimeDescriptor.objectCount, .drmPrimeLayerCount = drmPrimeDescriptor.layerCount, .detail = "DRM_PRIME descriptor has more than the supported Deck two-layer Y/UV shape; no layer is truncated or silently ignored" };
+    if (drmPrimeDescriptor.layerCount > 3) {
+        return DeckQrhiVaapiImportPlan{ .status = DeckQrhiVaapiImportStatus::UnsupportedMultiLayerDrmPrimeImport, .drmPrimeObjectCount = drmPrimeDescriptor.objectCount, .drmPrimeLayerCount = drmPrimeDescriptor.layerCount, .detail = "DRM_PRIME descriptor has more than the supported one-, two-, or three-layer shape; no layer is truncated or silently ignored" };
     }
     // Mesa exports NV12 chroma as GR88; NVIDIA's VA-API/EGL path exports
     // RG88. Preserve the driver's fourcc and modifier for EGL import. Both
@@ -736,6 +753,12 @@ DeckQrhiVaapiImportPlan DeckVaapiEglImagePresenter::validateDrmPrimeMetadata(con
         (drmPrimeDescriptor.layers[0].format != DRM_FORMAT_R8 ||
          (drmPrimeDescriptor.layers[1].format != DRM_FORMAT_GR88 && drmPrimeDescriptor.layers[1].format != DRM_FORMAT_RG88))) {
         return DeckQrhiVaapiImportPlan{ .status = DeckQrhiVaapiImportStatus::UnsupportedDrmPrimeFormat, .drmPrimeObjectCount = drmPrimeDescriptor.objectCount, .drmPrimeLayerCount = drmPrimeDescriptor.layerCount, .detail = "Two-layer DRM_PRIME shader composition requires R8 luma and GR88 or RG88 interleaved chroma" };
+    }
+    if (drmPrimeDescriptor.layerCount == 3) {
+        for (int i = 0; i < 3; ++i)
+            if (drmPrimeDescriptor.layers[i].format != DRM_FORMAT_R8 || drmPrimeDescriptor.layers[i].planeCount != 1)
+                return {.status = DeckQrhiVaapiImportStatus::UnsupportedDrmPrimeFormat,
+                    .detail = "Planar YUV requires three single-plane R8 layers"};
     }
     int importedPlaneCount = 0;
     for (int layerIndex = 0; layerIndex < drmPrimeDescriptor.layerCount; ++layerIndex) {
@@ -812,14 +835,14 @@ DeckQrhiVaapiImportPlan DeckVaapiEglImagePresenter::importOpenGlTextureForCurren
     }
 
     const bool includeModifiers = drmPrimeDescriptorHasExplicitModifier(drmPrimeDescriptor);
-    const GLenum textureTarget = drmPrimeDescriptor.layerCount == 2 ? GL_TEXTURE_2D : GL_TEXTURE_EXTERNAL_OES;
+    const GLenum textureTarget = drmPrimeDescriptor.layerCount >= 2 ? GL_TEXTURE_2D : GL_TEXTURE_EXTERNAL_OES;
     Resource pendingResource;
     pendingResource.eglDisplay = static_cast<void*>(eglDisplay);
 
     for (int layerIndex = 0; layerIndex < drmPrimeDescriptor.layerCount; ++layerIndex) {
         const DeckVaapiDrmPrimeLayer& layer = drmPrimeDescriptor.layers[layerIndex];
-        const int layerWidth = drmPrimeDescriptor.layerCount == 2 && layerIndex == 1 ? (size.width() + 1) / 2 : size.width();
-        const int layerHeight = drmPrimeDescriptor.layerCount == 2 && layerIndex == 1 ? (size.height() + 1) / 2 : size.height();
+        const int layerWidth = drmPrimeDescriptor.layerCount >= 2 && layerIndex > 0 ? (size.width() + 1) / 2 : size.width();
+        const int layerHeight = drmPrimeDescriptor.layerCount >= 2 && layerIndex > 0 ? (size.height() + 1) / 2 : size.height();
         std::vector<EGLint> attributes{ EGL_WIDTH, layerWidth, EGL_HEIGHT, layerHeight, EGL_LINUX_DRM_FOURCC_EXT, static_cast<EGLint>(layer.format) };
         for (int planeIndex = 0; planeIndex < layer.planeCount; ++planeIndex) {
             const DeckVaapiDrmPrimePlane& plane = layer.planes[planeIndex];
@@ -872,7 +895,7 @@ bool DeckVaapiEglImagePresenter::composeOpenGlTexture(Resource& resource, const 
     return renderPresenterTexture(resource, node.rect(), &transform, node.inheritedOpacity(), &state, source);
 }
 
-bool DeckVaapiEglImagePresenter::proveOpenGlShaderCompositionForCurrentContext(Resource& resource, const QSize& size) {
+bool DeckVaapiEglImagePresenter::proveOpenGlShaderCompositionForCurrentContext(Resource& resource, const QSize& size, std::vector<std::uint8_t>* rgba) {
     resource.shaderCompositionProved = false;
     if (eglGetCurrentDisplay() == EGL_NO_DISPLAY || eglGetCurrentContext() == EGL_NO_CONTEXT || !resource.hasTexture() || size.width() <= 0 || size.height() <= 0) {
         return false;
@@ -905,6 +928,10 @@ bool DeckVaapiEglImagePresenter::proveOpenGlShaderCompositionForCurrentContext(R
         QRectF(0.0, 0.0, static_cast<qreal>(renderWidth), static_cast<qreal>(renderHeight)),
         &projection);
     glFinish();
+    if (rendered && rgba) {
+        rgba->resize(std::size_t(renderWidth) * renderHeight * 4);
+        glReadPixels(0, 0, renderWidth, renderHeight, GL_RGBA, GL_UNSIGNED_BYTE, rgba->data());
+    }
     const bool proved = rendered && glGetError() == GL_NO_ERROR;
     resource.shaderCompositionProved = proved;
 
@@ -930,14 +957,14 @@ DeckQrhiVaapiImportPlan DeckVaapiEglImagePresenter::importOpenGlTexture(QQuickWi
     auto createImage = reinterpret_cast<EglCreateImageKhr>(eglGetProcAddress("eglCreateImageKHR"));
     auto imageTargetTexture = reinterpret_cast<GlEglImageTargetTexture2DOes>(eglGetProcAddress("glEGLImageTargetTexture2DOES"));
     const bool includeModifiers = drmPrimeDescriptorHasExplicitModifier(drmPrimeDescriptor);
-    const GLenum textureTarget = drmPrimeDescriptor.layerCount == 2 ? GL_TEXTURE_2D : GL_TEXTURE_EXTERNAL_OES;
+    const GLenum textureTarget = drmPrimeDescriptor.layerCount >= 2 ? GL_TEXTURE_2D : GL_TEXTURE_EXTERNAL_OES;
     Resource pendingResource;
     pendingResource.eglDisplay = static_cast<void*>(eglDisplay);
 
     for (int layerIndex = 0; layerIndex < drmPrimeDescriptor.layerCount; ++layerIndex) {
         const DeckVaapiDrmPrimeLayer& layer = drmPrimeDescriptor.layers[layerIndex];
-        const int layerWidth = drmPrimeDescriptor.layerCount == 2 && layerIndex == 1 ? (size.width() + 1) / 2 : size.width();
-        const int layerHeight = drmPrimeDescriptor.layerCount == 2 && layerIndex == 1 ? (size.height() + 1) / 2 : size.height();
+        const int layerWidth = drmPrimeDescriptor.layerCount >= 2 && layerIndex > 0 ? (size.width() + 1) / 2 : size.width();
+        const int layerHeight = drmPrimeDescriptor.layerCount >= 2 && layerIndex > 0 ? (size.height() + 1) / 2 : size.height();
         std::vector<EGLint> attributes{ EGL_WIDTH, layerWidth, EGL_HEIGHT, layerHeight, EGL_LINUX_DRM_FOURCC_EXT, static_cast<EGLint>(layer.format) };
         for (int planeIndex = 0; planeIndex < layer.planeCount; ++planeIndex) {
             const DeckVaapiDrmPrimePlane& plane = layer.planes[planeIndex];
@@ -1120,9 +1147,40 @@ std::shared_ptr<DeckQrhiVaapiFrameLease> DeckQrhiVaapiFrameLease::cloneHardwareF
     return std::shared_ptr<DeckQrhiVaapiFrameLease>(new DeckQrhiVaapiFrameLease(clonedFrame));
 }
 
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+std::shared_ptr<DeckQrhiVaapiFrameLease> DeckQrhiVaapiFrameLease::retainPyrowaveFrame(const nova::pyrowave::GpuImage& image) {
+    if (!image.owner || image.width <= 0 || image.height <= 0) return {};
+    AVFrame* frame = av_frame_alloc();
+    if (!frame) return {};
+    auto* drm = new AVDRMFrameDescriptor{};
+    drm->nb_objects = drm->nb_layers = 3;
+    for (int i = 0; i < 3; ++i) {
+        const auto& plane = image.planes[i];
+        if (plane.fd < 0 || !plane.pitch || !plane.size) { delete drm; av_frame_free(&frame); return {}; }
+        drm->objects[i] = {plane.fd, plane.size, plane.modifier};
+        drm->layers[i].format = DRM_FORMAT_R8;
+        drm->layers[i].nb_planes = 1;
+        drm->layers[i].planes[0] = {i, static_cast<ptrdiff_t>(plane.offset), static_cast<ptrdiff_t>(plane.pitch)};
+    }
+    auto* owner = new std::shared_ptr<void>(image.owner);
+    frame->buf[0] = av_buffer_create(reinterpret_cast<uint8_t*>(drm), sizeof(*drm),
+        [](void* opaque, uint8_t* data) {
+            delete reinterpret_cast<AVDRMFrameDescriptor*>(data);
+            delete static_cast<std::shared_ptr<void>*>(opaque);
+        }, owner, AV_BUFFER_FLAG_READONLY);
+    if (!frame->buf[0]) { delete owner; delete drm; av_frame_free(&frame); return {}; }
+    frame->data[0] = frame->buf[0]->data;
+    frame->format = AV_PIX_FMT_DRM_PRIME; frame->width = image.width; frame->height = image.height;
+    frame->color_primaries = AVCOL_PRI_BT709; frame->color_trc = AVCOL_TRC_BT709;
+    frame->colorspace = AVCOL_SPC_BT709; frame->color_range = AVCOL_RANGE_JPEG;
+    return std::shared_ptr<DeckQrhiVaapiFrameLease>(new DeckQrhiVaapiFrameLease(frame));
+}
+#endif
+
 bool DeckQrhiVaapiFrameLease::valid() const {
-    return frame_ != nullptr && frame_->format == AV_PIX_FMT_VAAPI &&
-        (frame_->data[3] != nullptr || frame_->hw_frames_ctx != nullptr);
+    return frame_ != nullptr && ((frame_->format == AV_PIX_FMT_VAAPI &&
+        (frame_->data[3] != nullptr || frame_->hw_frames_ctx != nullptr)) ||
+        (frame_->format == AV_PIX_FMT_DRM_PRIME && frame_->buf[0] != nullptr && frame_->data[0] != nullptr));
 }
 
 std::uintptr_t DeckQrhiVaapiFrameLease::surfaceId() const {
@@ -1147,6 +1205,8 @@ DeckQrhiVaapiDrmPrimeDescriptor DeckQrhiVaapiFrameLease::exportDrmPrimeDescripto
         descriptor.detail = "frame lease does not contain a valid AV_PIX_FMT_VAAPI surface";
         return descriptor;
     }
+    if (frame_->format == AV_PIX_FMT_DRM_PRIME)
+        return DeckQrhiVaapiDrmPrimeDescriptor(av_frame_clone(frame_));
     if (frame_->hw_frames_ctx == nullptr) {
         DeckQrhiVaapiDrmPrimeDescriptor descriptor;
         descriptor.status = DeckQrhiVaapiImportStatus::MissingHardwareFramesContext;
@@ -1608,10 +1668,27 @@ int DeckVaapiFfmpegRenderer::setup(
     lifecycle_.decodedHardwareFrames = 0;
     lifecycle_.presentedHardwareFrames = 0;
     lifecycle_.incomingFrames = lifecycle_.videoBytes = 0;
+    lifecycle_.videoWorkMicros = lifecycle_.videoWorkSamples = lifecycle_.refusedFrames = 0;
     lifecycle_.hostLatencyTenths = lifecycle_.hostLatencySamples = 0;
     lifecycle_.lastFrameWasHardwareBacked = false;
     lifecycle_.lastRuntimeError.clear();
     resetDecoder();
+
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (videoFormat == VIDEO_FORMAT_PYROWAVE) {
+        pyrowave_ = std::make_unique<nova::pyrowave::Codec>();
+        if (!pyrowave_->open(width, height, false)) {
+            lifecycle_.lastRuntimeError = pyrowave_->error();
+            resetDecoder();
+            return DR_NEED_IDR;
+        }
+        lifecycle_.ownsHardwareDevice = lifecycle_.ownsCodecContext = true;
+        lifecycle_.runtimeVaapiDeviceAvailable = false;
+        lifecycle_.runtimeStatus = "PyroWave Vulkan decoder; GPU DMA-BUF presentation";
+        ready_ = true;
+        return DR_OK;
+    }
+#endif
 
     const DeckLinuxMediaProbe probe = DeckLinuxMediaProbe::detect();
     lifecycle_.runtimeVaapiDeviceAvailable = probe.runtimeVaapiDeviceAvailable;
@@ -1705,9 +1782,27 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         return DR_NEED_IDR;
     }
 
+    struct SubmissionObservation {
+        DeckRendererLifecycle& lifecycle;
+        std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+        bool accepted = false;
+        ~SubmissionObservation() {
+            lifecycle.videoWorkMicros += std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - started).count();
+            ++lifecycle.videoWorkSamples;
+            if (!accepted) ++lifecycle.refusedFrames;
+        }
+    } observation{lifecycle_};
+
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (pyrowave_ && (decodeUnit->fullLength <= 0 || std::size_t(decodeUnit->fullLength) > nova::pyrowave::maxFrameBytes)) {
+        lifecycle_.lastRuntimeError = "Invalid PyroWave decode unit length";
+        return DR_NEED_IDR;
+    }
+#endif
     const std::vector<std::uint8_t> bytes = copyDecodeUnitBytes(decodeUnit);
     if (bytes.empty()) {
-        lifecycle_.lastRuntimeError = "decode unit did not contain Annex-B video bytes";
+        lifecycle_.lastRuntimeError = "decode unit did not contain video bytes";
         return DR_NEED_IDR;
     }
 
@@ -1717,6 +1812,29 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         lifecycle_.hostLatencyTenths += decodeUnit->frameHostProcessingLatency;
         ++lifecycle_.hostLatencySamples;
     }
+
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (pyrowave_) {
+        nova::pyrowave::GpuImage image;
+        if (!pyrowave_->decodeGpu(bytes, image)) {
+            lifecycle_.lastRuntimeError = pyrowave_->error();
+            return DR_NEED_IDR;
+        }
+        auto lease = DeckQrhiVaapiFrameLease::retainPyrowaveFrame(image);
+        if (!lease) { lifecycle_.lastRuntimeError = "Cannot retain PyroWave GPU frame"; return DR_NEED_IDR; }
+        ++lifecycle_.decodedHardwareFrames;
+        lifecycle_.lastFrameWasHardwareBacked = true;
+        const DeckQrhiVaapiPresentationDescriptor descriptor{
+            .width = image.width, .height = image.height, .redrawRate = lifecycle_.redrawRate,
+            .surfaceId = lease->surfaceId(), .hardwareBacked = true,
+            .frameLease = std::move(lease), .source = "pyrowave-vulkan-dmabuf-sdr"};
+        if (previewFramePump_.enqueueDecodedFrame(descriptor) && previewFramePump_.flushNewest())
+            ++lifecycle_.presentedHardwareFrames;
+        observation.accepted = true;
+        lifecycle_.lastRuntimeError.clear();
+        return DR_OK;
+    }
+#endif
 
     AVPacket* packet = av_packet_alloc();
     if (packet == nullptr) {
@@ -1764,6 +1882,8 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
                 ++lifecycle_.presentedHardwareFrames;
             }
             av_frame_unref(decodedFrame_);
+            observation.accepted = true;
+            lifecycle_.lastRuntimeError.clear();
             return DR_OK;
         }
         av_frame_unref(decodedFrame_);
@@ -1795,6 +1915,9 @@ const DeckQrhiVaapiPresentationHandoff& DeckVaapiFfmpegRenderer::presentationHan
 void DeckVaapiFfmpegRenderer::resetDecoder() {
     ready_ = false;
     previewFramePump_.clearPending();
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    pyrowave_.reset();
+#endif
     if (decodedFrame_ != nullptr) {
         av_frame_free(&decodedFrame_);
     }

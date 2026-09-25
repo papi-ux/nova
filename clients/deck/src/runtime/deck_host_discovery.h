@@ -34,7 +34,7 @@ private:
     void added(int interface, int protocol, const QString& name, const QString& type, const QString& domain, uint flags);
     void removed(int interface, int protocol, const QString& name, const QString& type, const QString& domain, uint flags);
     void failed(const QString& error);
-    struct Entry { QString name; int interface; quint64 request; QVariantMap endpoint; };
+    struct Entry { QString name; int interface; quint64 request; QVariantMap endpoint; int rank = 0; };
     void finish(const QString& copy, bool clear);
     void publish();
     void freeBrowser(const QString& path);

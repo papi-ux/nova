@@ -198,9 +198,17 @@ limits and full Sync remain on the parity queue.
 Both host changes and successful local imports/resets invalidate an old Play
 review. Local validation and the isolated package are recorded in
 `build/deck-profile-sync/EVIDENCE.md`.
-Every Game now includes **Keep in step**, saved separately for each PC and off
-by default. While this view is open and Nova is active, it checks every three
-seconds and sends differing device defaults at most once every five seconds.
+Every Game includes **Keep in step**, saved separately for each PC. New pairings
+start with it on; existing pairings and saved Off choices are preserved. Before
+the first automatic save, Nova checks the paired-device profile. If Polaris has
+different settings, the library shows **Review Sync** and no automatic write is
+sent until the player chooses **Use Nova & Sync** or **Use Polaris & Sync**.
+
+While Nova is active and idle, it checks when connecting to the selected PC,
+returning to Nova, finishing a session or changing device defaults, including
+outside Settings. Library refreshes and other open interactions defer the work.
+An active game on the PC also defers it. The open settings view checks every three
+seconds; automatic saves are limited to once every five seconds.
 It uses the same fresh pairing, capability, reviewed-profile and idle checks as
 manual actions. It does not copy per-game choices or alter the PC's display mode.
 Periodic checks preserve controller focus and the comparison being read.
@@ -211,9 +219,14 @@ interrupted writes leave it paused, including after restart. Refresh only reads
 back while paused; Resume is explicit. Off cancels pending automatic work, though
 an already dispatched request may have reached the PC. Use Polaris, Clear profile
 and Reset Nova defaults turn it off first so a later poll cannot undo that choice.
+The first-pairing **Use Polaris & Sync** choice imports the reviewed profile and
+enables sync only after the local defaults are saved. A paused sync is also shown
+in the library so recovery does not depend on finding the settings screen.
 The host still has no profile revision CAS; the GET/POST race and resolved-launch
 truth remain outside this client slice. Evidence and local package:
-`build/deck-keep-in-step/EVIDENCE.md`. Physical acceptance remains open.
+`build/deck-keep-in-step/EVIDENCE.md`. New-pairing defaults, background deferral,
+conflict resolution and interrupted saves have isolated controller and mTLS UI
+coverage. Physical acceptance of the new background behavior remains open.
 
 Appearance startup now reads theme and text size without writing missing defaults
 over saved values. A partial record containing only a larger text size keeps that
@@ -1556,7 +1569,7 @@ establish hardware or physical playback support.
 **Every Game → Edit Nova stream defaults** edits the inherited profile on this
 device across PCs. Existing game overrides stay in place, and resetting one game
 choice uses these current defaults. Keep in step can copy the device profile to
-the selected paired PC while Every Game is open. Supported Polaris profile imports
+the selected paired PC while Nova is idle, including outside Settings. Supported Polaris profile imports
 retain custom values exactly. Fractional stream frame rates remain unavailable.
 
 **Every Game → Resume timeout** appears when Polaris advertises support. The
@@ -1639,8 +1652,9 @@ Active-stream Sync controls are described below. Evidence: `../../build/deck-set
 
 Open **System → Polaris Sync** from the library to compare Nova's device defaults
 with this PC's paired profile and use the existing profile actions. Per-game
-settings stay separate. The screen refreshes while open; automatic writes still
-require Keep in step to be explicitly enabled.
+settings stay separate. Keep in step starts on for new pairings after the initial
+profile check; conflicting profiles require a choice through **Review Sync**.
+Existing pairings keep their saved setting. The screen also refreshes while open.
 
 During a game, **Command Center → Polaris Sync** compares saved profiles with the
 encoder's current bitrate and offers **Match Nova**, **Send Nova** and **Clear

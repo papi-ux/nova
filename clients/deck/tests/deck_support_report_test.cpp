@@ -15,7 +15,8 @@ int main(int argc, char** argv) {
     QVariantMap evidence{{"id", "packet_loss"}, {"source", "Control channel"}, {"grade", "Needs attention"}, {"reading", "9.2 %"}, {"detail", secret}};
     QVariantMap hud{{"hostFresh", true}, {"fresh", true}, {"appliedBitrate", "20.0M"}, {"qualityLimit", "40.0M"},
         {"rtt", "17ms"}, {"jitter", "2ms"}, {"host", "4.2ms"}, {"fps", "59.8"}, {"incoming", "60.0"}, {"decoded", "59.9"},
-        {"bitrate", "19.6M"}, {"codec", "H.264"}, {"resolution", "1280×800"}, {"doctorActionState", "recovered"},
+        {"bitrate", "19.6M"}, {"codec", "PyroWave"}, {"requestedBitrate", "150.0M"}, {"videoWork", "1.25ms"}, {"refused", "2"},
+        {"resolution", "1280×800"}, {"doctorActionState", "recovered"},
         {"doctorHasReceipt", true}, {"doctorCanUndo", false}, {"doctorActionMessage", secret}, {"hostName", secret},
         {"doctor", QVariantMap{{"available", true}, {"confidence", "medium"}, {"title", secret}, {"evidence", QVariantList{evidence}}}}};
     auto report = deckSupportReport(hud);
@@ -23,8 +24,12 @@ int main(int argc, char** argv) {
         report["client_readings"].toObject()["composed_fps"] == 59.8, "measured report values missing");
     require(report["network"].toObject()["client_media_loss_percent"].isNull() &&
         report["doctor"].toObject()["evidence"].toArray()[0].toObject()["reading"].toObject()["value"].isNull(), "control loss became media loss");
+    require(report["host"].toObject()["requested_mbps"] == 150.0 &&
+        report["client_readings"].toObject()["codec"] == "PyroWave" &&
+        report["client_readings"].toObject()["decoder_callback_ms"] == 1.25 &&
+        report["client_readings"].toObject()["decoder_refused_frames"] == 2, "PyroWave diagnostic provenance missing");
     require(!QJsonDocument(report).toJson().contains("private-"), "private free-form content exported");
-    for (const auto* field : {"fps", "incoming", "decoded", "bitrate", "host", "rtt", "jitter", "resolution", "codec", "appliedBitrate", "qualityLimit", "doctorActionState"}) {
+    for (const auto* field : {"fps", "incoming", "decoded", "bitrate", "host", "rtt", "jitter", "resolution", "codec", "appliedBitrate", "requestedBitrate", "videoWork", "refused", "qualityLimit", "doctorActionState"}) {
         auto attack = hud; attack[field] = secret;
         require(!QJsonDocument(deckSupportReport(attack)).toJson().contains("private-"), "tainted top-level value exported");
     }
@@ -40,6 +45,8 @@ int main(int argc, char** argv) {
     auto stale = hud; stale["hostFresh"] = false; stale["fresh"] = false;
     report = deckSupportReport(stale);
     require(report["host"].toObject()["encoder_applied_mbps"].isNull() && report["client_readings"].toObject()["composed_fps"].isNull() &&
+        report["host"].toObject()["requested_mbps"].isNull() && report["client_readings"].toObject()["decoder_callback_ms"].isNull() &&
+        report["client_readings"].toObject()["decoder_refused_frames"].isNull() &&
         report["doctor"].toObject()["evidence"].toArray().isEmpty(), "stale measurements exported as current");
     QTemporaryDir tmp; const auto directory = tmp.path()+"/reports";
     const auto saved = saveDeckSupportReport(hud,directory); require(saved["saved"].toBool(), "local export failed");

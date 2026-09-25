@@ -74,7 +74,7 @@ Popup {
         }
         Label {
             Layout.fillWidth: true
-            text: "FPS counts composed frames, not display refreshes. Compact BIT and Debug VIDEO measure received video; Debug HOST BIT shows encoder-confirmed bitrate. Change Live Tuning in Command Center. Dashes mean unavailable; LOSS never substitutes control-channel loss."
+            text: "FPS counts composed frames, not display refreshes. Compact BIT and Debug VIDEO measure received video; Debug HOST BIT shows encoder-confirmed bitrate. WORK is time in the video decoder callback, including waits and frame handoff, not GPU-only time. REFUSED counts decoder rejections this session, not network loss. Change Live Tuning in Command Center. Dashes mean unavailable; LOSS never substitutes control-channel loss."
             wrapMode: Text.WordWrap; color: NovaTheme.secondary
             font.pixelSize: 15 * settings.unit * NovaTheme.fontScale
         }

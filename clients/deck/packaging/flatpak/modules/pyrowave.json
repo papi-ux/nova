@@ -1,0 +1,46 @@
+{
+  "name": "pyrowave",
+  "buildsystem": "cmake-ninja",
+  "config-opts": [
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DPYROWAVE_DEVEL=OFF",
+    "-DPYROWAVE_UTILS=OFF"
+  ],
+  "post-install": [
+    "install -Dm644 LICENSE /app/share/licenses/pyrowave/LICENSE",
+    "install -Dm644 Granite/LICENSE /app/share/licenses/pyrowave/Granite-LICENSE",
+    "install -Dm644 Granite/third_party/volk/LICENSE.md /app/share/licenses/pyrowave/volk-LICENSE.md",
+    "install -Dm644 Granite/third_party/khronos/vulkan-headers/LICENSE.md /app/share/licenses/pyrowave/Vulkan-Headers-LICENSE.md",
+    "install -Dm644 Granite/third_party/khronos/vulkan-headers/LICENSES/Apache-2.0.txt /app/share/licenses/pyrowave/LICENSES/Apache-2.0.txt",
+    "install -Dm644 Granite/third_party/khronos/vulkan-headers/LICENSES/MIT.txt /app/share/licenses/pyrowave/LICENSES/MIT.txt"
+  ],
+  "sources": [
+    {
+      "type": "git",
+      "url": "https://github.com/Themaister/pyrowave.git",
+      "commit": "186f0393b77f7755953b5ecde994bb1cec2e4155",
+      "disable-submodules": true
+    },
+    {
+      "type": "git",
+      "url": "https://github.com/Themaister/Granite.git",
+      "commit": "b6cffd5ce81f540f0855e6778428483e14763d9b",
+      "dest": "Granite",
+      "disable-submodules": true
+    },
+    {
+      "type": "git",
+      "url": "https://github.com/zeux/volk.git",
+      "commit": "47cddf7ed97b94118a08aacb548a411188e016cc",
+      "dest": "Granite/third_party/volk",
+      "disable-submodules": true
+    },
+    {
+      "type": "git",
+      "url": "https://github.com/KhronosGroup/Vulkan-Headers.git",
+      "commit": "6802bb4733b63ed5efd3adb308a6c885ef180ea1",
+      "dest": "Granite/third_party/khronos/vulkan-headers",
+      "disable-submodules": true
+    }
+  ]
+}

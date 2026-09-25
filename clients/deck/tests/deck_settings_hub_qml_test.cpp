@@ -68,6 +68,19 @@ int main(int argc, char** argv) {
             QtObject { id:input; property var mouseState:({available:relativeAvailable}) }
             property bool available:true
             property var provider:settings
+            property int updateChecks:0
+            property int updateInstalls:0
+            property int updateFinishes:0
+            property var updateState:({supported:true, version:"1.4.12", channel:"beta", available:true, latestVersion:"v1.4.13-beta.1", message:"A Nova update is available.", canCheck:true, canInstall:true, automatic:false, installing:false, restartRequired:false, canFinish:false, blocked:false})
+            QtObject {
+                id:updater
+                property var state:updateState
+                property bool busy:!!state.installing
+                function check() { updateChecks++ }
+                function install() { updateInstalls++; updateState=Object.assign({},updateState,{installing:true,canInstall:false,canCheck:false,progress:35}) }
+                function setAutomatic(value) { updateState=Object.assign({},updateState,{automatic:value}); return true }
+                function finishUpdate() { updateFinishes++ }
+            }
             readonly property string themeId:NovaTheme.themeId
             readonly property real fontScale:NovaTheme.fontScale
             Settings { id:prefs; category:"Library"; property string layoutMode:"grid" }
@@ -75,9 +88,10 @@ int main(int argc, char** argv) {
             function contrast() { NovaTheme.setTheme("high_contrast") }
             function resetTheme() { NovaTheme.setTheme("polaris"); NovaTheme.setFontScale(1) }
             function controllerBack() { hub.back() }
+            function openUpdates() { hub.openUpdates() }
             function syncPreferences() { NovaTheme.preferences.sync(); NovaHudPreferences.preferences.sync(); NovaStreamPreferences.preferences.sync(); prefs.sync() }
             NovaButton { id:open; objectName:"open-settings"; text:"Settings"; onClicked:hub.open() }
-            SettingsHub { id:hub; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
+            SettingsHub { id:hub; updateController:updater; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
         }
     )", QUrl());
     auto root = std::unique_ptr<QObject>(component.create()); if (!root) std::cerr << component.errorString().toStdString(); check(bool(root), "QML failed");
@@ -266,6 +280,29 @@ int main(int argc, char** argv) {
     check(!find(window->contentItem(), "host-defaults-back"), "unavailable PC opened host editor");
     query("text size"); controllerBack(); check(item("settings-search")->property("text").toString().isEmpty(), "Back did not clear query");
     controllerBack(); focused("open-settings");
+    QMetaObject::invokeMethod(root.get(), "openUpdates"); settle();
+    check(find(window->contentItem(), "update-status"), "update shortcut did not open its screen");
+    focused("update-back"); click("update-check");
+    check(root->property("updateChecks").toInt() == 1, "check action was not routed");
+    click("update-automatic"); check(root->property("updateState").toMap()["automatic"].toBool(), "automatic choice not routed");
+    click("update-install");
+    check(root->property("updateInstalls").toInt() == 1 && !item("update-install")->isEnabled(), "duplicate install button remained enabled");
+    item("update-back")->forceActiveFocus(); settle(); within("update-back"); capture("updates-installing-960-large");
+    controllerBack(); focused("settings-row-updates");
+    auto updateState = root->property("updateState").toMap();
+    updateState.insert("installing", false); updateState.insert("restartRequired", true); updateState.insert("canFinish", true);
+    updateState.insert("message", "Update installed. Close and reopen Nova to use it.");
+    root->setProperty("updateState", updateState);
+    click("settings-row-updates"); click("update-finish");
+    check(root->property("updateFinishes").toInt() == 1, "explicit finish action not routed");
+    within("update-finish"); capture("updates-installed-960-large");
+    controllerBack(); focused("settings-row-updates");
+    updateState.insert("supported", false); updateState.insert("restartRequired", false); updateState.insert("available", false);
+    updateState.insert("message", "This copy has no Nova update channel. Install a channel from Nova's Downloads page once to enable in-app updates.");
+    root->setProperty("updateState", updateState);
+    click("settings-row-updates"); item("update-downloads")->forceActiveFocus(); settle(); within("update-downloads");
+    check(!find(window->contentItem(), "update-automatic") && !find(window->contentItem(), "update-check"), "standalone bundle offered updates");
+    capture("updates-setup-960-large"); controllerBack(); focused("settings-row-updates"); controllerBack();
     check(settings.load("host", "game") == override && writes == 0, "hub changed game scope or host");
     DeckPlaySettings restarted(config.filePath("play.ini"));
     check(restarted.audioSettings()["playHostAudio"].toBool() && restarted.rumbleEnabled(), "device settings not persisted");

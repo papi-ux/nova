@@ -1188,8 +1188,8 @@ int main(int argc, char** argv) {
     multiLayerDrmPrimeDescriptor.layers[1].format = 0x38385247; // DRM_FORMAT_GR88
     multiLayerDrmPrimeDescriptor.layers[2] = multiLayerDrmPrimeDescriptor.layers[1];
     const auto unsupportedThreeLayerPlan = DeckVaapiEglImagePresenter::validateDrmPrimeMetadata(multiLayerDrmPrimeDescriptor);
-    if (!require(unsupportedThreeLayerPlan.status == DeckQrhiVaapiImportStatus::UnsupportedMultiLayerDrmPrimeImport,
-            "expected more-than-two-layer DRM_PRIME descriptors to fail closed without truncating layers")) {
+    if (!require(unsupportedThreeLayerPlan.status == DeckQrhiVaapiImportStatus::UnsupportedDrmPrimeFormat,
+            "expected invalid three-plane YUV formats to fail closed without truncating layers")) {
         delete sceneGraphNode;
         return 1;
     }

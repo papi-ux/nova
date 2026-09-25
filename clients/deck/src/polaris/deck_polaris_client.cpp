@@ -329,6 +329,11 @@ std::optional<DeckPolarisCapabilities> parseCapabilities(const std::string_view 
             if (!codec.isString() || codec.toString().size() > 64) stream.valid = false;
             if (codec.toString().trimmed().compare("h264", Qt::CaseInsensitive) == 0) stream.h264 = true;
             if (codec.toString().trimmed().compare("hevc", Qt::CaseInsensitive) == 0) stream.hevc = true;
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+            if (codec.toString() == "pyrowave" && (!capture.contains("pyrowave_bitstream") ||
+                capture.value("pyrowave_bitstream").toString() == "pyrowave-186f0393-sdr420-v1"))
+                stream.pyrowave = true;
+#endif
         }
     }
     if (capture.contains("max_fps")) {
@@ -534,12 +539,15 @@ private:
 };
 }
 
-DeckPolarisResult<std::string> DeckPolarisClient::get(const std::string& path, std::size_t maxBodyBytes) const {
-    return request(path, maxBodyBytes, false);
+DeckPolarisResult<std::string> DeckPolarisClient::get(const std::string& path, std::size_t maxBodyBytes,
+    std::optional<std::chrono::milliseconds> timeout) const {
+    return request(path, maxBodyBytes, false, {}, "{}", false, timeout);
 }
 
 DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& path,
-    std::size_t maxBodyBytes, bool post, const std::function<bool()>& cancelled, std::string postBody, bool remove) const {
+    std::size_t maxBodyBytes, bool post, const std::function<bool()>& cancelled, std::string postBody, bool remove,
+    std::optional<std::chrono::milliseconds> timeout) const {
+    const auto requestTimeout = timeout.value_or(timeout_);
     DeckPolarisResult<std::string> result;
     if (maxBodyBytes == 0 || maxBodyBytes > 4 * 1024 * 1024) {
         result.status = DeckPolarisRequestStatus::MalformedBody;
@@ -574,7 +582,7 @@ DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& pat
     ssl.setCaCertificates({session_->pinnedServerCertificate});
     ssl.setPeerVerifyMode(QSslSocket::VerifyPeer);
     request.setSslConfiguration(ssl);
-    request.setTransferTimeout(static_cast<int>(timeout_.count()));
+    request.setTransferTimeout(static_cast<int>(requestTimeout.count()));
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
 
     const QSslCertificate pinned = session_->pinnedServerCertificate;
@@ -641,7 +649,7 @@ DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& pat
         QObject::connect(&cancellation, &QTimer::timeout, reply, [reply, cancelled] { if (cancelled()) reply->abort(); });
         cancellation.start(20);
     }
-    deadline.start(timeout_);
+    deadline.start(requestTimeout);
     if (!reply->isFinished()) loop.exec();
     consume();
 

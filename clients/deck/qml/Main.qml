@@ -64,11 +64,15 @@ ApplicationWindow {
     readonly property bool automaticRefreshPaused: hostPicker.opened || nativePreview.opened || diagnosticsExpanded
         || managePcsRequested || closeAfterLibraryRefresh || closeAfterNativeStop
         || (novaStandalone ? androidLibrary.interactionPaused : !libraryHasFocus())
-    onAutomaticRefreshPausedChanged: if (novaStandalone) novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
+    onAutomaticRefreshPausedChanged: if (novaStandalone) {
+        novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
+        novaHostSettings.setInteractionPaused(automaticRefreshPaused)
+    }
     onActiveChanged: if (novaStandalone) { novaLibraryRefresh.setWindowActive(active); novaHostPower.setWindowActive(active); novaHostSettings.setWindowActive(active) }
     Component.onCompleted: {
         if (novaStandalone) {
             novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
+            novaHostSettings.setInteractionPaused(automaticRefreshPaused)
             novaLibraryRefresh.setWindowActive(active)
             novaHostPower.setWindowActive(active)
             novaHostSettings.setWindowActive(active)
@@ -282,6 +286,36 @@ ApplicationWindow {
         return point.x >= -1 && point.y >= -1 && point.x + activeFocusItem.width <= width + 1
             && point.y + activeFocusItem.height <= height + 1
     }
+    // Used only by the existing frontend observation hook, never during normal play.
+    function textReadabilityIssues() {
+        const issues = []
+        function visit(item, button) {
+            if (!item.visible || item.opacity === 0) return
+            if (item.contentItem !== undefined && item.clicked !== undefined) button = item
+            if (item.paintedWidth !== undefined && item.text && item.width > 0 && item.height > 0) {
+                const p = item.mapToItem(contentItem, 0, 0)
+                let visible = p.x < root.width && p.y < root.height && p.x + item.width > 0 && p.y + item.height > 0
+                for (let parent = item.parent; visible && parent; parent = parent.parent) {
+                    if (!parent.clip) continue
+                    const q = item.mapToItem(parent, 0, 0)
+                    visible = q.x < parent.width && q.y < parent.height && q.x + item.width > 0 && q.y + item.height > 0
+                }
+                if (visible) {
+                    let problem = item.truncated ? "truncated" : item.paintedWidth > item.width + 2 ? "too wide"
+                        : item.paintedHeight > item.height + 2 ? "too tall" : ""
+                    if (button && !problem) {
+                        const q = item.mapToItem(button, 0, 0)
+                        if (q.x < -2 || q.y < -2 || q.x + item.width > button.width + 2 || q.y + item.height > button.height + 2)
+                            problem = "outside button"
+                    }
+                    if (problem) issues.push({control: button ? button.objectName : item.objectName, text: String(item.text), problem: problem})
+                }
+            }
+            for (const child of item.children) visit(child, button)
+        }
+        visit(contentItem, null)
+        return issues
+    }
     function libraryInteractionState() {
         if (novaStandalone) return Object.assign(androidLibrary.state(), {
             width: width, height: height, fullscreen: novaWindowController.fullscreen,
@@ -290,7 +324,8 @@ ApplicationWindow {
             automatic: novaLibraryRefresh.state.automatic, failed: novaLibraryRefresh.state.failed,
             refreshCopy: novaLibraryRefresh.state.copy,
             focus: activeFocusItem ? activeFocusItem.objectName : "", focusVisible: focusedControlVisible(), pickerOpen: hostPicker.opened,
-            nativePreviewOpen: nativePreview.opened, playSetup: nativePreview.setupState(), windowActive: active })
+            nativePreviewOpen: nativePreview.opened, playSetup: nativePreview.setupState(), windowActive: active,
+            textIssues: textReadabilityIssues() })
         return { host: selectedHostForPreview.id, game: selectedGameForPreview.id,
             title: selectedGameForPreview.title, games: novaLibraryGames.map(game => game.id),
             titles: novaLibraryGames.map(game => game.title), busy: libraryBusy, automatic: novaLibraryRefresh.state.automatic,
@@ -807,6 +842,7 @@ ApplicationWindow {
         hostPower: novaHostPower
         gamepad: novaGamepad
         id: androidLibrary
+        updateController: novaUpdates
         anchors.fill: parent
         visible: novaStandalone
         enabled: novaStandalone
@@ -823,7 +859,10 @@ ApplicationWindow {
         onChooseHost: focusSelectedHost()
         onRefreshRequested: refreshLibrary()
         onManagePcs: { root.managePcsRequested = true; root.close() }
-        onPlayRequested: game => { selectGameForPreview(game); nativePreview.open() }
+        onPlayRequested: game => {
+            if (novaUpdates.busy) return
+            selectGameForPreview(game); nativePreview.open()
+        }
     }
 
     FocusScope {
@@ -1084,7 +1123,7 @@ ApplicationWindow {
 
                             objectName: modelData.id
                             Layout.preferredWidth: hostColumnWidth
-                            Layout.preferredHeight: hostCardHeight
+                            Layout.preferredHeight: Math.max(hostCardHeight, hostLabels.implicitHeight + 36)
                             radius: 20
                             color: activeFocus ? focusRingColor : NovaTheme.window
                             border.color: activeFocus ? focusRingColor : NovaTheme.divider
@@ -1120,6 +1159,7 @@ ApplicationWindow {
                             }
 
                             ColumnLayout {
+                                id: hostLabels
                                 anchors.fill: parent
                                 anchors.margins: 18
                                 spacing: 5
@@ -1128,7 +1168,7 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     text: modelData.displayName
                                     textFormat: Text.PlainText
-                                    elide: Text.ElideRight
+                                    wrapMode: Text.Wrap
                                     color: parent.parent.activeFocus ? NovaTheme.window : NovaTheme.text
                                     font.pixelSize: 20
                                     font.bold: true
@@ -1137,7 +1177,7 @@ ApplicationWindow {
                                 Label {
                                     Layout.fillWidth: true
                                     text: modelData.statusLabel
-                                    elide: Text.ElideRight
+                                    wrapMode: Text.Wrap
                                     color: parent.parent.activeFocus ? NovaTheme.divider : NovaTheme.secondary
                                     font.pixelSize: 16
                                 }

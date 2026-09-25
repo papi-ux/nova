@@ -417,12 +417,13 @@ DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdenti
                 fetch.spacesSupported = false; // Only an absent endpoint admits the legacy route.
             else { fetch.status = spaces.status; fetch.detail = spaces.detail; return fetch; }
         }
-        if (fetch.spaces && fetch.spaces->enabled && !fetch.spaces->available) return fetch;
-        const bool scoped = fetch.spaces && fetch.spaces->enabled;
+        const bool standardDesktop = fetch.spaces && fetch.spaces->usesStandardDesktop();
+        if (fetch.spaces && fetch.spaces->enabled && !fetch.spaces->available && !standardDesktop) return fetch;
+        const bool scoped = fetch.spaces && fetch.spaces->enabled && !standardDesktop;
         const auto* selectedSpace = scoped ? fetch.spaces->selected() : nullptr;
         auto games = selectedSpace && selectedSpace->libraryEnabled
             ? client.fetchSpaceLibrary(selectedSpace->id)
-            : client.fetchAllGames(100, {}, scoped && fetch.spaces->selectedId == "desktop");
+            : client.fetchAllGames(100, {}, standardDesktop || (scoped && fetch.spaces->selectedId == "desktop"));
         fetch.status = games.status;
         if (!games.ok()) {
             fetch.detail = games.detail;
@@ -451,10 +452,11 @@ DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdenti
             if (reply.ok()) if (const auto catalog = polaris::parseLaunchModeCatalog(*reply.value))
                 for (auto& game : fetch.games) game.launchPolicy = polaris::launchModePolicy(game, *catalog);
         }
-        if (scoped) {
+        if (fetch.spaces && fetch.spaces->enabled) {
             const auto after = client.fetchSpaces();
-            if (!after.ok() || !after.value->enabled || !after.value->available ||
-                after.value->selectedId != fetch.spaces->selectedId) {
+            if (!after.ok() || !after.value->enabled ||
+                (!after.value->available && !after.value->usesStandardDesktop()) ||
+                after.value->destinationId() != fetch.spaces->destinationId()) {
                 fetch.status = after.ok() ? DeckPolarisRequestStatus::MalformedBody : after.status;
                 fetch.detail = "destination could not be verified after reading games";
                 fetch.games.clear(); return fetch;

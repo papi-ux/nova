@@ -152,6 +152,40 @@ int main(int argc, char** argv) {
     require(settings.streamPlan(automaticCodec, bothCodecs, {}, {}, true).value("videoLabel") == "H.264 · SDR", "Space Auto upgraded codec");
     require(settings.streamPlan(forcedHevc, {{"h264", false}, {"hevc", true}}, {}).value("playable").toBool(), "HEVC-only PC rejected");
     require(!DeckPlaySettings{}.streamPlan(defaults, bothCodecs, {}).value("playable").toBool(), "unprobed decoder allowed playback");
+    {
+        DeckPlaySettings pyroSettings(directory.filePath("pyrowave.ini"));
+        pyroSettings.setVideoDecodeSupport({.h264 = {4096, 4096}, .pyrowave = {1920, 1200}});
+        auto pyro = defaults; pyro["videoCodec"] = "pyrowave";
+        pyro["encoderBackend"] = "nvenc";
+        pyro["profilePreference"] = "quality";
+        const QVariantMap host{{"h264", true}, {"pyrowave", true}};
+        require(pyroSettings.save("pc", "game", pyro), "PyroWave preference could not be saved");
+        require(DeckPlaySettings(directory.filePath("pyrowave.ini")).load("pc", "game").value("configuration").toMap().value("videoCodec") == "pyrowave", "PyroWave preference did not survive restart");
+        const auto pyroPlan = pyroSettings.streamPlan(pyro, host, {});
+        require(pyroPlan.value("configuration").toMap().value("encoderBackend").toString().isEmpty() &&
+            pyroPlan.value("configuration").toMap().value("profilePreference") == "quality", "PyroWave retained an incompatible encoder or erased tuning");
+        require(pyroSettings.load("pc", "game").value("configuration").toMap().value("encoderBackend") == "nvenc" &&
+            pyro.value("encoderBackend") == "nvenc", "review erased the saved encoder preference");
+        require(pyroSettings.saveChoice("pc", "game", {{"videoCodec", "h264"}}), "codec switch failed");
+        const auto switched = DeckPlaySettings(directory.filePath("pyrowave.ini")).load("pc", "game").value("configuration").toMap();
+        require(pyroSettings.streamPlan(switched, host, {}).value("configuration").toMap().value("encoderBackend") == "nvenc", "switching codec lost the saved encoder");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        require(pyroSettings.streamPlan(pyro, host, {}).value("videoLabel") == "PyroWave · SDR", "explicit PyroWave selection lost its codec");
+        require(pyroSettings.streamPlan(pyro, host, {}).value("playable").toBool(), "supported PyroWave selection could not play");
+        require(!pyroSettings.streamPlan(pyro, host, {}, {}, true).value("playable").toBool(), "Space selected PyroWave");
+        require(pyroSettings.streamPlan(pyro, host, {}, {}, true).value("reason").toString().contains("Spaces"), "Space refusal did not explain the codec limit");
+        auto oversized = pyro; oversized["width"] = 2560; oversized["height"] = 1440;
+        require(pyroSettings.streamPlan(oversized, host, {}).value("reason").toString().contains("size"), "size refusal did not explain the decoder limit");
+        DeckPlaySettings noGpu;
+        require(noGpu.streamPlan(pyro, host, {}).value("reason").toString().contains("Vulkan"), "GPU refusal did not explain the missing decoder");
+        require(pyroSettings.streamPlan(pyro, {}, {}).value("reason").toString().contains("PC"), "host refusal did not explain missing support");
+#else
+        require(!pyroSettings.streamPlan(pyro, host, {}).value("playable").toBool(), "disabled build selected PyroWave");
+        require(pyroPlan.value("reason").toString().contains("build"), "disabled build did not explain the missing codec");
+#endif
+        require(!pyroSettings.streamPlan(pyro, {}, {}).value("playable").toBool(), "missing host codec silently fell back");
+        require(pyroSettings.streamPlan(automaticCodec, host, {}).value("videoLabel") == "H.264 · SDR", "Auto selected experimental PyroWave");
+    }
     require(settings.saveChoice("codec-pc", "game", {{"videoCodec", "auto"}}), "codec choice not saved");
     require(DeckPlaySettings(file).load("codec-pc", "game").value("configuration").toMap().value("videoCodec") == "auto" &&
         settings.load("codec-pc", "another").value("configuration").toMap().value("videoCodec") == "h264", "codec choice lost scope/persistence");
@@ -167,6 +201,12 @@ int main(int argc, char** argv) {
     require(settings.keepInStep("one") == "off" && !settings.saveKeepInStep(" ", "on") && !settings.saveKeepInStep("one", "yes"), "invalid sync setting admitted");
     require(settings.saveKeepInStep("one", "on") && DeckPlaySettings(file).keepInStep("one") == "on" && settings.keepInStep("two") == "off", "sync persistence lost PC scope");
     require(settings.saveKeepInStep("one", "paused") && DeckPlaySettings(file).keepInStep("one") == "paused", "pending sync state lost on restart");
+    require(settings.initializeKeepInStep("new") && DeckPlaySettings(file).keepInStep("new") == "pending", "new pairing did not request an initial profile check");
+    require(settings.initializeKeepInStep("one") && settings.keepInStep("one") == "paused", "re-pairing resumed an uncertain save");
+    require(settings.saveKeepInStep("off-host", "off") && settings.initializeKeepInStep("off-host") &&
+        settings.keepInStep("off-host") == "off", "re-pairing changed explicit Off");
+    require(settings.keepInStep("existing-unset") == "off", "upgrade enabled an existing pairing without a choice");
+    require(settings.saveKeepInStep("new", "review") && DeckPlaySettings(file).keepInStep("new") == "review", "profile conflict did not persist");
     const auto audioDefaults = DeckAudioConfiguration{}.toMap();
     const auto surround = DeckAudioConfiguration{8, true}.toMap();
     {

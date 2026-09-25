@@ -7,10 +7,18 @@ extern "C" {
 }
 #include <algorithm>
 #include <vector>
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+#include "codec.h"
+#endif
 
 namespace nova::deck::stream {
 int selectSdrVideoFormat(std::string_view preference, bool hostH264, bool hostHevc,
-    const DeckVideoDecodeSupport& decoder, int width, int height) {
+    const DeckVideoDecodeSupport& decoder, int width, int height, bool hostPyrowave) {
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (preference == "pyrowave" && hostPyrowave && decoder.pyrowave.supports(width, height)) return VIDEO_FORMAT_PYROWAVE;
+#else
+    (void)hostPyrowave;
+#endif
     if ((preference == "auto" || preference == "hevc") && hostHevc && decoder.hevc.supports(width, height)) return VIDEO_FORMAT_H265;
     if ((preference == "auto" || preference == "h264") && hostH264 && decoder.h264.supports(width, height)) return VIDEO_FORMAT_H264;
     return 0;
@@ -74,13 +82,17 @@ DeckDecodeLimits profileLimits(VADisplay display, VAProfile profile, unsigned in
 }
 
 bool DeckVideoDecodeSupport::supports(int format, int width, int height) const {
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (format == VIDEO_FORMAT_PYROWAVE) return pyrowave.supports(width, height);
+#endif
     if (format == VIDEO_FORMAT_H264) return h264.supports(width, height);
     if (format == VIDEO_FORMAT_H265) return hevc.supports(width, height);
     if (format == VIDEO_FORMAT_H265_MAIN10) return main10.supports(width, height);
     return false;
 }
 
-DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
+namespace {
+DeckVideoDecodeSupport probeVaapiDecodeSupport(AVBufferRef* device) {
     if (!device || !device->data) return {};
     const auto* context = reinterpret_cast<const AVHWDeviceContext*>(device->data);
     if (context->type != AV_HWDEVICE_TYPE_VAAPI || !context->hwctx) return {};
@@ -94,11 +106,26 @@ DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
     }
     return result;
 }
+}
+
+DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
+    auto support = probeVaapiDecodeSupport(device);
+    // Startup review and stream launch must see the same codec capabilities.
+    // PyroWave uses its own Vulkan device, even when VAAPI is unavailable.
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    nova::pyrowave::Codec decoder;
+    if (decoder.open(128, 128, false)) {
+        const int limit = decoder.probeGpuLimit();
+        support.pyrowave = {limit, limit};
+    }
+#endif
+    return support;
+}
 
 DeckVideoDecodeSupport detectVideoDecodeSupport() {
     AVBufferRef* device = nullptr;
-    const int opened = av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
-    const auto support = opened == 0 ? probeVideoDecodeSupport(device) : DeckVideoDecodeSupport{};
+    av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
+    auto support = probeVideoDecodeSupport(device);
     av_buffer_unref(&device);
     return support;
 }

@@ -8,6 +8,9 @@
 
 #include <chrono>
 #include <thread>
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+#include "codec.h"
+#endif
 
 namespace nova::deck::stream {
 
@@ -18,7 +21,7 @@ std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
     // Only direct, unique scalar fields may supply identity/ownership. This
     // also avoids last-value-wins behavior on conflicting session snapshots.
     const QSet<QString> fields{"appversion", "GfeVersion", "ServerCodecModeSupport",
-        "currentgame", "currentgameuuid", "currentgameowned", "currentgamesessiontoken", "PairStatus"};
+        "currentgame", "currentgameuuid", "currentgameowned", "currentgamesessiontoken", "PairStatus", "PolarisPyrowaveBitstream"};
     QMap<QString, QString> values;
     while (reader.readNextStartElement()) {
         const auto name = reader.name().toString();
@@ -52,12 +55,20 @@ std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
     }
     info.currentGameUuid = values.value("currentgameuuid").toStdString();
     info.currentSessionToken = values.value("currentgamesessiontoken").toStdString();
+    if (values.contains("PolarisPyrowaveBitstream"))
+        info.pyrowaveBitstream = values.value("PolarisPyrowaveBitstream").toStdString();
     return info;
 }
 
 DeckHttpFetcher fetcherOverPolarisClient(const polaris::DeckPolarisClient& client) {
     return [&client](const std::string& target) -> DeckHttpResponse {
-        const auto reply = client.get(target);
+        // Polaris may finish draining Steam and its private compositor before
+        // sending /cancel's reply. Give that one request time to complete;
+        // ordinary reads/launches retain their deadline, and a lost reply does
+        // not authorize another cancellation.
+        const auto timeout = polaris::splitRequestTarget(target).path == "/cancel"
+            ? std::optional<std::chrono::milliseconds>{std::chrono::seconds(30)} : std::nullopt;
+        const auto reply = client.get(target, 4 * 1024 * 1024, timeout);
         DeckHttpResponse response;
         response.retryableTransportFailure = reply.status == polaris::DeckPolarisRequestStatus::Unreachable ||
             reply.status == polaris::DeckPolarisRequestStatus::Timeout;
@@ -111,7 +122,12 @@ DeckSessionBuildResult buildStreamConnection(
     }
     // Resolve against fresh serverinfo before any launch/resume mutation. Zero
     // is the legacy H.264 default, never implicit HEVC or Main10 support.
-    const int requiredCodec = request.videoCodec == "h264" ? SCM_H264 : request.videoCodec == "hevc" ? SCM_HEVC : 0;
+    int requiredCodec = request.videoCodec == "h264" ? SCM_H264 : request.videoCodec == "hevc" ? SCM_HEVC : 0;
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (request.videoCodec == "pyrowave" && (!serverInfo->pyrowaveBitstream ||
+        *serverInfo->pyrowaveBitstream == nova::pyrowave::bitstreamId))
+        requiredCodec = SCM_PYROWAVE;
+#endif
     const int availableCodecs = serverInfo->serverCodecModeSupport == 0 ? SCM_H264 : serverInfo->serverCodecModeSupport;
     if (!requiredCodec || !(availableCodecs & requiredCodec)) {
         result.sessionSelectionRejected = true;
@@ -145,6 +161,7 @@ DeckSessionBuildResult buildStreamConnection(
             selected.sessionToken = serverInfo->currentSessionToken;
             // A resume retains the host's running display/launch mode.
             selected.streamMode.clear();
+            selected.expectedTopology.clear();
         }
     }
     result.resumed = selected.resume;
@@ -191,6 +208,7 @@ DeckSessionBuildResult buildStreamConnection(
     result.connectionInfo.gfeVersion = serverInfo->gfeVersion;
     result.connectionInfo.rtspSessionUrl = launch.rtspSessionUrl;
     result.connectionInfo.serverCodecModeSupport = serverInfo->serverCodecModeSupport;
+    if (request.videoCodec == "pyrowave") result.connectionInfo.colorRange = COLOR_RANGE_FULL;
     result.connectionInfo.keys = keys;
     result.connectionInfo.hostSessionToken = launch.sessionToken;
     return result;

@@ -2,6 +2,7 @@
 #include "runtime/deck_session_failure_message.h"
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_rumble.h"
+#include <QDebug>
 #include <QScopeGuard>
 extern "C" {
 #include <libavutil/frame.h>
@@ -753,16 +754,8 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             target->request.bitrateKbps = configuration->bitrateKbps;
         }
         target->request.profilePreference.clear(); target->request.encoderBackend.clear();
-        if (!resume && configuration && (configuration->profilePreference != "auto" || !configuration->encoderBackend.isEmpty())) {
-            if (!target->authorizeSetup || !target->authorizeSetup(configuration->profilePreference, configuration->encoderBackend,
-                    [shared] { return shared->cancelled.load(); }) || !resolver(hostId, gameId)) {
-                finish(shared->cancelled ? "cancelled" : "failed", "The preset or encoder is no longer available. Refresh this PC and review Play Setup.");
-                return;
-            }
-            target->request.profilePreference = configuration->profilePreference.toStdString();
-            target->request.encoderBackend = configuration->encoderBackend.toStdString();
-        }
         target->request.streamMode.clear();
+        target->request.expectedTopology.clear();
         target->request.audioConfiguration = audio.channels == 8 ? AUDIO_CONFIGURATION_71_SURROUND
             : audio.channels == 6 ? AUDIO_CONFIGURATION_51_SURROUND : AUDIO_CONFIGURATION_STEREO;
         target->request.playHostAudio = audio.playHostAudio;
@@ -789,10 +782,20 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         const auto videoSupport = target->probeVideoSupport ? target->probeVideoSupport() : DeckVideoDecodeSupport{};
         target->request.videoFormat = selectSdrVideoFormat(configuration ? configuration->videoCodec.toStdString() : "h264",
             capabilities->h264, capabilities->hevc && !polaris::isSpaceGame(gameId.toStdString()), videoSupport,
-            target->request.width, target->request.height);
+            target->request.width, target->request.height, capabilities->pyrowave && !polaris::isSpaceGame(gameId.toStdString()));
         if (!target->request.videoFormat) {
             finish("failed", "The selected video codec is no longer available. Review Play Setup again before starting.");
             return;
+        }
+        const auto encoderBackend = configuration ? configuration->launchEncoderBackend() : QString{};
+        if (!resume && configuration && (configuration->profilePreference != "auto" || !encoderBackend.isEmpty())) {
+            if (!target->authorizeSetup || !target->authorizeSetup(configuration->profilePreference, encoderBackend,
+                    [shared] { return shared->cancelled.load(); }) || !resolver(hostId, gameId)) {
+                finish(shared->cancelled ? "cancelled" : "failed", "The preset or encoder is no longer available. Refresh this PC and review Play Setup.");
+                return;
+            }
+            target->request.profilePreference = configuration->profilePreference.toStdString();
+            target->request.encoderBackend = encoderBackend.toStdString();
         }
         if (!resume && configuration && configuration->launchMode != "default") {
             const auto mode = configuration->launchMode.toStdString();
@@ -803,6 +806,15 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 return;
             }
             target->request.streamMode = mode;
+        }
+        if (!resume && target->resolveLaunchTopology) {
+            const auto topology = target->resolveLaunchTopology(target->request, [shared] { return shared->cancelled.load(); });
+            if (!topology || shared->cancelled || !resolver(hostId, gameId)) {
+                finish(shared->cancelled ? "cancelled" : "failed", shared->cancelled ? "Preview cancelled."
+                    : "This PC could not confirm the selected stream settings. Refresh this PC and review Play Setup again.");
+                return;
+            }
+            target->request.expectedTopology = *topology;
         }
         if (shared->cancelled) { finish("cancelled", "Preview cancelled."); return; }
         if (target->request.fps > displayRateLimit()) {
@@ -850,6 +862,14 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             built.connectionInfo, target->fetch, !built.resumed);
         if (started.hostCancelRequested) cleanupConfirmed = started.hostCancelled;
         const bool active = started.networkStarted;
+        if (!active && !shared->cancelled) {
+            const auto status = gate.connectionStatus();
+            // Keep failure diagnostics useful without logging endpoints, keys
+            // or raw transport messages from the connection handshake.
+            qWarning() << "Nova native connection setup failed: stage" << status.failedStage
+                << "error" << status.failedStageErrorCode
+                << "termination" << status.terminationErrorCode;
+        }
         if (active && !shared->cancelled) {
             if (target->hostTelemetry && !built.connectionInfo.hostSessionToken.empty()) {
                 try {
@@ -899,6 +919,9 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 sample.atMs = lastHudSample;
                 sample.incoming = renderer.incomingFrames; sample.bytes = renderer.videoBytes;
                 sample.decoded = std::max(0, renderer.decodedHardwareFrames);
+                sample.videoWorkMicros = renderer.videoWorkMicros;
+                sample.videoWorkSamples = renderer.videoWorkSamples;
+                sample.refused = renderer.refusedFrames;
                 sample.hostLatencySamples = renderer.hostLatencySamples;
                 sample.hostLatencyTenths = renderer.hostLatencyTenths;
                 sample.width = renderer.width; sample.height = renderer.height;
@@ -906,6 +929,9 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 sample.codec = renderer.videoFormat == VIDEO_FORMAT_H264 ? "H.264"
                     : renderer.videoFormat == VIDEO_FORMAT_H265 ? "HEVC"
                     : renderer.videoFormat == VIDEO_FORMAT_H265_MAIN10 ? "HEVC10" : "";
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+                if (renderer.videoFormat == VIDEO_FORMAT_PYROWAVE) sample.codec = "PyroWave";
+#endif
                 std::uint32_t rtt = 0, variation = 0;
                 if (driver.estimatedRtt(rtt, variation)) { sample.rttMs = rtt; sample.rttVariationMs = variation; }
                 const std::lock_guard lock(shared->mutex);

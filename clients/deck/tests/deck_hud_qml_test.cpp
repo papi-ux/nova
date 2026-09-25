@@ -34,7 +34,7 @@ ApplicationWindow {
     width: 1280; height: 800; visible: true
     property int gameTaps: 0
     property int holds: 0
-    property var sample: ({fps:"59.8", incoming:"60.0", decoded:"60.0", target:"/ 60 target", host:"2.1ms", rtt:"18ms", jitter:"2ms", bitrate:"19.6M", resolution:"1280×800", codec:"H.264", history:[59,60,59,55,60,60,59.8], truth:"Composed FPS · video payload bitrate", healthLabel:"Display override", healthTone:"warning", hostTone:"warning", netTone:"stable", clientTone:"stable", tuningLabel:"Tuning: Applying", tuningTone:"info", appliedBitrate:"20.0M", qualityLimit:"25.0M"})
+    property var sample: ({fps:"59.8", incoming:"60.0", decoded:"60.0", target:"/ 60 target", host:"2.1ms", rtt:"18ms", jitter:"2ms", bitrate:"19.6M", resolution:"1280×800", codec:"PyroWave", history:[59,60,59,55,60,60,59.8], truth:"Composed FPS · video payload bitrate", healthLabel:"Display override", healthTone:"warning", hostTone:"warning", netTone:"stable", clientTone:"stable", tuningLabel:"Tuning: Applying", tuningTone:"info", appliedBitrate:"20.0M", requestedBitrate:"25.0M", videoWork:"1.50ms", refused:"2", qualityLimit:"25.0M"})
     Rectangle { anchors.fill: parent; gradient: Gradient { GradientStop { position:0; color:"#213D50" } GradientStop { position:1; color:"#081720" } } }
     Label { anchors.centerIn: parent; text:"NovaHUD · synthetic stream preview"; color:"#8096A0"; font.pixelSize:22 }
     MouseArea { anchors.fill: parent; onClicked: root.gameTaps++ }
@@ -114,10 +114,11 @@ ApplicationWindow {
     require(hud->position() != original && root->property("gameTaps").toInt() == 1, "HUD drag did not move or leaked a gameplay tap"); bounds();
     require(item("hud-tuning")->property("text") == "Tuning: Applying" &&
         item("hud-applied-limit")->property("text") == "20.0M applied / 25.0M limit" &&
+        item("hud-requested-bitrate")->property("text") == "25.0M PC target" &&
         item("hud-health-label")->property("text") == "Display override", "HUD lost host state or applied bitrate");
     auto stale = root->property("sample").value<QJSValue>().toVariant().toMap();
     stale.remove("healthLabel"); stale.remove("healthTone"); stale.remove("tuningLabel");
-    stale.remove("tuningTone"); stale.remove("appliedBitrate"); stale.remove("qualityLimit");
+    stale.remove("tuningTone"); stale.remove("appliedBitrate"); stale.remove("qualityLimit"); stale.remove("requestedBitrate");
     root->setProperty("sample", stale); settle();
     require(item("hud-fps")->property("text") == "59.8" && item("hud-tuning")->property("text") == "Tuning: Unknown" &&
         item("hud-applied-limit")->property("text") == "-- applied / -- limit" &&
