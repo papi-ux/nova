@@ -2,6 +2,7 @@
 #include "runtime/deck_session_failure_message.h"
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_rumble.h"
+#include <QDebug>
 #include <QScopeGuard>
 extern "C" {
 #include <libavutil/frame.h>
@@ -754,6 +755,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         }
         target->request.profilePreference.clear(); target->request.encoderBackend.clear();
         target->request.streamMode.clear();
+        target->request.expectedTopology.clear();
         target->request.audioConfiguration = audio.channels == 8 ? AUDIO_CONFIGURATION_71_SURROUND
             : audio.channels == 6 ? AUDIO_CONFIGURATION_51_SURROUND : AUDIO_CONFIGURATION_STEREO;
         target->request.playHostAudio = audio.playHostAudio;
@@ -805,6 +807,15 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             }
             target->request.streamMode = mode;
         }
+        if (!resume && target->resolveLaunchTopology) {
+            const auto topology = target->resolveLaunchTopology(target->request, [shared] { return shared->cancelled.load(); });
+            if (!topology || shared->cancelled || !resolver(hostId, gameId)) {
+                finish(shared->cancelled ? "cancelled" : "failed", shared->cancelled ? "Preview cancelled."
+                    : "This PC could not confirm the selected stream settings. Refresh this PC and review Play Setup again.");
+                return;
+            }
+            target->request.expectedTopology = *topology;
+        }
         if (shared->cancelled) { finish("cancelled", "Preview cancelled."); return; }
         if (target->request.fps > displayRateLimit()) {
             finish("failed", "The display rate changed. Review Play Setup again before starting.");
@@ -851,6 +862,14 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             built.connectionInfo, target->fetch, !built.resumed);
         if (started.hostCancelRequested) cleanupConfirmed = started.hostCancelled;
         const bool active = started.networkStarted;
+        if (!active && !shared->cancelled) {
+            const auto status = gate.connectionStatus();
+            // Keep failure diagnostics useful without logging endpoints, keys
+            // or raw transport messages from the connection handshake.
+            qWarning() << "Nova native connection setup failed: stage" << status.failedStage
+                << "error" << status.failedStageErrorCode
+                << "termination" << status.terminationErrorCode;
+        }
         if (active && !shared->cancelled) {
             if (target->hostTelemetry && !built.connectionInfo.hostSessionToken.empty()) {
                 try {

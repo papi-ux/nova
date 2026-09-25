@@ -4,8 +4,24 @@
 
 #define NOVA_PYROWAVE_PROFILE_TOKEN "pyrowave-186f0393-sdr420-v1"
 
-// Shared by the native C transport and its regression test. Match complete SDP
-// attributes: a token elsewhere or a longer token cannot select this decoder.
+// A host can advertise several colour profiles on the same fmtp line. Select
+// only our complete SDR token, without treating HDR or a newer revision as SDR.
+static inline bool nova_pyrowave_profile_list_compatible(const char* value, const char* end) {
+    unsigned matches = 0;
+    const size_t expected_length = strlen(NOVA_PYROWAVE_PROFILE_TOKEN);
+    while (value < end) {
+        while (value < end && (*value == ' ' || *value == '\t')) ++value;
+        const char* token_end = value;
+        while (token_end < end && *token_end != ' ' && *token_end != '\t') ++token_end;
+        if ((size_t)(token_end - value) == expected_length &&
+            !memcmp(value, NOVA_PYROWAVE_PROFILE_TOKEN, expected_length)) ++matches;
+        value = token_end;
+    }
+    return matches == 1;
+}
+
+// Shared by the native C transport and its regression test. Require one mapping
+// and one profile list: conflicting or duplicate attributes remain invalid.
 static inline bool nova_pyrowave_description_compatible(const char* description) {
     if (!description) return false;
     unsigned maps = 0, profiles = 0;
@@ -32,8 +48,11 @@ static inline bool nova_pyrowave_description_compatible(const char* description)
                 while (end > value && (end[-1] == ' ' || end[-1] == '\t')) --end;
                 const char* expected = mapping ? "PYROWAVE/90000" : NOVA_PYROWAVE_PROFILE_TOKEN;
                 unsigned* count = mapping ? &maps : &profiles;
-                if (++*count != 1 || (size_t)(end - value) != strlen(expected) ||
-                    memcmp(value, expected, (size_t)(end - value))) return false;
+                if (++*count != 1) return false;
+                if (mapping) {
+                    if ((size_t)(end - value) != strlen(expected) ||
+                        memcmp(value, expected, (size_t)(end - value))) return false;
+                } else if (!nova_pyrowave_profile_list_compatible(value, end)) return false;
             }
         }
         if (!newline) break;

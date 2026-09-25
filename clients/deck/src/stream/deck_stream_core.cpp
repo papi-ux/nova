@@ -12,6 +12,8 @@ DeckLaunchRequest launchRequestForStream(const DeckStreamRequest& request, const
     launch.width = request.width;
     launch.height = request.height;
     launch.fps = request.fps;
+    launch.bitrateKbps = request.bitrateKbps;
+    launch.expectedTopology = request.expectedTopology;
     launch.surroundAudioInfo = SURROUNDAUDIOINFO_FROM_AUDIO_CONFIGURATION(request.audioConfiguration);
     launch.extraQuery = LiGetLaunchUrlQueryParameters();
     launch.streamMode = request.streamMode;
