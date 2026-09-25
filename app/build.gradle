@@ -128,8 +128,8 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionName "1.4.12"
-        versionCode = 53
+        versionName "1.4.13"
+        versionCode = 54
 
         buildConfigField "boolean", "FDROID_BUILD", fdroidBuild.toString()
 

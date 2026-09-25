@@ -81,19 +81,19 @@ class NovaReleaseMetadataTest {
         val releaseWorkflow = File(root, ".github/workflows/build.yml").readText()
         val storeNotes = File(
             root,
-            "fastlane/metadata/android/en-US/changelogs/53.txt"
+            "fastlane/metadata/android/en-US/changelogs/54.txt"
         )
         val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
-        assertTrue(build.contains("versionName \"1.4.12\""))
+        assertTrue(build.contains("versionName \"1.4.13\""))
         // The Deck bundle reports the same version in its support report and its AppStream data.
-        assertTrue(File(root, "clients/deck/CMakeLists.txt").readText().contains("project(NovaDeck VERSION 1.4.12 "))
+        assertTrue(File(root, "clients/deck/CMakeLists.txt").readText().contains("project(NovaDeck VERSION 1.4.13 "))
         assertTrue(
             File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
-                .contains("<release version=\"1.4.12\" date=\"2026-09-22\"/>")
+                .contains("<release version=\"1.4.13\" date=\"2026-09-24\"/>")
         )
-        assertTrue(build.contains("versionCode = 53"))
-        assertTrue(changelog.contains("## 1.4.12 - 2026-09-22"))
+        assertTrue(build.contains("versionCode = 54"))
+        assertTrue(changelog.contains("## 1.4.13 - 2026-09-24"))
         assertTrue(changelog.contains("Steam Input remains manual and read-only."))
         assertTrue(changelog.contains("Polaris owns encoder probing, fallback, and launch policy"))
         assertTrue(releaseWorkflow.contains("python3 scripts/extract_release_notes.py"))
@@ -114,7 +114,7 @@ class NovaReleaseMetadataTest {
             "Google Play release notes must be at most 500 Unicode characters",
             storeNotesBody.codePointCount(0, storeNotesBody.length) <= 500,
         )
-        assertTrue(storeNotesBody.startsWith("Nova 1.4.12"))
+        assertTrue(storeNotesBody.startsWith("Nova 1.4.13"))
     }
 
     @Test
