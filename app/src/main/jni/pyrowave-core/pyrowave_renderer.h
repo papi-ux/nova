@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 
 #include "pyrowave_device.h"
+#include "pyrowave_timing.h"
 
 #include <android/native_window.h>
 
@@ -101,6 +102,21 @@ namespace nova_vk {
 
     /** Wait for the last submitted frame, if there was one. */
     void await_last_frame();
+
+    void create_timing();
+    void collect_gpu_timing();
+    void report_timing(bool final = false);
+
+    // Opt-in diagnostics. Readback uses the frame fence already needed for command-buffer reuse;
+    // no extra queue wait or query pool exists when the property is off.
+    bool timing_enabled = false;
+    VkQueryPool timing_queries = VK_NULL_HANDLE;
+    uint32_t timestamp_bits = 0;
+    double timestamp_period_ns = 0;
+    uint64_t timing_window_ns = 0;
+    uint64_t timing_unavailable = 0;
+    timing_metric_t gpu_planes, gpu_draw;
+    timing_metric_t cpu_fence, cpu_prepare, cpu_record, cpu_acquire, cpu_submit, cpu_present;
 
     /** The barriers around whatever writes the planes, both ways, in their resting layout. */
     void barrier_planes(VkCommandBuffer cmd, VkPipelineStageFlags from, VkAccessFlags from_access,

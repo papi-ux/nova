@@ -52,7 +52,7 @@ jobs:
         run: ./gradlew --no-build-cache -PnovaAbis=x86_64 testNonRoot_gameDebugUnitTest
 
       - name: Run helper and onboarding tests
-        run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight
+        run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight tools.test_native_optimization tools.test_pyrowave_timing
 
   deck:
     name: Deck client build and tests
