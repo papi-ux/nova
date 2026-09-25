@@ -62,7 +62,13 @@ std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
 
 DeckHttpFetcher fetcherOverPolarisClient(const polaris::DeckPolarisClient& client) {
     return [&client](const std::string& target) -> DeckHttpResponse {
-        const auto reply = client.get(target);
+        // Polaris may finish draining Steam and its private compositor before
+        // sending /cancel's reply. Give that one request time to complete;
+        // ordinary reads/launches retain their deadline, and a lost reply does
+        // not authorize another cancellation.
+        const auto timeout = polaris::splitRequestTarget(target).path == "/cancel"
+            ? std::optional<std::chrono::milliseconds>{std::chrono::seconds(30)} : std::nullopt;
+        const auto reply = client.get(target, 4 * 1024 * 1024, timeout);
         DeckHttpResponse response;
         response.retryableTransportFailure = reply.status == polaris::DeckPolarisRequestStatus::Unreachable ||
             reply.status == polaris::DeckPolarisRequestStatus::Timeout;
@@ -155,6 +161,7 @@ DeckSessionBuildResult buildStreamConnection(
             selected.sessionToken = serverInfo->currentSessionToken;
             // A resume retains the host's running display/launch mode.
             selected.streamMode.clear();
+            selected.expectedTopology.clear();
         }
     }
     result.resumed = selected.resume;

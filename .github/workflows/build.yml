@@ -95,6 +95,9 @@ jobs:
       - name: Configure
         run: cmake -S clients/deck -B build-deck -G Ninja
 
+      - name: Check Linux update feed preparation
+        run: python3 -m unittest tools.test_nova_flatpak_feed
+
       - name: Build
         run: cmake --build build-deck
 

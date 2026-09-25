@@ -210,7 +210,7 @@ Popup {
                         Copy { text: modelData.value; font.weight: Font.DemiBold }
                     }
                 }
-                Copy { visible: host.readOnlyView; text: "Keep in step: " + (host.status.keepInStep === "on" ? "Paused during play" : host.status.keepInStep === "paused" ? "Needs review" : "Off"); color: NovaTheme.secondary }
+                Copy { visible: host.readOnlyView; text: "Keep in step: " + (host.status.keepInStep === "on" || host.status.keepInStep === "pending" ? "Paused during play" : host.status.keepInStep === "paused" || host.status.keepInStep === "review" ? "Needs review" : "Off"); color: NovaTheme.secondary }
                 Copy {
                     text: host.status.profileState || "Not verified"
                     color: NovaTheme.secondary
@@ -315,7 +315,8 @@ Popup {
                     Keys.onDownPressed: syncOff.forceActiveFocus()
                     Keys.onLeftPressed: facts.forceActiveFocus()
                 }
-                Copy { text: "KEEP IN STEP · " + (host.status.keepInStep || "off").toUpperCase(); color: NovaTheme.secondary; font.pixelSize: 14 * host.unit * NovaTheme.fontScale }
+                Copy { text: "KEEP IN STEP · " + (host.status.keepInStep === "pending" ? "ON · CHECKING" : host.status.keepInStep === "review" ? "CHOOSE A PROFILE" : (host.status.keepInStep || "off").toUpperCase()); color: NovaTheme.secondary; font.pixelSize: 14 * host.unit * NovaTheme.fontScale }
+                Copy { visible: host.status.keepInStep === "review"; text: host.status.keepInStepCopy || ""; color: NovaTheme.secondary }
                 RowLayout {
                     Layout.fillWidth: true
                     NovaButton {
@@ -337,7 +338,7 @@ Popup {
                         objectName: "host-sync-on"
                         Layout.fillWidth: true
                         unit: host.unit
-                        text: host.status.keepInStep === "paused" ? "Resume" : host.status.keepInStep === "on" ? "On · Selected" : "On"
+                        text: host.status.keepInStep === "review" ? "Use Nova & Sync" : host.status.keepInStep === "paused" ? "Resume" : host.status.keepInStep === "on" || host.status.keepInStep === "pending" ? "On · Selected" : "On"
                         opacity: host.status.canEnableSync || activeFocus ? 1 : 0.55
                         onActiveFocusChanged: if (activeFocus) { host.focusedExtra = ""; host.focusedSync = "on"; host.focusedProfile = ""; host.focusedMode = "" }
                         onClicked: if (host.status.canEnableSync) host.controller.setKeepInStep(true)

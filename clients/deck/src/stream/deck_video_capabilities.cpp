@@ -91,7 +91,8 @@ bool DeckVideoDecodeSupport::supports(int format, int width, int height) const {
     return false;
 }
 
-DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
+namespace {
+DeckVideoDecodeSupport probeVaapiDecodeSupport(AVBufferRef* device) {
     if (!device || !device->data) return {};
     const auto* context = reinterpret_cast<const AVHWDeviceContext*>(device->data);
     if (context->type != AV_HWDEVICE_TYPE_VAAPI || !context->hwctx) return {};
@@ -105,12 +106,12 @@ DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
     }
     return result;
 }
+}
 
-DeckVideoDecodeSupport detectVideoDecodeSupport() {
-    AVBufferRef* device = nullptr;
-    const int opened = av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
-    auto support = opened == 0 ? probeVideoDecodeSupport(device) : DeckVideoDecodeSupport{};
-    av_buffer_unref(&device);
+DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
+    auto support = probeVaapiDecodeSupport(device);
+    // Startup review and stream launch must see the same codec capabilities.
+    // PyroWave uses its own Vulkan device, even when VAAPI is unavailable.
 #ifdef NOVA_DECK_BUILD_PYROWAVE
     nova::pyrowave::Codec decoder;
     if (decoder.open(128, 128, false)) {
@@ -118,6 +119,14 @@ DeckVideoDecodeSupport detectVideoDecodeSupport() {
         support.pyrowave = {limit, limit};
     }
 #endif
+    return support;
+}
+
+DeckVideoDecodeSupport detectVideoDecodeSupport() {
+    AVBufferRef* device = nullptr;
+    av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
+    auto support = probeVideoDecodeSupport(device);
+    av_buffer_unref(&device);
     return support;
 }
 } // namespace nova::deck::stream

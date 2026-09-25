@@ -170,14 +170,21 @@ Popup {
         property bool destructive: false
         property real textScale: nativePreview.unit
         Accessible.description: caption
+        implicitHeight: Math.max(52, contentItem.implicitHeight + 20 * nativePreview.unit)
+        Layout.minimumHeight: implicitHeight
+        topPadding: 10 * nativePreview.unit; bottomPadding: 10 * nativePreview.unit
+        topInset: 0; bottomInset: 0
         contentItem: Item {
+            implicitHeight: actionLabels.implicitHeight
             Column {
+                id: actionLabels
                 anchors.centerIn: parent
                 width: parent.width
                 spacing: 4
                 Text {
                     width: parent.width
                     text: action.text; textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
                     color: action.activeFocus ? NovaTheme.window : "white"
                     font.pixelSize: 20 * action.textScale * NovaTheme.fontScale; font.bold: true
                     horizontalAlignment: Text.AlignHCenter
@@ -304,7 +311,7 @@ Popup {
                     text: reviewedGameTitle
                     textFormat: Text.PlainText
                     width: parent.width
-                    elide: Text.ElideRight
+                    wrapMode: Text.Wrap
                     color: NovaTheme.text
                     font.pixelSize: 26 * NovaTheme.fontScale
                     font.bold: true
@@ -333,29 +340,33 @@ Popup {
             color: NovaTheme.alpha(NovaTheme.panel, NovaTheme.highContrast ? 1 : 0.94)
             border.color: NovaTheme.divider
             Label {
-                anchors.left: parent.left; anchors.top: parent.top
+                id: commandTitle
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
                 anchors.margins: 24 * nativePreview.unit
                 text: "Command Center"
+                wrapMode: Text.Wrap
                 color: NovaTheme.text
                 font.pixelSize: 28 * nativePreview.unit * NovaTheme.fontScale
                 font.bold: true
             }
             Label {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                id: commandGame
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: commandTitle.bottom
                 anchors.leftMargin: 24 * nativePreview.unit; anchors.rightMargin: 24 * nativePreview.unit
-                anchors.topMargin: 66 * nativePreview.unit
+                anchors.topMargin: 12 * nativePreview.unit
                 text: reviewedGameTitle + " · " + reviewedHostName
                 textFormat: Text.PlainText
                 color: NovaTheme.secondary
                 font.pixelSize: 18 * nativePreview.unit * NovaTheme.fontScale
-                elide: Text.ElideRight
+                wrapMode: Text.Wrap
             }
             Item {
                 id: commandHeader
-                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: commandGame.bottom
                 anchors.margins: 24 * nativePreview.unit
-                anchors.topMargin: 108 * nativePreview.unit
-                height: 90 * nativePreview.unit
+                anchors.topMargin: 16 * nativePreview.unit
+                height: Math.max(90 * nativePreview.unit, nativePreviewAction.implicitHeight,
+                    nativeDisconnectAction.implicitHeight, nativeEndAction.implicitHeight)
                 readonly property real buttonWidth: (width - (nativeDisconnectAction.visible ? 24 : 12) * nativePreview.unit)
                     / (nativeDisconnectAction.visible ? 3 : 2)
             }
@@ -610,13 +621,16 @@ Popup {
         }
         Button {
             id: nativePreviewAction
+            implicitHeight: contentItem.implicitHeight + 20 * nativePreview.unit
+            topPadding: 10 * nativePreview.unit; bottomPadding: 10 * nativePreview.unit
+            topInset: 0; bottomInset: 0
             objectName: "native-preview-action"
             x: nativePlaying ? commandCenter.x + commandHeader.x : nativePreview.attempted
                 ? (parent.width - width) / 2 : parent.width - width - 32 * nativePreview.unit
             y: nativePlaying ? commandCenter.y + commandHeader.y
                 : parent.height - height - (recoveryAvailable ? 112 : 32) * nativePreview.unit
             width: nativePlaying ? commandHeader.buttonWidth : (nativePreview.attempted ? 440 : 280) * nativePreview.unit
-            height: nativePlaying ? commandHeader.height : 60 * nativePreview.unit
+            height: nativePlaying ? commandHeader.height : Math.max(60 * nativePreview.unit, implicitHeight)
             text: nativeSessionState.sleeping ? "Waiting for wake" : !nativePreview.attempted ? "Play"
                 : nativePlaying ? "Close" : reconnectAvailable ? "Reconnect" : resumeAvailable ? "Resume game"
                 : nativeSessionState.busy ? (nativeSessionState.automaticReconnect ? "Cancel reconnect" : "Cancel connection") : nativePreview.returnLabel
@@ -630,6 +644,7 @@ Popup {
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
+                wrapMode: Text.Wrap
             }
             background: Rectangle {
                 radius: 12
@@ -674,7 +689,7 @@ Popup {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottomMargin: 24 * nativePreview.unit
             width: 440 * nativePreview.unit
-            height: 60 * nativePreview.unit
+            height: Math.max(60 * nativePreview.unit, implicitHeight)
             visible: recoveryAvailable
             text: nativePreview.returnLabel
             onClicked: nativePreview.close()
@@ -730,7 +745,7 @@ Popup {
             parent: nativeStreamContent
             anchors.centerIn: parent
             width: Math.min(620, parent.width - 48)
-            height: 310
+            height: Math.min(implicitHeight, parent.height - 48)
             padding: 24
             modal: true
             focus: true
@@ -744,21 +759,24 @@ Popup {
                 else nativePreviewAction.forceActiveFocus()
             })
             background: Rectangle { color: "#152238"; radius: 18; border.color: NovaTheme.divider; border.width: 1 }
-            contentItem: Column {
+            contentItem: NovaScrollColumn {
                 spacing: 14
                 Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
                     text: "End this game?"
                     color: NovaTheme.text; font.pixelSize: 26 * NovaTheme.fontScale; font.bold: true
                 }
                 Label {
-                    width: parent.width
+                    Layout.fillWidth: true
                     text: "This closes the game on your PC. Unsaved progress may be lost."
                     color: NovaTheme.secondary; font.pixelSize: 18 * NovaTheme.fontScale; wrapMode: Text.WordWrap
                 }
                 SessionAction {
                     id: stayAction
                     objectName: "native-end-stay"
-                    width: parent.width; height: 56
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.max(56, implicitHeight)
                     textScale: 1
                     text: "Keep playing"
                     onClicked: endConfirmation.close()
@@ -769,7 +787,8 @@ Popup {
                 SessionAction {
                     id: confirmEndAction
                     objectName: "native-end-confirm"
-                    width: parent.width; height: 56
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.max(56, implicitHeight)
                     textScale: 1
                     text: "End game"; destructive: true
                     function endGame() {

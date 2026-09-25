@@ -127,7 +127,7 @@ Popup {
                                 color: choice.activeFocus ? NovaTheme.focusText : NovaTheme.text
                                 font.pixelSize: 20 * picker.unit * NovaTheme.fontScale
                                 font.weight: Font.DemiBold
-                                elide: Text.ElideRight
+                                wrapMode: Text.Wrap
                             }
                             Label {
                                 text: choice.modelData.status

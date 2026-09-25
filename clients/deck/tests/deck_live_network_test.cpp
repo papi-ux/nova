@@ -3,6 +3,7 @@
 #include "runtime/deck_native_target.h"
 #include "deck_doctor_fixture.h"
 #include "deck_host_settings_fixture.h"
+#include "deck_game_tools_fixture.h"
 #include "stream/deck_gamestream_library.h"
 
 #include <QCoreApplication>
@@ -225,6 +226,47 @@ void testDerivedCertificateCannotReceiveHttp() {
     require(https.requests == 0);
 }
 
+void testSlowHostShutdownKeepsItsReceipt() {
+    using namespace nova::deck;
+    QTemporaryDir directory;
+    require(directory.isValid());
+    const auto server = createIdentity(directory.path(), "shutdown-server");
+    const auto client = createIdentity(directory.path(), "shutdown-client");
+    TlsServer https(server);
+    https.trustClient(client.cert);
+    require(https.listen(QHostAddress::LocalHost, 0));
+    polaris::DeckPolarisClient connection({"127.0.0.1", https.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()},
+        std::chrono::milliseconds(150));
+    const auto fetch = stream::fetcherOverPolarisClient(connection);
+    https.eventStream = [](QSslSocket* socket) {
+        QTimer::singleShot(4500, socket, [socket] {
+            const QByteArray body = "<root status_code=\"200\"><cancel>1</cancel></root>";
+            socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: "
+                + QByteArray::number(body.size()) + "\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        });
+    };
+    const auto ended = stream::requestHostSessionCancel(fetch, "fixture-session");
+    require(ended.cancelled && https.requests == 1 && https.paths.back() == "/cancel");
+    // Waiting for shutdown must not lengthen a later ordinary read.
+    QElapsedTimer elapsed;
+    elapsed.start();
+    require(!fetch("/serverinfo").transportOk && elapsed.elapsed() < 1500);
+    https.eventStream = {};
+    https.handler = [](const QUrl&) {
+        return std::pair{403, QByteArray("denied")};
+    };
+    auto before = https.requests;
+    require(!stream::requestHostSessionCancel(fetch, "fixture-session").cancelled && https.requests == before + 1);
+    // An exact-pin failure still refuses cancellation before sending HTTP.
+    polaris::DeckPolarisClient wrongPin({"127.0.0.1", https.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), client.cert.toStdString()});
+    before = https.requests;
+    require(!stream::requestHostSessionCancel(stream::fetcherOverPolarisClient(wrongPin), "fixture-session").cancelled);
+    require(https.requests == before);
+}
+
 void testResponseDeadlineSurvivesIncomingBytes() {
     using namespace nova::deck::polaris;
     QTemporaryDir directory;
@@ -367,8 +409,11 @@ void testFreshLaunchModeAuthority() {
     host.nativeHttpsPort = https.serverPort(); host.serverCertificatePem = server.cert.toStdString();
     identity.hosts.push_back(host);
     int scenario = 0;
+    int profileScenario = 0;
     https.handler = [&](const QUrl& url) -> std::pair<int, QByteArray> {
         if (url.path() == "/polaris/v1/capabilities") {
+            if (profileScenario == 4) return {401, "denied"};
+            if (profileScenario) return {200, R"({"server":"polaris","features":{"game_library":true,"client_settings_v1":true,"resolved_profile_provenance_v1":true,"expected_topology_assertion_v1":true}})"};
             if (scenario == 10) return {200, R"({"server":"polaris","capture":{"codecs":["hevc"],"max_fps":30}})"};
             if (scenario == 11) return {200, R"({"server":"polaris","capture":{"max_fps":"60"}})"};
             return {200, scenario == 8
@@ -382,6 +427,16 @@ void testFreshLaunchModeAuthority() {
                 "effective":{"stream_display_mode":"headless_stream"},"capabilities":{"modes":[
                 {"value":"headless_stream","available":)") + (scenario == 1 ? "false" : "true") +
                 R"(,"session_overridable":)" + (scenario == 2 ? "false" : "true") + "}]}}"};
+        }
+        if (url.path() == "/polaris/v1/optimize") {
+            const QUrlQuery query(url);
+            require(query.queryItemValue("game") == "mode-game" && query.queryItemValue("mode") == "headless_stream" &&
+                query.queryItemValue("topology_locked") == "1" && query.queryItemValue("display_locked") == "1" &&
+                query.queryItemValue("bitrate_locked") == "1" && query.queryItemValue("bitrate_kbps") == "20000");
+            if (profileScenario == 2) return {401, "denied"};
+            auto plan = game_tools_fixture::launchPlan("mode-game");
+            if (profileScenario == 3) plan.remove("topology_resolution");
+            return {200, QJsonDocument(plan).toJson(QJsonDocument::Compact)};
         }
         require(url.path() == "/polaris/v1/games"); // No writes/launches in an authority read.
         if (scenario == 4) return {200, R"({"games":[],"total":0})"};
@@ -398,6 +453,18 @@ void testFreshLaunchModeAuthority() {
     const auto resolver = runtime::nativeTargetResolver(identity, snapshot);
     const auto target = resolver("mode-host", "mode-game");
     require(target && target->authorizeLaunchMode && target->authorizeLaunchMode("headless_stream", {}));
+    require(bool(target->resolveLaunchTopology));
+    auto request = target->request; request.streamMode = "headless_stream";
+    require(target->resolveLaunchTopology(request, {}) == std::optional<std::string>{""});
+    profileScenario = 1;
+    require(target->resolveLaunchTopology(request, {}) == std::optional<std::string>{"headless_stream"});
+    for (int stopAfter = 0; stopAfter <= 2; ++stopAfter) {
+        const auto before = https.requests;
+        require(!target->resolveLaunchTopology(request, [&] { return https.requests >= before + stopAfter; }));
+        require(https.requests == before + stopAfter);
+    }
+    for (profileScenario = 2; profileScenario <= 4; ++profileScenario) require(!target->resolveLaunchTopology(request, {}));
+    profileScenario = 0;
     require(target->verifyStreamCapabilities && target->verifyStreamCapabilities({})->supports(1920, 1200, 60));
     scenario = 10;
     const auto withdrawn = target->verifyStreamCapabilities({});
@@ -668,7 +735,9 @@ void testSpacesSelectionAndLaunch() {
     spacesStatus = 404; library = fetch(host, true);
     require(library.status == DeckPolarisRequestStatus::Ok && !library.spacesSupported && legacyReads == 1);
     spacesStatus = 200; disabled = true; library = fetch(host, true);
-    require(library.status == DeckPolarisRequestStatus::Ok && library.spaces && !library.spaces->enabled && legacyReads == 2);
+    // An advertised Spaces host uses the explicitly scoped desktop route even
+    // when Spaces is disabled. Only the missing route above uses legacy discovery.
+    require(library.status == DeckPolarisRequestStatus::Ok && library.spaces && !library.spaces->enabled && legacyReads == 1 && desktopReads == 2);
 }
 
 void testSleepNeverReplays() {
@@ -1329,6 +1398,7 @@ int main(int argc, char** argv) {
     testSilentHttpStillUsesPinnedHttps(false);
     testSilentHttpStillUsesPinnedHttps(true);
     testDerivedCertificateCannotReceiveHttp();
+    testSlowHostShutdownKeepsItsReceipt();
     testStandardHostLibraryAndLaunch();
     testResponseDeadlineSurvivesIncomingBytes();
     testFreshLaunchModeAuthority();

@@ -476,6 +476,11 @@ void testManagement(const crypto::Credentials& server) {
         auto peer = std::make_shared<Peer>(server); peer->authorized = true;
         return [peer](const PairRequest& request) { return peer->handle(request); };
     }, [] { return "1234"; });
+    int newlyPaired = 0;
+    QObject::connect(&successful, &DeckPairingController::hostPaired, [&](const QString& id) {
+        require(!id.isEmpty() && loadNativeIdentity(directory).identity->hostById(id.toStdString()), "new-pair event preceded durable identity");
+        ++newlyPaired;
+    });
     require(successful.removeHost("fixture-host", false), "authenticated removal did not start");
     wait(successful);
     require(successful.state().value("phase") == "removed" && loadNativeIdentity(directory).identity->hosts.empty(),
@@ -484,6 +489,7 @@ void testManagement(const crypto::Credentials& server) {
     wait(successful);
     require(successful.state().value("phase") == "paired" && loadNativeIdentity(directory).identity->hosts.size() == 1,
             "fresh PIN handshake after removal did not restore the pairing");
+    require(newlyPaired == 1, "successful pairing was not initialized exactly once");
     const auto repaired = loadNativeIdentity(directory).identity->hosts.front();
     require(forgetNativeHost(directory, client, repaired).ok(), "re-pair test cleanup failed");
     // A stale UI selection cannot revoke a host after another process updates it.

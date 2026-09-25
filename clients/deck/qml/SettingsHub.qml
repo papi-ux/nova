@@ -9,6 +9,7 @@ Popup {
     objectName: "settings-hub"
     property var windowController: null
     property var desktopInput: null
+    property var updateController: null
     required property var settingsProvider
     property var hostController: null
     property var libraryPreferences: null
@@ -21,9 +22,10 @@ Popup {
         {id: "all", title: "All Settings"}, {id: "stream", title: "Video & Stream"},
         {id: "audio", title: "Audio"}, {id: "controls", title: "Controls"},
         {id: "appearance", title: "Appearance"}, {id: "ingame", title: "In-Game UI"},
-        {id: "pc", title: "Polaris Sync"}
+        {id: "pc", title: "Polaris Sync"}, {id: "app", title: "Nova"}
     ]
     readonly property var definitions: [
+        {key: "updates", category: "app", title: "Nova Updates", words: "update upgrade download install automatic version beta channel", scope: "This device · Applies after reopening Nova", detail: "Check for a new version and choose whether Nova updates automatically while idle."},
         {key: "stream", category: "stream", title: "Stream Defaults", words: "resolution width height fps frame rate bitrate mbps every game video", scope: "This device · Games without an override · Next new stream", detail: "Review resolution, frame rate and bitrate in Every Game. Per-game choices stay in Play Setup."},
         {key: "window", category: "stream", title: "Window Mode", words: "fullscreen full screen window desktop display monitor", scope: "This device · Applies immediately", detail: "Switch between a desktop window and fullscreen. Ctrl + Alt + Shift + F also switches modes. During play, resume from Command Center after switching."},
         {key: "scale", category: "stream", title: "Video Scaling", words: "fit fill stretch crop bars aspect ratio display screen", scope: "This device · All streams · Applies immediately", detail: "Choose how the picture fits your screen.", reset: "fit"},
@@ -46,6 +48,7 @@ Popup {
         {key: "sync", category: "pc", title: "Polaris Sync", words: "host paired profile keep in step match send import reset display mode resume timeout", scope: "Selected PC · Paired profile and PC-wide settings are labeled separately", detail: "Compare Nova and Polaris, manage Keep in step, and review host settings. Each action shows its scope."}
     ]
     readonly property var shown: definitions.filter(item => {
+        if (item.key === "updates" && !updateController) return false
         if (item.key === "window" && !windowController) return false
         if (item.key === "mouse" && !desktopInput) return false
         const words = search.text.trim().toLowerCase().split(/\s+/).filter(Boolean)
@@ -62,11 +65,12 @@ Popup {
     enter: Transition { }
     exit: Transition { }
     onOpened: { error = ""; focusCategory() }
-    onClosed: { choices.close(); keyboard.close(); hostSheet.close(); scaleSheet.close(); deadzoneSheet.close() }
+    onClosed: { choices.close(); keyboard.close(); hostSheet.close(); scaleSheet.close(); deadzoneSheet.close(); updateSheet.close() }
     background: Rectangle { color: NovaTheme.window }
 
     function value(key) {
         switch (key) {
+        case "updates": return updateController && updateController.state.restartRequired ? "Ready to Finish" : updateController && updateController.state.available ? "Update Available" : "Review Updates"
         case "window": return windowController && windowController.fullscreen ? "fullscreen" : "windowed"
         case "scale": return settingsProvider.videoScaleMode
         case "pacing": return settingsProvider.framePacingMode
@@ -151,7 +155,8 @@ Popup {
             if (!hostAvailable) { error = "Choose a paired PC to review stream defaults and Polaris Sync."; return }
             hostSheet.syncView = definition.key === "sync"
             hostSheet.open()
-        } else if (definition.key === "scale") scaleSheet.open()
+        } else if (definition.key === "updates") updateSheet.open()
+        else if (definition.key === "scale") scaleSheet.open()
         else if (definition.key === "deadzone") deadzoneSheet.open()
         else if (typeof value(definition.key) === "boolean") save(definition.key, !value(definition.key))
         else { choices.definition = definition; choices.open() }
@@ -159,6 +164,12 @@ Popup {
     function focusCategory() {
         const i = Math.max(0, categories.findIndex(item => item.id === category))
         categoryButtons.itemAt(i).forceActiveFocus()
+    }
+    function openUpdates() {
+        selectedKey = "updates"
+        selectCategory("app")
+        open()
+        Qt.callLater(() => { if (opened && updateController) updateSheet.open() })
     }
     function selectCategory(id) {
         category = id; search.clear(); rows.contentY = 0; error = ""
@@ -172,7 +183,8 @@ Popup {
         if (opened) focusRow(shown.findIndex(item => item.key === selectedKey))
     }
     function back() {
-        if (scaleSheet.opened) scaleSheet.close()
+        if (updateSheet.opened) updateSheet.close()
+        else if (scaleSheet.opened) scaleSheet.close()
         else if (deadzoneSheet.opened) deadzoneSheet.close()
         else if (keyboard.opened) keyboard.close()
         else if (choices.opened) choices.close()
@@ -193,6 +205,10 @@ Popup {
         id: hostSheet
         controller: hub.hostController; settingsProvider: hub.settingsProvider
         backLabel: "Settings"
+        onClosed: Qt.callLater(hub.restoreRow)
+    }
+    UpdateSettings {
+        id: updateSheet; controller: hub.updateController; unit: hub.unit
         onClosed: Qt.callLater(hub.restoreRow)
     }
     EndpointKeyboard { id: keyboard; parent: Overlay.overlay; titleEntry: true }

@@ -81,6 +81,23 @@ void parsing() {
     require(space && space->selected() && space->permitsPlay("Arcade_1") && !space->permitsPlay("desktop"), "Space play authority mismatch");
     auto unavailable = good; unavailable["available"] = false;
     require(!parseSpaces(json(unavailable)), "contradictory available/selection accepted");
+    auto ordinary = good;
+    ordinary["available"] = false; ordinary["can_switch"] = false; ordinary["desktop_allowed"] = false;
+    ordinary["selected_space_id"] = ""; ordinary["spaces"] = QJsonArray{};
+    ordinary["unavailable_reason"] = "no_space_assigned";
+    const auto unassigned = parseSpaces(json(ordinary));
+    require(unassigned && unassigned->usesStandardDesktop() && unassigned->destinationId() == "desktop" &&
+        unassigned->permitsPlay("desktop") && !unassigned->permitsPlay("Arcade_1") && !unassigned->permitsSelection("desktop"),
+        "ordinary Desktop required a Space assignment or sent a Space selection");
+    for (const auto* reason : {"controller_missing", "stopping", "reconfiguring", "admin_failed", "selection_failed", "unknown", ""}) {
+        auto blocked = ordinary; blocked["unavailable_reason"] = reason;
+        const auto value = parseSpaces(json(blocked));
+        require(value && !value->usesStandardDesktop() && !value->permitsPlay("desktop"), "unavailable Space became Desktop access");
+    }
+    auto assigned = ordinary;
+    auto assignedRows = good["spaces"].toArray(); auto row = assignedRows[0].toObject(); row["selected"] = false;
+    assigned["spaces"] = QJsonArray{row};
+    require(!parseSpaces(json(assigned))->usesStandardDesktop(), "assigned Space escaped into ordinary Desktop");
     for (const auto* field : {"schema", "status", "enabled", "available", "can_switch", "desktop_allowed", "selected_space_id", "spaces"}) {
         auto bad = good; bad[field] = QJsonValue::Null;
         require(!parseSpaces(json(bad)), "wrong required type accepted");

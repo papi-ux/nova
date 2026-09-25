@@ -7,7 +7,9 @@
 #include <QDBusPendingReply>
 #include <QDBusServiceWatcher>
 #include <QHostAddress>
+#include <QFileInfo>
 #include <QNetworkInterface>
+#include <QRegularExpression>
 #include <QUuid>
 #include <algorithm>
 
@@ -25,6 +27,27 @@ bool validName(const QString& name) {
     for (const auto c : name)
         if (c.category() == QChar::Other_Control || c.category() == QChar::Other_Format) return false;
     return true;
+}
+QString dnsTarget(QString target) {
+    if (target.endsWith('.')) target.chop(1);
+    static const QRegularExpression hostname(QStringLiteral(
+        "\\A(?=.{1,253}\\z)[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)*\\z"));
+    target = target.toLower();
+    return hostname.match(target).hasMatch() ? target : QString{};
+}
+int endpointRank(const QHostAddress& address, const QNetworkInterface& network) {
+    // Prefer the LAN over local container bridges and VPN adapters. Keep all
+    // alternatives so removal of one advertisement can promote another route.
+    int rank = 20;
+    const QString sys = "/sys/class/net/" + network.name();
+    if (network.isValid() && QFileInfo::exists(sys))
+        rank = QFileInfo::exists(sys + "/device") ? 0 : 40;
+    else if (network.type() == QNetworkInterface::Ethernet || network.type() == QNetworkInterface::Wifi)
+        rank = 10;
+    if (address.isLoopback() || network.flags().testFlag(QNetworkInterface::IsLoopBack)) rank = 100;
+    if (address.isLinkLocal()) rank += 8;
+    if (address.protocol() == QAbstractSocket::IPv6Protocol) ++rank;
+    return rank;
 }
 QDBusMessage call(const QString& path, const QString& interface, const QString& method, const QVariantList& args = {}) {
     auto message = QDBusMessage::createMethodCall(service, path, interface, method);
@@ -138,11 +161,17 @@ void DeckHostDiscovery::added(int interface, int protocol, const QString& name, 
         const int port = args[8].toUInt();
         const auto endpoint = identity::pairingEndpoint(address.toString(), port);
         if (!endpoint) return;
-        const QString endpointKey = endpoint->address + ":" + QString::number(port);
-        const auto publicId = QString::fromLatin1(QCryptographicHash::hash(endpointKey.toUtf8(), QCryptographicHash::Sha256).toHex());
-        auto network = QNetworkInterface::interfaceFromIndex(interface).humanReadableName();
-        if (network.isEmpty()) network = "Network " + QString::number(interface);
-        entry->endpoint = {{"id", publicId}, {"name", name.trimmed()}, {"address", endpoint->address}, {"port", port}, {"network", network}};
+        const auto target = dnsTarget(args[5].toString());
+        if (target.isEmpty()) return;
+        // A DNS-SD service can have many addresses. Its instance, SRV target
+        // and port identify one suggestion, not one trusted pairing identity.
+        const QString hostKey = name.toCaseFolded() + QChar(0) + target + QChar(0) + QString::number(port);
+        const auto publicId = QString::fromLatin1(QCryptographicHash::hash(hostKey.toUtf8(), QCryptographicHash::Sha256).toHex());
+        const auto network = QNetworkInterface::interfaceFromIndex(interface);
+        auto networkName = network.humanReadableName();
+        if (networkName.isEmpty()) networkName = "Network " + QString::number(interface);
+        entry->rank = endpointRank(address, network);
+        entry->endpoint = {{"id", publicId}, {"name", name.trimmed()}, {"address", endpoint->address}, {"port", port}, {"network", networkName}};
         publish();
     });
 }
@@ -150,15 +179,20 @@ void DeckHostDiscovery::removed(int interface, int protocol, const QString& name
     if (busy_ && entries_.remove(key(interface, protocol, name, type, domain))) publish();
 }
 void DeckHostDiscovery::publish() {
-    QHash<QString, QVariantMap> unique;
-    // Stable ordering for duplicates, including two interfaces advertising the
-    // same endpoint. Same-name PCs with different endpoints remain separate.
+    QHash<QString, const Entry*> unique;
+    // Stable IDs preserve focus while a better address arrives. Different
+    // targets or ports stay separate even when PCs have the same display name.
     auto keys = entries_.keys(); std::sort(keys.begin(), keys.end());
     for (const auto& key : keys) {
-        const auto& endpoint = entries_[key].endpoint;
-        if (!endpoint.isEmpty() && !unique.contains(endpoint.value("id").toString())) unique.insert(endpoint.value("id").toString(), endpoint);
+        const auto& entry = entries_[key];
+        if (entry.endpoint.isEmpty()) continue;
+        const auto id = entry.endpoint.value("id").toString();
+        const auto* previous = unique.value(id, nullptr);
+        if (!previous || entry.rank < previous->rank || (entry.rank == previous->rank &&
+            entry.endpoint.value("address").toString() < previous->endpoint.value("address").toString())) unique.insert(id, &entry);
     }
-    auto results = unique.values();
+    QList<QVariantMap> results;
+    for (const auto* entry : unique) results.push_back(entry->endpoint);
     std::sort(results.begin(), results.end(), [](const auto& a, const auto& b) {
         const int byName = QString::compare(a.value("name").toString(), b.value("name").toString(), Qt::CaseInsensitive);
         return byName ? byName < 0 : a.value("id").toString() < b.value("id").toString();

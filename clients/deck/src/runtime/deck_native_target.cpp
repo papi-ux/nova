@@ -32,8 +32,8 @@ DeckNativeTargetResolver nativeTargetResolver(
             if (probe.resolvedHttpsPort > 0) port = probe.resolvedHttpsPort;
             standardHost = probe.standardHost;
             if (probe.spacesSupported) {
-                if (!probe.spaces || (probe.spaces->enabled && !probe.spaces->available)) return {};
-                destination = probe.spaces->enabled ? probe.spaces->selectedId : "desktop";
+                if (!probe.spaces || (probe.spaces->enabled && !probe.spaces->available && !probe.spaces->usesStandardDesktop())) return {};
+                destination = probe.spaces->destinationId();
             }
         }
         const auto space = polaris::spaceGameIdentity(game->id);
@@ -90,6 +90,21 @@ DeckNativeTargetResolver nativeTargetResolver(
             };
         }
         if (!standardHost && !game->id.starts_with("moonlight-app-") && !spaceGame) {
+            target.resolveLaunchTopology = [client, gameId](const DeckStreamRequest& request, const std::function<bool()>& cancelled)
+                -> std::optional<std::string> {
+                if (cancelled && cancelled()) return {};
+                const auto caps = client->fetchCapabilities();
+                if ((cancelled && cancelled()) || !caps.ok()) return {};
+                if (!caps.value->resolvedProfileProvenance || !caps.value->expectedTopologyAssertion) return std::string{};
+                const QVariantMap values{{"width", request.width}, {"height", request.height}, {"fps", request.fps},
+                    {"bitrateKbps", request.bitrateKbps},
+                    {"profilePreference", request.profilePreference.empty() ? "auto" : QString::fromStdString(request.profilePreference)},
+                    {"encoderBackend", QString::fromStdString(request.encoderBackend)},
+                    {"launchMode", request.streamMode.empty() ? "default" : QString::fromStdString(request.streamMode)}};
+                const auto plan = client->gameTool(gameId, "plan", values, cancelled);
+                if ((cancelled && cancelled()) || !plan.ok() || !plan.value->contains("launchTopology")) return {};
+                return plan.value->value("launchTopology").toString().toStdString();
+            };
             // The observer owns a separate client on its own thread. A slow
             // status read cannot block controller delivery or stream teardown.
             target.hostTelemetry = [savedIdentity = *identity, savedHost = *host, port, gameUuid = QString::fromStdString(game->id)]() -> std::optional<DeckHudHostTarget> {
