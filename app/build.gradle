@@ -432,7 +432,13 @@ baselineProfile {
 }
 
 tasks.configureEach { task ->
-    if (task.name.contains("externalNativeBuild")) {
+    // Both spellings. AGP names these tasks after the native build system in use, so an ndk-build
+    // project gets configureNdkBuildRelease and buildNdkBuildRelease and never the word
+    // externalNativeBuild. Matching only the latter attached this guard to nothing at all: it
+    // compiled, it read like protection in every review, and it never ran once. CI built release
+    // APKs from an unpatched submodule for as long as that was true, which is the exact failure the
+    // guard exists to prevent.
+    if (task.name.contains("externalNativeBuild") || task.name.contains("NdkBuild")) {
         task.dependsOn(verifyMoonlightCommonCSubmodule)
     }
 }
