@@ -558,9 +558,24 @@ def launch_mode_navigation(wait, keys, state, fixtures, save_capture, window):
         wait(lambda s: not s.get("nativePreviewOpen") and not s.get("detailOpen"))
 
     def choose(index):
-        point = state()["playSetup"]["controls"]["launchMode"]
+        before_click = state()
+        point = before_click["playSetup"]["controls"]["launchMode"]
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
-        wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
+        try:
+            wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
+        except AssertionError as error:
+            # The timeout state only shows the final layout. Retain the state used
+            # to aim the click, without adding another observation or input delay.
+            diagnostics = {"window": window, "point": point,
+                "beforeClick": {key: before_click.get(key) for key in
+                    ("width", "height", "windowActive", "focus", "nativePreviewOpen", "playSetup")}}
+            for name, args in (("pointerAfterTimeout", ("getmouselocation", "--shell")),
+                               ("windowAfterTimeout", ("getwindowgeometry", "--shell", window))):
+                try:
+                    diagnostics[name] = command("xdotool", *args)
+                except (OSError, subprocess.SubprocessError) as probe_error:
+                    diagnostics[name] = f"Unavailable: {probe_error}"
+            raise AssertionError(f"Launch-mode click diagnostics: {json.dumps(diagnostics)}\n{error}") from error
         keys("Up", "Up", "Up")
         for _ in range(index):
             keys("Down")
