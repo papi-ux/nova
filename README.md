@@ -86,12 +86,6 @@ row controller-readable. Control Ultimate Edition leads the Aurora showcase;
 the [website gallery](https://papi-ux.com/nova/#themes) compares the same screen
 in Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You.
 
-<p align="center">
-  <a href="https://papi-ux.com/nova/#themes"><img src="docs/screenshots/theme-cycle.webp" width="720" alt="Nova host selection cycling through the Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You themes"></a><br>
-  <a href="https://papi-ux.com/nova/#themes"><img src="docs/screenshots/theme-dots.svg" height="14" alt="Theme accent colors"></a><br>
-  <sub><a href="https://papi-ux.com/nova/#themes">Compare every theme in the website gallery</a></sub>
-</p>
-
 ### Decide
 
 Play Setup describes what will happen for this title: where it runs, the client
