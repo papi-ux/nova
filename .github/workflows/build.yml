@@ -52,7 +52,7 @@ jobs:
         run: ./gradlew --no-build-cache -PnovaAbis=x86_64 testNonRoot_gameDebugUnitTest
 
       - name: Run helper and onboarding tests
-        run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight tools.test_native_optimization tools.test_pyrowave_timing
+        run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight tools.test_native_optimization tools.test_pyrowave_timing tools.test_native_page_alignment
 
   deck:
     name: Deck client build and tests
@@ -324,6 +324,21 @@ jobs:
               --out "$SIGNED_APK" \
               "${APK}.aligned"
           done
+
+      # A library aligned to 4 KB cannot load on a device with 16 KB pages, so an APK carrying one
+      # fails to install outright. v1.4.13-beta.3 shipped that way: the signature verified, the
+      # checksums matched, aapt2 read the manifest, and zipalign -c -P 16 passed, because zipalign
+      # checks where entries sit in the zip rather than how the ELF inside them is aligned.
+      - name: Check native library page alignment
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=("app/build/outputs/apk/nonRoot_game/${NOVA_APK_VARIANT}"/*.apk)
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "no APKs to check in app/build/outputs/apk/nonRoot_game/${NOVA_APK_VARIANT}" >&2
+            exit 1
+          fi
+          python3 tools/check_native_page_alignment.py "${apks[@]}"
 
       - name: Select APK artifacts
         run: |
