@@ -1,5 +1,7 @@
 package com.papi.nova.utils
 
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -13,6 +15,35 @@ import org.junit.rules.TemporaryFolder
 class CacheHelperTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun boundedCopyAcceptsExactlyTheLimitAndRejectsAnExtraByte() {
+        for (limit in listOf(0, 1, 4096, 4097)) {
+            val bytes = ByteArray(limit) { 7 }
+            val output = ByteArrayOutputStream()
+            CacheHelper.writeInputStreamToOutputStream(ByteArrayInputStream(bytes), output, limit.toLong())
+            assertEquals(limit, output.size())
+            try {
+                CacheHelper.writeInputStreamToOutputStream(
+                    ByteArrayInputStream(ByteArray(limit + 1)), ByteArrayOutputStream(), limit.toLong()
+                )
+                fail("Expected bytes beyond the limit to be rejected")
+            } catch (expected: IOException) {
+                // Expected.
+            }
+        }
+    }
+
+    @Test
+    fun boundedCopyRejectsNegativeLimitsWithoutWriting() {
+        val output = ByteArrayOutputStream()
+        try {
+            CacheHelper.writeInputStreamToOutputStream(ByteArrayInputStream(byteArrayOf(1)), output, Long.MIN_VALUE)
+            fail("Expected a negative limit to be rejected")
+        } catch (expected: IOException) {
+            assertEquals(0, output.size())
+        }
+    }
 
     @Test
     fun cacheStreamsAllowSafeComponents() {
