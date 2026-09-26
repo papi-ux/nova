@@ -25,11 +25,37 @@ it is not a second, independent installation. Keep a copy of the previous bundle
 before testing an upgrade. Android's separate beta application ID does not apply
 to the Linux Flatpak.
 
-The release workflow currently builds the regular, PyroWave-disabled manifest.
-A beta intended to include PyroWave must explicitly build and verify the
-experimental manifest and a matching enabled Polaris package. A beta tag alone
-does not enable the codec. Check the source revision, dependency pins and build
-options of the actual bundles before comparing results.
+Releases built with the separate-asset workflow attach
+`Nova-Linux-PyroWave-x86_64-alpha.flatpak` and its `.sha256` sidecar beside the
+standard `Nova-Linux-x86_64-alpha.flatpak`. Check the selected release's asset list:
+older releases, including v1.4.13-beta.3, only attached the standard bundle.
+A beta tag alone does not enable the codec.
+
+Download the experimental bundle and its checksum from the same release, then
+run these commands in that download directory with Nova closed:
+
+```sh
+sha256sum -c Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
+flatpak install --user ./Nova-Linux-PyroWave-x86_64-alpha.flatpak
+flatpak run com.papi_ux.Nova --standalone
+```
+
+This replaces the standard app while retaining its pairing and preferences.
+It is an explicit experimental bundle, with no automatic stable or beta update
+feed. Select **PyroWave · Experimental** in Play Setup and use the normal
+**Desktop** destination with a compatible Polaris host.
+
+To return, close Nova, download the standard bundle and checksum from the same
+release, verify and reinstall it:
+
+```sh
+sha256sum -c Nova-Linux-x86_64-alpha.flatpak.sha256
+flatpak install --user ./Nova-Linux-x86_64-alpha.flatpak
+```
+
+Keep app data; do not uninstall with `--delete-data`. Check release notes before
+installing an older version. These packages share an app ID, so they cannot be
+installed side by side like the Android beta app.
 
 ## Rendering limits
 
