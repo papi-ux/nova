@@ -91,7 +91,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure
-        run: cmake -S clients/deck -B build-deck -G Ninja
+        run: cmake -S clients/deck -B build-deck -G Ninja -DNOVA_DECK_BUILD_VULKAN_STREAM=ON -DNOVA_DECK_BUILD_HDR_VALIDATION=ON
 
       - name: Check Linux update feed preparation
         run: python3 -m unittest tools.test_nova_flatpak_feed

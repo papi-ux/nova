@@ -1184,10 +1184,11 @@ polls report completion, and teardown drains pending work. VAAPI import requests
 direct DRM_PRIME mapping; combined layers and invalid plane/object bounds are
 refused before libplacebo import. Physical zero-copy behavior remains unverified.
 
-The optional build needs libplacebo 7.349 or newer, Vulkan and libavformat in
-addition to the normal dependencies. The default app/packaging dependency set is
-unchanged. The color backend now also has the separate Vulkan window described
-below; it is not yet connected to the native streaming screen.
+The optional native build needs libplacebo 7.349 or newer, Vulkan and libavformat
+in addition to the normal dependencies. Both Flatpak manifests now package the
+opt-in Vulkan stream UI and pin libplacebo; the normal launcher keeps the
+OpenGL/EGL presenter. The Vulkan session integration described below remains
+SDR-only; packaging the renderer does not enable live HDR negotiation.
 
     cmake -S clients/deck -B build/deck -DNOVA_DECK_BUILD_HDR_VALIDATION=ON
     cmake --build build/deck -j6

@@ -26,6 +26,23 @@ PipeWire audio output. This exposes the default PipeWire socket, not the whole
 runtime directory. Packaging this audio backend does not establish standalone
 Deck release readiness.
 
+Both manifests also include the opt-in Vulkan stream presenter and a pinned
+libplacebo build. The normal launcher continues to use the OpenGL/EGL presenter.
+To exercise the Vulkan path in a development bundle:
+
+    flatpak run com.papi_ux.Nova --standalone --experimental-vulkan-stream
+
+This is still an experimental SDR streaming path. Main10 decoding and synthetic
+HDR renderer tests do not enable live HDR negotiation or prove HDR output on a
+display. HDR stream selection, compositor/output metadata and installed OLED
+HDR90 acceptance remain tracked in
+[P14](../../../../docs/linux-objective-status.md).
+
+The KDE runtime supplies Vulkan, shaderc and FFmpeg; libplacebo is built from the
+commit pinned in `modules/libplacebo.json`. Its Jinja/MarkupSafe shader-generation
+sources are checksum-pinned build dependencies and are not installed in the app.
+No additional device or filesystem permission is required for this presenter.
+
 Optionally register Nova with Steam on a Linux device, with Steam closed
 (use Desktop Mode on Steam Deck):
 
