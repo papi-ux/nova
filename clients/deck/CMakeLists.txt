@@ -915,9 +915,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml"
                 NOVA_DECK_DOCTOR_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/doctor-v2.json")
             add_test(NAME nova_deck_native_preview_qml_test COMMAND nova_deck_native_preview_qml_test)
+            # The complete scenario sequence spends about 40 seconds in explicit
+            # event-loop settling waits. Leave room for Qt work on CI workers.
             set_tests_properties(nova_deck_native_preview_qml_test PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
-                TIMEOUT 45)
+                TIMEOUT 90)
             add_test(NAME nova_deck_qt_shell_smoke COMMAND nova-deck --smoke-exit)
             set_tests_properties(nova_deck_qt_shell_smoke PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
