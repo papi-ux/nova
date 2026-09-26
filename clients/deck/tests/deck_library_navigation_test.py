@@ -1218,7 +1218,15 @@ def keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window):
     fixture = fixtures["a"]
     def status(s=None):
         return (state() if s is None else s).get("playSetup", {}).get("hostDefaults", {}).get("status", {})
-    keys("Return", "Return")
+    keys("Return")
+    wait(lambda s: s.get("detailOpen") and s.get("focus") in ("game-detail-play", "game-detail-back"))
+    ready = wait(lambda s: s.get("detailOpen") and not s.get("busy") and s.get("launchEnabled"))
+    # A background refresh can disable Play as details open. Completion preserves
+    # Back focus; a second Return there would close details instead of reviewing.
+    if ready.get("focus") == "game-detail-back":
+        keys("Right")
+    wait(lambda s: s.get("focus") == "game-detail-play")
+    keys("Return")
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     keys("Down", "Down", "Down", "Return", "Down", "Down", "Return")
     wait(lambda s: s["playSetup"]["configuration"]["bitrateKbps"] == 40000 and not s["playSetup"]["choicesOpen"])
