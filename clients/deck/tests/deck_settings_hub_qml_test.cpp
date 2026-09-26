@@ -102,7 +102,10 @@ int main(int argc, char** argv) {
     const auto click = [&](const char* name) { item(name)->forceActiveFocus(); settle(); QTest::keyClick(window, Qt::Key_Return); settle(); };
     const auto key = [&](Qt::Key k) { QTest::keyClick(window, k); settle(); };
     const auto controllerBack = [&] { QMetaObject::invokeMethod(root.get(), "controllerBack"); settle(); };
-    const auto focused = [&](const char* name) { check(window->activeFocusItem() == item(name), name); };
+    const auto focused = [&](const char* name) {
+        auto* target = item(name);
+        check(target->isEnabled() && window->activeFocusItem() == target, name);
+    };
     const auto capture = [&](const char* name) { if (argc > 1) { QDir().mkpath(argv[1]); check(window->grabWindow().save(QString::fromLocal8Bit(argv[1]) + "/" + name + ".png"), "capture failed"); } };
     const auto query = [&](const char* text) { auto* s = item("settings-search"); s->forceActiveFocus(); s->setProperty("text", text); settle(); };
     const auto within = [&](const char* name) { auto* p = item(name); const auto r = p->mapRectToScene(p->boundingRect()); check(r.top() >= 0 && r.bottom() <= window->height() && r.left() >= 0 && r.right() <= window->width(), "control outside window"); };
@@ -124,9 +127,26 @@ int main(int argc, char** argv) {
     // No updater backend leaves the Nova category empty. Directions and OK must
     // still reach a visible exit without a pointer or an invisible Clear action.
     root->setProperty("updatesAvailable", false); settle();
-    for (int i = 0; i < 7; ++i) key(Qt::Key_Down);
-    focused("settings-category-app"); key(Qt::Key_Return); key(Qt::Key_Right);
-    focused("settings-back"); key(Qt::Key_Left); focused("settings-category-app");
+    const std::pair<const char*, const char*> categoryEntries[] = {
+        {"settings-category-all", "settings-row-stream"},
+        {"settings-category-stream", "settings-row-stream"},
+        {"settings-category-audio", "settings-row-channels"},
+        {"settings-category-controls", "settings-row-face"},
+        {"settings-category-appearance", "settings-row-theme"},
+        {"settings-category-ingame", "settings-row-command"},
+        {"settings-category-pc", "settings-row-sync"},
+        {"settings-category-app", "settings-back"}
+    };
+    for (const auto& [category, first] : categoryEntries) {
+        focused(category); key(Qt::Key_Return); key(Qt::Key_Right);
+        focused(first); within(first); key(Qt::Key_Left); focused(category);
+        key(Qt::Key_Down);
+    }
+    // Empty results offer Clear, then return to the empty category's exit once
+    // the query is cleared. Neither action may focus an invisible control.
+    query("no matching setting"); key(Qt::Key_Down); focused("settings-search-clear");
+    key(Qt::Key_Return); focused("settings-search"); key(Qt::Key_Down); focused("settings-back");
+    key(Qt::Key_Left); focused("settings-category-app");
     key(Qt::Key_Right); focused("settings-back"); key(Qt::Key_Return);
     focused("open-settings");
     root->setProperty("updatesAvailable", true); settle();
@@ -316,7 +336,14 @@ int main(int argc, char** argv) {
     root->setProperty("updateState", updateState);
     click("settings-row-updates"); item("update-downloads")->forceActiveFocus(); settle(); within("update-downloads");
     check(!find(window->contentItem(), "update-automatic") && !find(window->contentItem(), "update-check"), "standalone bundle offered updates");
-    capture("updates-setup-960-large"); controllerBack(); focused("settings-row-updates"); controllerBack();
+    capture("updates-setup-960-large");
+    // Optional backend disappearance while its sheet is open must leave a
+    // usable focus target when Back restores the now-empty category.
+    root->setProperty("updatesAvailable", false); settle();
+    controllerBack(); focused("settings-back"); within("settings-back");
+    capture("settings-empty-960-large");
+    key(Qt::Key_Left); focused("settings-category-app");
+    key(Qt::Key_Right); focused("settings-back"); controllerBack(); focused("open-settings");
     check(settings.load("host", "game") == override && writes == 0, "hub changed game scope or host");
     DeckPlaySettings restarted(config.filePath("play.ini"));
     check(restarted.audioSettings()["playHostAudio"].toBool() && restarted.rumbleEnabled(), "device settings not persisted");
