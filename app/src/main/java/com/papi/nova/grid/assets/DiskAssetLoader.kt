@@ -8,7 +8,9 @@ import android.graphics.ImageDecoder
 import android.os.Build
 import com.papi.nova.LimeLog
 import com.papi.nova.utils.CacheHelper
+import java.io.BufferedOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 
@@ -114,24 +116,34 @@ class DiskAssetLoader(context: Context) {
     }
 
     fun populateCacheWithStream(tuple: CachedAppAssetLoader.LoaderTuple, input: InputStream) {
-        var success = false
+        var temporary: File? = null
         try {
-            CacheHelper.openCacheFileForOutput(
-                cacheDir,
-                "boxart",
-                tuple.computer.uuid,
-                tuple.app.appId.toString() + ".png"
-            ).use { output ->
+            val destination = try {
+                getFile(tuple.computer.uuid, tuple.app.appId)
+            } catch (e: IllegalArgumentException) {
+                throw IOException("Invalid cache destination", e)
+            }
+            val parent = destination.parentFile ?: throw IOException("Missing cache parent")
+            if (!parent.isDirectory && !parent.mkdirs() && !parent.isDirectory) {
+                throw IOException("Unable to create cache parent")
+            }
+
+            // Each writer owns a sibling file. Readers keep the previous cover until
+            // this stream has finished and closed; failed writers remove only their own file.
+            val pending = File.createTempFile(".${tuple.app.appId}-", ".tmp", parent)
+            temporary = pending
+            BufferedOutputStream(FileOutputStream(pending)).use { output ->
                 CacheHelper.writeInputStreamToOutputStream(input, output, MAX_ASSET_SIZE)
-                success = true
+            }
+            // Both paths share a directory, so Android's rename replaces the entry atomically.
+            if (!pending.renameTo(destination)) {
+                throw IOException("Unable to publish cached cover")
             }
         } catch (e: IOException) {
+            LimeLog.warning("Unable to populate cache with tuple: $tuple")
             e.printStackTrace()
         } finally {
-            if (!success) {
-                LimeLog.warning("Unable to populate cache with tuple: $tuple")
-                CacheHelper.deleteCacheFile(cacheDir, "boxart", tuple.computer.uuid, tuple.app.appId.toString() + ".png")
-            }
+            temporary?.delete()
         }
     }
 
