@@ -4,7 +4,8 @@ Source review on 2026-09-26 found one confirmed gap: without an updater backend,
 Nova's Settings category has no rows. Moving right focused the hidden Clear
 Search button. Empty categories now focus Back to Library; empty search results
 still focus the visible Clear action. Closing a child sheet uses the same
-fallback if its optional backend has disappeared.
+fallback if its optional backend has disappeared. An empty category explains
+the available exits instead of asking the player to clear a nonexistent search.
 
 This carries forward the implementation preserved in the closed preliminary
 controller-navigation PR. The expanded regression enters every category with
@@ -27,7 +28,8 @@ not physical controller acceptance or proof of every state combination.
 | Library, filtering and details | `qml/LibraryBrowser.qml`, `qml/Main.qml` | `tests/deck_library_navigation_test.py`: directional entry, detail/preview return, no search matches, restored selection, scrolling and visible focus |
 | Play Setup and choices | `qml/PlaySetup.qml`, `qml/NativeStreamPreview.qml` | `tests/deck_native_preview_qml_test.cpp` and the play-setup app route: choices, Back, adjusted/unsupported plans and return to Play |
 | Settings and child sheets | `qml/SettingsHub.qml` | `tests/deck_settings_hub_qml_test.cpp`: all categories, empty category/results, optional backend loss, row restoration, keyboard cancellation, failed persistence, resets and large text |
-| Game tools and host settings | `qml/ArtworkStudio.qml`, `qml/HostDefaults.qml`, `qml/Doctor.qml` | `tests/deck_game_tools_qml_test.cpp` plus the game-tools app route; unavailable host settings keep a route back |
+| Game tools and host settings | `qml/ArtworkStudio.qml`, `qml/HostDefaults.qml` | `tests/deck_game_tools_qml_test.cpp` plus the game-tools app route; the Settings fixture also checks that unavailable host settings keep a route back |
+| Doctor | `qml/Doctor.qml` | Preview fixture: tab entry, scrolling, refresh without stealing focus, report page, action/receipt states and Back to Command Center |
 | Command Center and ending play | `qml/NativeStreamPreview.qml` | Preview fixture: Continue, Disconnect, End Session confirmation, Players/Reassign, local overlay entry and restored focus |
 | Disconnect/error recovery | `qml/NativeStreamPreview.qml` | Preview fixture: connection cancellation, failure return, stale resume refusal and reconnect exit |
 

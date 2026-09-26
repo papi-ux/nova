@@ -349,7 +349,12 @@ Popup {
                     id: rows; objectName: "settings-rows"
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0
                     reserveScrollBarSpace: true; spacing: 10 * hub.unit
-                    Copy { visible: !hub.shown.length; text: "No settings found. Try another word or clear your search." }
+                    Copy {
+                        visible: !hub.shown.length
+                        text: search.text.trim().length
+                            ? "No settings found. Try another word or clear your search."
+                            : "No settings are available in this category. Choose another category or return to the library."
+                    }
                     Repeater {
                         id: rowItems; model: hub.shown
                         RowLayout {
