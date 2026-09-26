@@ -1,8 +1,8 @@
-# Deck product-readiness checklist
+# Nova Linux diagnostics product-readiness checklist
 
 This is the historical diagnostics-preview gate. The active supported-client
 release scope and Android parity inventory live in
-[Deck release parity](deck-release-parity.md). Passing this preview gate does
+[Nova Linux release parity](deck-release-parity.md). Passing this preview gate does
 not establish native video presentation, audio, input, standalone pairing or HDR.
 
 This checklist promotes the Deck diagnostics lane into a reusable product-readiness gate instead of another round of smoke-only cosmetics. Use it for every future diagnostics/read-only DTO card before claiming the shell is product-ready.

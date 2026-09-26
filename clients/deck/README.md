@@ -10,6 +10,9 @@ Release bundles use `Nova-Linux-x86_64-alpha.flatpak`; see the
 
 The [Linux client roadmap](../../docs/linux-client-roadmap.md) records the current
 implementation, tested compatibility and remaining gaps. The
+[current objective status](../../docs/linux-objective-status.md) maps imported
+objectives to present source and remaining work; consult it before treating any
+historical implementation note below as an open assignment. The
 [release parity checklist](../../docs/deck-release-parity.md) retains the Deck
 LCD/OLED, HDR90, product parity and physical acceptance requirements. This is an
 Alpha client; a successful build does not validate every Linux configuration.
