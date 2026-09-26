@@ -152,8 +152,8 @@ the standard path when it is not present.
 | ARMv7 | [Nova-Android-armeabi-v7a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk) | 32-bit ARM Android TV devices |
 | x86_64 | [Nova-Android-x86_64.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk) | Android x86_64 devices and emulators |
 
-The [quick-start guide](https://papi-ux.com/docs/nova/quickstart/) covers
-Obtainium, pairing methods, first-stream controls, and architecture selection.
+Guides: [Quick start](https://papi-ux.com/docs/nova/quickstart/) ·
+[Updates and beta releases](docs/updates.md).
 
 ### Nova Linux (Alpha)
 
