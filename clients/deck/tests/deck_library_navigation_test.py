@@ -24,7 +24,7 @@ def command(*args):
 
 def experience_navigation(wait, keys, state, save_capture, window):
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    focus_game_play(wait, keys)
     save_capture("android-game-details.png")
     keys("Return")
     wait(lambda s: s.get("nativePreviewOpen"))
@@ -132,7 +132,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("theme") == "high_contrast" and s.get("focus") == "game-42" and s.get("launchEnabled"))
     save_capture("library-high-contrast-large-960.png")
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    focus_game_play(wait, keys)
     action_y = state()["overview"]["playY"]
     save_capture("overview-high-contrast-large-960.png")
     assert not state()["overview"]["contentFits"]
@@ -206,9 +206,7 @@ def appearance_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: not s.get("appearanceOpen") and s.get("focus") == "library-appearance" and s.get("focusVisible"))
     keys("Escape", "Down")
     wait(lambda s: s.get("focus") == s.get("game") and s.get("launchEnabled"))
-    keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play" and s.get("launchEnabled"))
-    keys("Return")
+    open_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action" and s.get("focusVisible"))
     save_capture("appearance-play-setup-large-960.png")
     keys("Escape", "Escape", "Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
@@ -248,7 +246,7 @@ def stage_navigation(wait, keys, state, fixtures, save_capture, window):
     command("xdotool", "windowsize", window, "1280", "800")
     wait(lambda s: s.get("focus") == "gamestream-app-123" and s.get("selectionVisible"))
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    focus_game_play(wait, keys)
     keys("Escape")
     wait(lambda s: s.get("focus") == "gamestream-app-123" and s.get("selectionVisible") and s.get("scrollX", 0) > 0)
     save_capture("android-stage-scrolled.png")
@@ -261,8 +259,7 @@ def stage_navigation(wait, keys, state, fixtures, save_capture, window):
     save_capture("android-stage-review.png")
     keys("Return")
     wait(lambda s: s.get("detailOpen") and s.get("game") == "gamestream-app-7")
-    keys("Return")
-    wait(lambda s: s.get("nativePreviewOpen"))
+    activate_game_review(wait, keys)
     keys("Escape", "Escape")
     wait(lambda s: s.get("focus") == "gamestream-app-7" and not s.get("detailOpen"))
     review = state()["stageReviewCenter"]
@@ -350,7 +347,8 @@ def audio_settings_navigation(wait, keys, state, save_capture, window, settle):
     tap(state()["rumble"]["toggle"])
     wait(lambda s: not s["rumble"]["enabled"])
     command("xdotool", "windowsize", window, "1280", "800")
-    time.sleep(.2)
+    wait(lambda s: s.get("width") == 1280 and s.get("height") == 800)
+    settle()
     save_capture("rumble-settings-1280.png")
     assert state()["audio"]["settings"] == surround, "rumble reset changed audio"
     tap(state()["rumble"]["done"])
@@ -460,17 +458,21 @@ def open_game_review(wait, keys):
 
 
 def activate_game_review(wait, keys):
+    focus_game_play(wait, keys)
+    keys("Return")
+    wait(lambda s: s.get("nativePreviewOpen"))
+
+
+def focus_game_play(wait, keys):
     ready = wait(lambda s: s.get("detailOpen") and not s.get("busy") and s.get("launchEnabled"))
     # A background refresh can disable Play as details open. Completion preserves
     # Back focus; a second Return there would close details instead of reviewing.
     if ready.get("focus") == "game-detail-back":
         keys("Right")
     wait(lambda s: s.get("focus") == "game-detail-play")
-    keys("Return")
-    wait(lambda s: s.get("nativePreviewOpen"))
 
 
-def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window):
+def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window, settle):
     host = fixtures["a"]
 
     def review():
@@ -481,6 +483,8 @@ def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window):
         wait(lambda s: not s.get("nativePreviewOpen") and not s.get("detailOpen"))
 
     def resolution():
+        # Opening the popup can precede the editor's deferred layout.
+        settle()
         point = state()["playSetup"]["controls"]["resolution"]
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
         wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
@@ -546,18 +550,18 @@ def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("host") == "a" and not s.get("busy"))
 
 
-def launch_mode_navigation(wait, keys, state, fixtures, save_capture, window):
+def launch_mode_navigation(wait, keys, state, fixtures, save_capture, window, settle):
     host = fixtures["a"]
 
     def review():
-        keys("Return", "Return")
-        wait(lambda s: s.get("nativePreviewOpen"))
+        open_game_review(wait, keys)
 
     def close():
         keys("Escape", "Escape")
         wait(lambda s: not s.get("nativePreviewOpen") and not s.get("detailOpen"))
 
     def choose(index):
+        settle()
         before_click = state()
         point = before_click["playSetup"]["controls"]["launchMode"]
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
@@ -629,6 +633,7 @@ def launch_mode_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: len(s.get("launchPolicy", {}).get("allowed", [])) == 6 and not s.get("busy"))
     review()
     assert len(state()["playSetup"]["launchChoices"]) == 7, "full catalog lost a selectable mode"
+    settle()
     point = state()["playSetup"]["controls"]["launchMode"]
     command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
     wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
@@ -735,8 +740,7 @@ def automatic_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("title") == "Northern Lights — refreshed" and s.get("focus") == "gamestream-app-103"
          and not s.get("busy"))
 
-    keys("Return", "Return")
-    wait(lambda s: s.get("nativePreviewOpen") is True)
+    open_game_review(wait, keys)
     paused = len(a["requests"])
     time.sleep(1.05)
     assert len(a["requests"]) == paused, "native review did not pause polling"
@@ -809,7 +813,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
         wait(lambda s: s.get("focus") == s.get("game"))
 
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    focus_game_play(wait, keys)
     assert state()["metadata"]["labels"] == "Heroic · Windows · Wine"
     assert "2024" in state()["lastPlayedLabel"], "epoch seconds rendered as a 1970 date"
     save_capture("android-details-metadata.png")
@@ -991,8 +995,7 @@ def host_scope_navigation(wait, keys, state, fixtures, save_capture, window, set
         command("xdotool", "mousemove", str(p["x"]), str(p["y"]), "click", "1")
         settle()
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
-    keys("Return")
+    activate_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     original = state()["playSetup"]["configuration"]
     keys("Left", "Left", "Up")
@@ -1177,7 +1180,7 @@ def readability_navigation(wait, keys, state, save_capture, window):
         suffix = "-mono-large-" + str(width)
         clean("library" + suffix)
         keys("Return")
-        wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+        focus_game_play(wait, keys)
         clean("details" + suffix)
         keys("Right", "Right")
         wait(lambda s: s.get("focus") == "game-detail-shortcut" and s.get("focusVisible"))
@@ -1891,9 +1894,12 @@ def main():
                 config.write("\n[PolarisSync]\nv1\\" + hashlib.sha256(b"a").hexdigest() + "=pending\n")
         output = stack.enter_context(log.open("w"))
         auto_args = ["--frontend-smoke-library-refresh-ms", "800"] if args.automatic or args.filters or args.stage or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else []
+        # The filter route sends hundreds of keys, each acknowledged by Qt.
+        # Its old 42-second lifetime could end before the final host switch;
+        # retain the independent 70-second CTest deadline and per-state waits.
         app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.filters or args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
                                env=env, stdout=output, stderr=output)
 
         def state():
@@ -1968,9 +1974,11 @@ def main():
                 audio_settings_navigation(wait, keys, state, save_capture, window,
                                           lambda: wait_for_ui_observations(observation, app))
             elif args.stream_plan:
-                stream_plan_navigation(wait, keys, state, fixtures, save_capture, window)
+                stream_plan_navigation(wait, keys, state, fixtures, save_capture, window,
+                                       lambda: wait_for_ui_observations(observation, app))
             elif args.launch_modes:
-                launch_mode_navigation(wait, keys, state, fixtures, save_capture, window)
+                launch_mode_navigation(wait, keys, state, fixtures, save_capture, window,
+                                       lambda: wait_for_ui_observations(observation, app))
             elif args.polish:
                 polish_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.artwork:
