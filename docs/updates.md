@@ -104,8 +104,11 @@ the decoder to those clients.
 - **Nova Linux:** use a PyroWave-enabled build, made with the separate
   `com.papi_ux.Nova.pyrowave.json` manifest. The ordinary Linux Alpha Flatpak
   attached to **v1.4.13-beta.3** uses the standard manifest and does **not** contain
-  PyroWave. Look for an explicitly identified PyroWave package in a release;
-  being attached to a beta does not enable the codec.
+  PyroWave. Releases using the separate-asset workflow attach
+  `Nova-Linux-PyroWave-x86_64-alpha.flatpak` and its checksum beside the standard
+  bundle. Use that explicitly named package when present; a beta tag alone does
+  not enable the codec. It replaces the standard Linux app and has no automatic
+  stable/beta feed. Follow the [experimental install and return instructions](../clients/deck/docs/pyrowave.md#packaging-and-compatibility).
 
 In an enabled Nova Linux build, open a game's **Play Setup → Video Codec →
 PyroWave · Experimental**. The host and the Linux device's Vulkan decoder must

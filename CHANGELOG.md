@@ -8,7 +8,7 @@
 
 A new codec you can try on a wired link, a Desktop entry that answers for itself, and a Command Center that stays where you left it. Nova 1.4.13 is matched with Polaris 1.4.13.
 
-**PyroWave, a new codec (experimental, beta builds only)**
+**PyroWave on Android (experimental, beta builds only)**
 
 - Nova can decode PyroWave, an intra only wavelet codec that runs as plain Vulkan compute rather than on a hardware video decoder. A lost packet costs one frame instead of everything up to the next keyframe.
 - Pick it under Video codec in Play Setup. It appears only in a beta build, installed beside your stable Nova, and only a Polaris 1.4.13 host can serve it.
@@ -28,7 +28,11 @@ A new codec you can try on a wired link, a Desktop entry that answers for itself
 - It stays open when you change a setting, instead of closing and making you find your way back.
 - The Play Setup legend follows the card you are on by name rather than by position.
 
-**Nova for Steam Deck (Alpha)**
+**Nova Linux (Alpha)**
+
+- Releases built with the separate-asset workflow include `Nova-Linux-PyroWave-x86_64-alpha.flatpak` and its checksum for explicitly testing PyroWave. It replaces the standard Linux app under the same ID; reinstall `Nova-Linux-x86_64-alpha.flatpak` from the same release to return, keeping your app data. Older releases, including beta.3, did not attach this experimental bundle.
+- Choose **PyroWave · Experimental** in **Play Setup → Video Codec**, with a compatible Polaris host and the normal Desktop destination. This Linux route supports SDR 8-bit 4:2:0; HDR, 4:4:4 and Spaces are not supported. Auto does not choose the codec. Vulkan device compatibility, sustained performance and real stream quality still need device testing. The bundle has no automatic stable/beta feed.
+
 
 - It says what the host said. A refused launch now carries the host's own reason instead of a generic failure.
 - It ships Nova's own icon.
