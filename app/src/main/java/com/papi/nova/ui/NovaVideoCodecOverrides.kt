@@ -107,5 +107,6 @@ internal fun novaPlaySetupCodecRow(
             onSelect = { onSelect(value) },
         ) },
         overridden = selected != null,
+        optionsPerRow = 3,
     )
 }

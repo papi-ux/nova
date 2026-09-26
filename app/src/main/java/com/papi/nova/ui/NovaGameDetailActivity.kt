@@ -588,6 +588,9 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         fun reconcileEncoderBackend(settings: PolarisClientSettings): Boolean {
+            // PyroWave does not use this catalog. Keep the saved hardware backend until
+            // another codec selects it again, when the ordinary availability check applies.
+            if (effectiveCodec() == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) return false
             val available = NovaEncoderBackendOverrides.loadAvailable(
                 this@NovaGameDetailActivity,
                 currentGame,

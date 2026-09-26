@@ -879,6 +879,7 @@ internal data class NovaPlaySetupRowState(
      * the next launch should not look identical to one that is simply reporting.
      */
     val overridden: Boolean = false,
+    val optionsPerRow: Int = Int.MAX_VALUE,
 )
 
 /**

@@ -70,6 +70,16 @@ class NovaVideoCodecOverridesTest {
         assertEquals(FormatOption.FORCE_AV1, otherLaunch.videoFormat)
     }
 
+    @Test fun restoredExperimentalChoiceIsAppliedOnlyByAnExperimentalBuild() {
+        preferences.edit().putString("video_codec_override_4:host:uuid:game", "forcepyrowave").commit()
+        val launch = PreferenceConfiguration().apply { videoFormat = FormatOption.FORCE_HEVC }
+        NovaVideoCodecOverrides.applyToLaunch(context, Intent().putExtra(Game.EXTRA_PC_UUID, "host")
+            .putExtra(Game.EXTRA_APP_UUID, "game").putExtra(Game.EXTRA_APP_ID, 1), launch)
+        assertEquals(if (BuildConfig.EXPERIMENTAL_CODECS) FormatOption.FORCE_PYROWAVE else FormatOption.FORCE_HEVC,
+            launch.videoFormat)
+        assertEquals(BuildConfig.EXPERIMENTAL_CODECS, preferences.all.isNotEmpty())
+    }
+
     @Test fun missingIdentityAndWorkerContractsDoNotAcquireClientOverrides() {
         NovaVideoCodecOverrides.save(context, null, "game", 1, "forceh265")
         NovaVideoCodecOverrides.save(context, "host", WorkerLaunchContract.APP_UUID, WorkerLaunchContract.APP_ID, "forceh265")
