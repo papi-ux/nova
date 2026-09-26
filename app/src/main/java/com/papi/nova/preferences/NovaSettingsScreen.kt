@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -37,6 +38,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -1033,7 +1035,9 @@ internal fun NovaSelectDialogShell(
                 .border(1.dp, surfaces.panelBorder, NovaSettingsCardShape)
                 .padding(18.dp)
         ) {
-            title()
+            CompositionLocalProvider(LocalContentColor provides LocalNovaComposeColors.current.textPrimary) {
+                title()
+            }
             Spacer(Modifier.height(12.dp))
             Box(modifier = Modifier.weight(1f, fill = false)) {
                 text()
