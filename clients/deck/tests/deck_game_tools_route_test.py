@@ -354,6 +354,9 @@ def main():
                 assert not settings_writes
                 click(state()["playSetup"]["controls"]["everyGame"])
                 wait(lambda s: host_state(s).get("opened") and not host_state(s)["status"]["busy"])
+                # Host readiness arrives before the new mode rows finish layout.
+                # Read the button position after Qt has published fresh observations.
+                wait_for_ui_observations(observation, app)
                 click(host_state()["controls"]["editDefaults"]); focus("stream-profile-width")
                 for value in ("1920", "1200", "50", "22.5"):
                     type_number(value); keys("Down")
