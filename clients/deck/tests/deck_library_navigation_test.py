@@ -88,8 +88,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("artwork", {}).get("logoReady"))
     assert not state()["overview"]["usesLogo"] and state()["overview"]["playY"] == before["playY"]
     save_capture("overview-title-duration-1280.png")
-    keys("Return")
-    wait(lambda s: s.get("nativePreviewOpen"))
+    activate_game_review(wait, keys)
     keys("Escape")
     wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
     keys("Escape")
@@ -222,8 +221,17 @@ def appearance_navigation(wait, keys, state, save_capture, window):
 
 
 def stage_navigation(wait, keys, state, fixtures, save_capture, window):
-    keys("Up", "Up", "Up", "Return", "Return", "Return")
-    wait(lambda s: s.get("layout") == "stage" and s.get("optionsOpen"))
+    # Observe each focus target before sending a command whose meaning depends on it.
+    # X11 delivery and fresh frames do not prove the popup has claimed keyboard focus.
+    for target in ("library-filter-all", "library-search", "library-options"):
+        keys("Up")
+        wait(lambda s: s.get("focus") == target and s.get("focusVisible"))
+    keys("Return")
+    wait(lambda s: s.get("optionsOpen") and s.get("focus") == "library-layout-option")
+    for layout in ("compact", "stage"):
+        keys("Return")
+        wait(lambda s: s.get("layout") == layout and s.get("optionsOpen")
+             and s.get("focus") == "library-layout-option")
     keys("Escape", "Down", "Down", "Down")
     wait(lambda s: s.get("focus") == "gamestream-app-42" and s.get("stageVisible")
          and s.get("stageTitle") == s.get("title") and s.get("selectionVisible"))
@@ -297,7 +305,7 @@ def stage_navigation(wait, keys, state, fixtures, save_capture, window):
          and s.get("layout") == "stage" and s.get("stageTitle") == "Moonlit Harbor b" and s.get("selectionVisible"))
 
 
-def audio_settings_navigation(wait, keys, state, save_capture, window):
+def audio_settings_navigation(wait, keys, state, save_capture, window, settle):
     def tap(point):
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
 
@@ -318,6 +326,8 @@ def audio_settings_navigation(wait, keys, state, save_capture, window):
     save_capture("audio-settings-1280.png")
     command("xdotool", "windowsize", window, "960", "600")
     wait(lambda s: s.get("width") == 960 and s.get("height") == 600)
+    # Window dimensions can update before the popup's controls finish moving.
+    settle()
     save_capture("audio-settings-960.png")
     tap(state()["audio"]["reset"])
     wait(lambda s: s["audio"]["settings"] == defaults)
@@ -443,12 +453,28 @@ def play_setup_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: s.get("focus") == "gamestream-app-7" and not s.get("nativePreviewOpen"))
 
 
+def open_game_review(wait, keys):
+    keys("Return")
+    wait(lambda s: s.get("detailOpen") and s.get("focus") in ("game-detail-play", "game-detail-back"))
+    activate_game_review(wait, keys)
+
+
+def activate_game_review(wait, keys):
+    ready = wait(lambda s: s.get("detailOpen") and not s.get("busy") and s.get("launchEnabled"))
+    # A background refresh can disable Play as details open. Completion preserves
+    # Back focus; a second Return there would close details instead of reviewing.
+    if ready.get("focus") == "game-detail-back":
+        keys("Right")
+    wait(lambda s: s.get("focus") == "game-detail-play")
+    keys("Return")
+    wait(lambda s: s.get("nativePreviewOpen"))
+
+
 def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window):
     host = fixtures["a"]
 
     def review():
-        keys("Return", "Return")
-        wait(lambda s: s.get("nativePreviewOpen"))
+        open_game_review(wait, keys)
 
     def close():
         keys("Escape", "Escape")
@@ -532,9 +558,24 @@ def launch_mode_navigation(wait, keys, state, fixtures, save_capture, window):
         wait(lambda s: not s.get("nativePreviewOpen") and not s.get("detailOpen"))
 
     def choose(index):
-        point = state()["playSetup"]["controls"]["launchMode"]
+        before_click = state()
+        point = before_click["playSetup"]["controls"]["launchMode"]
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
-        wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
+        try:
+            wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
+        except AssertionError as error:
+            # The timeout state only shows the final layout. Retain the state used
+            # to aim the click, without adding another observation or input delay.
+            diagnostics = {"window": window, "point": point,
+                "beforeClick": {key: before_click.get(key) for key in
+                    ("width", "height", "windowActive", "focus", "nativePreviewOpen", "playSetup")}}
+            for name, args in (("pointerAfterTimeout", ("getmouselocation", "--shell")),
+                               ("windowAfterTimeout", ("getwindowgeometry", "--shell", window))):
+                try:
+                    diagnostics[name] = command("xdotool", *args)
+                except (OSError, subprocess.SubprocessError) as probe_error:
+                    diagnostics[name] = f"Unavailable: {probe_error}"
+            raise AssertionError(f"Launch-mode click diagnostics: {json.dumps(diagnostics)}\n{error}") from error
         keys("Up", "Up", "Up")
         for _ in range(index):
             keys("Down")
@@ -1182,7 +1223,14 @@ def background_sync_navigation(wait, keys, state, fixtures, save_capture, window
     wait(lambda s: s.get("syncNeedsReview") and status(s).get("keepInStep") == "review")
     assert not sync()["opened"] and not fixture["settings_posts"], "existing profile was overwritten"
     command("xdotool", "windowsize", "--sync", window, "960", "600")
-    keys("Up", "Up", "Up")
+    wait(lambda s: s.get("width") == 960 and s.get("height") == 600)
+    for target in ("library-filter-all", "library-search"):
+        keys("Up")
+        wait(lambda s: s.get("focus") == target and s.get("focusVisible"))
+    # Review Sync is intentionally disabled during a library read. Wait for
+    # that read before navigating to and activating it.
+    wait(lambda s: not s.get("busy") and s.get("syncNeedsReview"))
+    keys("Up")
     wait(lambda s: s.get("focus") == "library-sync-review" and s.get("focusVisible"))
     save_capture("background-sync-review-large-960.png")
     keys("Return")
@@ -1205,6 +1253,10 @@ def background_sync_navigation(wait, keys, state, fixtures, save_capture, window
         wait(lambda s: s.get("focus") != focus)
     wait(lambda s: s.get("focus") == "host-profile-use" and s.get("focusVisible"))
     save_capture("background-sync-choose-large-960.png")
+    # A periodic settings read keeps focus on this action while disabling it.
+    wait(lambda s: s.get("focus") == "host-profile-use" and not status(s).get("busy")
+         and any(action.get("id") == "use" and action.get("enabled")
+                 for action in sync(s).get("profileActions", [])))
     keys("Return")
     wait(lambda s: status(s).get("keepInStep") == "on" and status(s).get("novaDisplay") == "1920x1080x30"
          and not status(s).get("busy"))
@@ -1218,7 +1270,7 @@ def keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window):
     fixture = fixtures["a"]
     def status(s=None):
         return (state() if s is None else s).get("playSetup", {}).get("hostDefaults", {}).get("status", {})
-    keys("Return", "Return")
+    open_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     keys("Down", "Down", "Down", "Return", "Down", "Down", "Return")
     wait(lambda s: s["playSetup"]["configuration"]["bitrateKbps"] == 40000 and not s["playSetup"]["choicesOpen"])
@@ -1913,7 +1965,8 @@ def main():
             elif args.appearance:
                 appearance_navigation(wait, keys, state, save_capture, window)
             elif args.audio_settings:
-                audio_settings_navigation(wait, keys, state, save_capture, window)
+                audio_settings_navigation(wait, keys, state, save_capture, window,
+                                          lambda: wait_for_ui_observations(observation, app))
             elif args.stream_plan:
                 stream_plan_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.launch_modes:
