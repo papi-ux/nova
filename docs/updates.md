@@ -102,6 +102,11 @@ the decoder to those clients.
   PyroWave. Look for an explicitly identified PyroWave package in a release;
   being attached to a beta does not enable the codec.
 
+In an enabled Nova Linux build, open a game's **Play Setup → Video Codec →
+PyroWave · Experimental**. The host and the Linux device's Vulkan decoder must
+both support it. Use the normal Desktop destination; PyroWave is unavailable in
+Spaces. Auto does not select PyroWave.
+
 Polaris v1.4.13-beta.3 includes the host encoder, selected by the client's request.
 For the first Linux test, use the supported SDR 4:2:0 profile on a fast wired
 local connection and confirm **PyroWave** in stream diagnostics. Decoder startup
