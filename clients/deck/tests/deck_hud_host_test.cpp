@@ -324,11 +324,15 @@ void liveTuningSaves() {
 void fixedBitrateSaves() {
     for (int scenario = 0; scenario < 16; ++scenario) {
         std::atomic<int> reads{0}, writes{0}, confirmations{0};
-        std::atomic<bool> committed{false};
+        std::atomic<bool> committed{false}, holdRead{false}, readBlocked{false};
         DeckHostTelemetry sample = parse(envelope()); sample.hostTuningAllowed = true; sample.livePresent = true;
         sample.live = DeckLiveTuningTelemetry{true, scenario != 3, "stable", QString(64, 'a'), "instance", "fixture-session", 1, 41, 20000, 14000, 20000};
         DeckHudHostObserver observer([&]() -> std::optional<DeckHudHostTarget> {
-            return DeckHudHostTarget{[&](const std::function<bool()>&) {
+            return DeckHudHostTarget{[&](const std::function<bool()>& stop) {
+                if (holdRead) {
+                    readBlocked = true;
+                    while (holdRead && !stop()) QThread::msleep(1);
+                }
                 auto next = sample; const int call = ++reads; next.live->sequence = call;
                 if (call >= 2) {
                     if (scenario == 4) next.hostTuningAllowed = false;
@@ -367,8 +371,13 @@ void fixedBitrateSaves() {
         }
         until([&] { return observer.snapshot().value("canSetBitrate").toBool(); });
         require(!observer.setFixedBitrate(999) && !observer.setFixedBitrate(300001), "out-of-range bitrate accepted");
+        // Hold the next worker read so this assertion observes an outstanding request,
+        // even when the mock could otherwise commit before the test thread runs again.
+        holdRead = true;
         require(observer.setFixedBitrate(15000), "valid fixed target rejected");
+        until([&] { return readBlocked.load(); });
         require(!observer.setFixedBitrate(16000) && !observer.setLiveTuningEnabled(false), "pending fixed target admitted a competing mutation");
+        holdRead = false;
         if (scenario == 1 || scenario == 2) {
             until([&] { return confirmations >= 1; });
             require(observer.snapshot().value("appliedBitrate") == "20.0M", "requested target painted as applied before acknowledgement");
