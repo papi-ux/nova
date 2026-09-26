@@ -522,7 +522,7 @@ class StreamSyncManager private constructor() {
             put(
                 json,
                 "preferred_codec",
-                preferredCodecOverride.takeIf { it in setOf("h264", "hevc", "av1", "pyrowave") }
+                preferredCodecOverride.takeIf { it in setOf("h264", "hevc", "av1") }
                     ?: preferredCodec(videoFormat, supportedVideoFormats)
             )
             if (streamDisplayMode.isNotBlank()) put(json, "stream_display_mode", streamDisplayMode)
