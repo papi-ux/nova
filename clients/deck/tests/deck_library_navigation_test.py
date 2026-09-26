@@ -88,8 +88,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("artwork", {}).get("logoReady"))
     assert not state()["overview"]["usesLogo"] and state()["overview"]["playY"] == before["playY"]
     save_capture("overview-title-duration-1280.png")
-    keys("Return")
-    wait(lambda s: s.get("nativePreviewOpen"))
+    activate_game_review(wait, keys)
     keys("Escape")
     wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
     keys("Escape")
@@ -222,8 +221,17 @@ def appearance_navigation(wait, keys, state, save_capture, window):
 
 
 def stage_navigation(wait, keys, state, fixtures, save_capture, window):
-    keys("Up", "Up", "Up", "Return", "Return", "Return")
-    wait(lambda s: s.get("layout") == "stage" and s.get("optionsOpen"))
+    # Observe each focus target before sending a command whose meaning depends on it.
+    # X11 delivery and fresh frames do not prove the popup has claimed keyboard focus.
+    for target in ("library-filter-all", "library-search", "library-options"):
+        keys("Up")
+        wait(lambda s: s.get("focus") == target and s.get("focusVisible"))
+    keys("Return")
+    wait(lambda s: s.get("optionsOpen") and s.get("focus") == "library-layout-option")
+    for layout in ("compact", "stage"):
+        keys("Return")
+        wait(lambda s: s.get("layout") == layout and s.get("optionsOpen")
+             and s.get("focus") == "library-layout-option")
     keys("Escape", "Down", "Down", "Down")
     wait(lambda s: s.get("focus") == "gamestream-app-42" and s.get("stageVisible")
          and s.get("stageTitle") == s.get("title") and s.get("selectionVisible"))
@@ -448,6 +456,10 @@ def play_setup_navigation(wait, keys, state, save_capture, window):
 def open_game_review(wait, keys):
     keys("Return")
     wait(lambda s: s.get("detailOpen") and s.get("focus") in ("game-detail-play", "game-detail-back"))
+    activate_game_review(wait, keys)
+
+
+def activate_game_review(wait, keys):
     ready = wait(lambda s: s.get("detailOpen") and not s.get("busy") and s.get("launchEnabled"))
     # A background refresh can disable Play as details open. Completion preserves
     # Back focus; a second Return there would close details instead of reviewing.
@@ -1196,7 +1208,14 @@ def background_sync_navigation(wait, keys, state, fixtures, save_capture, window
     wait(lambda s: s.get("syncNeedsReview") and status(s).get("keepInStep") == "review")
     assert not sync()["opened"] and not fixture["settings_posts"], "existing profile was overwritten"
     command("xdotool", "windowsize", "--sync", window, "960", "600")
-    keys("Up", "Up", "Up")
+    wait(lambda s: s.get("width") == 960 and s.get("height") == 600)
+    for target in ("library-filter-all", "library-search"):
+        keys("Up")
+        wait(lambda s: s.get("focus") == target and s.get("focusVisible"))
+    # Review Sync is intentionally disabled during a library read. Wait for
+    # that read before navigating to and activating it.
+    wait(lambda s: not s.get("busy") and s.get("syncNeedsReview"))
+    keys("Up")
     wait(lambda s: s.get("focus") == "library-sync-review" and s.get("focusVisible"))
     save_capture("background-sync-review-large-960.png")
     keys("Return")
