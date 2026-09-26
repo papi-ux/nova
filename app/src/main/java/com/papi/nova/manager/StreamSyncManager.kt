@@ -522,7 +522,7 @@ class StreamSyncManager private constructor() {
             put(
                 json,
                 "preferred_codec",
-                preferredCodecOverride.takeIf { it in setOf("h264", "hevc", "av1") }
+                preferredCodecOverride.takeIf { it in setOf("h264", "hevc", "av1", "pyrowave") }
                     ?: preferredCodec(videoFormat, supportedVideoFormats)
             )
             if (streamDisplayMode.isNotBlank()) put(json, "stream_display_mode", streamDisplayMode)
@@ -547,6 +547,7 @@ class StreamSyncManager private constructor() {
             videoFormat: PreferenceConfiguration.FormatOption?,
             supportedVideoFormats: Int
         ): String {
+            if (videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) return "pyrowave"
             if (videoFormat == PreferenceConfiguration.FormatOption.FORCE_AV1) return "av1"
             if (videoFormat == PreferenceConfiguration.FormatOption.FORCE_HEVC) return "hevc"
             if (videoFormat == PreferenceConfiguration.FormatOption.FORCE_H264) return "h264"

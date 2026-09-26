@@ -13,6 +13,31 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class NovaLaunchProfileSummaryTest {
     @Test
+    fun clientCodecChoiceUpdatesOnlyTheDisplayedPlan() {
+        val optimization = JSONObject("""{
+            "source":"deterministic_preset_v1",
+            "resolved_profile":{"policy_version":1,"preset":"auto","fields":{
+                "display_mode":{"value":"1280x720x60"},
+                "preferred_codec":{"value":"hevc"},"hdr":{"value":false}
+            }}
+        }""")
+        val original = optimization.toString()
+        val summary = buildNovaLaunchProfileSummary(optimization, clientCodecLabel = "PyroWave")!!
+        assertTrue(summary.selectedLine.contains("PyroWave (client choice)"))
+        assertFalse(summary.selectedLine.contains("HEVC"))
+        assertEquals(original, optimization.toString())
+        assertTrue(buildNovaLaunchProfileSummary(optimization)!!.selectedLine.contains("HEVC"))
+
+        // An assigned Space keeps the host's exact media contract and its displayed codec.
+        optimization.put("source", "worker_profile_v1")
+        optimization.getJSONObject("resolved_profile").getJSONObject("fields")
+            .getJSONObject("preferred_codec").put("value", "h264")
+        val worker = buildNovaLaunchProfileSummary(optimization, spaceName = "Space", clientCodecLabel = "PyroWave")!!
+        assertTrue(worker.selectedLine.contains("H264"))
+        assertFalse(worker.selectedLine.contains("PyroWave"))
+    }
+
+    @Test
     fun highFpsRecoverySummaryNamesEffectiveLaunchAndRetry() {
         val summary = buildNovaLaunchProfileSummary(
             JSONObject(
