@@ -208,8 +208,11 @@ def main():
                 keys("Down", "Return", "Down", "Down", "Return")
                 wait(lambda s: s.get("fontScale") == 1.3 and s.get("focus") == "settings-row-text")
                 command("xdotool", "windowsize", window, "960", "600")
-                wait(lambda s: s.get("focusVisible") and hub(s).get("width") == 960 and hub(s).get("height") == 600)
-                assert hub()["back"]["x"] < 960 and hub()["back"]["y"] < 600
+                # The popup dimensions can update before its child layout. Wait for the same
+                # observation to show both the resized hub and its reachable Back button.
+                wait(lambda s: s.get("focusVisible") and hub(s).get("width") == 960 and hub(s).get("height") == 600
+                     and 0 <= hub(s).get("back", {}).get("x", 960) < 960
+                     and 0 <= hub(s).get("back", {}).get("y", 600) < 600)
                 capture_dir = os.environ.get("NOVA_DECK_SETTINGS_CAPTURE_DIR")
                 if capture_dir:
                     Path(capture_dir).mkdir(parents=True, exist_ok=True)
