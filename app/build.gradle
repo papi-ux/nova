@@ -24,6 +24,38 @@ if (!(novaVersionSuffix ==~ /^-(pre|beta\.[0-9]+|rc\.[0-9]+)$/)) {
     throw new GradleException("novaVersionSuffix must be -pre, -beta.N or -rc.N")
 }
 
+// Bumped once per release, and the only version number here that is maintained by hand. Stable
+// reads it directly; the prerelease channel scales it, just below.
+def novaVersionCode = 54
+
+// Successive betas of one version have to be distinguishable, and the sequence has to keep rising
+// across versions as well, because com.papi.nova.pre is a single application id: 1.4.14-beta.1 must
+// outrank 1.4.13-beta.3. Adding the beta number to the base cannot do that. The base climbs by one
+// per release while the beta count can climb further, so 1.4.14's base + 1 lands below 1.4.13's
+// base + 3 and Android refuses the newer beta as a downgrade. Scaling the base gives every version
+// its own block of a hundred codes instead:
+//
+//   -pre      base * 100          an untagged build, below every tagged beta of the same version
+//   -beta.N   base * 100 + N      N is 1..49
+//   -rc.N     base * 100 + 50 + N an rc always outranks every beta of its own version
+//
+// Deriving rather than hand-bumping is the point: a forgotten bump is what made beta.2 and beta.3
+// both ship code 54, and every version pin stays at the plain version, which the channel design
+// already relies on.
+def novaPreReleaseChannelOrdinal = 0
+def novaSuffixMatch = novaVersionSuffix =~ /^-(beta|rc)\.([0-9]+)$/
+if (novaSuffixMatch.matches()) {
+    def novaChannel = novaSuffixMatch.group(1)
+    def novaChannelNumber = novaSuffixMatch.group(2).toInteger()
+    // Past 49 the beta and rc bands would collide and an rc would stop outranking the betas.
+    if (novaChannelNumber < 1 || novaChannelNumber > 49) {
+        throw new GradleException(
+                "novaVersionSuffix number must be 1..49, got ${novaChannelNumber} in ${novaVersionSuffix}")
+    }
+    novaPreReleaseChannelOrdinal = novaChannel == "rc" ? 50 + novaChannelNumber : novaChannelNumber
+}
+def novaPreReleaseVersionCode = novaVersionCode * 100 + novaPreReleaseChannelOrdinal
+
 // Optional observer for audio socket timing; ordinary builds keep the original source.
 def audioReceiveDiagnosticsValue = providers.gradleProperty("novaAudioReceiveDiagnostics").getOrElse("false")
 if (!(audioReceiveDiagnosticsValue in ["true", "false"])) {
@@ -135,7 +167,9 @@ android {
         targetSdk 36
 
         versionName "1.4.13"
-        versionCode = 54
+        // Stable's code stays a hand-maintained pin, bumped once per release. The prerelease
+        // channel derives from it; see novaPreReleaseVersionCode above.
+        versionCode = novaVersionCode
 
         buildConfigField "boolean", "FDROID_BUILD", fdroidBuild.toString()
 
@@ -377,6 +411,16 @@ android {
             // resource tables do not fit in it: the suite lost a different test to
             // "OutOfMemoryError: Java heap space" on three CI runs in one day.
             maxHeapSize = '2g'
+        }
+    }
+}
+
+// Build types cannot carry a versionCode, so the prerelease channel's derived code is applied to
+// the variant outputs instead. Only preRelease is touched: stable, dirty and benchmark keep the pin.
+androidComponents {
+    onVariants(selector().withBuildType("preRelease")) { variant ->
+        variant.outputs.each { output ->
+            output.versionCode.set(novaPreReleaseVersionCode)
         }
     }
 }

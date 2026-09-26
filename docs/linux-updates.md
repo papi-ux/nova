@@ -1,5 +1,9 @@
 # Nova updates on Linux
 
+For player-facing beta opt-in, Android updates and Linux channel selection, see
+[Nova updates and beta releases](updates.md). This page also covers preparing
+and publishing the signed Linux update feed.
+
 The Linux app has **Settings → Nova → Nova Updates**. Channel builds can check
 for a new version, install it, and show when Nova needs reopening. Automatic
 installation is off initially. When enabled, it waits for 15 seconds without a

@@ -142,7 +142,15 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     save_capture("overview-scrolled-large-960.png")
     keys("Down")
     wait(lambda s: s.get("focus") == "game-detail-play")
-    command("xdotool", "mousemove", "--window", window, "400", "250", "click", "--repeat", "2", "4")
+    command("xdotool", "mousemove", "--window", window, "400", "250")
+    # Wheel distance depends on the Qt/font configuration. Require every tick
+    # to move upward, and reach the top without assuming two ticks cover it.
+    for _ in range(8):
+        previous_scroll = state()["overview"]["scroll"]
+        if previous_scroll <= 0:
+            break
+        command("xdotool", "click", "4")
+        wait(lambda s: s["overview"]["scroll"] < previous_scroll)
     wait(lambda s: s["overview"]["scroll"] <= 0)
     command("xdotool", "click", "--repeat", "2", "5")
     wait(lambda s: s["overview"]["scroll"] > 0)
