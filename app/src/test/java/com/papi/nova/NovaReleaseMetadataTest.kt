@@ -92,7 +92,25 @@ class NovaReleaseMetadataTest {
             File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
                 .contains("<release version=\"1.4.13\" date=\"2026-09-24\"/>")
         )
-        assertTrue(build.contains("versionCode = 54"))
+        // Stable's code is still a hand-maintained pin, and still 54, because the store notes above
+        // are filed under that number. It now has a name so the prerelease derivation can read it
+        // rather than repeat it.
+        assertTrue(build.contains("def novaVersionCode = 54"))
+        assertTrue(build.contains("versionCode = novaVersionCode"))
+
+        // A beta's code is derived from that pin, because beta.2 and beta.3 both shipped 54 when it
+        // was hand-written and no package manager could tell them apart. The scheme scales the base
+        // rather than adding to it: com.papi.nova.pre is one application id for every prerelease, so
+        // the next version's first beta has to outrank this version's last rc, and base + N cannot
+        // guarantee that when the base only climbs by one per release.
+        assertTrue(build.contains("def novaPreReleaseVersionCode = novaVersionCode * 100 + novaPreReleaseChannelOrdinal"))
+        assertTrue(build.contains("novaChannel == \"rc\" ? 50 + novaChannelNumber : novaChannelNumber"))
+        // Past 49 the beta and rc bands collide and an rc stops outranking the betas.
+        assertTrue(build.contains("novaChannelNumber < 1 || novaChannelNumber > 49"))
+        // A build type cannot carry a versionCode, so it is applied to the variant outputs, and only
+        // for preRelease: stable, dirty and benchmark keep the pin.
+        assertTrue(build.contains("onVariants(selector().withBuildType(\"preRelease\"))"))
+        assertTrue(build.contains("output.versionCode.set(novaPreReleaseVersionCode)"))
         assertTrue(changelog.contains("## 1.4.13 - 2026-09-24"))
         assertTrue(changelog.contains("Steam Input remains manual and read-only."))
         assertTrue(changelog.contains("Polaris owns encoder probing, fallback, and launch policy"))
