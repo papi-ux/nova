@@ -132,7 +132,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("theme") == "high_contrast" and s.get("focus") == "game-42" and s.get("launchEnabled"))
     save_capture("library-high-contrast-large-960.png")
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    focus_game_play(wait, keys)
     action_y = state()["overview"]["playY"]
     save_capture("overview-high-contrast-large-960.png")
     assert not state()["overview"]["contentFits"]
@@ -206,9 +206,7 @@ def appearance_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: not s.get("appearanceOpen") and s.get("focus") == "library-appearance" and s.get("focusVisible"))
     keys("Escape", "Down")
     wait(lambda s: s.get("focus") == s.get("game") and s.get("launchEnabled"))
-    keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play" and s.get("launchEnabled"))
-    keys("Return")
+    open_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action" and s.get("focusVisible"))
     save_capture("appearance-play-setup-large-960.png")
     keys("Escape", "Escape", "Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
@@ -460,14 +458,18 @@ def open_game_review(wait, keys):
 
 
 def activate_game_review(wait, keys):
+    focus_game_play(wait, keys)
+    keys("Return")
+    wait(lambda s: s.get("nativePreviewOpen"))
+
+
+def focus_game_play(wait, keys):
     ready = wait(lambda s: s.get("detailOpen") and not s.get("busy") and s.get("launchEnabled"))
     # A background refresh can disable Play as details open. Completion preserves
     # Back focus; a second Return there would close details instead of reviewing.
     if ready.get("focus") == "game-detail-back":
         keys("Right")
     wait(lambda s: s.get("focus") == "game-detail-play")
-    keys("Return")
-    wait(lambda s: s.get("nativePreviewOpen"))
 
 
 def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window):
@@ -550,8 +552,7 @@ def launch_mode_navigation(wait, keys, state, fixtures, save_capture, window):
     host = fixtures["a"]
 
     def review():
-        keys("Return", "Return")
-        wait(lambda s: s.get("nativePreviewOpen"))
+        open_game_review(wait, keys)
 
     def close():
         keys("Escape", "Escape")
@@ -1177,7 +1178,7 @@ def readability_navigation(wait, keys, state, save_capture, window):
         suffix = "-mono-large-" + str(width)
         clean("library" + suffix)
         keys("Return")
-        wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+        focus_game_play(wait, keys)
         clean("details" + suffix)
         keys("Right", "Right")
         wait(lambda s: s.get("focus") == "game-detail-shortcut" and s.get("focusVisible"))
