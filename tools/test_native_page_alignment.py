@@ -9,9 +9,11 @@ import zipfile
 from tools.check_native_page_alignment import (
     REQUIRED_ALIGNMENT,
     NotAnElf,
+    ELFCLASS32,
+    ELFCLASS64,
     failures_for_image,
     failures_for_path,
-    load_segment_alignments,
+    read_elf,
 )
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -61,7 +63,7 @@ class PrebuiltAlignmentTest(unittest.TestCase):
             if not library.is_file():
                 continue
             checked += 1
-            alignments = load_segment_alignments(library.read_bytes())
+            _, alignments = read_elf(library.read_bytes())
             self.assertTrue(alignments, "%s has no PT_LOAD segments" % abi)
             self.assertFalse(
                 [a for a in alignments if a < REQUIRED_ALIGNMENT],
@@ -77,21 +79,42 @@ class CheckerTest(unittest.TestCase):
     can silently accept everything. These cases pin both answers."""
 
     def test_rejects_4k_and_accepts_16k(self):
-        self.assertTrue(failures_for_image("small.so", synthetic_elf(0x1000)))
-        self.assertFalse(failures_for_image("big.so", synthetic_elf(0x4000)))
+        self.assertTrue(failures_for_image("small.so", synthetic_elf(0x1000))[0])
+        self.assertFalse(failures_for_image("big.so", synthetic_elf(0x4000))[0])
 
-    def test_rejects_4k_on_32_bit_and_big_endian(self):
-        self.assertTrue(failures_for_image("arm.so", synthetic_elf(0x1000, elf_class=1)))
-        self.assertFalse(failures_for_image("arm.so", synthetic_elf(0x4000, elf_class=1)))
-        self.assertTrue(failures_for_image("be.so", synthetic_elf(0x1000, little_endian=False)))
+    def test_32_bit_is_exempt_and_the_exemption_is_reported(self):
+        """This reverses what this file first asserted, which was that a 4 KB 32 bit image fails.
+
+        That was wrong, and CI proved it: the requirement is 64 bit only, because a device with 16 KB
+        pages runs no 32 bit code, and ndk-build links armeabi-v7a at 4 KB accordingly. Demanding it
+        there failed the whole release APK job on libmoonlight-core.so and libpyrowave-jni.so, for a
+        configuration that cannot exist. It is skipped rather than passed so the exemption is visible.
+        """
+        problems, note = failures_for_image("arm.so", synthetic_elf(0x1000, elf_class=1))
+        self.assertFalse(problems)
+        self.assertIn("32 bit", note)
+
+    def test_the_32_bit_parser_is_still_exercised(self):
+        """The exemption returns before reading alignments, so without this the 32 bit program header
+        layout would no longer be covered by anything and could rot unnoticed."""
+        elf_class, alignments = read_elf(synthetic_elf(0x1000, elf_class=1))
+        self.assertEqual(elf_class, ELFCLASS32)
+        self.assertEqual(alignments, [0x1000])
+        elf_class, alignments = read_elf(synthetic_elf(0x4000, elf_class=1))
+        self.assertEqual(elf_class, ELFCLASS32)
+        self.assertEqual(alignments, [0x4000])
+
+    def test_rejects_4k_on_big_endian_64_bit(self):
+        self.assertTrue(failures_for_image("be.so", synthetic_elf(0x1000, little_endian=False))[0])
+        self.assertEqual(read_elf(synthetic_elf(0x4000, little_endian=False))[0], ELFCLASS64)
 
     def test_a_larger_alignment_is_acceptable(self):
-        self.assertFalse(failures_for_image("huge.so", synthetic_elf(0x10000)))
+        self.assertFalse(failures_for_image("huge.so", synthetic_elf(0x10000))[0])
 
     def test_refuses_a_file_that_is_not_an_elf(self):
-        self.assertTrue(failures_for_image("text", b"this is not an ELF image at all, by any measure"))
+        self.assertTrue(failures_for_image("text", b"this is not an ELF image at all, by any measure")[0])
         with self.assertRaises(NotAnElf):
-            load_segment_alignments(b"short")
+            read_elf(b"short")
 
     def test_an_elf_with_no_load_segments_is_a_failure(self):
         endian = "<"
@@ -99,7 +122,7 @@ class CheckerTest(unittest.TestCase):
         header = bytearray(ident + struct.pack(endian + "HHI", 3, 0xB7, 1))
         header += struct.pack(endian + "QQQ", 0, 0x40, 0)
         header += struct.pack(endian + "IHHHHHH", 0, 0x40, 0x38, 0, 0, 0, 0)
-        self.assertTrue(failures_for_image("empty.so", bytes(header[:0x40])))
+        self.assertTrue(failures_for_image("empty.so", bytes(header[:0x40]))[0])
 
     def test_reads_every_native_library_inside_an_apk(self):
         buffer = io.BytesIO()
@@ -110,9 +133,26 @@ class CheckerTest(unittest.TestCase):
         path = pathlib.Path(self.enterContext(__import__("tempfile").TemporaryDirectory())) / "t.apk"
         path.write_bytes(buffer.getvalue())
 
-        problems = failures_for_path(str(path))
+        problems, skipped = failures_for_path(str(path))
         self.assertEqual(len(problems), 1, problems)
         self.assertIn("bad.so", problems[0])
+        self.assertFalse(skipped)
+
+    def test_a_32_bit_library_does_not_excuse_a_bad_64_bit_one(self):
+        """The shape of a real APK: armeabi-v7a is skipped, and a misaligned arm64 library in the same
+        archive still fails. The exemption must not turn the whole check off."""
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("lib/armeabi-v7a/libmoonlight-core.so", synthetic_elf(0x1000, elf_class=1))
+            archive.writestr("lib/arm64-v8a/libmoonlight-core.so", synthetic_elf(0x1000))
+        path = pathlib.Path(self.enterContext(__import__("tempfile").TemporaryDirectory())) / "m.apk"
+        path.write_bytes(buffer.getvalue())
+
+        problems, skipped = failures_for_path(str(path))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("arm64-v8a", problems[0])
+        self.assertEqual(len(skipped), 1, skipped)
+        self.assertIn("armeabi-v7a", skipped[0])
 
     def test_an_apk_with_no_native_libraries_is_reported(self):
         buffer = io.BytesIO()
@@ -120,7 +160,7 @@ class CheckerTest(unittest.TestCase):
             archive.writestr("classes.dex", b"nothing native here")
         path = pathlib.Path(self.enterContext(__import__("tempfile").TemporaryDirectory())) / "e.apk"
         path.write_bytes(buffer.getvalue())
-        self.assertTrue(failures_for_path(str(path)))
+        self.assertTrue(failures_for_path(str(path))[0])
 
 
 if __name__ == "__main__":
