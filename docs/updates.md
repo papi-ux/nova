@@ -87,3 +87,24 @@ keeping the app data, and never use `--delete-data` as an update step.
 
 For installation and Steam shortcuts, see the
 [Nova Linux install guide](../clients/deck/packaging/flatpak/README.md).
+
+## Test PyroWave
+
+PyroWave needs a compatible client decoder as well as a host encoder. Standard
+Moonlight clients cannot use it, and Polaris has no frontend switch that adds
+the decoder to those clients.
+
+- **Nova Android beta:** with a compatible Polaris host, select **Play Setup →
+  Video codec → PyroWave (experimental)**. Auto does not select this codec.
+- **Nova Linux:** use a PyroWave-enabled build, made with the separate
+  `com.papi_ux.Nova.pyrowave.json` manifest. The ordinary Linux Alpha Flatpak
+  attached to **v1.4.13-beta.3** uses the standard manifest and does **not** contain
+  PyroWave. Look for an explicitly identified PyroWave package in a release;
+  being attached to a beta does not enable the codec.
+
+Polaris v1.4.13-beta.3 includes the host encoder, selected by the client's request.
+For the first Linux test, use the supported SDR 4:2:0 profile on a fast wired
+local connection and confirm **PyroWave** in stream diagnostics. Decoder startup
+checks alone do not prove a streamed image, audio, input, HDR, or sustained frame
+rate. The [Polaris PyroWave guide](https://papi-ux.com/docs/pyrowave/) describes
+host and client requirements.
