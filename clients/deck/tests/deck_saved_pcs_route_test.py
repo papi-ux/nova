@@ -66,15 +66,15 @@ with tempfile.TemporaryDirectory(prefix='nova-management-cycle-') as folder:
             raise AssertionError(f'Window {title!r} not found: {log.read_text()}')
         try:
             for _ in range(2):
-                library = window('^Nova Deck$')
+                library = window('^Nova Linux$')
                 command('xdotool','windowfocus','--sync',library)
                 command('xdotool','key','Left','Left','Return','Down','Return')
                 manager = window('Saved PCs')
                 command('xdotool','windowfocus','--sync',manager)
                 command('xdotool','key','Escape')
-                window('^Nova Deck$')
+                window('^Nova Linux$')
                 assert json.loads(path.read_text()) == identity, 'navigation changed saved identity'
-            library = window('^Nova Deck$')
+            library = window('^Nova Linux$')
             command('xdotool','windowfocus','--sync',library)
             command('xdotool','key','Left','Left','Return','Down','Return')
             manager = window('Saved PCs')

@@ -156,13 +156,13 @@ DECODE_UNIT makeDecodeUnit(std::vector<std::uint8_t>& annexBBytes, LENTRY& entry
 bool waitForRenderPasses(QGuiApplication& app, QQuickWindow& window, nova::deck::stream::DeckQtQuickRhiVaapiItem& vaapiItem, int expectedPasses) {
     QElapsedTimer timer;
     timer.start();
-    while (timer.elapsed() < 5000 && recordedMessageCount("Nova Deck QSGRenderNode VAAPI/EGL render path") < expectedPasses) {
+    while (timer.elapsed() < 5000 && recordedMessageCount("Nova Linux QSGRenderNode VAAPI/EGL render path") < expectedPasses) {
         app.processEvents(QEventLoop::AllEvents, 50);
         window.requestUpdate();
         vaapiItem.update();
         QTimer::singleShot(0, &app, [] {});
     }
-    return recordedMessageCount("Nova Deck QSGRenderNode VAAPI/EGL render path") >= expectedPasses;
+    return recordedMessageCount("Nova Linux QSGRenderNode VAAPI/EGL render path") >= expectedPasses;
 }
 
 std::string environmentDetail(const QQuickWindow& window, const nova::deck::stream::DeckRendererLifecycle& lifecycle) {
@@ -191,12 +191,12 @@ int main(int argc, char** argv) {
 
     const DeckLinuxMediaProbe mediaProbe = DeckLinuxMediaProbe::detect();
     if (!mediaProbe.runtimeVaapiDeviceAvailable) {
-        std::cout << "Nova Deck QSGRenderNode scenegraph smoke skipped: " << mediaProbe.runtimeStatus << '\n';
+        std::cout << "Nova Linux QSGRenderNode scenegraph smoke skipped: " << mediaProbe.runtimeStatus << '\n';
         return 77;
     }
 
     QQuickWindow window;
-    window.setTitle(QStringLiteral("Nova Deck QSGRenderNode scenegraph smoke"));
+    window.setTitle(QStringLiteral("Nova Linux QSGRenderNode scenegraph smoke"));
     window.resize(128, 72);
 
     auto vaapiItem = std::shared_ptr<DeckQtQuickRhiVaapiItem>(new DeckQtQuickRhiVaapiItem(), [](DeckQtQuickRhiVaapiItem* item) {
@@ -239,7 +239,7 @@ int main(int argc, char** argv) {
     if (!waitForRenderPasses(app, window, *vaapiItem, 2)) {
         std::cerr << "QSGRenderNode render path did not enter product render() for two consecutive local VAAPI frames; "
                   << environmentDetail(window, renderer.lifecycle()) << " renderPasses="
-                  << recordedMessageCount("Nova Deck QSGRenderNode VAAPI/EGL render path")
+                  << recordedMessageCount("Nova Linux QSGRenderNode VAAPI/EGL render path")
                   << "\nRecorded Qt messages:\n"
                   << joinedRecordedMessages();
         return 1;
@@ -269,9 +269,9 @@ int main(int argc, char** argv) {
     renderer.cleanup();
     vaapiItem->setParentItem(nullptr);
     vaapiItem.reset();
-    std::cout << "Nova Deck QSGRenderNode scenegraph smoke " << (provedReady ? "passed" : "skipped")
+    std::cout << "Nova Linux QSGRenderNode scenegraph smoke " << (provedReady ? "passed" : "skipped")
               << ": product render-node path entered "
-              << recordedMessageCount("Nova Deck QSGRenderNode VAAPI/EGL render path")
+              << recordedMessageCount("Nova Linux QSGRenderNode VAAPI/EGL render path")
               << " consecutive render passes; "
               << (provedReady ? "imported two DRM_PRIME layers, proved shader composition, then reported ready"
                               : "blocked with exact headless Qt scenegraph EGL/OpenGL capability detail")

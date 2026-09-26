@@ -15,24 +15,24 @@ import deck_gamemode_capture as harness
 class DeckGameModeCaptureHarnessTest(unittest.TestCase):
     def test_rejects_helpers_and_selects_1280x800_window(self):
         candidates = [
-            harness.WindowCandidate(window_id="0x01", name="Nova Deck helper", geometry=harness.Geometry(0, 0, 1, 1), pid=4100),
-            harness.WindowCandidate(window_id="0x02", name="Nova Deck", geometry=harness.Geometry(0, 0, 1280, 800), pid=4242),
+            harness.WindowCandidate(window_id="0x01", name="Nova Linux helper", geometry=harness.Geometry(0, 0, 1, 1), pid=4100),
+            harness.WindowCandidate(window_id="0x02", name="Nova Linux", geometry=harness.Geometry(0, 0, 1280, 800), pid=4242),
         ]
         selected = harness.select_nova_deck_window(candidates, expected_pid=4242)
         self.assertEqual(selected.window_id, "0x02")
 
     def test_fails_closed_when_two_plausible_windows_remain(self):
         candidates = [
-            harness.WindowCandidate(window_id="0x02", name="Nova Deck", geometry=harness.Geometry(0, 0, 1280, 800), pid=4242),
-            harness.WindowCandidate(window_id="0x03", name="Nova Deck", geometry=harness.Geometry(0, 0, 1280, 800), pid=4243),
+            harness.WindowCandidate(window_id="0x02", name="Nova Linux", geometry=harness.Geometry(0, 0, 1280, 800), pid=4242),
+            harness.WindowCandidate(window_id="0x03", name="Nova Linux", geometry=harness.Geometry(0, 0, 1280, 800), pid=4243),
         ]
         with self.assertRaisesRegex(harness.SelectionError, "ambiguous"):
             harness.select_nova_deck_window(candidates)
 
     def test_old_tail_selector_fixture_would_choose_wrong_window(self):
         candidates = [
-            harness.WindowCandidate(window_id="0x02", name="Nova Deck", geometry=harness.Geometry(0, 0, 1280, 800), pid=4242),
-            harness.WindowCandidate(window_id="0x01", name="Nova Deck helper", geometry=harness.Geometry(0, 0, 1, 1), pid=4100),
+            harness.WindowCandidate(window_id="0x02", name="Nova Linux", geometry=harness.Geometry(0, 0, 1280, 800), pid=4242),
+            harness.WindowCandidate(window_id="0x01", name="Nova Linux helper", geometry=harness.Geometry(0, 0, 1, 1), pid=4100),
         ]
         self.assertEqual(candidates[-1].geometry.width, 1)
         self.assertEqual(harness.select_nova_deck_window(candidates, expected_pid=4242).window_id, "0x02")

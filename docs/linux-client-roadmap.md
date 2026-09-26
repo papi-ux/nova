@@ -1,5 +1,10 @@
 # Nova Linux client roadmap
 
+Current execution map: [Nova Linux objective status](linux-objective-status.md),
+audited against staging on 2026-09-26. It separates present implementation, open
+PRs, residual gaps and installed acceptance for every L01–L08 and P01–P28 row.
+Use that map before selecting work from imported Nightly issues.
+
 Approved scope: 2026-09-23. Nova's native client targets Linux laptops, desktops
 and handhelds, with Steam Deck as a supported device profile. Work continues in
 `clients/deck/`; this scope change does not rename the package or application ID.
@@ -133,7 +138,11 @@ The local search slice (L07) is implemented locally:
   130% text. A live read-only Avahi query completed successfully. Flatpak adds
   the Avahi system-bus permission; Avahi 0.8+ must run on the Linux device.
 
-## Source audit and implementation order
+## Historical source audit and original implementation order
+
+The observations and instructions below describe the pre-implementation source.
+The slices above have since landed in staging. Do not repeat these assignments;
+use the current objective status and remaining acceptance matrix.
 
 Source baseline: [`c822632`](https://github.com/papi-ux/nova/commit/c822632), after
 the Alpha integration and host-refusal/icon fixes. These are source observations,

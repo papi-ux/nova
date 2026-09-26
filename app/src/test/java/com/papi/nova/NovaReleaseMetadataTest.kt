@@ -397,8 +397,8 @@ class NovaReleaseMetadataTest {
             "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256\"",
             "\"\${NOVA_ASSET_PREFIX}-x86_64.apk\"",
             "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
-            "Nova-Deck-x86_64-alpha.flatpak",
-            "Nova-Deck-x86_64-alpha.flatpak.sha256",
+            "Nova-Linux-x86_64-alpha.flatpak",
+            "Nova-Linux-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertConsecutive(stageLines, listOf(
@@ -433,8 +433,8 @@ class NovaReleaseMetadataTest {
             "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256\"",
             "\"\${NOVA_ASSET_PREFIX}-x86_64.apk\"",
             "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
-            "Nova-Deck-x86_64-alpha.flatpak",
-            "Nova-Deck-x86_64-alpha.flatpak.sha256",
+            "Nova-Linux-x86_64-alpha.flatpak",
+            "Nova-Linux-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertTrue(uploadLines.contains(
@@ -458,8 +458,8 @@ class NovaReleaseMetadataTest {
             "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256\"",
             "\"\${NOVA_ASSET_PREFIX}-x86_64.apk\"",
             "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
-            "Nova-Deck-x86_64-alpha.flatpak",
-            "Nova-Deck-x86_64-alpha.flatpak.sha256",
+            "Nova-Linux-x86_64-alpha.flatpak",
+            "Nova-Linux-x86_64-alpha.flatpak.sha256",
         )
         for (asset in exactAssetNames) {
             assertTrue(verifyLines.contains(asset))

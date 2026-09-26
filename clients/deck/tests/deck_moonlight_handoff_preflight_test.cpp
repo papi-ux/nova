@@ -70,7 +70,7 @@ void assertBlockedStatic(const DeckMoonlightHandoffPreflightResult& result) {
 }
 
 void assertFocusReturnUnproven(const DeckMoonlightFocusReturnPlan& plan) {
-    assert(plan.sourceSurface == "Nova Deck preview review");
+    assert(plan.sourceSurface == "Nova Linux preview review");
     assert(plan.intendedReturnTarget == "MacPapi Gaming Host / Black Myth: Wukong");
     assert(plan.confidence == "unproven_static");
     assert(contains(plan.fallbackCopy, "Return to Nova"));

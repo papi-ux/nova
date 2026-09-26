@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Nova
+Name=Nova Linux
 GenericName=Polaris game streaming client
-Comment=Your game library and streaming in Nova
+Comment=Stream your PC games to Linux desktops, laptops and handhelds
 Exec=nova-deck --standalone
 Icon=com.papi_ux.Nova
 Terminal=false
 Categories=Game;
-Keywords=Polaris;Moonlight;streaming;Steam Deck;
+Keywords=Polaris;Moonlight;streaming;Linux;handheld;Steam Deck;

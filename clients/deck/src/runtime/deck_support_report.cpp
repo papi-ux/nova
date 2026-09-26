@@ -89,7 +89,7 @@ QJsonObject deckSupportReport(const QVariantMap& hud) {
     doctor["evidence"] = evidence;
     const auto version = QCoreApplication::applicationVersion();
     return {{"kind", "nova-deck-support-report-v1"}, {"generated_utc", QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
-        {"client", "Nova Deck"}, {"version", QRegularExpression("\\A[0-9]{1,3}(?:\\.[0-9]{1,3}){2,3}\\z").match(version).hasMatch() ? version : "local-preview"},
+        {"client", "Nova Linux"}, {"version", QRegularExpression("\\A[0-9]{1,3}(?:\\.[0-9]{1,3}){2,3}\\z").match(version).hasMatch() ? version : "local-preview"},
         {"host", host}, {"network", net}, {"client_readings", client}, {"doctor", doctor},
         {"limitations", QJsonArray{"Composed FPS measures app draws, not panel presentation.",
             "Decoder callback time includes waits and frame handoff; it is not GPU-only decode latency.",

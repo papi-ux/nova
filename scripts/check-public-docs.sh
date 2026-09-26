@@ -136,7 +136,7 @@ if stage.find("published_notes=") < stage.find("gh release edit"):
 
 # The APK names are chosen from the release channel, because a beta installs beside
 # stable under its own application id and must not publish under stable's filenames.
-# The Deck bundle is not channel-specific.
+# The Linux bundle is not channel-specific.
 expected_assets = (
     '"${NOVA_ASSET_PREFIX}-arm64-v8a.apk"',
     '"${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256"',
@@ -144,8 +144,8 @@ expected_assets = (
     '"${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256"',
     '"${NOVA_ASSET_PREFIX}-x86_64.apk"',
     '"${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"',
-    "Nova-Deck-x86_64-alpha.flatpak",
-    "Nova-Deck-x86_64-alpha.flatpak.sha256",
+    "Nova-Linux-x86_64-alpha.flatpak",
+    "Nova-Linux-x86_64-alpha.flatpak.sha256",
 )
 verify = workflow[positions[3]:positions[4]]
 verify_lines = [line.strip() for line in verify.splitlines()]

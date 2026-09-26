@@ -62,7 +62,7 @@ void DeckHostSettingsController::publish(QString phase, QString copy) {
     action("match", sync == "review" ? "Use Nova & Sync" : "Match Nova", "Save Nova's default resolution, frame rate and bitrate for this paired device on Polaris.", canSend && !matched);
     action("send", "Send Nova", "Send Nova's current stream defaults to this paired-device profile. Per-game choices are not sent.", canSend);
     action("use", sync == "review" ? "Use Polaris & Sync" : "Use Polaris", settings_ && settings_->hasProfile() && playSettings_ && !canUse && ready
-        ? "This profile uses stream settings Nova Deck does not support yet. Nothing will be partly imported."
+        ? "This profile uses stream settings Nova Linux does not support yet. Nothing will be partly imported."
         : "Use the Polaris profile as Nova's defaults on this device, across PCs. Existing per-game overrides stay in place.", canUse);
     action("clear", "Clear profile", "Remove this paired device's resolution and bitrate overrides on Polaris. Nova's defaults stay in place.",
         canSend && settings_->hasProfile());
