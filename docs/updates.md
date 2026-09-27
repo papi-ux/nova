@@ -126,5 +126,5 @@ For selection steps and troubleshooting on both clients, see the
 For the first Linux test, use the supported SDR 4:2:0 profile on a fast wired
 local connection and confirm **PyroWave** in stream diagnostics. Decoder startup
 checks alone do not prove a streamed image, audio, input, HDR, or sustained frame
-rate. The [Polaris PyroWave guide](https://papi-ux.com/docs/pyrowave/) describes
+rate. The [Polaris PyroWave guide](https://github.com/papi-ux/polaris/blob/master/docs/pyrowave.md) describes
 host and client requirements.

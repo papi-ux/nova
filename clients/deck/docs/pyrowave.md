@@ -120,7 +120,8 @@ installed side by side like the Android beta app.
   resolution or frame rate if needed. CPU capture and colour conversion can
   still precede Vulkan encoding; seeing a Vulkan encoder does not prove a
   zero-copy capture path. Follow the
-  [Polaris guide](https://papi-ux.com/docs/pyrowave/) for host capture requirements.
+  [Polaris guide](https://github.com/papi-ux/polaris/blob/master/docs/pyrowave.md)
+  for host capture requirements.
 
 The Linux client decodes on Vulkan and exports three R8 DMA-BUF planes for its
 EGL presenter. There is no production CPU decode fallback. High refresh rates
