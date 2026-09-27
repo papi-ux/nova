@@ -1890,4 +1890,11 @@
     <string name="pcview_card_hint_spaces">Spaces available. Change Space from the library.</string>
     <string name="nova_pyrowave_profile_unavailable">This host does not offer the PyroWave profile this build of Nova can decode. Both ends have to carry the same codec revision. Nothing is wrong with your network.</string>
     <string name="nova_pyrowave_bitrate_low">PyroWave asks for about %1$d Mbps at this resolution and frame rate. Every frame is a keyframe, so a smaller budget goes on the frame rather than on the detail.</string>
+    <string name="wol_address_title">Wake-on-LAN address</string>
+    <string name="wol_address_caption">Set the LAN MAC address used to wake this PC.</string>
+    <string name="wol_address_hint">AA:BB:CC:DD:EE:FF</string>
+    <string name="wol_address_description">Enter the MAC address of the PC’s LAN adapter. Leave this empty to use the address reported by the host: %1$s. The PC and network must support UDP wake packets.</string>
+    <string name="wol_address_unknown">not available</string>
+    <string name="wol_address_invalid">Enter a valid unicast MAC address, or leave this empty to use the host address.</string>
+    <string name="wol_address_save_failed">Could not save this address. Check that the PC is still saved and try again.</string>
 </resources>

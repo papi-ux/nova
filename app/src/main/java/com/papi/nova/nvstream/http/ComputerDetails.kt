@@ -93,6 +93,11 @@ class ComputerDetails {
             mutableKnownAddresses.map { AddressTuple(it.address, it.port) }
         }
     @JvmField var macAddress: String? = null
+    /** User preference; never supplied by a host poll. */
+    @Volatile var manualWakeMacAddress: String? = null
+    val wakeMacAddress: String?
+        get() = com.papi.nova.nvstream.wol.WakeOnLanSender.usableMacAddress(manualWakeMacAddress)
+            ?: com.papi.nova.nvstream.wol.WakeOnLanSender.usableMacAddress(macAddress)
     @JvmField var serverCert: X509Certificate? = null
 
     // Transient attributes
@@ -187,6 +192,7 @@ class ComputerDetails {
             throw IllegalArgumentException("Cannot merge details for a different computer UUID")
         }
         rememberAddressesFrom(details)
+        manualWakeMacAddress = details.manualWakeMacAddress
 
         state = details.state
         name = details.name
@@ -213,8 +219,8 @@ class ComputerDetails {
         if (details.ipv6Address != null) {
             ipv6Address = details.ipv6Address
         }
-        if (details.macAddress != null && details.macAddress != "00:00:00:00:00:00") {
-            macAddress = details.macAddress
+        com.papi.nova.nvstream.wol.WakeOnLanSender.usableMacAddress(details.macAddress)?.let {
+            macAddress = it
         }
         if (details.serverCert != null) {
             serverCert = details.serverCert
@@ -254,7 +260,9 @@ class ComputerDetails {
         }
         val verifiedAddress = details.activeAddress
             ?: throw IllegalArgumentException("A verified poll must include its active address")
+        val manualWakeAddress = manualWakeMacAddress
         update(details)
+        manualWakeMacAddress = manualWakeAddress
         rememberAddress(verifiedAddress)
     }
 
