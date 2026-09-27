@@ -208,8 +208,11 @@ def main():
                 keys("Down", "Return", "Down", "Down", "Return")
                 wait(lambda s: s.get("fontScale") == 1.3 and s.get("focus") == "settings-row-text")
                 command("xdotool", "windowsize", window, "960", "600")
-                wait(lambda s: s.get("focusVisible") and hub(s).get("width") == 960 and hub(s).get("height") == 600)
-                assert hub()["back"]["x"] < 960 and hub()["back"]["y"] < 600
+                # The popup dimensions can update before its child layout. Wait for the same
+                # observation to show both the resized hub and its reachable Back button.
+                wait(lambda s: s.get("focusVisible") and hub(s).get("width") == 960 and hub(s).get("height") == 600
+                     and 0 <= hub(s).get("back", {}).get("x", 960) < 960
+                     and 0 <= hub(s).get("back", {}).get("y", 600) < 600)
                 capture_dir = os.environ.get("NOVA_DECK_SETTINGS_CAPTURE_DIR")
                 if capture_dir:
                     Path(capture_dir).mkdir(parents=True, exist_ok=True)
@@ -351,6 +354,9 @@ def main():
                 assert not settings_writes
                 click(state()["playSetup"]["controls"]["everyGame"])
                 wait(lambda s: host_state(s).get("opened") and not host_state(s)["status"]["busy"])
+                # Host readiness arrives before the new mode rows finish layout.
+                # Read the button position after Qt has published fresh observations.
+                wait_for_ui_observations(observation, app)
                 click(host_state()["controls"]["editDefaults"]); focus("stream-profile-width")
                 for value in ("1920", "1200", "50", "22.5"):
                     type_number(value); keys("Down")

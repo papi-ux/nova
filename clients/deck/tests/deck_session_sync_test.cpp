@@ -37,12 +37,17 @@ void outcomesAndPreflight() {
         const auto reviewed = profile.profileReview();
         std::atomic<int> reads{0}, profileReads{0}, writes{0}, otherWrites{0};
         std::atomic<bool> armed{false}, committed{false}, ack{scenario != 1}, identity{true};
+        std::atomic<bool> preflightEntered{false}, releasePreflight{false};
         auto s = sample();
         if (scenario == 4 || scenario == 5) s.live->supported = false;
         DeckHudHostObserver observer([&]() -> std::optional<DeckHudHostTarget> {
             DeckHudHostTarget t;
             t.identityValid = [&] { return identity.load(); };
-            t.fetch = [&](const auto&) {
+            t.fetch = [&](const auto& stop) {
+                if (armed && !releasePreflight) {
+                    preflightEntered = true;
+                    while (!releasePreflight && !stop()) QThread::msleep(1);
+                }
                 auto next = s; next.live->sequence = ++reads;
                 if (armed && scenario >= 12 && scenario <= 18) {
                     if (scenario == 12) next.live->instance = "replacement";
@@ -98,8 +103,13 @@ void outcomesAndPreflight() {
         }
         armed = true;
         require(observer.setSyncProfile(clear ? "" : "1920x1080x60", clear ? 0 : 15000, clear, reviewed), "valid review not queued");
+        // Keep the first operation in flight for all competing-admission checks.
+        // A fast clear can otherwise finish before the next call, which may then
+        // legitimately accept a new operation instead of overlapping the first.
+        until([&] { return preflightEntered.load(); });
         require(!observer.setSyncProfile("1920x1080x60", 15000, false, reviewed) && !observer.setFixedBitrate(30000)
             && !observer.setLiveTuningEnabled(false), "competing mutation was queued");
+        releasePreflight = true;
         if (scenario == 1) {
             until([&] { return observer.snapshot().value("syncPhase") == "confirming"; });
             require(observer.snapshot().value("syncBusy").toBool() && observer.snapshot().value("appliedBitrateKbps") == 20000,
