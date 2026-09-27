@@ -2,18 +2,20 @@
 
 ## Unreleased
 
+- **Nova Linux (Alpha)** is the name of the native client for x86_64 Linux desktops, laptops and handhelds, including Steam Deck. New release bundles use `Nova-Linux-x86_64-alpha.flatpak` and a matching checksum. Hardware-specific codec, HDR and frame-rate limits still apply.
+
 ## 1.4.13 - 2026-09-24
 
-A new codec you can try on a wired link, a Desktop entry that answers for itself, and a Command Center that stays where you left it. Nova 1.4.13 is matched with Polaris 1.4.13.
+A Desktop entry that answers for itself and a Command Center that stays where you left it. Nova 1.4.13 is matched with Polaris 1.4.13. Experimental PyroWave is available in Android beta builds and the separate Linux bundle described below; the stable Android APKs do not enable it.
 
-**PyroWave, a new codec (experimental, beta builds only)**
+**PyroWave on Android (experimental, beta builds only)**
 
 - Nova can decode PyroWave, an intra only wavelet codec that runs as plain Vulkan compute rather than on a hardware video decoder. A lost packet costs one frame instead of everything up to the next keyframe.
-- Pick it under Video codec in Play Setup. It appears only in a beta build, installed beside your stable Nova, and only a Polaris 1.4.13 host can serve it.
+- In an Android beta, pick it under Video codec in Play Setup or the client stream defaults in Settings. The beta installs beside stable Nova with separate pairing and preferences. Use a compatible Polaris host with the PyroWave encoder, such as the official Polaris 1.4.13 Linux packages; custom builds can omit it.
 - It wants a wired link at a couple of hundred megabits. It is not a codec for wifi, and it is not a replacement for HEVC or AV1.
-- 4:4:4 and HDR10 both work. HDR is off unless you turn it on, because a device that cannot present it would be refused the stream rather than given an SDR one.
+- The Android decoder supports 4:4:4 and HDR10, but HDR also needs compatible client presentation and host capture delivering ten-bit frames with HDR metadata. End-to-end PyroWave HDR has not been validated here. Ordinary KDE/GNOME desktop portal capture cannot satisfy the HDR request; on a KDE HDR display, KMS capture can also deliver FP16 frames that PyroWave cannot read, even for an SDR request. Start with a supported SDR capture path.
 - The HUD reports the network's loss rather than your device's, and it tells you the bitrate this codec wants rather than judging it at a setting it cannot meet.
-- A frame that lost a packet is still drawn, so a lossy moment looks like a lossy moment instead of a freeze.
+- A damaged frame can still be drawn when both lowest-frequency bands are intact and at least 90 percent of its blocks are present. Frames below the decoder's minimum are dropped; packet loss can still cause visible freezes.
 
 **Desktop, and the screen it runs on**
 
@@ -26,14 +28,18 @@ A new codec you can try on a wired link, a Desktop entry that answers for itself
 - It stays open when you change a setting, instead of closing and making you find your way back.
 - The Play Setup legend follows the card you are on by name rather than by position.
 
-**Nova for Steam Deck (Alpha)**
+**Nova Linux (Alpha)**
+
+- Releases built with the separate-asset workflow include `Nova-Linux-PyroWave-x86_64-alpha.flatpak` and its checksum for explicitly testing PyroWave. It replaces the standard Linux app under the same ID; reinstall `Nova-Linux-x86_64-alpha.flatpak` from the same release to return, keeping your app data. Older releases, including beta.3, did not attach this experimental bundle.
+- Choose **PyroWave · Experimental** in **Play Setup → Video Codec**, with a compatible Polaris host and the normal Desktop destination. This Linux route supports SDR 8-bit 4:2:0; HDR, 4:4:4 and Spaces are not supported. Auto does not choose the codec. Vulkan device compatibility, sustained performance and real stream quality still need device testing. The bundle has no automatic stable/beta feed.
+
 
 - It says what the host said. A refused launch now carries the host's own reason instead of a generic failure.
 - It ships Nova's own icon.
 
 **Beta releases**
 
-- A beta is published as a prerelease, tagged `v1.4.13-beta.N`, and installs beside your stable Nova rather than replacing it. Nothing reaches you unless you go and get it.
+- A beta is published as a prerelease, tagged `v1.4.13-beta.N`. On Android it installs beside stable Nova with separate pairing and preferences. Linux Flatpak bundles use the same app ID and replace the installed Nova bundle; they are not separate beta apps. Testing is opt-in.
 - A beta's APKs are named `Nova-Beta-Android-<abi>.apk`, so an updater watching the stable filenames never picks one up by accident. To follow the beta channel, add it to Obtainium as its own app: [add Nova Beta to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova.pre%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%20Beta%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22Nova-Beta-Android-arm64-v8a%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%2C%5C%22includePrereleases%5C%22%3Atrue%7D%22%7D). It tracks `com.papi.nova.pre`, which is the package a beta installs as.
 
 ## 1.4.12 - 2026-09-22

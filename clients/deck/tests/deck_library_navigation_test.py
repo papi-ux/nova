@@ -24,7 +24,7 @@ def command(*args):
 
 def experience_navigation(wait, keys, state, save_capture, window):
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    focus_game_play(wait, keys)
     save_capture("android-game-details.png")
     keys("Return")
     wait(lambda s: s.get("nativePreviewOpen"))
@@ -88,8 +88,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("artwork", {}).get("logoReady"))
     assert not state()["overview"]["usesLogo"] and state()["overview"]["playY"] == before["playY"]
     save_capture("overview-title-duration-1280.png")
-    keys("Return")
-    wait(lambda s: s.get("nativePreviewOpen"))
+    activate_game_review(wait, keys)
     keys("Escape")
     wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
     keys("Escape")
@@ -133,7 +132,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("theme") == "high_contrast" and s.get("focus") == "game-42" and s.get("launchEnabled"))
     save_capture("library-high-contrast-large-960.png")
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    focus_game_play(wait, keys)
     action_y = state()["overview"]["playY"]
     save_capture("overview-high-contrast-large-960.png")
     assert not state()["overview"]["contentFits"]
@@ -143,7 +142,15 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     save_capture("overview-scrolled-large-960.png")
     keys("Down")
     wait(lambda s: s.get("focus") == "game-detail-play")
-    command("xdotool", "mousemove", "--window", window, "400", "250", "click", "--repeat", "2", "4")
+    command("xdotool", "mousemove", "--window", window, "400", "250")
+    # Wheel distance depends on the Qt/font configuration. Require every tick
+    # to move upward, and reach the top without assuming two ticks cover it.
+    for _ in range(8):
+        previous_scroll = state()["overview"]["scroll"]
+        if previous_scroll <= 0:
+            break
+        command("xdotool", "click", "4")
+        wait(lambda s: s["overview"]["scroll"] < previous_scroll)
     wait(lambda s: s["overview"]["scroll"] <= 0)
     command("xdotool", "click", "--repeat", "2", "5")
     wait(lambda s: s["overview"]["scroll"] > 0)
@@ -207,9 +214,7 @@ def appearance_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: not s.get("appearanceOpen") and s.get("focus") == "library-appearance" and s.get("focusVisible"))
     keys("Escape", "Down")
     wait(lambda s: s.get("focus") == s.get("game") and s.get("launchEnabled"))
-    keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play" and s.get("launchEnabled"))
-    keys("Return")
+    open_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action" and s.get("focusVisible"))
     save_capture("appearance-play-setup-large-960.png")
     keys("Escape", "Escape", "Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
@@ -222,8 +227,17 @@ def appearance_navigation(wait, keys, state, save_capture, window):
 
 
 def stage_navigation(wait, keys, state, fixtures, save_capture, window):
-    keys("Up", "Up", "Up", "Return", "Return", "Return")
-    wait(lambda s: s.get("layout") == "stage" and s.get("optionsOpen"))
+    # Observe each focus target before sending a command whose meaning depends on it.
+    # X11 delivery and fresh frames do not prove the popup has claimed keyboard focus.
+    for target in ("library-filter-all", "library-search", "library-options"):
+        keys("Up")
+        wait(lambda s: s.get("focus") == target and s.get("focusVisible"))
+    keys("Return")
+    wait(lambda s: s.get("optionsOpen") and s.get("focus") == "library-layout-option")
+    for layout in ("compact", "stage"):
+        keys("Return")
+        wait(lambda s: s.get("layout") == layout and s.get("optionsOpen")
+             and s.get("focus") == "library-layout-option")
     keys("Escape", "Down", "Down", "Down")
     wait(lambda s: s.get("focus") == "gamestream-app-42" and s.get("stageVisible")
          and s.get("stageTitle") == s.get("title") and s.get("selectionVisible"))
@@ -240,7 +254,7 @@ def stage_navigation(wait, keys, state, fixtures, save_capture, window):
     command("xdotool", "windowsize", window, "1280", "800")
     wait(lambda s: s.get("focus") == "gamestream-app-123" and s.get("selectionVisible"))
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    focus_game_play(wait, keys)
     keys("Escape")
     wait(lambda s: s.get("focus") == "gamestream-app-123" and s.get("selectionVisible") and s.get("scrollX", 0) > 0)
     save_capture("android-stage-scrolled.png")
@@ -253,8 +267,7 @@ def stage_navigation(wait, keys, state, fixtures, save_capture, window):
     save_capture("android-stage-review.png")
     keys("Return")
     wait(lambda s: s.get("detailOpen") and s.get("game") == "gamestream-app-7")
-    keys("Return")
-    wait(lambda s: s.get("nativePreviewOpen"))
+    activate_game_review(wait, keys)
     keys("Escape", "Escape")
     wait(lambda s: s.get("focus") == "gamestream-app-7" and not s.get("detailOpen"))
     review = state()["stageReviewCenter"]
@@ -297,7 +310,7 @@ def stage_navigation(wait, keys, state, fixtures, save_capture, window):
          and s.get("layout") == "stage" and s.get("stageTitle") == "Moonlit Harbor b" and s.get("selectionVisible"))
 
 
-def audio_settings_navigation(wait, keys, state, save_capture, window):
+def audio_settings_navigation(wait, keys, state, save_capture, window, settle):
     def tap(point):
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
 
@@ -318,6 +331,8 @@ def audio_settings_navigation(wait, keys, state, save_capture, window):
     save_capture("audio-settings-1280.png")
     command("xdotool", "windowsize", window, "960", "600")
     wait(lambda s: s.get("width") == 960 and s.get("height") == 600)
+    # Window dimensions can update before the popup's controls finish moving.
+    settle()
     save_capture("audio-settings-960.png")
     tap(state()["audio"]["reset"])
     wait(lambda s: s["audio"]["settings"] == defaults)
@@ -340,7 +355,8 @@ def audio_settings_navigation(wait, keys, state, save_capture, window):
     tap(state()["rumble"]["toggle"])
     wait(lambda s: not s["rumble"]["enabled"])
     command("xdotool", "windowsize", window, "1280", "800")
-    time.sleep(.2)
+    wait(lambda s: s.get("width") == 1280 and s.get("height") == 800)
+    settle()
     save_capture("rumble-settings-1280.png")
     assert state()["audio"]["settings"] == surround, "rumble reset changed audio"
     tap(state()["rumble"]["done"])
@@ -443,18 +459,40 @@ def play_setup_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: s.get("focus") == "gamestream-app-7" and not s.get("nativePreviewOpen"))
 
 
-def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window):
+def open_game_review(wait, keys):
+    keys("Return")
+    wait(lambda s: s.get("detailOpen") and s.get("focus") in ("game-detail-play", "game-detail-back"))
+    activate_game_review(wait, keys)
+
+
+def activate_game_review(wait, keys):
+    focus_game_play(wait, keys)
+    keys("Return")
+    wait(lambda s: s.get("nativePreviewOpen"))
+
+
+def focus_game_play(wait, keys):
+    ready = wait(lambda s: s.get("detailOpen") and not s.get("busy") and s.get("launchEnabled"))
+    # A background refresh can disable Play as details open. Completion preserves
+    # Back focus; a second Return there would close details instead of reviewing.
+    if ready.get("focus") == "game-detail-back":
+        keys("Right")
+    wait(lambda s: s.get("focus") == "game-detail-play")
+
+
+def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window, settle):
     host = fixtures["a"]
 
     def review():
-        keys("Return", "Return")
-        wait(lambda s: s.get("nativePreviewOpen"))
+        open_game_review(wait, keys)
 
     def close():
         keys("Escape", "Escape")
         wait(lambda s: not s.get("nativePreviewOpen") and not s.get("detailOpen"))
 
     def resolution():
+        # Opening the popup can precede the editor's deferred layout.
+        settle()
         point = state()["playSetup"]["controls"]["resolution"]
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
         wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
@@ -520,21 +558,36 @@ def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("host") == "a" and not s.get("busy"))
 
 
-def launch_mode_navigation(wait, keys, state, fixtures, save_capture, window):
+def launch_mode_navigation(wait, keys, state, fixtures, save_capture, window, settle):
     host = fixtures["a"]
 
     def review():
-        keys("Return", "Return")
-        wait(lambda s: s.get("nativePreviewOpen"))
+        open_game_review(wait, keys)
 
     def close():
         keys("Escape", "Escape")
         wait(lambda s: not s.get("nativePreviewOpen") and not s.get("detailOpen"))
 
     def choose(index):
-        point = state()["playSetup"]["controls"]["launchMode"]
+        settle()
+        before_click = state()
+        point = before_click["playSetup"]["controls"]["launchMode"]
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
-        wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
+        try:
+            wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
+        except AssertionError as error:
+            # The timeout state only shows the final layout. Retain the state used
+            # to aim the click, without adding another observation or input delay.
+            diagnostics = {"window": window, "point": point,
+                "beforeClick": {key: before_click.get(key) for key in
+                    ("width", "height", "windowActive", "focus", "nativePreviewOpen", "playSetup")}}
+            for name, args in (("pointerAfterTimeout", ("getmouselocation", "--shell")),
+                               ("windowAfterTimeout", ("getwindowgeometry", "--shell", window))):
+                try:
+                    diagnostics[name] = command("xdotool", *args)
+                except (OSError, subprocess.SubprocessError) as probe_error:
+                    diagnostics[name] = f"Unavailable: {probe_error}"
+            raise AssertionError(f"Launch-mode click diagnostics: {json.dumps(diagnostics)}\n{error}") from error
         keys("Up", "Up", "Up")
         for _ in range(index):
             keys("Down")
@@ -588,6 +641,7 @@ def launch_mode_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: len(s.get("launchPolicy", {}).get("allowed", [])) == 6 and not s.get("busy"))
     review()
     assert len(state()["playSetup"]["launchChoices"]) == 7, "full catalog lost a selectable mode"
+    settle()
     point = state()["playSetup"]["controls"]["launchMode"]
     command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
     wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
@@ -694,8 +748,7 @@ def automatic_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("title") == "Northern Lights — refreshed" and s.get("focus") == "gamestream-app-103"
          and not s.get("busy"))
 
-    keys("Return", "Return")
-    wait(lambda s: s.get("nativePreviewOpen") is True)
+    open_game_review(wait, keys)
     paused = len(a["requests"])
     time.sleep(1.05)
     assert len(a["requests"]) == paused, "native review did not pause polling"
@@ -768,7 +821,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
         wait(lambda s: s.get("focus") == s.get("game"))
 
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+    focus_game_play(wait, keys)
     assert state()["metadata"]["labels"] == "Heroic · Windows · Wine"
     assert "2024" in state()["lastPlayedLabel"], "epoch seconds rendered as a 1970 date"
     save_capture("android-details-metadata.png")
@@ -950,8 +1003,7 @@ def host_scope_navigation(wait, keys, state, fixtures, save_capture, window, set
         command("xdotool", "mousemove", str(p["x"]), str(p["y"]), "click", "1")
         settle()
     keys("Return")
-    wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
-    keys("Return")
+    activate_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     original = state()["playSetup"]["configuration"]
     keys("Left", "Left", "Up")
@@ -1136,7 +1188,7 @@ def readability_navigation(wait, keys, state, save_capture, window):
         suffix = "-mono-large-" + str(width)
         clean("library" + suffix)
         keys("Return")
-        wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-play")
+        focus_game_play(wait, keys)
         clean("details" + suffix)
         keys("Right", "Right")
         wait(lambda s: s.get("focus") == "game-detail-shortcut" and s.get("focusVisible"))
@@ -1182,7 +1234,14 @@ def background_sync_navigation(wait, keys, state, fixtures, save_capture, window
     wait(lambda s: s.get("syncNeedsReview") and status(s).get("keepInStep") == "review")
     assert not sync()["opened"] and not fixture["settings_posts"], "existing profile was overwritten"
     command("xdotool", "windowsize", "--sync", window, "960", "600")
-    keys("Up", "Up", "Up")
+    wait(lambda s: s.get("width") == 960 and s.get("height") == 600)
+    for target in ("library-filter-all", "library-search"):
+        keys("Up")
+        wait(lambda s: s.get("focus") == target and s.get("focusVisible"))
+    # Review Sync is intentionally disabled during a library read. Wait for
+    # that read before navigating to and activating it.
+    wait(lambda s: not s.get("busy") and s.get("syncNeedsReview"))
+    keys("Up")
     wait(lambda s: s.get("focus") == "library-sync-review" and s.get("focusVisible"))
     save_capture("background-sync-review-large-960.png")
     keys("Return")
@@ -1205,6 +1264,10 @@ def background_sync_navigation(wait, keys, state, fixtures, save_capture, window
         wait(lambda s: s.get("focus") != focus)
     wait(lambda s: s.get("focus") == "host-profile-use" and s.get("focusVisible"))
     save_capture("background-sync-choose-large-960.png")
+    # A periodic settings read keeps focus on this action while disabling it.
+    wait(lambda s: s.get("focus") == "host-profile-use" and not status(s).get("busy")
+         and any(action.get("id") == "use" and action.get("enabled")
+                 for action in sync(s).get("profileActions", [])))
     keys("Return")
     wait(lambda s: status(s).get("keepInStep") == "on" and status(s).get("novaDisplay") == "1920x1080x30"
          and not status(s).get("busy"))
@@ -1218,7 +1281,7 @@ def keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window):
     fixture = fixtures["a"]
     def status(s=None):
         return (state() if s is None else s).get("playSetup", {}).get("hostDefaults", {}).get("status", {})
-    keys("Return", "Return")
+    open_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     keys("Down", "Down", "Down", "Return", "Down", "Down", "Return")
     wait(lambda s: s["playSetup"]["configuration"]["bitrateKbps"] == 40000 and not s["playSetup"]["choicesOpen"])
@@ -1839,9 +1902,12 @@ def main():
                 config.write("\n[PolarisSync]\nv1\\" + hashlib.sha256(b"a").hexdigest() + "=pending\n")
         output = stack.enter_context(log.open("w"))
         auto_args = ["--frontend-smoke-library-refresh-ms", "800"] if args.automatic or args.filters or args.stage or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else []
+        # The filter route sends hundreds of keys, each acknowledged by Qt.
+        # Its old 42-second lifetime could end before the final host switch;
+        # retain the independent 70-second CTest deadline and per-state waits.
         app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.filters or args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
                                env=env, stdout=output, stderr=output)
 
         def state():
@@ -1888,7 +1954,7 @@ def main():
         try:
             prefix = "game-" if args.host_power or args.filters or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "gamestream-app-"
             wait(lambda s: s.get("host") == "a" and s.get("focus") == ("space.room-a.big-picture-v1" if args.spaces else prefix+"7"))
-            window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+            window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
             command("xdotool", "windowfocus", "--sync", window)
             wait(lambda s: s.get("windowActive"))
             keys("Right")
@@ -1913,11 +1979,14 @@ def main():
             elif args.appearance:
                 appearance_navigation(wait, keys, state, save_capture, window)
             elif args.audio_settings:
-                audio_settings_navigation(wait, keys, state, save_capture, window)
+                audio_settings_navigation(wait, keys, state, save_capture, window,
+                                          lambda: wait_for_ui_observations(observation, app))
             elif args.stream_plan:
-                stream_plan_navigation(wait, keys, state, fixtures, save_capture, window)
+                stream_plan_navigation(wait, keys, state, fixtures, save_capture, window,
+                                       lambda: wait_for_ui_observations(observation, app))
             elif args.launch_modes:
-                launch_mode_navigation(wait, keys, state, fixtures, save_capture, window)
+                launch_mode_navigation(wait, keys, state, fixtures, save_capture, window,
+                                       lambda: wait_for_ui_observations(observation, app))
             elif args.polish:
                 polish_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.artwork:
@@ -1996,7 +2065,7 @@ def main():
                     "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "17000"],
                     env=env, stdout=output, stderr=output)
                 wait(lambda s: s.get("host") == "a" and not s.get("busy") and s.get("focus") == "space.room-a.big-picture-v1")
-                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Right", "Return", "Return")
                 wait(lambda s: s.get("nativePreviewOpen") and s["playSetup"]["configuration"]["bitrateKbps"] == 40000)
@@ -2026,7 +2095,7 @@ def main():
                     "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "12000"],
                     env=env, stdout=output, stderr=output)
                 wait(lambda s: s.get("host") == "a" and not s.get("busy") and s.get("focus") == "space.room-a.big-picture-v1")
-                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Return", "Return")
                 wait(lambda s: s.get("nativePreviewOpen") and s["playSetup"]["configuration"]["height"] == 720)
@@ -2050,7 +2119,7 @@ def main():
                     "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "7000"],
                     env=env, stdout=output, stderr=output)
                 wait(lambda s: s.get("host") == "a" and s.get("focus") == "game-7")
-                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Return", "Return")
                 wait(lambda s: s.get("nativePreviewOpen") and s.get("playSetup", {}).get("configuration", {}).get("fps") == 30)
@@ -2066,7 +2135,7 @@ def main():
                     "--frontend-smoke-library-state", str(observation),
                     "--frontend-smoke-exit-after-ms", "6000"], env=env, stdout=output, stderr=output)
                 wait(lambda s: s.get("host") == "a" and s.get("focus") == ("game-7" if args.launch_modes or args.stream_plan else "gamestream-app-7"))
-                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Deck$").splitlines()[-1]
+                window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Return", "Return")
                 expected = {"width": 1280, "height": 800, "fps": 60, "bitrateKbps": 20000, "faceButtonLayout": "default", "launchMode": "desktop_display", "videoCodec": "h264", "profilePreference": "auto", "encoderBackend": ""} if args.launch_modes else {"width": 1920, "height": 1080, "fps": 30, "bitrateKbps": 30000, "faceButtonLayout": "positions", "launchMode": "default", "videoCodec": "h264", "profilePreference": "auto", "encoderBackend": ""}

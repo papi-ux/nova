@@ -156,9 +156,9 @@ std::vector<DeckMoonlightReadinessCheck> readinessChecksFor(
 DeckMoonlightFocusReturnPlan focusReturnPlanFor(const DeckMoonlightHandoffPreflightRequest& request) {
     const auto target = (!isBlank(request.hostDisplayNamePublic) && !isBlank(request.gameTitlePublic))
         ? request.hostDisplayNamePublic + " / " + request.gameTitlePublic
-        : std::string{"selected Nova Deck review target"};
+        : std::string{"selected Nova Linux review target"};
     return DeckMoonlightFocusReturnPlan{
-        .sourceSurface = "Nova Deck preview review",
+        .sourceSurface = "Nova Linux preview review",
         .intendedReturnTarget = target,
         .fallbackCopy = "Return to Nova and keep this preview available after a later approved launch exits or fails.",
         .confidence = "unproven_static",

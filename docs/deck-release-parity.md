@@ -1,4 +1,10 @@
-# Deck release parity
+# Nova Linux release parity
+
+Current implementation and remaining work are mapped in
+[Nova Linux objective status](linux-objective-status.md). The status column below
+is the frozen September 17 reference, not today's implementation queue. Product
+name: Nova Linux; Steam Deck is a required device profile. Historical file paths
+and Nightly DECK task IDs remain stable.
 
 Owner-approved target: standalone Nova with built-in streaming, OLED HDR10 at
 90 fps, and full Android product parity. Android reference:
@@ -77,7 +83,10 @@ network/session/advanced/storage/support P01/P02/P11/P12/P19/P20/P26/P27.
 An implementation PR names the exact preferences it closes and retains their
 default, scope, availability, persistence and reset behavior in its tests.
 
-## Implementation order and interfaces
+## Original implementation order and interfaces
+
+This sequence records the original plan. The current objective status supersedes
+its completed implementation steps while preserving all acceptance requirements.
 
 1. Establish a cancellable asynchronous session controller around the existing
    GameStream core and prove native presentation/audio. Keep connection work off

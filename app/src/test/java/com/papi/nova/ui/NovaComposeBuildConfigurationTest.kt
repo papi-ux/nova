@@ -13,7 +13,7 @@ import org.junit.Test
 
 class NovaComposeBuildConfigurationTest {
     @Test
-    fun vulnerableKotlinCachesRemainDisabledAcrossCi() {
+    fun gradleCachesRemainDisabledAcrossCi() {
         val repositoryRoot = Paths.get("..").toAbsolutePath().normalize()
         val gradleProperties = readText(repositoryRoot.resolve("gradle.properties"))
         val workflows = Files.list(repositoryRoot.resolve(".github/workflows")).use { paths ->
@@ -28,12 +28,12 @@ class NovaComposeBuildConfigurationTest {
         assertPropertyDisabled(
             gradleProperties,
             "org.gradle.caching",
-            "Kotlin 2.3.21 must keep the Gradle build cache disabled"
+            "the Gradle build cache stays disabled until a re-enable is qualified on its own"
         )
         assertPropertyDisabled(
             gradleProperties,
             "kapt.incremental.apt",
-            "Kotlin 2.3.21 must keep KAPT incremental local-state deserialization disabled"
+            "KAPT incremental local-state deserialization stays disabled until a re-enable is qualified"
         )
 
         workflows.forEach { (name, workflow) ->
@@ -279,8 +279,8 @@ class NovaComposeBuildConfigurationTest {
             workflow.contains("\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk")
         )
         assertTrue(
-            "tag release verification should require exact equality with three APKs, the Deck Alpha bundle and a checksum for each",
-            workflow.contains("Release assets do not match the exact eight-file contract") &&
+            "tag release verification should require exact equality with three APKs, the Linux Alpha bundle and a checksum for each",
+            workflow.contains("Release assets do not match the exact ten-file contract") &&
                 workflow.contains("\${published_assets[*]}") &&
                 workflow.contains("\${expected_assets[*]}")
         )

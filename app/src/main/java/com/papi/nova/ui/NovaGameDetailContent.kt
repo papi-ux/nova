@@ -580,7 +580,8 @@ internal fun NovaGameDetailContent(
                                 NovaPlaySetupComparison(
                                     title = explained.stripTitle,
                                     options = explained.options,
-                                    consequenceMaxLines = consequenceLines,
+                                    consequenceMaxLines = if (explained.options.size > explained.optionsPerRow) 1 else consequenceLines,
+                                    perRow = explained.optionsPerRow,
                                 )
                             }
                         },

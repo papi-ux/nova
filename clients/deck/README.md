@@ -1,12 +1,18 @@
-# Nova Native Linux Client
+# Nova Linux (Alpha)
 
-This directory contains Nova's native Linux client for Steam Deck, laptops,
-desktops and other handhelds. The Qt/QML interface supports Nova-owned pairing,
+Nova Linux is the native client for x86_64 Linux desktops, laptops and
+handhelds, including Steam Deck. The Qt/QML interface supports Nova-owned pairing,
 libraries, Play Setup and in-app GameStream video/audio/input. The Flatpak opens
 standalone Nova; Moonlight handoff remains an explicit legacy route.
 
+Release bundles use `Nova-Linux-x86_64-alpha.flatpak`; see the
+[Flatpak install guide](packaging/flatpak/README.md).
+
 The [Linux client roadmap](../../docs/linux-client-roadmap.md) records the current
 implementation, tested compatibility and remaining gaps. The
+[current objective status](../../docs/linux-objective-status.md) maps imported
+objectives to present source and remaining work; consult it before treating any
+historical implementation note below as an open assignment. The
 [release parity checklist](../../docs/deck-release-parity.md) retains the Deck
 LCD/OLED, HDR90, product parity and physical acceptance requirements. This is an
 Alpha client; a successful build does not validate every Linux configuration.
@@ -1178,10 +1184,11 @@ polls report completion, and teardown drains pending work. VAAPI import requests
 direct DRM_PRIME mapping; combined layers and invalid plane/object bounds are
 refused before libplacebo import. Physical zero-copy behavior remains unverified.
 
-The optional build needs libplacebo 7.349 or newer, Vulkan and libavformat in
-addition to the normal dependencies. The default app/packaging dependency set is
-unchanged. The color backend now also has the separate Vulkan window described
-below; it is not yet connected to the native streaming screen.
+The optional native build needs libplacebo 7.349 or newer, Vulkan and libavformat
+in addition to the normal dependencies. Both Flatpak manifests now package the
+opt-in Vulkan stream UI and pin libplacebo; the normal launcher keeps the
+OpenGL/EGL presenter. The Vulkan session integration described below remains
+SDR-only; packaging the renderer does not enable live HDR negotiation.
 
     cmake -S clients/deck -B build/deck -DNOVA_DECK_BUILD_HDR_VALIDATION=ON
     cmake --build build/deck -j6

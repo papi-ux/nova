@@ -525,6 +525,11 @@ class NovaGameDetailActivity : NovaActivity() {
         // resolution row changes dimensions while fpsOverride alone changes cadence. Persisted
         // the same way as chosenResolution, so it survives past this Activity's lifetime.
         var chosenFps by mutableStateOf<Int?>(loadFrameRateOverride(currentGame))
+        var chosenCodec by mutableStateOf(
+            NovaVideoCodecOverrides.load(this@NovaGameDetailActivity, serverUuid, currentGame.id, currentGame.appId),
+        )
+        fun effectiveCodec() = NovaVideoCodecOverrides.resolve(chosenCodec,
+            PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity).videoFormat)
         // Null keeps Polaris' configured host policy. "auto" is deliberately not
         // null: it asks Polaris to choose and permits fallback for this launch.
         var chosenEncoderBackend by mutableStateOf<String?>(
@@ -583,6 +588,9 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         fun reconcileEncoderBackend(settings: PolarisClientSettings): Boolean {
+            // PyroWave does not use this catalog. Keep the saved hardware backend until
+            // another codec selects it again, when the ordinary availability check applies.
+            if (effectiveCodec() == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) return false
             val available = NovaEncoderBackendOverrides.loadAvailable(
                 this@NovaGameDetailActivity,
                 currentGame,
@@ -595,6 +603,7 @@ class NovaGameDetailActivity : NovaActivity() {
 
         fun selectedEncoderBackend(): String {
             if (com.papi.nova.manager.WorkerLaunchContract.isProfileApp(currentGame.id)) return ""
+            if (effectiveCodec() == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) return ""
             val selected = chosenEncoderBackend ?: return ""
             val settings = clientSettings ?: return ""
             return selected.takeIf { candidate ->
@@ -1146,6 +1155,17 @@ class NovaGameDetailActivity : NovaActivity() {
             if (spaceGame != null) loadOptimization(profilePreference)
         }
 
+        fun chooseVideoCodec(codec: String?) {
+            if (codec != null && NovaVideoCodecOverrides.normalize(codec) == null) return
+            if (codec == chosenCodec || spaceGame != null || serverUuid.isNullOrBlank()) return
+            NovaVideoCodecOverrides.save(this@NovaGameDetailActivity, serverUuid,
+                currentGame.id, currentGame.appId, codec)
+            chosenCodec = codec
+            // A PyroWave choice changes which encoder request is valid. Preserve the same
+            // preflight generation fence and held-Play behavior as the Encoder row.
+            settleThen { loadOptimization(profilePreference) }
+        }
+
         /** Select a backend for this game only; null returns to Polaris' host setting. */
         fun chooseEncoderBackend(backend: String?) {
             val normalized = PolarisClientSettings.normalizeEncoderBackend(backend)
@@ -1454,10 +1474,26 @@ class NovaGameDetailActivity : NovaActivity() {
                 chooseFrameRate(null)
             }
 
+            val profileApp = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(currentGame.id)
+            if (spaceGame == null && !profileApp && !serverUuid.isNullOrBlank()) {
+                rows += novaPlaySetupCodecRow(this@NovaGameDetailActivity, chosenCodec,
+                    preferences.videoFormat, ::chooseVideoCodec)
+            }
+            val codecManagesEncoder = effectiveCodec() == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE
             val encoderCatalog = clientSettings?.capabilities?.takeIf {
                 it.sessionEncoderOverride
             }?.encoders.orEmpty().filter { it.available }.distinctBy { it.value }
-            if (encoderCatalog.isNotEmpty() && !com.papi.nova.manager.WorkerLaunchContract.isProfileApp(currentGame.id)) {
+            if (codecManagesEncoder && !profileApp) {
+                rows += NovaPlaySetupRowState(
+                    row = NovaPlaySetupRow.ENCODER,
+                    label = getString(R.string.nova_play_setup_encoder),
+                    caption = getString(R.string.nova_play_setup_encoder_pyrowave_detail),
+                    value = getString(R.string.nova_play_setup_encoder_pyrowave),
+                    stripTitle = getString(R.string.nova_play_setup_strip_encoder),
+                    options = emptyList(),
+                    enabled = false,
+                )
+            } else if (encoderCatalog.isNotEmpty() && !profileApp) {
                 val selectedEncoder = selectedEncoderBackend()
                 val selectedOption = encoderCatalog.firstOrNull { it.value == selectedEncoder }
                 rows += NovaPlaySetupRowState(
@@ -1709,6 +1745,10 @@ class NovaGameDetailActivity : NovaActivity() {
                         ?: launchPreferences.fps.toInt()).toDouble(),
                     clientAskedHdr = launchPreferences.enableHdr,
                     spaceName = launchSpaceName(),
+                    clientCodecLabel = if (spaceGame == null &&
+                        (chosenCodec != null || effectiveCodec() != PreferenceConfiguration.FormatOption.AUTO)) {
+                        NovaVideoCodecOverrides.label(effectiveCodec())
+                    } else null,
                 )
                 if (spaceGame != null && com.papi.nova.manager.WorkerLaunchContract.isLegacyProfileApp(currentGame.id)) {
                     // The contract is parsed once per change, not on every recomposition.

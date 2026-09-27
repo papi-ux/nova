@@ -915,9 +915,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml"
                 NOVA_DECK_DOCTOR_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/doctor-v2.json")
             add_test(NAME nova_deck_native_preview_qml_test COMMAND nova_deck_native_preview_qml_test)
+            # The complete scenario sequence spends about 40 seconds in explicit
+            # event-loop settling waits. Leave room for Qt work on CI workers.
             set_tests_properties(nova_deck_native_preview_qml_test PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
-                TIMEOUT 45)
+                TIMEOUT 90)
             add_test(NAME nova_deck_qt_shell_smoke COMMAND nova-deck --smoke-exit)
             set_tests_properties(nova_deck_qt_shell_smoke PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
@@ -947,9 +949,22 @@ if(BUILD_TESTING)
         nova_deck_library_auto_refresh_test
         nova_deck_saved_pcs_route_test
         nova_deck_graphics_startup_test
+        nova_deck_relative_pointer_test
+        nova_deck_relative_session_test
     )
         if(TEST ${deck_x11_test})
             set_tests_properties(${deck_x11_test} PROPERTIES RESOURCE_LOCK nova_deck_x11)
         endif()
     endforeach()
+
+    # The lock above only works if every X-starting test takes it: one that does not can take the
+    # display out from under a test that believes it has exclusive use. Two were missing from the
+    # list, so the invariant is asserted rather than maintained by hand. It asks ctest instead of
+    # reading this file, because add_test often closes on the same line as its last argument and a
+    # text scan then attributes the next block's xvfb-run to the previous test.
+    add_test(NAME nova_deck_x11_serialisation_guard
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_x11_test_serialisation.py
+            ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(nova_deck_x11_serialisation_guard PROPERTIES TIMEOUT 60)
 endif()

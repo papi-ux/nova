@@ -151,7 +151,7 @@ DeckPreflightBlocker blockerFor(const DeckPreflightBlockerCategory category) {
         case DeckPreflightBlockerCategory::FixtureOnly:
             return "Fixture provenance only; backend will not treat this as a live host.";
         case DeckPreflightBlockerCategory::NetworkDisabled:
-            return "Network reads are disabled in this Deck preview.";
+            return "Network reads are disabled in this Linux preview.";
         case DeckPreflightBlockerCategory::MissingHost:
             return "No backend host summary is selected.";
         case DeckPreflightBlockerCategory::HostUnreachable:
@@ -616,7 +616,7 @@ void DeckDiagnosticsModel::updateCoordinatorStatus(std::string statusCode) {
 }
 
 std::string DeckDiagnosticsModel::copyText() const {
-    return "Nova Deck diagnostics: " + hostCategory_
+    return "Nova Linux diagnostics: " + hostCategory_
         + "; " + trustCategory_
         + "; " + backendCategory_
         + "; " + preflightCategory_

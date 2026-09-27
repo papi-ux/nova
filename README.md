@@ -9,10 +9,9 @@
 
 **The streaming client that speaks host.**
 
-Nova turns Android TVs, handhelds, tablets, and phones, and now a Steam Deck,
-into a polished home for PC game streaming. Pair it with Polaris for a
-controller-first Library, clear launch plans, and live session controls that
-stay close while you play. Standard Moonlight-compatible hosts remain supported
+Nova turns Android TVs, handhelds, tablets and phones, plus Linux desktops,
+laptops and handhelds including Steam Deck, into a home for PC game streaming.
+Pair it with Polaris for a controller-first Library, clear launch plans and live session controls. Standard Moonlight-compatible hosts remain supported
 too.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1f1d31)](https://github.com/papi-ux/nova/stargazers)
@@ -31,9 +30,9 @@ too.
 <img src="docs/screenshots/divider-aurora.svg" width="100%" height="3" alt="">
 
 > [!IMPORTANT]
-> Nova is an Android app, with a native Steam Deck client in Alpha. Android
-> handhelds, phones, and Android TV are the supported client boundary; Nova is
-> not a Windows, macOS, or iOS client.
+> Nova is available for Android and as **Nova Linux (Alpha)** for x86_64 Linux
+> desktops, laptops and handhelds, including Steam Deck. Linux codec, HDR and
+> frame-rate availability depends on the hardware, drivers, display and host.
 
 ![Nova Polaris Aurora Library on a Retroid Pocket 6, Big Walk in focus, the chip naming where it opens](docs/screenshots/nova-library-aurora-v1.4.12.webp)
 
@@ -86,12 +85,6 @@ Stage view puts the selected title into its landscape artwork while keeping the
 row controller-readable. Control Ultimate Edition leads the Aurora showcase;
 the [website gallery](https://papi-ux.com/nova/#themes) compares the same screen
 in Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You.
-
-<p align="center">
-  <a href="https://papi-ux.com/nova/#themes"><img src="docs/screenshots/theme-cycle.webp" width="720" alt="Nova host selection cycling through the Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You themes"></a><br>
-  <a href="https://papi-ux.com/nova/#themes"><img src="docs/screenshots/theme-dots.svg" height="14" alt="Theme accent colors"></a><br>
-  <sub><a href="https://papi-ux.com/nova/#themes">Compare every theme in the website gallery</a></sub>
-</p>
 
 ### Decide
 
@@ -153,15 +146,17 @@ the standard path when it is not present.
 | ARMv7 | [Nova-Android-armeabi-v7a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk) | 32-bit ARM Android TV devices |
 | x86_64 | [Nova-Android-x86_64.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk) | Android x86_64 devices and emulators |
 
-The [quick-start guide](https://papi-ux.com/docs/nova/quickstart/) covers
-Obtainium, pairing methods, first-stream controls, and architecture selection.
+Guides: [Quick start](https://papi-ux.com/docs/nova/quickstart/) ·
+[Updates and beta releases](docs/updates.md).
 
-### Steam Deck Alpha
+### Nova Linux (Alpha)
 
-Each release carries a native Steam Deck client as a Flatpak that pairs,
-browses, and streams from Game Mode. The
-[Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) installs it and
-lists what the Alpha does not do yet.
+Get `Nova-Linux-x86_64-alpha.flatpak` and its checksum from
+[Releases](https://github.com/papi-ux/nova/releases).
+See the [Linux install guide](clients/deck/packaging/flatpak/README.md) and
+[compatibility roadmap](docs/linux-client-roadmap.md).
+Steam is optional; the [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/)
+covers Game Mode.
 
 ## Compatibility and platform boundaries
 

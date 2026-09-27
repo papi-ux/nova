@@ -1,5 +1,9 @@
 # Nova updates on Linux
 
+For player-facing beta opt-in, Android updates and Linux channel selection, see
+[Nova updates and beta releases](updates.md). This page also covers preparing
+and publishing the signed Linux update feed.
+
 The Linux app has **Settings → Nova → Nova Updates**. Channel builds can check
 for a new version, install it, and show when Nova needs reopening. Automatic
 installation is off initially. When enabled, it waits for 15 seconds without a
@@ -13,10 +17,12 @@ or installation command. The app handles offline checks, portal loss and update
 errors without reporting success. An update that requires extra sandbox
 permissions must be completed in the system software manager.
 
-The channels are **stable**, **beta**, and **pyrowave**. PyroWave-enabled packages
-stay on their own experimental channel. There is no automatic channel switch.
-Regular downloaded bundles and native builds show installation guidance instead
-of claiming that an update feed is configured.
+The publication workflow defines **stable**, **beta**, and **pyrowave** channels.
+Use the bundles attached to the selected release until a signed channel installer
+is announced. A channel defined in the workflow is not evidence that its public
+feed exists. Once published, PyroWave-enabled packages use their own experimental
+channel, with no automatic channel switch. Regular downloaded bundles and native
+builds show installation guidance instead of claiming that a feed is configured.
 
 ## First publication
 

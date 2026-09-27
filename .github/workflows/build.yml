@@ -52,15 +52,13 @@ jobs:
         run: ./gradlew --no-build-cache -PnovaAbis=x86_64 testNonRoot_gameDebugUnitTest
 
       - name: Run helper and onboarding tests
-        run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight tools.test_native_optimization tools.test_pyrowave_timing
+        run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight tools.test_native_optimization tools.test_pyrowave_timing tools.test_native_page_alignment
 
   deck:
-    name: Deck client build and tests
+    name: Linux client build and tests
     runs-on: ubuntu-latest
-    # The Deck client ships to SteamOS, which is Arch based. Ubuntu's Qt is 6.4
-    # and the client uses QSGRenderNode APIs that are not in it, so building
-    # here on Ubuntu would be testing a platform nothing ships to. Arch is the
-    # closest widely available stand-in for the target.
+    # Arch supplies the current Qt APIs used by the Linux client and also covers
+    # SteamOS's Arch lineage. The distributable Flatpak uses its pinned KDE runtime.
     container: archlinux:latest
 
     steps:
@@ -93,7 +91,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure
-        run: cmake -S clients/deck -B build-deck -G Ninja
+        run: cmake -S clients/deck -B build-deck -G Ninja -DNOVA_DECK_BUILD_VULKAN_STREAM=ON -DNOVA_DECK_BUILD_HDR_VALIDATION=ON
 
       - name: Check Linux update feed preparation
         run: python3 -m unittest tools.test_nova_flatpak_feed
@@ -108,9 +106,9 @@ jobs:
         run: ctest --test-dir build-deck --output-on-failure
 
   deck-flatpak:
-    name: Deck Alpha Flatpak
+    name: Linux Alpha Flatpak
     needs: deck
-    # The Deck client ships as an Alpha beside each release: one Flatpak bundle, built from
+    # The Linux client ships as an Alpha beside each release: one Flatpak bundle, built from
     # the tagged source in the runtime its manifest names. Manual runs build it too, so a
     # release tag is never the first time the bundle is built.
     if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
@@ -125,10 +123,10 @@ jobs:
           ref: ${{ github.sha }}
           submodules: recursive
 
-      - name: Build the Deck Flatpak bundle
+      - name: Build the Linux Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: Nova-Deck-x86_64-alpha.flatpak
+          bundle: Nova-Linux-x86_64-alpha.flatpak
           manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.json
           # A release is built from its own tree every time; a cache keyed per commit never hits.
           cache: false
@@ -137,8 +135,44 @@ jobs:
       - name: Keep the bundle for the release
         uses: actions/upload-artifact@v7
         with:
-          name: nova-deck-flatpak
-          path: Nova-Deck-x86_64-alpha.flatpak
+          name: nova-linux-flatpak
+          path: Nova-Linux-x86_64-alpha.flatpak
+          if-no-files-found: error
+          # Long enough to re-run a failed release job without rebuilding the bundle.
+          retention-days: 14
+
+  deck-flatpak-pyrowave:
+    name: Linux PyroWave Alpha Flatpak
+    needs: deck
+    # A separate, explicitly experimental bundle; the standard Linux app stays codec-off.
+    # This release asset intentionally has no NOVA_DECK_UPDATE_CHANNEL: codec-on builds
+    # cannot enroll in the stable or beta feeds. Installing it replaces the same app id.
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+
+      - name: Build the experimental PyroWave Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: Nova-Linux-PyroWave-x86_64-alpha.flatpak
+          manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.pyrowave.json
+          # A release is built from its own tree every time; a cache keyed per commit never hits.
+          cache: false
+          upload-artifact: false
+
+      - name: Keep the bundle for the release
+        uses: actions/upload-artifact@v7
+        with:
+          name: nova-linux-pyrowave-flatpak
+          path: Nova-Linux-PyroWave-x86_64-alpha.flatpak
           if-no-files-found: error
           # Long enough to re-run a failed release job without rebuilding the bundle.
           retention-days: 14
@@ -192,11 +226,10 @@ jobs:
 
   build:
     name: Assemble release APK
-    needs: [verify, android-smoke, deck-flatpak]
-    # A tag needs the Deck bundle. The job is skipped on pushes and pull requests by design, but on a
-    # tag skipped means the Deck tests failed, and the release should stop here rather than sign
-    # three APKs and fail at the missing bundle.
-    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || (needs.deck-flatpak.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) }}
+    needs: [verify, android-smoke, deck-flatpak, deck-flatpak-pyrowave]
+    # A tag needs both Linux bundles. Their jobs are skipped on ordinary pushes by design,
+    # but a tag must stop before signing APKs if either package failed or never built.
+    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || (needs.deck-flatpak.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) && (needs.deck-flatpak-pyrowave.result == 'success' || (needs.deck-flatpak-pyrowave.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -325,6 +358,21 @@ jobs:
               "${APK}.aligned"
           done
 
+      # A library aligned to 4 KB cannot load on a device with 16 KB pages, so an APK carrying one
+      # fails to install outright. v1.4.13-beta.3 shipped that way: the signature verified, the
+      # checksums matched, aapt2 read the manifest, and zipalign -c -P 16 passed, because zipalign
+      # checks where entries sit in the zip rather than how the ELF inside them is aligned.
+      - name: Check native library page alignment
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=("app/build/outputs/apk/nonRoot_game/${NOVA_APK_VARIANT}"/*.apk)
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "no APKs to check in app/build/outputs/apk/nonRoot_game/${NOVA_APK_VARIANT}" >&2
+            exit 1
+          fi
+          python3 tools/check_native_page_alignment.py "${apks[@]}"
+
       - name: Select APK artifacts
         run: |
           set -euo pipefail
@@ -400,21 +448,29 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      # A tag always has the Deck bundle, since deck-flatpak runs for every tag. If it did
+      # A tag always has the Linux bundle, since deck-flatpak runs for every tag. If it did
       # not build, the release refuses below for a missing asset rather than shipping without it.
-      - name: Add the Deck Alpha bundle
+      - name: Add the Linux Alpha bundle
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/download-artifact@v8
         with:
-          name: nova-deck-flatpak
+          name: nova-linux-flatpak
           path: ${{ env.APK_ASSET_DIR }}
 
-      - name: Checksum the Deck Alpha bundle
+      - name: Add the experimental PyroWave bundle
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/download-artifact@v8
+        with:
+          name: nova-linux-pyrowave-flatpak
+          path: ${{ env.APK_ASSET_DIR }}
+
+      - name: Checksum both Linux Alpha bundles
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
           cd "${APK_ASSET_DIR}"
-          sha256sum Nova-Deck-x86_64-alpha.flatpak > Nova-Deck-x86_64-alpha.flatpak.sha256
+          sha256sum Nova-Linux-x86_64-alpha.flatpak > Nova-Linux-x86_64-alpha.flatpak.sha256
+          sha256sum Nova-Linux-PyroWave-x86_64-alpha.flatpak > Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
 
       - name: Verify release tag matches built source
         if: startsWith(github.ref, 'refs/tags/v')
@@ -460,8 +516,10 @@ jobs:
             "${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256"
             "${NOVA_ASSET_PREFIX}-x86_64.apk"
             "${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"
-            Nova-Deck-x86_64-alpha.flatpak
-            Nova-Deck-x86_64-alpha.flatpak.sha256
+            Nova-Linux-x86_64-alpha.flatpak
+            Nova-Linux-x86_64-alpha.flatpak.sha256
+            Nova-Linux-PyroWave-x86_64-alpha.flatpak
+            Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
           )
           release_assets=()
           for asset_name in "${expected_asset_names[@]}"; do
@@ -479,7 +537,7 @@ jobs:
             printf '%s\n' "${expected_asset_names[@]}" | sort
           )
           if [ "${local_asset_names[*]}" != "${expected_asset_names[*]}" ]; then
-            echo "Local release assets do not match the exact eight-file contract" >&2
+            echo "Local release assets do not match the exact ten-file contract" >&2
             printf 'expected: %s\n' "${expected_asset_names[*]}" >&2
             printf 'local: %s\n' "${local_asset_names[*]}" >&2
             exit 1
@@ -535,8 +593,10 @@ jobs:
             "${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256"
             "${NOVA_ASSET_PREFIX}-x86_64.apk"
             "${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"
-            Nova-Deck-x86_64-alpha.flatpak
-            Nova-Deck-x86_64-alpha.flatpak.sha256
+            Nova-Linux-x86_64-alpha.flatpak
+            Nova-Linux-x86_64-alpha.flatpak.sha256
+            Nova-Linux-PyroWave-x86_64-alpha.flatpak
+            Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
           )
           release_assets=()
           for asset_name in "${expected_asset_names[@]}"; do
@@ -559,15 +619,17 @@ jobs:
             "${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256"
             "${NOVA_ASSET_PREFIX}-x86_64.apk"
             "${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"
-            Nova-Deck-x86_64-alpha.flatpak
-            Nova-Deck-x86_64-alpha.flatpak.sha256
+            Nova-Linux-x86_64-alpha.flatpak
+            Nova-Linux-x86_64-alpha.flatpak.sha256
+            Nova-Linux-PyroWave-x86_64-alpha.flatpak
+            Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
           )
           mapfile -t published_assets < <(
             gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | sort
           )
           mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
           if [ "${published_assets[*]}" != "${expected_assets[*]}" ]; then
-            echo "Release assets do not match the exact eight-file contract on ${GITHUB_REF_NAME}" >&2
+            echo "Release assets do not match the exact ten-file contract on ${GITHUB_REF_NAME}" >&2
             printf 'expected: %s\n' "${expected_assets[*]}" >&2
             printf 'published: %s\n' "${published_assets[*]}" >&2
             exit 1
