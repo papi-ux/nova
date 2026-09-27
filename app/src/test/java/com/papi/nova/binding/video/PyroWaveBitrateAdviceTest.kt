@@ -376,19 +376,70 @@ class PyroWaveBitrateAdviceTest {
         assertTrue(
             "the television check is no longer the UI mode",
             game.contains(
-                "as? android.app.UiModeManager)\n            ?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION",
+                "as? android.app.UiModeManager)\n                ?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION",
             ),
         )
         assertTrue("the rule and distance are no longer logged", site.contains("pyroWaveAdvice.describe()"))
         assertTrue("the warning no longer uses this advice", site.contains("val wantedMbps = pyroWaveAdvice.mbps"))
         assertTrue(
             "the warning no longer compares in the unit it prints",
-            site.contains("prefConfig!!.bitrate < wantedMbps * 1000"),
+            site.contains("configuredStreamBitrateKbps < wantedMbps * 1000"),
         )
         // The offer the chroma is read from has to be made before the advice reads it.
         assertTrue(
             game.indexOf("MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444") in
                 0 until game.indexOf(call),
         )
+    }
+
+    @Test
+    fun gameAdvisesForTheStreamItSendsNotTheSettingsItStartedFrom() {
+        // Launch moves the stream away from the saved settings after the PyroWave offer is made. The
+        // display's maximum, Auto Safe and frame pacing move the frame rate; a watched stream and Auto
+        // Safe the size; a metered network and Auto Safe the bitrate; and a Space launch replaces the
+        // offer with H.264. Advice given before all of that described a stream that was not the one
+        // sent: a 120 fps setting on a 60 Hz phone was advised at 120, and an H.264 Space launch was
+        // advised and logged as PyroWave. Pinned as text for the same reason as the test above.
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        fun onlyIndexOf(anchor: String): Int {
+            assertEquals("'$anchor' appears in Game.kt once", 1, Regex(Regex.escape(anchor)).findAll(game).count())
+            return game.indexOf(anchor)
+        }
+        val call = onlyIndexOf("PyroWaveDecoderRenderer.bitrateAdvice(")
+        for (settled in listOf(
+            "if (workerLaunch != null) supportedVideoFormats = MoonBridge.VIDEO_FORMAT_H264",
+            "configuredStreamBitrateKbps = if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate",
+            "configuredStreamBitrateKbps = autoSafeBitrateKbps",
+            "displayHeight = autoSafeResolution!!.height",
+            "configuredStreamFrameRateFps = chosenFrameRate",
+        )) {
+            assertTrue("the advice is given before the launch settles '$settled'", onlyIndexOf(settled) < call)
+        }
+        assertTrue(
+            "the advice is given after the stream it describes is handed to the connection",
+            call < onlyIndexOf("StreamConfiguration.Builder()"),
+        )
+
+        // Only an offer that is still PyroWave is advised as PyroWave, and the guard encloses the advice.
+        val guard = onlyIndexOf("if ((supportedVideoFormats and MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0)")
+        assertTrue("the advice is not inside the PyroWave guard", guard < call)
+        assertFalse("the PyroWave guard closes before the advice", game.substring(guard, call).contains('}'))
+
+        // The size, frame rate and bitrate the stream is configured with, not the saved ones.
+        val site = game.substring(call).substringBefore("NovaSnackbar.showQuiet")
+        assertTrue(
+            "the advice no longer reads the size and frame rate the stream is sent at",
+            site.startsWith("PyroWaveDecoderRenderer.bitrateAdvice(\n                displayWidth, displayHeight, pyroWaveFps,"),
+        )
+        assertTrue(
+            "the frame rate advised is no longer the one the encoder is asked for",
+            game.substring(guard, call).contains("val pyroWaveFps = Math.round(chosenFrameRate)"),
+        )
+        assertTrue(
+            "the warning no longer compares the bitrate the stream is sent at",
+            site.contains("configuredStreamBitrateKbps < wantedMbps * 1000"),
+        )
+        assertFalse("the advice still reads a saved setting", site.contains("prefConfig"))
+        assertTrue("the log no longer says whether the stream is HDR", site.contains("\" hdr=\" + willStreamHdr"))
     }
 }
