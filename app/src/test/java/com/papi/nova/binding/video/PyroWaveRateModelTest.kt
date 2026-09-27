@@ -54,6 +54,9 @@ class PyroWaveRateModelTest {
         }
     }
 
+    /** A bitrate is a positive finite number. NaN fails the first test and infinity the second. */
+    private fun isBitrate(mbps: Double) = mbps > 0.0 && mbps.isFinite()
+
     private fun estimate(
         psnr: Int = 35,
         width: Int = 1920,
@@ -107,6 +110,13 @@ class PyroWaveRateModelTest {
                 "${r.width}x${r.height} at ${r.fps}"
             if (mbps == null) {
                 failures += "$where: no estimate, flags ${got.flags}, upstream gave ${r.mbits}"
+                continue
+            }
+            // The tolerance cannot catch NaN on either side: the relative difference comes out NaN, and
+            // NaN compared with anything is false. Infinity against infinity comes out NaN too. So each
+            // side has to be a bitrate before the two are compared.
+            if (!isBitrate(r.mbits) || !isBitrate(mbps)) {
+                failures += "$where: $mbps, upstream gave ${r.mbits}, and both have to be positive and finite"
                 continue
             }
             val relative = abs(mbps - r.mbits) / abs(r.mbits)
@@ -279,6 +289,51 @@ class PyroWaveRateModelTest {
     }
 
     @Test
+    fun aFrameRateThatOverflowsTheBitrateHasNoEstimate() {
+        // Finite and positive, so each passes the frame rate's own check, but the bitrate it multiplies
+        // out to is past the largest double. Unchecked, that came back as infinity, within the model.
+        for (fps in listOf(Double.MAX_VALUE, 1e308)) {
+            val got = estimate(fps = fps)
+            assertNull("$fps fps gave ${got.mbps}", got.mbps)
+            assertEquals("$fps fps", setOf(Flag.RESULT_NOT_POSITIVE), got.flags)
+            assertFalse("$fps fps", got.withinModel)
+        }
+    }
+
+    @Test
+    fun anOverflowOnAnotherShapeIsNotAnExtrapolation() {
+        // The Deck's panel at a frame rate that overflows. Both reasons are given, and with no number
+        // there is nothing extrapolated.
+        val got = estimate(width = 1280, height = 800, fps = Double.MAX_VALUE)
+        assertNull("gave ${got.mbps}", got.mbps)
+        assertEquals(setOf(Flag.ASPECT_NOT_16_9, Flag.RESULT_NOT_POSITIVE), got.flags)
+        assertFalse(got.extrapolated)
+        assertFalse(got.withinModel)
+    }
+
+    @Test
+    fun theOverflowIsJudgedOnTheAnswerNotTheFrameRate() {
+        // No frame rate is too fast by itself. Where the answer leaves a double's range depends on the
+        // question: at 1e307 fps the cheapest question in the reference fixture (30 dB from H 2.875 in
+        // 4:2:0 at 1280x720) still has a finite answer, and the costliest (50 dB from H 1.0 in 4:4:4 at
+        // 3840x2160) does not.
+        val cheapest = estimate(psnr = 30, width = 1280, height = 720, heightFactor = 15, fps = 1e307)
+        assertTrue("${cheapest.flags}", cheapest.withinModel)
+        assertTrue("${cheapest.mbps}", isBitrate(cheapest.mbps!!))
+
+        val costliest = estimate(
+            psnr = 50,
+            width = 3840,
+            height = 2160,
+            heightFactor = 0,
+            chroma444 = true,
+            fps = 1e307,
+        )
+        assertNull("gave ${costliest.mbps}", costliest.mbps)
+        assertEquals(setOf(Flag.RESULT_NOT_POSITIVE), costliest.flags)
+    }
+
+    @Test
     fun everyReasonIsReportedAtOnce() {
         val got = estimate(psnr = 29, width = 800, height = 600, heightFactor = 16, fps = 0.0)
         assertNull(got.mbps)
@@ -300,7 +355,8 @@ class PyroWaveRateModelTest {
         // Everything else gets no estimate. Upstream asserts on a quality or a pixel count outside its
         // table, and extrapolating past those asserts would be inventing a model it chose not to publish.
         // It has no curve for a distance its enum cannot name and returns 0.0. A frame rate or a size
-        // that is not positive describes no stream, whatever upstream would multiply out of it.
+        // that is not positive describes no stream, whatever upstream would multiply out of it, and so
+        // does a bitrate that is not.
         assertEquals(listOf(Flag.ASPECT_NOT_16_9), Flag.entries.filter { !it.outsideTable })
     }
 

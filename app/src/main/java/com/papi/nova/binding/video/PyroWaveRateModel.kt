@@ -96,6 +96,15 @@ object PyroWaveRateModel {
         FPS_NOT_POSITIVE(true),
 
         /**
+         * The question has an answer, but the bitrate it multiplies out to is not a positive finite
+         * number. A frame rate can be finite and positive and still carry the product past the largest
+         * double, as Double.MAX_VALUE fps does, and upstream never checks its answer, so it returns
+         * infinity. Refused here, because no stream runs at an infinite bitrate. Zero, a negative number
+         * and NaN are refused the same way, should a curve ever give one.
+         */
+        RESULT_NOT_POSITIVE(true),
+
+        /**
          * Not exactly 16:9, width * 9 == height * 16, as every size upstream sampled was. Upstream still
          * answers for the pixel count, so the estimate is given, as an extrapolation. 1280x800 (the
          * Deck, 16:10), ultrawide, portrait and near misses such as 1366x768 all land here.
@@ -109,8 +118,10 @@ object PyroWaveRateModel {
      * [mbps] is null when any flag is [Flag.outsideTable]. Upstream asserts on a quality or a pixel count
      * outside its table, and returns 0.0 for a distance its enum cannot name. It never checks the frame
      * rate and treats two negative sides as positive, but a rate or a size that is not positive describes
-     * no stream, so those get no estimate either. With [Flag.ASPECT_NOT_16_9] alone it is upstream's own
-     * answer for that pixel count, and [extrapolated] says so.
+     * no stream, so those get no estimate either. Nor does it check its own answer, which a finite frame
+     * rate can carry to infinity, so an answer that is not a positive finite number gets none. With
+     * [Flag.ASPECT_NOT_16_9] alone it is upstream's own answer for that pixel count, and [extrapolated]
+     * says so. Any [mbps] given is a positive finite number.
      */
     data class Estimate(
         /** Megabits per second, as upstream computes it: kilobytes per frame, times 8 / 1000, times fps. */
@@ -128,7 +139,9 @@ object PyroWaveRateModel {
      * What PyroWave needs for [width] x [height] at [fps] to reach [psnrDb] of PSNR-HVS-M-H when watched
      * from [heightFactor] (an index, see [heightFactor]), in 4:4:4 if [chroma444] and 4:2:0 otherwise.
      *
-     * Every flag is collected rather than the first one found, so a caller sees every reason at once.
+     * Every flag about the question is collected rather than the first one found, so a caller sees every
+     * reason at once. [Flag.RESULT_NOT_POSITIVE] is about the answer, so it can only join
+     * [Flag.ASPECT_NOT_16_9]: a question refused for any other reason has no answer to judge.
      */
     fun estimate(
         psnrDb: Int,
@@ -167,6 +180,11 @@ object PyroWaveRateModel {
             kilobytesPerFrame += power * coefficient
             power *= x
         }
-        return Estimate(kilobytesPerFrame * 8e-3 * fps, flags)
+        val mbps = kilobytesPerFrame * 8e-3 * fps
+        // Every input can be in range and the product still not be: a finite frame rate near the top of
+        // a double's range carries it to infinity. Judged the way the frame rate is, so NaN, zero and a
+        // negative answer are refused too.
+        if (!(mbps > 0.0) || mbps.isInfinite()) return Estimate(null, flags + Flag.RESULT_NOT_POSITIVE)
+        return Estimate(mbps, flags)
     }
 }
