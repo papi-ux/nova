@@ -168,6 +168,7 @@ internal fun NovaGameDetailOverview(
      */
     chromeAlpha: Float = 1f,
     modifier: Modifier = Modifier,
+    launchBlockedReason: String? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     val game = uiState.game
@@ -282,6 +283,16 @@ internal fun NovaGameDetailOverview(
                 LaunchProfileReviewNotice(
                     optimizationState = optimizationState,
                     modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+
+            if (game.space != null && !uiState.playEnabled && activeSession == null) {
+                Text(
+                    text = launchBlockedReason?.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.nova_space_launch_mode_unavailable),
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 10.dp).testTag("nova-space-launch-blocked-reason"),
                 )
             }
 
