@@ -344,9 +344,9 @@ android {
             buildConfigField "boolean", "EXPERIMENTAL_CODECS", "true"
             applicationIdSuffix ".pre"
             versionNameSuffix novaVersionSuffix
-            resValue "string", "app_label", "Nova Pre"
-            resValue "string", "app_label_root", "Nova Pre (Root)"
-            resValue "string", "app_label_game", "Nova Pre (Game)"
+            resValue "string", "app_label", "Nova Beta"
+            resValue "string", "app_label_root", "Nova Beta (Root)"
+            resValue "string", "app_label_game", "Nova Beta (Game)"
         }
 
         dirty {
