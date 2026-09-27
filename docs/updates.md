@@ -119,7 +119,10 @@ PyroWave · Experimental**. The host and the Linux device's Vulkan decoder must
 both support it. Use the normal Desktop destination; PyroWave is unavailable in
 Spaces. Auto does not select PyroWave.
 
-Polaris v1.4.13-beta.3 includes the host encoder, selected by the client's request.
+The official Polaris v1.4.13 Linux packages include the host encoder, selected by
+the client's request; it is not restricted to the earlier beta.3 host release.
+For selection steps and troubleshooting on both clients, see the
+[Nova PyroWave guide](../clients/deck/docs/pyrowave.md).
 For the first Linux test, use the supported SDR 4:2:0 profile on a fast wired
 local connection and confirm **PyroWave** in stream diagnostics. Decoder startup
 checks alone do not prove a streamed image, audio, input, HDR, or sustained frame

@@ -1,14 +1,35 @@
-# Experimental PyroWave on Linux
+# PyroWave in Nova
 
-PyroWave is an optional Vulkan compute codec for a fast local network. It requires
-Nova and Polaris builds supporting the same codec profile. This implementation
-uses GameStream transport.
+PyroWave is an experimental Vulkan compute video codec for a fast local network.
+Each frame is encoded independently, so picture quality can require much more
+bandwidth than H.264, HEVC or AV1. Start on a wired connection; there is no single
+bitrate that guarantees good quality or sustained performance on every device.
 
-Build the native client with `-DNOVA_DECK_BUILD_PYROWAVE=ON` and the pinned
-`pyrowave-shared` 0.6.0 development package. The experimental Flatpak manifest is
-`packaging/flatpak/com.papi_ux.Nova.pyrowave.json`. The regular manifest keeps the
-feature disabled. In **Play Setup → Video Codec**, choose **PyroWave · Experimental** explicitly;
-Auto does not select it.
+**Select PyroWave in Nova. There is no switch to enable it in the Polaris
+console.** Both ends need compatible builds and Vulkan-capable GPUs. The official
+Polaris v1.4.13 Linux packages include the host encoder; custom builds can omit
+it. A beta label on Nova alone does not mean its package includes the decoder.
+
+Standard Moonlight clients do not contain this decoder. A host setting cannot
+add it to Moonlight.
+
+## Turn it on in Nova Linux
+
+Nova Linux supports Linux desktops, laptops and handhelds, including Steam Deck.
+
+1. Choose a release whose assets include
+   **`Nova-Linux-PyroWave-x86_64-alpha.flatpak`** and its checksum. The ordinary
+   `Nova-Linux-x86_64-alpha.flatpak` does not contain PyroWave, including the bundle
+   attached to v1.4.13-beta.3. If the separate asset is absent, that release does
+   not provide a PyroWave Linux bundle. Follow the
+   [installation steps below](#packaging-and-compatibility).
+2. Open Nova, pair your Polaris PC if needed, and open a game's **Play Setup**.
+   Use the normal **Desktop** destination; PyroWave is unavailable in Spaces.
+3. Choose **Video Codec → PyroWave · Experimental**. **Auto does not select it.**
+   Start with SDR at a modest mode such as 1280×720 at 60 FPS.
+4. Start the stream. Confirm a moving picture and **PyroWave** in NovaHUD, then
+   check audio, input and received video bitrate. A decoder starting successfully
+   without receiving frames is not a working stream.
 
 The Encoder row then shows **PyroWave · Vulkan**, selected by the codec. Saved
 NVENC, VA-API or other encoder choices remain available when switching back to
@@ -16,6 +37,25 @@ another codec, but are not sent with a PyroWave launch. Tuning presets still app
 and require the usual host authorization. An unsupported build, host, GPU or
 stream size explains why PyroWave cannot start; an explicit choice never falls
 back silently to another codec.
+
+## Turn it on in Nova Android beta
+
+1. Install the beta APK for your device using the
+   [Android beta guide](../../../docs/updates.md#android-install-a-beta). Open the
+   beta app and pair your PC there; stable and beta keep separate pairing data.
+   Stable Android builds do not expose PyroWave.
+2. In builds with the per-game codec row, open **Play Setup → This Game → Video
+   Codec → PyroWave (experimental)**. Nova saves that choice for this game on this
+   PC. **App setting** restores the codec selected in Nova Settings.
+3. Older builds, including v1.4.13-beta.3, use **Settings → Client Stream Defaults
+   → Change codec settings → PyroWave (experimental)** instead. Auto does not
+   select PyroWave on either path.
+4. Start an SDR stream and check the picture, codec, received video, audio and
+   input. Selecting the codec does not establish that the GPU and host capture
+   path can sustain it.
+
+**Android beta.3 cannot install on devices using 16 KB memory pages.** Follow
+the beta guide's release requirements; clearing app data does not fix the APK.
 
 ## Packaging and compatibility
 
@@ -57,13 +97,34 @@ Keep app data; do not uninstall with `--delete-data`. Check release notes before
 installing an older version. These packages share an app ID, so they cannot be
 installed side by side like the Android beta app.
 
-## Rendering limits
+## Limits and troubleshooting
 
-The host currently converts CPU BGRA capture to full-range Rec.709 YUV420 before
-Vulkan encoding. The Linux client decodes on Vulkan and exports three R8 DMA-BUF
-planes for its EGL presenter. There is no production CPU decode fallback.
-HDR, 4:4:4 and Spaces are outside this first route.
-High refresh rates and sustained performance still need device measurements.
+- **Missing or disabled choice:** check the package first. The standard Linux
+  Flatpak and stable Android app do not provide this experimental path. On
+  Linux, Play Setup also explains incompatible host support, unavailable Vulkan
+  decoding or an unsupported stream size. Choose an enabled build, compatible
+  host/device and supported size; selecting Auto does not enable PyroWave.
+- **A session starts but receives no video:** inspect the host's capture log.
+  PyroWave cannot read FP16 DMA-BUF capture, including `ABGR16161616F` (`AB4H`)
+  produced by some KDE HDR configurations. The host may refuse it after the
+  client decoder starts. For an SDR test, disable HDR on the host display or use
+  a supported capture route. Older host diagnostics can mislabel FP16 as
+  `bgra8`; builds with the diagnostics fix report `rgba16f`. That fix does not
+  add FP16 conversion or move the refusal before negotiation.
+- **HDR:** Polaris also has an HDR profile, but this Nova Linux route accepts
+  SDR 4:2:0. Host support alone does not enable Linux HDR. HDR, 4:4:4 and Spaces
+  remain outside this Linux route; Android HDR needs its own compatible profile,
+  capture path and validation. A successful SDR session is not HDR acceptance.
+- **Unexpectedly high bandwidth or slow capture:** each frame is independent.
+  Compare the received bitrate with the available link capacity and reduce the
+  resolution or frame rate if needed. CPU capture and colour conversion can
+  still precede Vulkan encoding; seeing a Vulkan encoder does not prove a
+  zero-copy capture path. Follow the
+  [Polaris guide](https://papi-ux.com/docs/pyrowave/) for host capture requirements.
+
+The Linux client decodes on Vulkan and exports three R8 DMA-BUF planes for its
+EGL presenter. There is no production CPU decode fallback. High refresh rates
+and sustained performance still need device measurements.
 
 ## HUD and live bitrate
 
@@ -93,9 +154,20 @@ stream. The budget follows the negotiated rational frame rate and remains subjec
 to transport bounds. This adds runtime rate control, not a codec-specific automatic
 quality policy or a promise of equal sharpness at equal bitrate across codecs.
 
-## Shared Android/Linux transport contract
+## Building the Linux client
 
-Both client implementations must use the same contract:
+Build with `-DNOVA_DECK_BUILD_PYROWAVE=ON` and the pinned `pyrowave-shared` 0.6.0
+development package. The experimental Flatpak manifest is
+`packaging/flatpak/com.papi_ux.Nova.pyrowave.json`; the regular manifest keeps the
+feature disabled. The separate release bundle has no update channel configured.
+
+## Linux SDR transport contract
+
+The SDR profile is shared with Android. Android additionally negotiates the
+host's `pyrowave-186f0393-hdr2020pq420-v1` profile for compatible HDR sessions;
+that does not extend the Linux client contract below.
+
+The Linux route uses GameStream transport with this contract:
 
 - Upstream PyroWave commit `186f0393b77f7755953b5ecde994bb1cec2e4155`, C API 0.6.0.
 - Client format `0x10000`; server capability `0x00800000`; SDP `bitStreamFormat=3`.
