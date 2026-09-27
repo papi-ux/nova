@@ -16,7 +16,7 @@ does not switch Nova to a beta, and a Nova beta does not update Polaris.
    | 32-bit ARM Android devices | `Nova-Beta-Android-armeabi-v7a.apk` |
    | Android x86_64 devices and emulators | `Nova-Beta-Android-x86_64.apk` |
 
-3. Install the APK and open **Nova Pre (Game)** (or **Nova Pre** in other
+3. Install the APK and open **Nova Beta (Game)** (or **Nova Beta** in other
    variants). This is the beta app. It uses application ID
    `com.papi.nova.pre` and installs beside stable Nova (`com.papi.nova`). Pair your
    host in the beta app; the two apps keep separate settings and pairing data.
