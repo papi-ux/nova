@@ -54,11 +54,12 @@ back silently to another codec.
    input. Selecting the codec does not establish that the GPU and host capture
    path can sustain it.
 
-**Android beta.2 and beta.3 may lack PyroWave on devices using 16 KB memory
-pages.** Their codec library lacks the required native alignment. Nova catches
-library-load failures and treats the codec as absent; installation failure has
-not been established. Follow the beta guide's release requirements and use a
-later beta whose notes confirm the alignment fix.
+**Android beta.2 and beta.3 may fail to start PyroWave on devices using 16 KB
+memory pages.** Their codec library lacks the required native alignment and may
+not load there. PyroWave still appears in Settings; if the library cannot load,
+a PyroWave stream fails during startup. Other codecs are unaffected. This has
+not been validated on a 16 KB device and does not establish an APK installation
+failure. Use a later beta whose notes confirm the alignment fix.
 
 ## Packaging and compatibility
 
