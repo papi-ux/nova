@@ -99,8 +99,12 @@ PyroWave needs a compatible client decoder as well as a host encoder. Standard
 Moonlight clients cannot use it, and Polaris has no frontend switch that adds
 the decoder to those clients.
 
-- **Nova Android beta:** with a compatible Polaris host, select **Play Setup →
-  Video codec → PyroWave (experimental)**. Auto does not select this codec.
+- **Nova Android beta:** with a compatible Polaris host, open a game's **Play Setup →
+  This Game → Video Codec** and select **PyroWave (experimental)**. The choice is saved
+  for that game on that PC; **App setting** returns to the codec in Nova Settings.
+  Older builds, including v1.4.13-beta.3, do not have this Play Setup row: use
+  **Settings → Client Stream Defaults → Change codec settings → PyroWave (experimental)**.
+  Auto does not select PyroWave, and stable Android builds do not expose it.
 - **Nova Linux:** use a PyroWave-enabled build, made with the separate
   `com.papi_ux.Nova.pyrowave.json` manifest. The ordinary Linux Alpha Flatpak
   attached to **v1.4.13-beta.3** uses the standard manifest and does **not** contain
