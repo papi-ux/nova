@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import android.content.Intent
 import android.graphics.Bitmap
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -11,6 +12,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.InputModeManager
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
@@ -22,6 +26,7 @@ import com.papi.nova.Game
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.preferences.PreferenceConfiguration.FormatOption
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.compose.LocalNovaComposeColors
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Rule
@@ -41,13 +46,15 @@ class NovaPlaySetupCodecComposeTest {
 
     @Test fun controllerAndTouchChooseTheLaunchCodecAndCanReturnToAppSettings() {
         var selected by mutableStateOf<String?>(null)
+        lateinit var inputMode: InputModeManager
         compose.setContent {
             NovaComposeTheme {
+                inputMode = LocalInputModeManager.current
                 val row = novaPlaySetupCodecRow(context, selected, FormatOption.FORCE_HEVC) {
                     selected = it
                     NovaVideoCodecOverrides.save(context, host, game, 1, it)
                 }
-                Column(Modifier.width(440.dp).padding(16.dp)) {
+                Column(Modifier.width(440.dp).background(LocalNovaComposeColors.current.window).padding(16.dp)) {
                     NovaSteamChoiceRow(
                         label = row.label, caption = row.caption, value = row.value,
                         enabled = row.enabled, selected = row.overridden,
@@ -64,13 +71,15 @@ class NovaPlaySetupCodecComposeTest {
         }
 
         val control = compose.onNodeWithTag("codec-row")
+        // Match real d-pad input: touch mode deliberately excludes clickable controls from focus.
+        compose.runOnIdle { inputMode.requestInputMode(InputMode.Keyboard) }
         control.performSemanticsAction(SemanticsActions.RequestFocus)
         control.assertIsFocused()
         control.performKeyInput { keyDown(Key.DirectionCenter); keyUp(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals("auto", selected) }
 
         compose.onNodeWithContentDescription("PyroWave", substring = true)
-            .assertIsDisplayed().performClick()
+            .assertIsDisplayed().performTouchInput { click() }
         compose.runOnIdle {
             assertEquals("forcepyrowave", NovaVideoCodecOverrides.load(context, host, game, 1))
             val launch = PreferenceConfiguration().apply { videoFormat = FormatOption.FORCE_HEVC }
@@ -84,7 +93,7 @@ class NovaPlaySetupCodecComposeTest {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
         compose.onNodeWithContentDescription("App setting.", substring = true)
-            .assertIsDisplayed().performClick()
+            .assertIsDisplayed().performTouchInput { click() }
         compose.runOnIdle {
             assertNull(NovaVideoCodecOverrides.load(context, host, game, 1))
             assertEquals(FormatOption.FORCE_HEVC, NovaVideoCodecOverrides.resolve(selected, FormatOption.FORCE_HEVC))
