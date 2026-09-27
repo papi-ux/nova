@@ -141,18 +141,106 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun theAdviceIsNeverWhatLookedSoft() {
-        // Measured by eye on Control at 1920x1080: 50 Mbps at 120 fps looked soft. The least the advice
-        // asks for at that size and rate is 4:2:0 on the device's own screen, 307.143 in the fixture.
+        // Measured by eye on a Retroid Pocket 6, Control at 1920x1080: 50 Mbps at 120 fps looked soft.
+        // The least the advice asks for at that size and rate is 4:2:0 on the device's own screen,
+        // 307.143 in the fixture. The other half of the measurement is the next test.
         val least = PyroWaveDecoderRenderer.recommendedKbps(1920, 1080, 120, false, ownScreen)
         assertEquals(kbps(upstreamMbps(ownScreen, false, 1920, 1080, 120)), least)
         assertTrue("advice of $least kbps is down where the picture looked soft", least > 50_000)
     }
 
     @Test
+    fun theModelAsksForMoreThanWhatLookedRightByEye() {
+        // The other half: on the same handheld, 200 Mbps at 120 fps looked right. The model at 35 dB asks
+        // 358.984 there in 4:4:4 and 307.143 in 4:2:0, 1.5 to 1.8 times as much, where the flat figure
+        // it replaced asked 0.73 x 1920 x 1080 x 120, 181.647. So the model and the eye disagree here,
+        // and ADVICE_PSNR_DB says so and why that may be. This keeps the measurement in view: if the
+        // advice comes back down to what looked right, that paragraph is out of date.
+        for (chroma444 in listOf(false, true)) {
+            val got = advice(1920, 1080, 120, chroma444, ownScreen)
+            assertEquals(chroma(chroma444), kbps(upstreamMbps(ownScreen, chroma444, 1920, 1080, 120)), got.kbps)
+            assertTrue(
+                "${chroma(chroma444)}: ${got.kbps} kbps is no longer above the 200 Mbps that looked right by " +
+                    "eye, so what ADVICE_PSNR_DB says about the two disagreeing is out of date",
+                got.kbps > 200_000,
+            )
+        }
+    }
+
+    /** The most Nova's bitrate setting reaches, in kbps, read from the slider that sets it. */
+    private fun sliderMaxKbps(): Int {
+        val prefs = File("src/main/res/xml/preferences.xml").readText()
+        val slider = prefs.substringAfter("android:key=\"seekbar_bitrate_kbps\"").substringBefore("/>")
+        return Regex("android:max=\"(\\d+)\"").find(slider)!!.groupValues[1].toInt()
+    }
+
+    @Test
+    fun whereTheAdviceOutrunsTheSliderItIsStillSaid() {
+        // Nova's bitrate setting stops at 300 Mbps and the advice does not stop with it, so past the
+        // slider no setting satisfies it and the warning comes back on every launch. bitrateAdvice's
+        // KDoc says where that happens; these are the edges it names, in the 4:4:4 Nova's offer settles
+        // on, each checked against the fixture, so the slider, the target or a distance cannot move
+        // without this and that paragraph moving with it.
+        val slider = sliderMaxKbps()
+        assertEquals(300_000, slider)
+        fun pastTheSlider(factor: Int, width: Int, height: Int, fps: Int): Boolean {
+            val got = advice(width, height, fps, true, factor)
+            val where = "${width}x$height at $fps, H index $factor"
+            assertEquals(where, roundedUpToMbps(kbps(upstreamMbps(factor, true, width, height, fps))), got.mbps)
+            return got.mbps * 1000 > slider
+        }
+
+        // A device's own screen at 60 fps: under it for every size the model covers, 4K asking 234.389.
+        for (r in rowsAt35dB().filter { it.heightFactor == ownScreen && it.fps == 60 && it.chroma444 }) {
+            assertFalse("${r.width}x${r.height} at 60", pastTheSlider(ownScreen, r.width, r.height, 60))
+        }
+        // At 90 fps from 3200x1800 (308.401), not at 2560x1440 (276.427).
+        assertFalse(pastTheSlider(ownScreen, 2560, 1440, 90))
+        assertTrue(pastTheSlider(ownScreen, 3200, 1800, 90))
+        // At 120 fps from 1600x900 (326.086), not at 1280x800 (286.352). 1080p at 120 is a 120 Hz
+        // handheld at its own panel's rate: 358.984, and 307.143 even in 4:2:0.
+        assertFalse(pastTheSlider(ownScreen, 1280, 800, 120))
+        assertTrue(pastTheSlider(ownScreen, 1600, 900, 120))
+        assertEquals(359, advice(1920, 1080, 120, true, ownScreen).mbps)
+        assertEquals(308, advice(1920, 1080, 120, false, ownScreen).mbps)
+
+        // A television or an external display at 60 fps from 2560x1080 (309.990), not at 1080p
+        // (266.745); 1440p asks 341.824.
+        assertFalse(pastTheSlider(acrossTheRoom, 1920, 1080, 60))
+        assertTrue(pastTheSlider(acrossTheRoom, 2560, 1080, 60))
+        assertEquals(342, advice(2560, 1440, 60, true, acrossTheRoom).mbps)
+        // At 90 fps from 1600x900 (326.089), not at 1280x800 (266.174), and at 120 even 720p (330.095).
+        assertFalse(pastTheSlider(acrossTheRoom, 1280, 800, 90))
+        assertTrue(pastTheSlider(acrossTheRoom, 1600, 900, 90))
+        assertTrue(pastTheSlider(acrossTheRoom, 1280, 720, 120))
+    }
+
+    @Test
+    fun onATelevisionFourKIsAdvisedLessThanFourteenForty() {
+        // Not monotone in the size, because upstream did not measure it so. At H 2.0 in 4:4:4 the fixture
+        // has 1440p60 at 341.824, 3200x1800 at 325.671 and 4K at 313.803: past about 1440p at that
+        // distance the added pixels are finer than an eye resolves well, and a wavelet codec spends little
+        // on them. The advice follows the model rather than smoothing it over, so a player on a television
+        // who drops from 4K to 1440p is told to raise the bitrate. On the device's own screen, farther
+        // away, the curve has not turned yet: 4K asks the most there, 234.389 against 184.285 for 1440p.
+        val at1440 = advice(2560, 1440, 60, true, acrossTheRoom).kbps
+        val at1800 = advice(3200, 1800, 60, true, acrossTheRoom).kbps
+        val at4k = advice(3840, 2160, 60, true, acrossTheRoom).kbps
+        assertEquals(kbps(upstreamMbps(acrossTheRoom, true, 2560, 1440, 60)), at1440)
+        assertEquals(kbps(upstreamMbps(acrossTheRoom, true, 3840, 2160, 60)), at4k)
+        assertTrue("4K $at4k, 3200x1800 $at1800, 1440p $at1440", at4k < at1800 && at1800 < at1440)
+        assertTrue(
+            advice(3840, 2160, 60, true, ownScreen).kbps > advice(2560, 1440, 60, true, ownScreen).kbps,
+        )
+    }
+
+    @Test
     fun followingTheAdviceSatisfiesIt() {
         // The warning compares against the exact figure and prints a rounded one, so rounding down would
         // tell a player a number that, once set, is still under what was wanted, on every launch,
-        // forever. The one number is the one that is shown, rounded up.
+        // forever. The one number is the one that is shown, rounded up. This is about the rounding only:
+        // past the 300 Mbps the slider reaches, there is no number to set, and
+        // whereTheAdviceOutrunsTheSliderItIsStillSaid says where that is.
         val sizes = listOf(
             854 to 480, 1280 to 720, 1280 to 800, 1920 to 1080, 2560 to 1080, 2560 to 1440,
             3840 to 2160, 5120 to 2880,
@@ -185,8 +273,10 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun theDevicesOwnScreenIsTheFarthestDistanceTheModelCovers() {
-        // A phone, a handheld or a tablet held at arm's length sits farther away than H 2.87, and the
-        // model reaches no farther, so the last distance it has is the nearest to the truth.
+        // A phone or a handheld held at arm's length sits farther away than H 2.87, and the model
+        // reaches no farther, so the last distance it has is the nearest to the truth. A large tablet
+        // can sit nearer, and a phone mirrored to a television is not seen at all; viewingHeightFactor
+        // says what that costs.
         val factor = PyroWaveDecoderRenderer.viewingHeightFactor(television = false, onExternalDisplay = false)
         assertEquals(15, factor)
         assertEquals(PyroWaveRateModel.HEIGHT_FACTORS - 1, factor)

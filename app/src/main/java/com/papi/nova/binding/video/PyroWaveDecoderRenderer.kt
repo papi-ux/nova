@@ -91,6 +91,15 @@ class PyroWaveDecoderRenderer(
          * The level PyroWave's author calls the default good quality curve, and the owner's choice
          * over the lighter 33 dB. [PyroWaveRateModel] says what the metric is and what it was
          * measured on.
+         *
+         * It asks for more than Nova's one measurement by eye found enough. On a Retroid Pocket 6,
+         * Control at 1920x1080 and 120 fps looked soft at 50 Mbps and right at 200. This asks for 359
+         * there in 4:4:4 and 308 in 4:2:0, 1.5 to 1.8 times what looked right, where the flat figure it
+         * replaced asked for 182. The two answer different questions: that was one title judged by one
+         * eye, and this is an objective metric fitted to four clips. Distance is part of the gap too.
+         * That panel is 5.5 inches at 16:9, about 6.9 cm tall, so at 35 cm it is watched from about H 5,
+         * and the model reaches no farther than H 2.87, where an eye finds more of what is missing.
+         * Until a measurement on a device says otherwise, the advice follows the model.
          */
         const val ADVICE_PSNR_DB = 35
 
@@ -120,10 +129,21 @@ class PyroWaveDecoderRenderer(
          * H 2.0 (index 8) when the device is a television or the stream is shown on an external
          * display: a screen across a room or on a desk, watched from about a monitor's distance, which
          * is also the distance upstream's subjective tests used. H 2.87 (index 15) otherwise, which is a
-         * phone, a handheld or a tablet showing the stream on its own screen. Held at arm's length such
-         * a screen sits farther away than any distance the model covers, and the farther away, the less
-         * detail an eye can find to miss. So the farthest distance the model does cover is the nearest
-         * answer it has, and it errs toward asking for more than such a screen needs, never less.
+         * phone, a handheld or a tablet showing the stream on its own screen. A phone or a handheld held
+         * at arm's length sits farther away than any distance the model covers (a 5.5 inch 16:9 panel at
+         * 35 cm is about H 5), and the farther away, the less detail an eye can find to miss. So the
+         * farthest distance the model does cover is the nearest answer it has, and for those screens it
+         * errs toward asking for more than they need.
+         *
+         * Two cases get less than the model would give them, because nothing here can see them. A large
+         * tablet can sit nearer than H 2.87: a 14.6 inch 16:10 panel showing 16:9 is about 17.7 cm tall,
+         * so at 40 cm it is watched from about H 2.26, and at H 2.25 the model asks a third more (241
+         * Mbps for 1080p60 in 4:4:4 against the 180 given). And a phone that mirrors its screen to a
+         * television keeps the stream on its default display, so it is advised for its own screen, 180
+         * Mbps for 1080p60 where the television's distance would ask 267. Nova moves the stream onto another
+         * display only when "Use Android external display" is on, and it is off by default. Nothing
+         * Nova reads says whether the default display is being mirrored: a connected display may be
+         * mirroring it, running a desktop of its own, or be a second built in panel.
          *
          * [television] is the UI mode, the same check the system bars make. [onExternalDisplay] is
          * Game's isOnExternalDisplay, set once from the display the stream's window is on: true when
@@ -172,6 +192,21 @@ class PyroWaveDecoderRenderer(
          *
          * Frame rate multiplies it exactly, unlike an inter frame codec where the extra frames are more
          * similar to their neighbours and cost far less than the first one.
+         *
+         * It is said as it is even past the 300 Mbps Nova's bitrate setting reaches, and there no setting
+         * satisfies it, so the warning comes back on every launch. In the 4:4:4 Nova's offer settles on,
+         * a device's own screen stays under 300 at 60 fps for every size the model covers (4K asks 235),
+         * passes it at 90 fps from 3200x1800, and at 120 fps from 1600x900: 1080p asks 359 (308 in
+         * 4:2:0), which is a 120 Hz handheld at its own panel's rate. A television or an external display
+         * passes it at 60 fps from 2560x1080 (1440p asks 342), at 90 fps from 1600x900, and at 120 fps
+         * even at 720p. Whether the advice or its warning should stop at the slider is the owner's call;
+         * until it is made, the number is the codec's and not the slider's.
+         *
+         * It is not monotone in the size. At a television's distance the model stops growing near
+         * 1440p, so in 4:4:4 a player who drops from 4K to 1440p is advised more (342 against 314 at 60
+         * fps). [PyroWaveRateModel] says why. And it is the same for HDR as for SDR: the model was
+         * measured on SDR and takes no dynamic range, so an HDR stream is given the SDR figure, and Game
+         * logs which one it was.
          *
          * It is a large number, about 180 Mbps for 1080p60 in 4:4:4 on a handheld's own screen against
          * the 20 Mbps Nova defaults to, and that is the honest shape of an intra only codec rather than
@@ -233,7 +268,9 @@ class PyroWaveDecoderRenderer(
          * Said and compared in the same unit on purpose. Comparing the exact figure against a rounded
          * one is advice nobody can take: told 153 Mbps for a stream that wants 153571 kbps, a player who
          * sets 153 is at 153000, still under, and is told the same thing again on every launch forever.
-         * Rounding up, to 154, so that following the advice is always enough to satisfy it.
+         * Rounding up, to 154, so that following the advice is always enough to satisfy it, wherever
+         * the slider reaches the figure. Past its 300 Mbps there is nothing to follow, and
+         * [bitrateAdvice] says where that happens.
          */
         fun advisedMbps(width: Int, height: Int, fps: Int, chroma444: Boolean, heightFactor: Int): Int =
             bitrateAdvice(width, height, fps, chroma444, heightFactor).mbps
