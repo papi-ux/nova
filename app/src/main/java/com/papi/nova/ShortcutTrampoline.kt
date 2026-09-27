@@ -708,7 +708,12 @@ class ShortcutTrampoline : NovaActivity() {
             }
 
             val clientSettings = apiClient.getClientSettings()
-            val encoderBackend = if (isWorkerProfile) {
+            val preferences = PreferenceConfiguration.readPreferences(this)
+            val codec = com.papi.nova.ui.NovaVideoCodecOverrides.resolve(
+                com.papi.nova.ui.NovaVideoCodecOverrides.load(this, details.uuid, polarisGame.id, polarisGame.appId),
+                preferences.videoFormat,
+            )
+            val encoderBackend = if (isWorkerProfile || codec == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
                 ""
             } else if (clientSettings != null) {
                 NovaEncoderBackendOverrides.loadAvailable(this, polarisGame, clientSettings).orEmpty()
@@ -721,7 +726,6 @@ class ShortcutTrampoline : NovaActivity() {
             // The per-game Tuning choice, not a fixed "auto": a game pinned to High FPS
             // in Play Setup must launch pinned from a home-screen shortcut too.
             val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.id, polarisGame.name)
-            val preferences = PreferenceConfiguration.readPreferences(this)
             val metered = StreamSyncManager.isMeteredNetwork(this)
             val requestedBitrateKbps = if (metered) preferences.meteredBitrate else preferences.bitrate
             val optimization = apiClient.getOptimization(
