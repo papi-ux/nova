@@ -763,10 +763,8 @@ internal enum class NovaPlaySetupScope { THIS_GAME, EVERY_GAME }
  * Kept in one stable order. Compact hosts still fit without scrolling; richer host catalogs
  * can add rows and use the wide panel's measured scroll fallback rather than hiding a choice.
  *
- * More Launch Settings is not among them. It held resolution, and behind it codec and
- * bitrate -- which are consequences of a resolution, not choices anyone makes separately.
- * Resolution is a row of its own now, and the rest is stated in the read column where the
- * other consequences already are.
+ * Resolution, frame rate, and video codec have their own rows. Codec is a client choice;
+ * the encoder row selects the host backend, except when PyroWave supplies its own encoder.
  *
  * The HOST_ rows are Every Game's four: the Polaris Sync sheet's sections in the same
  * shape, so the scope pill changes the subject and nothing else.
@@ -776,6 +774,7 @@ internal enum class NovaPlaySetupRow {
     WHERE_IT_RUNS,
     RESOLUTION,
     FRAME_RATE,
+    VIDEO_CODEC,
     ENCODER,
     FACE_BUTTONS,
     TUNING,
@@ -880,6 +879,7 @@ internal data class NovaPlaySetupRowState(
      * the next launch should not look identical to one that is simply reporting.
      */
     val overridden: Boolean = false,
+    val optionsPerRow: Int = Int.MAX_VALUE,
 )
 
 /**

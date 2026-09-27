@@ -5,6 +5,33 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NovaReleaseMetadataTest {
+    @Test
+    fun experimentalLinuxBundleIsSeparateAndRequiredForTags() {
+        val root = repoRoot()
+        val workflow = File(root, ".github/workflows/build.yml").readText()
+        val standard = workflowJob(workflow, "deck-flatpak")
+        val experimental = workflowJob(workflow, "deck-flatpak-pyrowave")
+        val release = workflowJob(workflow, "build")
+        assertTrue(standard.contains("manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.json"))
+        assertTrue(experimental.contains("manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.pyrowave.json"))
+        assertTrue(experimental.contains("bundle: Nova-Linux-PyroWave-x86_64-alpha.flatpak"))
+        assertTrue(experimental.contains("ref: \${{ github.sha }}"))
+        assertTrue(experimental.contains("submodules: recursive"))
+        assertTrue(experimental.contains("if-no-files-found: error"))
+        assertTrue(release.contains("needs: [verify, android-smoke, deck-flatpak, deck-flatpak-pyrowave]"))
+        assertTrue(release.contains("needs.deck-flatpak-pyrowave.result == 'success'"))
+        assertTrue(release.contains("needs.deck-flatpak-pyrowave.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v')"))
+        assertTrue(workflowStep(release, "Add the experimental PyroWave bundle")
+            .contains("name: nova-linux-pyrowave-flatpak"))
+        val checksums = workflowStep(release, "Checksum both Linux Alpha bundles")
+        assertTrue(checksums.contains("sha256sum Nova-Linux-PyroWave-x86_64-alpha.flatpak > Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256"))
+        val manifest = File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.pyrowave.json").readText()
+        assertTrue(manifest.contains("-DNOVA_DECK_BUILD_PYROWAVE=ON"))
+        assertTrue(!manifest.contains("NOVA_DECK_UPDATE_CHANNEL"))
+        val standardManifest = File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").readText()
+        assertTrue(!standardManifest.contains("-DNOVA_DECK_BUILD_PYROWAVE=ON"))
+    }
+
     private fun repoRoot(): File {
         return generateSequence(File(".").canonicalFile) { it.parentFile }
             .first { candidate -> File(candidate, "app/build.gradle").isFile }
@@ -92,7 +119,25 @@ class NovaReleaseMetadataTest {
             File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
                 .contains("<release version=\"1.4.13\" date=\"2026-09-24\"/>")
         )
-        assertTrue(build.contains("versionCode = 54"))
+        // Stable's code is still a hand-maintained pin, and still 54, because the store notes above
+        // are filed under that number. It now has a name so the prerelease derivation can read it
+        // rather than repeat it.
+        assertTrue(build.contains("def novaVersionCode = 54"))
+        assertTrue(build.contains("versionCode = novaVersionCode"))
+
+        // A beta's code is derived from that pin, because beta.2 and beta.3 both shipped 54 when it
+        // was hand-written and no package manager could tell them apart. The scheme scales the base
+        // rather than adding to it: com.papi.nova.pre is one application id for every prerelease, so
+        // the next version's first beta has to outrank this version's last rc, and base + N cannot
+        // guarantee that when the base only climbs by one per release.
+        assertTrue(build.contains("def novaPreReleaseVersionCode = novaVersionCode * 100 + novaPreReleaseChannelOrdinal"))
+        assertTrue(build.contains("novaChannel == \"rc\" ? 50 + novaChannelNumber : novaChannelNumber"))
+        // Past 49 the beta and rc bands collide and an rc stops outranking the betas.
+        assertTrue(build.contains("novaChannelNumber < 1 || novaChannelNumber > 49"))
+        // A build type cannot carry a versionCode, so it is applied to the variant outputs, and only
+        // for preRelease: stable, dirty and benchmark keep the pin.
+        assertTrue(build.contains("onVariants(selector().withBuildType(\"preRelease\"))"))
+        assertTrue(build.contains("output.versionCode.set(novaPreReleaseVersionCode)"))
         assertTrue(changelog.contains("## 1.4.13 - 2026-09-24"))
         assertTrue(changelog.contains("Steam Input remains manual and read-only."))
         assertTrue(changelog.contains("Polaris owns encoder probing, fallback, and launch policy"))
@@ -102,12 +147,23 @@ class NovaReleaseMetadataTest {
         assertTrue(releaseWorkflow.contains("published_notes="))
         assertTrue(!releaseWorkflow.contains("--generate-notes"))
         assertTrue(releaseScript.contains("-PnovaAbis=arm64-v8a,armeabi-v7a,x86_64"))
-        for (asset in listOf(
-            "Nova-Android-arm64-v8a.apk",
-            "Nova-Android-armeabi-v7a.apk",
-            "Nova-Android-x86_64.apk",
-        )) {
-            assertTrue(releaseScript.contains(asset))
+        // The names are chosen from the channel now rather than written out, because a beta
+        // installs beside stable under com.papi.nova.pre and must not publish under stable's
+        // filenames: anything keyed on those, including Nova's own documented Obtainium entry,
+        // would fetch the beta while tracking the stable package and fail to read it at all.
+        assertTrue(
+            "the release script must publish a stable release under the stable asset names",
+            releaseScript.contains("asset_prefix=Nova-Android"),
+        )
+        assertTrue(
+            "the release script must publish a beta under its own asset names",
+            releaseScript.contains("asset_prefix=Nova-Beta-Android"),
+        )
+        for (abi in listOf("arm64-v8a", "armeabi-v7a", "x86_64")) {
+            assertTrue(
+                "the release script must name the $abi asset it uploads",
+                releaseScript.contains("\${asset_prefix}-$abi.apk"),
+            )
         }
         assertTrue(storeNotes.isFile)
         assertTrue(
@@ -242,9 +298,18 @@ class NovaReleaseMetadataTest {
             "apk_files=(\"\${APK_DIR}\"/*\"\${NOVA_APK_VARIANT}\"-unsigned.apk)"
         ))
 
-        // An asset name carries the ABI, never the channel, so every published stable link keeps
-        // resolving and Obtainium needs no second configuration.
-        assertTrue(selectLines.contains("asset_name=\"Nova-Android-\${abi}.apk\""))
+        // An asset name carries the channel as well as the ABI.
+        //
+        // It used to carry only the ABI, so that every published stable link kept resolving and
+        // Obtainium needed no second configuration. The second half of that was wrong. A beta
+        // installs beside stable under com.papi.nova.pre, and publishing it under stable's exact
+        // filenames meant anything keyed on those names fetched a beta while tracking the stable
+        // package: Nova's own documented Obtainium entry pins id com.papi.nova and the filter
+        // Nova-Android-arm64-v8a.apk, and reported that it could not read the package at all.
+        //
+        // Stable keeps its names, so the first half still holds and every published link is
+        // untouched. Only a beta is renamed, and it gets an Obtainium entry of its own.
+        assertTrue(selectLines.contains("asset_name=\"\${NOVA_ASSET_PREFIX}-\${abi}.apk\""))
     }
 
     @Test
@@ -353,14 +418,16 @@ class NovaReleaseMetadataTest {
         ))
         assertConsecutive(stageLines, listOf(
             "expected_asset_names=(",
-            "Nova-Android-arm64-v8a.apk",
-            "Nova-Android-arm64-v8a.apk.sha256",
-            "Nova-Android-armeabi-v7a.apk",
-            "Nova-Android-armeabi-v7a.apk.sha256",
-            "Nova-Android-x86_64.apk",
-            "Nova-Android-x86_64.apk.sha256",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
             "Nova-Linux-x86_64-alpha.flatpak",
             "Nova-Linux-x86_64-alpha.flatpak.sha256",
+            "Nova-Linux-PyroWave-x86_64-alpha.flatpak",
+            "Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertConsecutive(stageLines, listOf(
@@ -371,7 +438,7 @@ class NovaReleaseMetadataTest {
         ))
         assertConsecutive(stageLines, listOf(
             "if [ \"\${local_asset_names[*]}\" != \"\${expected_asset_names[*]}\" ]; then",
-            "echo \"Local release assets do not match the exact eight-file contract\" >&2",
+            "echo \"Local release assets do not match the exact ten-file contract\" >&2",
             "printf 'expected: %s\\n' \"\${expected_asset_names[*]}\" >&2",
             "printf 'local: %s\\n' \"\${local_asset_names[*]}\" >&2",
             "exit 1",
@@ -389,14 +456,16 @@ class NovaReleaseMetadataTest {
         assertNoHeredoc(uploadLines, "Release asset upload")
         assertConsecutive(uploadLines, listOf(
             "expected_asset_names=(",
-            "Nova-Android-arm64-v8a.apk",
-            "Nova-Android-arm64-v8a.apk.sha256",
-            "Nova-Android-armeabi-v7a.apk",
-            "Nova-Android-armeabi-v7a.apk.sha256",
-            "Nova-Android-x86_64.apk",
-            "Nova-Android-x86_64.apk.sha256",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
             "Nova-Linux-x86_64-alpha.flatpak",
             "Nova-Linux-x86_64-alpha.flatpak.sha256",
+            "Nova-Linux-PyroWave-x86_64-alpha.flatpak",
+            "Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertTrue(uploadLines.contains(
@@ -414,14 +483,16 @@ class NovaReleaseMetadataTest {
         val verifyLines = workflowRunLines(verify)
         assertNoHeredoc(verifyLines, "Release asset verification")
         val exactAssetNames = listOf(
-            "Nova-Android-arm64-v8a.apk",
-            "Nova-Android-arm64-v8a.apk.sha256",
-            "Nova-Android-armeabi-v7a.apk",
-            "Nova-Android-armeabi-v7a.apk.sha256",
-            "Nova-Android-x86_64.apk",
-            "Nova-Android-x86_64.apk.sha256",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-arm64-v8a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk.sha256\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk\"",
+            "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
             "Nova-Linux-x86_64-alpha.flatpak",
             "Nova-Linux-x86_64-alpha.flatpak.sha256",
+            "Nova-Linux-PyroWave-x86_64-alpha.flatpak",
+            "Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256",
         )
         for (asset in exactAssetNames) {
             assertTrue(verifyLines.contains(asset))
@@ -435,7 +506,7 @@ class NovaReleaseMetadataTest {
         ))
         assertConsecutive(verifyLines, listOf(
             "if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then",
-            "echo \"Release assets do not match the exact eight-file contract on \${GITHUB_REF_NAME}\" >&2",
+            "echo \"Release assets do not match the exact ten-file contract on \${GITHUB_REF_NAME}\" >&2",
             "printf 'expected: %s\\n' \"\${expected_assets[*]}\" >&2",
             "printf 'published: %s\\n' \"\${published_assets[*]}\" >&2",
             "exit 1",

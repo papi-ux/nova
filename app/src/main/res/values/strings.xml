@@ -416,6 +416,15 @@
     <string name="nova_play_setup_frame_rate_auto_consequence">Keeps the host-resolved or Settings frame rate</string>
     <string name="nova_play_setup_frame_rate_fps_format">%d FPS</string>
     <string name="nova_play_setup_encoder">Encoder</string>
+    <string name="nova_play_setup_video_codec">Video Codec</string>
+    <string name="nova_play_setup_codec_app_setting">App setting</string>
+    <string name="nova_play_setup_codec_inherited">App setting · %1$s</string>
+    <string name="nova_play_setup_codec_caption">Saved for this game on this PC · applies at launch</string>
+    <string name="nova_play_setup_codec_inherit_detail">Follow the codec in Nova Settings. Other games keep their own choices.</string>
+    <string name="nova_play_setup_codec_standard_detail">Use this codec preference for this game. Availability depends on both devices.</string>
+    <string name="nova_play_setup_codec_pyrowave_detail">Experimental Vulkan codec. Requires matching host support and a fast network; never falls back to another codec.</string>
+    <string name="nova_play_setup_encoder_pyrowave">PyroWave · Vulkan</string>
+    <string name="nova_play_setup_encoder_pyrowave_detail">Selected by PyroWave. Your encoder choice stays saved for other codecs.</string>
     <string name="nova_play_setup_encoder_host_default">Host default</string>
     <string name="nova_play_setup_encoder_host_default_caption">Uses Polaris\' configured encoder policy</string>
     <string name="nova_play_setup_encoder_auto_caption">Polaris chooses for this launch · fallback allowed</string>

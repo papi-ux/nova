@@ -138,6 +138,9 @@ object CacheHelper {
     @JvmStatic
     @Throws(IOException::class)
     fun writeInputStreamToOutputStream(input: InputStream, output: OutputStream, maxLength: Long) {
+        if (maxLength < 0) {
+            throw IOException("Invalid stream size limit")
+        }
         val buffer = ByteArray(4096)
         var remaining = maxLength
         while (true) {
@@ -145,11 +148,11 @@ object CacheHelper {
             if (bytesRead == -1) {
                 return
             }
-            remaining -= bytesRead.toLong()
-            if (remaining <= 0) {
+            if (bytesRead.toLong() > remaining) {
                 throw IOException("Stream exceeded max size")
             }
             output.write(buffer, 0, bytesRead)
+            remaining -= bytesRead.toLong()
         }
     }
 

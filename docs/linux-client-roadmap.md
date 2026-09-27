@@ -1,5 +1,10 @@
 # Nova Linux client roadmap
 
+Current execution map: [Nova Linux objective status](linux-objective-status.md),
+audited against staging on 2026-09-26. It separates present implementation, open
+PRs, residual gaps and installed acceptance for every L01–L08 and P01–P28 row.
+Use that map before selecting work from imported Nightly issues.
+
 Approved scope: 2026-09-23. Nova's native client targets Linux laptops, desktops
 and handhelds, with Steam Deck as a supported device profile. Work continues in
 `clients/deck/`; this scope change does not rename the package or application ID.
@@ -133,7 +138,11 @@ The local search slice (L07) is implemented locally:
   130% text. A live read-only Avahi query completed successfully. Flatpak adds
   the Avahi system-bus permission; Avahi 0.8+ must run on the Linux device.
 
-## Source audit and implementation order
+## Historical source audit and original implementation order
+
+The observations and instructions below describe the pre-implementation source.
+The slices above have since landed in staging. Do not repeat these assignments;
+use the current objective status and remaining acceptance matrix.
 
 Source baseline: [`c822632`](https://github.com/papi-ux/nova/commit/c822632), after
 the Alpha integration and host-refusal/icon fixes. These are source observations,
@@ -229,7 +238,7 @@ results and remaining gaps were checked against this candidate's source:
 | Decode/GPU | H.264/HEVC VA-API capability checks and DRM/EGL presentation are present | Automatic FFmpeg VA-API device selection is still used for both probe and decode. There is no explicit hybrid-GPU selector, native NVDEC backend or software-decoder fallback. NVIDIA-only and cross-GPU import are not advertised as validated |
 | Audio | PipeWire autoconnect permits routing/reconnection and preserves channel mapping; existing tests cover buffering/recovery | No in-app output-device picker; physical speaker/headphone/external-output changes and A/V sync remain acceptance work |
 | Discovery | Local Avahi browse works on the build host; private service/UI regressions cover endpoint selection and lifecycle | Hosts must advertise; Avahi 0.8+ is needed on the device. VPN/routed networks and networks blocking multicast may need manual entry |
-| Packaging/HDR | Same application ID and settings paths; added Avahi permission and matching Qt input dependencies | The shipped manifest still leaves the experimental Vulkan path disabled. A development Vulkan build is not evidence that the repository Flatpak supports HDR. HDR packaging/presentation and upgrades from the user's exact installed artifacts remain separate gates |
+| Packaging/HDR | Same application ID and settings paths; Avahi permission and matching Qt input dependencies; both manifests now include the opt-in Vulkan presenter with pinned libplacebo | Vulkan streaming still negotiates SDR only, and the normal launcher uses OpenGL/EGL. Live HDR selection/negotiation, compositor/output metadata, hardware import, OLED HDR90 and upgrades from the user's exact installed artifacts remain separate gates |
 
 These are concrete coverage limits, not a claim that every Linux hardware and
 compositor combination is supported. The remaining parity and physical release
