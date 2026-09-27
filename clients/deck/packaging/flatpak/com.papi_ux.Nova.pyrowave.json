@@ -31,6 +31,7 @@
     "/share/nova-deck/cmake"
   ],
   "modules": [
+    "modules/libplacebo.json",
     "modules/pyrowave.json",
     {
       "name": "nova-deck",
@@ -39,6 +40,7 @@
       "config-opts": [
         "-DCMAKE_BUILD_TYPE=Release",
         "-DBUILD_TESTING=OFF",
+        "-DNOVA_DECK_BUILD_VULKAN_STREAM=ON",
         "-DNOVA_DECK_BUILD_PYROWAVE=ON"
       ],
       "sources": [

@@ -52,7 +52,8 @@ jobs:
         run: bash tools/apply-native-patches.sh
 
       - name: Build for CodeQL
-        run: ./gradlew --no-build-cache --no-configuration-cache --rerun-tasks -PnovaAbis=x86_64 assembleNonRoot_gameDebug
+        # Keep Kotlin compilation inside the traced process, even when a compiler daemon already exists.
+        run: ./gradlew --no-daemon --no-build-cache --no-configuration-cache --rerun-tasks -Pkotlin.compiler.execution.strategy=in-process -PnovaAbis=x86_64 assembleNonRoot_gameDebug
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4

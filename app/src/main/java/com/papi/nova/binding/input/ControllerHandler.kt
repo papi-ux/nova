@@ -1453,17 +1453,18 @@ class ControllerHandler(
         y: Short,
         mouseEmulationXDown: Boolean,
         mouseEmulationPixelMultiplier: Int,
+        motion: ControllerMouseMotion,
     ) {
-        val vector = convertRawStickAxisToPixelMovement(x, y)
-        if (vector.getMagnitude() >= 1) {
-            if (mouseEmulationXDown) {
-                conn.sendMouseMove(
-                    (Integer.signum(vector.getX().toInt()) * mouseEmulationPixelMultiplier).toShort(),
-                    (Integer.signum((-vector.getY()).toInt()) * mouseEmulationPixelMultiplier).toShort(),
-                )
-            } else {
-                conn.sendMouseMove(vector.getX().toInt().toShort(), (-vector.getY()).toInt().toShort())
-            }
+        val movement = if (mouseEmulationXDown) {
+            motion.reset()
+            (Integer.signum(x.toInt()) * mouseEmulationPixelMultiplier).toShort() to
+                (Integer.signum(-y.toInt()) * mouseEmulationPixelMultiplier).toShort()
+        } else {
+            val vector = convertRawStickAxisToPixelMovement(x, y)
+            motion.accumulate(vector.getX().toDouble(), -vector.getY().toDouble())
+        }
+        if (movement.first.toInt() != 0 || movement.second.toInt() != 0) {
+            conn.sendMouseMove(movement.first, movement.second)
         }
     }
 
@@ -2472,6 +2473,8 @@ class ControllerHandler(
         var mouseEmulationXDown = false
         var mouseEmulationPixelMultiplier = 1
         var mouseEmulationLastInputMap = 0
+        private val leftMouseMotion = ControllerMouseMotion()
+        private val rightMouseMotion = ControllerMouseMotion()
         val mouseEmulationReportPeriod = 50
         val mouseEmulationRunnable: Runnable =
             object : Runnable {
@@ -2487,7 +2490,9 @@ class ControllerHandler(
                                 leftStickY,
                                 mouseEmulationXDown,
                                 mouseEmulationPixelMultiplier,
+                                leftMouseMotion,
                             )
+                            rightMouseMotion.reset()
                             sendEmulatedMouseScroll(rightStickX, rightStickY)
                         }
 
@@ -2497,7 +2502,9 @@ class ControllerHandler(
                                 rightStickY,
                                 mouseEmulationXDown,
                                 mouseEmulationPixelMultiplier,
+                                rightMouseMotion,
                             )
+                            leftMouseMotion.reset()
                             sendEmulatedMouseScroll(leftStickX, leftStickY)
                         }
 
@@ -2507,12 +2514,14 @@ class ControllerHandler(
                                 leftStickY,
                                 mouseEmulationXDown,
                                 mouseEmulationPixelMultiplier,
+                                leftMouseMotion,
                             )
                             sendEmulatedMouseMove(
                                 rightStickX,
                                 rightStickY,
                                 mouseEmulationXDown,
                                 mouseEmulationPixelMultiplier,
+                                rightMouseMotion,
                             )
                         }
                     }
@@ -2553,6 +2562,8 @@ class ControllerHandler(
 
         private fun setMouseEmulationActive(active: Boolean, announce: Boolean) {
             mainThreadHandler.removeCallbacks(mouseEmulationRunnable)
+            leftMouseMotion.reset()
+            rightMouseMotion.reset()
             mouseEmulationActive = active
             if (announce) {
                 NovaSnackbar.show(
@@ -2576,6 +2587,8 @@ class ControllerHandler(
             destroyed = true
             buttonReleaseScheduler.cancelOwner(this)
             mouseEmulationActive = false
+            leftMouseMotion.reset()
+            rightMouseMotion.reset()
             mainThreadHandler.removeCallbacks(mouseEmulationRunnable)
         }
 

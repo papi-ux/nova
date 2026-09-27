@@ -8,7 +8,7 @@
 
 A new codec you can try on a wired link, a Desktop entry that answers for itself, and a Command Center that stays where you left it. Nova 1.4.13 is matched with Polaris 1.4.13.
 
-**PyroWave, a new codec (experimental, beta builds only)**
+**PyroWave on Android (experimental, beta builds only)**
 
 - Nova can decode PyroWave, an intra only wavelet codec that runs as plain Vulkan compute rather than on a hardware video decoder. A lost packet costs one frame instead of everything up to the next keyframe.
 - Pick it under Video codec in Play Setup. It appears only in a beta build, installed beside your stable Nova, and only a Polaris 1.4.13 host can serve it.
@@ -28,7 +28,11 @@ A new codec you can try on a wired link, a Desktop entry that answers for itself
 - It stays open when you change a setting, instead of closing and making you find your way back.
 - The Play Setup legend follows the card you are on by name rather than by position.
 
-**Nova for Steam Deck (Alpha)**
+**Nova Linux (Alpha)**
+
+- Releases built with the separate-asset workflow include `Nova-Linux-PyroWave-x86_64-alpha.flatpak` and its checksum for explicitly testing PyroWave. It replaces the standard Linux app under the same ID; reinstall `Nova-Linux-x86_64-alpha.flatpak` from the same release to return, keeping your app data. Older releases, including beta.3, did not attach this experimental bundle.
+- Choose **PyroWave · Experimental** in **Play Setup → Video Codec**, with a compatible Polaris host and the normal Desktop destination. This Linux route supports SDR 8-bit 4:2:0; HDR, 4:4:4 and Spaces are not supported. Auto does not choose the codec. Vulkan device compatibility, sustained performance and real stream quality still need device testing. The bundle has no automatic stable/beta feed.
+
 
 - It says what the host said. A refused launch now carries the host's own reason instead of a generic failure.
 - It ships Nova's own icon.
@@ -36,6 +40,7 @@ A new codec you can try on a wired link, a Desktop entry that answers for itself
 **Beta releases**
 
 - A beta is published as a prerelease, tagged `v1.4.13-beta.N`, and installs beside your stable Nova rather than replacing it. Nothing reaches you unless you go and get it.
+- A beta's APKs are named `Nova-Beta-Android-<abi>.apk`, so an updater watching the stable filenames never picks one up by accident. To follow the beta channel, add it to Obtainium as its own app: [add Nova Beta to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.papi.nova.pre%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fpapi-ux%2Fnova%22%2C%22author%22%3A%22papi-ux%22%2C%22name%22%3A%22Nova%20Beta%22%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22Nova-Beta-Android-arm64-v8a%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22v%28.%2B%29%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%221%5C%22%2C%5C%22includePrereleases%5C%22%3Atrue%7D%22%7D). It tracks `com.papi.nova.pre`, which is the package a beta installs as.
 
 ## 1.4.12 - 2026-09-22
 

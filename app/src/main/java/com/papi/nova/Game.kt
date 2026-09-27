@@ -795,6 +795,7 @@ UiHelper.setLocale(this)
 
  // Read the stream preferences
         prefConfig = PreferenceConfiguration.readPreferences(this)
+        com.papi.nova.ui.NovaVideoCodecOverrides.applyToLaunch(this, intent, prefConfig)
         // A per-game face-button choice from Play Setup outranks the Settings flip for this
         // launch. ControllerHandler and the on-screen pad read prefConfig later, so one
         // assignment here covers physical and virtual pads alike.
@@ -1093,6 +1094,7 @@ streamMode = this@Game.getIntent().getStringExtra(EXTRA_STREAM_MODE) ?: ""
 encoderBackend = com.papi.nova.api.PolarisClientSettings.normalizeEncoderBackend(
 this@Game.getIntent().getStringExtra(EXTRA_ENCODER_BACKEND)
 ).orEmpty()
+encoderBackend = com.papi.nova.ui.NovaVideoCodecOverrides.encoderBackend(prefConfig.videoFormat, encoderBackend)
 forcePrivateAfterSteamClose = this@Game.getIntent().getBooleanExtra(EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, false)
 launchProfilePreference = this@Game.getIntent().getStringExtra(EXTRA_AI_PROFILE_PREFERENCE) ?: ""
 launchOptimizationJson = this@Game.getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION)

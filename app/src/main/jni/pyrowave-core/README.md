@@ -16,12 +16,28 @@ for abi in arm64-v8a x86_64 armeabi-v7a; do
   cmake -S . -B build-$abi -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
     -DANDROID_ABI=$abi -DANDROID_PLATFORM=android-26 \
-    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PWD/build-$abi/output
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PWD/build-$abi/output \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384,-z,common-page-size=16384"
   ninja -C build-$abi install
   $NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-unneeded \
     build-$abi/output/lib/libpyrowave-shared.so
 done
 ```
+
+The linker flags are not optional. Android 15 brought devices with 16 KB memory pages, and a
+library aligned to 4 KB will not load on one, so an APK carrying it cannot be installed at all.
+`ndk-build` aligns what it links and these are `PREBUILT_SHARED_LIBRARY`, so nothing in this tree
+applies that default for them: it has to be asked for here. v1.4.13-beta.3 shipped without it.
+
+Confirm before committing a rebuild, because every other check passes on a misaligned APK:
+
+```bash
+readelf -lW build-$abi/output/lib/libpyrowave-shared.so | awk '$1=="LOAD"{print $NF}'   # want 0x4000
+python3 tools/check_native_page_alignment.py app/src/main/jni/pyrowave-core/*/libpyrowave-shared.so
+```
+
+`tools/test_native_page_alignment.py` asserts it too, so a 4 KB library fails the build rather than a
+tester's install.
 
 Each stripped library is about 1.3 MB, and Nova splits APKs by ABI, so an install carries one.
 

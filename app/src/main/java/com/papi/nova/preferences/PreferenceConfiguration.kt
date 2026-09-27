@@ -32,7 +32,7 @@ class PreferenceConfiguration {
         FORCE_H264,
 
         /**
-         * PyroWave, offered in debug builds only while it is being brought up.
+         * PyroWave, offered in beta and debug builds while it is being brought up.
          *
          * Unlike the others this is not a preference among codecs a host will already stream. Asking
          * for it is exclusive: the client offers this format and nothing else, so a host that cannot

@@ -18,12 +18,14 @@ internal fun NovaGameDetailOptimizationState.withLaunchProfileSummary(
     clientAskedFps: Double,
     clientAskedHdr: Boolean? = null,
     spaceName: String = "",
+    clientCodecLabel: String? = null,
 ): NovaGameDetailOptimizationState = copy(
     profileSummary = buildNovaLaunchProfileSummary(
         launchOptimization,
         clientAskedFps = clientAskedFps,
         clientAskedHdr = clientAskedHdr,
         spaceName = spaceName,
+        clientCodecLabel = clientCodecLabel,
     ),
 )
 
@@ -76,11 +78,13 @@ internal fun buildNovaLaunchProfileSummary(
     clientAskedHdr: Boolean? = null,
     /** The Space this game opens in, for a launch the host answered with its Space contract. */
     spaceName: String = "",
+    /** Client codec choice for display only; never edits the authenticated host profile. */
+    clientCodecLabel: String? = null,
 ): NovaLaunchProfileSummary? {
     if (optimization == null) return null
     val pinnedFps = if (clientFpsPinned && clientAskedFps > 0.0) clientAskedFps else 0.0
     if (optimization.optString("source", "").equals("deterministic_preset_v1", ignoreCase = true)) {
-        return buildDeterministicLaunchPresetSummary(optimization, pinnedFps, clientAskedFps, clientAskedHdr)
+        return buildDeterministicLaunchPresetSummary(optimization, pinnedFps, clientAskedFps, clientAskedHdr, clientCodecLabel)
     }
     if (optimization.optString("source", "").equals(SPACE_LAUNCH_SOURCE, ignoreCase = true)) {
         return buildSpaceLaunchSummary(optimization, spaceName, clientAskedFps, clientAskedHdr)
@@ -284,7 +288,8 @@ private fun buildDeterministicLaunchPresetSummary(
     optimization: JSONObject,
     pinnedFps: Double,
     clientAskedFps: Double,
-    clientAskedHdr: Boolean? = null
+    clientAskedHdr: Boolean? = null,
+    clientCodecLabel: String? = null,
 ): NovaLaunchProfileSummary? {
     val resolved = optimization.optJSONObject("resolved_profile") ?: return null
     if (resolved.optInt("policy_version", 0) != 1) return null
@@ -293,7 +298,7 @@ private fun buildDeterministicLaunchPresetSummary(
     val preset = normalized(resolved.optString("preset", optimization.optString("preset", "auto")))
     val presetLabel = resolved.optString("preset_label", "").takeIf { it.isNotBlank() }
         ?: preferenceLabel(preset)
-    val resolvedFields = resolvedLaunchFields(fields, clientAskedHdr)
+    val resolvedFields = resolvedLaunchFields(fields, clientAskedHdr, clientCodecLabel)
     val resolvedFps = resolvedFields.fps
     val effectiveFps = if (pinnedFps > 0.0) pinnedFps else resolvedFps
     val selectedParts = resolvedFields.parts
@@ -399,7 +404,7 @@ private data class ResolvedLaunchFields(
     val hdrNotRequested: Boolean,
 )
 
-private fun resolvedLaunchFields(fields: JSONObject, clientAskedHdr: Boolean?): ResolvedLaunchFields {
+private fun resolvedLaunchFields(fields: JSONObject, clientAskedHdr: Boolean?, clientCodecLabel: String? = null): ResolvedLaunchFields {
     fun detail(name: String): JSONObject? = fields.optJSONObject(name)
     fun value(name: String): Any? = detail(name)?.opt("value")?.takeUnless { it === JSONObject.NULL }
 
@@ -418,8 +423,12 @@ private fun resolvedLaunchFields(fields: JSONObject, clientAskedHdr: Boolean?): 
     (value("target_bitrate_kbps") as? Number)?.toInt()?.takeIf { it > 0 }?.let {
         selectedParts += "${it / 1000.0} Mbps"
     }
-    (value("preferred_codec") as? String)?.takeIf { it.isNotBlank() }?.let {
-        selectedParts += it.uppercase(Locale.US)
+    if (!clientCodecLabel.isNullOrBlank()) {
+        selectedParts += "$clientCodecLabel (client choice)"
+    } else {
+        (value("preferred_codec") as? String)?.takeIf { it.isNotBlank() }?.let {
+            selectedParts += it.uppercase(Locale.US)
+        }
     }
     // The host resolves hdr and stamps why (reason_code). Say which kind of SDR this is:
     // the client never asked, the host turned it off, or the host encoder cannot. The
