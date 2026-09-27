@@ -2,6 +2,7 @@ package com.papi.nova.preferences
 
 import android.content.DialogInterface
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -63,15 +64,16 @@ class NovaListPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
         ) {
             override fun areAllItemsEnabled(): Boolean = false
             override fun isEnabled(position: Int): Boolean = enabled(position)
+            override fun getViewTypeCount(): Int = 2
+            override fun getItemViewType(position: Int): Int = if (enabled(position)) 0 else 1
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val row = super.getView(position, convertView, parent)
-                val label = row.findViewById<TextView>(android.R.id.text1)
-                label.isEnabled = enabled(position)
-                if (!enabled(position)) {
-                    label.isSingleLine = false
-                    label.maxLines = Int.MAX_VALUE
-                    label.text = "${entries?.get(position)}\n${PyroWaveAvailability.reason(requireContext(), availability)}"
-                }
+                if (enabled(position)) return super.getView(position, convertView, parent)
+                // A separate type keeps the multiline explanation out of the single-line row pool.
+                val row = convertView ?: LayoutInflater.from(requireContext()).inflate(
+                    R.layout.nova_select_dialog_unavailable_choice, parent, false,
+                )
+                row.findViewById<TextView>(android.R.id.text1).text =
+                    "${entries?.get(position)}\n${PyroWaveAvailability.reason(requireContext(), availability)}"
                 return row
             }
         }
