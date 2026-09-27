@@ -21,10 +21,13 @@ does not switch Nova to a beta, and a Nova beta does not update Polaris.
    `com.papi.nova.pre` and installs beside stable Nova (`com.papi.nova`). Pair your
    host in the beta app; the two apps keep separate settings and pairing data.
 
-**Known beta.3 limitation:** v1.4.13-beta.3 cannot install on Android devices
-using 16 KB memory pages because its PyroWave library has insufficient ELF
-alignment. Use stable Nova or a later beta whose release notes confirm the fix;
-uninstalling apps or clearing their data does not repair that package.
+**Known beta.2 and beta.3 limitation:** their PyroWave library lacks the native
+alignment required by Android devices using 16 KB memory pages. PyroWave may be
+unavailable there: Nova catches a library-load failure and treats the codec as
+absent. This has not been validated on a 16 KB device and does not establish an
+APK installation failure. Use a later beta whose release notes confirm the fix.
+See Android's [16 KB compatibility guidance](https://developer.android.com/guide/practices/page-sizes)
+for the separate native-library and APK packaging requirements.
 
 Older prereleases may use `Nova-Android-…` filenames. Follow the assets and notes
 of the prerelease you selected; do not point the stable updater at an older beta
