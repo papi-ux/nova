@@ -13,7 +13,7 @@ import org.junit.Test
 
 class NovaComposeBuildConfigurationTest {
     @Test
-    fun vulnerableKotlinCachesRemainDisabledAcrossCi() {
+    fun gradleCachesRemainDisabledAcrossCi() {
         val repositoryRoot = Paths.get("..").toAbsolutePath().normalize()
         val gradleProperties = readText(repositoryRoot.resolve("gradle.properties"))
         val workflows = Files.list(repositoryRoot.resolve(".github/workflows")).use { paths ->
@@ -28,12 +28,12 @@ class NovaComposeBuildConfigurationTest {
         assertPropertyDisabled(
             gradleProperties,
             "org.gradle.caching",
-            "Kotlin 2.3.21 must keep the Gradle build cache disabled"
+            "the Gradle build cache stays disabled until a re-enable is qualified on its own"
         )
         assertPropertyDisabled(
             gradleProperties,
             "kapt.incremental.apt",
-            "Kotlin 2.3.21 must keep KAPT incremental local-state deserialization disabled"
+            "KAPT incremental local-state deserialization stays disabled until a re-enable is qualified"
         )
 
         workflows.forEach { (name, workflow) ->
