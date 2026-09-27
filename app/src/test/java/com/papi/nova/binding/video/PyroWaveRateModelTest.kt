@@ -72,6 +72,19 @@ class PyroWaveRateModelTest {
     }
 
     @Test
+    fun theTableDescribesTheCodecNovaShips() {
+        // The model is one revision's measurement of the codec. When the prebuilt codec moves to another
+        // revision, a table left behind would go on describing a codec Nova no longer ships, and every
+        // other test here would still pass. The checkout line in pyrowave-core/README.md is the revision
+        // the prebuilt libraries are built from, so the table has to name the same one.
+        val readme = File("src/main/jni/pyrowave-core/README.md").readText()
+        val checkouts = Regex("git checkout ([0-9a-f]{40})").findAll(readme)
+            .map { it.groupValues[1] }
+            .toList()
+        assertEquals(listOf(PyroWaveRateTable.UPSTREAM_COMMIT), checkouts)
+    }
+
+    @Test
     fun everyAnswerUpstreamGaveIsReproduced() {
         val references = references()
         // 8 qualities x 16 distances x 2 chroma x 8 sizes x 4 frame rates, then the other 13 qualities

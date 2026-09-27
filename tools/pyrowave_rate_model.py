@@ -11,9 +11,10 @@ Themaister/pyrowave. This script reads that header from a pyrowave checkout and 
       what upstream's own C function answers over a grid, from tools/pyrowave_rate_fixture.c
       compiled against the same header, for PyroWaveRateModelTest to compare the port with.
 
-The header is pinned by sha256 to the revision Nova's prebuilt codec is built from. A different header
-is refused rather than ported, because the commit recorded beside the table would then be a lie: move
-UPSTREAM_COMMIT and HEADER_SHA256 together, on purpose.
+The header is pinned by sha256 to the revision Nova's prebuilt codec is built from, the checkout line in
+app/src/main/jni/pyrowave-core/README.md, and PyroWaveRateModelTest fails when the table names any other
+commit. A different header is refused rather than ported, because the commit recorded beside the table
+would then be a lie: move UPSTREAM_COMMIT and HEADER_SHA256 together, on purpose, when the codec moves.
 
     python3 tools/pyrowave_rate_model.py --pyrowave <checkout>          # write both files
     python3 tools/pyrowave_rate_model.py --pyrowave <checkout> --check  # fail if either is stale
