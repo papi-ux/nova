@@ -1674,12 +1674,18 @@ configuredStreamHdr = willStreamHdr
                 " at " + pyroWaveFps + " fps: " + pyroWaveAdvice.describe() +
                 "; television=" + pyroWaveTelevision + " external_display=" + isOnExternalDisplay +
                 " hdr=" + willStreamHdr)
-            val wantedMbps = pyroWaveAdvice.mbps
-            if (wantedMbps > 0 && configuredStreamBitrateKbps < wantedMbps * 1000)
+            // Under the advice the log always says so, and the player is told only while the bitrate
+            // setting can still go higher. bitrateWarning says why.
+            val pyroWaveWarning = com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateWarning(
+                configuredStreamBitrateKbps, displayWidth, displayHeight, pyroWaveFps, pyroWaveAdvice,
+            )
+            if (pyroWaveWarning != null)
             {
-                LimeLog.warning("PyroWave: " + configuredStreamBitrateKbps + " kbps for " + displayWidth + "x" +
-                    displayHeight + " at " + pyroWaveFps + " fps; it wants about " + wantedMbps + " Mbps")
-                NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, wantedMbps))
+                LimeLog.warning(pyroWaveWarning.logLine)
+                if (pyroWaveWarning.tellPlayer)
+                {
+                    NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, pyroWaveAdvice.mbps))
+                }
             }
         }
 doctorTelemetry.reset()

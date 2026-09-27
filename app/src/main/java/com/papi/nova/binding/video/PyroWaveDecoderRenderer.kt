@@ -4,6 +4,7 @@ import android.os.SystemClock
 import android.view.Surface
 import com.papi.nova.LimeLog
 import com.papi.nova.nvstream.jni.MoonBridge
+import com.papi.nova.preferences.PreferenceConfiguration
 
 /**
  * The renderer for a PyroWave stream.
@@ -83,6 +84,14 @@ class PyroWaveDecoderRenderer(
             return "$mbps Mbps ($kbps kbps) by rule $rule at $ADVICE_PSNR_DB dB, $distance, $chroma$modelFlags"
         }
     }
+
+    /** What Game says when a stream is sent under the advice for it. See [bitrateWarning]. */
+    data class BitrateWarning(
+        /** The line for the log, said for every stream under the advice. */
+        val logLine: String,
+        /** Whether the player is told too, which needs a bitrate setting that can still go higher. */
+        val tellPlayer: Boolean,
+    )
 
     companion object {
         /**
@@ -193,14 +202,15 @@ class PyroWaveDecoderRenderer(
          * Frame rate multiplies it exactly, unlike an inter frame codec where the extra frames are more
          * similar to their neighbours and cost far less than the first one.
          *
-         * It is said as it is even past the 300 Mbps Nova's bitrate setting reaches, and there no setting
-         * satisfies it, so the warning comes back on every launch. In the 4:4:4 Nova's offer settles on,
-         * a device's own screen stays under 300 at 60 fps for every size the model covers (4K asks 235),
-         * passes it at 90 fps from 3200x1800, and at 120 fps from 1600x900: 1080p asks 359 (308 in
-         * 4:2:0), which is a 120 Hz handheld at its own panel's rate. A television or an external display
-         * passes it at 60 fps from 2560x1080 (1440p asks 342), at 90 fps from 1600x900, and at 120 fps
-         * even at 720p. Whether the advice or its warning should stop at the slider is the owner's call;
-         * until it is made, the number is the codec's and not the slider's.
+         * It is said as it is even past the 300 Mbps Nova's bitrate setting reaches
+         * ([PreferenceConfiguration.MAX_BITRATE_KBPS]), where no setting satisfies it. In the 4:4:4
+         * Nova's offer settles on, a device's own screen stays under 300 at 60 fps for every size the
+         * model covers (4K asks 235), passes it at 90 fps from 3200x1800, and at 120 fps from 1600x900:
+         * 1080p asks 359 (308 in 4:2:0), which is a 120 Hz handheld at its own panel's rate. A
+         * television or an external display passes it at 60 fps from 2560x1080 (1440p asks 342), at 90
+         * fps from 1600x900, and at 120 fps even at 720p. The number stays the codec's and not the
+         * slider's, so the log says what the stream would need, and [bitrateWarning] is what keeps a
+         * player already at the top of the slider from being told on every launch to set more.
          *
          * It is not monotone in the size. At a television's distance the model stops growing near
          * 1440p, so in 4:4:4 a player who drops from 4K to 1440p is advised more (342 against 314 at 60
@@ -269,11 +279,44 @@ class PyroWaveDecoderRenderer(
          * one is advice nobody can take: told 153 Mbps for a stream that wants 153571 kbps, a player who
          * sets 153 is at 153000, still under, and is told the same thing again on every launch forever.
          * Rounding up, to 154, so that following the advice is always enough to satisfy it, wherever
-         * the slider reaches the figure. Past its 300 Mbps there is nothing to follow, and
-         * [bitrateAdvice] says where that happens.
+         * the slider reaches the figure. Past its 300 Mbps there is nothing to follow: [bitrateAdvice]
+         * says where that happens, and [bitrateWarning] why a player already there is not told.
          */
         fun advisedMbps(width: Int, height: Int, fps: Int, chroma444: Boolean, heightFactor: Int): Int =
             bitrateAdvice(width, height, fps, chroma444, heightFactor).mbps
+
+        /**
+         * What Game says about a stream sent at [streamKbps], [width] by [height] at [fps], when that
+         * is under [advice]. Null when it is not, or when there is no advice.
+         *
+         * [streamKbps] is the bitrate the stream is sent at, which a metered network or Auto Safe can
+         * set away from the saved one. It is compared with the whole Mbps the player is told, so that
+         * setting the figure told satisfies it, as [advisedMbps] says.
+         *
+         * The log always gets the line. The player is told only while the bitrate setting can still go
+         * higher. A stream already at [PreferenceConfiguration.MAX_BITRATE_KBPS], or over it, is under
+         * advice past the most the setting reaches, which [bitrateAdvice] says happens from 1080p at 120
+         * fps on a device's own screen. Telling that player on every launch to set a figure the slider
+         * cannot reach gives them nothing to change, so they are not told, and the line says the advice
+         * is over the maximum, so a report shows both what the stream would need and why nothing was
+         * said. Below the maximum the player is told as before, even when the advice is past it,
+         * because raising the bitrate still brings the stream closer to it.
+         */
+        fun bitrateWarning(streamKbps: Int, width: Int, height: Int, fps: Int, advice: BitrateAdvice): BitrateWarning? {
+            val wantedMbps = advice.mbps
+            if (wantedMbps <= 0 || streamKbps.toLong() >= wantedMbps.toLong() * 1000L) {
+                return null
+            }
+            val line = "PyroWave: $streamKbps kbps for ${width}x$height at $fps fps; it wants about $wantedMbps Mbps"
+            if (streamKbps >= PreferenceConfiguration.MAX_BITRATE_KBPS) {
+                return BitrateWarning(
+                    "$line, over the ${PreferenceConfiguration.MAX_BITRATE_KBPS / 1000} Mbps maximum of the " +
+                        "bitrate setting, so the player is not told",
+                    tellPlayer = false,
+                )
+            }
+            return BitrateWarning(line, tellPlayer = true)
+        }
 
         /**
          * How many frames the transport did not deliver between two that it did.

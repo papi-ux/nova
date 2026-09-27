@@ -3,8 +3,12 @@ package com.papi.nova.binding.video
 import com.papi.nova.binding.video.PyroWaveDecoderRenderer.AdviceRule
 import com.papi.nova.binding.video.PyroWaveRateModel.Flag
 import com.papi.nova.nvstream.jni.MoonBridge
+import com.papi.nova.preferences.NovaSettingsValidator
+import com.papi.nova.preferences.PreferenceConfiguration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -168,19 +172,20 @@ class PyroWaveBitrateAdviceTest {
     }
 
     /** The most Nova's bitrate setting reaches, in kbps, read from the slider that sets it. */
-    private fun sliderMaxKbps(): Int {
+    private fun sliderMaxKbps(key: String = "seekbar_bitrate_kbps"): Int {
         val prefs = File("src/main/res/xml/preferences.xml").readText()
-        val slider = prefs.substringAfter("android:key=\"seekbar_bitrate_kbps\"").substringBefore("/>")
+        assertTrue("no slider $key in preferences.xml", prefs.contains("android:key=\"$key\""))
+        val slider = prefs.substringAfter("android:key=\"$key\"").substringBefore("/>")
         return Regex("android:max=\"(\\d+)\"").find(slider)!!.groupValues[1].toInt()
     }
 
     @Test
     fun whereTheAdviceOutrunsTheSliderItIsStillSaid() {
         // Nova's bitrate setting stops at 300 Mbps and the advice does not stop with it, so past the
-        // slider no setting satisfies it and the warning comes back on every launch. bitrateAdvice's
-        // KDoc says where that happens; these are the edges it names, in the 4:4:4 Nova's offer settles
-        // on, each checked against the fixture, so the slider, the target or a distance cannot move
-        // without this and that paragraph moving with it.
+        // slider no setting satisfies it, and a player already at the top is logged but not told.
+        // bitrateAdvice's KDoc says where that happens; these are the edges it names, in the 4:4:4
+        // Nova's offer settles on, each checked against the fixture, so the slider, the target or a
+        // distance cannot move without this and that paragraph moving with it.
         val slider = sliderMaxKbps()
         assertEquals(300_000, slider)
         fun pastTheSlider(factor: Int, width: Int, height: Int, fps: Int): Boolean {
@@ -447,6 +452,103 @@ class PyroWaveBitrateAdviceTest {
     }
 
     @Test
+    fun theSettingsMaximumIsTheSlidersAndTheCustomEntrys() {
+        // bitrateWarning reads the top of the bitrate setting from MAX_BITRATE_KBPS, and so does the
+        // custom entry, but both sliders say it as android:max, which cannot read a constant. If a
+        // slider moves without it, the warning stops at a figure the player cannot reach, or stays
+        // quiet below one they can. The custom entry is checked by what it accepts, in whole Mbps, so
+        // a literal put back there is caught as well.
+        val top = PreferenceConfiguration.MAX_BITRATE_KBPS
+        assertEquals(300_000, top)
+        assertEquals("the bitrate slider", top, sliderMaxKbps())
+        assertEquals("the metered bitrate slider", top, sliderMaxKbps("seekbar_metered_bitrate_kbps"))
+        val custom = PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING
+        assertTrue(NovaSettingsValidator.isValidTextValue(custom, "${top / 1000}"))
+        assertFalse(NovaSettingsValidator.isValidTextValue(custom, "${top / 1000 + 1}"))
+    }
+
+    /** 1080p at 120 fps in 4:4:4 on a device's own screen, a 120 Hz handheld at its own rate: 359 Mbps. */
+    private fun pastTheTop() = advice(1920, 1080, 120, true, ownScreen)
+
+    @Test
+    fun atTheTopOfTheSliderTheWarningIsLoggedButThePlayerIsNotTold() {
+        // The advice there is past the 300 Mbps the setting reaches, so a player already at the top has
+        // nothing to change, and telling them so on every launch helps nobody. The log keeps the line,
+        // and the line says the advice is over the maximum. Over the top too, which the slider does
+        // not offer.
+        val wanted = pastTheTop()
+        assertEquals(359, wanted.mbps)
+        val top = PreferenceConfiguration.MAX_BITRATE_KBPS
+        for (streamKbps in listOf(top, top + 1, top + 50_000)) {
+            val warning = PyroWaveDecoderRenderer.bitrateWarning(streamKbps, 1920, 1080, 120, wanted)
+            assertNotNull("$streamKbps kbps under $wanted is no longer logged", warning)
+            assertFalse("$streamKbps kbps: the player is told to pass the top of the slider", warning!!.tellPlayer)
+            assertEquals(
+                "PyroWave: $streamKbps kbps for 1920x1080 at 120 fps; it wants about 359 Mbps, over the 300 " +
+                    "Mbps maximum of the bitrate setting, so the player is not told",
+                warning.logLine,
+            )
+        }
+    }
+
+    @Test
+    fun oneUnderTheTopThePlayerIsToldAsBefore() {
+        // Below the maximum the player can still raise the bitrate, and that brings the stream closer
+        // even where the advice is past the top, so they are told as they always were, with the line
+        // the log always had. Then the ordinary case, Nova's default 20 Mbps at 1080p60.
+        val warning = PyroWaveDecoderRenderer.bitrateWarning(
+            PreferenceConfiguration.MAX_BITRATE_KBPS - 1, 1920, 1080, 120, pastTheTop(),
+        )
+        assertNotNull(warning)
+        assertTrue("one kbps under the top, the player is no longer told", warning!!.tellPlayer)
+        assertEquals("PyroWave: 299999 kbps for 1920x1080 at 120 fps; it wants about 359 Mbps", warning.logLine)
+
+        val ordinary = PyroWaveDecoderRenderer.bitrateWarning(
+            20_000, 1920, 1080, 60, advice(1920, 1080, 60, true, ownScreen),
+        )
+        assertNotNull(ordinary)
+        assertTrue(ordinary!!.tellPlayer)
+        assertEquals("PyroWave: 20000 kbps for 1920x1080 at 60 fps; it wants about 180 Mbps", ordinary.logLine)
+    }
+
+    @Test
+    fun enoughOrNoAdviceSaysNothing() {
+        // Compared in the whole Mbps the player is told: 180 is enough for 179.492, and 179.999 is not.
+        val wanted = advice(1920, 1080, 60, true, ownScreen)
+        assertNull(PyroWaveDecoderRenderer.bitrateWarning(180_000, 1920, 1080, 60, wanted))
+        assertTrue(PyroWaveDecoderRenderer.bitrateWarning(179_999, 1920, 1080, 60, wanted)!!.tellPlayer)
+        // The top of the slider is only a reason for silence when the advice is past it.
+        assertNull(
+            PyroWaveDecoderRenderer.bitrateWarning(PreferenceConfiguration.MAX_BITRATE_KBPS, 1920, 1080, 60, wanted),
+        )
+        // No advice, no warning, at any bitrate.
+        assertNull(PyroWaveDecoderRenderer.bitrateWarning(0, 0, 1080, 60, advice(0, 1080, 60, true, ownScreen)))
+    }
+
+    @Test
+    fun gameLogsEveryWarningButTellsThePlayerOnlyWhenTheyCanAct() {
+        // bitrateWarning decides and the tests above hold it; this pins Game to what it decided, as text
+        // for the same reason as the tests below. The line is logged for every warning, outside the
+        // branch that asks whether to tell the player, and the snackbar is inside that branch.
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        fun onlyIndexOf(anchor: String): Int {
+            assertEquals("'$anchor' appears in Game.kt once", 1, Regex(Regex.escape(anchor)).findAll(game).count())
+            return game.indexOf(anchor)
+        }
+        val weighed = onlyIndexOf("PyroWaveDecoderRenderer.bitrateWarning(")
+        val logged = onlyIndexOf("LimeLog.warning(pyroWaveWarning.logLine)")
+        val asked = onlyIndexOf("if (pyroWaveWarning.tellPlayer)")
+        val told = onlyIndexOf("R.string.nova_pyrowave_bitrate_low")
+        assertTrue("the warning is logged before it is weighed", weighed < logged)
+        assertTrue("the line is logged only when the player is told", logged < asked)
+        assertTrue("the player is told outside the branch that asks whether to", asked < told)
+        assertFalse(
+            "the branch that asks whether to tell the player closes before telling them",
+            game.substring(asked, told).contains('}'),
+        )
+    }
+
+    @Test
     fun gameAdvisesForTheOfferTheScreenAndTheDistance() {
         // Game builds the advice where nothing can be instantiated in a JVM test, so the wiring is
         // pinned as text, the way this repository pins the rest of Game.kt's launch decisions.
@@ -470,10 +572,17 @@ class PyroWaveBitrateAdviceTest {
             ),
         )
         assertTrue("the rule and distance are no longer logged", site.contains("pyroWaveAdvice.describe()"))
-        assertTrue("the warning no longer uses this advice", site.contains("val wantedMbps = pyroWaveAdvice.mbps"))
         assertTrue(
-            "the warning no longer compares in the unit it prints",
-            site.contains("configuredStreamBitrateKbps < wantedMbps * 1000"),
+            "the warning no longer weighs the stream against this advice",
+            site.contains(
+                "PyroWaveDecoderRenderer.bitrateWarning(\n" +
+                    "                configuredStreamBitrateKbps, displayWidth, displayHeight, pyroWaveFps, pyroWaveAdvice,",
+            ),
+        )
+        // bitrateWarning compares in whole Mbps, rounded up, and the player is told that same figure.
+        assertTrue(
+            "the player is no longer told the figure the warning compared",
+            game.contains("getString(R.string.nova_pyrowave_bitrate_low, pyroWaveAdvice.mbps)"),
         )
         // The offer the chroma is read from has to be made before the advice reads it.
         assertTrue(
@@ -527,7 +636,7 @@ class PyroWaveBitrateAdviceTest {
         )
         assertTrue(
             "the warning no longer compares the bitrate the stream is sent at",
-            site.contains("configuredStreamBitrateKbps < wantedMbps * 1000"),
+            site.contains("bitrateWarning(\n                configuredStreamBitrateKbps,"),
         )
         assertFalse("the advice still reads a saved setting", site.contains("prefConfig"))
         assertTrue("the log no longer says whether the stream is HDR", site.contains("\" hdr=\" + willStreamHdr"))
