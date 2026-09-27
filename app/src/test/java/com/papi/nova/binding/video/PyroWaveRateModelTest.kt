@@ -284,8 +284,10 @@ class PyroWaveRateModelTest {
 
     @Test
     fun onlyTheShapeLeavesAnAnswer() {
-        // Everything else is an input upstream asserts on. Extrapolating past its asserts would be
-        // inventing a model it chose not to publish.
+        // Everything else gets no estimate. Upstream asserts on a quality or a pixel count outside its
+        // table, and extrapolating past those asserts would be inventing a model it chose not to publish.
+        // It has no curve for a distance its enum cannot name and returns 0.0. A frame rate or a size
+        // that is not positive describes no stream, whatever upstream would multiply out of it.
         assertEquals(listOf(Flag.ASPECT_NOT_16_9), Flag.entries.filter { !it.outsideTable })
     }
 

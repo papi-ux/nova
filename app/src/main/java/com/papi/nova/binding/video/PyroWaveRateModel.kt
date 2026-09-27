@@ -60,10 +60,17 @@ object PyroWaveRateModel {
 
     /** Something about a question that the model was not fitted to answer. */
     enum class Flag(
-        /** True when upstream refuses the input outright, so there is no estimate to give. */
+        /**
+         * True when there is no estimate to give. Upstream asserts on some of these and has no answer
+         * for one; the rest it would answer, but with a number that means nothing. Each flag says which.
+         */
         val outsideTable: Boolean,
     ) {
-        /** Width or height is zero or negative. */
+        /**
+         * Width or height is zero or negative. Upstream multiplies the two before its pixel assert, so
+         * it asserts on these unless both sides are negative, which it treats as if both were positive.
+         * Refused here, because no picture has that size.
+         */
         SIZE_NOT_POSITIVE(true),
 
         /** Fewer pixels than 1280x720. Upstream asserts on it. */
@@ -75,10 +82,17 @@ object PyroWaveRateModel {
         /** A quality outside 30 to 50 dB. Upstream asserts on it. */
         PSNR_OUTSIDE_TABLE(true),
 
-        /** A height factor index outside 0 to 15, which upstream's enum cannot name. */
+        /**
+         * A height factor index outside 0 to 15, which upstream's enum cannot name. Upstream does not
+         * assert on it: it finds no curve for it and returns 0.0, which is no answer.
+         */
         HEIGHT_FACTOR_OUTSIDE_TABLE(true),
 
-        /** A frame rate that is not a positive finite number, NaN and infinity included. */
+        /**
+         * A frame rate that is not a positive finite number, NaN and infinity included. Upstream never
+         * checks it and only multiplies by it, so 0 comes back as 0.0 and -60 as a negative bitrate.
+         * Refused here, because no stream runs at such a rate.
+         */
         FPS_NOT_POSITIVE(true),
 
         /**
@@ -92,9 +106,11 @@ object PyroWaveRateModel {
     /**
      * An estimate, and every way the question strayed from what the model was fitted on.
      *
-     * [mbps] is null when any flag is [Flag.outsideTable], because upstream asserts on those inputs
-     * rather than answering them. With [Flag.ASPECT_NOT_16_9] alone it is upstream's own answer for that
-     * pixel count, and [extrapolated] says so.
+     * [mbps] is null when any flag is [Flag.outsideTable]. Upstream asserts on a quality or a pixel count
+     * outside its table, and returns 0.0 for a distance its enum cannot name. It never checks the frame
+     * rate and treats two negative sides as positive, but a rate or a size that is not positive describes
+     * no stream, so those get no estimate either. With [Flag.ASPECT_NOT_16_9] alone it is upstream's own
+     * answer for that pixel count, and [extrapolated] says so.
      */
     data class Estimate(
         /** Megabits per second, as upstream computes it: kilobytes per frame, times 8 / 1000, times fps. */
