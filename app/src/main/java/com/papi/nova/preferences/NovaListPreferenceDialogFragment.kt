@@ -2,6 +2,10 @@ package com.papi.nova.preferences
 
 import android.content.DialogInterface
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import com.papi.nova.binding.video.PyroWaveAvailability
 import android.widget.ArrayAdapter
 import android.widget.ListAdapter
 import androidx.appcompat.app.AlertDialog
@@ -48,13 +52,31 @@ class NovaListPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
     override fun onPrepareDialogBuilder(builder: AlertDialog.Builder) {
         super.onPrepareDialogBuilder(builder)
 
-        val adapter: ListAdapter = ArrayAdapter(
-            requireContext(),
-            R.layout.nova_select_dialog_singlechoice,
-            android.R.id.text1,
-            entries ?: emptyArray()
-        )
+        val availability = if (listPreference.key == "video_format" && entryValues?.any { it == "forcepyrowave" } == true)
+            PyroWaveAvailability.inspect(requireContext().applicationContext)
+            else PyroWaveAvailability.Status.AVAILABLE
+        fun enabled(position: Int): Boolean = listPreference.key != "video_format" ||
+            PyroWaveAvailability.canSelect(entryValues?.getOrNull(position)?.toString().orEmpty(), availability)
+        val adapter: ListAdapter = object : ArrayAdapter<CharSequence>(
+            requireContext(), R.layout.nova_select_dialog_singlechoice,
+            android.R.id.text1, entries ?: emptyArray(),
+        ) {
+            override fun areAllItemsEnabled(): Boolean = false
+            override fun isEnabled(position: Int): Boolean = enabled(position)
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = super.getView(position, convertView, parent)
+                val label = row.findViewById<TextView>(android.R.id.text1)
+                label.isEnabled = enabled(position)
+                if (!enabled(position)) {
+                    label.isSingleLine = false
+                    label.maxLines = Int.MAX_VALUE
+                    label.text = "${entries?.get(position)}\n${PyroWaveAvailability.reason(requireContext(), availability)}"
+                }
+                return row
+            }
+        }
         builder.setSingleChoiceItems(adapter, clickedDialogEntryIndex) { dialog, which ->
+            if (!enabled(which)) return@setSingleChoiceItems
             clickedDialogEntryIndex = which
             onClick(dialog, DialogInterface.BUTTON_POSITIVE)
             dialog.dismiss()
@@ -70,6 +92,8 @@ class NovaListPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
 
         val value = activeEntryValues[clickedDialogEntryIndex].toString()
         val preference = listPreference
+        if (preference.key == "video_format" && value == "forcepyrowave" &&
+            !PyroWaveAvailability.canSelect(value, PyroWaveAvailability.inspect(requireContext()))) return
         if (preference.callChangeListener(value)) {
             preference.value = value
         }
