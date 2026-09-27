@@ -13,14 +13,12 @@ import kotlin.math.sqrt
  * and fitted one polynomial per quality, distance and chroma to the bitrate each quality needed. The
  * author reports the fit within about 1%, and calls 35 dB the default good quality curve.
  *
- * It answers a different question from [PyroWaveDecoderRenderer.recommendedKbps], which is one bits per
- * pixel figure judged by eye. A wavelet codec gives up fine detail first, so what it needs grows much
- * more slowly than the pixel count: at 35 dB and H 2.0 this asks for nearly 2.5 bits per pixel at 720p and
- * under 0.6 at 4K, where the flat figure asks for 0.73 at both.
- *
- * Nothing calls this yet, on purpose. Which quality to aim for (35 dB or 33 dB) and which viewing
- * distance to assume for a handheld's own screen or for a television are the owner's calls, and until
- * they are made the advice stays what it is.
+ * Nova's PyroWave bitrate advice, [PyroWaveDecoderRenderer.bitrateAdvice], is this at 35 dB, the owner's
+ * choice, for H 2.87 on a device's own screen and H 2.0 on a television or an external display. It
+ * replaced one bits per pixel figure judged by eye, 0.73. A wavelet codec gives up fine detail first, so
+ * what it needs grows much more slowly than the pixel count: at 35 dB and H 2.0 this asks for nearly 2.5
+ * bits per pixel at 720p and under 0.6 at 4K, where the flat figure asked for 0.73 at both. Past the sizes
+ * this was fitted on it gives no estimate, and the advice extrapolates from the nearest edge instead.
  *
  * Its limits travel with every number it gives. It is upstream's objective metric on four game clips of
  * about ten frames each; it scores luma only, so 4:4:4 shows up as a cost and never as a benefit; it was

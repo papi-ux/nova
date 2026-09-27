@@ -1471,8 +1471,28 @@ if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROW
         // picture. Every frame of this codec is a keyframe, so a budget that would carry H.264
         // comfortably leaves this one nothing to spend on detail, and the result looks like a broken
         // codec rather than a starved one.
-        val wantedMbps = com.papi.nova.binding.video.PyroWaveDecoderRenderer.advisedMbps(
-prefConfig!!.width, prefConfig!!.height, prefConfig!!.fps.toInt())
+        //
+        // What it asks for is the codec author's model at 35 dB. The chroma is the one this offer settles
+        // on, because the advice is given here, before the host and client negotiate: the player chose
+        // PyroWave, the offer above carries 4:4:4, and a host that serves PyroWave takes it. The distance
+        // is H 2.0 for a television or a stream on an external display and H 2.87 for the device's own
+        // screen. PyroWaveDecoderRenderer.adviceChroma444 and viewingHeightFactor say why.
+        val pyroWaveTelevision = (getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager)
+            ?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+        val pyroWaveAdvice = com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateAdvice(
+            prefConfig!!.width, prefConfig!!.height, prefConfig!!.fps.toInt(),
+            chroma444 = com.papi.nova.binding.video.PyroWaveDecoderRenderer.adviceChroma444(supportedVideoFormats),
+            heightFactor = com.papi.nova.binding.video.PyroWaveDecoderRenderer.viewingHeightFactor(
+                television = pyroWaveTelevision,
+                onExternalDisplay = isOnExternalDisplay,
+            ),
+        )
+        // Once per stream, whatever the player set, so a report says which rule and distance the
+        // advice came from even when it asked for nothing more.
+        LimeLog.info("PyroWave: bitrate advice for " + prefConfig!!.width + "x" + prefConfig!!.height +
+            " at " + prefConfig!!.fps.toInt() + " fps: " + pyroWaveAdvice.describe() +
+            "; television=" + pyroWaveTelevision + " external_display=" + isOnExternalDisplay)
+        val wantedMbps = pyroWaveAdvice.mbps
 if (wantedMbps > 0 && prefConfig!!.bitrate < wantedMbps * 1000)
 {
 LimeLog.warning("PyroWave: " + prefConfig!!.bitrate + " kbps for " + prefConfig!!.width + "x" +

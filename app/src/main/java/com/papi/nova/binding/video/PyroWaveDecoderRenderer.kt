@@ -26,50 +26,217 @@ class PyroWaveDecoderRenderer(
     private val perfListener: PerfOverlayListener,
 ) : NovaVideoRenderer() {
 
-    companion object {
-        /**
-         * Bits per pixel at which this codec looks like itself.
-         *
-         * Every frame is coded from scratch, so quality follows the per frame budget directly and
-         * there is no prediction to lean on. Measured by eye on the same content: soft at 0.18, good
-         * at 0.73.
-         *
-         * This is the good one, and it used to be 0.35. That number is halfway to soft, and the
-         * paragraph describing it said so in as many words: where a picture stops being worth looking
-         * at. Advice is read as what to set, not as a floor to stay above, so a player who followed it
-         * saw the codec at its worst and had every reason to think that was the codec.
-         *
-         * It is a large number, 91 Mbps for 1080p60 against the 20 Mbps Nova defaults to, and that is
-         * the honest shape of an intra only codec rather than something to round down out of
-         * politeness. A player who cannot spend it is better served knowing why the picture is soft.
-         */
-        private const val GOOD_BITS_PER_PIXEL = 0.73
+    /** Which rule produced a piece of bitrate advice. The log names it, once per stream. */
+    enum class AdviceRule {
+        /** The model's own estimate, for a 16:9 picture inside the sizes it was fitted on. */
+        MODEL,
 
         /**
-         * The bitrate this codec wants for a stream of this shape, in kbps.
-         *
-         * Frame rate multiplies it exactly, unlike an inter frame codec where the extra frames are
-         * more similar to their neighbours and cost far less than the first one.
+         * The model's own estimate for a shape other than 16:9, inside the sizes it was fitted on. The
+         * model is keyed on the pixel count, so it answers, but it never saw the shape, and the flag
+         * stays. The Deck's 1280x800 lands here.
          */
-        fun recommendedKbps(width: Int, height: Int, fps: Int): Int {
-            if (width <= 0 || height <= 0 || fps <= 0) return 0
-            val bits = GOOD_BITS_PER_PIXEL * width.toDouble() * height.toDouble() * fps.toDouble()
-            return (bits / 1000.0).toInt()
+        MODEL_NOT_16_9,
+
+        /**
+         * Fewer pixels than 1280x720: the bits per pixel the model gives at 1280x720, at the same
+         * distance and chroma, times this picture's pixels. An extrapolation.
+         */
+        BELOW_MODEL_EDGE,
+
+        /**
+         * More pixels than 3840x2160: the bits per pixel the model gives at 3840x2160, at the same
+         * distance and chroma, times this picture's pixels. An extrapolation.
+         */
+        ABOVE_MODEL_EDGE,
+
+        /** Nothing the model or its edges could answer: the old flat 0.73 bits per pixel. */
+        FLAT_FALLBACK,
+
+        /** A size or frame rate that is not positive, which describes no stream. No advice. */
+        NONE,
+    }
+
+    /** Bitrate advice, and what produced it. */
+    data class BitrateAdvice(
+        /** The exact figure, truncated to a whole kbps. Zero when there is no advice. */
+        val kbps: Int,
+        val rule: AdviceRule,
+        /** The viewing distance assumed, as a [PyroWaveRateModel] height factor index. */
+        val heightFactor: Int,
+        val chroma444: Boolean,
+        /** Every flag the model raised for the picture itself, before any edge rule stepped in. */
+        val flags: Set<PyroWaveRateModel.Flag>,
+    ) {
+        /**
+         * The advice in whole Mbps, rounded up, so that setting it always satisfies it. Computed in
+         * Long, so an absurd figure near the top of an Int does not wrap around to a negative one.
+         */
+        val mbps: Int
+            get() = if (kbps <= 0) 0 else ((kbps.toLong() + 999L) / 1000L).toInt()
+
+        /** One line for the log: the figure, and the rule, quality, distance and chroma behind it. */
+        fun describe(): String {
+            val chroma = if (chroma444) "4:4:4" else "4:2:0"
+            val distance = "H ${PyroWaveRateModel.heightFactor(heightFactor)} (index $heightFactor)"
+            val modelFlags = if (flags.isEmpty()) "" else ", model flags ${flags.sorted()}"
+            return "$mbps Mbps ($kbps kbps) by rule $rule at $ADVICE_PSNR_DB dB, $distance, $chroma$modelFlags"
         }
+    }
+
+    companion object {
+        /**
+         * The quality the advice aims for: 35 dB of PSNR-HVS-M-H.
+         *
+         * The level PyroWave's author calls the default good quality curve, and the owner's choice
+         * over the lighter 33 dB. [PyroWaveRateModel] says what the metric is and what it was
+         * measured on.
+         */
+        const val ADVICE_PSNR_DB = 35
+
+        /**
+         * The flat figure the advice used before it had a model, kept only as its last fallback.
+         *
+         * Measured by eye on the same content: soft at 0.18 bits per pixel, good at 0.73. The model
+         * replaced it because what this codec needs grows far more slowly than the pixel count, so one
+         * figure for every size starves 720p and overshoots 4K. It is still better than no advice, so a
+         * question the model and its edge rule give nothing for gets this rather than silence. No
+         * stream Nova builds today reaches it: the quality is fixed, [viewingHeightFactor] only names
+         * distances the table has, and a frame rate that fits in an Int cannot carry the model's answer
+         * past a double. It is there so that a change to any of those can never make the advice vanish.
+         */
+        private const val FALLBACK_BITS_PER_PIXEL = 0.73
+
+        // The two edges of the sizes the model was fitted on, both 16:9, so the model answers for each
+        // without a flag.
+        private const val MODEL_SMALLEST_WIDTH = 1280
+        private const val MODEL_SMALLEST_HEIGHT = 720
+        private const val MODEL_LARGEST_WIDTH = 3840
+        private const val MODEL_LARGEST_HEIGHT = 2160
+
+        /**
+         * The viewing distance the advice assumes, as a [PyroWaveRateModel] height factor index.
+         *
+         * H 2.0 (index 8) when the device is a television or the stream is shown on an external
+         * display: a screen across a room or on a desk, watched from about a monitor's distance, which
+         * is also the distance upstream's subjective tests used. H 2.87 (index 15) otherwise, which is a
+         * phone, a handheld or a tablet showing the stream on its own screen. Held at arm's length such
+         * a screen sits farther away than any distance the model covers, and the farther away, the less
+         * detail an eye can find to miss. So the farthest distance the model does cover is the nearest
+         * answer it has, and it errs toward asking for more than such a screen needs, never less.
+         *
+         * [television] is the UI mode, the same check the system bars make. [onExternalDisplay] is
+         * Game's isOnExternalDisplay, set once from the display the stream's window is on: true when
+         * that is not the default display. It is the one signal Nova has for where the stream is shown,
+         * and every other external display decision in Game reads it. Nothing Nova reads tells a second
+         * built in panel from a monitor, so a dual screen handheld such as the AYN Thor that streams onto
+         * a panel other than its default one is advised for H 2.0. That asks for more than the panel
+         * needs, not less.
+         */
+        fun viewingHeightFactor(television: Boolean, onExternalDisplay: Boolean): Int =
+            if (television || onExternalDisplay) {
+                PyroWaveRateModel.HEIGHT_FACTOR_2_00
+            } else {
+                PyroWaveRateModel.HEIGHT_FACTOR_2_87
+            }
+
+        /**
+         * Whether the advice assumes 4:4:4, given the formats Nova offers the host.
+         *
+         * The advice is given before the host and client negotiate, so it cannot read the format they
+         * settle on. The player chooses PyroWave, not a chroma, and Nova's offer for it carries both.
+         * The streaming library settles on 4:4:4 whenever it is offered and the host advertises it, and
+         * Polaris advertises 4:4:4 whenever it serves PyroWave at all, because the two are one encoder
+         * an enum apart. So what the offer holds is what the stream will carry: 4:4:4 if the offer has
+         * it, 4:2:0 if not. A host that answered 4:2:0 to a 4:4:4 offer would be advised up to about a
+         * fifth more than it needed, which is the side to err on.
+         */
+        fun adviceChroma444(offeredFormats: Int): Boolean =
+            (offeredFormats and
+                (MoonBridge.VIDEO_FORMAT_PYROWAVE_444 or MoonBridge.VIDEO_FORMAT_PYROWAVE_444_10BIT)) != 0
+
+        /**
+         * The bitrate this codec wants for a stream of this shape, and which rule produced it.
+         *
+         * Inside the sizes the model was fitted on it is [PyroWaveRateModel]'s estimate at
+         * [ADVICE_PSNR_DB], for [heightFactor] (see [viewingHeightFactor]) and [chroma444] (see
+         * [adviceChroma444]). A shape other than 16:9 gets the model's estimate for its pixel count,
+         * which is what the model is keyed on, and stays flagged. A picture with fewer pixels than
+         * 1280x720 or more than 3840x2160 gets the bits per pixel the model gives at that nearest edge,
+         * at the same distance and chroma, times its own pixels. That is an extrapolation, because the
+         * model gives no estimate past its edges. Its bits per pixel were still rising toward 720p, so
+         * the truth below it is probably higher, and still falling toward 4K, so the truth above it is
+         * probably lower. Holding the edge claims no more than was measured. Anything the model and the
+         * edge rule give nothing for falls back to the old flat 0.73 bits per pixel, so the advice never
+         * disappears. A size or frame rate that is not positive describes no stream and gets no advice.
+         *
+         * Frame rate multiplies it exactly, unlike an inter frame codec where the extra frames are more
+         * similar to their neighbours and cost far less than the first one.
+         *
+         * It is a large number, about 180 Mbps for 1080p60 in 4:4:4 on a handheld's own screen against
+         * the 20 Mbps Nova defaults to, and that is the honest shape of an intra only codec rather than
+         * something to round down out of politeness. Advice is read as what to set, not as a floor to
+         * stay above, and a player who cannot spend it is better served knowing why the picture is soft.
+         */
+        fun bitrateAdvice(width: Int, height: Int, fps: Int, chroma444: Boolean, heightFactor: Int): BitrateAdvice {
+            if (width <= 0 || height <= 0 || fps <= 0) {
+                return BitrateAdvice(0, AdviceRule.NONE, heightFactor, chroma444, emptySet())
+            }
+            val pixelsPerSecond = width.toDouble() * height.toDouble() * fps.toDouble()
+            val estimate = PyroWaveRateModel.estimate(
+                ADVICE_PSNR_DB, width, height, heightFactor, chroma444, fps.toDouble(),
+            )
+            val flags = estimate.flags
+            val mbps = estimate.mbps
+            if (mbps != null) {
+                val rule = if (estimate.extrapolated) AdviceRule.MODEL_NOT_16_9 else AdviceRule.MODEL
+                return BitrateAdvice(kbpsOf(mbps * 1_000_000.0), rule, heightFactor, chroma444, flags)
+            }
+
+            val edge = when {
+                PyroWaveRateModel.Flag.PIXELS_BELOW_MODEL in flags -> AdviceRule.BELOW_MODEL_EDGE
+                PyroWaveRateModel.Flag.PIXELS_ABOVE_MODEL in flags -> AdviceRule.ABOVE_MODEL_EDGE
+                else -> null
+            }
+            if (edge != null) {
+                val edgeWidth = if (edge == AdviceRule.BELOW_MODEL_EDGE) MODEL_SMALLEST_WIDTH else MODEL_LARGEST_WIDTH
+                val edgeHeight = if (edge == AdviceRule.BELOW_MODEL_EDGE) MODEL_SMALLEST_HEIGHT else MODEL_LARGEST_HEIGHT
+                val edgeMbps = PyroWaveRateModel.estimate(
+                    ADVICE_PSNR_DB, edgeWidth, edgeHeight, heightFactor, chroma444, fps.toDouble(),
+                ).mbps
+                if (edgeMbps != null) {
+                    val bitsPerPixel =
+                        edgeMbps * 1_000_000.0 / (edgeWidth.toDouble() * edgeHeight.toDouble() * fps.toDouble())
+                    return BitrateAdvice(kbpsOf(bitsPerPixel * pixelsPerSecond), edge, heightFactor, chroma444, flags)
+                }
+            }
+
+            return BitrateAdvice(
+                kbpsOf(FALLBACK_BITS_PER_PIXEL * pixelsPerSecond),
+                AdviceRule.FLAT_FALLBACK,
+                heightFactor,
+                chroma444,
+                flags,
+            )
+        }
+
+        /** A bitrate in bits per second as whole kbps, truncated, as the advice has always been said. */
+        private fun kbpsOf(bitsPerSecond: Double): Int = (bitsPerSecond / 1000.0).toInt()
+
+        /** The advice in kbps. See [bitrateAdvice] for how it is reached. */
+        fun recommendedKbps(width: Int, height: Int, fps: Int, chroma444: Boolean, heightFactor: Int): Int =
+            bitrateAdvice(width, height, fps, chroma444, heightFactor).kbps
 
         /**
          * The same advice as a whole number of Mbps, which is the unit it is said in.
          *
          * Said and compared in the same unit on purpose. Comparing the exact figure against a rounded
-         * one is advice nobody can take: a player told 91 Mbps who then sets 91 is at 91000 kbps,
-         * still under the 90846 this actually wanted rounded up, and is told the same thing again on
-         * every launch forever. Rounding up rather than down so that following the advice is always
-         * enough to satisfy it.
+         * one is advice nobody can take: told 153 Mbps for a stream that wants 153571 kbps, a player who
+         * sets 153 is at 153000, still under, and is told the same thing again on every launch forever.
+         * Rounding up, to 154, so that following the advice is always enough to satisfy it.
          */
-        fun advisedMbps(width: Int, height: Int, fps: Int): Int {
-            val kbps = recommendedKbps(width, height, fps)
-            return if (kbps <= 0) 0 else (kbps + 999) / 1000
-        }
+        fun advisedMbps(width: Int, height: Int, fps: Int, chroma444: Boolean, heightFactor: Int): Int =
+            bitrateAdvice(width, height, fps, chroma444, heightFactor).mbps
 
         /**
          * How many frames the transport did not deliver between two that it did.
