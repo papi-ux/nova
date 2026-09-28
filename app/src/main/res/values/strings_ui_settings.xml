@@ -41,6 +41,10 @@
     <string name="nova_settings_profile_name">Name</string>
     <string name="nova_settings_profile_opening_legacy">Opening legacy profile settings for %1$s</string>
     <string name="nova_profiles_delete_consequence">%1$s and every setting it overrides are deleted.</string>
+    <!-- A preset row: its edit button, and what A or a tap on the row does to the preset in use. -->
+    <string name="nova_profiles_edit">Edit preset</string>
+    <string name="nova_profiles_use">Use this preset</string>
+    <string name="nova_profiles_stop_using">Stop using this preset</string>
 
     <!-- Updates and support -->
     <string name="nova_update_unknown_error">Unknown error</string>

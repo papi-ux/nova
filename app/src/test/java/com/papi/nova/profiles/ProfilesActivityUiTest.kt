@@ -3,8 +3,8 @@ package com.papi.nova.profiles
 import android.content.Context
 import android.content.Intent
 import android.view.View
+import androidx.core.view.ViewCompat
 import android.widget.ImageButton
-import android.widget.RadioButton
 import androidx.preference.Preference
 import androidx.compose.ui.platform.ComposeView
 import androidx.recyclerview.widget.RecyclerView
@@ -128,8 +128,10 @@ class ProfilesActivityUiTest {
         }
     }
 
+    // The preset in use was a radio button, a separate focus stop that toggled on its own. It is
+    // the one current mark now (R9), and the row itself is what A or a tap acts on.
     @Test
-    fun radioClick_changesActiveProfile() {
+    fun rowClick_changesActiveProfileAndOnlyThatRowCarriesTheCheck() {
         val p1 = SettingsProfile(UUID.randomUUID(), "One", System.currentTimeMillis(), System.currentTimeMillis(), null)
         val p2 = SettingsProfile(UUID.randomUUID(), "Two", System.currentTimeMillis(), System.currentTimeMillis(), null)
         pm.add(p1)
@@ -142,11 +144,16 @@ class ProfilesActivityUiTest {
         rv.layout(0, 0, 1000, 1000)
         assertEquals(2, rv.adapter!!.itemCount)
 
-        val vh = rv.findViewHolderForAdapterPosition(1)
-        assertNotNull(vh)
-        val rb = vh!!.itemView.findViewById<RadioButton>(R.id.profileActive)
-        assertNotNull(rb)
-        rb.performClick()
+        val current = rv.findViewHolderForAdapterPosition(0)!!.itemView
+        val other = rv.findViewHolderForAdapterPosition(1)!!.itemView
+        assertEquals(View.VISIBLE, current.findViewById<View>(R.id.profileCurrent).visibility)
+        assertEquals(activity.getString(R.string.nova_panel_current), ViewCompat.getStateDescription(current))
+        assertTrue(current.isSelected)
+        assertEquals(View.GONE, other.findViewById<View>(R.id.profileCurrent).visibility)
+        assertNull(ViewCompat.getStateDescription(other))
+        assertTrue("the row is a focus stop, so A reaches it", other.isFocusable)
+
+        other.performClick()
 
         assertEquals(p2.getUuid(), pm.getActive()!!.getUuid())
     }
