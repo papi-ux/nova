@@ -5,12 +5,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,7 +26,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MeasurePolicy
-import androidx.compose.ui.layout.MultiContentMeasurePolicy
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.Key
@@ -32,6 +34,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
@@ -42,8 +45,11 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
@@ -93,6 +99,10 @@ internal fun <T> novaValueStep(options: List<NovaOption<T>>, index: Int, delta: 
  * A steps forward and wraps. On a switch Left means Off and Right means On. Touch taps a segment,
  * a cycler arrow or the switch; tapping a cycler's value runs [onOpenList]. Every change applies
  * at once through [onChange].
+ *
+ * The row keeps its size as the value changes: a cycler reserves its widest label and a segment
+ * reserves room for the check. Segments that cannot fit the row even under the title draw as a
+ * cycler instead of breaking their labels.
  */
 @Composable
 fun <T> NovaValueRow(
@@ -108,6 +118,9 @@ fun <T> NovaValueRow(
     onOpenList: (() -> Unit)? = null,
 ) {
     val resolved = remember(options, style) { resolveNovaValueStyle(options, style) }
+    val labelWidths = rememberNovaLabelWidths(remember(options) { options.map { it.label } })
+    val widest = labelWidths.maxOrNull() ?: 0.dp
+    val segmentsWidth = novaSegmentsWidth(labelWidths)
     val index = options.indexOfFirst { it.value == current }.coerceAtLeast(0)
     val latestIndex by rememberUpdatedState(index)
     val change by rememberUpdatedState(onChange)
@@ -140,25 +153,47 @@ fun <T> NovaValueRow(
         enabled = enabled,
         stateLabel = options.getOrNull(index)?.label.orEmpty(),
         role = if (isSwitch) Role.Switch else null,
-        onLeft = { step(-1, wrap = !ordered) },
-        onRight = { step(1, wrap = !ordered) },
+        onPrevious = { step(-1, wrap = !ordered) },
+        onNext = { step(1, wrap = !ordered) },
         onActivate = { step(1, wrap = true) },
         modifier = modifier,
-    ) {
-        when (resolved) {
-            NovaValueStyle.Switch -> NovaSwitchControl(
+    ) { available ->
+        when {
+            resolved == NovaValueStyle.Switch -> NovaSwitchControl(
                 on = options.getOrNull(index)?.value == true,
                 onToggle = { step(if (options.getOrNull(latestIndex)?.value == true) -1 else 1, wrap = false) },
             )
-            NovaValueStyle.Segmented -> NovaSegmentedControl(options, index, onSelect = ::select)
+            resolved == NovaValueStyle.Segmented && segmentsWidth <= available ->
+                NovaSegmentedControl(options, index, onSelect = ::select)
             else -> NovaCyclerControl(
                 label = options.getOrNull(index)?.label.orEmpty(),
+                widest = widest,
                 onPrevious = { step(-1, wrap = !ordered) },
                 onNext = { step(1, wrap = !ordered) },
                 onValueTap = onOpenList,
             )
         }
     }
+}
+
+/** The single-line width of each label in the panel's value type, which is SemiBold, its widest. */
+@Composable
+private fun rememberNovaLabelWidths(labels: List<String>): List<Dp> {
+    val measurer = rememberTextMeasurer()
+    val style = novaPanelType.value
+    val density = LocalDensity.current
+    return remember(labels, style, density, measurer) {
+        labels.map { label ->
+            with(density) { measurer.measure(label, style, softWrap = false, maxLines = 1).size.width.toDp() }
+        }
+    }
+}
+
+/** The natural width of a segmented control whose labels are [labelWidths] wide. */
+private fun novaSegmentsWidth(labelWidths: List<Dp>): Dp {
+    val segment = NovaPanelMetrics.SpaceSm * 2 + NovaPanelMetrics.SpaceXs + NovaPanelMetrics.CurrentMarkSize
+    val gaps = NovaPanelMetrics.SpaceXs * (labelWidths.size - 1).coerceAtLeast(0)
+    return labelWidths.fold(gaps + NovaPanelMetrics.SpaceXs * 2) { total, width -> total + width + segment }
 }
 
 /**
@@ -185,6 +220,8 @@ fun NovaStepperRow(
     val change by rememberUpdatedState(onChange)
     val exact by rememberUpdatedState(onExact)
     val haptics = LocalHapticFeedback.current
+    // The ends are the widest labels a range usually has; the current one covers the rest.
+    val widest = rememberNovaLabelWidths(listOf(format(range.first), format(range.last), format(value))).max()
 
     fun move(direction: Int, repeats: Int) {
         if (!enabled) return
@@ -204,13 +241,14 @@ fun NovaStepperRow(
         enabled = enabled,
         stateLabel = format(value),
         role = null,
-        onLeft = { repeats -> move(-1, repeats) },
-        onRight = { repeats -> move(1, repeats) },
+        onPrevious = { repeats -> move(-1, repeats) },
+        onNext = { repeats -> move(1, repeats) },
         onActivate = { exact?.invoke() },
         modifier = modifier,
     ) {
         NovaCyclerControl(
             label = format(value),
+            widest = widest,
             onPrevious = { move(-1, 0) },
             onNext = { move(1, 0) },
             onValueTap = onExact,
@@ -220,8 +258,9 @@ fun NovaStepperRow(
 
 /**
  * The shared frame of value and stepper rows: one focus stop that owns Left, Right and A, with the
- * control beside the title, or under it when the row is narrower than 360dp. [onLeft] and
- * [onRight] get the key's repeat count.
+ * control beside the title while the title keeps 40% of the row, and under it otherwise. It sits
+ * on the 52dp row scale: the 44dp control gets 4dp above and below. [onPrevious] and [onNext] get
+ * the key's repeat count, and [control] the width it may take.
  */
 @Composable
 private fun NovaValueRowFrame(
@@ -230,23 +269,24 @@ private fun NovaValueRowFrame(
     enabled: Boolean,
     stateLabel: String,
     role: Role?,
-    onLeft: (repeats: Int) -> Unit,
-    onRight: (repeats: Int) -> Unit,
+    onPrevious: (repeats: Int) -> Unit,
+    onNext: (repeats: Int) -> Unit,
     onActivate: () -> Unit,
     modifier: Modifier = Modifier,
-    control: @Composable () -> Unit,
+    control: @Composable (available: Dp) -> Unit,
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
     val shape = RoundedCornerShape(NovaRadius.row)
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val left by rememberUpdatedState(onLeft)
-    val right by rememberUpdatedState(onRight)
+    val previous by rememberUpdatedState(onPrevious)
+    val next by rememberUpdatedState(onNext)
     val previousLabel = stringResource(R.string.nova_panel_previous)
     val nextLabel = stringResource(R.string.nova_panel_next)
-    // Left moves toward the start of the options in either layout direction's visual order.
-    val previous = if (rtl) right else left
-    val next = if (rtl) left else right
+    // Previous and Next follow the options' order. The D-pad follows the screen: a right to left
+    // layout lays the options out from the right, so Left moves on to the next one there.
+    val leftKey = if (rtl) next else previous
+    val rightKey = if (rtl) previous else next
 
     Box(
         modifier = modifier
@@ -271,8 +311,8 @@ private fun NovaValueRowFrame(
             .onPreviewKeyEvent { event ->
                 val native = event.nativeKeyEvent
                 val direction = when (event.key) {
-                    Key.DirectionLeft -> left
-                    Key.DirectionRight -> right
+                    Key.DirectionLeft -> leftKey
+                    Key.DirectionRight -> rightKey
                     else -> return@onPreviewKeyEvent false
                 }
                 if (event.type == KeyEventType.KeyDown) direction(native.repeatCount)
@@ -281,58 +321,33 @@ private fun NovaValueRowFrame(
             }
             .novaClickable(enabled = enabled, focusableWhenDisabled = true, onClick = onActivate)
             .alpha(if (enabled) 1f else NovaPanelMetrics.DisabledAlpha)
-            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+            .padding(horizontal = NovaPanelMetrics.SpaceMd),
         contentAlignment = Alignment.CenterStart,
     ) {
-        Layout(
-            contents = listOf(
-                {
-                    Column {
-                        Text(text = title, style = type.rowTitle, color = colors.textPrimary)
-                        caption?.let { Text(text = it, style = type.caption, color = colors.textSecondary) }
-                    }
-                },
-                control,
-            ),
-            measurePolicy = ValueRowMeasurePolicy,
-        )
-    }
-}
-
-/**
- * The control sits beside the title while both fit with the title keeping at least
- * [TitleShare] of the row; otherwise it wraps under the title, so neither is ever squeezed
- * or cut.
- */
-private val ValueRowMeasurePolicy = MultiContentMeasurePolicy { (labels, controls), constraints ->
-    val label = labels.first()
-    val control = controls.first()
-    val width = constraints.maxWidth
-    val besideGap = NovaPanelMetrics.SpaceMd.roundToPx()
-    val stackGap = NovaPanelMetrics.SpaceSm.roundToPx()
-    val natural = control.maxIntrinsicWidth(Constraints.Infinity)
-    val stacked = constraints.hasBoundedWidth && natural + besideGap > width * (1f - TitleShare)
-    if (stacked) {
-        val labelPlaceable = label.measure(Constraints(maxWidth = width))
-        val controlPlaceable = control.measure(Constraints(maxWidth = width))
-        val height = maxOf(labelPlaceable.height + stackGap + controlPlaceable.height, constraints.minHeight)
-        layout(width, height) {
-            val top = (height - labelPlaceable.height - stackGap - controlPlaceable.height) / 2
-            labelPlaceable.placeRelative(0, top)
-            controlPlaceable.placeRelative(0, top + labelPlaceable.height + stackGap)
-        }
-    } else {
-        val controlPlaceable = control.measure(Constraints(maxWidth = natural))
-        val labelPlaceable = label.measure(Constraints(maxWidth = (width - controlPlaceable.width - besideGap).coerceAtLeast(0)))
-        val height = maxOf(labelPlaceable.height, controlPlaceable.height, constraints.minHeight)
-        layout(width, height) {
-            labelPlaceable.placeRelative(0, (height - labelPlaceable.height) / 2)
-            controlPlaceable.placeRelative(width - controlPlaceable.width, (height - controlPlaceable.height) / 2)
+        BoxWithConstraints(propagateMinConstraints = true) {
+            val available = maxWidth
+            Layout(
+                contents = listOf(
+                    {
+                        Column {
+                            Text(text = title, style = type.rowTitle, color = colors.textPrimary)
+                            caption?.let { Text(text = it, style = type.caption, color = colors.textSecondary) }
+                        }
+                    },
+                    { control(available) },
+                ),
+                measurePolicy = ValueRowMeasurePolicy,
+            )
         }
     }
 }
 
-private const val TitleShare = 0.4f
+// The title keeps a row's usual inset; the control, 44dp tall, keeps the row at 52dp.
+private val ValueRowMeasurePolicy = NovaTitleAndValueMeasurePolicy(
+    labelInset = NovaPanelMetrics.SpaceSm,
+    valueInset = NovaPanelMetrics.SpaceXs,
+    stackGap = NovaPanelMetrics.SpaceSm,
+)
 
 @Composable
 private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, onSelect: (Int) -> Unit) {
@@ -344,7 +359,7 @@ private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, o
         modifier = Modifier
             .clip(RoundedCornerShape(NovaRadius.hero))
             .background(surfaces.control)
-            .padding(NovaPanelMetrics.SpaceXs),
+            .padding(horizontal = NovaPanelMetrics.SpaceXs),
         measurePolicy = SegmentsMeasurePolicy,
         content = {
             options.forEachIndexed { i, option ->
@@ -358,7 +373,6 @@ private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, o
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs, Alignment.CenterHorizontally),
                 ) {
-                    if (isCurrent) NovaCurrentMark()
                     Text(
                         text = option.label,
                         style = type.value,
@@ -370,6 +384,12 @@ private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, o
                         },
                         textAlign = TextAlign.Center,
                     )
+                    // The trailing check of R9. Every segment keeps its room, so none moves when the value does.
+                    if (isCurrent) {
+                        NovaCurrentMark()
+                    } else {
+                        Spacer(Modifier.size(NovaPanelMetrics.CurrentMarkSize))
+                    }
                 }
             }
         },
@@ -377,8 +397,8 @@ private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, o
 }
 
 /**
- * Segments take their natural widths when they fit; when they do not, each shrinks in proportion
- * to its natural width and its label wraps, so the last segment is never cut at the row's edge.
+ * Segments take their natural widths. NovaValueRow draws a cycler when they would not fit, so the
+ * proportional shrink here is only a guard against rounding, never a place labels break.
  */
 private val SegmentsMeasurePolicy = MeasurePolicy { measurables, constraints ->
     val gap = NovaPanelMetrics.SpaceXs.roundToPx()
@@ -404,8 +424,15 @@ private val SegmentsMeasurePolicy = MeasurePolicy { measurables, constraints ->
     }
 }
 
+/** `‹ label ›`, reserving the [widest] label's width so the arrows never move as the value does. */
 @Composable
-private fun NovaCyclerControl(label: String, onPrevious: () -> Unit, onNext: () -> Unit, onValueTap: (() -> Unit)?) {
+private fun NovaCyclerControl(
+    label: String,
+    widest: Dp,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onValueTap: (() -> Unit)?,
+) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
     val previous by rememberUpdatedState(onPrevious)
@@ -420,6 +447,7 @@ private fun NovaCyclerControl(label: String, onPrevious: () -> Unit, onNext: () 
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .weight(1f, fill = false)
+                .widthIn(min = widest)
                 .pointerInput(Unit) { detectTapGestures(onTap = { valueTap?.invoke() }) },
         )
         NovaArrow(OpensGlyph) { next() }
@@ -431,7 +459,7 @@ private fun NovaArrow(glyph: String, onTap: () -> Unit) {
     val tap by rememberUpdatedState(onTap)
     Box(
         modifier = Modifier
-            .size(NovaPanelMetrics.ArrowTarget)
+            .size(width = NovaPanelMetrics.ArrowTarget, height = NovaPanelMetrics.ValueControlHeight)
             .pointerInput(Unit) { detectTapGestures(onTap = { tap() }) },
         contentAlignment = Alignment.Center,
     ) {

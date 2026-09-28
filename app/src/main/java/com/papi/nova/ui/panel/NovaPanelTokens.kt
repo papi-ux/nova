@@ -92,8 +92,13 @@ object NovaPanelMetrics {
     val SplitHalfMinWidth: Dp = 96.dp
     val SplitGap: Dp = 6.dp
     val StateColumnMaxWidth: Dp = 480.dp
-    /** A segment of a segmented value row; with the track it keeps the row near the 52dp scale. */
-    val SegmentMinHeight: Dp = 44.dp
+    /**
+     * The height of a value row's control: segments, cycler arrows. With 4dp above and below, a
+     * value row is 52dp, the height of a plain row, and the arrows keep a 48dp wide target.
+     */
+    val ValueControlHeight: Dp = 44.dp
+    /** A segment of a segmented value row, as tall as the control. */
+    val SegmentMinHeight: Dp = ValueControlHeight
     val ButtonMinHeight: Dp = 44.dp
     val TileMinHeight: Dp = 72.dp
     val SwitchTrackWidth: Dp = 40.dp

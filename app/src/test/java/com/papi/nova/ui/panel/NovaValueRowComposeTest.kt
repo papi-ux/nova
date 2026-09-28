@@ -5,7 +5,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -111,8 +119,77 @@ class NovaValueRowComposeTest {
         val mark = rule.onNodeWithTag(NovaCurrentMarkTag, useUnmergedTree = true).getUnclippedBoundsInRoot()
         val current = rule.onNodeWithText("M", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val next = rule.onNodeWithText("L", useUnmergedTree = true).getUnclippedBoundsInRoot()
-        assertTrue("the check sits just before the current label", mark.right <= current.left && mark.right > current.left - NovaPanelMetrics.SpaceSm)
-        assertTrue("and not beside another", next.left > current.right)
+        assertTrue("the check trails the current label (R9)", mark.left >= current.right && mark.left < current.right + NovaPanelMetrics.SpaceSm)
+        assertTrue("and not another", next.left > mark.right)
+    }
+
+    @Test
+    fun valueRowsSitOnThePlainRowScale() {
+        var current by mutableStateOf("M")
+        var on by mutableStateOf(false)
+        rule.setPanelContent {
+            Column {
+                NovaValueRow("Size", sizes, current, { current = it }, style = NovaValueStyle.Segmented, modifier = Modifier.testTag("segments"))
+                NovaValueRow("Size", sizes, current, { current = it }, style = NovaValueStyle.Cycler, modifier = Modifier.testTag("cycler"))
+                NovaValueRow("HUD", listOf(NovaOption(false, "Off"), NovaOption(true, "On")), on, { on = it }, modifier = Modifier.testTag("switch"))
+            }
+        }
+        for (tag in listOf("segments", "cycler", "switch")) {
+            val bounds = rule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+            assertEquals("$tag row height", NovaPanelMetrics.RowMinHeight, bounds.bottom - bounds.top)
+        }
+    }
+
+    @Test
+    fun theCyclersArrowsStayPutAsTheValueChanges() {
+        val options = listOf("30", "60", "120", "Unlimited").map { NovaOption(it, "$it FPS") }
+        var current by mutableStateOf("30")
+        val keys = rule.setPanelContent {
+            NovaValueRow("Frame rate", options, current, { current = it }, style = NovaValueStyle.Cycler, modifier = Modifier.testTag("row"))
+        }
+        rule.onNodeWithTag("row").requestFocus()
+        rule.waitForIdle()
+        fun arrows() = listOf(BackGlyph, OpensGlyph).map { rule.onNodeWithText(it, useUnmergedTree = true).getUnclippedBoundsInRoot() }
+        val before = arrows()
+        repeat(3) {
+            keys.press(NovaTestKeys.RIGHT)
+            assertEquals("the widest label's room is kept, so nothing moves under the thumb", before, arrows())
+        }
+    }
+
+    @Test
+    fun segmentsThatCannotFitTheRowDrawAsACycler() {
+        var current by mutableStateOf("M")
+        rule.setPanelContent {
+            Column {
+                Box(Modifier.width(NARROW_ROW)) {
+                    NovaValueRow("Size", sizes, current, { current = it }, style = NovaValueStyle.Segmented, modifier = Modifier.testTag("narrow"))
+                }
+            }
+        }
+        rule.onNodeWithText(BackGlyph, useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("narrow").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "M"))
+    }
+
+    @Test
+    fun inARightToLeftLayoutTheDpadFollowsTheScreenAndTalkBackFollowsTheOrder() {
+        var current by mutableStateOf("M")
+        val keys = rule.setPanelContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                NovaValueRow("Size", sizes, current, { current = it }, modifier = Modifier.testTag("row"))
+            }
+        }
+        rule.onNodeWithTag("row").requestFocus()
+        rule.waitForIdle()
+
+        keys.press(NovaTestKeys.LEFT)
+        assertEquals("options run from the right, so Left moves on", "L", current)
+
+        val actions = rule.onNodeWithTag("row").fetchSemanticsNode().config[SemanticsActions.CustomActions]
+        rule.runOnIdle { actions.first { it.label == "Previous" }.action() }
+        assertEquals("M", current)
+        rule.runOnIdle { actions.first { it.label == "Previous" }.action() }
+        assertEquals("S", current)
     }
 
     @Test
@@ -181,5 +258,9 @@ class NovaValueRowComposeTest {
         keys.press(NovaTestKeys.RIGHT)
         keys.press(NovaTestKeys.RIGHT)
         assertEquals(100, value)
+    }
+
+    private companion object {
+        val NARROW_ROW = 80.dp
     }
 }
