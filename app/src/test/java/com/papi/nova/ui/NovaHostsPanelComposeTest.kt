@@ -19,7 +19,10 @@ import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageStackHost
+import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaPanelState
+import com.papi.nova.ui.panel.advance
+import com.papi.nova.ui.panel.frames
 import com.papi.nova.ui.panel.NovaStateScreen
 import com.papi.nova.ui.panel.NovaTestKeys
 import com.papi.nova.ui.panel.setPanelContent
@@ -103,6 +106,28 @@ class NovaHostsPanelComposeTest {
         rule.onNodeWithText(string(R.string.pcview_menu_delete_pc)).assertIsFocused()
         assertTrue("a single A never deletes a host", ran.isEmpty())
         assertTrue("B disarms the split and leaves the panel open", state.isOpen)
+    }
+
+    @Test
+    fun deletePcIsConfirmedByARightAAfterTheGuardAndDeletesTheHost() {
+        val keys = openHostMenu()
+        rule.mainClock.autoAdvance = false
+        repeat(5) { keys.press(NovaTestKeys.DOWN) }
+        rule.frames(4)
+        rule.onNodeWithText(string(R.string.pcview_menu_delete_pc)).assertIsFocused()
+
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(8)
+        rule.onNodeWithText(string(R.string.nova_panel_keep)).assertIsFocused()
+        keys.press(NovaTestKeys.RIGHT)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+        assertTrue("inside the guard the Delete half ignores A", ran.isEmpty())
+
+        rule.advance(NovaPanelMetrics.SplitGuardMillis)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+        assertEquals("the confirmed half deletes the host, and only that", listOf("delete"), ran)
     }
 
     @Test

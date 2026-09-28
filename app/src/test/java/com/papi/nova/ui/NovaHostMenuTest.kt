@@ -152,6 +152,10 @@ class NovaHostMenuTest {
         assertEquals("delete", removal.key)
         assertEquals(context.getString(R.string.pcview_menu_delete_pc), removal.confirmLabel)
         assertEquals("deleting keeps the host on Keep (spec 9.3, row 2)", context.getString(R.string.nova_panel_keep), removal.stayLabel)
+
+        // Its labels are not enough: confirming it has to delete the host, and nothing else.
+        removal.onConfirm()
+        assertEquals(listOf("delete"), ran)
     }
 
     @Test
