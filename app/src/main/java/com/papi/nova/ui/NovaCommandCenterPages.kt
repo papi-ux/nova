@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import com.papi.nova.R
 import com.papi.nova.binding.input.KeyboardTranslator
 import com.papi.nova.ui.panel.NovaCommonPage
@@ -23,6 +24,8 @@ import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.NovaRow
 import com.papi.nova.ui.panel.NovaRowTrailing
 import com.papi.nova.ui.panel.NovaSectionLabel
+import com.papi.nova.ui.panel.NovaSplitConfirm
+import com.papi.nova.ui.panel.NovaSplitShape
 import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.utils.KeyConfigHelper
 import com.papi.nova.utils.KeyMapper
@@ -138,8 +141,19 @@ private fun NovaPageScope.CommandCenterMenuRow(item: NovaMenuItem, modifier: Mod
             modifier = modifier,
         )
         is NovaMenuItem.Value<*> -> CommandCenterValueRow(item, modifier)
-        // Nothing on these pages ends anything; a destructive entry has no place here.
-        is NovaMenuItem.Destructive -> Unit
+        // Alt + F4 on the Keys page: it closes the host's focused window, usually the game, so it
+        // splits in its row (R3). Confirmed, it closes the panel and waits for the stream, as the
+        // other keys do.
+        is NovaMenuItem.Destructive -> NovaSplitConfirm(
+            label = item.label,
+            confirmLabel = item.confirmLabel,
+            onConfirm = { if (isTop) closeThen(awaitHostFocus = true, action = item.onConfirm) },
+            stayLabel = item.stayLabel ?: stringResource(R.string.nova_panel_stay),
+            consequence = item.consequence,
+            icon = item.icon,
+            shape = NovaSplitShape.Row,
+            modifier = modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -205,11 +219,14 @@ class NovaCommandCenterKey(val key: String, val label: String, val codes: ShortA
  * shortcut file that no longer parses; the defaults are offered anyway.
  */
 object NovaCommandCenterKeys {
+    /** Alt + F4, which closes the host's focused window, usually the game; the Keys page splits it (R3). */
+    const val CLOSE_APP_KEY: String = "alt-f4"
+
     fun defaults(context: Context): List<NovaCommandCenterKey> = listOf(
         key(context, "esc", R.string.game_menu_send_keys_esc, KeyboardTranslator.VK_ESCAPE),
         key(context, "f11", R.string.game_menu_send_keys_f11, KeyboardTranslator.VK_F11),
         key(context, "insert", R.string.game_menu_send_keys_insert, KeyboardTranslator.VK_INSERT),
-        key(context, "alt-f4", R.string.game_menu_send_keys_alt_f4, KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_F4),
+        key(context, CLOSE_APP_KEY, R.string.game_menu_send_keys_alt_f4, KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_F4),
         key(context, "alt-enter", R.string.game_menu_send_keys_alt_enter, KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_RETURN),
         key(context, "ctrl-v", R.string.game_menu_send_keys_ctrl_v, KeyboardTranslator.VK_LCONTROL, KeyboardTranslator.VK_V),
         key(context, "win", R.string.game_menu_send_keys_win, KeyboardTranslator.VK_LWIN),

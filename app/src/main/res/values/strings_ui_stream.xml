@@ -11,6 +11,9 @@
     <string name="nova_cc_keys_empty">No keys to send</string>
     <string name="nova_cc_keys_empty_reason">Default keys are turned off in Settings and no custom keys are imported.</string>
     <string name="nova_cc_custom_keys">Custom keys</string>
+    <!-- Command Center: Alt + F4 splits in place; the confirming half and the line under the pair. -->
+    <string name="nova_cc_close_app">Close App</string>
+    <string name="nova_cc_alt_f4_consequence">Sends Alt + F4, which closes the focused window on the host, usually the game.</string>
     <!-- Command Center: More Controls. -->
     <string name="nova_cc_android_keyboard">Android keyboard</string>
     <string name="nova_cc_android_keyboard_caption">Types into the host with this device\'s keyboard.</string>

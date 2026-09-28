@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.requestFocus
 import com.papi.nova.ui.panel.NovaMenuItem
@@ -46,10 +48,12 @@ class NovaCommandCenterPagesComposeTest {
     private val sentKeys = mutableListOf<String>()
     private val serverCommandRuns = mutableListOf<Int>()
     private val switches = mutableListOf<Boolean>()
+    private val quickKeys = mutableListOf<NovaQuickMenuActionId>()
 
     private val callbacks = NovaQuickMenuCallbacks(
         onDismiss = { dismissed++ },
         onEndStream = { ended++ },
+        onQuickKey = { quickKeys += it },
         onControlAction = { id ->
             if (id == NovaQuickMenuActionId.MOUSE_MODE) {
                 panel.push(
@@ -83,7 +87,13 @@ class NovaCommandCenterPagesComposeTest {
                 null,
                 listOf("Esc", "F11", "Insert").map { label ->
                     NovaMenuItem.Action(key = label, label = label, onClick = { sentKeys += label })
-                },
+                } + NovaMenuItem.Destructive(
+                    key = NovaCommandCenterKeys.CLOSE_APP_KEY,
+                    label = "Alt + F4",
+                    confirmLabel = "Close App",
+                    consequence = "Closes the focused window on the host.",
+                    onConfirm = { sentKeys += "Alt + F4" },
+                ),
             ),
         ),
     )
@@ -266,5 +276,63 @@ class NovaCommandCenterPagesComposeTest {
         )
         assertEquals(listOf(2, 3, 4, NovaMouseModeChoices.LocalCursor), options.map { it.value })
         assertEquals("Toggle local cursor", options.last().label)
+    }
+
+    @Test
+    fun altF4OnTheKeysPageSplitsAndOnlyARightAClosesTheApp() {
+        val keys = open()
+        focus("More Keys")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        focus("Alt + F4")
+
+        rule.mainClock.autoAdvance = false
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(8)
+        rule.onNodeWithText("Stay").assertIsFocused()
+        rule.onNodeWithText("Closes the focused window on the host.").assertExists()
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        assertTrue("A on Stay is safe, and one A never sends Alt + F4", sentKeys.isEmpty())
+        assertTrue(panel.top is CommandCenterPage.Keys)
+
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(8)
+        keys.press(NovaTestKeys.RIGHT)
+        rule.advance(450)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+        rule.mainClock.autoAdvance = true
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(600))
+        rule.waitForIdle()
+
+        assertEquals(listOf("Alt + F4"), sentKeys)
+        assertFalse("the panel closes before the keys go, as every key's does", panel.isOpen)
+    }
+
+    @Test
+    fun altF4InTheRootGridSplitsAcrossItsRowAndOneANeverSendsIt() {
+        val keys = open()
+        val altF4 = rule.activity.getString(com.papi.nova.R.string.game_menu_send_keys_alt_f4)
+        val esc = rule.activity.getString(com.papi.nova.R.string.game_menu_send_keys_esc)
+        focus(altF4)
+
+        rule.mainClock.autoAdvance = false
+        // Arm, Stay, arm: mashed A never sends it, and leaves the pair armed on Stay.
+        repeat(3) {
+            keys.press(NovaTestKeys.CENTER)
+            rule.frames(16)
+        }
+        assertTrue("mashed A never sends it", quickKeys.isEmpty())
+        rule.onNodeWithText("Stay").assertIsFocused()
+        rule.onNodeWithText(rule.activity.getString(com.papi.nova.R.string.nova_cc_alt_f4_consequence)).assertExists()
+        // Armed, the pair takes its row: the keys beside Alt + F4 step aside, the rows around it stay.
+        rule.onAllNodesWithText(esc).assertCountEquals(1)
+        keys.press(NovaTestKeys.RIGHT)
+        rule.advance(450)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+
+        assertEquals(listOf(NovaQuickMenuActionId.QUICK_ALT_F4), quickKeys)
     }
 }

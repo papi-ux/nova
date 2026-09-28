@@ -1214,7 +1214,18 @@ class NovaQuickMenu(
             NovaSnackbar.showError(game, game.getString(R.string.wrong_import_format), anchor = menu.anchor)
         }
         fun rows(keys: List<NovaCommandCenterKey>) = keys.map { key ->
-            NovaMenuItem.Action(key = key.key, label = key.label, onClick = { sendKeysWithFocus(key.codes) })
+            if (key.key == NovaCommandCenterKeys.CLOSE_APP_KEY) {
+                // Alt + F4 closes the host's focused window, normally the game: never one A away (R3).
+                NovaMenuItem.Destructive(
+                    key = key.key,
+                    label = key.label,
+                    confirmLabel = game.getString(R.string.nova_cc_close_app),
+                    consequence = game.getString(R.string.nova_cc_alt_f4_consequence),
+                    onConfirm = { sendKeysWithFocus(key.codes) },
+                )
+            } else {
+                NovaMenuItem.Action(key = key.key, label = key.label, onClick = { sendKeysWithFocus(key.codes) })
+            }
         }
         val sections = buildList {
             if (defaults.isNotEmpty()) add(CommandCenterSection(null, rows(defaults)))

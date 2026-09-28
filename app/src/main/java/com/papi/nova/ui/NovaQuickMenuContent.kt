@@ -27,6 +27,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -585,7 +586,13 @@ private fun NovaQuickMenuTitleAndChip(title: @Composable () -> Unit, chip: NovaQ
     )
 }
 
-/** Keys in rows of three, each one a button that sends it. */
+/**
+ * Keys in rows of three, each one a button that sends it.
+ *
+ * Alt + F4 closes the focused window on the host, which is normally the game, so it is not one A
+ * away: it splits in its own slot into Stay and Close App (R3). Armed, it takes its whole row, as
+ * a split does when its halves would be narrower than 96dp, and its neighbours step aside.
+ */
 @Composable
 private fun NovaQuickKeys(
     ui: State<NovaQuickMenuUiState>,
@@ -593,18 +600,37 @@ private fun NovaQuickKeys(
     callbacks: NovaQuickMenuCallbacks,
 ) {
     val actions by ui.slice(select)
+    val closeApp = rememberNovaSplitConfirmState()
     Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
         actions.chunked(3).forEach { row ->
+            val splitTakesRow = closeApp.armed && row.any { it.id == NovaQuickMenuActionId.QUICK_ALT_F4 }
             Row(horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
                 row.forEach { action ->
-                    NovaPanelButton(
-                        text = action.label,
-                        onClick = { if (action.enabled) callbacks.perform(action) },
-                        modifier = Modifier.weight(1f),
-                    )
+                    // Keyed, so the split keeps its place in composition, and its armed state, when
+                    // the keys beside it step aside.
+                    key(action.id) {
+                        when {
+                            action.id == NovaQuickMenuActionId.QUICK_ALT_F4 -> NovaSplitConfirm(
+                                label = action.label,
+                                confirmLabel = stringResource(R.string.nova_cc_close_app),
+                                onConfirm = { if (action.enabled) callbacks.perform(action) },
+                                consequence = stringResource(R.string.nova_cc_alt_f4_consequence),
+                                enabled = action.enabled,
+                                state = closeApp,
+                                modifier = Modifier.weight(1f),
+                            )
+                            !splitTakesRow -> NovaPanelButton(
+                                text = action.label,
+                                onClick = { if (action.enabled) callbacks.perform(action) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
                 }
-                repeat(3 - row.size) {
-                    Spacer(Modifier.weight(1f))
+                if (!splitTakesRow) {
+                    repeat(3 - row.size) {
+                        Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
