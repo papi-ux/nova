@@ -197,6 +197,16 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     companion object {
+        /** Retire a disposed artwork view without canceling another view's request or cache. */
+        fun releaseArtworkView(view: ImageView) {
+            val job = view.getTag(R.id.nova_artwork_job) as? Job
+            // Invalidate completion checks before cancellation can deliver a callback.
+            view.setTag(R.id.nova_artwork_request_key, null)
+            view.setTag(R.id.nova_artwork_job, null)
+            view.setImageDrawable(null)
+            job?.cancel()
+        }
+
         const val WEB_UI_HTTPS_PORT = 47990
         private const val SERVERINFO_IDENTITY_TIMEOUT_SECONDS = 3L
         // GameStream serves HTTP five ports above its HTTPS port (47989 vs 47984).

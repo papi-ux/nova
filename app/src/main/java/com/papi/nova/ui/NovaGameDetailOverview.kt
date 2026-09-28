@@ -395,6 +395,7 @@ private fun NovaGameDetailTitle(
                     .sizeIn(maxWidth = 200.dp, maxHeight = 64.dp)
                     .semantics { contentDescription = logoContentDescription }
                     .testTag("nova-game-detail-logo"),
+                onRelease = PolarisApiClient::releaseArtworkView,
             )
         }
     } else {
