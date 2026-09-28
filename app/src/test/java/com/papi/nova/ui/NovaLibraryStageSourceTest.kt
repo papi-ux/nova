@@ -510,7 +510,7 @@ class NovaLibraryStageSourceTest {
             "src/test/java/com/papi/nova/ui/NovaLibraryLayoutV2Test.kt" to listOf(
                 "fun freshOptionsStateDefaultsToPlainPosterArtwork()",
             ),
-            "src/test/java/com/papi/nova/ui/NovaComposeSourceGuardTest.kt" to listOf(
+            "src/test/java/com/papi/nova/ui/NovaLibrarySourceGuardTest.kt" to listOf(
                 "fun task9SharedPosterCardKeepsMetadataInAccessibilityOnly()",
                 "fun task9SharedPosterCardUsesScaleOnlyWithoutVisualBadgesOrBorders()",
                 "fun task9StageGridCompactAndRecentUseOnlySharedPosterCard()",

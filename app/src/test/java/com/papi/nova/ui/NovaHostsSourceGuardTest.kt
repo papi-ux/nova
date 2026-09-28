@@ -1,0 +1,55 @@
+package com.papi.nova.ui
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * Source guards for the Hosts and App list screens.
+ *
+ * Moved verbatim out of NovaComposeSourceGuardTest, so each migration group owns the guards
+ * on its own files.
+ */
+class NovaHostsSourceGuardTest {
+    @Test
+    fun legacyAppLibraryHeroExposesEndSessionForOwnedStreams() {
+        val layout = readSource("src/main/res/layout/activity_app_view.xml")
+        val source = readSource("src/main/java/com/papi/nova/AppView.kt")
+
+        assertTrue(
+            "legacy app library hero should include a dedicated End Session affordance",
+            layout.contains("@+id/recently_played_end_session") &&
+                layout.contains("@string/applist_menu_quit")
+        )
+        assertTrue(
+            "end-session affordance should only show for this client's active stream",
+            source.contains("endSessionView?.visibility = if (appIsRunning && !appOwnedByAnotherClient)")
+        )
+        assertTrue(
+            "end-session affordance should use the same quit confirmation and refresh path as the app sheet",
+            source.contains("endRunningSessionFromLibrary(finalTargetApp.app)") &&
+                source.contains("UiHelper.displayQuitConfirmationDialog") &&
+                source.contains("ServerHelper.doQuit")
+        )
+        assertTrue(
+            "library End Session should resume grid polling after either quit success or failure",
+            source.contains("private fun quitRunningSessionAndRefresh(") &&
+                source.contains("val resumeGridUpdates = Runnable") &&
+                source.contains("ServerHelper.doQuit(this, activeComputer, app, binder, resumeGridUpdates, resumeGridUpdates)") &&
+                readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
+                    .contains("onFail: Runnable?,")
+        )
+        assertTrue(
+            "ServerHelper quit failure callbacks should run when the host reports quit failure",
+            readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
+                .contains("val quitSucceeded = httpConn.quitApp(sessionToken)") &&
+                readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
+                    .contains("failed = !quitSucceeded")
+        )
+    }
+
+    private fun readSource(path: String): String =
+        String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
+}
