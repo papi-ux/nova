@@ -245,14 +245,18 @@ private class NovaActivatableNode(
 
 /**
  * A back handler that takes part in the back chain only while [active] and while its page is on
- * top, so a page leaving through its exit animation never answers B. It does nothing where no
+ * top, so a page leaving through its exit animation never answers B. The page is checked again
+ * when B arrives, because the enabled flag only follows the next frame. It does nothing where no
  * OnBackPressedDispatcher owner exists, such as a view on the companion deck, whose back goes
  * through its own controller.
  */
 @Composable
 fun NovaBackHandler(active: Boolean, onBack: () -> Unit) {
     if (LocalOnBackPressedDispatcherOwner.current == null) return
-    BackHandler(enabled = active && LocalNovaPageIsTop.current, onBack = onBack)
+    val mayAct = LocalNovaPageMayAct.current
+    BackHandler(enabled = active && LocalNovaPageIsTop.current) {
+        if (mayAct()) onBack()
+    }
 }
 
 /**

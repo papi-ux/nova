@@ -106,6 +106,8 @@ object NovaPanelMetrics {
     const val BusyShowDelayMillis = 300L
     const val BusyMinimumMillis = 500L
     const val HostFocusTimeoutMillis = 500L
+    /** Frames a state page keeps asking for focus while whatever it covers settles. */
+    const val StateFocusAttempts = 4
     /** A held stepper key moves [StepperAcceleratedSteps] steps at a time after this many repeats. */
     const val StepperAccelerateAfterRepeats = 8
     const val StepperAcceleratedSteps = 5

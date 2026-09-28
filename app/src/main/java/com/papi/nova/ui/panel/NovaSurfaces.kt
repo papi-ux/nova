@@ -354,6 +354,7 @@ internal fun NovaSurfacesLayer(
     modifier: Modifier = Modifier,
     hints: List<NovaControllerHint> = emptyList(),
     onShoulder: ((NovaShoulder) -> Unit)? = null,
+    isPosted: (String) -> Boolean = { key -> states.any { it.key == key } },
 ) {
     val panelOpen = panel.isOpen
     var framePresent by remember { mutableStateOf(panelOpen) }
@@ -362,9 +363,12 @@ internal fun NovaSurfacesLayer(
     var focusRefresh by remember { mutableIntStateOf(0) }
     val lastWidth = remember { RetainedWidth() }
     val width = panel.top?.width?.also { lastWidth.width = it } ?: lastWidth.width
+    // A state page on screen, or about to show, owns the window's keys, Back and focus; a panel
+    // opened under it after it showed would otherwise register the newer back handlers.
+    val covered = statesShowing || states.isNotEmpty()
     Box(modifier = modifier.fillMaxSize()) {
         if (framePresent || panelOpen) {
-            CompositionLocalProvider(LocalNovaFocusRefresh provides focusRefresh) {
+            CompositionLocalProvider(LocalNovaFocusRefresh provides focusRefresh, LocalNovaPanelCovered provides covered) {
                 NovaPanelFrame(
                     edge = panel.edge,
                     width = width,
@@ -373,12 +377,21 @@ internal fun NovaSurfacesLayer(
                     onClosed = { framePresent = false },
                     scrim = scrim,
                 ) {
-                    NovaPageStackHost(state = panel, onShoulder = onShoulder, hints = hints, content = pageContent)
+                    // The window already holds focus in; a state page drawn beside the panel must
+                    // be able to take it.
+                    NovaPageStackHost(
+                        state = panel,
+                        containFocus = false,
+                        onShoulder = onShoulder,
+                        hints = hints,
+                        content = pageContent,
+                    )
                 }
             }
         }
         NovaStatePages(
             pages = states,
+            isPosted = isPosted,
             onShowingChange = { showing ->
                 if (statesShowing && !showing) focusRefresh++
                 statesShowing = showing

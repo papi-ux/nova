@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -47,6 +48,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -84,7 +87,11 @@ interface NovaPageScope {
     /** This page's list state, kept with its stack entry so a pop returns to the same place. */
     val listState: LazyListState
 
-    /** Whether this page is on top. A page animating out is not, and must not act. */
+    /**
+     * Whether this page is on top and not covered by a state page. A page animating out is not,
+     * and must not act. It is read live, so composition follows it and an event handler can
+     * check it at the moment of the event.
+     */
     val isTop: Boolean
 
     /** Marks the element that takes focus when the page opens: its current value, safe action or first row. */
@@ -97,8 +104,24 @@ interface NovaPageScope {
     fun closeThen(awaitHostFocus: Boolean = false, action: () -> Unit)
 }
 
-/** Whether the page being composed is the top of its stack. False while a page animates out. */
+/**
+ * Whether the page being composed is the top of its stack. False while a page animates out, and
+ * while a state page covers the panel.
+ */
 val LocalNovaPageIsTop = compositionLocalOf { true }
+
+/**
+ * Answers, at the moment of an event, whether the page being composed may still act. A back
+ * handler's enabled flag follows only the next composition, so a second B in the same frame
+ * would otherwise reach the handler of a page that has already left.
+ */
+internal val LocalNovaPageMayAct = compositionLocalOf<() -> Boolean> { { true } }
+
+/**
+ * True while a state page is on screen above the panel in the same window, or about to show.
+ * A covered panel takes no keys, no Back and no focus: they belong to the state page.
+ */
+internal val LocalNovaPanelCovered = compositionLocalOf { false }
 
 /**
  * The view whose window [NovaPageScope.closeThen] waits on: the activity or stream window under a
@@ -142,9 +165,11 @@ fun NovaPageStackHost(
     val closeRequest by rememberUpdatedState(onCloseRequest)
     val shoulder by rememberUpdatedState(onShoulder)
     val leave = remember(state) { { if (!state.pop()) closeRequest() } }
+    val covered = LocalNovaPanelCovered.current
+    val coveredNow = rememberUpdatedState(covered)
     // Registered before any page composes, so every handler a page adds is newer and runs first.
     if (LocalOnBackPressedDispatcherOwner.current != null) {
-        BackHandler(enabled = state.isOpen, onBack = leave)
+        BackHandler(enabled = state.isOpen && !covered, onBack = leave)
     }
     // Keeps the last page on screen while the panel's exit motion runs.
     val retained = remember { RetainedEntry() }
@@ -214,16 +239,19 @@ fun NovaPageStackHost(
             label = "NovaPageStack",
         ) { shown ->
             if (shown == null) return@AnimatedContent
-            val isTop = shown.id == state.topEntry?.id
-            val scope = remember(shown) { NovaPageScopeImpl(state, shown, hostView, closeRequest = { closeRequest() }) }
-            scope.isTop = isTop
-            CompositionLocalProvider(LocalNovaPageIsTop provides isTop) {
+            val scope = remember(shown) {
+                NovaPageScopeImpl(state, shown, hostView, coveredNow, closeRequest = { closeRequest() }, leave = leave)
+            }
+            val isTop = scope.isTop
+            CompositionLocalProvider(LocalNovaPageIsTop provides isTop, LocalNovaPageMayAct provides scope.mayAct) {
                 saveable.SaveableStateProvider(shown.id) {
                     Column(
                         modifier = Modifier
                             .semantics { paneTitle = shown.page.title }
-                            // A page animating out keeps focus for a frame; nothing it holds may act.
+                            // A page animating out keeps focus and stays under the finger for its
+                            // exit; read at the event, not at the last frame, nothing it holds acts.
                             .onPreviewKeyEvent { !scope.isTop }
+                            .pointerInput(scope) { swallowUnless { scope.isTop } }
                             .focusRequester(shown.groupRequester)
                             .onFocusChanged { scope.holdsFocus = it.hasFocus }
                             .focusGroup(),
@@ -231,14 +259,14 @@ fun NovaPageStackHost(
                         NovaPageHeader(
                             title = shown.page.title,
                             parentTitle = state.entryBelow(shown)?.page?.title,
-                            onBack = leave,
+                            onBack = { scope.exit.leaveThen() },
                             modifier = Modifier.padding(horizontal = padding).padding(top = padding),
                         )
                         Box(modifier = Modifier.padding(horizontal = padding)) {
                             CompositionLocalProvider(LocalBringIntoViewSpec provides contextSpec) {
                                 val page = shown.page
                                 if (page is NovaCommonPage) {
-                                    scope.NovaCommonPageContent(page, leave)
+                                    scope.NovaCommonPageContent(page, scope.exit)
                                 } else {
                                     scope.content(page)
                                 }
@@ -261,6 +289,35 @@ fun NovaPageStackHost(
 
 /** Keys that close the panel from anywhere in it, answered in the bubble phase. */
 private val CloseKeys = setOf(Key.ButtonStart, Key.Menu)
+
+/** Consumes every pointer event before the content sees it whenever [acts] says no. */
+private suspend fun PointerInputScope.swallowUnless(acts: () -> Boolean) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            if (!acts()) event.changes.forEach { it.consume() }
+        }
+    }
+}
+
+/**
+ * How a host-drawn page acts and leaves. Both check, at the moment of the press, that the page
+ * may still act: a second press that lands before the page has gone, or a tap on a page sliding
+ * out, does nothing.
+ */
+internal class NovaPageExit(private val mayAct: () -> Boolean, private val leave: () -> Unit) {
+    /** Runs [action] in place, while the page is on top. */
+    fun act(action: () -> Unit) {
+        if (mayAct()) action()
+    }
+
+    /** Pops the page, or closes the panel at the root, then runs [action]. */
+    fun leaveThen(action: () -> Unit = {}) {
+        if (!mayAct()) return
+        leave()
+        action()
+    }
+}
 
 /**
  * Scrolls a focused row into view together with one row of context on the side it scrolls
@@ -334,10 +391,16 @@ private class NovaPageScopeImpl(
     override val panel: NovaPanelState,
     private val entry: NovaStackEntry,
     private val hostView: View,
+    private val covered: State<Boolean>,
     private val closeRequest: () -> Unit,
+    leave: () -> Unit,
 ) : NovaPageScope {
     override val listState: LazyListState get() = entry.listState
-    override var isTop: Boolean = true
+
+    // Snapshot reads: composition follows them, and an event reads them as they are now.
+    override val isTop: Boolean get() = panel.topEntry?.id == entry.id && !covered.value
+    val mayAct: () -> Boolean = { isTop }
+    val exit = NovaPageExit(mayAct, leave)
     var holdsFocus: Boolean = false
 
     override fun Modifier.novaInitialFocus(): Modifier = focusRequester(entry.initialRequester)

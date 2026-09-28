@@ -20,8 +20,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,18 +106,33 @@ sealed interface NovaStatePage {
 }
 
 /**
+ * Whether the state page with a key is still posted, read at the moment of a press. NovaSurfaces
+ * answers from its live list; a page drawn on its own is always posted.
+ */
+internal val LocalNovaStatePosted = compositionLocalOf<(String) -> Boolean> { { true } }
+
+/**
  * A full-screen state page over the window colour at 0.94, with no card: a centred column at most
  * 480dp wide, clear of the insets and the TV title-safe area, that scrolls rather than clips.
  * Focus starts on the page's action and cannot leave the page; B runs its back action.
+ *
+ * Its actions run only while the page is still posted. An action that should run once takes its
+ * page down first, as the legacy helpers do, and a second press that lands before the page has
+ * gone then does nothing.
  */
 @Composable
 fun NovaStateScreen(page: NovaStatePage, modifier: Modifier = Modifier) {
     val colors = LocalNovaComposeColors.current
     val tvSafe = LocalNovaFormFactor.current == NovaFormFactor.Television
     val focusTarget = remember(page.key) { FocusRequester() }
+    val posted = LocalNovaStatePosted.current
+    val act = remember(page.key, posted) { NovaStateActions { posted(page.key) } }
     LaunchedEffect(page.key) {
-        withFrameNanos { }
-        focusTarget.requestFocus()
+        // Whatever held focus underneath may still be settling; ask until the action has it.
+        repeat(NovaPanelMetrics.StateFocusAttempts) {
+            withFrameNanos { }
+            if (focusTarget.requestFocus()) return@LaunchedEffect
+        }
     }
     Box(
         modifier = modifier
@@ -146,9 +163,9 @@ fun NovaStateScreen(page: NovaStatePage, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
         ) {
             when (page) {
-                is NovaStatePage.Problem -> ProblemContent(page, focusTarget)
-                is NovaStatePage.Busy -> BusyContent(page, focusTarget)
-                is NovaStatePage.Code -> CodeContent(page, focusTarget)
+                is NovaStatePage.Problem -> ProblemContent(page, focusTarget, act)
+                is NovaStatePage.Busy -> BusyContent(page, focusTarget, act)
+                is NovaStatePage.Code -> CodeContent(page, focusTarget, act)
             }
         }
     }
@@ -161,13 +178,20 @@ private val NovaStatePage.title: String
         is NovaStatePage.Code -> title
     }
 
+/** Runs a state page's actions while [posted] says the page is still up. */
+private class NovaStateActions(private val posted: () -> Boolean) {
+    fun run(action: NovaAction) {
+        if (posted()) action.run()
+    }
+}
+
 @Composable
-private fun ProblemContent(page: NovaStatePage.Problem, focusTarget: FocusRequester) {
+private fun ProblemContent(page: NovaStatePage.Problem, focusTarget: FocusRequester, act: NovaStateActions) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
     var detailShown by rememberSaveable(page.key) { mutableStateOf(false) }
     val back by rememberUpdatedState(page.back)
-    NovaBackHandler(active = true) { back.run() }
+    NovaBackHandler(active = true) { act.run(back) }
     page.eyebrow?.let {
         Text(text = it.uppercase(Locale.getDefault()), style = type.sectionLabel, color = colors.accent, textAlign = TextAlign.Center)
     }
@@ -182,13 +206,13 @@ private fun ProblemContent(page: NovaStatePage.Problem, focusTarget: FocusReques
             Text(text = detail, style = type.caption, color = colors.textMuted)
         }
     }
-    StateAction(page.primary, primary = true, modifier = Modifier.focusRequester(focusTarget))
-    page.secondary.forEach { StateAction(it, primary = false) }
-    page.help?.let { StateAction(it, primary = false) }
+    StateAction(page.primary, act, primary = true, modifier = Modifier.focusRequester(focusTarget))
+    page.secondary.forEach { StateAction(it, act, primary = false) }
+    page.help?.let { StateAction(it, act, primary = false) }
 }
 
 @Composable
-private fun BusyContent(page: NovaStatePage.Busy, focusTarget: FocusRequester) {
+private fun BusyContent(page: NovaStatePage.Busy, focusTarget: FocusRequester, act: NovaStateActions) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
     val message by page.message.collectAsState()
@@ -196,7 +220,7 @@ private fun BusyContent(page: NovaStatePage.Busy, focusTarget: FocusRequester) {
     val cancel = page.cancel
     val working = stringResource(R.string.nova_panel_working)
     // Without a cancel, B is held here so the work cannot be left half done.
-    NovaBackHandler(active = true) { cancel?.run?.invoke() }
+    NovaBackHandler(active = true) { cancel?.let(act::run) }
     Text(text = page.title, style = type.stateTitle, color = colors.textPrimary, textAlign = TextAlign.Center)
     if (progress != null) {
         LinearProgressIndicator(
@@ -222,7 +246,7 @@ private fun BusyContent(page: NovaStatePage.Busy, focusTarget: FocusRequester) {
         )
     }
     if (cancel != null) {
-        StateAction(cancel, primary = false, modifier = Modifier.focusRequester(focusTarget))
+        StateAction(cancel, act, primary = false, modifier = Modifier.focusRequester(focusTarget))
     } else {
         // Holds focus so A and B land here, where they do nothing.
         Box(modifier = Modifier.focusRequester(focusTarget).novaClickable(onClick = {}))
@@ -230,22 +254,22 @@ private fun BusyContent(page: NovaStatePage.Busy, focusTarget: FocusRequester) {
 }
 
 @Composable
-private fun CodeContent(page: NovaStatePage.Code, focusTarget: FocusRequester) {
+private fun CodeContent(page: NovaStatePage.Code, focusTarget: FocusRequester, act: NovaStateActions) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
     val close by rememberUpdatedState(page.close)
-    NovaBackHandler(active = true) { close.run() }
+    NovaBackHandler(active = true) { act.run(close) }
     Text(text = page.title, style = type.stateTitle, color = colors.textPrimary, textAlign = TextAlign.Center)
     Text(text = page.code, style = type.code, color = colors.textPrimary, textAlign = TextAlign.Center)
     Text(text = page.message, style = type.rowTitle, color = colors.textSecondary, textAlign = TextAlign.Center)
-    StateAction(page.close, primary = true, modifier = Modifier.focusRequester(focusTarget))
+    StateAction(page.close, act, primary = true, modifier = Modifier.focusRequester(focusTarget))
 }
 
 @Composable
-private fun StateAction(action: NovaAction, primary: Boolean, modifier: Modifier = Modifier) {
+private fun StateAction(action: NovaAction, act: NovaStateActions, primary: Boolean, modifier: Modifier = Modifier) {
     NovaActionButton(
         text = action.label,
-        onClick = action.run,
+        onClick = { act.run(action) },
         primary = primary,
         destructive = action.destructive,
         modifier = modifier.fillMaxWidth(),
@@ -257,12 +281,14 @@ private fun StateAction(action: NovaAction, primary: Boolean, modifier: Modifier
  * The top page of [pages], with the Busy timing: a Busy page shows 300ms after it is posted, or
  * never if it is gone by then, and once visible stays at least 500ms, even when dismissed sooner.
  * [onShowingChange] reports whether any page is on screen, so the window knows when it is idle.
+ * [isPosted] reads the live list, so a page's actions stop the moment it is dismissed.
  */
 @Composable
 internal fun NovaStatePages(
     pages: List<NovaStatePage>,
     onShowingChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    isPosted: (String) -> Boolean = { key -> pages.any { it.key == key } },
 ) {
     var shown by remember { mutableStateOf<NovaStatePage?>(null) }
     var heldLongEnough by remember { mutableStateOf(true) }
@@ -284,5 +310,9 @@ internal fun NovaStatePages(
     }
     // The latest copy of the shown page, so update() reaches it; a dismissed page keeps its last copy.
     val live = shown?.let { current -> pages.firstOrNull { it.key == current.key } ?: current }
-    if (live != null) NovaStateScreen(page = live, modifier = modifier)
+    if (live != null) {
+        CompositionLocalProvider(LocalNovaStatePosted provides isPosted) {
+            NovaStateScreen(page = live, modifier = modifier)
+        }
+    }
 }

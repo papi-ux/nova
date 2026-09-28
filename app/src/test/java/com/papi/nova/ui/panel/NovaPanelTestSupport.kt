@@ -50,12 +50,35 @@ internal class NovaTestKeys(private val rule: NovaTestRule) {
         rule.waitForIdle()
     }
 
+    /** Two whole presses with no frame between them, as input queued during a hitch arrives. */
+    fun pressTwiceInOneFrame(code: Int) {
+        rule.runOnUiThread {
+            repeat(2) {
+                view.dispatchKeyEvent(event(KeyEvent.ACTION_DOWN, code, 0, 0))
+                view.dispatchKeyEvent(event(KeyEvent.ACTION_UP, code, 0, 0))
+            }
+        }
+        rule.waitForIdle()
+    }
+
+    /** Two Backs with no frame between them. */
+    fun backTwiceInOneFrame() {
+        rule.runOnUiThread {
+            repeat(2) { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        }
+        rule.waitForIdle()
+    }
+
     private fun send(action: Int, code: Int, repeat: Int, flags: Int) {
-        val now = SystemClock.uptimeMillis()
-        val event = KeyEvent(now, now, action, code, repeat, 0, 0, 0, flags, InputDevice.SOURCE_KEYBOARD)
+        val event = event(action, code, repeat, flags)
         rule.runOnUiThread { view.dispatchKeyEvent(event) }
         rule.waitForIdle()
         if (!rule.mainClock.autoAdvance) rule.frames(1)
+    }
+
+    private fun event(action: Int, code: Int, repeat: Int, flags: Int): KeyEvent {
+        val now = SystemClock.uptimeMillis()
+        return KeyEvent(now, now, action, code, repeat, 0, 0, 0, flags, InputDevice.SOURCE_KEYBOARD)
     }
 
     companion object {

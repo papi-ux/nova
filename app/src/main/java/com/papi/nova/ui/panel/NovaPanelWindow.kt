@@ -105,6 +105,7 @@ internal class NovaPanelWindow(
                             onIdle = surfaces::onWindowIdle,
                             hints = surfaces.pageHints,
                             onShoulder = surfaces.pageShoulder,
+                            isPosted = { key -> surfaces.states.value.any { it.key == key } },
                         )
                     }
                 }

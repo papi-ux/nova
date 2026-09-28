@@ -69,6 +69,34 @@ class NovaStateScreenComposeTest {
     }
 
     @Test
+    fun anActionThatTakesItsPageDownRunsOnceForTwoPressesInOneFrame() {
+        var pages by mutableStateOf(emptyList<NovaStatePage>())
+        var posted = emptyList<NovaStatePage>()
+        var reconnects = 0
+        val page = NovaStatePage.Problem(
+            key = "lost",
+            title = "Connection lost",
+            message = "The host stopped answering.",
+            primary = NovaAction("Reconnect") {
+                // As the legacy helpers do: take the page down, then act.
+                posted = emptyList()
+                pages = posted
+                reconnects++
+            },
+        )
+        posted = listOf(page)
+        pages = posted
+        val keys = rule.setPanelContent {
+            NovaStatePages(pages = pages, onShowingChange = {}, isPosted = { key -> posted.any { it.key == key } })
+        }
+        rule.onNodeWithText("Reconnect").assertIsFocused()
+
+        keys.pressTwiceInOneFrame(NovaTestKeys.CENTER)
+
+        assertEquals(1, reconnects)
+    }
+
+    @Test
     fun busyIsHiddenBefore300msAndHeldFor500ms() {
         var pages by mutableStateOf(emptyList<NovaStatePage>())
         rule.setPanelContent { NovaStatePages(pages = pages, onShowingChange = {}) }

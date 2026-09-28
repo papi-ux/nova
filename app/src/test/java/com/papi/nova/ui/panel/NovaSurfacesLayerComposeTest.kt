@@ -6,10 +6,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.papi.nova.ui.compose.NovaControllerHint
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,6 +29,21 @@ class NovaSurfacesLayerComposeTest {
     private var states by mutableStateOf(emptyList<NovaStatePage>())
     private val shoulders = mutableListOf<NovaShoulder>()
     private var rowActions = 0
+    private var retries = 0
+    private var stateBacks = 0
+
+    private val lost = NovaStatePage.Problem(
+        key = "lost",
+        title = "Connection lost",
+        message = "The host stopped answering.",
+        primary = NovaAction("Reconnect") { retries++ },
+        secondary = listOf(
+            NovaAction("Close") {
+                stateBacks++
+                states = emptyList()
+            },
+        ),
+    )
 
     private fun setUp(
         hints: List<NovaControllerHint> = emptyList(),
@@ -53,5 +70,43 @@ class NovaSurfacesLayerComposeTest {
         rule.onNodeWithText("System").assertExists()
         keys.press(KeyEvent.KEYCODE_BUTTON_R1)
         assertEquals(listOf(NovaShoulder.Right), shoulders)
+    }
+
+    @Test
+    fun aStatePageOverAnOpenPanelTakesFocusAndAAndGivesThemBack() {
+        panel.open(TestPage("host"))
+        val keys = setUp()
+        rule.onNodeWithText("Row host").assertIsFocused()
+
+        states = listOf(lost)
+        rule.waitForIdle()
+        rule.onNodeWithText("Reconnect").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals("A runs the recovery action", 1, retries)
+        assertEquals("and never the covered row", 0, rowActions)
+
+        keys.back()
+        assertEquals(1, stateBacks)
+        assertTrue("B left the state page, not the panel", panel.isOpen)
+        rule.onNodeWithText("Row host").assertIsFocused()
+    }
+
+    @Test
+    fun aPanelOpenedUnderAStatePageLeavesItBAndFocus() {
+        states = listOf(lost)
+        val keys = setUp()
+        rule.onNodeWithText("Reconnect").assertIsFocused()
+
+        rule.runOnIdle { panel.open(TestPage("notice")) }
+        rule.waitForIdle()
+        rule.onNodeWithText("Reconnect").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(1, retries)
+        assertEquals(0, rowActions)
+
+        keys.back()
+        assertEquals("the state page's back ran, though the panel's handlers registered later", 1, stateBacks)
+        assertTrue(panel.isOpen)
+        rule.onNodeWithText("Row notice").assertIsFocused()
     }
 }

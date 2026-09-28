@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -44,11 +45,15 @@ class NovaPageStackHostComposeTest {
     private var stateRetries = 0
     private val split = NovaSplitConfirmState()
     private var name by mutableStateOf("")
+    private var watcherSawLeave = false
 
     private fun setUp(): NovaTestKeys = rule.setPanelContent {
         Box(Modifier.fillMaxSize()) {
+            // As in a panel window: the window holds focus in, so the state page beside the host
+            // can take it.
             NovaPageStackHost(
                 state = state,
+                containFocus = false,
                 onCloseRequest = { closeRequests++ },
                 onShoulder = { shoulders += it },
             ) { page ->
@@ -71,6 +76,11 @@ class NovaPageStackHostComposeTest {
                     "deep" -> Column {
                         NovaTextField(value = name, onValueChange = { name = it }, label = "Name")
                         NovaSplitConfirm(label = "Delete", confirmLabel = "Delete now", onConfirm = {}, state = split)
+                    }
+                    "watcher" -> {
+                        // Owner code that follows isTop in composition, as the spec's API invites.
+                        LaunchedEffect(isTop) { if (!isTop) watcherSawLeave = true }
+                        NovaRow(title = "Watcher", onClick = { panel.push(TestPage("above")) }, modifier = Modifier.novaInitialFocus())
                     }
                     else -> NovaRow(title = "Page ${page.key}", onClick = {})
                 }
@@ -150,12 +160,15 @@ class NovaPageStackHostComposeTest {
         state.push(TestPage("deep"))
         val keys = setUp()
 
-        // A state page answers B first, with its own back action, never its primary.
+        // A state page takes focus and A, and answers B first with its own back action.
         stateShown = true
         rule.waitForIdle()
+        rule.onNodeWithText("Reconnect").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals("A reached the state page's primary", 1, stateRetries)
         keys.back()
         assertEquals(1, stateBacks)
-        assertEquals(0, stateRetries)
+        assertEquals("B ran the back action, not the primary again", 1, stateRetries)
         assertEquals(2, state.depth)
 
         // An armed split disarms and keeps the page.
@@ -181,6 +194,15 @@ class NovaPageStackHostComposeTest {
         assertEquals(0, closeRequests)
         keys.back()
         assertEquals(1, closeRequests)
+    }
+
+    @Test
+    fun anOwnerPageFollowingIsTopSeesItLeaveWhenAPageIsPushed() {
+        state.open(TestPage("watcher"))
+        val keys = setUp()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(2, state.depth)
+        assertTrue("isTop is snapshot state, so a skipped owner page still sees it change", watcherSawLeave)
     }
 
     @Test

@@ -58,20 +58,21 @@ import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaRadius
 
 /**
- * Draws a [NovaCommonPage]. [leave] pops the page, or closes the panel at the root; every page
- * leaves first and then runs its callback, so a callback that opens something lands on top.
+ * Draws a [NovaCommonPage]. [exit] pops the page, or closes the panel at the root; every page
+ * leaves first and then runs its callback, so a callback that opens something lands on top. It
+ * also keeps a page that is no longer on top from acting at all.
  */
 @Composable
-internal fun NovaPageScope.NovaCommonPageContent(page: NovaCommonPage, leave: () -> Unit) {
+internal fun NovaPageScope.NovaCommonPageContent(page: NovaCommonPage, exit: NovaPageExit) {
     when (page) {
-        is NovaCommonPage.Choice<*> -> ChoicePage(page, leave)
-        is NovaCommonPage.MultiChoice<*> -> MultiChoicePage(page, leave)
-        is NovaCommonPage.Menu -> MenuPage(page)
-        is NovaCommonPage.Confirm -> ConfirmPage(page, leave)
-        is NovaCommonPage.Notice -> NoticePage(page, leave)
-        is NovaCommonPage.Form -> FormPage(page, leave)
-        is NovaCommonPage.Slider -> SliderPage(page, leave)
-        is NovaCommonPage.Busy -> BusyPage(page)
+        is NovaCommonPage.Choice<*> -> ChoicePage(page, exit)
+        is NovaCommonPage.MultiChoice<*> -> MultiChoicePage(page, exit)
+        is NovaCommonPage.Menu -> MenuPage(page, exit)
+        is NovaCommonPage.Confirm -> ConfirmPage(page, exit)
+        is NovaCommonPage.Notice -> NoticePage(page, exit)
+        is NovaCommonPage.Form -> FormPage(page, exit)
+        is NovaCommonPage.Slider -> SliderPage(page, exit)
+        is NovaCommonPage.Busy -> BusyPage(page, exit)
     }
 }
 
@@ -100,7 +101,7 @@ private fun PageColumn(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun <T> NovaPageScope.ChoicePage(page: NovaCommonPage.Choice<T>, leave: () -> Unit) {
+private fun <T> NovaPageScope.ChoicePage(page: NovaCommonPage.Choice<T>, exit: NovaPageExit) {
     val currentIndex = page.options.indexOfFirst { it.value == page.current }
     var scrolled by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -116,10 +117,7 @@ private fun <T> NovaPageScope.ChoicePage(page: NovaCommonPage.Choice<T>, leave: 
                 caption = option.caption,
                 disabledReason = option.disabledReason,
                 trailing = if (index == currentIndex) NovaRowTrailing.Current else NovaRowTrailing.None,
-                onClick = {
-                    leave()
-                    page.onChoose(option.value)
-                },
+                onClick = { exit.leaveThen { page.onChoose(option.value) } },
                 leading = page.leading?.let { draw -> { draw(option) } },
                 modifier = Modifier
                     .then(if (initial) Modifier.novaInitialFocus() else Modifier)
@@ -130,7 +128,7 @@ private fun <T> NovaPageScope.ChoicePage(page: NovaCommonPage.Choice<T>, leave: 
 }
 
 @Composable
-private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T>, leave: () -> Unit) {
+private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T>, exit: NovaPageExit) {
     val chosen = remember(page) { mutableStateMapOf<Int, Boolean>() }
     fun isChosen(index: Int) = chosen[index] ?: (page.options[index].value in page.selected)
     PageList {
@@ -140,7 +138,7 @@ private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T
                 caption = option.caption,
                 disabledReason = option.disabledReason,
                 trailing = if (isChosen(index)) NovaRowTrailing.Current else NovaRowTrailing.None,
-                onClick = { chosen[index] = !isChosen(index) },
+                onClick = { exit.act { chosen[index] = !isChosen(index) } },
                 modifier = Modifier
                     .then(if (index == 0) Modifier.novaInitialFocus() else Modifier)
                     .novaRestorableFocus(index, index),
@@ -152,8 +150,7 @@ private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T
                 primary = true,
                 onClick = {
                     val result = page.options.filterIndexed { index, _ -> isChosen(index) }.map { it.value }.toSet()
-                    leave()
-                    page.onDone(result)
+                    exit.leaveThen { page.onDone(result) }
                 },
                 modifier = Modifier.fillMaxWidth().novaRestorableFocus("done", page.options.size),
                 minHeight = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current),
@@ -163,7 +160,7 @@ private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T
 }
 
 @Composable
-private fun NovaPageScope.MenuPage(page: NovaCommonPage.Menu) {
+private fun NovaPageScope.MenuPage(page: NovaCommonPage.Menu, exit: NovaPageExit) {
     val firstFocusable = page.items.indexOfFirst { it !is NovaMenuItem.Action || it.disabledReason == null }
         .coerceAtLeast(0)
     PageList {
@@ -175,13 +172,13 @@ private fun NovaPageScope.MenuPage(page: NovaCommonPage.Menu) {
             val focus = Modifier
                 .then(if (index == firstFocusable) Modifier.novaInitialFocus() else Modifier)
                 .novaRestorableFocus(item.key, listIndex)
-            MenuItem(item, focus)
+            MenuItem(item, focus, exit)
         }
     }
 }
 
 @Composable
-private fun NovaPageScope.MenuItem(item: NovaMenuItem, modifier: Modifier) {
+private fun NovaPageScope.MenuItem(item: NovaMenuItem, modifier: Modifier, exit: NovaPageExit) {
     when (item) {
         is NovaMenuItem.Action -> NovaRow(
             title = item.label,
@@ -189,7 +186,7 @@ private fun NovaPageScope.MenuItem(item: NovaMenuItem, modifier: Modifier) {
             icon = item.icon,
             emphasis = item.emphasis,
             disabledReason = item.disabledReason,
-            onClick = { if (item.closesPanel) closeThen(action = item.onClick) else item.onClick() },
+            onClick = { exit.act { if (item.closesPanel) closeThen(action = item.onClick) else item.onClick() } },
             modifier = modifier,
         )
         is NovaMenuItem.Opens -> NovaRow(
@@ -197,7 +194,7 @@ private fun NovaPageScope.MenuItem(item: NovaMenuItem, modifier: Modifier) {
             caption = item.caption,
             icon = item.icon,
             trailing = item.value?.let { NovaRowTrailing.Value(it) } ?: NovaRowTrailing.Opens,
-            onClick = { panel.push(item.page()) },
+            onClick = { exit.act { panel.push(item.page()) } },
             modifier = modifier,
         )
         is NovaMenuItem.Destructive -> NovaSplitConfirm(
@@ -269,12 +266,9 @@ private fun NovaTone.color() = LocalNovaComposeColors.current.let { colors ->
 }
 
 @Composable
-private fun NovaPageScope.ConfirmPage(page: NovaCommonPage.Confirm, leave: () -> Unit) {
+private fun NovaPageScope.ConfirmPage(page: NovaCommonPage.Confirm, exit: NovaPageExit) {
     val colors = LocalNovaComposeColors.current
-    val stay = {
-        leave()
-        page.onStay()
-    }
+    val stay = { exit.leaveThen(page.onStay) }
     NovaBackHandler(active = true, onBack = stay)
     PageColumn {
         Text(text = page.message, style = novaPanelType.rowTitle, color = colors.textSecondary)
@@ -289,10 +283,7 @@ private fun NovaPageScope.ConfirmPage(page: NovaCommonPage.Confirm, leave: () ->
                 text = page.actionLabel,
                 destructive = page.destructive,
                 primary = !page.destructive,
-                onClick = {
-                    leave()
-                    page.onConfirm()
-                },
+                onClick = { exit.leaveThen(page.onConfirm) },
                 modifier = Modifier.weight(1f),
                 minHeight = NovaPanelMetrics.ButtonMinHeight,
             )
@@ -301,12 +292,9 @@ private fun NovaPageScope.ConfirmPage(page: NovaCommonPage.Confirm, leave: () ->
 }
 
 @Composable
-private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, leave: () -> Unit) {
+private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, exit: NovaPageExit) {
     val colors = LocalNovaComposeColors.current
-    val close = {
-        leave()
-        page.onClose()
-    }
+    val close = { exit.leaveThen(page.onClose) }
     NovaBackHandler(active = true, onBack = close)
     val buttonHeight = NovaPanelMetrics.ButtonMinHeight
     PageColumn {
@@ -321,10 +309,7 @@ private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, leave: () -> U
                 text = primary.label,
                 primary = true,
                 destructive = primary.destructive,
-                onClick = {
-                    leave()
-                    primary.run()
-                },
+                onClick = { exit.leaveThen(primary.run) },
                 modifier = Modifier.fillMaxWidth().novaInitialFocus(),
                 minHeight = buttonHeight,
             )
@@ -332,10 +317,7 @@ private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, leave: () -> U
         page.help?.let { help ->
             NovaActionButton(
                 text = help.label,
-                onClick = {
-                    leave()
-                    help.run()
-                },
+                onClick = { exit.leaveThen(help.run) },
                 modifier = Modifier.fillMaxWidth(),
                 minHeight = buttonHeight,
             )
@@ -352,15 +334,17 @@ private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, leave: () -> U
 }
 
 @Composable
-private fun NovaPageScope.FormPage(page: NovaCommonPage.Form, leave: () -> Unit) {
+private fun NovaPageScope.FormPage(page: NovaCommonPage.Form, exit: NovaPageExit) {
     val colors = LocalNovaComposeColors.current
     val focusManager = LocalFocusManager.current
     val values = remember(page) { mutableStateMapOf<String, String>().apply { page.fields.forEach { put(it.key, it.initial) } } }
     var error by remember(page) { mutableStateOf<String?>(null) }
     val openedByTouch = LocalInputModeManager.current.inputMode == InputMode.Touch
     val submit = {
-        val result = page.onSubmit(page.fields.associate { it.key to values[it.key].orEmpty() })
-        if (result == null) leave() else error = result
+        exit.act {
+            val result = page.onSubmit(page.fields.associate { it.key to values[it.key].orEmpty() })
+            if (result == null) exit.leaveThen() else error = result
+        }
     }
     PageColumn {
         page.fields.forEachIndexed { index, field ->
@@ -396,7 +380,7 @@ private fun NovaPageScope.FormPage(page: NovaCommonPage.Form, leave: () -> Unit)
 }
 
 @Composable
-private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, leave: () -> Unit) {
+private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPageExit) {
     var value by rememberSaveable(page.key) { mutableIntStateOf(page.value.coerceIn(page.range)) }
     var typed by remember(page) { mutableStateOf(value.toString()) }
     LaunchedEffect(value, isTop) { if (isTop) page.onPreview?.invoke(value) }
@@ -426,10 +410,7 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, leave: () -> U
         NovaActionButton(
             text = stringResource(R.string.nova_panel_save),
             primary = true,
-            onClick = {
-                leave()
-                page.onSave(value)
-            },
+            onClick = { exit.leaveThen { page.onSave(value) } },
             modifier = Modifier.fillMaxWidth(),
             minHeight = NovaPanelMetrics.ButtonMinHeight,
         )
@@ -482,12 +463,12 @@ private fun Modifier.novaTrackFill(fraction: Float, track: Color, fill: Color): 
 }
 
 @Composable
-private fun NovaPageScope.BusyPage(page: NovaCommonPage.Busy) {
+private fun NovaPageScope.BusyPage(page: NovaCommonPage.Busy, exit: NovaPageExit) {
     val colors = LocalNovaComposeColors.current
     val message by page.message.collectAsState()
     val cancel = page.cancel
     // Without a cancel, the page holds B so the work cannot be left half done.
-    NovaBackHandler(active = true) { cancel?.run?.invoke() }
+    NovaBackHandler(active = true) { cancel?.let { exit.act(it.run) } }
     PageColumn {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -508,7 +489,7 @@ private fun NovaPageScope.BusyPage(page: NovaCommonPage.Busy) {
         if (cancel != null) {
             NovaActionButton(
                 text = cancel.label,
-                onClick = cancel.run,
+                onClick = { exit.act(cancel.run) },
                 modifier = Modifier.fillMaxWidth().novaInitialFocus(),
                 minHeight = NovaPanelMetrics.ButtonMinHeight,
             )

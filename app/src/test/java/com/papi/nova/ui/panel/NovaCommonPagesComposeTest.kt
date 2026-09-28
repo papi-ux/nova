@@ -59,6 +59,44 @@ class NovaCommonPagesComposeTest {
     }
 
     @Test
+    fun twoPressesInOneFramePickOnceAndPopOnePage() {
+        val chosen = mutableListOf<Int>()
+        state.open(TestPage("root"))
+        state.push(TestPage("menu"))
+        state.push(
+            NovaCommonPage.Choice(
+                key = "fps",
+                title = "Frame rate",
+                options = (0 until 4).map { NovaOption(it, "Option $it") },
+                current = 1,
+                onChoose = { chosen += it },
+            ),
+        )
+        val keys = host()
+        rule.onNodeWithText("Option 1").assertIsFocused()
+
+        keys.pressTwiceInOneFrame(NovaTestKeys.CENTER)
+
+        assertEquals("the second press landed on a page already leaving", listOf(1), chosen)
+        assertEquals("menu", state.top?.key)
+        assertEquals(0, closeRequests)
+    }
+
+    @Test
+    fun twoBacksInOneFrameCloseANoticeOnce() {
+        var closed = 0
+        state.open(TestPage("root"))
+        state.push(TestPage("menu"))
+        state.push(NovaCommonPage.Notice(key = "details", title = "Details", message = "name: Nova PC", closeLabel = "Close", onClose = { closed++ }))
+        val keys = host()
+
+        keys.backTwiceInOneFrame()
+
+        assertEquals(1, closed)
+        assertEquals("menu", state.top?.key)
+    }
+
+    @Test
     fun confirmOpensOnStayAndBRunsStay() {
         var stayed = 0
         var confirmed = 0
