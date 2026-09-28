@@ -41,7 +41,7 @@ class Issue157ThorRegressionSourceTest {
         val strings = File("src/main/res/values/strings.xml").readText()
 
         assertTrue(pcView.contains("setOnServerActionListener"))
-        assertTrue(pcView.contains("showServerBottomSheet(computer)"))
+        assertTrue(pcView.contains("showHostPanel(computer)"))
         assertTrue(adapter.contains("serverActionListener"))
         assertTrue(adapter.contains("setOnClickListener { serverActionListener?.invoke(obj) }"))
         assertTrue(layout.contains("@+id/server_actions_button"))
@@ -101,7 +101,10 @@ class Issue157ThorRegressionSourceTest {
         assertTrue(source.contains("serviceBound = bindService("))
         assertTrue(source.contains("thread.join(500L)"))
         assertTrue(source.contains("if (serviceBound)"))
-        val deepLinkConfirm = source.substringAfter("setPositiveButton(getString(R.string.proceed)").substringBefore("setNegativeButton")
+        // The deep link's pairing confirm is a Confirm page now; its action queues the host and
+        // leaves the screen to the add worker, as the dialog's Proceed did.
+        val deepLinkConfirm = source.substringAfter("onConfirm = {").substringBefore("}")
+        assertTrue(deepLinkConfirm.contains("computersToAdd.add("))
         assertFalse(deepLinkConfirm.contains("finish()"))
         assertFalse(source.contains("managerBinder!!.addComputerBlocking"))
         assertFalse(source.contains("thread.join()"))

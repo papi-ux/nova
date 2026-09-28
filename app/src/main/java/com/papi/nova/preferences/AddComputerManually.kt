@@ -1,6 +1,5 @@
 package com.papi.nova.preferences
 
-import android.app.AlertDialog
 import android.app.Service
 import android.content.ComponentName
 import android.content.Context
@@ -15,6 +14,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
+import androidx.compose.ui.text.AnnotatedString
 import com.papi.nova.NovaActivity
 import com.papi.nova.ui.compose.novaInPlaceImeOptions
 import com.papi.nova.AppView
@@ -28,6 +28,8 @@ import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.ServerHelper
 import com.papi.nova.utils.SpinnerDialog
@@ -172,19 +174,26 @@ class AddComputerManually : NovaActivity() {
             dialog.dismiss()
             if (isFinishing || isDestroyed) return@runOnUiThread
 
+            // The add-host failures are the ones Help can do something about.
             if (invalidInput) {
                 Dialog.displayDialog(
                     this,
                     resources.getString(R.string.conn_error_title),
                     resources.getString(R.string.addpc_unknown_host),
-                    false
+                    false,
+                    actionText = null,
+                    action = null,
+                    help = true,
                 )
             } else if (wrongSiteLocal) {
                 Dialog.displayDialog(
                     this,
                     resources.getString(R.string.conn_error_title),
                     resources.getString(R.string.addpc_wrong_sitelocal),
-                    false
+                    false,
+                    actionText = null,
+                    action = null,
+                    help = true,
                 )
             } else if (!success) {
                 val dialogText = if (
@@ -195,7 +204,15 @@ class AddComputerManually : NovaActivity() {
                 } else {
                     resources.getString(R.string.addpc_fail)
                 }
-                Dialog.displayDialog(this, resources.getString(R.string.conn_error_title), dialogText, false)
+                Dialog.displayDialog(
+                    this,
+                    resources.getString(R.string.conn_error_title),
+                    dialogText,
+                    false,
+                    actionText = null,
+                    action = null,
+                    help = true,
+                )
             } else {
                 Toast.makeText(
                     this@AddComputerManually,
@@ -364,16 +381,19 @@ class AddComputerManually : NovaActivity() {
                 ?.let { "$it ($server)" }
                 ?: server
 
-            val dialog = AlertDialog.Builder(this)
-                .setTitle(R.string.pair_pc_confirm_title)
-                .setMessage(getString(R.string.pair_pc_confirm_message, hostName))
-                .setPositiveButton(getString(R.string.proceed)) { dialog, _ ->
-                    dialog.dismiss()
-                    computersToAdd.add("$server?$query")
-                }
-                .setNegativeButton(getString(R.string.cancel)) { dialog, _ -> dialog.dismiss() }
-                .create()
-            dialog.show()
+            // A link has no button to split, so it asks on a Confirm page at the right edge, with
+            // Cancel focused. Pairing is not destructive.
+            novaSurfaces.present(
+                NovaCommonPage.Confirm(
+                    key = "pair_link",
+                    title = getString(R.string.pair_pc_confirm_title),
+                    message = AnnotatedString(getString(R.string.pair_pc_confirm_message, hostName)),
+                    stayLabel = getString(R.string.nova_panel_cancel),
+                    actionLabel = getString(R.string.hosts_pair),
+                    destructive = false,
+                    onConfirm = { computersToAdd.add("$server?$query") },
+                ),
+            )
         }
     }
 

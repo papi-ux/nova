@@ -2,7 +2,6 @@ package com.papi.nova
 
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
-import android.app.AlertDialog
 import android.app.Service
 import android.content.ComponentName
 import android.content.Context
@@ -11,7 +10,6 @@ import android.content.ServiceConnection
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Rect
-import android.graphics.Typeface
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -23,8 +21,6 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
-import android.text.InputFilter
-import android.text.InputType
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -33,20 +29,20 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import android.view.animation.DecelerateInterpolator
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
+import androidx.annotation.StringRes
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.chip.ChipGroup
@@ -63,9 +59,7 @@ import com.papi.nova.computers.HostForget
 import com.papi.nova.grid.NovaHostPlaySurface
 import com.papi.nova.grid.NovaHostRowFocusMove
 import com.papi.nova.grid.PcGridAdapter
-import com.papi.nova.grid.novaHostInUse
 import com.papi.nova.grid.novaHostPlaySurface
-import com.papi.nova.grid.novaWatchRate
 import com.papi.nova.grid.novaHostRowFocusMove
 import com.papi.nova.grid.assets.DiskAssetLoader
 import com.papi.nova.manager.HoldToConfirm
@@ -100,22 +94,26 @@ import com.papi.nova.ui.AdapterFragmentCallbacks
 import com.papi.nova.ui.NovaLibraryActivity
 import com.papi.nova.ui.NovaServerGridLayoutManager
 import com.papi.nova.ui.NovaQrScanActivity
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
-import com.papi.nova.ui.NovaHostSheet
-import com.papi.nova.ui.NovaHostSheetAction
-import com.papi.nova.ui.NovaHostSheetMenu
-import com.papi.nova.ui.NovaHostSheetState
-import com.papi.nova.ui.compose.NovaComposeTheme
-import com.papi.nova.ui.novaBreakAtDots
-import com.papi.nova.ui.novaHostSheetCopy
-import com.papi.nova.ui.NovaSheetChrome
+import com.papi.nova.ui.NovaHostMenuActions
+import com.papi.nova.ui.novaHostMenuHeader
+import com.papi.nova.ui.novaHostMenuItems
+import com.papi.nova.ui.compose.NovaThemeSwatch
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaField
+import com.papi.nova.ui.panel.NovaFieldKind
+import com.papi.nova.ui.panel.NovaFocusReturn
+import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaPage
+import com.papi.nova.ui.panel.NovaStatePage
+import com.papi.nova.ui.panel.NovaSurfaces
+import com.papi.nova.ui.panel.novaSurfaces
 import com.google.android.material.snackbar.Snackbar
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaWelcomeActivity
 import com.papi.nova.ui.SpaceParticleView
-import com.papi.nova.ui.NovaDialogWindows
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.HelpLauncher
 import com.papi.nova.utils.ServerHelper
@@ -133,28 +131,96 @@ import javax.microedition.khronos.opengles.GL10
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParserException
 
+/**
+ * The themes as a Choice page: each with its swatch and a caption, the current one marked and
+ * focused. One A applies a theme and closes the panel.
+ */
+internal fun novaThemePickerPage(
+    context: Context,
+    themes: List<String>,
+    current: String,
+    onChoose: (String) -> Unit,
+): NovaCommonPage.Choice<String> = NovaCommonPage.Choice(
+    key = "theme",
+    title = context.getString(R.string.pcview_theme_picker_title),
+    options = themes.map { theme ->
+        NovaOption(theme, NovaThemeManager.getThemeLabel(context, theme), caption = context.getString(novaThemePickerCaption(theme)))
+    },
+    current = current,
+    onChoose = onChoose,
+    leading = { option -> NovaThemeSwatch(option.value) },
+)
+
+/** A theme's caption on the picker page, kept to two lines beside its swatch. */
+@StringRes
+internal fun novaThemePickerCaption(theme: String): Int = when (theme) {
+    NovaThemeManager.THEME_POLARIS -> R.string.hosts_theme_caption_polaris
+    NovaThemeManager.THEME_PORTABLE_CHROME -> R.string.hosts_theme_caption_portable_chrome
+    NovaThemeManager.THEME_OLED -> R.string.hosts_theme_caption_oled
+    NovaThemeManager.THEME_MIAMI -> R.string.hosts_theme_caption_miami
+    NovaThemeManager.THEME_HIGH_CONTRAST -> R.string.hosts_theme_caption_high_contrast
+    NovaThemeManager.THEME_MATERIAL_YOU -> R.string.hosts_theme_caption_material_you
+    else -> R.string.hosts_theme_caption_polaris
+}
+
+/**
+ * OTP pairing as a Form page: the PIN and the passphrase, then Pair. A short PIN or passphrase
+ * keeps the page and says why; a good pair runs [onPair] and leaves the page to it.
+ */
+internal fun novaOtpPairPage(context: Context, onPair: (pin: String, passphrase: String) -> Unit): NovaCommonPage.Form =
+    NovaCommonPage.Form(
+        key = "pair_otp",
+        title = context.getString(R.string.pcview_menu_pair_pc_otp),
+        fields = listOf(
+            NovaField(key = NOVA_OTP_PIN, label = context.getString(R.string.hosts_otp_pin), kind = NovaFieldKind.Number, maxLength = 4),
+            NovaField(key = NOVA_OTP_PASSPHRASE, label = context.getString(R.string.pair_passphrase_hint), kind = NovaFieldKind.Password),
+        ),
+        submitLabel = context.getString(R.string.hosts_pair),
+        onSubmit = { values ->
+            val pin = values[NOVA_OTP_PIN].orEmpty()
+            val passphrase = values[NOVA_OTP_PASSPHRASE].orEmpty()
+            when {
+                pin.length != 4 -> context.getString(R.string.pair_pin_length_msg)
+                passphrase.length < 4 -> context.getString(R.string.pair_passphrase_length_msg)
+                else -> {
+                    onPair(pin, passphrase)
+                    null
+                }
+            }
+        },
+    )
+
+private const val NOVA_OTP_PIN = "pin"
+private const val NOVA_OTP_PASSPHRASE = "passphrase"
+
+/**
+ * The pairing PIN, full screen while the host waits for it to be typed there. [onClose] hides the
+ * page; pairing goes on until the host answers.
+ */
+internal fun novaPairingCodePage(context: Context, key: String, pin: String, onClose: () -> Unit): NovaStatePage.Code =
+    NovaStatePage.Code(
+        key = key,
+        title = context.getString(R.string.hosts_pairing_code_title),
+        code = pin,
+        message = context.getString(R.string.hosts_pairing_code_message),
+        close = NovaAction(context.getString(R.string.nova_panel_close), run = onClose),
+    )
+
 internal fun dashboardSetupActionHeight(collapsed: Boolean, compactHeight: Int): Int =
     if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT
 
-/**
- * How many columns a host's sheet lays its actions in.
- *
- * Two when the sheet is wide enough for the longest label, "Test Network Connection", to keep one
- * line in half of it, which a landscape sheet is on every handheld Nova runs on. One upright, and
- * one when larger type would push the labels onto second lines.
- */
-internal fun novaHostSheetColumns(landscape: Boolean, sheetWidthDp: Float, fontScale: Float): Int =
-    if (landscape && sheetWidthDp >= NOVA_HOST_SHEET_TWO_COLUMN_MIN_DP * fontScale.coerceAtLeast(1f)) 2 else 1
-
-internal const val NOVA_HOST_SHEET_TWO_COLUMN_MIN_DP = 520f
-
 class PcView : NovaActivity(), AdapterFragmentCallbacks {
-    private val THEME_PICKER_GRID_GAP_DP = 8
+    // The screen's own A and B handling is gone: the host menu and the theme picker are panels,
+    // and A reaches the power control as the center press the gate makes of it.
+    override val novaKeyGate: Boolean = true
     private var noPcFoundLayout: View? = null
     private lateinit var pcGridAdapter: PcGridAdapter
     private var serverGridView: RecyclerView? = null
@@ -196,6 +262,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private var dashboardUpdatePillStatus = DashboardUpdatePillStatus.CURRENT
     private var dashboardUpdatePillRelease: NovaUpdateRelease? = null
     private var dashboardRailCollapsed = false
+    private var hostPanelWatch: Job? = null
     private val dashboardRailButtonText = mutableMapOf<Int, CharSequence>()
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -878,99 +945,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
     }
 
+    /** The theme picker, in a right-edge panel opened from the dashboard's theme action. */
     private fun showThemePicker(anchor: View?) {
-        val themes = buildThemePickerThemes()
-        val currentTheme = NovaThemeManager.getTheme(this)
-        val surface = NovaThemeManager.getCardBackgroundColor(this)
-        val textPrimary = NovaThemeManager.getTextPrimaryColor(this)
-        val textSecondary = NovaThemeManager.getTextSecondaryColor(this)
-        val textMuted = NovaThemeManager.getTextMutedColor(this)
-
-        val dialog = BottomSheetDialog(this, R.style.NovaBottomSheet)
-        var focusTarget: View? = null
-        lateinit var themePickerFocusLabel: TextView
-
-        val content = NovaSheetChrome.createSheetContainer(this)
-        content.clipChildren = false
-        content.clipToPadding = false
-
-        content.addView(
-            TextView(this).apply {
-                text = getString(R.string.pcview_theme_picker_title)
-                setTextColor(textPrimary)
-                textSize = 20f
-                typeface = Typeface.DEFAULT_BOLD
-                includeFontPadding = false
-            },
+        novaSurfaces.open(
+            novaThemePickerPage(this, buildThemePickerThemes(), NovaThemeManager.getTheme(this), ::applyThemeSelection),
+            NovaEdge.End,
+            anchor?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None,
         )
-        content.addView(
-            TextView(this).apply {
-                text = getString(R.string.pcview_theme_picker_hint)
-                setTextColor(textMuted)
-                textSize = 11f
-                setPadding(0, dp(4), 0, dp(8))
-            },
-        )
-
-        themePickerFocusLabel = TextView(this).apply {
-            text = getString(
-                R.string.pcview_theme_picker_focus_format,
-                NovaThemeManager.getThemeLabel(this@PcView, currentTheme),
-                getThemePickerSubtitle(currentTheme),
-            )
-            setTextColor(NovaThemeManager.getAccentColor(this@PcView))
-            textSize = 11f
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, 0, 0, dp(6))
-        }
-        content.addView(themePickerFocusLabel)
-
-        val themeGrid = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            val gridGap = dp(THEME_PICKER_GRID_GAP_DP)
-            setPadding(gridGap, gridGap, gridGap, gridGap)
-            clipChildren = false
-            clipToPadding = false
-        }
-        content.addView(themeGrid)
-        themes.chunked(2).forEach { themePair ->
-            val gridRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                clipChildren = false
-                clipToPadding = false
-            }
-            themePair.forEachIndexed { index, theme ->
-                val row = createThemePickerRow(theme, currentTheme, themePickerFocusLabel, surface, textPrimary, textSecondary, dialog)
-                row.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    if (index == 0) {
-                        marginEnd = dp(THEME_PICKER_GRID_GAP_DP)
-                    }
-                    bottomMargin = dp(THEME_PICKER_GRID_GAP_DP)
-                }
-                if (focusTarget == null || theme == currentTheme) {
-                    focusTarget = row
-                }
-                gridRow.addView(row)
-            }
-            if (themePair.size == 1) {
-                gridRow.addView(
-                    View(this).apply {
-                        layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
-                    },
-                )
-            }
-            themeGrid.addView(gridRow)
-        }
-
-        dialog.setContentView(content)
-        dialog.setOnShowListener {
-            NovaSheetChrome.applyBottomSheetChrome(dialog, content)
-            content.post {
-                focusTarget?.requestFocus()
-            }
-        }
-        dialog.show()
         anchor?.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
     }
 
@@ -986,181 +967,6 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     NovaThemeManager.isMaterialYouAvailable()
             }
     }
-
-    private fun createThemePickerRow(
-        theme: String,
-        currentTheme: String,
-        themePickerFocusLabel: TextView,
-        surface: Int,
-        textPrimary: Int,
-        textSecondary: Int,
-        dialog: BottomSheetDialog,
-    ): MaterialCardView {
-        val label = NovaThemeManager.getThemeLabel(this, theme)
-        val subtitle = getThemePickerSubtitle(theme)
-        val rowAccent = getThemePickerPreviewAccent(theme)
-        val divider = NovaThemeManager.getDividerColor(this)
-        val selected = theme == currentTheme
-
-        val card = MaterialCardView(this).apply {
-            useCompatPadding = true
-            clipToOutline = false
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                bottomMargin = dp(10)
-            }
-            radius = dp(18).toFloat()
-            isClickable = true
-            isFocusable = true
-            setOnClickListener {
-                dialog.dismiss()
-                applyThemeSelection(theme)
-            }
-            setOnKeyListener { _, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_UP &&
-                    (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_BUTTON_A)
-                ) {
-                    performClick()
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(9), dp(14), dp(9))
-        }
-        row.addView(
-            View(this).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(rowAccent)
-                    setStroke(dp(2), ColorUtils.blendARGB(rowAccent, textPrimary, 0.32f))
-                }
-                layoutParams = LinearLayout.LayoutParams(dp(18), dp(18)).apply {
-                    marginEnd = dp(14)
-                }
-            },
-        )
-        row.addView(
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                addView(
-                    TextView(this@PcView).apply {
-                        text = label
-                        setTextColor(textPrimary)
-                        textSize = 15f
-                        typeface = Typeface.DEFAULT_BOLD
-                        includeFontPadding = false
-                    },
-                )
-                addView(
-                    TextView(this@PcView).apply {
-                        text = subtitle
-                        setTextColor(textSecondary)
-                        textSize = 10f
-                        setPadding(0, dp(3), dp(8), 0)
-                    },
-                )
-            },
-        )
-        if (selected) {
-            row.addView(
-                TextView(this).apply {
-                    text = getString(R.string.pcview_theme_picker_current_badge)
-                    setTextColor(textPrimary)
-                    textSize = 10f
-                    typeface = Typeface.DEFAULT_BOLD
-                    gravity = Gravity.CENTER
-                    includeFontPadding = false
-                    background = GradientDrawable().apply {
-                        setColor(ColorUtils.blendARGB(surface, rowAccent, 0.30f))
-                        setStroke(dp(1), rowAccent)
-                        cornerRadius = dp(999).toFloat()
-                    }
-                    setPadding(dp(10), dp(5), dp(10), dp(5))
-                },
-            )
-        }
-        card.addView(row)
-        updateThemePickerRowState(card, selected, false, rowAccent, surface, divider, themePickerFocusLabel, label, subtitle)
-        card.setOnFocusChangeListener { _, hasFocus ->
-            updateThemePickerRowState(card, selected, hasFocus, rowAccent, surface, divider, themePickerFocusLabel, label, subtitle)
-        }
-        return card
-    }
-
-    private fun updateThemePickerRowState(
-        card: MaterialCardView,
-        selected: Boolean,
-        focused: Boolean,
-        rowAccent: Int,
-        surface: Int,
-        divider: Int,
-        themePickerFocusLabel: TextView,
-        label: String,
-        subtitle: String,
-    ) {
-        card.setCardBackgroundColor(
-            when {
-                focused -> ColorUtils.blendARGB(surface, rowAccent, 0.18f)
-                selected -> ColorUtils.blendARGB(surface, rowAccent, 0.14f)
-                else -> surface
-            },
-        )
-        // The fill blend above and the stroke width below already separate these two, so
-        // only the shared stroke colour needed splitting. Selection sits at 0.72 alpha, which
-        // is what the Compose side uses -- the accent and the focus ring are one colour, so
-        // alpha is what is left to say this is chosen rather than where you are.
-        card.strokeColor = when {
-            focused -> rowAccent
-            selected -> ColorUtils.setAlphaComponent(rowAccent, 184)
-            else -> divider
-        }
-        card.strokeWidth = dp(
-            when {
-                focused -> 4
-                selected -> 3
-                else -> 1
-            },
-        )
-        if (focused) {
-            themePickerFocusLabel.text = getString(R.string.pcview_theme_picker_focus_format, label, subtitle)
-            themePickerFocusLabel.setTextColor(rowAccent)
-        }
-    }
-
-    private fun getThemePickerSubtitle(theme: String): String {
-        return when (theme) {
-            NovaThemeManager.THEME_PORTABLE_CHROME -> getString(R.string.pcview_theme_portable_chrome_subtitle)
-            NovaThemeManager.THEME_OLED -> getString(R.string.pcview_theme_oled_subtitle)
-            NovaThemeManager.THEME_MIAMI -> getString(R.string.pcview_theme_miami_subtitle)
-            NovaThemeManager.THEME_HIGH_CONTRAST -> getString(R.string.pcview_theme_high_contrast_subtitle)
-            NovaThemeManager.THEME_MATERIAL_YOU -> getString(R.string.pcview_theme_material_you_subtitle)
-            else -> getString(R.string.pcview_theme_polaris_subtitle)
-        }
-    }
-
-    private fun getThemePickerPreviewAccent(theme: String): Int {
-        return ContextCompat.getColor(
-            this,
-            when (theme) {
-                NovaThemeManager.THEME_PORTABLE_CHROME -> R.color.nova_portable_accent
-                NovaThemeManager.THEME_OLED -> R.color.nova_oled_accent
-                NovaThemeManager.THEME_MIAMI -> R.color.nova_miami_accent
-                NovaThemeManager.THEME_HIGH_CONTRAST -> R.color.nova_hc_accent
-                else -> R.color.nova_polaris_accent
-            },
-        )
-    }
-
-    private fun dp(value: Int): Int = UiHelper.dpToPx(this, value.toFloat()).toInt()
 
     private fun applyThemeSelection(theme: String) {
         if (theme == NovaThemeManager.getTheme(this)) {
@@ -1755,27 +1561,30 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 NovaUpdateChecker.currentVersionLabel()
             )
         }
-        val builder = AlertDialog.Builder(this)
-            .setTitle(R.string.nova_update_available_title)
-            .setMessage(message)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setNeutralButton(R.string.nova_update_release_notes) { _, _ ->
-                HelpLauncher.launchUrl(this, release.releaseUrl)
-            }
-
-        if (release.apkDownloadUrl != null) {
-            builder.setPositiveButton(R.string.nova_update_download_apk) { _, _ ->
-                startNovaUpdateInstall(release)
-            }
-        } else {
-            builder.setPositiveButton(R.string.nova_update_open_release) { _, _ ->
-                HelpLauncher.launchUrl(this, release.releaseUrl)
-            }
+        // A Notice has one action beside its primary and Close: the release notes, where the
+        // primary is the APK. Without an APK the primary already opens the release page.
+        val releaseNotes = release.apkDownloadUrl?.let {
+            NovaAction(getString(R.string.nova_update_release_notes)) { HelpLauncher.launchUrl(this, release.releaseUrl) }
         }
-
-        val dialog = builder.show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
+        novaSurfaces.present(
+            NovaCommonPage.Notice(
+                key = UPDATE_NOTICE_KEY,
+                title = getString(R.string.nova_update_available_title),
+                message = message,
+                primary = novaUpdatePrimaryAction(release),
+                help = releaseNotes,
+                closeLabel = getString(R.string.nova_panel_cancel),
+            ),
+        )
     }
+
+    /** Download APK when the release has one for this device, otherwise Open Release. */
+    private fun novaUpdatePrimaryAction(release: NovaUpdateRelease): NovaAction =
+        if (release.apkDownloadUrl != null) {
+            NovaAction(getString(R.string.nova_update_download_apk)) { startNovaUpdateInstall(release) }
+        } else {
+            NovaAction(getString(R.string.nova_update_open_release)) { HelpLauncher.launchUrl(this, release.releaseUrl) }
+        }
 
     private fun showNovaUpdateDashboardCurrent(release: NovaUpdateRelease) {
         // The dashboard pill already shows CURRENT plus the installed version.
@@ -1836,27 +1645,20 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             release.versionName,
             NovaUpdateChecker.currentVersionLabel()
         )
-        val builder = AlertDialog.Builder(this)
-            .setTitle(R.string.nova_update_available_title)
-            .setMessage(message)
-            .setNegativeButton(R.string.nova_update_later, null)
-            .setNeutralButton(R.string.nova_update_skip_version) { _, _ ->
-                NovaUpdatePromptPreferences.skipRelease(prefs, release)
-                Toast.makeText(this, R.string.nova_update_skipped_toast, Toast.LENGTH_SHORT).show()
-            }
-
-        if (release.apkDownloadUrl != null) {
-            builder.setPositiveButton(R.string.nova_update_download_apk) { _, _ ->
-                startNovaUpdateInstall(release)
-            }
-        } else {
-            builder.setPositiveButton(R.string.nova_update_open_release) { _, _ ->
-                HelpLauncher.launchUrl(this, release.releaseUrl)
-            }
-        }
-
-        val dialog = builder.show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
+        novaSurfaces.present(
+            NovaCommonPage.Notice(
+                key = UPDATE_NOTICE_KEY,
+                title = getString(R.string.nova_update_available_title),
+                message = message,
+                primary = novaUpdatePrimaryAction(release),
+                // The one action beside Download and Later.
+                help = NovaAction(getString(R.string.nova_update_skip_version)) {
+                    NovaUpdatePromptPreferences.skipRelease(prefs, release)
+                    Toast.makeText(this, R.string.nova_update_skipped_toast, Toast.LENGTH_SHORT).show()
+                },
+                closeLabel = getString(R.string.nova_update_later),
+            ),
+        )
     }
 
     private fun startNovaUpdateInstall(release: NovaUpdateRelease) {
@@ -2003,186 +1805,83 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         Dialog.closeDialogs()
     }
 
-    private fun showServerBottomSheet(computer: ComputerObject) {
+    /**
+     * A host's menu, as the first page of a right-edge panel: who the host is and how it is, the
+     * one thing it is most likely opened for, then the rest, one column. Polling waits while the
+     * panel is open, so the card it returns focus to is still the card it came from.
+     */
+    private fun showHostPanel(computer: ComputerObject) {
         stopComputerUpdates(false)
-
-        val sheet = BottomSheetDialog(this, R.style.NovaBottomSheet)
-        sheet.setOnDismissListener { startComputerUpdates() }
-        // Dialogs map BACK out of the box but not a pad's B, and this sheet has no close control.
-        sheet.setOnKeyListener { _, keyCode, event ->
-            if (keyCode == KeyEvent.KEYCODE_BUTTON_B && event.action == KeyEvent.ACTION_UP) {
-                sheet.dismiss()
-                true
-            } else {
-                false
-            }
-        }
-
         val details = computer.details
-        val menu = NovaHostSheetMenu()
-        fun action(key: String, label: Int, caption: Int, icon: Int) =
-            NovaHostSheetAction(key, getString(label), getString(caption), icon)
-        fun serverConfig() = action(
-            "server_config",
-            R.string.pcview_menu_open_management_page,
-            R.string.pcview_sheet_caption_server_config,
-            R.drawable.ic_settings,
-        )
-        val openServerConfig = {
-            val url = computer.guessManagementUrl()
-            if (url != null) {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            } else {
-                Toast.makeText(this, R.string.pcview_error_no_management_url, Toast.LENGTH_SHORT).show()
+        val surfaces = novaSurfaces
+        val actions = object : NovaHostMenuActions {
+            override fun wake() = startPolarisFromNova(details)
+            override fun sendWakeOnLan() = doWakeOnLan(details)
+            override fun pair() = doPair(details, null, null)
+            override fun otpPairPage(): NovaPage = buildOtpPairPage(details)
+            override fun scanQr() = launchQrScanner()
+            override fun openServerConfig() = openServerConfigFor(computer)
+            override fun openLibrary() = doNovaLibrary(details)
+            override fun checkLibrary() = maybeProbeLibraryReadiness(computer)
+            override fun resume() = resumeOrWatchRunningGame(details)
+            override fun sleep() = beginHostSleep()
+            override fun appList() = doAppList(details, false, false)
+            override fun testNetwork() = ServerHelper.doNetworkTest(this@PcView)
+            override fun delete() = removeComputer(details)
+
+            override fun watch() {
+                val binder = managerBinder ?: return
+                ServerHelper.doWatch(this@PcView, createWatchTargetApp(details), details, binder)
+            }
+
+            override fun endSession() {
+                val binder = managerBinder ?: return
+                val runningApp = NvApp()
+                runningApp.appId = details.runningGameId
+                ServerHelper.doQuit(this@PcView, details, runningApp, binder, null)
             }
         }
+        val sleepOffered = details.uuid == preferredHostPowerComputer()?.uuid && currentHostPowerAction() == HostPowerAction.SLEEP
+        val menu = NovaCommonPage.Menu(
+            key = "host",
+            title = getString(R.string.hosts_panel_host_title),
+            items = novaHostMenuItems(
+                context = this,
+                details = details,
+                needsPairing = needsPairing(details),
+                sleepOffered = sleepOffered,
+                actions = actions,
+                closePanel = surfaces.panel::close,
+                leave = ::leaveHostPanel,
+            ),
+            header = novaHostMenuHeader(this, details),
+        )
+        surfaces.open(menu, NovaEdge.End, currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None)
+        hostPanelWatch?.cancel()
+        hostPanelWatch = lifecycleScope.launch {
+            // Closed without an action: B, the scrim, Start or a drag.
+            snapshotFlow { surfaces.panel.isOpen }.first { !it }
+            startComputerUpdates()
+        }
+    }
 
-        if (details.state == ComputerDetails.State.OFFLINE ||
-            details.state == ComputerDetails.State.UNKNOWN
-        ) {
-            if (!needsPairing(details)) {
-                menu.play(action("wake", R.string.pcview_menu_start_polaris, R.string.pcview_sheet_caption_wake, R.drawable.ic_eye_open)) {
-                    startPolarisFromNova(details)
-                }
-            }
-            menu.play(action("send_wol", R.string.pcview_menu_send_wol, R.string.pcview_sheet_caption_send_wol, R.drawable.ic_eye_open)) {
-                doWakeOnLan(details)
-            }
-        } else if (needsPairing(details)) {
-            menu.play(action("pair", R.string.pcview_menu_pair_pc, R.string.pcview_sheet_caption_pair, R.drawable.ic_lock)) {
-                doPair(details, null, null)
-            }
-            menu.manage(action("pair_otp", R.string.pcview_menu_pair_pc_otp, R.string.pcview_sheet_caption_pair_otp, R.drawable.ic_lock)) {
-                doOTPPair(details)
-            }
-            menu.manage(action("scan_qr", R.string.pcview_menu_scan_qr, R.string.pcview_sheet_caption_scan_qr, R.drawable.ic_qr_scan)) {
-                launchQrScanner()
-            }
-            if (!details.nvidiaServer) {
-                menu.manage(serverConfig(), openServerConfig)
-            }
+    /**
+     * The host menu is left for one of its actions: polling resumes before the action runs, so an
+     * action that pauses it again, as pairing does, pauses it last.
+     */
+    private fun leaveHostPanel() {
+        hostPanelWatch?.cancel()
+        hostPanelWatch = null
+        startComputerUpdates()
+    }
+
+    private fun openServerConfigFor(computer: ComputerObject) {
+        val url = computer.guessManagementUrl()
+        if (url != null) {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } else {
-            val libraryFirst = novaHostPlaySurface(
-                runningGame = details.runningGameId != 0,
-                ownedByThisDevice = details.currentGameOwnedByClient,
-                library = details.libraryState,
-                watchable = details.currentGameWatchable,
-            ).let { it != NovaHostPlaySurface.RESUME && it != NovaHostPlaySurface.WATCH }
-            val offerLibrary = {
-                if (details.libraryState == ComputerDetails.LibraryState.AVAILABLE) {
-                    menu.play(action("open_library", R.string.pcview_menu_nova_library, R.string.pcview_sheet_caption_open_library, R.drawable.ic_play)) {
-                        doNovaLibrary(details)
-                    }
-                } else if (details.libraryState == ComputerDetails.LibraryState.UNKNOWN) {
-                    menu.play(action("checking_library", R.string.pcview_library_checking, R.string.pcview_sheet_caption_checking_library, R.drawable.ic_update)) {
-                        maybeProbeLibraryReadiness(computer)
-                    }
-                }
-            }
-            // The first thing offered is the sheet's primary, and it is the one the card leads to.
-            if (libraryFirst) offerLibrary()
-            if (details.runningGameId != 0) {
-                if (details.currentGameOwnedByClient == false) {
-                    // A host that says nobody is streaming the game has nothing to watch, and a
-                    // tile that can only answer "there is nothing to watch" is not an offer.
-                    if (novaHostInUse(details.currentGameOwnerDeviceName, details.currentGameWatchable).offersWatch) {
-                        val mode = details.currentGameWatchProfile
-                        val caption = if (mode != null) {
-                            getString(R.string.pcview_sheet_caption_watch_mode, mode.width, mode.height, novaWatchRate(mode.fps))
-                        } else {
-                            getString(R.string.pcview_sheet_caption_watch)
-                        }
-                        menu.play(NovaHostSheetAction("watch", getString(R.string.applist_menu_watch), caption, R.drawable.ic_eye_open)) {
-                            val binder = managerBinder ?: return@play
-                            ServerHelper.doWatch(this, createWatchTargetApp(details), details, binder)
-                        }
-                    }
-                } else {
-                    menu.play(action("resume", R.string.applist_menu_resume, R.string.pcview_sheet_caption_resume, R.drawable.ic_play)) {
-                        resumeOrWatchRunningGame(details)
-                    }
-                    menu.play(action("end_session", R.string.applist_menu_quit, R.string.pcview_sheet_caption_end_session, R.drawable.ic_close)) {
-                        val runningApp = NvApp()
-                        runningApp.appId = details.runningGameId
-                        val binder = managerBinder ?: return@play
-                        UiHelper.displayQuitConfirmationDialog(
-                            this,
-                            { ServerHelper.doQuit(this, details, runningApp, binder, null) },
-                            null,
-                        )
-                    }
-                }
-            }
-            if (!libraryFirst) offerLibrary()
-
-            // Only where a hold on the dashboard would work: the same host, and its own word that
-            // this device may put it to sleep. An awake host has nothing to be woken for, so the
-            // row that used to say Wake Host here is gone rather than renamed.
-            if (details.uuid == preferredHostPowerComputer()?.uuid && currentHostPowerAction() == HostPowerAction.SLEEP) {
-                menu.manage(action("sleep", R.string.pcview_quick_sleep_host, R.string.pcview_sheet_caption_sleep, R.drawable.ic_eye_closed)) {
-                    beginHostSleep()
-                }
-            }
-            menu.manage(action("app_list", R.string.pcview_menu_app_list, R.string.pcview_sheet_caption_app_list, R.drawable.ic_menu)) {
-                doAppList(details, false, false)
-            }
-            if (!details.nvidiaServer) {
-                menu.manage(serverConfig(), openServerConfig)
-            }
+            Toast.makeText(this, R.string.pcview_error_no_management_url, Toast.LENGTH_SHORT).show()
         }
-
-        menu.manage(action("test_network", R.string.pcview_menu_test_network, R.string.pcview_sheet_caption_test_network, R.drawable.ic_language)) {
-            ServerHelper.doNetworkTest(this)
-        }
-        menu.manage(action("details", R.string.pcview_menu_details, R.string.pcview_sheet_caption_details, R.drawable.ic_help)) {
-            Dialog.displayDialog(this, getString(R.string.title_details), details.toString(), false)
-        }
-        menu.remove(action("delete", R.string.pcview_menu_delete_pc, R.string.pcview_sheet_caption_delete, R.drawable.ic_delete)) {
-            UiHelper.displayDeletePcConfirmationDialog(
-                this,
-                details,
-                { removeComputer(details) },
-                null,
-            )
-        }
-
-        val copy = novaHostSheetCopy(details)
-        val address = details.activeAddress?.address?.takeIf { it.isNotBlank() }
-            ?: getString(R.string.pcview_card_status_local_network)
-        val state = NovaHostSheetState(
-            name = details.name.orEmpty(),
-            status = novaBreakAtDots(getString(copy.statusRes, copy.statusArg ?: address)),
-            tone = copy.tone,
-            hint = getString(copy.hintRes),
-            primary = menu.primary,
-            actions = menu.actions,
-            destructive = menu.destructive,
-        )
-        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val columns = novaHostSheetColumns(
-            landscape = landscape,
-            sheetWidthDp = NovaSheetChrome.landscapeSheetWidth(this) / resources.displayMetrics.density,
-            fontScale = resources.configuration.fontScale,
-        )
-        val content = ComposeView(this).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-            setContent {
-                NovaComposeTheme {
-                    NovaHostSheet(
-                        state = state,
-                        columns = columns,
-                        onAction = { key ->
-                            // The sheet leaves first, so what the action opens is not opened under it.
-                            sheet.dismiss()
-                            menu.run(key)
-                        },
-                    )
-                }
-            }
-        }
-        sheet.setContentView(content)
-        sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, content) }
-        sheet.show()
     }
 
     private fun createWatchTargetApp(details: ComputerDetails): NvApp =
@@ -2316,7 +2015,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                                     success = false
                                 }
 
-                                Dialog.closeDialogs()
+                                hidePairingPage()
                                 val launchedComputer = pairedComputer
                                 runOnUiThread {
                                     if (launchedComputer != null) {
@@ -2344,21 +2043,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
                     val pinStr = otp ?: PairingManager.generatePinString()
                     if (passphrase == null) {
-                        Dialog.displayDialog(
-                            this,
-                            resources.getString(R.string.pair_pairing_title),
-                            resources.getString(R.string.pair_pairing_msg) + " " + pinStr + "\n\n" +
-                                resources.getString(R.string.pair_pairing_help),
-                            false,
-                        )
+                        showPairingCode(pinStr)
                     } else {
-                        Dialog.displayDialog(
-                            this,
-                            resources.getString(R.string.pair_pairing_title),
-                            resources.getString(R.string.pair_otp_pairing_msg) + "\n\n" +
-                                resources.getString(R.string.pair_otp_pairing_help),
-                            false,
-                        )
+                        showOtpPairingWait()
                     }
 
                     when (pm.pair(serverInfo, pinStr, passphrase)) {
@@ -2396,14 +2083,22 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 message = e.message
             }
 
-            Dialog.closeDialogs()
+            hidePairingPage()
 
-            val toastMessage = message
+            val failure = message
             val toastSuccess = success
             val launchedComputer = pairedComputer
             runOnUiThread {
-                if (toastMessage != null) {
-                    Toast.makeText(this, toastMessage, Toast.LENGTH_LONG).show()
+                if (failure != null) {
+                    Dialog.displayDialog(
+                        this,
+                        getString(R.string.hosts_pairing_failed_title),
+                        failure,
+                        false,
+                        actionText = null,
+                        action = null,
+                        help = true,
+                    )
                 }
 
                 if (toastSuccess && launchedComputer != null) {
@@ -2439,49 +2134,42 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         return managedComputer ?: computer
     }
 
-    private fun doOTPPair(computer: ComputerDetails) {
-        val context: Context = this
+    /**
+     * The pairing PIN, full screen over the Hosts screen while the host waits for it. Close hides
+     * the page and pairing goes on; the page also goes when pairing ends, however it ends.
+     * Any thread.
+     */
+    private fun showPairingCode(pin: String) {
+        val surfaces = novaSurfaces
+        surfaces.show(novaPairingCodePage(this, PAIRING_PAGE_KEY, pin) { surfaces.dismiss(PAIRING_PAGE_KEY) })
+    }
 
-        val layout = LinearLayout(context)
-        layout.orientation = LinearLayout.VERTICAL
-        layout.setPadding(50, 40, 50, 40)
+    /**
+     * OTP pairing has nothing to type on the host, so it waits instead of showing a code. Close
+     * hides the wait as it hides the code. Any thread.
+     */
+    private fun showOtpPairingWait() {
+        val surfaces = novaSurfaces
+        surfaces.show(
+            NovaStatePage.Busy(
+                key = PAIRING_PAGE_KEY,
+                title = getString(R.string.pair_pairing_title),
+                message = MutableStateFlow(getString(R.string.pair_otp_pairing_help)),
+                cancel = NovaAction(getString(R.string.nova_panel_close)) { surfaces.dismiss(PAIRING_PAGE_KEY) },
+            ),
+        )
+    }
 
-        val otpInput = EditText(context)
-        otpInput.hint = "PIN"
-        otpInput.inputType = InputType.TYPE_CLASS_NUMBER
-        otpInput.filters = arrayOf(InputFilter.LengthFilter(4))
+    /** Takes the pairing page down, where pairing used to close its dialogs. Any thread. */
+    private fun hidePairingPage() {
+        NovaSurfaces.existing(this)?.dismiss(PAIRING_PAGE_KEY)
+    }
 
-        val passphraseInput = EditText(context)
-        passphraseInput.hint = getString(R.string.pair_passphrase_hint)
-        passphraseInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-
-        layout.addView(otpInput)
-        layout.addView(passphraseInput)
-
-        val dialog =
-            AlertDialog.Builder(context)
-                .setTitle(R.string.pcview_menu_pair_pc_otp)
-                .setView(layout)
-                .setPositiveButton(getString(R.string.proceed), null)
-                .setNegativeButton(getString(R.string.cancel)) { dialog, _ -> dialog.dismiss() }
-                .create()
-        dialog.show()
-        dialog.window?.let { NovaDialogWindows.adopt(dialog.context, it) }
-
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            val pin = otpInput.text.toString()
-            val passphrase = passphraseInput.text.toString()
-            if (pin.length != 4) {
-                Toast.makeText(context, getString(R.string.pair_pin_length_msg), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (passphrase.length < 4) {
-                Toast.makeText(context, getString(R.string.pair_passphrase_length_msg), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            doPair(computer, pin, passphrase)
-            dialog.dismiss()
-        }
+    /** OTP pairing, pushed in the host panel: a good pair closes the panel and pairs. */
+    private fun buildOtpPairPage(computer: ComputerDetails): NovaPage = novaOtpPairPage(this) { pin, passphrase ->
+        novaSurfaces.panel.close()
+        leaveHostPanel()
+        doPair(computer, pin, passphrase)
     }
 
     private fun doWakeOnLan(computer: ComputerDetails) {
@@ -2616,16 +2304,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             // what shows the hint instead of silently doing nothing.
             false
         }
+        // A controller's A arrives here as the center press the screen's key gate makes of it,
+        // once: the gate consumes the A itself, so Android never adds a fallback press to count.
         button.setOnKeyListener { view, keyCode, event ->
             if (keyCode != KeyEvent.KEYCODE_DPAD_CENTER &&
-                keyCode != KeyEvent.KEYCODE_ENTER &&
-                keyCode != KeyEvent.KEYCODE_BUTTON_A
+                keyCode != KeyEvent.KEYCODE_ENTER
             ) {
-                return@setOnKeyListener false
-            }
-            // Most controllers send A twice: as itself, then, since it is left
-            // unhandled for the click, as a fallback center press. One hold.
-            if (event.flags and KeyEvent.FLAG_FALLBACK != 0) {
                 return@setOnKeyListener false
             }
             if (hostSleepSequence.isBusy || currentHostPowerAction() != HostPowerAction.SLEEP) {
@@ -3351,15 +3035,15 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 if (computer.details.state == ComputerDetails.State.UNKNOWN ||
                     computer.details.state == ComputerDetails.State.OFFLINE
                 ) {
-                    showServerBottomSheet(computer)
+                    showHostPanel(computer)
                 } else if (needsPairing(computer.details)) {
-                    showServerBottomSheet(computer)
+                    showHostPanel(computer)
                 } else {
                     openBestPlaySurface(computer.details)
                 }
             }
             pcGridAdapter.setOnServerActionListener { computer ->
-                showServerBottomSheet(computer)
+                showHostPanel(computer)
             }
             UiHelper.applyStatusBarPadding(rv)
             rv.post {
@@ -3395,5 +3079,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         private const val PREF_LAST_LIBRARY_PC_UUID = "nova_last_library_pc_uuid"
         private const val PREF_DASHBOARD_RAIL_COLLAPSED = "nova_dashboard_rail_collapsed"
         private const val DASHBOARD_RAIL_ANIMATION_MS = 160L
+        private const val UPDATE_NOTICE_KEY = "nova-update"
+        private const val PAIRING_PAGE_KEY = "nova-pairing"
     }
 }

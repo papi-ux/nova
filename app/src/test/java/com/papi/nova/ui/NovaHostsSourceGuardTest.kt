@@ -21,17 +21,21 @@ class NovaHostsSourceGuardTest {
         assertTrue(
             "legacy app library hero should include a dedicated End Session affordance",
             layout.contains("@+id/recently_played_end_session") &&
-                layout.contains("@string/applist_menu_quit")
+                source.contains("label = getString(R.string.applist_menu_quit)")
         )
         assertTrue(
             "end-session affordance should only show for this client's active stream",
             source.contains("endSessionView?.visibility = if (appIsRunning && !appOwnedByAnotherClient)")
         )
         assertTrue(
-            "end-session affordance should use the same quit confirmation and refresh path as the app sheet",
-            source.contains("endRunningSessionFromLibrary(finalTargetApp.app)") &&
-                source.contains("UiHelper.displayQuitConfirmationDialog") &&
+            "end-session affordance splits in place and ends through the same refresh path as the app panel",
+            source.contains("endSessionView?.setNovaSplitConfirm(") &&
+                source.contains("endRunningSessionFromLibrary(finalTargetApp.app)") &&
                 source.contains("ServerHelper.doQuit")
+        )
+        assertTrue(
+            "a split is the confirm, so ending never opens a second confirm of its own (spec R3)",
+            !source.contains("UiHelper.displayQuitConfirmationDialog")
         )
         assertTrue(
             "library End Session should resume grid polling after either quit success or failure",

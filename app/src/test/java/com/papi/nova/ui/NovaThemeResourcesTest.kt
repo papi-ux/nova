@@ -138,7 +138,7 @@ class NovaThemeResourcesTest {
     fun pcViewThemePickerReadsTheSharedThemeList() {
         val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val builder = source.substringAfter("private fun buildThemePickerThemes(")
-            .substringBefore("private fun createThemePickerRow")
+            .substringBefore("private fun applyThemeSelection")
 
         // This used to assert that the picker listed Polaris, then Portable Chrome, then
         // OLED, by comparing indexOf positions in the source of showThemePicker. Once the
@@ -162,28 +162,32 @@ class NovaThemeResourcesTest {
 
 
     @Test
-    fun pcViewThemePickerUsesCustomDpadFocusedRows() {
+    fun pcViewThemePickerIsAChoicePageWithSwatches() {
         val source = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val picker = source.substringAfter("private fun showThemePicker(")
-            .substringBefore("private fun applyThemeSelection")
+            .substringBefore("private fun buildThemePickerThemes")
+        val page = source.substringAfter("internal fun novaThemePickerPage(")
+            .substringBefore("internal fun novaThemePickerCaption(")
         val strings = File("src/main/res/values/strings.xml").readText()
 
-        assertFalse("D-pad users need a custom focusable sheet, not Android's square single-choice list", picker.contains("setSingleChoiceItems"))
-        assertTrue("theme picker should be rendered as a custom bottom sheet", picker.contains("BottomSheetDialog"))
-        assertTrue("theme picker rows must be explicit focusable views", source.contains("createThemePickerRow("))
-        assertTrue("theme picker should expose a focused-row helper label", source.contains("themePickerFocusLabel"))
-        assertTrue("theme picker rows must update visible state on D-pad focus", source.contains("setOnFocusChangeListener"))
-        assertTrue("theme picker should use a compact two-column grid so Material You is not pushed below the Retroid landscape fold", picker.contains("themes.chunked(2)"))
-        assertTrue("Material You should remain part of the dashboard picker when the device supports it", picker.contains("NovaThemeManager.THEME_MATERIAL_YOU"))
-        assertTrue("theme picker sheet should disable parent clipping so rounded selected/focused strokes are not cut off", picker.contains("clipChildren = false") && picker.contains("clipToPadding = false"))
-        assertTrue("theme picker grid should reserve top padding for thick focus strokes", picker.contains("setPadding(gridGap, gridGap, gridGap, gridGap)"))
-        assertTrue("theme picker cards should reserve compat padding around rounded strokes", picker.contains("useCompatPadding = true"))
-        assertFalse("theme picker rows must not use the solid server-card foreground that obscures focused text", picker.contains("nova_card_focus_frame"))
-        assertFalse("non-selected theme rows should not repeat an obvious Press A badge", picker.contains("pcview_theme_picker_apply_badge"))
-        assertTrue("theme picker should request focus for the current/first row", source.contains("requestFocus()"))
+        // The picker was a bottom sheet of hand-built cards, with its own focus label, D-pad key
+        // listener, two-column grid and clip workarounds. As a Choice page in a right-edge panel
+        // (spec R2) the foundation does all of that once: it opens on the current theme with the
+        // one current mark, acts on release, and keeps the focus ring inside the row.
+        assertFalse("D-pad users need a panel page, not Android's square single-choice list", picker.contains("setSingleChoiceItems"))
+        assertTrue(
+            "the picker opens a Choice page at the right edge, returning focus to the theme action",
+            picker.contains("novaSurfaces.open(") && picker.contains("NovaEdge.End") && picker.contains("NovaFocusReturn.View(it)")
+        )
+        assertFalse("the picker is no longer a sheet of its own", source.contains("BottomSheetDialog") || source.contains("createThemePickerRow("))
+        assertTrue(
+            "each theme shows the swatch the Settings theme page shows, so both draw the colours the app draws",
+            page.contains("NovaCommonPage.Choice(") && page.contains("leading = { option -> NovaThemeSwatch(option.value) }")
+        )
+        assertTrue("the current theme is the Choice page's current value", page.contains("current = current,"))
+        assertTrue("Material You should remain part of the dashboard picker when the device supports it", source.contains("NovaThemeManager.THEME_MATERIAL_YOU"))
         assertTrue("Portable Chrome should be eye-scan visible as the picker title", strings.contains("Portable Chrome"))
         assertTrue("Portable Chrome subtitle should describe the chrome profile without PSP naming", strings.contains("Smoked graphite handheld chrome profile"))
-        assertTrue("the picker should tell handheld users that D-pad focus is live", strings.contains("D-pad"))
         assertFalse("the picker copy should not repeat Press A after removing per-row action badges", strings.contains("Press A"))
     }
 
@@ -215,38 +219,37 @@ class NovaThemeResourcesTest {
             File("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt").readText()
         val polarisSync = File("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt").readText()
         val library = File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
-        val contextSheet = File("src/main/res/layout/nova_app_context_sheet.xml").readText()
 
         assertTrue("native sheets should use a single chrome helper", sheetChrome.contains("object NovaSheetChrome"))
         assertTrue("sheet chrome should use theme-specific dialog surface colors", sheetChrome.contains("NovaThemeManager.getDialogBackgroundColor"))
         assertTrue("sheet chrome should use theme-specific accents for the handle/stroke", sheetChrome.contains("NovaThemeManager.getAccentColor"))
         assertTrue("sheet chrome should expose shared top corner radius", sheetChrome.contains("SHEET_CORNER_RADIUS_DP"))
         assertTrue("sheet chrome should expose shared landscape width policy", sheetChrome.contains("LANDSCAPE_WIDTH_FRACTION"))
-        assertTrue("theme picker should use shared sheet chrome", pcView.contains("NovaSheetChrome.applyBottomSheetChrome(dialog"))
-        assertTrue("pc context menu should use shared sheet chrome", pcView.contains("NovaSheetChrome.applyBottomSheetChrome(sheet"))
-        assertTrue("app context menu should use shared sheet chrome", appView.contains("NovaSheetChrome.applyBottomSheetChrome(sheet"))
+        // The theme picker, the host menu and the app menu are panels now: NovaPanelWindow draws
+        // their chrome, so none of them builds a sheet or applies the sheet chrome itself.
+        assertFalse("the Hosts screen's menus are panels, not sheets", pcView.contains("NovaSheetChrome.") || pcView.contains("BottomSheetDialog"))
+        assertFalse("the App list's menu is a panel, not a sheet", appView.contains("NovaSheetChrome.") || appView.contains("BottomSheetDialog"))
         assertTrue("game detail sheet should use shared sheet chrome", gameDetail.contains("NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog"))
         assertTrue("Polaris sync sheet should use shared sheet chrome", polarisSync.contains("NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog"))
         assertTrue("Compose library sheets should use the same shared radius token", library.contains("NovaSheetChrome.SHEET_CORNER_RADIUS_DP"))
         assertTrue("Compose library sheets should use a common themed scrim alpha", library.contains("NovaSheetChrome.SCRIM_ALPHA"))
-        assertFalse("context sheet XML must not hardcode the Polaris sheet drawable", contextSheet.contains("@drawable/nova_sheet_bg"))
-        assertFalse("context sheet title must not hardcode Polaris ice text", contextSheet.contains("@color/nova_ice"))
+        assertFalse("the app context sheet layout went with the sheet", File("src/main/res/layout/nova_app_context_sheet.xml").exists())
     }
 
     @Test
     fun sheetChromeContractPreventsClippedOrStaticThemePickerSurfaces() {
-        val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
-        val picker = pcView.substringAfter("private fun showThemePicker(")
-            .substringBefore("private fun buildThemePickerThemes")
         val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+        val captions = File("src/main/res/values/strings_ui_hosts.xml").readText()
 
-        assertTrue("theme picker content should be wrapped in a themed rounded sheet container", picker.contains("NovaSheetChrome.createSheetContainer"))
-        assertFalse("theme picker must not draw a square setBackgroundColor surface inside a rounded sheet", picker.contains("setBackgroundColor(dialogSurface)"))
-        assertTrue("theme picker rows need inset margins so focus strokes cannot look clipped", picker.contains("THEME_PICKER_GRID_GAP_DP"))
+        // The picker moved onto the panel foundation, whose rows keep their focus ring inside the
+        // row and whose captions wrap to two lines (spec R13). Its captions are short enough for
+        // two lines beside a swatch in a Standard panel.
+        Regex("<string name=\"(hosts_theme_caption_[a-z_]+)\">([^<]+)</string>").findAll(captions).forEach { caption ->
+            assertTrue("${caption.groupValues[1]} keeps to two lines: ${caption.groupValues[2]}", caption.groupValues[2].length <= 48)
+        }
         assertTrue("sheet chrome must draw a stroke around sheet surfaces for clean themed edges", sheetChrome.contains("setStroke"))
         assertTrue("sheet chrome should include theme-specific light/dark stroke blending", sheetChrome.contains("getSheetStrokeColor"))
     }
-
 
     @Test
     fun bottomSheetChromeClearsMaterialHostSoChildPanelDoesNotDrawABottomBump() {
@@ -266,8 +269,7 @@ class NovaThemeResourcesTest {
             "src/main/res/drawable/nova_chip_default.xml",
             "src/main/res/drawable/nova_chip_selected.xml",
             "src/main/res/drawable/nova_featured_action_bg.xml",
-            "src/main/res/drawable/nova_card_focus_ring.xml",
-            "src/main/res/drawable/nova_server_row_focus_ring.xml"
+            "src/main/res/drawable/nova_card_focus_ring.xml"
         )
         drawableFiles.forEach { path ->
             val xml = File(path).readText()
@@ -276,7 +278,6 @@ class NovaThemeResourcesTest {
         }
         assertTrue(File("src/main/res/drawable/nova_dialog_choice_bg.xml").readText().contains("?attr/colorAccent"))
         assertTrue(File("src/main/res/drawable/nova_dialog_choice_bg.xml").readText().contains("?attr/colorControlHighlight"))
-        assertTrue(File("src/main/res/drawable/nova_server_row_focus_ring.xml").readText().contains("?attr/colorSurface"))
     }
 
 

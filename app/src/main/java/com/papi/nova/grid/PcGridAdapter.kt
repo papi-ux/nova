@@ -5,6 +5,7 @@ import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -23,6 +24,7 @@ import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.novaBreakAtDots
+import com.papi.nova.ui.panel.NovaViewBridge
 import java.util.IdentityHashMap
 import java.util.Locale
 
@@ -479,7 +481,8 @@ class PcGridAdapter(
         if (ready) {
             primaryAction.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = context.resources.displayMetrics.density * NOVA_HOST_CARD_PILL_RADIUS_DP
+                // The corner nova_chip_default gives Manage, so the filled pill beside it is the same shape.
+                cornerRadius = context.resources.getDimension(R.dimen.nova_radius_hero)
                 setColor(NovaThemeManager.getAccentColor(context))
             }
         } else {
@@ -510,7 +513,7 @@ class PcGridAdapter(
             badge.setTextColor(ink)
             badge.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = density * 6f
+                cornerRadius = context.resources.getDimension(R.dimen.nova_radius_row)
                 setColor(ColorUtils.setAlphaComponent(ink, 0x1F))
                 setStroke(density.toInt().coerceAtLeast(1), ColorUtils.setAlphaComponent(ink, 0x52))
             }
@@ -570,18 +573,23 @@ class PcGridAdapter(
         } else {
             GradientDrawable.Orientation.LEFT_RIGHT
         }
+        val corner = context.resources.getDimension(R.dimen.nova_radius_row)
         val background = GradientDrawable(fromLeadingEdge, intArrayOf(leading, cardColor, cardColor))
         background.shape = GradientDrawable.RECTANGLE
-        background.cornerRadius = density * 16f
+        background.cornerRadius = corner
         background.setStroke(
             density.toInt().coerceAtLeast(1),
             if (online) ColorUtils.blendARGB(NovaThemeManager.getDividerColor(context), accent, 0.35f) else NovaThemeManager.getDividerColor(context),
         )
         card.background = background
+        // The one focus look (spec section 2): the 3dp ring drawn inside the card's corner, in the
+        // Compose components' colours. The row holds focus and pads the card; a FrameLayout draws
+        // its foreground inside its padding, so the ring lands on the card, not around it.
+        (parentView as? FrameLayout)?.foreground = NovaViewBridge.focusRing(context)
 
         pcHolder.well?.background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = density * 14f
+            cornerRadius = corner
             setColor(
                 if (online) {
                     ColorUtils.blendARGB(cardColor, accent, 0.26f)
@@ -627,9 +635,6 @@ internal fun novaHostCardStacks(cardWidthDp: Float, fontScale: Float): Boolean =
     cardWidthDp < NOVA_HOST_CARD_SIDE_BY_SIDE_MIN_DP * fontScale.coerceAtLeast(1f)
 
 internal const val NOVA_HOST_CARD_SIDE_BY_SIDE_MIN_DP = 500f
-
-/** The corner nova_chip_default gives Manage, so the filled pill beside it is the same shape. */
-private const val NOVA_HOST_CARD_PILL_RADIUS_DP = 12f
 
 /** A badge's icon, in ems of the badge's type, so it grows with the text and never past it. */
 private const val NOVA_HOST_BADGE_ICON_EM = 1.2f

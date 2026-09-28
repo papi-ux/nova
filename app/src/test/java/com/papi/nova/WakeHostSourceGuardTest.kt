@@ -90,9 +90,13 @@ class WakeHostSourceGuardTest {
             "the button stays on Sleeping... until the host answers, not Wake Host the moment the host drops off",
             pcView.contains("busy -> R.string.pcview_sleep_in_progress") && strings.contains("name=\"pcview_sleep_in_progress\"")
         )
+        // The fallback check moved into the screen's key gate: the gate consumes A and delivers it
+        // as one center press, so Android never adds a fallback press that could count twice.
         assertTrue(
-            "a controller's A holds the button like the D-pad center does, counted once even when Android adds a fallback press",
-            pcView.contains("keyCode != KeyEvent.KEYCODE_BUTTON_A") && pcView.contains("KeyEvent.FLAG_FALLBACK")
+            "a controller's A holds the button like the D-pad center does, counted once",
+            pcView.contains("override val novaKeyGate: Boolean = true") &&
+                pcView.contains("keyCode != KeyEvent.KEYCODE_DPAD_CENTER") &&
+                !pcView.contains("KeyEvent.FLAG_FALLBACK")
         )
         assertTrue(
             "TalkBack cannot perform a timed hold, so Sleep Host is also a named accessibility action",

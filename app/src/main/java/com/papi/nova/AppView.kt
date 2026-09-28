@@ -3,6 +3,7 @@ package com.papi.nova
 import android.app.Activity
 import android.app.Service
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.SharedPreferences
@@ -16,17 +17,19 @@ import android.text.TextWatcher
 import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
@@ -43,8 +46,17 @@ import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.AdapterFragment
 import com.papi.nova.ui.AdapterFragmentCallbacks
-import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaFocusReturn
+import com.papi.nova.ui.panel.NovaMenuHeader
+import com.papi.nova.ui.panel.NovaMenuItem
+import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaTone
+import com.papi.nova.ui.panel.NovaValueStyle
+import com.papi.nova.ui.panel.novaSurfaces
+import com.papi.nova.ui.panel.setNovaSplitConfirm
 import com.papi.nova.utils.CacheHelper
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.ServerHelper
@@ -56,7 +68,146 @@ import java.io.StringReader
 import java.util.Locale
 import org.xmlpull.v1.XmlPullParserException
 
+/** What each row of an app's menu does. The screen answers them; the menu decides which it offers. */
+internal interface NovaAppMenuActions {
+    fun start(withVirtualDisplay: Boolean)
+    fun confirmVirtualDisplayThenStart()
+    fun watch()
+    fun resume()
+    fun endSession()
+    fun quitAndStart()
+    fun setHidden(hidden: Boolean)
+    fun setPinned(pinned: Boolean)
+    fun exportLauncher()
+}
+
+/**
+ * The rows of [app]'s menu: one column of what can be done with it. Ending the running game, or
+ * quitting it to start this one, splits in its own row and closes the panel through [closePanel]
+ * once confirmed. Hidden and Pin to Top are switches that change in place. A virtual display that
+ * is not ready asks first, on a Confirm page pushed in the same panel.
+ */
+internal fun novaAppMenuItems(
+    context: Context,
+    app: NvApp,
+    runningAppId: Int,
+    ownedByOtherClient: Boolean,
+    useVirtualDisplay: Boolean,
+    virtualDisplayReady: Boolean,
+    hidden: Boolean,
+    pinned: Boolean,
+    actions: NovaAppMenuActions,
+    closePanel: () -> Unit = {},
+): List<NovaMenuItem> {
+    val items = mutableListOf<NovaMenuItem>()
+    fun action(key: String, label: Int, run: () -> Unit) {
+        items += NovaMenuItem.Action(key = key, label = context.getString(label), onClick = run)
+    }
+    // A confirmed split leaves the panel first, so what it starts is not started under it.
+    fun split(key: String, label: Int, confirmLabel: Int, consequence: Int, run: () -> Unit) {
+        items += NovaMenuItem.Destructive(
+            key = key,
+            label = context.getString(label),
+            confirmLabel = context.getString(confirmLabel),
+            consequence = context.getString(consequence),
+        ) {
+            closePanel()
+            run()
+        }
+    }
+
+    if (runningAppId == 0) {
+        if (useVirtualDisplay) {
+            action("start_host_display", R.string.applist_menu_start_primarydisplay) { actions.start(withVirtualDisplay = false) }
+        } else if (virtualDisplayReady) {
+            action("start_virtual_display", R.string.applist_menu_start_vdisplay) { actions.start(withVirtualDisplay = true) }
+        } else {
+            items += NovaMenuItem.Action(
+                key = "start_virtual_display",
+                label = context.getString(R.string.applist_menu_start_vdisplay),
+                closesPanel = false,
+                onClick = actions::confirmVirtualDisplayThenStart,
+            )
+        }
+    } else if (runningAppId == app.appId) {
+        if (ownedByOtherClient) {
+            action("watch", R.string.applist_menu_watch, actions::watch)
+        } else {
+            action("resume", R.string.applist_menu_resume, actions::resume)
+            split(
+                key = "end_session",
+                label = R.string.applist_menu_quit,
+                confirmLabel = R.string.game_dialog_action_end_session,
+                consequence = R.string.nova_panel_end_session_message,
+                run = actions::endSession,
+            )
+        }
+    } else if (ownedByOtherClient) {
+        action("watch_active", R.string.applist_menu_watch_active, actions::watch)
+    } else {
+        split(
+            key = "quit_and_start",
+            label = R.string.applist_menu_quit_and_start,
+            confirmLabel = R.string.hosts_quit_and_start_confirm,
+            consequence = R.string.hosts_quit_and_start_consequence,
+            run = actions::quitAndStart,
+        )
+    }
+
+    val offOn = listOf(
+        NovaOption(false, context.getString(R.string.hosts_value_off)),
+        NovaOption(true, context.getString(R.string.hosts_value_on)),
+    )
+    // The running game cannot be hidden, though a hidden one can still be shown again.
+    if (runningAppId != app.appId || hidden) {
+        items += NovaMenuItem.Value(
+            key = "hidden",
+            label = context.getString(R.string.applist_menu_hide_app),
+            options = offOn,
+            current = hidden,
+            onChange = actions::setHidden,
+            style = NovaValueStyle.Switch,
+        )
+    }
+    items += NovaMenuItem.Value(
+        key = "pinned",
+        label = context.getString(R.string.hosts_app_pin_to_top),
+        options = offOn,
+        current = pinned,
+        onChange = actions::setPinned,
+        style = NovaValueStyle.Switch,
+    )
+    items += NovaMenuItem.Opens(key = "details", label = context.getString(R.string.applist_menu_details)) {
+        NovaCommonPage.Notice(
+            key = "details",
+            title = context.getString(R.string.title_details),
+            message = app.toString(),
+            closeLabel = context.getString(R.string.nova_panel_close),
+            monospace = true,
+        )
+    }
+    action("export_launcher", R.string.applist_menu_export_launcher, actions::exportLauncher)
+    return items
+}
+
+/** The app above its menu: its name, and whether the host is running it and for whom. */
+internal fun novaAppMenuHeader(context: Context, app: NvApp, runningAppId: Int, ownedByOtherClient: Boolean): NovaMenuHeader {
+    val running = runningAppId == app.appId
+    return NovaMenuHeader(
+        title = app.appName,
+        status = when {
+            running && ownedByOtherClient -> context.getString(R.string.hosts_app_status_watchable)
+            running -> context.getString(R.string.hosts_app_status_running)
+            else -> null
+        },
+        tone = if (running) NovaTone.Active else NovaTone.Neutral,
+    )
+}
+
 class AppView : NovaActivity(), AdapterFragmentCallbacks {
+    // The screen has no A or B handling of its own left: its menus are panels, and the search
+    // field's keyboard is put away by the back callback below.
+    override val novaKeyGate: Boolean = true
     private var appGridAdapter: AppGridAdapter? = null
     private var uuidString: String? = null
     private lateinit var shortcutHelper: ShortcutHelper
@@ -348,13 +499,27 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
+                    // The key gate turns a controller's B into Back after the keyboard has passed
+                    // on it, so while the search field's keyboard is up, B only puts it away, as
+                    // the Back key does.
+                    if (hideSearchKeyboard()) return
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
                 }
             },
         )
 
         bindService(Intent(this, ComputerManagerService::class.java), serviceConnection, Service.BIND_AUTO_CREATE)
+    }
+
+    /** Puts the search field's keyboard away if it is up. Returns whether it was. */
+    private fun hideSearchKeyboard(): Boolean {
+        val search = findViewById<EditText>(R.id.app_search) ?: return false
+        val keyboardUp = ViewCompat.getRootWindowInsets(search)?.isVisible(WindowInsetsCompat.Type.ime()) == true
+        if (!search.hasFocus() || !keyboardUp) return false
+        (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)?.hideSoftInputFromWindow(search.windowToken, 0)
+        return true
     }
 
     private fun updateHiddenApps() {
@@ -584,7 +749,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
         val kickerView = findViewById<TextView>(R.id.recently_played_kicker)
         val metaView = findViewById<TextView>(R.id.recently_played_meta)
         val actionView = findViewById<TextView>(R.id.recently_played_action)
-        val endSessionView = findViewById<TextView>(R.id.recently_played_end_session)
+        val endSessionView = findViewById<ComposeView>(R.id.recently_played_end_session)
         val artView = findViewById<ImageView>(R.id.recently_played_art)
 
         val activeComputer = computer
@@ -627,13 +792,15 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
         } else {
             View.GONE
         }
-        endSessionView?.setOnClickListener { v ->
-            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            endRunningSessionFromLibrary(finalTargetApp.app)
-        }
-        if (endSessionView != null) {
-            UiHelper.applyTvFocusStyle(this, endSessionView)
-        }
+        // End splits in its own place into Stay and End Session: Stay is focused, and End ignores a
+        // press for its first 400ms, so no single, held or mashed A ends the stream.
+        endSessionView?.setNovaSplitConfirm(
+            label = getString(R.string.applist_menu_quit),
+            confirmLabel = getString(R.string.game_dialog_action_end_session),
+            consequence = getString(R.string.nova_panel_end_session_message),
+            icon = R.drawable.ic_close,
+            itemKey = finalTargetApp.app.appId,
+        ) { endRunningSessionFromLibrary(finalTargetApp.app) }
         if (artView != null) {
             adapter.populateFeaturedArt(finalTargetApp, artView)
         }
@@ -663,11 +830,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
     private fun endRunningSessionFromLibrary(app: NvApp) {
         val activeComputer = computer ?: return
         val binder = managerBinder ?: return
-        UiHelper.displayQuitConfirmationDialog(
-            this,
-            { quitRunningSessionAndRefresh(activeComputer, app, binder) },
-            null,
-        )
+        quitRunningSessionAndRefresh(activeComputer, app, binder)
     }
 
     private fun quitRunningSessionAndRefresh(
@@ -743,157 +906,85 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
         }
     }
 
-    private fun showAppBottomSheet(selectedApp: AppObject) {
-        val sheet = BottomSheetDialog(this, R.style.NovaBottomSheet)
-        sheet.setContentView(R.layout.nova_app_context_sheet)
-        val sheetRoot = sheet.findViewById<View>(R.id.nova_sheet_root)
-        sheet.setOnShowListener {
-            NovaSheetChrome.applyBottomSheetChrome(sheet, sheetRoot)
-            sheet.findViewById<TextView>(R.id.sheet_app_name)?.let(NovaSheetChrome::styleSheetTitle)
-        }
-
-        val titleView = sheet.findViewById<TextView>(R.id.sheet_app_name)
-        titleView?.text = selectedApp.app.appName
-
-        val actions = sheet.findViewById<LinearLayout>(R.id.sheet_actions)
-        if (actions == null) {
-            sheet.show()
-            return
-        }
-
+    /** An app's menu, as the first page of a right-edge panel opened from its tile. */
+    private fun showAppPanel(selectedApp: AppObject) {
         val activeComputer = computer ?: return
         val binder = managerBinder ?: return
         val prefs = prefConfig ?: return
-        val ownedByOtherClient = lastRunningAppId != 0 && activeComputer.currentGameOwnedByClient == false
-        if (lastRunningAppId == 0) {
-            if (prefs.useVirtualDisplay) {
-                addSheetAction(actions, getString(R.string.applist_menu_start_primarydisplay)) {
-                    sheet.dismiss()
-                    ServerHelper.doStart(this, selectedApp.app, activeComputer, binder, false, true, false)
-                }
-            } else {
-                addSheetAction(actions, getString(R.string.applist_menu_start_vdisplay)) {
-                    sheet.dismiss()
-                    val vdReady = activeComputer.vDisplaySupported && activeComputer.vDisplayDriverReady
-                    if (!vdReady) {
-                        UiHelper.displayVdisplayConfirmationDialog(
-                            this,
-                            activeComputer,
-                            { ServerHelper.doStart(this, selectedApp.app, activeComputer, binder, true, true, false) },
-                            null,
-                        )
-                    } else {
-                        ServerHelper.doStart(this, selectedApp.app, activeComputer, binder, true, true, false)
-                    }
-                }
-            }
-        } else if (lastRunningAppId == selectedApp.app.appId) {
-            if (ownedByOtherClient) {
-                addSheetAction(actions, getString(R.string.applist_menu_watch)) {
-                    sheet.dismiss()
-                    ServerHelper.doWatch(this, createWatchTargetApp(selectedApp.app), activeComputer, binder)
-                }
-            } else {
-                addSheetAction(actions, getString(R.string.applist_menu_resume)) {
-                    sheet.dismiss()
-                    ServerHelper.doStart(this, selectedApp.app, activeComputer, binder, prefs.useVirtualDisplay)
-                }
-                addSheetAction(actions, getString(R.string.applist_menu_quit)) {
-                    sheet.dismiss()
-                    UiHelper.displayQuitConfirmationDialog(
-                        this,
-                        { quitRunningSessionAndRefresh(activeComputer, selectedApp.app, binder) },
-                        null,
-                    )
-                }
-            }
-        } else {
-            if (ownedByOtherClient) {
-                addSheetAction(actions, getString(R.string.applist_menu_watch_active)) {
-                    sheet.dismiss()
-                    ServerHelper.doWatch(this, createWatchTargetApp(selectedApp.app), activeComputer, binder)
-                }
-            } else {
-                addSheetAction(actions, getString(R.string.applist_menu_quit_and_start)) {
-                    sheet.dismiss()
-                    UiHelper.displayQuitConfirmationDialog(
-                        this,
-                        { ServerHelper.doStart(this, selectedApp.app, activeComputer, binder, prefs.useVirtualDisplay) },
-                        null,
-                    )
-                }
-            }
-        }
+        val adapter = appGridAdapter ?: return
+        val surfaces = novaSurfaces
+        val app = selectedApp.app
+        val actions = object : NovaAppMenuActions {
+            override fun start(withVirtualDisplay: Boolean) =
+                ServerHelper.doStart(this@AppView, app, activeComputer, binder, withVirtualDisplay, true, false)
 
-        if (lastRunningAppId != selectedApp.app.appId || selectedApp.isHidden) {
-            val hideLabel =
-                getString(R.string.applist_menu_hide_app) + if (selectedApp.isHidden) " \u2713" else ""
-            addSheetAction(actions, hideLabel) {
-                sheet.dismiss()
-                if (selectedApp.isHidden) {
-                    hiddenAppIds.remove(selectedApp.app.appId)
-                } else {
-                    hiddenAppIds.add(selectedApp.app.appId)
-                }
+            override fun confirmVirtualDisplayThenStart() = UiHelper.displayVdisplayConfirmationDialog(
+                this@AppView,
+                activeComputer,
+                {
+                    surfaces.panel.close()
+                    start(withVirtualDisplay = true)
+                },
+                null,
+            )
+
+            override fun watch() =
+                ServerHelper.doWatch(this@AppView, createWatchTargetApp(app), activeComputer, binder)
+
+            override fun resume() =
+                ServerHelper.doStart(this@AppView, app, activeComputer, binder, prefs.useVirtualDisplay)
+
+            override fun endSession() = quitRunningSessionAndRefresh(activeComputer, app, binder)
+
+            override fun quitAndStart() =
+                ServerHelper.doStart(this@AppView, app, activeComputer, binder, prefs.useVirtualDisplay)
+
+            override fun setHidden(hidden: Boolean) {
+                if (hidden) hiddenAppIds.add(app.appId) else hiddenAppIds.remove(app.appId)
                 updateHiddenApps()
             }
+
+            override fun setPinned(pinned: Boolean) = setAppPinned(adapter, app.appId, pinned)
+
+            override fun exportLauncher() = shortcutHelper.exportLauncherFile(activeComputer, app)
         }
-
-        val adapter = appGridAdapter ?: return
-        val isPinned = adapter.isAppPinned(selectedApp.app.appId)
-        addSheetAction(actions, if (isPinned) "Unpin from Top" else "Pin to Top") {
-            sheet.dismiss()
-            val pinnedStrSet =
-                getSharedPreferences("nova_prefs", MODE_PRIVATE)
-                    .getStringSet("pinned_$uuidString", HashSet()) ?: HashSet()
-            val pinnedIds = HashSet<Int>()
-            for (s in pinnedStrSet) {
-                pinnedIds.add(Integer.parseInt(s))
-            }
-
-            if (isPinned) {
-                pinnedIds.remove(selectedApp.app.appId)
-            } else {
-                pinnedIds.add(selectedApp.app.appId)
-            }
-
-            val pinnedStrings = HashSet<String>()
-            for (id in pinnedIds) {
-                pinnedStrings.add(id.toString())
-            }
-            getSharedPreferences("nova_prefs", MODE_PRIVATE)
-                .edit()
-                .putStringSet("pinned_$uuidString", pinnedStrings)
-                .apply()
-
-            adapter.updatePinnedApps(pinnedIds)
-        }
-
-        addSheetAction(actions, getString(R.string.applist_menu_details)) {
-            sheet.dismiss()
-            Dialog.displayDialog(this, getString(R.string.title_details), selectedApp.app.toString(), false)
-        }
-
-        addSheetAction(actions, getString(R.string.applist_menu_export_launcher)) {
-            sheet.dismiss()
-            shortcutHelper.exportLauncherFile(activeComputer, selectedApp.app)
-        }
-
-        sheet.show()
+        val ownedByOtherClient = lastRunningAppId != 0 && activeComputer.currentGameOwnedByClient == false
+        val items = novaAppMenuItems(
+            context = this,
+            app = app,
+            runningAppId = lastRunningAppId,
+            ownedByOtherClient = ownedByOtherClient,
+            useVirtualDisplay = prefs.useVirtualDisplay,
+            virtualDisplayReady = activeComputer.vDisplaySupported && activeComputer.vDisplayDriverReady,
+            hidden = selectedApp.isHidden,
+            pinned = adapter.isAppPinned(app.appId),
+            actions = actions,
+            closePanel = surfaces.panel::close,
+        )
+        surfaces.open(
+            NovaCommonPage.Menu(
+                key = "app",
+                title = getString(R.string.hosts_panel_app_title),
+                items = items,
+                header = novaAppMenuHeader(this, app, lastRunningAppId, ownedByOtherClient),
+            ),
+            NovaEdge.End,
+            currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None,
+        )
     }
 
-    private fun addSheetAction(container: LinearLayout, label: String, action: Runnable) {
-        val item = TextView(this)
-        item.text = label
-        item.textSize = 15f
-        NovaSheetChrome.styleSheetAction(item)
-        item.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-        val pad = UiHelper.dpToPx(this, 24f).toInt()
-        val padV = UiHelper.dpToPx(this, 14f).toInt()
-        item.setPadding(pad, padV, pad, padV)
-
-        item.setOnClickListener { action.run() }
-        container.addView(item)
+    /** Keeps [appId] at the top of the list, or lets it go back to its place. */
+    private fun setAppPinned(adapter: AppGridAdapter, appId: Int, pinned: Boolean) {
+        val prefs = getSharedPreferences("nova_prefs", MODE_PRIVATE)
+        val pinnedIds = HashSet<Int>()
+        for (s in prefs.getStringSet("pinned_$uuidString", HashSet()) ?: HashSet()) {
+            pinnedIds.add(Integer.parseInt(s))
+        }
+        if (pinned) pinnedIds.add(appId) else pinnedIds.remove(appId)
+        prefs.edit()
+            .putStringSet("pinned_$uuidString", pinnedIds.mapTo(HashSet()) { it.toString() })
+            .apply()
+        adapter.updatePinnedApps(pinnedIds)
     }
 
     private fun createWatchTargetApp(fallbackApp: NvApp): NvApp {
@@ -1043,7 +1134,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                             )
                         }
                     } else {
-                        showAppBottomSheet(app)
+                        showAppPanel(app)
                     }
                 } else {
                     if (activePrefs.useVirtualDisplay &&
@@ -1086,7 +1177,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                         override fun onLongItemClick(view: View, position: Int) {
                             val app = adapter.getItem(position) as? AppObject
                             if (app != null) {
-                                showAppBottomSheet(app)
+                                showAppPanel(app)
                             }
                         }
                     },

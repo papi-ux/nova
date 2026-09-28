@@ -17,27 +17,19 @@ import org.junit.Test
 class NovaHostsScreenLayoutTest {
 
     @Test
-    fun aHostsSheetLaysItsActionsInTwoColumnsWhereTheyFit() {
-        assertEquals("a 16:9 handheld's sheet is 660dp", 2, novaHostSheetColumns(landscape = true, sheetWidthDp = 660f, fontScale = 0.85f))
-        assertEquals("a 4:3 handheld's is 588dp", 2, novaHostSheetColumns(landscape = true, sheetWidthDp = 588f, fontScale = 1f))
-        assertEquals("upright the sheet is the phone's width and the actions stay in a column", 1, novaHostSheetColumns(landscape = false, sheetWidthDp = 900f, fontScale = 1f))
-        assertEquals(1, novaHostSheetColumns(landscape = true, sheetWidthDp = 500f, fontScale = 1f))
-        assertEquals("larger type would put the labels on second lines", 1, novaHostSheetColumns(landscape = true, sheetWidthDp = 660f, fontScale = 1.3f))
-        assertEquals(2, novaHostSheetColumns(landscape = true, sheetWidthDp = NOVA_HOST_SHEET_TWO_COLUMN_MIN_DP, fontScale = 1f))
-    }
-
-    @Test
-    fun theSheetAsksTheChromeHowWideItWillStand() {
+    fun aHostsMenuIsOneColumnWithEveryActionInIt() {
         val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
-        val chrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
-        assertTrue(
-            "the columns are planned before the sheet is shown, from the width the chrome will give it",
-            pcView.contains("sheetWidthDp = NovaSheetChrome.landscapeSheetWidth(this) / resources.displayMetrics.density,") &&
-                chrome.contains("val landscapeWidth = landscapeSheetWidth(context, widthFraction, minLandscapeWidthDp, maxLandscapeWidthDp)")
+        val menu = File("src/main/java/com/papi/nova/ui/NovaHostSheet.kt").readText()
+        // The two columns measured against the sheet's width went with the sheet: a panel menu is
+        // one column (spec R4), so the D-pad moves up and down only, and the panel's list scrolls
+        // the focused row into view with a row of context, so nothing waits below the fold.
+        assertFalse(
+            "the host menu plans no columns from a sheet width",
+            pcView.contains("novaHostSheetColumns(") || pcView.contains("landscapeSheetWidth(")
         )
         assertTrue(
             "every action goes through the one menu, Delete PC included",
-            pcView.contains("menu.remove(action(\"delete\", R.string.pcview_menu_delete_pc") &&
+            menu.contains("menu.remove(\n        action(\"delete\", R.string.pcview_menu_delete_pc") &&
                 !pcView.contains("addPcSheetAction(")
         )
     }
