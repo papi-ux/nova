@@ -119,11 +119,14 @@ internal fun NovaLibraryHeroCard(
             gap = gap,
             artwork = novaLibraryHeroArtworkWidth(compact),
         )
-        Row(
+        val artworkWidth = novaLibraryHeroArtworkWidth(compact)
+        // Under its words the cover keeps a poster's shape at the top, and the card is at least
+        // as tall as that cover; beside them it is as tall as the card.
+        val least = if (actionsUnder) maxOf(height, artworkWidth / NOVA_LIBRARY_HERO_COVER_ASPECT + padding * 2) else height
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = height)
-                .height(IntrinsicSize.Min)
+                .heightIn(min = least)
                 .novaFocusMotion(
                     focused = focused,
                     focusedScale = NovaFocusMotionSpec.CardFocusedScale,
@@ -150,119 +153,128 @@ internal fun NovaLibraryHeroCard(
                 }
                 .combinedClickable(onClick = onOpenDetail ?: onPrimaryAction)
                 .focusable()
-                .padding(if (compact) 8.dp else 16.dp)
                 .testTag(NOVA_LIBRARY_HERO_TAG),
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 16.dp),
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            NovaLibraryHeroArtwork(
-                game = heroGame,
-                apiClient = apiClient,
-                fallbackTitle = hero.artworkFallbackTitle,
-                fallbackSubtitle = hero.artworkFallbackSubtitle,
-                compact = compact,
-                // Under a tall stack of words a full height cover would stretch into a strip, so it
-                // keeps a cover's shape at the top instead.
-                modifier = if (actionsUnder) {
-                    Modifier.align(Alignment.Top).aspectRatio(NOVA_LIBRARY_HERO_COVER_ASPECT)
-                } else {
-                    Modifier.fillMaxHeight()
-                },
-            )
-            if (!endArmed || actionsUnder) Column(
-                // fill = false so the action sits with the content it belongs to instead of
-                // being pushed to the far edge across a gulf of empty row.
-                modifier = Modifier.weight(1f, fill = actionsUnder),
-                verticalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 5.dp)
+            // The cover stands in the card's own height, which the words and actions set. Asking the
+            // row for an intrinsic height instead guessed the words' width, so badges that wrapped
+            // at 130% left End Session a sliver at the foot of the card.
+            Box(modifier = Modifier.matchParentSize().padding(if (compact) 8.dp else 16.dp)) {
+                NovaLibraryHeroArtwork(
+                    game = heroGame,
+                    apiClient = apiClient,
+                    fallbackTitle = hero.artworkFallbackTitle,
+                    fallbackSubtitle = hero.artworkFallbackSubtitle,
+                    compact = compact,
+                    modifier = if (actionsUnder) {
+                        Modifier.aspectRatio(NOVA_LIBRARY_HERO_COVER_ASPECT)
+                    } else {
+                        Modifier.fillMaxHeight()
+                    },
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxWidth()
+                    .padding(start = padding + artworkWidth + gap, top = padding, end = padding, bottom = padding),
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Every line wraps rather than ending in an ellipsis, and the card grows to hold
-                // it (R13): a title cut short names nothing.
-                if (!endArmed) {
-                    Text(
-                        text = hero.eyebrow.uppercase(),
-                        color = colors.accent,
-                        fontSize = if (compact) 9.sp else 12.sp,
-                        lineHeight = if (compact) 11.sp else 14.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = hero.title,
-                        color = colors.textPrimary,
-                        // A phone's column is narrow, so its title is a size smaller there.
-                        fontSize = if (compact) 20.sp else if (actionsUnder) 24.sp else 30.sp,
-                        lineHeight = if (compact) 22.sp else 34.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    if (compact && hero.supportingLine.isNotBlank()) {
+                if (!endArmed || actionsUnder) Column(
+                    // fill = false so the action sits with the content it belongs to instead of
+                    // being pushed to the far edge across a gulf of empty row.
+                    modifier = Modifier.weight(1f, fill = actionsUnder),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 5.dp)
+                ) {
+                    // Every line wraps rather than ending in an ellipsis, and the card grows to hold
+                    // it (R13): a title cut short names nothing.
+                    if (!endArmed) {
                         Text(
-                            text = hero.supportingLine,
-                            color = colors.textSecondary.copy(alpha = 0.9f),
-                            fontSize = 10.sp,
-                            lineHeight = 12.sp,
+                            text = hero.eyebrow.uppercase(),
+                            color = colors.accent,
+                            fontSize = if (compact) 9.sp else 12.sp,
+                            lineHeight = if (compact) 11.sp else 14.sp,
+                            fontWeight = FontWeight.Bold,
                         )
-                    }
-                    if (!compact) {
                         Text(
-                            text = hero.subtitle,
-                            color = colors.textSecondary,
-                            fontSize = if (compact) 11.sp else 14.sp,
-                            lineHeight = if (compact) 13.sp else 16.sp,
+                            text = hero.title,
+                            color = colors.textPrimary,
+                            // A phone's column is narrow, so its title is a size smaller there.
+                            fontSize = if (compact) 20.sp else if (actionsUnder) 24.sp else 30.sp,
+                            lineHeight = if (compact) 22.sp else 34.sp,
+                            fontWeight = FontWeight.Bold,
                         )
-                        if (showCaption) {
+                        if (compact && hero.supportingLine.isNotBlank()) {
                             Text(
-                                text = hero.caption,
-                                color = colors.textSecondary.copy(alpha = 0.86f),
-                                fontSize = if (compact) 11.sp else 13.sp,
-                                lineHeight = if (compact) 13.sp else 15.sp,
+                                text = hero.supportingLine,
+                                color = colors.textSecondary.copy(alpha = 0.9f),
+                                fontSize = 10.sp,
+                                lineHeight = 12.sp,
                             )
                         }
-                    }
-                    if (!compact && hero.badges.isNotEmpty()) {
-                        // Badges that do not fit a line start another, rather than running off the card.
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            hero.badges.take(if (compact) 3 else 4).forEach { badge ->
-                                NovaLibraryHeroBadge(text = badge)
+                        if (!compact) {
+                            Text(
+                                text = hero.subtitle,
+                                color = colors.textSecondary,
+                                fontSize = if (compact) 11.sp else 14.sp,
+                                lineHeight = if (compact) 13.sp else 16.sp,
+                            )
+                            if (showCaption) {
+                                Text(
+                                    text = hero.caption,
+                                    color = colors.textSecondary.copy(alpha = 0.86f),
+                                    fontSize = if (compact) 11.sp else 13.sp,
+                                    lineHeight = if (compact) 13.sp else 15.sp,
+                                )
+                            }
+                        }
+                        if (!compact && hero.badges.isNotEmpty()) {
+                            // Badges that do not fit a line start another, rather than running off the card.
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                hero.badges.take(if (compact) 3 else 4).forEach { badge ->
+                                    NovaLibraryHeroBadge(text = badge)
+                                }
                             }
                         }
                     }
-                }
-                if (actionsUnder) {
-                    NovaLibraryHeroActions(
-                        hero = hero,
-                        compact = compact,
-                        endArmed = endArmed,
-                        endSplit = endSplit,
-                        onPrimaryAction = onPrimaryAction,
-                        onSecondaryAction = onSecondaryAction,
-                        modifier = Modifier.fillMaxWidth().padding(top = if (compact) 2.dp else 6.dp),
-                    )
-                }
-            }
-            if (!actionsUnder) NovaLibraryHeroActions(
-                hero = hero,
-                compact = compact,
-                endArmed = endArmed,
-                endSplit = endSplit,
-                onPrimaryAction = onPrimaryAction,
-                onSecondaryAction = onSecondaryAction,
-                // As wide as its buttons' labels, from one split half up to an armed pair's two, so
-                // the words beside it keep the rest of the row. Armed, End takes the words' room
-                // too, so its pair and the consequence under it have the width two halves need.
-                modifier = if (endArmed) {
-                    Modifier.weight(1f)
-                } else {
-                    Modifier
-                        .widthIn(
-                            min = NovaPanelMetrics.SplitHalfMinWidth,
-                            max = NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap,
+                    if (actionsUnder) {
+                        NovaLibraryHeroActions(
+                            hero = hero,
+                            compact = compact,
+                            endArmed = endArmed,
+                            endSplit = endSplit,
+                            onPrimaryAction = onPrimaryAction,
+                            onSecondaryAction = onSecondaryAction,
+                            modifier = Modifier.fillMaxWidth().padding(top = if (compact) 2.dp else 6.dp),
                         )
-                        .width(IntrinsicSize.Max)
-                },
-            )
+                    }
+                }
+                if (!actionsUnder) NovaLibraryHeroActions(
+                    hero = hero,
+                    compact = compact,
+                    endArmed = endArmed,
+                    endSplit = endSplit,
+                    onPrimaryAction = onPrimaryAction,
+                    onSecondaryAction = onSecondaryAction,
+                    // As wide as its buttons' labels, from one split half up to an armed pair's two, so
+                    // the words beside it keep the rest of the row. Armed, End takes the words' room
+                    // too, so its pair and the consequence under it have the width two halves need.
+                    modifier = if (endArmed) {
+                        Modifier.weight(1f)
+                    } else {
+                        Modifier
+                            .widthIn(
+                                min = NovaPanelMetrics.SplitHalfMinWidth,
+                                max = NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap,
+                            )
+                            .width(IntrinsicSize.Max)
+                    },
+                )
+            }
         }
     }
 }

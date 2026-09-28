@@ -573,7 +573,7 @@ class NovaLibrarySourceGuardTest {
         assertTrue(
             "compact landscape hero should place artwork, title context, and a bounded launch CTA in that " +
                 "order; the CTA column is as wide as its labels, bounded by one split half and an armed pair",
-            hero.indexOf("NovaLibraryHeroArtwork(") in 0 until hero.indexOf("Column(\n                // fill = false") &&
+            hero.indexOf("NovaLibraryHeroArtwork(") in 0 until hero.indexOf("Column(\n                    // fill = false") &&
                 hero.contains(".width(IntrinsicSize.Max)") &&
                 hero.contains("max = NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap,")
         )
