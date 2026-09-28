@@ -1297,6 +1297,6 @@ private fun toneColor(tone: NovaQuickMenuTone): Color {
         NovaQuickMenuTone.MUTED -> colors.textMuted
         NovaQuickMenuTone.INFO -> colors.accent
         NovaQuickMenuTone.WARNING -> colors.warning
-        NovaQuickMenuTone.DANGER -> Color(0xFFF87171)
+        NovaQuickMenuTone.DANGER -> colors.destructive
     }
 }
