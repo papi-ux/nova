@@ -3,10 +3,13 @@ package com.papi.nova.utils
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.hardware.display.DisplayManager
 import android.os.Build
 import android.view.Display
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
 import com.papi.nova.AppView
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
@@ -21,6 +24,14 @@ import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaSurfaces
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParserException
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -30,6 +41,8 @@ import java.util.ArrayList
 
 object ServerHelper {
     const val CONNECTION_TEST_SERVER: String = "android.conntest.moonlight-stream.org"
+    private const val NETWORK_TEST_PAGE_KEY = "nova-network-test"
+    private const val NETWORK_RESULT_PAGE_KEY = "nova-network-test-result"
 
     @JvmStatic
     @Throws(IOException::class)
@@ -548,40 +561,63 @@ object ServerHelper {
         NovaThemeManager.applyFadeTransition(parent)
     }
 
+    /**
+     * Tests whether this network lets Nova's streaming ports through, as a Busy page pushed in the
+     * open panel (or a right-edge panel of its own) that becomes the result once the test ends, so
+     * B from the result returns to whatever pushed it. Cancel leaves the page; the test itself
+     * cannot be stopped, and an answer that arrives after the page has gone is dropped.
+     */
     @JvmStatic
     fun doNetworkTest(parent: Activity) {
-        Thread {
-            val spinnerDialog = SpinnerDialog.displayDialog(
-                parent,
-                parent.resources.getString(R.string.nettest_title_waiting),
-                parent.resources.getString(R.string.nettest_text_waiting),
-                false,
-            )
-
-            val ret = MoonBridge.testClientConnectivity(
-                CONNECTION_TEST_SERVER,
-                443,
-                MoonBridge.ML_PORT_FLAG_ALL,
-            )
-            spinnerDialog.dismiss()
-
-            var dialogSummary = when {
-                ret == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE ->
-                    parent.resources.getString(R.string.nettest_text_inconclusive)
-                ret == 0 ->
-                    parent.resources.getString(R.string.nettest_text_success)
-                else ->
-                    parent.resources.getString(R.string.nettest_text_failure) +
-                        MoonBridge.stringifyPortFlags(ret, "\n")
+        val activity = parent as? ComponentActivity ?: return
+        val surfaces = NovaSurfaces.of(activity)
+        val resources = activity.resources
+        var test: Job? = null
+        lateinit var busy: NovaCommonPage.Busy
+        busy = NovaCommonPage.Busy(
+            key = NETWORK_TEST_PAGE_KEY,
+            title = resources.getString(R.string.nettest_title_waiting),
+            message = MutableStateFlow(resources.getString(R.string.nettest_text_waiting)),
+            cancel = NovaAction(resources.getString(R.string.nova_panel_cancel)) {
+                test?.cancel()
+                if (surfaces.panel.top === busy && !surfaces.panel.pop()) surfaces.panel.close()
+            },
+        )
+        surfaces.present(busy)
+        test = activity.lifecycleScope.launch {
+            val summary = networkTest(resources)
+            if (surfaces.panel.top === busy) {
+                surfaces.panel.replaceTop(
+                    NovaCommonPage.Notice(
+                        key = NETWORK_RESULT_PAGE_KEY,
+                        title = resources.getString(R.string.nettest_title_done),
+                        message = summary,
+                        closeLabel = resources.getString(R.string.nova_panel_close),
+                    ),
+                )
             }
+        }
+    }
 
-            Dialog.displayDialog(
-                parent,
-                parent.resources.getString(R.string.nettest_title_done),
-                dialogSummary,
-                false,
-            )
-        }.start()
+    /**
+     * Which of Nova's streaming ports this network lets through, as the sentence the result page
+     * shows. The test blocks for a few seconds, so it runs on the IO dispatcher.
+     */
+    suspend fun networkTest(resources: Resources): String = withContext(Dispatchers.IO) {
+        val ret = MoonBridge.testClientConnectivity(
+            CONNECTION_TEST_SERVER,
+            443,
+            MoonBridge.ML_PORT_FLAG_ALL,
+        )
+        when {
+            ret == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE ->
+                resources.getString(R.string.nettest_text_inconclusive)
+            ret == 0 ->
+                resources.getString(R.string.nettest_text_success)
+            else ->
+                resources.getString(R.string.nettest_text_failure) +
+                    MoonBridge.stringifyPortFlags(ret, "\n")
+        }
     }
 
     @JvmStatic

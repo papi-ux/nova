@@ -421,7 +421,7 @@ class ShortcutTrampoline : NovaActivity() {
             Dialog.displayDialog(
                 this@ShortcutTrampoline,
                 resources.getString(R.string.conn_error_title),
-                "Invalid .art file URI",
+                resources.getString(R.string.hosts_art_invalid_uri),
                 true,
             )
             return null
@@ -468,7 +468,7 @@ class ShortcutTrampoline : NovaActivity() {
             Dialog.displayDialog(
                 this@ShortcutTrampoline,
                 resources.getString(R.string.conn_error_title),
-                "Error reading .art file: " + e.message,
+                resources.getString(R.string.hosts_art_read_error, e.message.orEmpty()),
                 true,
             )
         }
@@ -582,8 +582,10 @@ class ShortcutTrampoline : NovaActivity() {
                         Dialog.displayDialog(
                             this@ShortcutTrampoline,
                             resources.getString(R.string.conn_error_title),
-                            resources.getString(R.string.scut_invalid_app_id) +
-                                " (applist cache empty or unreadable)",
+                            resources.getString(
+                                R.string.hosts_scut_app_cache_empty,
+                                resources.getString(R.string.scut_invalid_app_id),
+                            ),
                             true,
                         )
                         return
@@ -602,8 +604,10 @@ class ShortcutTrampoline : NovaActivity() {
                         Dialog.displayDialog(
                             this@ShortcutTrampoline,
                             resources.getString(R.string.conn_error_title),
-                            resources.getString(R.string.scut_invalid_app_id) +
-                                " (app not found in cache)",
+                            resources.getString(
+                                R.string.hosts_scut_app_not_in_cache,
+                                resources.getString(R.string.scut_invalid_app_id),
+                            ),
                             true,
                         )
                         return
@@ -872,7 +876,7 @@ class ShortcutTrampoline : NovaActivity() {
         Dialog.displayDialog(
             this@ShortcutTrampoline,
             resources.getString(R.string.conn_error_title),
-            resources.getString(R.string.scut_invalid_app_id) + " (error parsing applist cache)",
+            resources.getString(R.string.hosts_scut_app_cache_unparsed, resources.getString(R.string.scut_invalid_app_id)),
             true,
         )
     }

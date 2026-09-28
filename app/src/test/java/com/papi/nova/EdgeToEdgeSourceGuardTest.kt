@@ -37,7 +37,6 @@ class EdgeToEdgeSourceGuardTest {
             "src/main/java/com/papi/nova/HelpActivity.kt",
             "src/main/java/com/papi/nova/DebugInfoActivity.kt",
             "src/main/java/com/papi/nova/ui/NovaWelcomeActivity.kt",
-            "src/main/java/com/papi/nova/ui/NovaQrScanActivity.kt",
         )) {
             val source = readSource(path)
             val content = source.indexOf("setContentView(")
@@ -48,6 +47,18 @@ class EdgeToEdgeSourceGuardTest {
                 content >= 0 && pad > content,
             )
         }
+    }
+
+    @Test
+    fun theQrScannerPadsItsBottomPanelForTheBars() {
+        val scanner = readSource("src/main/java/com/papi/nova/ui/NovaQrScanActivity.kt")
+        assertTrue(
+            "the camera fills the screen under the bars, and the panel attached to the bottom edge pads its " +
+                "own text clear of the bars and any cutout, so it meets the edge instead of floating above a strip",
+            scanner.contains("ViewCompat.setOnApplyWindowInsetsListener(panel)") &&
+                scanner.contains("WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()") &&
+                scanner.contains("bottom + bars.bottom")
+        )
     }
 
     private fun readSource(path: String): String =

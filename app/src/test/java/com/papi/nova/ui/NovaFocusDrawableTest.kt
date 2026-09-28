@@ -245,8 +245,10 @@ class NovaFocusDrawableTest {
     @Test
     fun dashboardThemePickerListsMiamiBetweenOledAndHighContrast() {
         val source = readSource("src/main/java/com/papi/nova/PcView.kt")
-        val picker = source.substringAfter("private fun showThemePicker(")
-            .substringBefore("private fun applyThemeSelection")
+        // The picker's order is R.array.nova_theme_values (NovaThemeResourcesTest pins it by value);
+        // each theme's caption on the Choice page is given in the same order.
+        val picker = source.substringAfter("internal fun novaThemePickerCaption(")
+            .substringBefore("internal fun novaOtpPairPage(")
 
         assertTrue(picker.contains("NovaThemeManager.THEME_PORTABLE_CHROME"))
         assertTrue(picker.contains("NovaThemeManager.THEME_OLED"))

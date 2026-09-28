@@ -170,24 +170,13 @@
                     android:paddingEnd="14dp"
                     android:paddingBottom="10dp" />
 
-                <TextView
+                <!-- End Session, drawn by NovaSplitConfirm: it splits in place into Stay and End
+                     Session rather than opening a confirm of its own. -->
+                <androidx.compose.ui.platform.ComposeView
                     android:id="@+id/recently_played_end_session"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:minWidth="72dp"
-                    android:gravity="center"
-                    android:text="@string/applist_menu_quit"
-                    android:textSize="12sp"
-                    android:textColor="@color/nova_error"
-                    android:fontFamily="sans-serif-medium"
-                    android:background="@drawable/nova_featured_action_bg"
-                    android:paddingStart="14dp"
-                    android:paddingTop="10dp"
-                    android:paddingEnd="14dp"
-                    android:paddingBottom="10dp"
-                    android:focusable="true"
-                    android:clickable="true"
                     android:visibility="gone" />
             </LinearLayout>
         </LinearLayout>
