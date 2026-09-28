@@ -292,6 +292,7 @@ internal fun NovaGameDetailContent(
     onResumeSession: () -> Unit,
     onEndSession: () -> Unit,
     onDismissDestination: () -> Unit,
+    launchBlockedReason: String? = null,
 ) {
     val verticalScroll = rememberScrollState()
     val playFocusRequester = remember { FocusRequester() }
@@ -302,6 +303,7 @@ internal fun NovaGameDetailContent(
             uiState = uiState,
             apiClient = apiClient,
             playLabel = playLabel,
+            launchBlockedReason = launchBlockedReason,
             lastPlayedText = lastPlayedText,
             sourceLabel = sourceLabel,
             optimizationState = optimizationState,

@@ -66,7 +66,11 @@ int main(int argc,char** argv) {
     auto* setup=root->findChild<QObject*>("play-setup");check(setup,"play setup missing");
     const auto setupState = [&] { QVariant state; check(QMetaObject::invokeMethod(setup,"state",Q_RETURN_ARG(QVariant,state)),"setup state unavailable"); return state.toMap(); };
     wait([&]{return picker->property("opened").toBool();});
-    QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
+    // Saving schedules a debounced review. Idle can be true before it starts;
+    // wait for this plan reply before interacting with the host-dependent row.
+    const auto previousPlans = host.planRequests.load();
+    QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);
+    wait([&]{return host.planRequests.load() > previousPlans && !tools.busy();});
     check(settings.load("host","game")["configuration"].toMap()["encoderBackend"]=="vaapi","D-pad encoder not saved");
     check(window->activeFocusItem()==encoder,"host review stole encoder focus");
     // Open Tuning while the host plan is being reviewed again. Saving a choice restarts a 150 ms

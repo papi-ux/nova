@@ -17,10 +17,12 @@ or installation command. The app handles offline checks, portal loss and update
 errors without reporting success. An update that requires extra sandbox
 permissions must be completed in the system software manager.
 
-The channels are **stable**, **beta**, and **pyrowave**. PyroWave-enabled packages
-stay on their own experimental channel. There is no automatic channel switch.
-Regular downloaded bundles and native builds show installation guidance instead
-of claiming that an update feed is configured.
+The publication workflow defines **stable**, **beta**, and **pyrowave** channels.
+Use the bundles attached to the selected release until a signed channel installer
+is announced. A channel defined in the workflow is not evidence that its public
+feed exists. Once published, PyroWave-enabled packages use their own experimental
+channel, with no automatic channel switch. Regular downloaded bundles and native
+builds show installation guidance instead of claiming that a feed is configured.
 
 ## First publication
 
