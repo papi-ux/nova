@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -45,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -55,6 +57,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
@@ -77,6 +81,24 @@ import kotlin.math.roundToInt
 
 /** What lies behind a panel: a screen (scrim plus backdrop blur), the stream (a lighter scrim), or nothing. */
 enum class NovaScrim { Screen, Stream, None }
+
+/**
+ * The side of the window a panel is attached to, after the layout direction: a landscape panel's
+ * edge, or the bottom for the portrait sheet.
+ */
+enum class NovaPanelSide { Left, Right, Bottom }
+
+/**
+ * Where a panel's surface sits and the shape that cuts it. The frame publishes it in the panel's
+ * semantics, so the visual gate checks R6 (attached to its edge, rounded on the inner edge only)
+ * against the shape that is drawn rather than against a copy of the rule.
+ */
+@Immutable
+class NovaPanelPlacement(val side: NovaPanelSide, val shape: Shape)
+
+/** The [NovaPanelPlacement] of a panel's surface. */
+val NovaPanelPlacementKey = SemanticsPropertyKey<NovaPanelPlacement>("NovaPanelPlacement")
+var SemanticsPropertyReceiver.novaPanelPlacement by NovaPanelPlacementKey
 
 /**
  * The container every panel is drawn in.
@@ -260,6 +282,7 @@ private fun BoxScope.NovaEdgePanel(
             }
             .fillMaxHeight()
             .width(animatedWidth)
+            .semantics { novaPanelPlacement = NovaPanelPlacement(if (onLeft) NovaPanelSide.Left else NovaPanelSide.Right, shape) }
             .clip(shape)
             .background(surfaces.panel)
             .drawWithCache {
@@ -322,6 +345,7 @@ private fun BoxScope.NovaPanelSheet(
                 IntOffset(0, ((1f - progress()) * height).roundToInt())
             }
             .onSizeChanged { heightPx.intValue = it.height }
+            .semantics { novaPanelPlacement = NovaPanelPlacement(NovaPanelSide.Bottom, shape) }
             .clip(shape)
             .background(surfaces.panel)
             .drawWithCache {
