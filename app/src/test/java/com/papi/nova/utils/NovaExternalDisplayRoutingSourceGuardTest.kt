@@ -299,12 +299,13 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         )
         assertTrue(
             "Game must route companion displays through the tested host-selection policy",
-            game.contains("when (CompanionControlHostPolicy.select(companionDisplayId))")
+            game.contains("CompanionControlHostPolicy.select(companionDisplayId, companionDisplay.flags and Display.FLAG_PRESENTATION != 0)")
         )
         assertTrue(
-            "The Activity policy branch must launch the default-display fallback",
+            "The Activity policy branch must launch the selected-display fallback",
             game.contains("CompanionControlHostPolicy.HostType.ACTIVITY") &&
-                game.contains("ExternalDisplayControlActivity.launch(this, companionDisplayId)")
+                game.contains("launchCompanionControlActivity(companionDisplayId)") &&
+                game.contains("ExternalDisplayControlActivity.launch(this, displayId)")
         )
         assertTrue(activity.contains("options.setLaunchDisplayId(displayId)"))
         assertTrue(activity.contains("Intent.FLAG_ACTIVITY_NEW_TASK"))
