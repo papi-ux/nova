@@ -115,7 +115,7 @@ class NovaSettingsDpadComposeTest {
                         title = "Settings", subtitle = "D-pad regression",
                         onBack = {}, onOpenLegacy = {}, onSearch = {}, onClearSearch = {},
                         onCategory = { selected = it }, headerActions = emptyList(),
-                        onResetSetting = {}, onSetting = {},
+                        onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
                     )
                 }
             }

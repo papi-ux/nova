@@ -1,7 +1,6 @@
 package com.papi.nova.preferences
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.widget.Toast
 import android.content.Intent
 import android.content.pm.PackageInfo
@@ -12,7 +11,9 @@ import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.papi.nova.BuildConfig
 import com.papi.nova.R
-import com.papi.nova.ui.NovaSheetChrome
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaSurfaces
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
@@ -136,14 +137,15 @@ internal object NovaUpdateInstaller {
         onViewReleases: () -> Unit,
     ) {
         if (activity.isFinishing || activity.isDestroyed) return
-        val detail = error.localizedMessage ?: error.javaClass.simpleName ?: "Unknown error"
-        val dialog = AlertDialog.Builder(activity)
-            .setTitle(R.string.nova_update_failed_title)
-            .setMessage(activity.getString(R.string.nova_update_failed_message, detail))
-            .setPositiveButton(R.string.nova_update_retry) { _, _ -> onRetry() }
-            .setNeutralButton(R.string.nova_update_view_releases) { _, _ -> onViewReleases() }
-            .show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
+        val detail = error.localizedMessage ?: error.javaClass.simpleName ?: activity.getString(R.string.nova_update_unknown_error)
+        present(
+            activity,
+            key = "nova-update-check-failed",
+            titleRes = R.string.nova_update_failed_title,
+            message = activity.getString(R.string.nova_update_failed_message, detail),
+            primary = NovaAction(activity.getString(R.string.nova_update_retry), run = onRetry),
+            releases = onViewReleases,
+        )
     }
 
     private fun showInstallProblem(
@@ -153,17 +155,38 @@ internal object NovaUpdateInstaller {
         onRetry: (() -> Unit)?,
         onViewReleases: () -> Unit,
     ) {
-        val builder = AlertDialog.Builder(activity)
-            .setTitle(titleRes)
-            .setMessage(message)
-            .setNeutralButton(R.string.nova_update_view_releases) { _, _ -> onViewReleases() }
-        if (onRetry == null) {
-            builder.setPositiveButton(android.R.string.ok, null)
-        } else {
-            builder.setPositiveButton(R.string.nova_update_retry) { _, _ -> onRetry() }
-        }
-        val dialog = builder.show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
+        present(
+            activity,
+            key = "nova-update-install-problem",
+            titleRes = titleRes,
+            message = message,
+            primary = onRetry?.let { NovaAction(activity.getString(R.string.nova_update_retry), run = it) },
+            releases = onViewReleases,
+        )
+    }
+
+    /**
+     * An updater message as a Notice page in the right-edge panel: its action focused when it
+     * has one, View releases beside it, and Close.
+     */
+    private fun present(
+        activity: Activity,
+        key: String,
+        titleRes: Int,
+        message: String,
+        primary: NovaAction?,
+        releases: () -> Unit,
+    ) {
+        NovaSurfaces.of(activity).present(
+            NovaCommonPage.Notice(
+                key = key,
+                title = activity.getString(titleRes),
+                message = message,
+                primary = primary,
+                closeLabel = activity.getString(R.string.nova_panel_close),
+                help = NovaAction(activity.getString(R.string.nova_update_view_releases), run = releases),
+            ),
+        )
     }
 
     suspend fun downloadValidateAndInstall(
@@ -267,15 +290,18 @@ internal object NovaUpdateInstaller {
 
     private fun showUnknownSourcesPermissionDialog(activity: Activity) {
         if (activity.isFinishing) return
-        val dialog = AlertDialog.Builder(activity)
-            .setTitle(R.string.nova_update_permission_title)
-            .setMessage(R.string.nova_update_permission_message)
-            .setPositiveButton(R.string.nova_update_open_android_settings) { _, _ ->
-                openUnknownSourcesSettings(activity)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
+        // Nova's own word before Android's trust screen, which stays Android's (spec section 8).
+        NovaSurfaces.of(activity).present(
+            NovaCommonPage.Notice(
+                key = "nova-update-permission",
+                title = activity.getString(R.string.nova_update_permission_title),
+                message = activity.getString(R.string.nova_update_permission_message),
+                primary = NovaAction(activity.getString(R.string.nova_update_open_android_settings)) {
+                    openUnknownSourcesSettings(activity)
+                },
+                closeLabel = activity.getString(R.string.nova_panel_cancel),
+            ),
+        )
     }
 
     private fun openUnknownSourcesSettings(activity: Activity) {

@@ -15,27 +15,27 @@ class NovaDisplayRoleComposerSourceTest {
         val legacy = source("StreamSettings.kt")
         val composer = source("NovaDisplayRoleComposer.kt")
 
+        // One page for both screens: pushed in the Compose pane, a right-edge page on the legacy one.
         assertTrue(screen.contains("PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING"))
-        assertTrue(screen.contains("NovaDisplayRoleComposerDialog"))
+        assertTrue(screen.contains("SettingsPage.DisplayRole("))
+        assertTrue(screen.contains("is SettingsPage.DisplayRole -> NovaDisplayRolePage(page)"))
         assertTrue(legacy.contains("preference.key == PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING"))
-        assertTrue(legacy.contains("NovaDisplayRoleComposerDialogFragment.newInstance(preference.key)"))
-        assertTrue(composer.contains("fun NovaDisplayRoleComposerDialog("))
-        assertTrue(composer.contains("fun NovaDisplayRoleComposerLegacyPanel("))
+        assertTrue(legacy.contains("SettingsPage.DisplayRole("))
+        assertTrue(legacy.contains("NovaDisplayRolePage(shown)"))
+        assertTrue(composer.contains("fun NovaPageScope.NovaDisplayRolePage("))
         assertTrue(composer.contains("AndroidDisplayRolePlan.build("))
     }
 
+    // Was legacyComposerUsesOpaqueAppCompatDialogHost: the legacy composer sat in a Compose card
+    // inside an AppCompat dialog. It is a page in NovaPanelWindow now, which draws the panel
+    // surface itself, so there is no dialog host of its own to keep opaque.
     @Test
-    fun legacyComposerUsesOpaqueAppCompatDialogHost() {
+    fun legacyComposerOpensInThePanelWindow() {
         val legacy = source("StreamSettings.kt")
-        val composer = source("NovaDisplayRoleComposer.kt")
-        val panel = composer.substringAfter("fun NovaDisplayRoleComposerLegacyPanel(")
-            .substringBefore("private fun NovaDisplayRoleComposerBody(")
 
-        assertTrue(panel.contains(".background(surfaces.panel.copy(alpha = 1f))"))
-        assertFalse(panel.contains("LocalNovaMenuOpacityScale.current"))
-        assertTrue(legacy.contains("class NovaDisplayRoleComposerDialogFragment : PreferenceDialogFragmentCompat()"))
-        assertTrue(legacy.contains("override fun onCreateDialogView(context: Context): View"))
-        assertTrue(legacy.contains("override fun onPrepareDialogBuilder(builder: androidx.appcompat.app.AlertDialog.Builder)"))
+        assertTrue(legacy.contains("NovaSurfaces.of(activity).open("))
+        assertFalse(legacy.contains("NovaDisplayRoleComposerDialogFragment"))
+        assertFalse(legacy.contains("PreferenceDialogFragmentCompat"))
         assertFalse(legacy.contains("android.app.Dialog(context)"))
     }
 
@@ -53,22 +53,28 @@ class NovaDisplayRoleComposerSourceTest {
         assertTrue(composer.contains("roleState.canApply"))
         assertTrue(composer.contains("R.string.display_role_next_stream"))
         assertTrue(applyBlock.contains("onApply"))
-        assertTrue(applyBlock.contains("onDismiss"))
+        // Cancel is B and the page header: leaving applies nothing, and Apply hands the target on
+        // only after the page has gone.
+        assertTrue(composer.contains("if (!panel.pop()) panel.close()\n                        page.onApply(target)"))
         assertFalse(composer.contains("androidx.preference.internal"))
     }
 
+    // Swap sat with the dialog's pinned actions so the body's clip could never hide it. The page
+    // has no clip: Swap and Apply are the last items of the page's own list, which scrolls them
+    // into view with a row of context like any other row.
     @Test
-    fun swapIsPinnedWithDialogActionsInsteadOfClippedInsideTheScrollableBody() {
+    fun swapAndApplyAreRowsOfThePageInsteadOfClippedInsideTheScrollableBody() {
         val composer = source("NovaDisplayRoleComposer.kt")
-        val body = composer.substringAfter("private fun NovaDisplayRoleComposerBody(")
+        val page = composer.substringAfter("fun NovaPageScope.NovaDisplayRolePage(")
             .substringBefore("private fun NovaDisplayRoleRouteSummary(")
         val actions = composer.substringAfter("fun NovaDisplayRoleComposerActions(")
             .substringBefore("private fun roleLabel(")
 
-        assertFalse(body.contains("NovaDisplayRoleSwapAction("))
-        assertTrue(body.contains(".clipToBounds()"))
+        assertTrue(page.contains("state = listState"))
+        assertTrue(page.contains("item(key = \"actions\")"))
+        assertFalse(composer.contains(".clipToBounds()"))
         assertTrue(actions.contains("onSwap: () -> Unit"))
-        assertTrue(actions.contains("Text(stringResource(R.string.display_role_swap))"))
+        assertTrue(actions.contains("stringResource(R.string.display_role_swap)"))
     }
 
     @Test
@@ -85,29 +91,28 @@ class NovaDisplayRoleComposerSourceTest {
         assertFalse(composer.contains("currentMode.physicalHeight"))
     }
 
+    // The dialog's actions wrapped in a FlowRow; the page's pair sits side by side while both
+    // labels fit and stacks at full width otherwise, so neither is ever cut.
     @Test
-    fun compactDialogReservesActionSpaceAndWrapsActions() {
-        val screen = source("NovaSettingsScreen.kt")
+    fun compactPageWrapsItsActions() {
         val composer = source("NovaDisplayRoleComposer.kt")
-        val shell = screen.substringAfter("internal fun NovaSelectDialogShell(")
-            .substringBefore("private fun NovaDialogContrastBackdrop(")
-        val legacyPanel = composer.substringAfter("fun NovaDisplayRoleComposerLegacyPanel(")
-            .substringBefore("private fun NovaDisplayRoleComposerBody(")
         val actions = composer.substringAfter("fun NovaDisplayRoleComposerActions(")
             .substringBefore("private fun roleLabel(")
 
-        assertTrue(shell.contains(".weight(1f, fill = false)"))
-        assertTrue(legacyPanel.contains(".weight(1f, fill = false)"))
-        assertTrue(actions.contains("FlowRow("))
+        assertTrue(actions.contains("NovaPanelButtonPair("))
     }
 
     @Test
     fun roleChoicesExposeSelectionAndActivationSemantics() {
         val composer = source("NovaDisplayRoleComposer.kt")
+        val choice = composer.substringAfter("private fun NovaDisplayRoleChoice(")
+            .substringBefore("fun NovaDisplayRoleComposerActions(")
 
-        assertTrue(composer.contains(".selectable("))
-        assertTrue(composer.contains("role = Role.RadioButton"))
-        assertTrue(composer.contains("stateDescription ="))
+        assertTrue(choice.contains(".novaClickable(enabled = enabled, role = Role.RadioButton"))
+        assertTrue(choice.contains("this.selected = selected"))
+        assertTrue(choice.contains("stateDescription = selectionState"))
+        // R9: the choice in effect carries the check, never a fill or a border.
+        assertTrue(choice.contains("NovaCurrentMark()"))
         assertTrue(composer.contains("R.string.display_role_card_action_description"))
         assertTrue(composer.contains("R.string.display_role_follow_action_description"))
     }

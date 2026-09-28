@@ -4,11 +4,4 @@
 # fails when a file has more than its count here, or has any while no list names it. Only group 4
 # edits this file: it lowers or removes a line as each site moves. The closing step empties it.
 EditProfileActivity.kt:1
-preferences/ConfirmDeleteKeyboardPreference.kt:1
-preferences/ConfirmDeleteOscPreference.kt:1
-preferences/NovaListPreferenceDialogFragment.kt:1
-preferences/NovaSettingsScreen.kt:3
-preferences/NovaUpdateInstaller.kt:3
-preferences/SeekBarPreference.kt:1
-preferences/StreamSettings.kt:3
 profiles/ProfilesAdapter.kt:1

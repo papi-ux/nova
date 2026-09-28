@@ -147,9 +147,10 @@ class NovaSystemBarsTest {
             Regex("\\b(Alert)?Dialog\\(\\n").findAll(settings).count(),
             Regex("NovaDialogWindow\\(\\)").findAll(settings).count(),
         )
+        // NovaListPreferenceDialogFragment is gone: legacy lists open as Choice pages in
+        // NovaPanelWindow, which adopts its window (asserted below).
         for (path in listOf(
             "src/main/java/com/papi/nova/PcView.kt",
-            "src/main/java/com/papi/nova/preferences/NovaListPreferenceDialogFragment.kt",
         )) {
             assertTrue("$path builds a shared dialog outside the sheet chrome and adopts its window", source(path).contains("NovaDialogWindows.adopt("))
         }
