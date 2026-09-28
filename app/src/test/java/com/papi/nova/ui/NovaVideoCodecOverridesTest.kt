@@ -103,6 +103,26 @@ class NovaVideoCodecOverridesTest {
         assertTrue(inherited.value.contains("H.264"))
     }
 
+    @Test fun unavailablePyrowaveRemainsVisibleWithAReasonAndStandardChoicesStillWork() {
+        var selected: String? = "forcepyrowave"
+        val row = novaPlaySetupCodecRow(context, selected, FormatOption.FORCE_PYROWAVE) { selected = it }
+        if (BuildConfig.EXPERIMENTAL_CODECS) {
+            val pyro = row.options.first { it.label.contains("PyroWave") }
+            assertTrue(pyro.current)
+            assertFalse(pyro.enabled)
+            assertNull(pyro.onSelect)
+            assertTrue(pyro.consequence.contains("unavailable"))
+            assertFalse(row.options.first().enabled)
+            assertNull(row.options.first().onSelect)
+            assertTrue(row.caption.contains("unavailable"))
+            assertEquals("forcepyrowave", selected)
+        }
+        val automatic = row.options.first { it.label == context.getString(com.papi.nova.R.string.videoformat_auto) }
+        assertTrue(automatic.enabled)
+        automatic.onSelect!!.invoke()
+        assertEquals("auto", selected)
+    }
+
     @Test fun pyrowaveSuppressesButDoesNotEraseTheOtherCodecsEncoderChoice() {
         val saved = "nvenc"
         assertEquals("", NovaVideoCodecOverrides.encoderBackend(FormatOption.FORCE_PYROWAVE, saved))

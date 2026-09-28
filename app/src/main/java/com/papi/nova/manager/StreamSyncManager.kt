@@ -1,5 +1,6 @@
 package com.papi.nova.manager
 
+import com.papi.nova.binding.video.PyroWaveAvailability
 import android.content.Context
 import android.net.ConnectivityManager
 import android.os.Build
@@ -416,13 +417,11 @@ class StreamSyncManager private constructor() {
             put(json, "supports_av1", supportedVideoFormats and MoonBridge.VIDEO_FORMAT_AV1_MAIN8 != 0)
             put(json, "supports_av1_main10", supportedVideoFormats and MoonBridge.VIDEO_FORMAT_AV1_MAIN10 != 0)
             put(json, "supports_hdr10_display", displaySupportsHdr10)
-            // Whether this build carries the compute codec at all. Not yet whether it can decode
-            // with it: that needs a Vulkan device the library will accept, which is a separate
-            // question with a separate answer. A host reads this to know why it was never offered.
-            // Two different questions. Carrying the library is a property of the build; being able
-            // to decode with it is a property of the driver, and a host that wants to know why this
-            // device was never offered the codec needs to be able to tell those apart.
-            put(json, "supports_pyrowave", PyroWave.probe(context) != PyroWave.Probe.UNUSABLE)
+            // Advertise the same measured compute path that the picker and launch gate allow.
+            // Keep the raw probe result separately so a fragment-only result remains diagnosable.
+            val pyroWaveAvailability = PyroWaveAvailability.inspect(context)
+            put(json, "supports_pyrowave", com.papi.nova.BuildConfig.EXPERIMENTAL_CODECS && pyroWaveAvailability ==
+                PyroWaveAvailability.Status.AVAILABLE)
             put(json, "pyrowave_probe", PyroWave.probe(context).name.lowercase())
             PyroWave.apiVersion().takeIf { it.isNotEmpty() }?.let { put(json, "pyrowave_version", it) }
 

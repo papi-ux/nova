@@ -1,5 +1,6 @@
 package com.papi.nova.preferences
 
+import com.papi.nova.binding.video.PyroWaveAvailability
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -42,6 +43,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -988,6 +990,17 @@ private fun NovaSelectDialog(
     onSave: (NovaSettingDefinition, NovaSettingValue) -> Unit
 ) {
     val showThemePreview = definition.key == "nova_theme"
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val availability by produceState(
+        initialValue = PyroWaveAvailability.Status.CHECKING,
+        context, definition.key,
+    ) {
+        if (definition.key == "video_format" && definition.options.any { it.value == "forcepyrowave" }) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                PyroWaveAvailability.inspect(context.applicationContext)
+            }
+        }
+    }
     NovaSelectDialogShell(
         onDismissRequest = onDismiss,
         confirmButton = {},
@@ -1003,6 +1016,10 @@ private fun NovaSelectDialog(
                         option = option,
                         selected = selectedOption,
                         showPreview = showThemePreview,
+                        enabled = definition.key != "video_format" ||
+                            PyroWaveAvailability.canSelect(option.value, availability),
+                        disabledReason = if (definition.key == "video_format" && option.value == "forcepyrowave")
+                            PyroWaveAvailability.reason(context, availability) else "",
                         onClick = {onSave(definition, NovaSettingValue.StringValue(option.value))}
                     )
                 }
@@ -1077,6 +1094,8 @@ private fun NovaSettingsSelectOptionRow(
     option: NovaSettingOption,
     selected: Boolean,
     showPreview: Boolean = false,
+    enabled: Boolean = true,
+    disabledReason: String = "",
     onClick: () -> Unit
 ) {
     val colors = LocalNovaComposeColors.current
@@ -1108,8 +1127,8 @@ private fun NovaSettingsSelectOptionRow(
                 shape
             )
             .onFocusChanged {focused = it.isFocused || it.hasFocus }
-            .clickable(onClick = onClick)
-            .focusable()
+            .clickable(enabled = enabled, onClick = onClick)
+            .focusable(enabled = enabled)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1117,15 +1136,19 @@ private fun NovaSettingsSelectOptionRow(
         if (showPreview) {
             NovaThemePreviewSwatch(option.value)
         }
-        Text(
-            text = option.label,
-            modifier = Modifier.weight(1f),
-            color = if (selected)colors.accent else colors.textPrimary,
-            fontSize = 15.sp,
-            fontWeight = if (selected)FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = option.label,
+                color = if (!enabled) colors.textMuted else if (selected) colors.accent else colors.textPrimary,
+                fontSize = 15.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!enabled && disabledReason.isNotEmpty()) {
+                Text(text = disabledReason, color = colors.textSecondary, fontSize = 12.sp)
+            }
+        }
         if (selected) {
             NovaSettingCurrentBadge()
         }
@@ -1370,7 +1393,8 @@ private fun validationMessage(key: String): String {
     return when (key) {
         PreferenceConfiguration.CUSTOM_RESOLUTION_PREF_STRING -> "Enter a resolution like 1920x1080."
         PreferenceConfiguration.CUSTOM_REFRESH_RATE_PREF_STRING -> "Enter a refresh rate from 1 to 240."
-        PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING -> "Enter a bitrate from 1 to 300 Mbps."
+        PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING ->
+            "Enter a bitrate from 1 to ${PreferenceConfiguration.MAX_BITRATE_KBPS / 1000} Mbps."
         else -> "Enter a valid value before saving."
     }
 }

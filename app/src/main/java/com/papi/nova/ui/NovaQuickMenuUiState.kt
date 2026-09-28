@@ -397,6 +397,7 @@ data class NovaQuickMenuUiState(
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.MOUSE_MODE,
                     label = context.getString(R.string.nova_quick_menu_mouse),
+                    caption = context.getString(R.string.nova_quick_menu_mouse_caption),
                     chip = chip(mouseModeLabel, NovaQuickMenuTone.INACTIVE),
                     enabled = ownerInputAllowed && allowChangeMouseMode
                 ),
@@ -432,6 +433,10 @@ data class NovaQuickMenuUiState(
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.KEYBOARD,
                     label = context.getString(R.string.nova_quick_menu_keyboard),
+                    caption = context.getString(
+                        if (keyboardVisible) R.string.nova_quick_menu_keyboard_hide_caption
+                        else R.string.nova_quick_menu_keyboard_show_caption
+                    ),
                     chip = chip(
                         if (keyboardVisible) "Shown" else context.getString(R.string.nova_quick_menu_hidden),
                         if (keyboardVisible) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE
@@ -448,12 +453,14 @@ data class NovaQuickMenuUiState(
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.ROTATE_SCREEN,
                     label = context.getString(R.string.nova_quick_menu_rotate_screen),
+                    caption = context.getString(R.string.nova_quick_menu_rotate_screen_caption),
                     enabled = true,
                     visible = !isOnExternalDisplay
                 ),
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.MORE_KEYS,
                     label = context.getString(R.string.nova_quick_menu_special_keys),
+                    caption = context.getString(R.string.nova_quick_menu_special_keys_caption),
                     enabled = ownerInputAllowed
                 )
             )

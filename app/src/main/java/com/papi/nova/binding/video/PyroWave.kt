@@ -74,6 +74,7 @@ object PyroWave {
      * string already is.
      */
     @JvmStatic
+    @Synchronized
     fun probe(context: Context): Probe {
         cached.takeIf { it != Probe.UNKNOWN }?.let { return it }
         if (!loaded) {
