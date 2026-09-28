@@ -1,0 +1,8 @@
+# Group 2 (hosts, App list, pairing, shortcuts and first run): legacy modal constructors still to move onto the panel surfaces.
+#
+# One "path:count" per line, paths under app/src/main/java/com/papi/nova/. NovaPanelSourceGuardTest
+# fails when a file has more than its count here, or has any while no list names it. Only group 2
+# edits this file: it lowers or removes a line as each site moves. The closing step empties it.
+AppView.kt:1
+PcView.kt:5
+preferences/AddComputerManually.kt:1
