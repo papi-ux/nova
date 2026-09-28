@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -105,6 +106,7 @@ fun NovaPanelFrame(
     val progress = remember { Animatable(0f) }
     val dismiss by rememberUpdatedState(onDismissRequest)
     val closed by rememberUpdatedState(onClosed)
+    val openNow by rememberUpdatedState(open)
     val scope = rememberCoroutineScope()
     LaunchedEffect(open) {
         progress.animateTo(if (open) 1f else 0f, PanelSpring)
@@ -120,16 +122,27 @@ fun NovaPanelFrame(
     val drag = remember(scope) {
         PanelDrag(
             begin = {
-                dragProgress.floatValue = progress.value
-                dragging.value = true
+                // A finger on a closing panel never stops its exit, which is what lets the window go.
+                if (openNow) {
+                    dragProgress.floatValue = progress.value
+                    dragging.value = true
+                }
             },
-            move = { delta -> dragProgress.floatValue = (dragProgress.floatValue + delta).coerceIn(0f, 1f) },
+            move = { delta ->
+                if (dragging.value) dragProgress.floatValue = (dragProgress.floatValue + delta).coerceIn(0f, 1f)
+            },
             end = {
-                dragging.value = false
-                if (progress.value < NovaPanelMetrics.DismissFraction) {
-                    dismiss()
-                } else {
-                    scope.launch { progress.animateTo(1f, PanelSpring) }
+                if (dragging.value) {
+                    dragging.value = false
+                    when {
+                        // Closed under the finger (B, Start): the drag stopped the exit, so finish it.
+                        !openNow -> scope.launch {
+                            progress.animateTo(0f, PanelSpring)
+                            closed()
+                        }
+                        progress.value < NovaPanelMetrics.DismissFraction -> dismiss()
+                        else -> scope.launch { progress.animateTo(1f, PanelSpring) }
+                    }
                 }
             },
         )
@@ -240,7 +253,8 @@ private fun BoxScope.NovaEdgePanel(
     Box(
         modifier = Modifier
             .align(if (atStart) Alignment.CenterStart else Alignment.CenterEnd)
-            .offset {
+            // Absolute: onLeft already accounts for the layout direction.
+            .absoluteOffset {
                 val shift = ((1f - progress()) * widthPx).roundToInt()
                 IntOffset(if (onLeft) -shift else shift, 0)
             }
