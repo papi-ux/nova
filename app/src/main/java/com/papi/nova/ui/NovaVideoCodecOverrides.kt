@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import com.papi.nova.binding.video.PyroWaveAvailability
 import android.content.Context
 import android.content.Intent
 import com.papi.nova.BuildConfig
@@ -86,25 +87,36 @@ internal fun novaPlaySetupCodecRow(
     val labels = context.resources.getStringArray(R.array.video_format_names)
     val effective = NovaVideoCodecOverrides.resolve(selected, appSetting)
     val options = values.zip(labels).filter { NovaVideoCodecOverrides.normalize(it.first) != null }
+    val availability = if (options.any { it.first == "forcepyrowave" })
+        PyroWaveAvailability.inspect(context.applicationContext)
+        else PyroWaveAvailability.Status.AVAILABLE
+    val unavailableReason = PyroWaveAvailability.reason(context, availability)
     return NovaPlaySetupRowState(
         row = NovaPlaySetupRow.VIDEO_CODEC,
         label = context.getString(R.string.nova_play_setup_video_codec),
         value = if (selected == null) context.getString(R.string.nova_play_setup_codec_inherited,
             NovaVideoCodecOverrides.label(appSetting)) else options.firstOrNull { it.first == selected }?.second.orEmpty(),
-        caption = context.getString(if (effective == FormatOption.FORCE_PYROWAVE)
-            R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_caption),
+        caption = if (effective == FormatOption.FORCE_PYROWAVE && unavailableReason.isNotEmpty())
+            unavailableReason else context.getString(if (effective == FormatOption.FORCE_PYROWAVE)
+                R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_caption),
         stripTitle = context.getString(R.string.nova_play_setup_video_codec),
         options = listOf(NovaPlaySetupOption(
             label = context.getString(R.string.nova_play_setup_codec_app_setting),
-            consequence = context.getString(R.string.nova_play_setup_codec_inherit_detail),
+            consequence = if (!PyroWaveAvailability.canLaunch(appSetting, availability))
+                unavailableReason else context.getString(R.string.nova_play_setup_codec_inherit_detail),
             current = selected == null,
-            onSelect = { onSelect(null) },
+            enabled = PyroWaveAvailability.canLaunch(appSetting, availability),
+            onSelect = if (PyroWaveAvailability.canLaunch(appSetting, availability))
+                ({ onSelect(null) }) else null,
         )) + options.map { (value, label) -> NovaPlaySetupOption(
             label = label,
-            consequence = context.getString(if (value == "forcepyrowave")
-                R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_standard_detail),
+            consequence = if (value == "forcepyrowave" && unavailableReason.isNotEmpty())
+                unavailableReason else context.getString(if (value == "forcepyrowave")
+                    R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_standard_detail),
             current = value == selected,
-            onSelect = { onSelect(value) },
+            enabled = PyroWaveAvailability.canSelect(value, availability),
+            onSelect = if (PyroWaveAvailability.canSelect(value, availability))
+                ({ onSelect(value) }) else null,
         ) },
         overridden = selected != null,
         optionsPerRow = 3,
