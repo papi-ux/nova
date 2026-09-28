@@ -1,8 +1,7 @@
 package com.papi.nova.binding.input.virtual_controller.keyboard
 
-import android.app.AlertDialog
+import android.app.Activity
 import android.content.Context
-import android.graphics.Color
 import android.graphics.Point
 import android.graphics.Rect
 import android.os.Build
@@ -14,16 +13,31 @@ import android.util.DisplayMetrics
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
 import com.papi.nova.Game
-import com.papi.nova.GameMenu
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.nvstream.NvConnection
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.NovaSpecialKeyPrefs
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaPanelButton
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.NovaSplitConfirm
+import com.papi.nova.ui.panel.NovaSplitConfirmState
+import com.papi.nova.ui.panel.NovaSurfaces
+import com.papi.nova.ui.panel.setNovaContent
 import com.papi.nova.utils.KeyConfigHelper
 import org.json.JSONArray
 import org.json.JSONException
@@ -46,8 +60,31 @@ class KeyBoardController(
     private val handler = Handler(Looper.getMainLooper())
     private var currentMode = ControllerMode.Active
     private val buttonConfigure = Button(context)
-    private val buttonClearAll = Button(context)
-    private val buttonAddKeys = Button(context)
+
+    /** Clear All, which confirms in its own slot, and Add Keys: shown while keys can be switched on and off. */
+    private val clearAllSplit = NovaSplitConfirmState()
+    private val editControls = ComposeView(context).apply {
+        visibility = View.GONE
+        setNovaContent {
+            Row(
+                modifier = Modifier.padding(NovaPanelMetrics.SpaceSm),
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NovaSplitConfirm(
+                    label = context.getString(R.string.keyboard_clear_all),
+                    confirmLabel = context.getString(R.string.keyboard_clear_all_confirm_title),
+                    consequence = context.getString(R.string.nova_stream_keys_clear_consequence),
+                    onConfirm = ::clearAllKeys,
+                    state = clearAllSplit,
+                )
+                NovaPanelButton(
+                    text = context.getString(R.string.keyboard_add_keys),
+                    onClick = ::showKeySelectionDialog,
+                )
+            }
+        }
+    }
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
     private val elements = ArrayList<keyBoardVirtualControllerElement>()
 
@@ -138,33 +175,16 @@ class KeyBoardController(
             }
         }
 
-        buttonClearAll.setBackgroundColor(Color.DKGRAY)
-        buttonClearAll.text = context.getString(R.string.keyboard_clear_all)
-        buttonClearAll.alpha = 0.7f
-        buttonClearAll.visibility = View.GONE
-        buttonClearAll.setOnClickListener {
-            AlertDialog.Builder(context)
-                .setTitle(context.getString(R.string.keyboard_clear_all_confirm_title))
-                .setMessage(context.getString(R.string.keyboard_clear_all_confirm_message))
-                .setPositiveButton(context.getString(R.string.yes)) { _, _ ->
-                    for (element in elements) {
-                        element.hidden = true
-                        element.visibility = View.GONE
-                    }
-                    KeyBoardControllerConfigurationLoader.saveProfile(this@KeyBoardController, context)
-                    vibrate(KeyEvent.ACTION_DOWN)
-                }
-                .setNegativeButton(context.getString(R.string.no), null)
-                .show()
-        }
-
-        buttonAddKeys.setBackgroundColor(Color.DKGRAY)
-        buttonAddKeys.text = context.getString(R.string.keyboard_add_keys)
-        buttonAddKeys.alpha = 0.7f
-        buttonAddKeys.visibility = View.GONE
-        buttonAddKeys.setOnClickListener { showKeySelectionDialog() }
-
         refreshLayout()
+    }
+
+    private fun clearAllKeys() {
+        for (element in elements) {
+            element.hidden = true
+            element.visibility = View.GONE
+        }
+        KeyBoardControllerConfigurationLoader.saveProfile(this@KeyBoardController, context)
+        vibrate(KeyEvent.ACTION_DOWN)
     }
 
     fun getHandler(): Handler = handler
@@ -224,8 +244,7 @@ class KeyBoardController(
         }
         elements.clear()
         frame_layout.removeView(buttonConfigure)
-        frame_layout.removeView(buttonClearAll)
-        frame_layout.removeView(buttonAddKeys)
+        frame_layout.removeView(editControls)
     }
 
     fun setOpacity(opacity: Int) {
@@ -254,30 +273,14 @@ class KeyBoardController(
         configParams.topMargin = 15
         frame_layout.addView(buttonConfigure, configParams)
 
-        buttonClearAll.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-        buttonAddKeys.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-        val clearAllWidth = buttonClearAll.measuredWidth
-        val addKeysWidth = buttonAddKeys.measuredWidth
-
-        val totalWidth = clearAllWidth + addKeysWidth + 3
-        val screenCenter = screen.widthPixels / 2
-        val startX = screenCenter - totalWidth / 2
-
-        val clearParams = FrameLayout.LayoutParams(
+        // Centred at the top, whatever width the labels take in this language and font scale.
+        val editParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        )
-        clearParams.leftMargin = startX
-        clearParams.topMargin = 15
-        frame_layout.addView(buttonClearAll, clearParams)
-
-        val addParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
+            Gravity.TOP or Gravity.CENTER_HORIZONTAL,
         )
-        addParams.leftMargin = startX + clearAllWidth + 3
-        addParams.topMargin = 15
-        frame_layout.addView(buttonAddKeys, addParams)
+        editParams.topMargin = 15
+        frame_layout.addView(editControls, editParams)
 
         KeyBoardControllerConfigurationLoader.createDefaultLayout(this, context, conn)
         KeyBoardControllerConfigurationLoader.loadFromPreferences(this, context)
@@ -327,9 +330,8 @@ class KeyBoardController(
     }
 
     private fun showControlButtons(show: Boolean) {
-        val visibility = if (show) View.VISIBLE else View.GONE
-        buttonClearAll.visibility = visibility
-        buttonAddKeys.visibility = visibility
+        if (!show) clearAllSplit.disarm(restoreFocus = false)
+        editControls.visibility = if (show) View.VISIBLE else View.GONE
     }
 
     private fun showKeySelectionDialog() {
@@ -378,19 +380,21 @@ class KeyBoardController(
 
             addCustomShortcutChoices(allItemsList, keyNamesList)
 
-            val keyNames = keyNamesList.toTypedArray()
-            val checkedItems = BooleanArray(keyNames.size)
-
-            AlertDialog.Builder(context)
-                .setTitle(context.getString(R.string.keyboard_select_keys))
-                .setMultiChoiceItems(keyNames, checkedItems) { _, which, isChecked ->
-                    checkedItems[which] = isChecked
-                }
-                .setPositiveButton(context.getString(R.string.keyboard_add)) { _, _ ->
-                    addSelectedKeys(checkedItems, allItemsList)
-                }
-                .setNegativeButton(context.getString(R.string.cancel), null)
-                .show()
+            // A page of toggles in the stream's panel: every key starts off, Add applies the ones
+            // switched on, and B leaves without adding anything.
+            val activity = context as? Activity ?: return
+            NovaSurfaces.of(activity).present(
+                NovaCommonPage.MultiChoice(
+                    key = ADD_KEYS_PAGE,
+                    title = context.getString(R.string.keyboard_select_keys),
+                    options = keyNamesList.mapIndexed { index, name -> NovaOption(index, name) },
+                    selected = emptySet(),
+                    doneLabel = context.getString(R.string.keyboard_add),
+                    onDone = { chosen ->
+                        addSelectedKeys(BooleanArray(keyNamesList.size) { it in chosen }, allItemsList)
+                    },
+                ),
+            )
         } catch (e: Exception) {
             LimeLog.warning("Error loading keyboard configuration: " + e.message)
             e.printStackTrace()
@@ -399,8 +403,8 @@ class KeyBoardController(
     }
 
     private fun addCustomShortcutChoices(allItemsList: MutableList<JSONObject>, keyNamesList: MutableList<String>) {
-        val preferences = context.getSharedPreferences(GameMenu.PREF_NAME, Context.MODE_PRIVATE)
-        val value = preferences.getString(GameMenu.KEY_NAME, "").orEmpty()
+        val preferences = context.getSharedPreferences(NovaSpecialKeyPrefs.PREF_NAME, Context.MODE_PRIVATE)
+        val value = preferences.getString(NovaSpecialKeyPrefs.KEY_NAME, "").orEmpty()
 
         if (TextUtils.isEmpty(value)) return
 
@@ -659,5 +663,9 @@ class KeyBoardController(
         }
 
         return Point(spacing, startY)
+    }
+
+    private companion object {
+        const val ADD_KEYS_PAGE = "nova-keyboard-add-keys"
     }
 }

@@ -43,6 +43,9 @@
     <!-- Reconnecting: a busy page over the stream with a way out. -->
     <string name="nova_stream_reconnect_message">%1$s\n%2$s</string>
 
+    <!-- The on-screen keys editor: the line under an armed Clear All. -->
+    <string name="nova_stream_keys_clear_consequence">Hides every on-screen key. Add Keys brings them back.</string>
+
     <!-- Session setup: what the progress overlay says for a stage it does not know. -->
     <string name="nova_stream_progress_working">Working on it</string>
     <string name="nova_stream_progress_waiting">Nova is waiting for the next stream setup signal.</string>
