@@ -158,8 +158,20 @@ class NovaPlaySetupLegendTest {
     @Test
     fun aLegendLabelMayWrapAndItsCardsShareOneHeight() {
         val card = read("NovaPlaySetup.kt").section("internal fun NovaPlaySetupComparison(", "internal fun novaPlaySetupOptionDescription(")
-        assertTrue(card.contains("Modifier.fillMaxWidth().height(IntrinsicSize.Min)"))
-        assertTrue(card.contains("modifier = Modifier.weight(1f).fillMaxHeight(),"))
+        assertTrue(
+            "the cards of a row share one height, each measured at its own cell's width, so a sentence that " +
+                "wraps is never cut by a row that guessed its width",
+            card.contains("NovaEqualHeightCells(gap = NOVA_PLAY_SETUP_CARD_GAP) {") &&
+                card.contains("val tallest = measurables.maxOf { it.minIntrinsicHeight(cell) }")
+        )
+        assertTrue(
+            "a row keeps as many cards as hold their name's longest word, so a name is never broken inside a word",
+            card.contains("need = widestWord + NOVA_PLAY_SETUP_CARD_CHROME.roundToPx(),")
+        )
+        assertEquals(3, novaPlaySetupCardsPerRow(requested = Int.MAX_VALUE, count = 3, width = 900, gap = 20, need = 200))
+        assertEquals("three across a phone at 130%", 2, novaPlaySetupCardsPerRow(Int.MAX_VALUE, 3, 1000, 30, 420))
+        assertEquals("never more than asked", 2, novaPlaySetupCardsPerRow(2, 7, 2000, 30, 100))
+        assertEquals(1, novaPlaySetupCardsPerRow(3, 7, 300, 30, 400))
         val label = card.section("text = option.label,", "text = option.consequence,")
         assertFalse(
             "a name cut short names nothing, so a label wraps onto as many lines as it needs (R13)",

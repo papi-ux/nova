@@ -18,7 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -41,9 +40,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -67,6 +69,7 @@ import com.papi.nova.ui.panel.NovaRow
 import com.papi.nova.ui.panel.NovaRowTrailing
 import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.panel.NovaValueStyle
+import com.papi.nova.ui.panel.OpensGlyph
 import com.papi.nova.ui.panel.novaPanelType
 
 /**
@@ -567,26 +570,79 @@ internal fun NovaPlaySetupComparison(
         NovaPlaySetupLegendForm.Current -> options.filter { it.current }
     }
     if (shown.isEmpty()) return
-    val cardsPerRow = if (form == NovaPlaySetupLegendForm.Current) 1 else perRow.coerceAtLeast(1)
+    val measurer = rememberTextMeasurer()
+    val labelStyle = novaPanelType.caption.copy(fontWeight = FontWeight.SemiBold)
+    val density = LocalDensity.current
+    // The longest word any card's name holds, in the SemiBold the current one draws in.
+    val widestWord = remember(shown, labelStyle, density) {
+        shown.flatMap { it.label.split(' ') }.maxOfOrNull {
+            measurer.measure(it, labelStyle, softWrap = false, maxLines = 1).size.width
+        } ?: 0
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         NovaPlaySetupColumnHead(title)
-        shown.chunked(cardsPerRow).forEachIndexed { chunkIndex, chunk ->
-            if (chunkIndex > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                // One height for the row, so a card whose label wrapped does not stand taller
-                // than its neighbours.
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-            ) {
-                chunk.forEach { option ->
-                    NovaPlaySetupComparisonCard(
-                        option = option,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // As many to a row as asked while each card still holds its name's longest word beside
+            // the check: three resolutions across a phone at 130% broke "1920x1080" in two.
+            val cardsPerRow = if (form == NovaPlaySetupLegendForm.Current) {
+                1
+            } else {
+                with(density) {
+                    novaPlaySetupCardsPerRow(
+                        requested = perRow,
+                        count = shown.size,
+                        width = constraints.maxWidth,
+                        gap = NOVA_PLAY_SETUP_CARD_GAP.roundToPx(),
+                        need = widestWord + NOVA_PLAY_SETUP_CARD_CHROME.roundToPx(),
                     )
                 }
             }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                shown.chunked(cardsPerRow).forEachIndexed { chunkIndex, chunk ->
+                    if (chunkIndex > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    // One height for the row, so a card whose sentence wrapped does not stand
+                    // taller than its neighbours.
+                    NovaEqualHeightCells(gap = NOVA_PLAY_SETUP_CARD_GAP) {
+                        chunk.forEach { option -> NovaPlaySetupComparisonCard(option = option) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * How many of [count] cards share a row [width] wide: [requested] at most, and fewer while a
+ * card would be narrower than [need], down to one.
+ */
+internal fun novaPlaySetupCardsPerRow(requested: Int, count: Int, width: Int, gap: Int, need: Int): Int {
+    var perRow = minOf(requested, count).coerceAtLeast(1)
+    while (perRow > 1 && (width - gap * (perRow - 1)) / perRow < need) perRow--
+    return perRow
+}
+
+/**
+ * Children side by side in equal cells [gap] apart, each as tall as the tallest. The height is
+ * each child's own at exactly its cell's width, so a card whose words wrap is never cut short by
+ * a row that guessed its width.
+ */
+@Composable
+internal fun NovaEqualHeightCells(gap: Dp, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content = content, modifier = modifier.fillMaxWidth()) { measurables, constraints ->
+        val count = measurables.size
+        if (count == 0) return@Layout layout(constraints.minWidth, 0) {}
+        val gapPx = gap.roundToPx()
+        val width = constraints.maxWidth
+        val cell = ((width - gapPx * (count - 1)) / count).coerceAtLeast(0)
+        val tallest = measurables.maxOf { it.minIntrinsicHeight(cell) }
+        val placeables = measurables.map {
+            it.measure(Constraints(minWidth = cell, maxWidth = cell, minHeight = tallest))
+        }
+        val height = placeables.maxOf { it.height }
+        layout(width, height) {
+            placeables.forEachIndexed { index, placeable -> placeable.placeRelative(index * (cell + gapPx), 0) }
         }
     }
 }
@@ -633,17 +689,18 @@ private fun NovaPlaySetupComparisonCard(
                 }
             },
     ) {
-        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
+        Box(modifier = Modifier.fillMaxWidth()) {
             // Wrapping onto as many lines as it needs: four cards across a handheld leave a
-            // label about eleven characters, and a name cut short names nothing (R13).
+            // label about eleven characters, and a name cut short names nothing (R13). The check
+            // stands in the corner the name keeps clear for it.
             Text(
                 text = option.label,
                 style = type.caption,
                 color = if (option.enabled) colors.textPrimary else colors.textMuted,
                 fontWeight = if (option.current) FontWeight.SemiBold else FontWeight.Medium,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.padding(end = if (option.current) NOVA_PLAY_SETUP_MARK_ROOM else 0.dp),
             )
-            if (option.current) NovaCurrentMark()
+            if (option.current) NovaCurrentMark(Modifier.align(Alignment.TopEnd))
         }
         if (option.consequence.isNotBlank()) {
             // The whole sentence, wrapping; the card grows to hold it and its row grows with it.
@@ -972,23 +1029,52 @@ internal fun NovaPlaySetupDestinations(
                 modifier = Modifier.padding(bottom = NovaPanelMetrics.SpaceSm),
             )
         }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-        ) {
-            options.forEachIndexed { index, option ->
-                NovaSteamChoiceRow(
-                    label = option.label,
-                    caption = option.consequence,
-                    enabled = option.enabled,
-                    onClick = option.onSelect,
-                    current = option.current,
-                    onFocused = { onFocused(index) },
-                    describeCaption = true,
-                    // A place the game cannot open in still has a reason to read.
-                    focusableWhenDisabled = true,
-                    modifier = focusModifier(option, index == focusIndex).weight(1f).fillMaxHeight(),
+        // As many places to a row as keep each name's and each reason's longest word whole beside the
+        // check and the chevron, down to one a row, where a place is a row like any other. Three
+        // across a handheld broke "Desktop" in two. The cards of a row share one height, each
+        // measured at its own width.
+        val measurer = rememberTextMeasurer()
+        val density = LocalDensity.current
+        val type = novaPanelType
+        val need = remember(options, type, density) {
+            val nameStyle = type.rowTitle.copy(fontWeight = FontWeight.SemiBold)
+            fun width(word: String, style: TextStyle) =
+                if (word.isBlank()) 0 else measurer.measure(word, style, softWrap = false, maxLines = 1).size.width
+            val words = options.maxOfOrNull { option ->
+                maxOf(
+                    option.label.split(' ').maxOf { width(it, nameStyle) },
+                    option.consequence.split(' ').maxOf { width(it, type.caption) },
                 )
+            } ?: 0
+            with(density) { words + NOVA_PLAY_SETUP_PLACE_CHROME.roundToPx() + width(OpensGlyph, type.value) }
+        }
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val perRow = novaPlaySetupCardsPerRow(
+                requested = options.size,
+                count = options.size,
+                width = constraints.maxWidth,
+                gap = with(density) { NOVA_PLAY_SETUP_CARD_GAP.roundToPx() },
+                need = need,
+            )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                options.withIndex().chunked(perRow).forEach { row ->
+                    NovaEqualHeightCells(gap = NOVA_PLAY_SETUP_CARD_GAP) {
+                        row.forEach { (index, option) ->
+                            NovaSteamChoiceRow(
+                                label = option.label,
+                                caption = option.consequence,
+                                enabled = option.enabled,
+                                onClick = option.onSelect,
+                                current = option.current,
+                                onFocused = { onFocused(index) },
+                                describeCaption = true,
+                                // A place the game cannot open in still has a reason to read.
+                                focusableWhenDisabled = true,
+                                modifier = focusModifier(option, index == focusIndex),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -1003,6 +1089,22 @@ private val NOVA_PLAY_SETUP_ROWS_FLOOR = 80.dp
 /** Drawn heights, kept beside the drawing so the two cannot drift apart unnoticed. */
 private val NOVA_PLAY_SETUP_COLUMN_HEAD = 16.dp
 private val NOVA_PLAY_SETUP_LEGEND_GAP = 4.dp
+
+/** Between the cards of a row, in the legend and among the places. */
+private val NOVA_PLAY_SETUP_CARD_GAP = 10.dp
+
+/** What a legend card needs besides its name: its side padding, and the check and its gap. */
+private val NOVA_PLAY_SETUP_CARD_CHROME = NovaPanelMetrics.SpaceMd * 2 + NovaPanelMetrics.CurrentMarkSize + NovaPanelMetrics.SpaceXs
+
+/**
+ * What a place's card needs besides its words: its side padding, and the check and the chevron
+ * with their gaps. The chevron's own width is measured.
+ */
+private val NOVA_PLAY_SETUP_PLACE_CHROME =
+    NovaPanelMetrics.SpaceMd * 2 + NovaPanelMetrics.SpaceMd + NovaPanelMetrics.CurrentMarkSize + NovaPanelMetrics.SpaceMd
+
+/** The room a current card's name keeps clear for the check at its end. */
+private val NOVA_PLAY_SETUP_MARK_ROOM = NovaPanelMetrics.CurrentMarkSize + NovaPanelMetrics.SpaceXs
 
 /** Between the plan and the rows under it. */
 private val NOVA_PLAY_SETUP_READ_GAP = 18.dp
