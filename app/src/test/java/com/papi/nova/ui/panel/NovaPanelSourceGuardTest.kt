@@ -108,8 +108,8 @@ class NovaPanelSourceGuardTest {
                 .toList()
         }
         assertEquals(
-            "fills and borders only ever mean focus (R9): a panel marks the current value with " +
-                "NovaCurrentMark, never with NovaActionSurface's selected fill",
+            "fills and borders only ever mean focus (R9): a panel marks the current value on its " +
+                "rows with NovaCurrentMark, never with a selected button",
             emptyList<String>(),
             offenders,
         )

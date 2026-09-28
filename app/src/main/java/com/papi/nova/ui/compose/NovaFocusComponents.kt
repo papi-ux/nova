@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -53,6 +54,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.papi.nova.R
+import com.papi.nova.ui.panel.NovaCurrentMark
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
@@ -271,6 +274,10 @@ fun NovaActionButton(
  * `onDestructive` on a primary destructive (the armed half of a split confirm). A destructive
  * action at rest has destructive text and a destructive hairline. Activation goes through
  * [novaClickable], so A acts on release and only on the surface that took the press.
+ *
+ * [selected] marks the current value the one way R9 allows: the check ([NovaCurrentMark]) after the
+ * content, selected semantics and the state description Current. It never fills the surface,
+ * because fills only ever mean focus.
  */
 @Composable
 fun NovaActionSurface(
@@ -302,15 +309,6 @@ fun NovaActionSurface(
         pressed && filled -> fill.copy(alpha = fill.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
         pressed && enabled -> surfaces.selectedControl.copy(alpha = surfaces.selectedControl.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
         filled -> fill
-        // `selected` used to reach the semantics tree and no colour branch, so a selected
-        // button looked exactly like an unselected one. Call sites worked around that by
-        // passing `primary = true` to mean "selected", which is why that flag ended up
-        // carrying two meanings.
-        // TODO(migration groups 3 and 4): R9 marks the current value with NovaCurrentMark only,
-        // and fills mean focus. The library and settings chips still pass `selected`; once they
-        // mark current with the check, the closing step drops this fill and its pin in
-        // NovaFocusSelectionTest. ui/panel never passes it (NovaPanelSourceGuardTest).
-        selected && enabled -> colors.accentSurface
         else -> surfaces.control
     }
     // A filled surface keeps its fill under focus; everything else takes the focused control fill.
@@ -327,6 +325,7 @@ fun NovaActionSurface(
         else -> surfaces.tileBorder
     }
     val alpha = if (enabled) 1f else NovaPanelMetrics.DisabledAlpha
+    val state = stateDescription ?: if (selected) stringResource(R.string.nova_panel_current) else null
 
     Box(
         modifier = modifier
@@ -345,7 +344,7 @@ fun NovaActionSurface(
                 if (selected) {
                     this.selected = true
                 }
-                stateDescription?.let { this.stateDescription = it }
+                state?.let { this.stateDescription = it }
                 role = Role.Button
             }
             .onFocusChanged {
@@ -365,6 +364,18 @@ fun NovaActionSurface(
             .padding(contentPadding),
         contentAlignment = contentAlignment
     ) {
-        content(contentColor, focused)
+        if (selected) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+            ) {
+                Box(Modifier.weight(1f, fill = false), contentAlignment = contentAlignment) {
+                    content(contentColor, focused)
+                }
+                NovaCurrentMark()
+            }
+        } else {
+            content(contentColor, focused)
+        }
     }
 }
