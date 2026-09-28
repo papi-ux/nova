@@ -1,7 +1,6 @@
 package com.papi.nova.preferences
 
 import android.app.Activity
-import android.content.DialogInterface
 import android.content.Context
 import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
@@ -36,6 +35,8 @@ import okio.BufferedSource
 import okio.Source
 import okio.Timeout
 import okio.buffer
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaSurfaces
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -47,7 +48,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
-import org.robolectric.shadows.ShadowAlertDialog
 import org.robolectric.shadows.ShadowToast
 
 @Config(sdk = [33])
@@ -405,25 +405,33 @@ class NovaUpdateRecoveryTest {
         assertEquals(2, downloaderCalls.get())
     }
 
+    // The install problems and the failed check were AlertDialogs; they are Notice pages in the
+    // right-edge panel now, so these drive the page's actions on the surfaces' state.
     @Test
     fun installResultPresenterRetriesCapturedReleaseOnlyForTransientFailure() {
         val controller = Robolectric.buildActivity(UpdateDialogTestActivity::class.java)
         val activity = controller.get().apply { setTheme(com.papi.nova.R.style.AppTheme) }
         controller.setup()
         var retriedRelease: NovaUpdateRelease? = null
+        var releasesOpened = 0
 
         NovaUpdateInstaller.showInstallResult(
             activity,
             release,
             NovaUpdateInstallResult.Failed("temporary network failure"),
             onRetry = { retriedRelease = it },
-            onViewReleases = {},
+            onViewReleases = { releasesOpened++ },
         )
-        ShadowAlertDialog.getLatestAlertDialog()
-            .getButton(DialogInterface.BUTTON_POSITIVE)
-            .performClick()
         Shadows.shadowOf(Looper.getMainLooper()).idle()
+        val failed = topNotice(activity)
+        assertEquals(activity.getString(com.papi.nova.R.string.nova_update_install_failed_title), failed.title)
+        assertEquals(activity.getString(com.papi.nova.R.string.nova_update_retry), failed.primary?.label)
+        failed.primary!!.run()
         assertSame(release, retriedRelease)
+        failed.help!!.run()
+        assertEquals("View releases is the page's second action", 1, releasesOpened)
+        NovaSurfaces.of(activity).panel.close()
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
 
         retriedRelease = null
         NovaUpdateInstaller.showInstallResult(
@@ -433,9 +441,12 @@ class NovaUpdateRecoveryTest {
             onRetry = { retriedRelease = it },
             onViewReleases = {},
         )
-        ShadowAlertDialog.getLatestAlertDialog()
-            .getButton(DialogInterface.BUTTON_POSITIVE)
-            .performClick()
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        val blocked = topNotice(activity)
+        assertEquals(activity.getString(com.papi.nova.R.string.nova_update_install_blocked_title), blocked.title)
+        assertEquals("a blocked install offers no retry", null, blocked.primary)
+        assertEquals("signer mismatch", blocked.message)
+        NovaSurfaces.of(activity).panel.close()
         Shadows.shadowOf(Looper.getMainLooper()).idle()
         assertEquals(null, retriedRelease)
 
@@ -448,7 +459,6 @@ class NovaUpdateRecoveryTest {
         )
         assertEquals(activity.getString(com.papi.nova.R.string.nova_update_installer_started), ShadowToast.getTextOfLatestToast())
 
-        val latestDialog = ShadowAlertDialog.getLatestAlertDialog()
         NovaUpdateInstaller.showInstallResult(
             activity,
             release,
@@ -456,11 +466,12 @@ class NovaUpdateRecoveryTest {
             onRetry = { retriedRelease = it },
             onViewReleases = {},
         )
-        assertSame(latestDialog, ShadowAlertDialog.getLatestAlertDialog())
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        assertFalse("the permission explainer already showed; the result adds nothing", NovaSurfaces.of(activity).panel.isOpen)
     }
 
     @Test
-    fun failedManualCheckDialogInvokesFreshRetryAction() {
+    fun failedManualCheckNoticeInvokesFreshRetryAction() {
         val controller = Robolectric.buildActivity(UpdateDialogTestActivity::class.java)
         val activity = controller.get().apply { setTheme(com.papi.nova.R.style.AppTheme) }
         controller.setup()
@@ -472,12 +483,19 @@ class NovaUpdateRecoveryTest {
             onRetry = { retryCalls += 1 },
             onViewReleases = {},
         )
-        ShadowAlertDialog.getLatestAlertDialog()
-            .getButton(DialogInterface.BUTTON_POSITIVE)
-            .performClick()
         Shadows.shadowOf(Looper.getMainLooper()).idle()
+        val notice = topNotice(activity)
+        assertEquals(activity.getString(com.papi.nova.R.string.nova_update_failed_title), notice.title)
+        assertTrue(notice.message.contains("offline"))
+        notice.primary!!.run()
 
         assertEquals(1, retryCalls)
+    }
+
+    private fun topNotice(activity: Activity): NovaCommonPage.Notice {
+        val top = NovaSurfaces.existing(activity)?.panel?.top
+        assertTrue("expected a Notice page on top, found $top", top is NovaCommonPage.Notice)
+        return top as NovaCommonPage.Notice
     }
 
     @Test

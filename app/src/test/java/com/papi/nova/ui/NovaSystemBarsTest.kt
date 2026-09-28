@@ -147,12 +147,10 @@ class NovaSystemBarsTest {
             Regex("\\b(Alert)?Dialog\\(\\n").findAll(settings).count(),
             Regex("NovaDialogWindow\\(\\)").findAll(settings).count(),
         )
-        // PcView's OTP pairing dialog was the one it adopted; it is a Form page in NovaPanelWindow now.
-        for (path in listOf(
-            "src/main/java/com/papi/nova/preferences/NovaListPreferenceDialogFragment.kt",
-        )) {
-            assertTrue("$path builds a shared dialog outside the sheet chrome and adopts its window", source(path).contains("NovaDialogWindows.adopt("))
-        }
+        // Both dialogs that were built outside the sheet chrome and adopted their own window are
+        // gone: PcView's OTP pairing dialog is a Form page in NovaPanelWindow, and legacy lists
+        // open there as Choice pages instead of NovaListPreferenceDialogFragment. NovaPanelWindow
+        // adopts its window (asserted below).
         // UiHelper's confirms and SpinnerDialog's waits no longer build a dialog of their own: they
         // open in NovaPanelWindow, which is the one window that has to adopt.
         assertTrue(

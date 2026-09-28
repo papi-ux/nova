@@ -1,25 +1,24 @@
 package com.papi.nova.preferences
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.util.AttributeSet
-import android.view.Gravity
-import android.widget.LinearLayout
-import android.widget.SeekBar
-import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import com.papi.nova.R
-import com.papi.nova.ui.NovaSheetChrome
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaFocusReturn
+import com.papi.nova.ui.panel.NovaSurfaces
 import java.util.Locale
 import kotlin.math.roundToInt
 
-// Based on a Stack Overflow example: http://stackoverflow.com/questions/1974193/slider-on-my-preferencescreen
+/**
+ * A number set on the legacy settings screen. A tap or A opens a Slider page in the right-edge
+ * panel: a track moved with Left and Right, an exact value, and Save. Focus returns to this row
+ * when the panel closes.
+ */
 class SeekBarPreference(context: Context, attrs: AttributeSet) : Preference(context, attrs) {
-    private var dialog: AlertDialog? = null
-    private var seekBar: SeekBar? = null
-    private var valueText: TextView? = null
-
-    private val dialogMessage: String?
     private val suffix: String?
     private val defaultValue: Int
     private val maxValue: Int
@@ -29,16 +28,7 @@ class SeekBarPreference(context: Context, attrs: AttributeSet) : Preference(cont
     private val divisor: Int
     private var currentValue = 0
 
-    private val seekbarMax: Int
-
     init {
-        val dialogMessageId = attrs.getAttributeResourceValue(ANDROID_SCHEMA_URL, "dialogMessage", 0)
-        dialogMessage = if (dialogMessageId == 0) {
-            attrs.getAttributeValue(ANDROID_SCHEMA_URL, "dialogMessage")
-        } else {
-            context.getString(dialogMessageId)
-        }
-
         val suffixId = attrs.getAttributeResourceValue(ANDROID_SCHEMA_URL, "text", 0)
         suffix = if (suffixId == 0) {
             attrs.getAttributeValue(ANDROID_SCHEMA_URL, "text")
@@ -53,119 +43,9 @@ class SeekBarPreference(context: Context, attrs: AttributeSet) : Preference(cont
         )
         maxValue = attrs.getAttributeIntValue(ANDROID_SCHEMA_URL, "max", 100)
         minValue = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "min", 1)
-        stepSize = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "step", 1)
+        stepSize = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "step", 1).coerceAtLeast(1)
         divisor = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "divisor", 1)
         keyStepSize = attrs.getAttributeIntValue(SEEKBAR_SCHEMA_URL, "keyStep", 0)
-        seekbarMax = maxValue - minValue
-    }
-
-    protected fun getDialog(): AlertDialog {
-        dialog?.let { return it }
-
-        val layout = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(6, 6, 6, 6)
-        }
-
-        val splashText = TextView(context).apply {
-            setPadding(30, 10, 30, 10)
-            dialogMessage?.let { text = it }
-        }
-        layout.addView(splashText)
-
-        valueText = TextView(context).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-            textSize = 32f
-            // Default text for value; hides bug where OnSeekBarChangeListener isn't called when opacity is 0%.
-            text = "0%"
-        }
-        layout.addView(
-            valueText,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        seekBar = SeekBar(context).apply {
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                    var value = progress + minValue
-                    if (value < minValue) {
-                        seekBar.progress = 0
-                        return
-                    }
-
-                    val roundedValue = (value.toFloat() / stepSize).roundToInt() * stepSize
-                    if (roundedValue != value) {
-                        seekBar.progress = roundedValue - minValue
-                        return
-                    }
-
-                    val valueLabel = if (divisor != 1) {
-                        val floatValue = roundedValue / divisor.toFloat()
-                        String.format(null as Locale?, "%.1f", floatValue)
-                    } else {
-                        value.toString()
-                    }
-                    valueText?.text = suffix?.let {
-                        valueLabel + if (it.length > 1) " $it" else it
-                    } ?: valueLabel
-                }
-
-                override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
-
-                override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
-            })
-        }
-        layout.addView(
-            seekBar,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        if (shouldPersist()) {
-            currentValue = getPersistedInt(defaultValue)
-        }
-
-        updateSeekbar()
-
-        val createdDialog = AlertDialog.Builder(context)
-            .setTitle(title)
-            .setView(layout)
-            .setPositiveButton("OK") { dialog, _ ->
-                val activeSeekBar = seekBar ?: return@setPositiveButton
-                if (shouldPersist()) {
-                    currentValue = activeSeekBar.progress + minValue
-                    persistInt(currentValue)
-                    callChangeListener(currentValue)
-                }
-                dialog.dismiss()
-            }
-            .setNegativeButton(context.getString(R.string.cancel)) { dialog, _ -> dialog.dismiss() }
-            .create()
-        createdDialog.setOnDismissListener {
-            if (dialog === createdDialog) {
-                dialog = null
-                seekBar = null
-                valueText = null
-            }
-        }
-        NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)
-        dialog = createdDialog
-        return createdDialog
-    }
-
-    protected fun updateSeekbar() {
-        seekBar?.apply {
-            max = seekbarMax
-            if (keyStepSize != 0) {
-                keyProgressIncrement = keyStepSize
-            }
-            progress = currentValue - minValue
-        }
     }
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
@@ -180,20 +60,61 @@ class SeekBarPreference(context: Context, attrs: AttributeSet) : Preference(cont
 
     fun setProgress(progress: Int) {
         currentValue = progress
-        seekBar?.progress = progress - minValue
     }
 
     fun getProgress(): Int = currentValue + minValue
 
+    /** The page this preference opens: its current value, the range, and Save. */
+    internal fun sliderPage(): NovaCommonPage.Slider {
+        if (shouldPersist()) currentValue = getPersistedInt(defaultValue)
+        return NovaCommonPage.Slider(
+            key = "slider:$key",
+            title = title?.toString().orEmpty(),
+            value = currentValue.coerceIn(minValue, maxValue.coerceAtLeast(minValue)),
+            range = minValue..maxValue.coerceAtLeast(minValue),
+            step = if (keyStepSize > 0) keyStepSize else stepSize,
+            format = ::format,
+            onSave = ::save,
+        )
+    }
+
     fun showDialog() {
-        val activeDialog = getDialog()
-        updateSeekbar()
-        activeDialog.show()
+        val activity = context.findActivity() ?: return
+        NovaSurfaces.of(activity).open(
+            root = sliderPage(),
+            edge = NovaEdge.End,
+            returnFocus = activity.currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None,
+        )
     }
 
     override fun onClick() {
         super.onClick()
         showDialog()
+    }
+
+    /** Saves [value], held to the preference's step, as the legacy slider did. */
+    private fun save(value: Int) {
+        val stepped = ((value.toFloat() / stepSize).roundToInt() * stepSize).coerceIn(minValue, maxValue.coerceAtLeast(minValue))
+        if (!shouldPersist()) return
+        currentValue = stepped
+        persistInt(stepped)
+        callChangeListener(stepped)
+    }
+
+    private fun format(value: Int): String {
+        val label = if (divisor != 1) {
+            String.format(null as Locale?, "%.1f", value / divisor.toFloat())
+        } else {
+            value.toString()
+        }
+        val unit = suffix ?: return label
+        return if (unit.length > 1) context.getString(R.string.nova_settings_value_with_unit, label, unit) else label + unit
+    }
+
+    private tailrec fun Context.findActivity(): Activity? = when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
     }
 
     companion object {

@@ -61,41 +61,45 @@ class KotlinPreferenceScreensMigrationTest {
 
         assertTrue(settingsScreen.contains("NovaSettingsCompactHeader"))
         assertTrue(settingsScreen.contains("NovaSettingsQuickStrip"))
-        assertTrue(settingsScreen.contains(".height(NovaSettingsMetrics.quickStripHeightDp().dp)"))
-        assertTrue(settingsScreen.contains(".heightIn(min = NovaSettingsMetrics.quickStripHeightDp().dp)"))
-        // The guarantee here is that settings names its two shapes once instead of inlining a
-        // corner at each call site -- not that they are any particular number. They were 14dp
-        // and 12dp, two of the thirteen values the app had accumulated; they are now the
-        // shared scale, which is the same guarantee held more tightly.
+        assertTrue(settingsScreen.contains(".heightIn(min = NovaSettingsMetrics.headerMinHeightDp().dp)"))
+        // The guarantee here is that settings names its shape once instead of inlining a corner
+        // at each call site, not that it is any particular number. Every other corner comes from
+        // the shared scale by name.
         assertTrue(settingsScreen.contains("NovaSettingsCardShape = RoundedCornerShape(NovaRadius.row)"))
-        assertTrue(settingsScreen.contains("NovaSettingsChipShape = RoundedCornerShape(NovaRadius.chip)"))
-        assertFalse(settingsScreen.contains(".height(44.dp)\n            .horizontalScroll"))
+        assertFalse(Regex("""RoundedCornerShape\(\d""").containsMatchIn(settingsScreen))
+        assertFalse(settingsScreen.contains(".horizontalScroll"))
         assertFalse(settingsScreen.contains("label = { Text(\"Search settings\") }"))
     }
 
+    // Was composeSettingsQuickStripAdvertisesHorizontalOverflow: the strip scrolled sideways and
+    // a gradient admitted the last pill was cut at the edge. R13 turns that around: the strip
+    // wraps onto a second line, so there is no overflow left to advertise.
     @Test
-    fun composeSettingsQuickStripAdvertisesHorizontalOverflow() {
+    fun composeSettingsQuickStripWrapsInsteadOfOverflowing() {
         val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+        val strip = settingsScreen.substringAfter("private fun NovaSettingsQuickStrip(")
+            .substringBefore("@Composable\nprivate fun NovaSettingPill(")
 
-        assertTrue(settingsScreen.contains("NovaSettingsQuickStripEdgeHint"))
-        assertTrue(settingsScreen.contains("Brush.horizontalGradient"))
-        assertTrue(settingsScreen.contains("horizontalScroll(scrollState)"))
-        assertTrue(settingsScreen.contains("fun rowsBottomPaddingDp(): Int = 72"))
-        assertTrue(settingsScreen.contains("fun quickPillWidthDp(): Int = 168"))
+        assertTrue(strip.contains("FlowRow("))
+        assertFalse(settingsScreen.contains("NovaSettingsQuickStripEdgeHint"))
+        assertFalse(settingsScreen.contains("Brush.horizontalGradient"))
+        assertFalse(settingsScreen.contains("horizontalScroll(scrollState)"))
     }
 
+    // Was composeSettingsSelectDialogShowsCurrentBadge. The select dialog is gone: a Select
+    // changes in its row or opens a Choice page, and the current value carries the one mark (R9),
+    // a trailing check drawn by the page, never a "Current" badge.
     @Test
-    fun composeSettingsSelectDialogShowsCurrentBadge() {
+    fun composeSettingsSelectsFollowTheOnePresentationRule() {
         val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
-        val selectDialog = settingsScreen.substringAfter("private fun NovaSelectDialog(")
-            .substringBefore("@Composable\nprivate fun NovaSliderDialog(")
+        val pages = File("src/main/java/com/papi/nova/preferences/NovaSettingsPages.kt").readText()
 
-        assertTrue(selectDialog.contains("selectedOption"))
-        assertTrue(selectDialog.contains("Current"))
-        assertTrue(selectDialog.contains("NovaSettingCurrentBadge"))
-        assertFalse(selectDialog.contains("AlertDialog("))
-        assertTrue(selectDialog.contains("Dialog("))
-        assertTrue(selectDialog.contains("NovaSettingsSelectOptionRow"))
+        assertTrue(settingsScreen.contains("definition.selectPresentation == NovaSelectPresentation.InPlace"))
+        assertTrue(settingsScreen.contains("ordered = definition.isOrderedScale"))
+        assertTrue(pages.contains("val NovaSettingDefinition.selectPresentation: NovaSelectPresentation"))
+        assertTrue(pages.contains("NovaCommonPage.Choice("))
+        assertFalse(settingsScreen.contains("NovaSettingCurrentBadge"))
+        assertFalse(settingsScreen.contains("nova_settings_current_badge"))
     }
 
     @Test
@@ -114,37 +118,43 @@ class KotlinPreferenceScreensMigrationTest {
         assertTrue(settingsScreen.contains("NovaThemeManager.setTheme(context, value.value)") && settingsScreen.contains("window.decorView.post") && settingsScreen.contains("activity.recreate()"))
     }
 
+    // Was composeSettingsRowsUseDenseScanningLayout, which pinned a value chip cut to one line.
+    // Values now change in the row itself (R1), and R13 forbids the cut: text wraps.
     @Test
-    fun composeSettingsRowsUseDenseScanningLayout() {
+    fun composeSettingsRowsChangeValuesInPlaceWithoutCuttingText() {
         val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
 
-        assertTrue(settingsScreen.contains("NovaSettingValueChip"))
-        assertTrue(settingsScreen.contains("widthIn(min = 92.dp, max = 220.dp)"))
-        assertTrue(settingsScreen.contains("heightIn(min = NovaSettingsMetrics.valueChipMinHeightDp().dp)"))
-        assertTrue(settingsScreen.contains("maxLines = 1"))
-        assertFalse(settingsScreen.contains("maxLines = 2"))
+        assertTrue(settingsScreen.contains("NovaValueRow("))
+        assertTrue(settingsScreen.contains("style = NovaValueStyle.Switch"))
+        assertTrue(settingsScreen.contains("NovaStepperRow("))
+        assertFalse(settingsScreen.contains("NovaSettingValueChip"))
+        assertFalse(settingsScreen.contains("maxLines = 1"))
     }
 
     @Test
     fun composeSettingsExposeSearchOverrideAndApplyStateControls() {
         val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
 
-        assertTrue(settingsScreen.contains("NovaSettingApplyBadge"))
-        assertTrue(settingsScreen.contains("NovaSettingOverrideBadge"))
+        assertTrue(settingsScreen.contains("R.string.nova_settings_applies_next_stream"))
+        assertTrue(settingsScreen.contains("R.string.nova_settings_profile_override"))
         assertTrue(settingsScreen.contains("onResetSetting"))
-        assertTrue(settingsScreen.contains("SearchResultSummary"))
-        assertTrue(settingsScreen.contains("Clear"))
+        assertTrue(settingsScreen.contains("R.string.nova_settings_search_results"))
+        assertTrue(settingsScreen.contains("R.string.nova_settings_search_clear"))
     }
 
+    // Was composeSettingsBBackHintHasActivityKeyHandler. StreamSettings handled B itself on key
+    // down; it now opts into the key gate, so B acts on release through the back dispatcher, and
+    // the language check moved from an onBackPressed override the gate never calls to a callback.
     @Test
-    fun composeSettingsBBackHintHasActivityKeyHandler() {
-        val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+    fun composeSettingsBGoesThroughTheKeyGateAndTheBackDispatcher() {
         val streamSettings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
 
-        assertTrue(settingsScreen.contains("R.string.nova_controller_hint_b"))
-        assertTrue(streamSettings.contains("override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean"))
-        assertTrue(streamSettings.contains("if (keyCode == KeyEvent.KEYCODE_BUTTON_B && !legacyMode)"))
-        assertTrue(streamSettings.contains("onBackPressed()\n            return true"))
+        assertTrue(streamSettings.contains("override val novaKeyGate: Boolean = true"))
+        assertTrue(streamSettings.contains("onBackPressedDispatcher.addCallback(this, leaveCallback)"))
+        assertTrue(streamSettings.contains("override fun handleOnBackPressed() = leaveSettings()"))
+        assertTrue(streamSettings.contains("onBack = ::leaveSettings"))
+        assertFalse(streamSettings.contains("override fun onKeyDown("))
+        assertFalse(streamSettings.contains("override fun onBackPressed()"))
     }
 
     @Test
@@ -171,8 +181,14 @@ class KotlinPreferenceScreensMigrationTest {
         assertTrue(settingsScreen.contains("NovaStreamHudContent("))
         assertTrue(settingsScreen.contains("NovaHudUiState.preview"))
         assertTrue(settingsScreen.contains("category_overlays"))
-        assertTrue(settingsScreen.contains("NovaThemePreviewSwatch"))
-        assertTrue(settingsScreen.contains("definition.key == \"nova_theme\""))
+        val pages = File("src/main/java/com/papi/nova/preferences/NovaSettingsPages.kt").readText()
+        // The private preview moved to the shared ui/compose/NovaThemeSwatch, which the theme
+        // Choice page draws beside each theme.
+        assertTrue(pages.contains("NovaThemeSwatch(option.value)"))
+        assertTrue(pages.contains("leading = if (key == THEME_KEY) themeSwatch else null"))
+        // The theme still applies at once when chosen: the check moved from the select dialog's
+        // preview flag to the write path, where it always was for applying.
+        assertTrue(settingsScreen.contains("definition.key != \"nova_theme\""))
     }
 
     @Test
@@ -185,7 +201,7 @@ class KotlinPreferenceScreensMigrationTest {
 
         assertTrue(preferences.contains("nova_reset_stream_ui"))
         assertTrue(settingsScreen.contains("resetStreamUiDefaults"))
-        assertTrue(settingsScreen.contains("definition.key == \"nova_theme\""))
+        assertTrue(settingsScreen.contains("definition.key != \"nova_theme\""))
         assertTrue(viewModel.contains("fun resetStreamUiDefaults()"))
         assertTrue(viewModel.contains("nova_polaris_hud"))
         assertTrue(viewModel.contains("nova_polaris_hud_mode"))

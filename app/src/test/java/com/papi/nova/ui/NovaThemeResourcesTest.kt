@@ -274,8 +274,10 @@ class NovaThemeResourcesTest {
 
     @Test
     fun legacyFocusableDrawablesUseThemeAttrsInsteadOfStaticPolarisAccent() {
+        // nova_dialog_choice_bg.xml went with the legacy list dialog it drew: legacy lists are
+        // Choice pages now, drawn by the panel foundation. nova_server_row_focus_ring.xml went
+        // when the host row took the one focus ring.
         val drawableFiles = listOf(
-            "src/main/res/drawable/nova_dialog_choice_bg.xml",
             "src/main/res/drawable/nova_chip_default.xml",
             "src/main/res/drawable/nova_chip_selected.xml",
             "src/main/res/drawable/nova_featured_action_bg.xml",
@@ -286,8 +288,6 @@ class NovaThemeResourcesTest {
             assertFalse("$path must not hardcode old Polaris violet", xml.contains("7C73FF", ignoreCase = true))
             assertFalse("$path must not bind reusable focus chrome to global nova_accent", xml.contains("@color/nova_accent"))
         }
-        assertTrue(File("src/main/res/drawable/nova_dialog_choice_bg.xml").readText().contains("?attr/colorAccent"))
-        assertTrue(File("src/main/res/drawable/nova_dialog_choice_bg.xml").readText().contains("?attr/colorControlHighlight"))
     }
 
 
@@ -439,15 +439,16 @@ class NovaThemeResourcesTest {
     @Test
     fun settingsMenuOpacitySliderPreviewsLiveAndRestoresOnCancel() {
         val settings = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
-        val sliderDialog = settings
-            .substringAfter("private fun NovaSliderDialog(")
-            .substringBefore("private fun NovaTextDialog(")
+        // The slider dialog is the exact-value Slider page now; its onPreview streams the value.
+        val sliderPage = settings
+            .substringAfter("private fun openSlider(")
+            .substringBefore("private fun NovaSettingsCompactHeader(")
 
-        assertTrue("Settings should preview Menu Opacity through owner-scoped process-local state while dragging", settings.contains("NovaMenuOpacityPreview.update(owner, percent)") && settings.contains("NovaMenuOpacityPreview.newOwner()") && sliderDialog.contains("onValueChange = { nextValue ->"))
+        assertTrue("Settings should preview Menu Opacity through owner-scoped process-local state while the page is on top", settings.contains("NovaMenuOpacityPreview.update(owner, percent)") && settings.contains("NovaMenuOpacityPreview.newOwner()") && sliderPage.contains("onPreview = if (opacity) menuOpacity::update else null"))
         assertFalse("live preview must not write the durable SharedPreferences key", settings.contains("NovaMenuPreferences.writeOpacityPercent(prefs"))
-        assertTrue("cancel and save should clear only the owning temporary preview", settings.contains("NovaMenuOpacityPreview::clear") && settings.contains("previewOwnerAtSave"))
-        assertTrue("Save should persist through the repository before clearing preview", sliderDialog.contains("onSave(definition, NovaSettingValue.IntValue(value.roundToInt()))"))
-        assertFalse("default Material slider dialogs should not be unconditionally restyled at 100%", sliderDialog.contains("containerColor = surfaces.panel") || sliderDialog.contains("tonalElevation = 0.dp"))
+        assertTrue("leaving the page and saving should clear only the owning temporary preview", settings.contains("NovaMenuOpacityPreview::clear") && settings.contains("previewOwnerAtSave") && settings.contains("if (topKey != MENU_OPACITY_PAGE_KEY) preview.clear()"))
+        assertTrue("Save should persist through the repository before clearing preview", sliderPage.contains("onValue(definition, NovaSettingValue.IntValue(value)) {") && sliderPage.contains("previewOwnerAtSave?.let(NovaMenuOpacityPreview::clear)"))
+        assertFalse("no Material slider dialog is left to restyle", settings.contains("AlertDialog(") || settings.contains("containerColor = surfaces.panel"))
     }
 
     @Test
@@ -532,12 +533,16 @@ class NovaThemeResourcesTest {
             "an in-tree panel must not blur its own controls through the Activity decor",
             playSetupPages.contains("scrim = NovaScrim.Stream") && !playSetupPages.contains("NovaScrim.Screen")
         )
-        assertTrue("Settings editors should blur the underlying Settings surface", settings.contains("NovaMenuBackdropBlur()"))
+        assertTrue(
+            "Settings editors are pages in the Settings pane itself, and the legacy screen's open in NovaPanelWindow, whose frame blurs what is under it",
+            settings.contains("NovaPageStackHost(") && !settings.contains("Dialog(") &&
+                File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText().contains("NovaMenuBackdropBlur()")
+        )
         assertTrue("native dialog blur should start on window attach and clear on detach", blur.contains("onViewAttachedToWindow") && blur.contains("isAttachedToWindow") && blur.contains("onViewDetachedFromWindow"))
         assertTrue("native sheets and alerts should share the same adaptive blur contract", sheetChrome.contains("NovaMenuBlur.attachBehindDialog"))
         assertTrue("dark-text native surfaces should retain a WCAG readability floor below 100%", sheetChrome.contains("NovaMenuPreferences.outerSurfaceAlpha") && sheetChrome.contains("ColorUtils.calculateLuminance"))
         assertTrue("Compose contrast scrims should use the stronger dark-text floor", composeTheme.contains("usesDarkText = textPrimary.luminance() < 0.5f"))
-        assertTrue("custom select dialogs should draw the theme-aware window contrast scrim only below compatibility opacity", settings.contains("NovaDialogContrastBackdrop()") && settings.contains("if (opacityScale < 1f)") && settings.contains("surfaces.backgroundScrim.toArgb()"))
+        assertFalse("Settings has no select dialog left to draw its own window scrim; its lists are pages", settings.contains("NovaDialogContrastBackdrop()"))
         assertTrue("unfocused native action strokes should disappear with menu glass", sheetChrome.contains("strokeAccentBlend * menuOpacityScale"))
         assertTrue("focused and pressed native action strokes should remain as readability cues", sheetChrome.contains("if (preservesFocusCue)"))
         assertTrue("session startup should release leases on explicit dismissal and unexpected view detach", progress.contains("NovaMenuBlur.acquireChildren") && progress.contains("releaseBackgroundBlur") && progress.contains("releaseOnUnexpectedDetach"))
@@ -561,7 +566,11 @@ class NovaThemeResourcesTest {
             "the game detail window raises no legacy alert at all: the preflight review expands the status line in place instead",
             !preflight.contains("AlertDialog.Builder") && preflight.contains("reviewExpanded")
         )
-        assertTrue("legacy sliders, including Menu & Drawer Opacity, should use shared literal-opacity alert chrome", legacySlider.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)"))
+        assertTrue(
+            "legacy sliders, including Menu & Drawer Opacity, open a Slider page on the screen's NovaSurfaces, whose panel uses the shared menu opacity and blur",
+            legacySlider.contains("NovaSurfaces.of(activity).open(") && legacySlider.contains("NovaCommonPage.Slider(") &&
+                !legacySlider.contains("AlertDialog")
+        )
         assertTrue(
             "session termination/error messages should post to NovaSurfaces, whose panel uses the shared menu opacity and blur",
             sessionDialog.contains("NovaSurfaces.of(activity)") &&

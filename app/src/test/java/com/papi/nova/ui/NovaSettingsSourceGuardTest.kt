@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -10,14 +11,15 @@ import org.junit.Test
  * Source guards for Modern Settings.
  *
  * Moved verbatim out of NovaComposeSourceGuardTest, so each migration group owns the guards
- * on its own files.
+ * on its own files. Group 4 moved Settings onto the panel foundation: its rows, rail and strip
+ * now take the one focus look, and its pane is a page stack.
  */
 class NovaSettingsSourceGuardTest {
     @Test
-    fun settingsRowsUseSharedFocusMotionAndHighContrastOutline() {
+    fun settingsFocusSurfacesUseTheOneFocusLook() {
         val settings = readNovaSettingsScreen()
-        // The settings search field is NovaSearchTextField now, so its share of this
-        // contract is checked where the code actually lives.
+        // The settings search field is NovaSearchTextField, so its share of this contract is
+        // checked where the code actually lives.
         val searchField = readSource("src/main/java/com/papi/nova/ui/compose/NovaSearchTextField.kt")
         val quickPill = settings.section(
             "private fun NovaSettingPill(",
@@ -25,26 +27,34 @@ class NovaSettingsSourceGuardTest {
         )
         val categoryRow = settings.section(
             "private fun NovaCategoryRow(",
-            "@Composable\nprivate fun NovaSettingsRows("
+            "@Composable\nprivate fun NovaPageScope.NovaSettingsRowsPage("
         )
         val settingRow = settings.section(
             "private fun NovaSettingRow(",
-            "@Composable\nprivate fun NovaSettingApplyBadge("
+            "@Composable\nprivate fun NovaSettingResetButton("
         )
 
-        listOf(searchField, quickPill, categoryRow, settingRow).forEach { section ->
+        assertTrue(
+            "the settings search field keeps the stronger 3dp controller outline",
+            searchField.contains(".novaFocusMotion(focused = focused, pressed = false)") &&
+                searchField.contains("if (focused) 3.dp else 1.dp")
+        )
+        listOf(quickPill, categoryRow).forEach { section ->
             assertTrue(
-                "settings focus surfaces should use Nova focus motion",
-                section.contains(".novaFocusMotion(focused = focused, pressed = false)")
-            )
-            assertTrue(
-                "settings focus surfaces should match the stronger 3dp controller outline",
-                // Matched ".border(if (focused) 3.dp" before, which is one spelling of the
-                // rule. The shared search field passes the same widths as named arguments and
-                // was no less compliant for it, so the check is on the widths themselves.
-                section.contains("if (focused) 3.dp else 1.dp")
+                "settings focus surfaces take the one focus look: the 3dp ring inside the shape, no scale, no halo",
+                section.contains(".novaFocusRing(") && section.contains(".novaClickable(")
             )
         }
+        assertTrue(
+            "settings rows are the foundation's rows, which carry the one focus look themselves",
+            settingRow.contains("NovaValueRow(") &&
+                settingRow.contains("NovaStepperRow(") &&
+                settingRow.contains("NovaRow(")
+        )
+        assertFalse(
+            "the settings rows' scale 1.025 and halo went with the one focus look",
+            settings.contains("novaFocusMotion") || settings.contains("if (focused) 3.dp")
+        )
     }
 
     @Test
@@ -52,39 +62,15 @@ class NovaSettingsSourceGuardTest {
         val settings = readNovaSettingsScreen()
         val content = settings.section(
             "fun NovaSettingsContent(",
-            "@Composable\nprivate fun novaSettingsControllerHints()"
+            "@Composable\nprivate fun NovaSettingsCompactHeader("
         )
         val quickStrip = settings.section(
             "private fun NovaSettingsQuickStrip(",
             "@Composable\nprivate fun NovaSettingPill("
         )
-        val quickPill = settings.section(
-            "private fun NovaSettingPill(",
-            "@Composable\nprivate fun NovaSettingsCategoryRail("
-        )
         val categoryRail = settings.section(
             "private fun NovaSettingsCategoryRail(",
             "@Composable\nprivate fun NovaSettingsCategoryChips("
-        )
-        val categoryRow = settings.section(
-            "private fun NovaCategoryRow(",
-            "@Composable\nprivate fun NovaSettingsRows("
-        )
-        val rows = settings.section(
-            "private fun NovaSettingsRows(",
-            "@Composable\nprivate fun NovaSettingRow("
-        )
-        val settingRow = settings.section(
-            "private fun NovaSettingRow(",
-            "@Composable\nprivate fun NovaSettingApplyBadge("
-        )
-        val applyBadge = settings.section(
-            "private fun NovaSettingApplyBadge(",
-            "@Composable\nprivate fun NovaSettingValueChip("
-        )
-        val valueChip = settings.section(
-            "private fun NovaSettingValueChip(",
-            "@Composable\nprivate fun NovaSettingDialog("
         )
 
         assertTrue(
@@ -92,53 +78,57 @@ class NovaSettingsSourceGuardTest {
             settings.contains("private object NovaSettingsMetrics") &&
                 settings.contains("fun categoryRailWidthDp(): Int = 196") &&
                 settings.contains("fun wideColumnSpacingDp(): Int = 14") &&
-                settings.contains("fun quickStripHeightDp(): Int = 52") &&
-                settings.contains("fun quickPillWidthDp(): Int = 168") &&
                 settings.contains("fun headerToQuickStripSpacingDp(): Int = 6") &&
                 settings.contains("fun quickStripToContentSpacingDp(): Int = 6") &&
-                settings.contains("fun contentToHintSpacingDp(): Int = 4") &&
-                settings.contains("fun settingsRowSpacingDp(): Int = 6") &&
-                settings.contains("fun categoryRowVerticalPaddingDp(): Int = 6") &&
-                settings.contains("fun settingsRowVerticalPaddingDp(): Int = 6") &&
-                settings.contains("fun valueChipMinHeightDp(): Int = 28")
+                settings.contains("fun categoryRailSpacingDp(): Int = 6")
         )
         assertTrue(
             "wide Settings should give browsing rows more room by narrowing the category rail and spacing",
             content.contains(".width(NovaSettingsMetrics.categoryRailWidthDp().dp)") &&
                 content.contains("Arrangement.spacedBy(NovaSettingsMetrics.wideColumnSpacingDp().dp)") &&
                 content.contains("Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))") &&
-                content.contains("Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))") &&
-                content.contains("Spacer(Modifier.height(NovaSettingsMetrics.contentToHintSpacingDp().dp))")
+                content.contains("Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))")
         )
         assertTrue(
-            "quick settings should stay useful but stop dominating Retroid first paint height",
-            quickStrip.contains(".height(NovaSettingsMetrics.quickStripHeightDp().dp)") &&
-                quickPill.contains(".width(NovaSettingsMetrics.quickPillWidthDp().dp)") &&
-                quickPill.contains(".heightIn(min = NovaSettingsMetrics.quickStripHeightDp().dp)")
+            "the pane is a page stack whose own hint row sits under the rows, so rows never clip the controls",
+            content.contains("NovaPageStackHost(") && content.contains("hints = hints")
+        )
+        // The strip was a fixed 52dp row that scrolled sideways and cut its last pill at the edge,
+        // with a gradient to say so. R13: it wraps instead, so every pill is whole.
+        assertTrue(
+            "the quick strip wraps onto a second line rather than scrolling sideways",
+            quickStrip.contains("FlowRow(") && !quickStrip.contains("horizontalScroll")
+        )
+        assertFalse(
+            "no settings text is cut to one line with an ellipsis",
+            settings.contains("TextOverflow.Ellipsis") || settings.contains("maxLines = 1")
         )
         assertTrue(
-            "category rail and rows should use compact spacing/padding so more settings are visible above the hint bar",
+            "the category rail keeps its compact spacing and pads its ends so no category is cut at rest",
             categoryRail.contains("Arrangement.spacedBy(NovaSettingsMetrics.categoryRailSpacingDp().dp)") &&
-                categoryRow.contains("vertical = NovaSettingsMetrics.categoryRowVerticalPaddingDp().dp") &&
-                rows.contains("Arrangement.spacedBy(NovaSettingsMetrics.settingsRowSpacingDp().dp)") &&
-                rows.contains("PaddingValues(bottom = NovaSettingsMetrics.rowsBottomPaddingDp().dp)") &&
-                settingRow.contains("vertical = NovaSettingsMetrics.settingsRowVerticalPaddingDp().dp")
+                categoryRail.contains("contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm)")
         )
+    }
+
+    @Test
+    fun settingsOpensNothingInAWindowOfItsOwn() {
+        val settings = readNovaSettingsScreen()
+        val composer = readSource("src/main/java/com/papi/nova/preferences/NovaDisplayRoleComposer.kt")
+
+        listOf(settings, composer).forEach { source ->
+            assertFalse(
+                "a Settings list, slider or text field is a page in the pane, never a dialog (R2, R4)",
+                Regex("""(?<!\w)(Alert)?Dialog\(""").containsMatchIn(source) ||
+                    source.contains("NovaDialogWindow()") ||
+                    source.contains("NovaSelectDialogShell")
+            )
+        }
         assertTrue(
-            "Settings text should declare compact line heights instead of inheriting oversized Material body metrics on RP6",
-            quickPill.contains("lineHeight = 11.sp") &&
-                quickPill.contains("lineHeight = 14.sp") &&
-                categoryRow.contains("lineHeight = 16.sp") &&
-                categoryRow.contains("lineHeight = 12.sp") &&
-                settingRow.contains("lineHeight = 16.sp") &&
-                settingRow.contains("lineHeight = 13.sp") &&
-                applyBadge.contains("lineHeight = 11.sp") &&
-                valueChip.contains("lineHeight = 14.sp")
-        )
-        assertTrue(
-            "value chips should be compact enough to preserve title/summary room in the right column",
-            valueChip.contains(".widthIn(min = 92.dp, max = 220.dp)") &&
-                valueChip.contains(".heightIn(min = NovaSettingsMetrics.valueChipMinHeightDp().dp)")
+            "the pane pushes the host's own pages for lists, exact values and text",
+            settings.contains("novaSelectChoicePage(") &&
+                settings.contains("NovaCommonPage.Slider(") &&
+                settings.contains("novaTextFormPage(") &&
+                settings.contains("SettingsPage.DisplayRole(")
         )
     }
 

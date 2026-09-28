@@ -3,7 +3,6 @@
 package com.papi.nova.preferences
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -16,26 +15,21 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Vibrator
-import android.text.InputFilter
-import android.text.InputType
 import android.text.TextUtils
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import android.view.DisplayCutout
-import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
-import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.NovaActivity
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.FileProvider
-import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.CheckBoxPreference
@@ -43,7 +37,6 @@ import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
-import androidx.preference.PreferenceDialogFragmentCompat
 import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
@@ -56,10 +49,16 @@ import com.papi.nova.PcView
 import com.papi.nova.R
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardControllerConfigurationLoader
 import com.papi.nova.binding.video.MediaCodecHelper
-import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaFocusReturn
+import com.papi.nova.ui.panel.NovaSurfaces
+import com.papi.nova.binding.video.PyroWaveAvailability
+import androidx.compose.ui.text.AnnotatedString
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.FileUriUtils
 import com.papi.nova.utils.HelpLauncher
@@ -82,6 +81,18 @@ class StreamSettings : NovaActivity() {
     private var previousDisplayPixelCount = 0
     private var prefsFragment: SettingsFragment? = null
     private var legacyMode = false
+
+    /** A acts on release and B goes back through the dispatcher; the screen has no key handling of its own. */
+    override val novaKeyGate: Boolean = true
+
+    /**
+     * Back leaves Settings, from the legacy screen and from Compose Settings when its pane has
+     * nothing left to go back through. The key gate and the back gesture reach the dispatcher
+     * directly, never an onBackPressed override, so the language check lives here.
+     */
+    private val leaveCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() = leaveSettings()
+    }
 
     fun reloadSettings() {
         if (!legacyMode) {
@@ -109,6 +120,7 @@ class StreamSettings : NovaActivity() {
 
         previousPrefs = PreferenceConfiguration.readPreferences(this)
         UiHelper.setLocale(this)
+        onBackPressedDispatcher.addCallback(this, leaveCallback)
         if (shouldShowComposeSettings()) {
             showComposeSettings()
         } else {
@@ -154,7 +166,7 @@ class StreamSettings : NovaActivity() {
                             R.string.nova_settings_subtitle_with_version,
                             NovaAppVersion.current()
                         ),
-                        onBack = { finish() },
+                        onBack = ::leaveSettings,
                         onOpenLegacy = {
                             NovaSettingsFeatureFlags.setComposeSettingsEnabled(this@StreamSettings, false)
                             showLegacySettings()
@@ -285,26 +297,23 @@ class StreamSettings : NovaActivity() {
                 NovaAppVersion.current()
             )
         }
-        val builder = AlertDialog.Builder(this)
-            .setTitle(R.string.nova_update_available_title)
-            .setMessage(message)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setNeutralButton(R.string.nova_update_release_notes) { _, _ ->
-                HelpLauncher.launchUrl(this, release.releaseUrl)
-            }
-
-        if (release.apkDownloadUrl != null) {
-            builder.setPositiveButton(R.string.nova_update_download_apk) { _, _ ->
-                startNovaUpdateInstall(release)
-            }
+        val primary = if (release.apkDownloadUrl != null) {
+            NovaAction(getString(R.string.nova_update_download_apk)) { startNovaUpdateInstall(release) }
         } else {
-            builder.setPositiveButton(R.string.nova_update_open_release) { _, _ ->
-                HelpLauncher.launchUrl(this, release.releaseUrl)
-            }
+            NovaAction(getString(R.string.nova_update_open_release)) { HelpLauncher.launchUrl(this, release.releaseUrl) }
         }
-
-        val dialog = builder.show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
+        NovaSurfaces.of(this).present(
+            NovaCommonPage.Notice(
+                key = "nova-update-available",
+                title = getString(R.string.nova_update_available_title),
+                message = message,
+                primary = primary,
+                closeLabel = getString(R.string.nova_panel_close),
+                help = NovaAction(getString(R.string.nova_update_release_notes)) {
+                    HelpLauncher.launchUrl(this, release.releaseUrl)
+                },
+            ),
+        )
     }
 
     private fun startNovaUpdateInstall(release: NovaUpdateRelease) {
@@ -341,21 +350,21 @@ class StreamSettings : NovaActivity() {
     }
 
     private fun showNovaUpdateCurrent(release: NovaUpdateRelease) {
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.nova_update_current_title)
-            .setMessage(
-                getString(
+        NovaSurfaces.of(this).present(
+            NovaCommonPage.Notice(
+                key = "nova-update-current",
+                title = getString(R.string.nova_update_current_title),
+                message = getString(
                     R.string.nova_update_current_message,
                     NovaAppVersion.current(),
                     release.tagName
-                )
-            )
-            .setPositiveButton(android.R.string.ok, null)
-            .setNeutralButton(R.string.nova_update_view_releases) { _, _ ->
-                HelpLauncher.launchUrl(this, release.releaseUrl)
-            }
-            .show()
-        NovaSheetChrome.applyAlertDialogChrome(dialog)
+                ),
+                closeLabel = getString(R.string.nova_panel_close),
+                help = NovaAction(getString(R.string.nova_update_view_releases)) {
+                    HelpLauncher.launchUrl(this, release.releaseUrl)
+                },
+            ),
+        )
     }
 
     private fun showNovaUpdateError(error: Throwable) {
@@ -392,16 +401,13 @@ class StreamSettings : NovaActivity() {
         }
     }
 
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BUTTON_B && !legacyMode) {
-            onBackPressed()
-            return true
-        }
-        return super.onKeyDown(keyCode, event)
-    }
-
-    override fun onBackPressed() {
-        super.onBackPressed()
+    /**
+     * Leaves Settings. A changed language restarts the app so every screen picks it up: before
+     * Android 13 at the host list, and from 13 on only when the language went back to the system
+     * default, which a running process cannot take.
+     */
+    private fun leaveSettings() {
+        finish()
 
         val newPrefs = PreferenceConfiguration.readPreferences(this)
         if (newPrefs.language != previousPrefs.language) {
@@ -1130,11 +1136,6 @@ class StreamSettings : NovaActivity() {
             }
 
             findPreference<EditTextPreference>(PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING)?.let { bitrateEditPref ->
-                bitrateEditPref.setOnBindEditTextListener { editText: EditText ->
-                    editText.inputType = InputType.TYPE_NUMBER_FLAG_DECIMAL
-                    editText.filters = arrayOf(InputFilter.LengthFilter(5))
-                }
-
                 bitrateEditPref.setOnPreferenceChangeListener { _, newValue ->
                     val value = newValue as String
                     if (TextUtils.isEmpty(value)) {
@@ -1149,11 +1150,6 @@ class StreamSettings : NovaActivity() {
             }
 
             findPreference<EditTextPreference>(PreferenceConfiguration.CUSTOM_RESOLUTION_PREF_STRING)?.let { resolutionEditPref ->
-                resolutionEditPref.setOnBindEditTextListener { editText: EditText ->
-                    editText.inputType = InputType.TYPE_CLASS_TEXT
-                    editText.filters = arrayOf(InputFilter.LengthFilter(11))
-                }
-
                 resolutionEditPref.setOnPreferenceChangeListener { _, newValue ->
                     val value = newValue as String
                     if (TextUtils.isEmpty(value)) {
@@ -1190,10 +1186,6 @@ class StreamSettings : NovaActivity() {
                     R.string.summary_custom_refresh_rate_display_cap,
                     Math.round(maxDisplayRefreshRate)
                 )
-                customRefreshRatePref.setOnBindEditTextListener { editText: EditText ->
-                    editText.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
-                    editText.filters = arrayOf(InputFilter.LengthFilter(7))
-                }
 
                 customRefreshRatePref.setOnPreferenceChangeListener { _, newValue ->
                     val value = newValue as String
@@ -1329,33 +1321,82 @@ class StreamSettings : NovaActivity() {
             }
         }
 
+        /**
+         * The one route for the legacy screen's dialogs: each opens as a page in the right-edge
+         * panel, and focus returns to its preference row when the panel closes. Lists are Choice
+         * pages that open on the current value, text is a Form page, the display target is the
+         * role composer, and resetting the on-screen controls is a destructive Confirm, because a
+         * preference row has no button to split.
+         */
         override fun onDisplayPreferenceDialog(preference: Preference) {
-            if (preference is ConfirmDeleteOscPreference) {
-                val dialogFragment: DialogFragment =
-                    ConfirmDeleteOscPreference.DialogFragmentCompat.newInstance(preference.key)
-                dialogFragment.setTargetFragment(this, 0)
-                dialogFragment.show(parentFragmentManager, null)
-            } else if (preference is ConfirmDeleteKeyboardPreference) {
-                val dialogFragment: DialogFragment =
-                    ConfirmDeleteKeyboardPreference.DialogFragmentCompat.newInstance(preference.key)
-                dialogFragment.setTargetFragment(this, 0)
-                dialogFragment.show(parentFragmentManager, null)
-            } else if (
+            val activity = requireActivity()
+            val page = when {
+                preference is ConfirmDeleteOscPreference -> resetControlsPage(preference)
                 preference is ListPreference &&
-                preference.key == PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING
-            ) {
-                val dialogFragment: DialogFragment =
-                    NovaDisplayRoleComposerDialogFragment.newInstance(preference.key)
-                dialogFragment.setTargetFragment(this, 0)
-                dialogFragment.show(parentFragmentManager, null)
-            } else if (preference is ListPreference) {
-                val dialogFragment: DialogFragment =
-                    NovaListPreferenceDialogFragment.newInstance(preference.key)
-                dialogFragment.setTargetFragment(this, 0)
-                dialogFragment.show(parentFragmentManager, null)
-            } else {
-                super.onDisplayPreferenceDialog(preference)
+                    preference.key == PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING -> displayRolePage(preference)
+                preference is ListPreference -> listChoicePage(preference)
+                preference is EditTextPreference -> textFormPage(preference)
+                else -> null
             }
+            if (page == null) {
+                super.onDisplayPreferenceDialog(preference)
+                return
+            }
+            NovaSurfaces.of(activity).open(
+                root = page,
+                edge = NovaEdge.End,
+                returnFocus = activity.currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None,
+            ) { shown ->
+                if (shown is SettingsPage.DisplayRole) NovaDisplayRolePage(shown)
+            }
+        }
+
+        private fun listChoicePage(preference: ListPreference): NovaCommonPage {
+            val context = requireContext()
+            val values = preference.entryValues.orEmpty().map { it.toString() }
+            val options = preference.entries.orEmpty().zip(values).map { (label, value) ->
+                NovaSettingOption(label = label.toString(), value = value)
+            }
+            val pyroWave = if (needsPyroWaveCheck(preference.key, values)) {
+                PyroWaveAvailability.inspect(context.applicationContext)
+            } else {
+                null
+            }
+            return novaSelectChoicePage(
+                key = preference.key,
+                title = preference.title?.toString().orEmpty(),
+                options = novaSelectOptions(context, preference.key, options, pyroWave),
+                current = preference.value,
+                onChoose = { value -> if (preference.callChangeListener(value)) preference.value = value },
+            )
+        }
+
+        private fun textFormPage(preference: EditTextPreference): NovaCommonPage = novaTextFormPage(
+            context = requireContext(),
+            key = preference.key,
+            title = preference.title?.toString().orEmpty(),
+            current = preference.text.orEmpty(),
+            risky = true,
+            onSave = { value -> if (preference.callChangeListener(value)) preference.text = value },
+        )
+
+        private fun displayRolePage(preference: ListPreference): SettingsPage = SettingsPage.DisplayRole(
+            title = getString(R.string.title_display_role_composer),
+            currentTarget = preference.value ?: com.papi.nova.utils.AndroidStreamDisplayTarget.AUTO,
+            onApply = { target -> if (preference.callChangeListener(target)) preference.value = target },
+        )
+
+        private fun resetControlsPage(preference: ConfirmDeleteOscPreference): NovaCommonPage {
+            val context = requireContext()
+            return NovaCommonPage.Confirm(
+                key = "reset-osc",
+                title = (preference.dialogTitle ?: preference.title)?.toString().orEmpty(),
+                message = AnnotatedString(preference.dialogMessage?.toString().orEmpty()),
+                stayLabel = getString(R.string.nova_panel_keep),
+                actionLabel = getString(R.string.nova_settings_reset_controls),
+                destructive = true,
+                onConfirm = { ConfirmDeleteOscPreference.resetControls(context) },
+            )
         }
 
         private fun getJsonContent(context: Context, file: File): File? {
@@ -1393,60 +1434,5 @@ class StreamSettings : NovaActivity() {
     companion object {
         @JvmField
         var displayCutoutP: DisplayCutout? = null
-    }
-}
-
-class NovaDisplayRoleComposerDialogFragment : PreferenceDialogFragmentCompat() {
-    private val listPreference: ListPreference
-        get() = preference as ListPreference
-
-    override fun onCreateDialogView(context: Context): View {
-        val currentTarget = listPreference.value
-            ?: com.papi.nova.utils.AndroidStreamDisplayTarget.AUTO
-        return ComposeView(context).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-            setContent {
-                NovaComposeTheme {
-                    NovaDisplayRoleComposerLegacyPanel(
-                        currentTarget = currentTarget,
-                        onDismiss = { dismiss() },
-                        onApply = ::applyTarget,
-                    )
-                }
-            }
-        }
-    }
-
-    override fun onPrepareDialogBuilder(builder: androidx.appcompat.app.AlertDialog.Builder) {
-        super.onPrepareDialogBuilder(builder)
-        builder.setTitle(null)
-        builder.setPositiveButton(null, null)
-        builder.setNegativeButton(null, null)
-    }
-
-    override fun onStart() {
-        super.onStart()
-        val width = resources.displayMetrics.widthPixels * 86 / 100
-        dialog?.window?.setLayout(width, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
-    }
-
-    override fun onDialogClosed(positiveResult: Boolean) = Unit
-
-    private fun applyTarget(target: String) {
-        if (listPreference.callChangeListener(target)) {
-            listPreference.value = target
-        }
-        dismiss()
-    }
-
-    companion object {
-        @JvmStatic
-        fun newInstance(preferenceKey: String): NovaDisplayRoleComposerDialogFragment {
-            return NovaDisplayRoleComposerDialogFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_KEY, preferenceKey)
-                }
-            }
-        }
     }
 }
