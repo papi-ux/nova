@@ -76,6 +76,29 @@ class NovaActivatableComposeTest {
     }
 
     @Test
+    fun aFocusedElementInsideAnotherActsAndTheOuterOneDoesNot() {
+        var outer = 0
+        var inner = 0
+        val outerFocus = FocusRequester()
+        val innerFocus = FocusRequester()
+        val keys = rule.setPanelContent {
+            // A card with a button inside it: A belongs to whichever of the two has focus.
+            Box(Modifier.size(120.dp).focusRequester(outerFocus).novaClickable { outer++ }) {
+                Box(Modifier.size(48.dp).focusRequester(innerFocus).novaClickable { inner++ })
+            }
+        }
+        focus(innerFocus)
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(1, inner)
+        assertEquals("the card saw the press on its way down and left it alone", 0, outer)
+
+        focus(outerFocus)
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(1, outer)
+        assertEquals(1, inner)
+    }
+
+    @Test
     fun aPressAndReleaseOnTheSameElementActivatesOnce() {
         val keys = setUp()
         focus(x)

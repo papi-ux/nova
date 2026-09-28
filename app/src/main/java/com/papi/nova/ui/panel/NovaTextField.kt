@@ -6,8 +6,11 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -61,10 +64,13 @@ internal val LocalNovaPrepareKeyboard = staticCompositionLocalOf<() -> Unit> { {
  *
  * The field is read-only until it is opened: A (on release) or a tap opens it and raises the
  * keyboard, and D-pad focus alone never does. Any direction key closes it and moves focus that
- * way. While it is open, B hides only the keyboard, first in the back chain. The keyboard's
+ * way. While it is open, B hides only the keyboard, first in the back chain. The field closes
+ * with the keyboard however the keyboard goes: a remote's or the RP6's Back key, the back gesture
+ * and the keyboard's own hide key reach the keyboard first and never the window. The keyboard's
  * action key runs [onImeAction]. With [openOnStart], used when a page was opened by touch, it
  * opens as soon as it is shown. [error] shows in the destructive colour under the field.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NovaTextField(
     value: String,
@@ -88,10 +94,15 @@ fun NovaTextField(
     val requester = remember { FocusRequester() }
     val latch = remember { NovaPressLatch() }
     var editing by remember { mutableStateOf(false) }
+    // Whether the keyboard has been seen up since the field opened, so its show animation, which
+    // starts hidden, never reads as the keyboard going away.
+    var sawKeyboard by remember { mutableStateOf(false) }
+    val keyboardUp = WindowInsets.isImeVisible
     val shape = RoundedCornerShape(NovaRadius.row)
 
     fun open() {
         prepareKeyboard()
+        sawKeyboard = false
         editing = true
         requester.requestFocus()
         keyboard?.show()
@@ -103,7 +114,16 @@ fun NovaTextField(
         direction?.let(focusManager::moveFocus)
     }
 
-    NovaBackHandler(active = editing) { close() }
+    LaunchedEffect(keyboardUp, editing) {
+        when {
+            !editing -> Unit
+            keyboardUp -> sawKeyboard = true
+            // The keyboard hid itself: the field closes with it, so the next B pops the page.
+            sawKeyboard -> editing = false
+        }
+    }
+    // Where no keyboard shows (a hardware keyboard), B still closes the open field first.
+    NovaBackHandler(active = editing && (keyboardUp || !sawKeyboard)) { close() }
     LaunchedEffect(Unit) {
         if (openOnStart) {
             withFrameNanos { }

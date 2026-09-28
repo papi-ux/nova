@@ -16,6 +16,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.KeyInputModifierNode
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.TraversableNode
+import androidx.compose.ui.node.traverseDescendants
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.semantics.Role
 import com.papi.nova.ui.NovaControllerTouchMode
@@ -173,15 +175,18 @@ internal fun KeyEvent.asCenter(): KeyEvent = KeyEvent(
  * here. While disabled it still consumes those keys and does nothing, as a disabled row must.
  *
  * Put it directly before the focus target (`focusable()`), where Compose delivers the focused
- * element's keys; [novaClickable] does.
+ * element's keys; [novaClickable] does. Keys reach every ancestor of the focused element first,
+ * so on its own it would also answer for a focused element inside it; [novaClickable] does not,
+ * and an element with focusable content uses that.
  */
 fun Modifier.novaActivatable(enabled: Boolean = true, onActivate: () -> Unit): Modifier =
-    this then NovaActivatableElement(enabled, onActivate)
+    this then NovaActivatableElement(enabled, onActivate, yieldsToContent = false)
 
 /**
  * The clickable every foundation component uses: [novaActivatable] for keys, `clickable` for
  * touch, TalkBack and the press interaction, and `focusable()` so the element can hold focus in
- * touch mode. Screen code a pad can reach uses it instead of `clickable`.
+ * touch mode. Screen code a pad can reach uses it instead of `clickable`. When focus is on an
+ * element inside this one, such as a button in a card, A belongs to that element.
  *
  * [focusableWhenDisabled] keeps a disabled element a focus stop, so a row can show why it is
  * disabled and swallow A.
@@ -193,7 +198,7 @@ fun Modifier.novaClickable(
     focusableWhenDisabled: Boolean = false,
     onClick: () -> Unit,
 ): Modifier = this
-    .novaActivatable(enabled = enabled, onActivate = onClick)
+    .then(NovaActivatableElement(enabled, onClick, yieldsToContent = true))
     .clickable(
         interactionSource = interactionSource,
         indication = null,
@@ -202,16 +207,19 @@ fun Modifier.novaClickable(
         onClick = onClick,
     )
     .focusable(enabled = enabled || focusableWhenDisabled, interactionSource = interactionSource)
+    .then(NovaContentFocusElement)
 
 private data class NovaActivatableElement(
     val enabled: Boolean,
     val onActivate: () -> Unit,
+    val yieldsToContent: Boolean,
 ) : ModifierNodeElement<NovaActivatableNode>() {
-    override fun create() = NovaActivatableNode(enabled, onActivate)
+    override fun create() = NovaActivatableNode(enabled, onActivate, yieldsToContent)
 
     override fun update(node: NovaActivatableNode) {
         node.enabled = enabled
         node.onActivate = onActivate
+        node.yieldsToContent = yieldsToContent
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -223,12 +231,15 @@ private data class NovaActivatableElement(
 private class NovaActivatableNode(
     var enabled: Boolean,
     var onActivate: () -> Unit,
+    var yieldsToContent: Boolean,
 ) : Modifier.Node(), KeyInputModifierNode, FocusEventModifierNode {
     private val latch = NovaPressLatch()
 
     override fun onPreKeyEvent(event: ComposeKeyEvent): Boolean {
         val native = event.nativeKeyEvent
         if (!NovaKeys.isActivation(native.keyCode)) return false
+        // A focused element inside this one gets the press on its own way down.
+        if (yieldsToContent && contentHasFocus()) return false
         when (event.type) {
             KeyEventType.KeyDown -> if (native.repeatCount == 0) latch.press(native.keyCode)
             KeyEventType.KeyUp -> if (latch.release(native.keyCode) && !native.isCanceled && enabled) onActivate()
@@ -240,6 +251,40 @@ private class NovaActivatableNode(
 
     override fun onFocusEvent(focusState: FocusState) {
         if (!focusState.hasFocus) latch.clear()
+    }
+
+    /** Whether focus is below this element's own focus targets, as its [NovaContentFocusNode] sees. */
+    private fun contentHasFocus(): Boolean {
+        var inside = false
+        // The first one found is this element's own: it closes this modifier chain.
+        traverseDescendants(NovaActivationTraverseKey) { node ->
+            inside = (node as? NovaContentFocusNode)?.contentHasFocus == true
+            TraversableNode.Companion.TraverseDescendantsAction.CancelTraversal
+        }
+        return inside
+    }
+}
+
+private object NovaActivationTraverseKey
+
+/** Placed after an element's own focus targets, it sees whether focus is on something inside. */
+private class NovaContentFocusNode : Modifier.Node(), FocusEventModifierNode, TraversableNode {
+    override val traverseKey: Any get() = NovaActivationTraverseKey
+    var contentHasFocus: Boolean = false
+        private set
+
+    override fun onFocusEvent(focusState: FocusState) {
+        contentHasFocus = focusState.hasFocus
+    }
+}
+
+private data object NovaContentFocusElement : ModifierNodeElement<NovaContentFocusNode>() {
+    override fun create() = NovaContentFocusNode()
+
+    override fun update(node: NovaContentFocusNode) = Unit
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "novaContentFocus"
     }
 }
 

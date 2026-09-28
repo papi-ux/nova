@@ -11,6 +11,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
@@ -197,6 +200,32 @@ class NovaPageStackHostComposeTest {
     }
 
     @Test
+    fun whenTheKeyboardHidesItselfTheFieldClosesAndTheNextBPops() {
+        state.open(TestPage("rows"))
+        state.push(TestPage("deep"))
+        val keys = setUp()
+        val field = rule.onNodeWithContentDescription("Name")
+        field.requestFocus()
+        keys.press(NovaTestKeys.CENTER)
+        field.assert(SemanticsMatcher.expectValue(SemanticsProperties.IsEditable, true))
+
+        rule.runOnUiThread { ViewCompat.dispatchApplyWindowInsets(keys.view, keyboard(up = true)) }
+        rule.waitForIdle()
+        // A remote's Back hides the keyboard inside the IME; nothing reaches the window.
+        rule.runOnUiThread { ViewCompat.dispatchApplyWindowInsets(keys.view, keyboard(up = false)) }
+        rule.waitForIdle()
+
+        field.assert(SemanticsMatcher.expectValue(SemanticsProperties.IsEditable, false))
+        keys.back()
+        assertEquals("the next B pops the page, with nothing left to close first", 1, state.depth)
+    }
+
+    private fun keyboard(up: Boolean): WindowInsetsCompat = WindowInsetsCompat.Builder()
+        .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, if (up) KEYBOARD_HEIGHT else 0))
+        .setVisible(WindowInsetsCompat.Type.ime(), up)
+        .build()
+
+    @Test
     fun anOwnerPageFollowingIsTopSeesItLeaveWhenAPageIsPushed() {
         state.open(TestPage("watcher"))
         val keys = setUp()
@@ -247,5 +276,9 @@ class NovaPageStackHostComposeTest {
             listOf(KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1),
             outside,
         )
+    }
+
+    private companion object {
+        const val KEYBOARD_HEIGHT = 300
     }
 }
