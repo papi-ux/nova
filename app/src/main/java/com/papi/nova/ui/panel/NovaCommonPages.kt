@@ -390,15 +390,18 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPage
             },
             modifier = Modifier.novaInitialFocus(),
         )
+        // A range that goes below zero, such as trackpad sensitivity at -200 to 200, takes a minus
+        // sign as well as digits: without it a negative value could be stepped to but not typed.
+        val negatives = page.range.first < 0
         NovaTextField(
             value = typed,
             onValueChange = { text ->
-                typed = text.filter(Char::isDigit)
+                typed = novaExactValueText(text, negatives)
                 typed.toIntOrNull()?.let { value = it.coerceIn(page.range) }
             },
             label = stringResource(R.string.nova_panel_exact_value),
-            kind = NovaFieldKind.Number,
-            maxLength = page.range.last.toString().length,
+            kind = if (negatives) NovaFieldKind.SignedNumber else NovaFieldKind.Number,
+            maxLength = maxOf(page.range.first.toString().length, page.range.last.toString().length),
             modifier = Modifier.fillMaxWidth(),
         )
         NovaPanelButton(
@@ -408,6 +411,16 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPage
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+/**
+ * What an exact number field keeps of [text]: its digits, and a leading minus sign when [negatives]
+ * says the range goes below zero. A lone "-" is kept so a negative can be typed a key at a time;
+ * it reads as no number yet and leaves the value where it was.
+ */
+internal fun novaExactValueText(text: String, negatives: Boolean): String {
+    val digits = text.filter(Char::isDigit)
+    return if (negatives && text.trimStart().startsWith("-")) "-$digits" else digits
 }
 
 /** A focused track moved with Left and Right by [step], stopping at the ends of [range]. */

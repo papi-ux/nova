@@ -133,7 +133,8 @@ fun NovaTextField(
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
         Text(text = label, style = type.caption, color = colors.textSecondary)
-        NovaInPlaceKeyboard {
+        // Compose has no signed number keyboard, so the field asks the keyboard for the minus key itself.
+        NovaInPlaceKeyboard(signedNumber = kind == NovaFieldKind.SignedNumber) {
             BasicTextField(
                 value = value,
                 onValueChange = { next -> onValueChange(maxLength?.let(next::take) ?: next) },
@@ -218,7 +219,7 @@ fun NovaTextField(
 private val NovaFieldKind.keyboardType: KeyboardType
     get() = when (this) {
         NovaFieldKind.Text -> KeyboardType.Text
-        NovaFieldKind.Number -> KeyboardType.Number
+        NovaFieldKind.Number, NovaFieldKind.SignedNumber -> KeyboardType.Number
         NovaFieldKind.Password -> KeyboardType.Password
         NovaFieldKind.Url -> KeyboardType.Uri
     }

@@ -14,6 +14,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.text.AnnotatedString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -280,6 +281,46 @@ class NovaCommonPagesComposeTest {
         assertEquals(30, saved)
         assertEquals(1, state.depth)
         assertEquals(listOf(20, 25, 30), previews)
+    }
+
+    @Test
+    fun theExactFieldTakesAMinusSignOnlyWhereTheRangeGoesBelowZero() {
+        assertEquals("-150", novaExactValueText("-150", negatives = true))
+        assertEquals("a lone minus is kept while the number is typed", "-", novaExactValueText("-", negatives = true))
+        assertEquals("one sign, and only in front", "-12", novaExactValueText("-1-2", negatives = true))
+        assertEquals("150", novaExactValueText("-150", negatives = false))
+        assertEquals("150", novaExactValueText("1a5 0", negatives = false))
+    }
+
+    @Test
+    fun aNegativeValueCanBeTypedAndSaved() {
+        var saved: Int? = null
+        state.open(TestPage("root"))
+        state.push(
+            NovaCommonPage.Slider(
+                key = "sensitivity",
+                title = "Trackpad sensitivity",
+                value = 20,
+                range = -200..200,
+                step = 10,
+                format = { "$it%" },
+                onSave = { saved = it },
+            ),
+        )
+        val keys = host()
+        rule.onNodeWithText("20%").assertIsFocused()
+        keys.press(NovaTestKeys.DOWN)
+        val field = rule.onNodeWithText("20")
+        field.assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        field.assert(SemanticsMatcher.expectValue(SemanticsProperties.IsEditable, true))
+        field.performTextReplacement("-150")
+        rule.onNodeWithText("-150%").assertExists()
+
+        keys.press(NovaTestKeys.DOWN)
+        rule.onNodeWithText("Save").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(-150, saved)
     }
 
     @Test

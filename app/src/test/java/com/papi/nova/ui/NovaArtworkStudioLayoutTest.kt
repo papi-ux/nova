@@ -1,9 +1,11 @@
 package com.papi.nova.ui
 
+import android.text.InputType
 import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.papi.nova.ui.compose.novaInPlaceImeOptions
+import com.papi.nova.ui.compose.novaInPlaceInputType
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -75,7 +77,18 @@ class NovaArtworkStudioLayoutTest {
             "the studio's search field lost the results it narrows behind a full screen of keyboard; " +
                 "it is NovaTextField now, which types in place",
             read("NovaArtworkStudio.kt").contains("NovaTextField(") &&
-                read("panel/NovaTextField.kt").contains("NovaInPlaceKeyboard {")
+                read("panel/NovaTextField.kt").contains("NovaInPlaceKeyboard(signedNumber = kind == NovaFieldKind.SignedNumber) {")
+        )
+        assertEquals(
+            "a number that may go below zero asks for the minus key, and nothing else changes",
+            InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED,
+            novaInPlaceInputType(InputType.TYPE_CLASS_NUMBER, signedNumber = true),
+        )
+        assertEquals(InputType.TYPE_CLASS_NUMBER, novaInPlaceInputType(InputType.TYPE_CLASS_NUMBER, signedNumber = false))
+        assertEquals(
+            "a text field is never turned into a number",
+            InputType.TYPE_CLASS_TEXT,
+            novaInPlaceInputType(InputType.TYPE_CLASS_TEXT, signedNumber = true),
         )
         val panels = read("NovaGameDetailDestinations.kt")
         assertTrue(
