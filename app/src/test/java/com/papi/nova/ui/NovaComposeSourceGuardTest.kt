@@ -1747,18 +1747,25 @@ class NovaComposeSourceGuardTest {
     fun sharedComposeFocusControlsUseHighContrastTreatment() {
         val focusComponents = readNovaFocusComponents()
         val actionButton = focusComponents.substring(focusComponents.indexOf("fun NovaActionButton("))
+        // The panel foundation gave every Nova control one focus look, drawn once by
+        // Modifier.novaFocusRing: a fill plus a 3dp ring inside the shape, with no scale and no
+        // halo. The action button pins below follow it there; the chip pins are unchanged.
+        val focusRing = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelTokens.kt")
         val selectableChip = readNovaLibraryActivity().section(
             "private fun NovaSelectableChip(",
             "private fun NovaLibraryPanel("
         )
 
         assertTrue(
-            "action buttons should reserve a stronger focused outline",
-            actionButton.contains("focused -> 3.dp")
+            "action buttons should reserve a stronger focused outline: the one 3dp focus ring",
+            actionButton.contains(".novaFocusRing(") &&
+                focusRing.contains("val FocusRingWidth: Dp = 3.dp") &&
+                focusRing.contains("lerp(restBorderWidth, NovaPanelMetrics.FocusRingWidth, amount)")
         )
         assertTrue(
             "action buttons should use the focused control surface on D-pad focus",
-            actionButton.contains("focused -> surfaces.selectedControl")
+            actionButton.contains("else surfaces.selectedControl") &&
+                actionButton.contains("focusedFill = focusedContainer")
         )
         assertTrue(
             "selectable chips should use the same 3dp focused outline",
@@ -1782,11 +1789,10 @@ class NovaComposeSourceGuardTest {
                 selectableChip.contains(".combinedClickable(")
         )
         assertTrue(
-            "shared Compose focus controls should use the Nova focus motion modifier",
-            focusComponents.contains("internal fun Modifier.novaFocusMotion(") &&
-                focusComponents.contains("animateFloatAsState(") &&
-                focusComponents.contains("NovaFocusMotionSpec.ButtonPressedScale") &&
-                actionButton.contains(".novaFocusMotion(")
+            "shared Compose focus controls should animate the one focus look over 150ms, with no scale and no halo",
+            focusRing.contains("const val FocusMillis = 150") &&
+                focusRing.contains("progress.animateTo(if (now) 1f else 0f, tween(NovaPanelMetrics.FocusMillis))") &&
+                !actionButton.contains(".novaFocusMotion(")
         )
     }
 

@@ -52,4 +52,19 @@ object NovaChromeType {
         fontSize = fontSize,
         letterSpacing = letterSpacing,
     )
+
+    const val CODE_TRACKING_EM = 0.12f
+
+    /**
+     * @brief Large digits to read off the screen and type elsewhere, such as the pairing PIN.
+     *
+     * The same face as the chrome labels, because a code is also read as an instrument rather
+     * than as text, with lighter tracking so four digits stay one word.
+     */
+    fun code(fontSize: TextUnit): TextStyle = TextStyle(
+        fontFamily = NovaChromeFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = fontSize,
+        letterSpacing = CODE_TRACKING_EM.em,
+    )
 }
