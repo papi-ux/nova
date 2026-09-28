@@ -19,6 +19,7 @@ import org.json.JSONException
 import org.json.JSONObject
 
 class ComputerDatabaseManager(c: Context) {
+    private val wakeMacOverrides = WakeMacOverrides(c)
     private var computerDb: SQLiteDatabase
 
     init {
@@ -92,6 +93,7 @@ class ComputerDatabaseManager(c: Context) {
 
     fun deleteComputer(details: ComputerDetails) {
         computerDb.delete(COMPUTER_TABLE_NAME, "$COMPUTER_UUID_COLUMN_NAME=?", arrayOf(details.uuid))
+        wakeMacOverrides.remove(details.uuid)
     }
 
     fun updateComputer(details: ComputerDetails): Boolean {
@@ -170,6 +172,7 @@ class ComputerDatabaseManager(c: Context) {
 
         details.externalPort = details.remoteAddress?.port ?: NvHTTP.DEFAULT_HTTP_PORT
         details.macAddress = c.getString(3)
+        details.manualWakeMacAddress = wakeMacOverrides.get(details.uuid)
 
         val derCertData = c.getBlob(4)
         if (derCertData != null) {

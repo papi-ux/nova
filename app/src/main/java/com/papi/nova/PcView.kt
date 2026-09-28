@@ -1580,7 +1580,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (details.state == ComputerDetails.State.ONLINE && firstOnline == null) {
                 firstOnline = candidate
             }
-            if (details.macAddress != null && firstWakeable == null) {
+            if (details.wakeMacAddress != null && firstWakeable == null) {
                 firstWakeable = candidate
             }
             if (rememberedUuid != null && rememberedUuid == details.uuid) {
@@ -2134,6 +2134,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         menu.manage(action("test_network", R.string.pcview_menu_test_network, R.string.pcview_sheet_caption_test_network, R.drawable.ic_language)) {
             ServerHelper.doNetworkTest(this)
         }
+        menu.manage(action("wake_address", R.string.wol_address_title, R.string.wol_address_caption, R.drawable.ic_edit)) {
+            showWakeAddressDialog(details)
+        }
         menu.manage(action("details", R.string.pcview_menu_details, R.string.pcview_sheet_caption_details, R.drawable.ic_help)) {
             Dialog.displayDialog(this, getString(R.string.title_details), details.toString(), false)
         }
@@ -2484,13 +2487,35 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
     }
 
+    private fun showWakeAddressDialog(computer: ComputerDetails) {
+        com.papi.nova.ui.showWakeMacAddressEditor(this, computer) { value, complete ->
+            val binder = managerBinder
+            if (binder == null) {
+                complete(false)
+            } else {
+                runtimeTasks.launchIo("NovaWakeAddress") {
+                    val saved = try {
+                        binder.setWakeMacAddress(computer.uuid, value)
+                    } catch (error: RuntimeException) {
+                        LimeLog.warning("Could not save wake address (${error.javaClass.simpleName})")
+                        false
+                    }
+                    runtimeTasks.runOnMainIfActive {
+                        if (saved) computer.manualWakeMacAddress = WakeOnLanSender.usableMacAddress(value)
+                        complete(saved)
+                    }
+                }
+            }
+        }
+    }
+
     private fun doWakeOnLan(computer: ComputerDetails) {
         if (computer.state == ComputerDetails.State.ONLINE) {
             NovaSnackbar.show(this, resources.getString(R.string.wol_pc_online))
             return
         }
 
-        if (computer.macAddress == null) {
+        if (computer.wakeMacAddress == null) {
             NovaSnackbar.showError(this, resources.getString(R.string.wol_no_mac))
             return
         }

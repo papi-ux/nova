@@ -121,7 +121,7 @@ class ShortcutTrampoline : NovaActivity() {
                             val targetComputer = computer
                             if (
                                 details.state != ComputerDetails.State.ONLINE &&
-                                details.macAddress != null &&
+                                details.wakeMacAddress != null &&
                                 --wakeHostTries >= 0
                             ) {
                                 try {

@@ -98,7 +98,7 @@ internal fun novaHostSheetCopy(details: ComputerDetails): NovaHostSheetCopy {
     if (details.state == ComputerDetails.State.OFFLINE) {
         return NovaHostSheetCopy(
             statusRes = R.string.pcview_card_status_offline,
-            hintRes = if (details.macAddress != null) {
+            hintRes = if (details.wakeMacAddress != null) {
                 R.string.pcview_card_hint_wake
             } else {
                 R.string.pcview_card_hint_offline_no_wake
