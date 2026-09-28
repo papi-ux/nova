@@ -36,28 +36,22 @@ class NovaHostsScreenLayoutTest {
 
     @Test
     fun aBottomSheetStandsOnTheBottomOfTheScreen() {
-        val chrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
-        val release = chrome.substringAfter("private fun releaseRoomKeptForHiddenBars(").substringBefore("fun landscapeSheetWidth(")
-        val windows = File("src/main/java/com/papi/nova/ui/NovaDialogWindows.kt").readText()
+        // The Material sheets are gone; a portrait panel is the panel frame's own sheet, in a window
+        // drawn behind the bars.
+        val frame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
+        val window = File("src/main/java/com/papi/nova/ui/panel/NovaPanelWindow.kt").readText()
+        val sheet = frame.substringAfter("private fun BoxScope.NovaPanelSheet(")
         assertTrue(
             "measured on a Retroid Pocket 6: Material's container kept padB=55 for a navigation bar reported with " +
-                "vis=false, so every sheet stood 24dp above the glass with its square end showing",
-            release.contains("com.google.android.material.R.id.container") &&
-                release.contains("container.fitsSystemWindows = false") &&
-                release.contains("container.setPadding(0, 0, 0, 0)")
+                "vis=false, so every sheet stood 24dp above the glass with its square end showing; the panel window " +
+                "draws behind the bars and its sheet stands on the bottom edge",
+            window.contains("WindowCompat.setDecorFitsSystemWindows(window, false)") &&
+                sheet.contains(".align(Alignment.BottomCenter)")
         )
         assertTrue(
-            "clearing the flag alone changed nothing twice: the container fits itself again on the next inset pass " +
-                "unless it is given a listener that does not",
-            release.contains("container.setOnApplyWindowInsetsListener { _, insets -> insets }")
-        )
-        assertTrue(
-            "it runs once the sheet is attached, which is when Material turns the fitting on, and only where the " +
-                "bars really are hidden: a sheet over the stream always, a Nova screen when the setting is on",
-            chrome.contains("        measuredView.post {\n            releaseRoomKeptForHiddenBars(dialog, barsHidden)") &&
-                chrome.contains("barsHidden = NovaDialogWindows.adopt(context, window)") &&
-                windows.contains("fun adopt(context: Context, window: Window): Boolean {") &&
-                windows.contains("return NovaSystemBars.isHidden(context)")
+            "the sheet keeps clear of a bar that is showing inside its own surface, from the insets there are now, " +
+                "so a hidden bar leaves no band under it",
+            sheet.contains(".windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))")
         )
     }
 

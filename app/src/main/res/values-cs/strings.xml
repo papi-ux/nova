@@ -135,7 +135,6 @@
     <string name="nettest_text_blocked">Vaše současné připojení k síti blokuje Nova. Streamování přes Internet nemusí fungovat, dokud jste připojeni k této síti.</string>
     <string name="pair_pc_ingame">Na počítači momentálně běží hra. Před párováním musíte hru zavřít.</string>
     <string name="pair_pairing_title">Párování</string>
-    <string name="pair_pairing_msg">Vložte prosím následující PIN na cílovém PC:</string>
     <string name="pair_incorrect_pin">Nesprávný PIN</string>
     <string name="pair_fail">Párování selhalo</string>
     <string name="pair_already_in_progress">Párování již probíhá</string>
@@ -149,8 +148,6 @@
     <string name="frame_conversion_error">Hostitelský počítač hlásí fatální chybu enkódování videa.
 \n
 \nZkuste vypnout HDR, změňte rozlišení streamu nebo rozlišení displeje hostitelského PC.</string>
-    <string name="yes">Ano</string>
-    <string name="no">Ne</string>
     <string name="lost_connection">Připojení k PC bylo ztraceno</string>
     <string name="title_details">Detaily</string>
     <string name="perf_overlay_renderingfps">Vykreslovací snímková frekvence: %1$.2f FPS</string>
@@ -161,7 +158,6 @@
     <string name="applist_quit_app">Ukončování</string>
     <string name="applist_quit_success">Úspěšně ukončeno</string>
     <string name="applist_quit_fail">Ukončení se nezdařilo</string>
-    <string name="applist_quit_confirmation">Určitě chcete ukončit běžící aplikaci\? Neuložená data budou ztracena.</string>
     <string name="msg_add_pc">Připojování k PC…</string>
     <string name="addpc_unknown_host">Nezdařilo se připojit k adrese PC. Ujistěte se, že v adrese není překlep.</string>
     <string name="addpc_wrong_sitelocal">Tahle adresa nevypadá správně. Musíte zadat veřejnou IP vašeho routeru, pokud chcete streamovat přes Internet.</string>
@@ -203,8 +199,6 @@
     <string name="help_loading_title">Zobrazení nápovědy</string>
     <string name="wol_waking_msg">Může trvat pár sekund, než se váš počítač probudí. Pokud se tak nestane, ujistěte se, že máte správně nastaveno Wake-On-LAN.</string>
     <string name="wol_fail">Nezdařilo se odeslat Wake-On-LAN pakety</string>
-    <string name="help">Nápověda</string>
-    <string name="delete_pc_msg">Určitě chcete smazat tento PC\?</string>
     <string name="slow_connection_msg">Pomalé připojení k PC
 \nSnižte datový tok</string>
     <string name="poor_connection_msg">Špatné připojení k PC</string>

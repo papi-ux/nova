@@ -8,7 +8,6 @@
     <string name="scut_invalid_app_id">Provided App is not valid</string>
 
     <string name="menu_button">Menu</string>
-    <string name="quick_menu_title">Quick Menu</string>
     <string name="configuration_mode_move_buttons">Move buttons mode</string>
     <string name="configuration_mode_resize_buttons">Resize buttons mode</string>
     <string name="configuration_mode_disable_enable_buttons">Enable/Disable buttons mode</string>
@@ -135,15 +134,6 @@
     <string name="pcview_update_pill_retry_snackbar">Could not check Nova updates. Tap the Update Pill to retry.</string>
     <string name="pcview_quick_settings">Settings</string>
     <string name="pcview_theme_picker_title">Choose theme</string>
-    <string name="pcview_theme_picker_hint">D-pad moves focus. Select a theme to apply.</string>
-    <string name="pcview_theme_picker_focus_format">Focused: %1$s · %2$s</string>
-    <string name="pcview_theme_picker_current_badge">Current</string>
-    <string name="pcview_theme_polaris_subtitle">Polaris blue cockpit · balanced dark streaming shell</string>
-    <string name="pcview_theme_portable_chrome_subtitle">Smoked graphite handheld chrome profile · dim silver shell · PlayStation-symbol accents</string>
-    <string name="pcview_theme_oled_subtitle">OLED black · high contrast console glow</string>
-    <string name="pcview_theme_miami_subtitle">Miami neon · flamingo pink glow · cyan/aqua night drive</string>
-    <string name="pcview_theme_high_contrast_subtitle">Maximum contrast · accessibility-first focus states</string>
-    <string name="pcview_theme_material_you_subtitle">System dynamic colors when Android supports them</string>
     <string name="pcview_filter_all">All</string>
     <string name="pcview_filter_online">Online</string>
     <string name="pcview_filter_streaming">Streaming</string>
@@ -223,10 +213,6 @@
     <string name="nova_library_auto_quality_on">AI On</string>
     <string name="nova_library_auto_quality_off">AI Off</string>
     <string name="nova_library_mode_checking">Mode</string>
-    <string name="nova_library_active_session_title">Active Session</string>
-    <string name="nova_library_active_session_owner_format">Running on %1$s</string>
-    <string name="nova_library_active_session_viewer_count_one">%1$d viewer</string>
-    <string name="nova_library_active_session_viewer_count_many">%1$d viewers</string>
     <string name="nova_library_continue_label">Continue</string>
     <string name="nova_library_continue_empty">No recent</string>
     <string name="nova_library_continue_count">%1$d recent</string>
@@ -238,16 +224,13 @@
     <string name="nova_library_filter_steam">Steam</string>
     <string name="nova_library_filter_action">Action</string>
     <string name="nova_library_filter_cinematic">Cinematic</string>
-    <string name="nova_library_filter_sources">Sources</string>
     <string name="nova_library_filter_hdr">HDR</string>
     <string name="nova_library_filter_more">More</string>
     <string name="nova_library_filter_desktop">Desktop</string>
     <string name="nova_library_filter_vr">VR</string>
     <string name="nova_library_filter_other_source">Other</string>
     <string name="nova_library_filter_sheet_sources">Sources</string>
-    <string name="nova_library_filter_sheet_sources_hint">Choose which launcher or store this library view should show.</string>
     <string name="nova_library_filter_sheet_more">More Filters</string>
-    <string name="nova_library_filter_sheet_more_hint">Narrow the grid by category or genre.</string>
     <string name="nova_library_filter_all_sources">All Sources</string>
     <string name="nova_library_filter_all_sources_hint">Show every library source.</string>
     <string name="nova_library_filter_source_count">%1$d games</string>
@@ -356,8 +339,6 @@
     <string name="nova_play_setup_steam_big_picture">Opens Big Picture first, which takes the controller until the game starts.</string>
     <string name="nova_play_setup_every_game_caption">Host defaults and paired-device profile for every game</string>
     <string name="nova_play_setup_scope_this_game">This Game</string>
-    <string name="nova_play_setup_scope_key">Y</string>
-    <string name="nova_play_setup_scope_cd">Play Setup scope. %1$s selected.</string>
     <string name="nova_play_setup_press_show">show its choices</string>
     <string name="nova_play_setup_press_change">change it</string>
     <string name="nova_play_setup_host_read_title">What the host defaults to</string>
@@ -482,7 +463,6 @@
     <string name="nova_controller_hint_options">Options</string>
     <string name="nova_controller_hint_library">Library</string>
     <string name="nova_controller_hint_layout">Layout</string>
-    <string name="nova_controller_hint_filters">Filters</string>
     <string name="nova_controller_hint_library_system">Library / System</string>
     <string name="nova_controller_hint_launch">Launch</string>
     <string name="nova_controller_hint_close">Close</string>
@@ -607,8 +587,6 @@
     <string name="nova_polaris_sync_nova_profile">Nova</string>
     <string name="nova_polaris_sync_polaris_profile">Polaris</string>
     <string name="nova_polaris_sync_unset">Unset</string>
-    <string name="nova_polaris_sync_close">Close</string>
-    <string name="nova_polaris_sync_close_cd">Close Polaris Sync</string>
     <string name="nova_polaris_sync_status_saved_relaunch">Saved, applies after relaunch</string>
     <string name="nova_polaris_sync_status_selected">Selected</string>
     <string name="nova_polaris_sync_status_active_now">Active now</string>
@@ -652,9 +630,6 @@
     <string name="pair_pc_offline">Computer is offline</string>
     <string name="pair_pc_ingame">Computer is currently in a game. You must close the game before pairing.</string>
     <string name="pair_pairing_title">Pairing</string>
-    <string name="pair_pairing_msg">Please enter the following PIN on the target PC:</string>
-    <string name="pair_pairing_help">If your host provides a pairing page in its web UI, open it and enter the PIN there.</string>
-    <string name="pair_otp_pairing_msg">Pairing, please wait…</string>
     <string name="pair_otp_pairing_help">OTP pairing is only available on hosts that support it. If your host uses manual PIN entry, enter the code in the host web UI instead.</string>
     <string name="pair_incorrect_pin">Incorrect PIN or Passphrase</string>
     <string name="pair_fail">Pairing failed</string>
@@ -730,14 +705,8 @@
     <!-- General strings -->
     <string name="ip_hint">IP address of host PC</string>
     <string name="searching_pc">Searching for host PCs on your local network…\n\nMake sure your host streaming software is running.</string>
-    <string name="yes">Yes</string>
-    <string name="no">No</string>
     <string name="lost_connection">Lost connection to PC</string>
     <string name="title_details">Details</string>
-    <string name="help">Help</string>
-    <string name="delete_pc_msg">Are you sure you want to delete this PC?</string>
-    <string name="delete_pc_msg_paired">Delete this PC? Nova will also ask it to forget this device, so bringing it back means pairing again.</string>
-    <string name="delete_pc_msg_paired_running">Delete this PC? Nova will also ask it to forget this device, so bringing it back means pairing again. A game is running on it, and forgetting this device can close that game.</string>
     <string name="delete_pc_host_unreachable">%1$s could not be reached, so it still lists this device as paired.</string>
     <string name="delete_pc_host_refused">%1$s would not forget this device. Remove it on that PC.</string>
     <string name="delete_pc_host_unsupported">%1$s cannot be asked to forget a device, so it still lists this one.</string>
@@ -799,7 +768,6 @@
     <string name="applist_quit_app">Quitting</string>
     <string name="applist_quit_success">Successfully quit</string>
     <string name="applist_quit_fail">Failed to quit</string>
-    <string name="applist_quit_confirmation">Are you sure you want to quit the running app? All unsaved data will be lost.</string>
     <string name="applist_details_id">App ID:</string>
 
     <!-- Add computer manually activity -->
@@ -1006,26 +974,10 @@
 
 
     <!-- In Game menu -->
-    <string name="game_menu_toggle_keyboard">Show soft keyboard</string>
-    <string name="game_menu_toggle_hud">Toggle Performance Overlay</string>
-    <string name="game_menu_toggle_floating_button">Toggle Floating Button</string>
-    <string name="game_menu_select_mouse_mode">Select Mouse mode</string>
     <string name="game_menu_select_steam_mode">Select Stream mode</string>
-    <string name="game_menu_enable_zoom_mode">Enable Pan/Zoom</string>
-    <string name="game_menu_disable_zoom_mode">Disable Pan/Zoom</string>
-    <string name="game_menu_rotate_screen">Rotate Screen</string>
-    <string name="game_menu_toggle_keyboard_model">Toggle Special keys</string>
-    <string name="game_menu_toggle_virtual_model">Toggle On-screen controller</string>
-    <string name="game_menu_toggle_virtual_keyboard_model">Toggle On-screen full keyboard</string>
-    <string name="game_menu_switch_touch_sensitivity_model">Switch touch sensitivity</string>
 
 
-    <string name="game_menu_toggle_mouse_on">Enable Controller Mouse Emulation</string>
-    <string name="game_menu_toggle_mouse_off">Disable Controller Mouse Emulation</string>
     <string name="game_menu_disconnect">Disconnect</string>
-    <string name="game_menu_cancel">Cancel</string>
-    <string name="game_menu_task_manager">Open Task Manager</string>
-    <string name="game_menu_send_keys">Send special keys</string>
     <string name="game_menu_send_keys_esc">ESC</string>
     <string name="game_menu_send_keys_f11">F11</string>
     <string name="game_menu_send_keys_insert">Insert</string>
@@ -1107,15 +1059,9 @@
     <string name="nova_quick_menu_hud_mode_debug">Debug</string>
     <string name="nova_quick_menu_menu_opacity">Menu Opacity</string>
     <string name="nova_quick_menu_menu_opacity_caption">Adjust Nova menus, drawers, options, and session glass without dimming text or focus cues.</string>
-    <string name="nova_quick_menu_menu_opacity_preset_cd">Set menu opacity to %1$d percent</string>
     <string name="nova_quick_menu_hud_opacity">HUD Opacity</string>
     <string name="nova_quick_menu_hud_opacity_caption">Adjust Nova HUD glass without dimming telemetry text.</string>
     <string name="nova_quick_menu_hud_opacity_disabled_caption">Enable Nova HUD first to change glass opacity.</string>
-    <string name="nova_quick_menu_hud_opacity_preset_cd">Set HUD opacity to %1$d percent</string>
-    <string name="nova_quick_menu_hud_opacity_selected">Selected</string>
-    <string name="nova_quick_menu_hud_opacity_not_selected">Not selected</string>
-    <string name="nova_quick_menu_opacity_show_presets">Show presets</string>
-    <string name="nova_quick_menu_opacity_hide_presets">Hide presets</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
     <string name="nova_quick_menu_perf_stats_caption">Legacy Moonlight stats text. Replaces Nova HUD while it is on.</string>
     <string name="nova_quick_menu_diagnose_stream">Diagnose This Stream</string>
@@ -1158,16 +1104,12 @@
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>
     <string name="nova_conn_reconnect">Reconnect</string>
     <string name="nova_quick_menu_close">Close</string>
-    <string name="nova_quick_menu_close_command_center">Close Command Center</string>
     <string name="nova_quick_menu_post_session_report">Host safe profile</string>
     <string name="nova_quick_menu_post_session_report_caption">Observational history from earlier sessions. Launch settings are unchanged.</string>
     <string name="nova_settings_back">Back</string>
     <string name="nova_settings_legacy">Legacy</string>
     <string name="nova_settings_search_results">%1$d results</string>
     <string name="nova_settings_live_hud_preview">Live HUD preview</string>
-    <string name="nova_settings_override_badge">Override</string>
-    <string name="nova_settings_current_badge">Current</string>
-    <string name="nova_lock_overlay_locked">Host locked</string>
     <string name="nova_lock_overlay_unlock">Unlock host</string>
     <string name="nova_lock_overlay_unlocking">Unlocking…</string>
     <string name="nova_lock_overlay_unlock_failed">Unlock request failed</string>
@@ -1395,7 +1337,6 @@
     <string name="display_role_pending">Pending: %1$s</string>
     <string name="display_role_route_summary">Stream on %1$s · Companion on %2$s</string>
     <string name="display_role_apply">Apply</string>
-    <string name="display_role_cancel">Cancel</string>
     <string name="display_role_swap">Swap roles</string>
     <string name="display_role_next_stream">Role changes apply to the next stream. Active sessions are not moved.</string>
     <string name="display_role_resolution_refresh">%1$d × %2$d · %3$.1f Hz</string>
@@ -1501,10 +1442,8 @@
     <string name="debug_info_vibration_amplitude">Vibration Amplitude (%d)</string>
     <string name="debug_info_simple_vibration">Simple Vibration for 1 Second</string>
     <string name="debug_info_continuous_hd_vibration">Continuous HD Vibration</string>
-    <string name="debug_info_please_choose">Please Choose</string>
     <string name="debug_info_no_gamepad_detected">No gamepad detected, please connect a gamepad, tap refresh, and try again!</string>
     <string name="debug_info_no_vibrator">No vibrator detected on the gamepad!</string>
-    <string name="debug_info_set_amplitude">Set Amplitude 0-255 (Effective only for HD Vibration)</string>
     <string name="debug_info_name">Name: </string>
     <string name="debug_info_sensors">Sensors: </string>
     <string name="debug_info_no_relevant_driver">None (no relevant driver or gamepad not supported)</string>
@@ -1527,16 +1466,10 @@
     <string name="pref_import_success">Import success!</string>
     <string name="pref_error_occurred">An error occurred: </string>
     <string name="pref_save_keyboard_profile">Save OSK profile</string>
-    <string name="game_menu_advanced">Advanced Menu</string>
     <string name="game_dialog_title_quit_confirm">End this Nova session?</string>
     <string name="game_dialog_message_quit_confirm">This closes the host app and the resumable stream. Use Disconnect from Command Center if you want the host to keep running.</string>
     <string name="game_dialog_action_end_session">End Session</string>
-    <string name="game_dialog_action_stay_in_game">Stay in Game</string>
-    <string name="game_menu_quit_session">Quit Session</string>
     <string name="game_menu_server_cmd">Server Commands</string>
-    <string name="game_menu_fetch_clipboard">Fetch Clipboard</string>
-    <string name="game_menu_upload_clipboard">Upload Clipboard</string>
-    <string name="game_dialog_title_server_cmd_empty">No Server Commands</string>
     <string name="game_dialog_message_server_cmd_empty">Make sure your host supports server commands and that this client has been granted the required permission.</string>
     <string name="vdisplay_not_ready">Virtual display driver isn\'t ready on the server. Please make sure the SudoVDA driver is installed and enabled.</string>
     <string name="vdisplay_not_supported"><![CDATA[Virtual display isn\'t supported on this server. Use a host that implements virtual display support, such as <a href=\"https://github.com/papi-ux/polaris\">Polaris</a>.]]></string>
@@ -1572,7 +1505,6 @@
     <string name="keyboard_add_keys">Add Keys</string>
     <string name="keyboard_select_keys">Select Keys to Add</string>
     <string name="keyboard_clear_all_confirm_title">Clear All Keys</string>
-    <string name="keyboard_clear_all_confirm_message">Are you sure you want to hide all on-screen controls? You can add them back later in configuration mode.</string>
     <string name="keyboard_keys_added">%d keys added successfully</string>
     <string name="keyboard_duplicates_skipped">%d duplicates were skipped</string>
     <string name="keyboard_configure_movable">You can now move the settings button.</string>
@@ -1624,8 +1556,6 @@
     <string name="profile_manager_choose_profile">Choose Preset</string>
     <string name="profile_manager_deactivated_profile">Deactivated preset</string>
     <string name="profile_manager_activated_profile">Activated preset \'%s\'</string>
-    <string name="profile_manager_delete_profile">Delete Preset</string>
-    <string name="profile_manager_confirm_profile_deleteion">Are you sure you want to delete \'%s\'?</string>
     <string name="profile_manager_delete">Delete</string>
     <string name="profile_manager_profile_deleted">Deleted preset \'%s\'</string>
     <string name="profile_manager_failed_to_save">Could not save this preset. Try again.</string>
@@ -1753,7 +1683,6 @@
     <string name="nova_artwork_library_update_policy">Checks every game and updates only missing or stale automatic artwork.</string>
     <string name="nova_artwork_library_update_preserve_custom">Manual and custom artwork is always preserved.</string>
     <string name="nova_artwork_library_update_start">Check All Games</string>
-    <string name="nova_artwork_library_update_start_hint">Provider traffic starts only after this action is pressed.</string>
     <string name="nova_artwork_library_update_running">%1$d of %2$d games checked</string>
     <string name="nova_artwork_library_update_cancel">Cancel Update</string>
     <string name="nova_artwork_library_update_cancel_hint">Stops queued games; up to two active requests may finish.</string>
@@ -1879,8 +1808,6 @@
     <string name="nova_space_exit_notice">Save in your game before disconnecting. Leaving ends this Space’s game session.</string>
     <string name="nova_space_launch_issue_title">Space could not start</string>
     <string name="nova_space_launch_issue_default">Return to the library and try again. If this continues, open Spaces in Polaris and check Host Setup.</string>
-    <string name="nova_space_launch_issue_details">View Details</string>
-    <string name="nova_space_launch_issue_hide_details">Hide Details</string>
     <string name="nova_space_launch_issue_retry">Try Again</string>
     <string name="nova_space_launch_issue_back">Back to Library</string>
     <string name="nova_space_leave_title">Leave Space?</string>

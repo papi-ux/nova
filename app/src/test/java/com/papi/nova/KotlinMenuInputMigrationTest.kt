@@ -42,8 +42,6 @@ class KotlinMenuInputMigrationTest {
         assertEquals(25L, Game.SENT_KEY_UP_DELAY_MS)
         assertEquals("specialPrefs", com.papi.nova.ui.NovaSpecialKeyPrefs.PREF_NAME)
         assertEquals("special_key", com.papi.nova.ui.NovaSpecialKeyPrefs.KEY_NAME)
-        assertEquals("specialPrefs", GameMenu.PREF_NAME)
-        assertEquals("special_key", GameMenu.KEY_NAME)
         com.papi.nova.ui.NovaQuickMenu::class.java.getMethod("showMenu", GameInputDevice::class.java)
         com.papi.nova.ui.NovaQuickMenu::class.java.getMethod("showKeys")
         com.papi.nova.ui.NovaQuickMenu::class.java.getMethod("hideMenu")

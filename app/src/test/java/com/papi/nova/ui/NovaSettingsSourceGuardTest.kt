@@ -36,7 +36,7 @@ class NovaSettingsSourceGuardTest {
 
         assertTrue(
             "the settings search field keeps the stronger 3dp controller outline",
-            searchField.contains(".novaFocusMotion(focused = focused, pressed = false)") &&
+            searchField.contains(".novaFocusMotion(focused = focused)") &&
                 searchField.contains("if (focused) 3.dp else 1.dp")
         )
         listOf(quickPill, categoryRow).forEach { section ->

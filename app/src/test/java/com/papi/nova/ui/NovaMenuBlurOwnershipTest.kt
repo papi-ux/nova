@@ -39,76 +39,38 @@ class NovaMenuBlurOwnershipTest {
     }
 
     @Test
-    fun dialogAcquiresOnlyWhenAttachedAndReleasesOnDismiss() {
-        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
-        val target = activity.window.decorView
-        val dialog = Dialog(activity)
-
-        NovaMenuBlur.attachBehindDialog(dialog, 25)
-
-        assertNull(NovaMenuBlur.currentRadiusDp(target))
-
-        dialog.show()
-        Shadows.shadowOf(Looper.getMainLooper()).idle()
-
-        assertEquals(18f, requireNotNull(NovaMenuBlur.currentRadiusDp(target)), 0.001f)
-
-        dialog.dismiss()
-        Shadows.shadowOf(Looper.getMainLooper()).idle()
-
-        assertNull(NovaMenuBlur.currentRadiusDp(target))
-    }
-
-    @Test
-    fun separateDialogWindowKeepsCommandCenterContentOutsideTheBlurredActivityTree() {
+    fun separateDialogWindowKeepsPanelContentOutsideTheBlurredActivityTree() {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val activityDecor = activity.window.decorView
         val dialog = Dialog(activity)
-        val menuContent = View(activity)
-        dialog.setContentView(menuContent)
-
-        NovaMenuBlur.attachBehindDialog(dialog, 25)
+        val panelContent = View(activity)
+        dialog.setContentView(panelContent)
         dialog.show()
         Shadows.shadowOf(Looper.getMainLooper()).idle()
 
+        // NovaPanelWindow's frame leases the backdrop of the activity under it, found from the
+        // window's own context, and never blurs its own window.
+        val lease = requireNotNull(NovaMenuBlur.acquireActivityBackground(dialog.context, 25))
+
         assertEquals(18f, requireNotNull(NovaMenuBlur.currentRadiusDp(activityDecor)), 0.001f)
         assertNull(NovaMenuBlur.currentRadiusDp(dialog.window!!.decorView))
-        assertNull(NovaMenuBlur.currentRadiusDp(menuContent))
-        assertTrue(menuContent.rootView === dialog.window!!.decorView)
-        assertTrue(menuContent.rootView !== activityDecor)
+        assertNull(NovaMenuBlur.currentRadiusDp(panelContent))
+        assertTrue(panelContent.rootView === dialog.window!!.decorView)
+        assertTrue(panelContent.rootView !== activityDecor)
 
+        lease.release()
         dialog.dismiss()
         Shadows.shadowOf(Looper.getMainLooper()).idle()
         assertNull(NovaMenuBlur.currentRadiusDp(activityDecor))
     }
 
     @Test
-    fun reattachingShownDialogReplacesItsLeaseWithoutLeakingTheOldRadius() {
+    fun backdropLeaseRejectsBackgroundMutation() {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
-        val target = activity.window.decorView
-        val dialog = Dialog(activity)
-
-        NovaMenuBlur.attachBehindDialog(dialog, 25)
-        dialog.show()
-        Shadows.shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(18f, requireNotNull(NovaMenuBlur.currentRadiusDp(target)), 0.001f)
-
-        NovaMenuBlur.attachBehindDialog(dialog, 64)
-        assertEquals(8.64f, requireNotNull(NovaMenuBlur.currentRadiusDp(target)), 0.001f)
-
-        dialog.dismiss()
-        Shadows.shadowOf(Looper.getMainLooper()).idle()
-        assertNull(NovaMenuBlur.currentRadiusDp(target))
-    }
-
-    @Test
-    fun dialogBindingRejectsBackgroundMutation() {
-        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
-        val dialog = Dialog(activity)
         val failure = AtomicReference<Throwable?>()
 
         Thread {
-            runCatching { NovaMenuBlur.attachBehindDialog(dialog, 25) }
+            runCatching { NovaMenuBlur.acquireActivityBackground(activity, 25) }
                 .onFailure(failure::set)
         }.apply {
             start()

@@ -171,17 +171,6 @@ import android.view.SurfaceView
 import android.view.ViewGroup
 
 
-/**
- * Where the special keys and the imported custom shortcuts are stored, under the name of the
- * legacy menu that used to own them. StreamSettings and the on-screen keys loader still read them
- * here; new code reads [com.papi.nova.ui.NovaSpecialKeyPrefs]. The closing step moves those two
- * readers over and deletes this.
- */
-object GameMenu {
-    const val PREF_NAME: String = com.papi.nova.ui.NovaSpecialKeyPrefs.PREF_NAME
-    const val KEY_NAME: String = com.papi.nova.ui.NovaSpecialKeyPrefs.KEY_NAME
-}
-
 class Game : NovaActivity(), SurfaceHolder.Callback, OnGenericMotionListener, OnTouchListener, NvConnectionListener, EvdevListener, OnSystemUiVisibilityChangeListener, GameGestures, StreamContainer.InputCallbacks, ExternalControllerView.InputCallbacks, PerfOverlayListener, UsbDriverService.UsbDriverStateListener, View.OnKeyListener {
     override fun shouldRecreateForFontScaleChange(): Boolean = false
 

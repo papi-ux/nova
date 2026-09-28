@@ -49,7 +49,6 @@
 \n</string>
     <string name="nettest_text_blocked">Cihazınızın mevcut ağ bağlantısı Nova\'ı engelliyor. Bu ağa bağlıyken internet üzerinden yayın akışı çalışmayabilir.</string>
     <string name="pair_pc_ingame">Bilgisayar şu anda bir oyunda. Eşleştirmeden önce oyunu kapatmalısınız.</string>
-    <string name="pair_pairing_msg">Lütfen hedef bilgisayarda aşağıdaki PIN kodunu girin:</string>
     <string name="pair_already_in_progress">Eşleştirme zaten devam ediyor</string>
     <string name="wol_pc_online">Bilgisayar çevrimiçi</string>
     <string name="wol_no_mac">Kayıtlı bir MAC adresi olmadığından bilgisayar uyandırılamıyor</string>
@@ -86,10 +85,7 @@
     <string name="conn_establishing_title">Bağlantı Kuruluyor</string>
     <string name="conn_terminated_title">Bağlantı sonlandırıldı</string>
     <string name="conn_terminated_msg">Bağlantı sonlandırıldı.</string>
-    <string name="yes">Evet</string>
     <string name="lost_connection">Bilgisayar ile bağlantı kesildi</string>
-    <string name="help">Yardım</string>
-    <string name="delete_pc_msg">Bu bilgisayarı silmek istediğinizden emin misiniz\?</string>
     <string name="slow_connection_msg">Bilgisayara yavaş bağlantı
 \nBit hızınızı düşürün</string>
     <string name="poor_connection_msg">Bilgisayar ile zayıf bağlantı</string>
@@ -112,7 +108,6 @@
     <string name="applist_refresh_error_msg">Uygulama listesi alınamadı</string>
     <string name="applist_quit_app">Çıkılıyor</string>
     <string name="applist_quit_fail">Çıkılamadı</string>
-    <string name="applist_quit_confirmation">Çalışan uygulamadan çıkmak istediğinizden emin misiniz\? Kaydedilmemiş tüm veriler kaybolacaktır.</string>
     <string name="applist_details_id">Uygulama kimliği:</string>
     <string name="msg_add_pc">Bilgisayara bağlanıyor…</string>
     <string name="addpc_success">Bilgisayar başarıyla eklendi</string>
@@ -155,7 +150,6 @@
 \n
 \n Sunshine ana bilgisayarınızda çalıştığından veya GeForce Experience SHIELD ayarlarında GameStream etkinleştirildiğinden emin olun.</string>
     <string name="applist_connect_msg">Bilgisayara bağlanıyor…</string>
-    <string name="no">Hayır</string>
     <string name="perf_overlay_netlatency">Ortalama ağ gecikmesi: %1$d ms (varyans: %2$d ms)</string>
     <string name="addpc_wrong_sitelocal">Bu adres doğru görünmüyor. İnternet üzerinden akış için yönlendiricinizin genel IP adresini kullanmanız gerekir.</string>
     <string name="text_native_res_dialog">Yerel çözünürlük ve/veya FPS, akış sunucusu tarafından desteklenmeyebilir. Muhtemelen ana bilgisayar için uygun bir özel ekran kipini el ile yapılandırmanız gerekecek.
@@ -175,7 +169,6 @@
     <string name="dialog_title_reset_osc">Düzeni Sıfırla</string>
     <string name="title_language_list">Dil</string>
     <string name="category_host_settings">Ana Bilgisayar Ayarları</string>
-    <string name="pair_pairing_help">Ana bilgisayarınız Sunshine çalıştırıyorsa PIN girmek için Sunshine web kullanıcı arayüzüne gidin.</string>
     <string name="frame_conversion_error">Ana bilgisayar önemli bir video kodlama hatası bildirdi.
 \n
 \nHDR kipi devre dışı bırakmayı, akış çözünürlüğünü değiştirmeyi veya ana bilgisayarın ekran çözünürlüğünü değiştirmeyi deneyin.</string>

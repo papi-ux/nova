@@ -32,8 +32,6 @@
     <string name="nettest_text_blocked">חיבור הרשת הנוכחי חוסם את מונלייט. הזרמה על גבי האינטרנט אינה אפשרית כל עוד מונלייט מחובר לרשת הנוכחית.</string>
     <string name="pair_pc_offline">מחשב לא פעיל</string>
     <string name="pair_pairing_title">מחבר</string>
-    <string name="pair_pairing_msg">אנא הזן את הקוד PIN הבא במחשב המארח:</string>
-    <string name="pair_pairing_help">אם המחשב המארח פועל על Sunshine, נווט אל דף הניהול על מנת להזין קוד PIN.</string>
     <string name="pair_incorrect_pin">קוד PIN שגוי</string>
     <string name="pair_fail">חיבור נכשל</string>
     <string name="wol_pc_online">מחשב פעיל</string>
@@ -103,15 +101,11 @@
     <string name="conn_metered">אזהרה: החיבור הנוכחי הוא נמדד!</string>
     <string name="conn_terminated_title">החיבור הופסק</string>
     <string name="lost_connection">נאבד החיבור למחשב</string>
-    <string name="delete_pc_msg">אתה בטוח שאתה רוצה להסיר מחשב זה\?</string>
     <string name="conn_client_latency_hw">מהירות פענוח חומרתי:</string>
     <string name="conn_error_msg">נכשל להפעיל</string>
     <string name="searching_pc">מחפש מחשבים ברשת המקומית שלך...
 \n
 \nוודא שסאנשיין או GeForce Experience פועלים.</string>
-    <string name="yes">כן</string>
-    <string name="no">לא</string>
-    <string name="help">עזרה</string>
     <string name="perf_overlay_streamdetails">הזרמת וידיאו: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_renderingfps">פריימים מרונדרים: %1$.2f FPS</string>
     <string name="applist_menu_hide_app">הסתר אפליקציה</string>
@@ -124,7 +118,6 @@
     <string name="applist_refresh_title">רשימת אפליקציות</string>
     <string name="applist_refresh_msg">מרענן אפליקציות…</string>
     <string name="applist_refresh_error_title">שגיאה</string>
-    <string name="applist_quit_confirmation">אתה בטוח שאתה רוצה לסגור את האפליקציה הנוכחית\? מידע שלא נשמר ייאבד.</string>
     <string name="msg_add_pc">מתחבר למחשב…</string>
     <string name="addpc_unknown_host">נכשל לאתר כתובת מחשב. נא לוודא שאין שגיאה בכתובת.</string>
     <string name="addpc_fail">לא ניתן להתחבר למחשב שנבחר. נא לבדוק שהפורטים הנחוצים פתוחים בחומת האש.</string>

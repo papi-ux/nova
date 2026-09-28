@@ -17,7 +17,6 @@
     <string name="pair_pc_offline">컴퓨터가 오프라인입니다.</string>
     <string name="pair_pc_ingame">컴퓨터가 아직 게임을 실행중입니다. 페어링 전 게임을 종료하세요.</string>
     <string name="pair_pairing_title">페어링</string>
-    <string name="pair_pairing_msg">아래 PIN을 페어링 할 PC에 입력하세요:</string>
     <string name="pair_incorrect_pin">PIN이 올바르지 않음</string>
     <string name="pair_fail">페어링 실패</string>
     <string name="pair_already_in_progress">페어링이 이미 진행중입니다</string>
@@ -56,10 +55,7 @@
     <string name="searching_pc">로컬 네트워크의 호스트 PC를 검색중…
 \n
 \n 호스트 PC에서 Sunshine이 실행 중인지 또는 GeForce Experience SHIELD 설정에서 GameStream이 활성화되어 있는지 확인하십시오.</string>
-    <string name="yes">예</string>
-    <string name="no">아니오</string>
     <string name="lost_connection">PC 연결 끊김</string>
-    <string name="help">도움말</string>
     <!-- AppList activity -->
     <string name="applist_connect_msg">PC에 연결중…</string>
     <string name="applist_menu_resume">세션 계속</string>
@@ -73,7 +69,6 @@
     <string name="applist_quit_app">종료중</string>
     <string name="applist_quit_success">종료됨</string>
     <string name="applist_quit_fail">종료 실패</string>
-    <string name="applist_quit_confirmation">실행되고 있는 앱을 종료하길 원하시나요\? 모든 저장되지 않은 데이터가 삭제됩니다.</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">수동으로 PC 추가</string>
     <string name="msg_add_pc">PC에 연결 중…</string>
@@ -147,7 +142,6 @@
     <string name="poor_connection_msg">PC와의 연결이 불안정함</string>
     <string name="slow_connection_msg">PC와의 연결이 불안정합니다.
 \n비트레이트를 줄이세요</string>
-    <string name="delete_pc_msg">이 PC를 삭제 하시겠습니까\?</string>
     <string name="title_details">세부정보</string>
     <string name="check_ports_msg">다음 포트의 방화벽 및 포트 포워딩 설정을 확인하십시오:</string>
     <string name="early_termination_error">스트림을 시작할 때 호스트 PC에서 문제가 발생했습니다.
@@ -266,7 +260,6 @@
     <string name="summary_checkbox_gamepad_motion_sensors">모션 센서가 있는 컨트롤러를 에뮬레이션할 때 지원되는 호스트가 모션 센서 데이터를 요청할 수 있습니다. 비활성화하면 게임에서 동작 센서를 사용하지 않는 경우 전원 및 네트워크 사용량이 약간 줄어들 수 있습니다.</string>
     <string name="summary_checkbox_gamepad_touchpad_as_mouse">터치패드로 컨트롤러를 에뮬레이션하는 경우에도 호스트 마우스를 제어하기 위해 컨트롤러 터치패드 입력을 강제합니다.</string>
     <string name="pcview_menu_eol">NVIDIA GameStream 지원 종료</string>
-    <string name="pair_pairing_help">호스트 PC에서 Sunshine을 실행 중인 경우 Sunshine 웹 UI로 이동하여 PIN을 입력합니다.</string>
     <string name="perf_overlay_hostprocessinglatency">호스트 처리 대기 시간 최소/최대/평균: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="fps_suffix_fps">FPS</string>
     <string name="title_native_fps_dialog">네이티브 FPS 주의사항</string>

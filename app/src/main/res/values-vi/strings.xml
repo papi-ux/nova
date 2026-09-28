@@ -48,9 +48,6 @@
     <string name="pair_pc_offline">Máy tính đang ngoại tuyến</string>
     <string name="pair_pc_ingame">Máy tính hiện đang trong trò chơi. Bạn phải đóng trò chơi trước khi ghép nối.</string>
     <string name="pair_pairing_title">Đang ghép nối</string>
-    <string name="pair_pairing_msg">Vui lòng nhập mã PIN sau trên PC mục tiêu:</string>
-    <string name="pair_pairing_help">Nếu PC chủ của bạn đang chạy Sunshine, hãy điều hướng đến giao diện web của Sunshine để nhập mã PIN.</string>
-    <string name="pair_otp_pairing_msg">Đang ghép nối, vui lòng đợi…</string>
     <string name="pair_otp_pairing_help">Ghép nối OTP chỉ khả dụng với Apollo, nhập mã PIN bạn vừa cung cấp trên giao diện web theo cách thủ công nếu bạn đang sử dụng phần mềm máy chủ khác.</string>
     <string name="pair_incorrect_pin">Mã PIN hoặc mật khẩu không chính xác</string>
     <string name="pair_fail">Ghép nối thất bại</string>
@@ -112,12 +109,8 @@
     <string name="ip_hint">Địa chỉ IP của PC máy chủ</string>
     <string name="searching_pc">Đang tìm kiếm PC máy chủ trên mạng cục bộ của bạn…\n\n
         Đảm bảo Sunshine đang chạy trên PC máy chủ của bạn hoặc GameStream được bật trong cài đặt SHIELD của GeForce Experience.</string>
-    <string name="yes">Có</string>
-    <string name="no">Không</string>
     <string name="lost_connection">Mất kết nối với PC</string>
     <string name="title_details">Chi tiết</string>
-    <string name="help">Trợ giúp</string>
-    <string name="delete_pc_msg">Bạn có chắc chắn muốn xóa PC này không?</string>
     <string name="slow_connection_msg">Kết nối chậm với PC\nGiảm tốc độ bit của bạn</string>
     <string name="poor_connection_msg">Kết nối kém với PC</string>
     <string name="perf_overlay_streamdetails">Luồng video: %1$s %2$.2f FPS</string>
@@ -150,7 +143,6 @@
     <string name="applist_quit_app">Đang thoát</string>
     <string name="applist_quit_success">Thoát thành công</string>
     <string name="applist_quit_fail">Thoát thất bại</string>
-    <string name="applist_quit_confirmation">Bạn có chắc chắn muốn thoát ứng dụng đang chạy không? Tất cả dữ liệu chưa lưu sẽ bị mất.</string>
     <string name="applist_details_id">ID ứng dụng:</string>
 
     <!-- Add computer manually activity -->
@@ -340,24 +332,9 @@
 
 
     <!-- In Game menu -->
-    <string name="game_menu_toggle_keyboard">Hiển thị bàn phím mềm</string>
-    <string name="game_menu_toggle_hud">Hiển thị lớp phủ hiệu suất</string>
-    <string name="game_menu_select_mouse_mode">Chọn chế độ chuột</string>
-    <string name="game_menu_enable_zoom_mode">Bật Pan/Zoom</string>
-    <string name="game_menu_disable_zoom_mode">Tắt Pan/Zoom</string>
-    <string name="game_menu_rotate_screen">Xoay màn hình</string>
-    <string name="game_menu_toggle_keyboard_model">Hiển thị phím đặc biệt</string>s
-    <string name="game_menu_toggle_virtual_model">Hiển thị gamepad</string>
-    <string name="game_menu_toggle_virtual_keyboard_model">Hiển thị bàn phím đầy đủ</string>
-    <string name="game_menu_switch_touch_sensitivity_model">Thay đổi độ nhạy cảm ứng</string>
 
 
-    <string name="game_menu_toggle_mouse_on">Bật mô phỏng chuột bằng bộ điều khiển</string>
-    <string name="game_menu_toggle_mouse_off">Tắt mô phỏng chuột bằng bộ điều khiển</string>
     <string name="game_menu_disconnect">Ngắt kết nối</string>
-    <string name="game_menu_cancel">Hủy</string>
-    <string name="game_menu_task_manager">Mở Trình quản lý tác vụ</string>
-    <string name="game_menu_send_keys">Gửi phím đặc biệt</string>
     <string name="game_menu_send_keys_esc">ESC</string>
     <string name="game_menu_send_keys_f11">F11</string>
     <string name="game_menu_send_keys_alt_f4">Alt + F4</string>
@@ -527,7 +504,6 @@
     <string name="perf_overlay_lite_bandwidth">Băng thông</string>
     <string name="perf_overlay_lite_network_decoding_delay">Độ trễ mạng/Giải mã</string>
     <string name="perf_overlay_lite_packet_loss">Tỷ lệ mất gói</string>
-    <string name="quick_menu_title">Menu nhanh</string>
     <string name="wrong_import_format">Định dạng nhập sai, vui lòng kiểm tra lại!</string>
     <string name="title_checkbox_gamepad_enable_battery_report">Bật báo cáo pin tay cầm</string>
     <string name="summary_checkbox_gamepad_enable_battery_report">Báo cáo trạng thái pin tay cầm nếu có thể.\nTắt tùy chọn này nếu bạn gặp hiện tượng giật lag với màn hình cảm ứng/touchpad/bút cảm ứng/chuột.</string>
@@ -563,10 +539,8 @@
     <string name="debug_info_vibration_amplitude">Mức rung (%d)</string>
     <string name="debug_info_simple_vibration">Rung đơn giản trong 1 giây</string>
     <string name="debug_info_continuous_hd_vibration">Rung HD liên tục</string>
-    <string name="debug_info_please_choose">Vui lòng chọn</string>
     <string name="debug_info_no_gamepad_detected">Không tìm thấy tay cầm, hãy kết nối rồi bấm làm mới.</string>
     <string name="debug_info_no_vibrator">Tay cầm không có bộ rung!</string>
-    <string name="debug_info_set_amplitude">Chọn độ rung (0–255, chỉ hỗ trợ rung HD)</string>
     <string name="debug_info_name">Tên: </string>
     <string name="debug_info_sensors">Cảm biến: </string>
     <string name="debug_info_no_relevant_driver">Không có (thiếu driver hoặc tay cầm không được hỗ trợ)</string>
@@ -589,16 +563,11 @@
     <string name="pref_import_success">Nhập thành công!</string>
     <string name="pref_error_occurred">Đã xảy ra lỗi: </string>
     <string name="pref_save_keyboard_profile">Lưu cấu hình bàn phím</string>
-    <string name="game_menu_advanced">Tùy chọn nâng cao</string>
     <string name="game_dialog_title_quit_confirm">Bạn có chắc muốn thoát không?</string>
     <string name="game_dialog_message_quit_confirm">Hãy chắc rằng bạn đã lưu tiến trình. Thoát khỏi phiên sẽ đóng ứng dụng đang chạy.</string>
 
-        <string name="game_menu_quit_session">Thoát phiên</string>
     <string name="game_menu_server_cmd">Lệnh máy chủ</string>
-    <string name="game_menu_fetch_clipboard">Lấy nội dung clipboard</string>
-    <string name="game_menu_upload_clipboard">Gửi nội dung clipboard</string>
 
-    <string name="game_dialog_title_server_cmd_empty">Không có lệnh máy chủ</string>
     <string name="game_dialog_message_server_cmd_empty">Hãy đảm bảo bạn đang dùng phần mềm máy chủ Apollo và ứng dụng này đã được cấp quyền "Lệnh máy chủ".</string>
 
     <string name="vdisplay_not_ready">Driver hiển thị ảo trên máy chủ chưa sẵn sàng. Hãy kiểm tra xem bạn đã cài và bật driver SudoVDA chưa.</string>

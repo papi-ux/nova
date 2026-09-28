@@ -310,16 +310,4 @@ class NovaSurfacesHelpersTest {
         assertEquals(1, no)
     }
 
-    @Test
-    fun deletingAPcIsDestructiveWithKeepAsStay() {
-        val activity = newActivity()
-        val computer = ComputerDetails().apply { name = "Living Room" }
-        UiHelper.displayDeletePcConfirmationDialog(activity, computer, Runnable { yes++ }, Runnable { no++ })
-
-        val confirm = activity.topPage() as NovaCommonPage.Confirm
-        assertTrue(confirm.destructive)
-        assertEquals("Living Room", confirm.title)
-        assertEquals("Keep", confirm.stayLabel)
-        assertEquals("Delete PC", confirm.actionLabel)
-    }
 }

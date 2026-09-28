@@ -21,7 +21,6 @@ import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.style.TextDecoration
 import com.papi.nova.LimeLog
 import com.papi.nova.R
-import com.papi.nova.computers.HostForget
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.NovaSystemBars
@@ -411,30 +410,6 @@ object UiHelper {
             message = AnnotatedString(parent.getString(R.string.nova_panel_end_session_message)),
             stayLabel = parent.getString(R.string.nova_panel_stay),
             actionLabel = parent.getString(R.string.game_dialog_action_end_session),
-            destructive = true,
-            onYes = onYes,
-            onNo = onNo,
-        )
-    }
-
-    @JvmStatic
-    fun displayDeletePcConfirmationDialog(
-        parent: Activity,
-        computer: ComputerDetails,
-        onYes: Runnable?,
-        onNo: Runnable?,
-    ) {
-        val messageRes = when {
-            HostForget.mayCloseRunningGame(computer) -> R.string.delete_pc_msg_paired_running
-            HostForget.canAsk(computer) -> R.string.delete_pc_msg_paired
-            else -> R.string.delete_pc_msg
-        }
-        presentConfirmation(
-            parent,
-            title = computer.name,
-            message = AnnotatedString(parent.getString(messageRes)),
-            stayLabel = parent.getString(R.string.nova_panel_keep),
-            actionLabel = parent.getString(R.string.pcview_menu_delete_pc),
             destructive = true,
             onYes = onYes,
             onNo = onNo,

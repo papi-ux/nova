@@ -121,31 +121,16 @@ class NovaSystemBarsTest {
     }
 
     @Test
-    fun sheetsAndDialogsKeepTheBarsHiddenToo() {
-        val chrome = String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt")), StandardCharsets.UTF_8)
-        assertEquals(
-            "a host's Pair menu brought the status and navigation bars back over a screen that had hidden them; " +
-                "the bottom sheet and both alert chromes pass their window to NovaSystemBars",
-            3,
-            Regex("NovaDialogWindows\\.adopt\\(context, window\\)").findAll(chrome).count(),
-        )
-    }
-
-    @Test
-    fun composeDialogsKeepTheBarsHiddenToo() {
+    fun panelsKeepTheBarsHiddenToo() {
         fun source(path: String) = String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
-        val library = source("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
-        val dialogs = Regex("\\bDialog\\(\\n|ModalBottomSheet\\(\\n").findAll(library).count()
-        assertEquals(
-            "Library Options brought the navigation bar back: every Compose dialog and sheet in the library calls NovaDialogWindow",
-            dialogs,
-            Regex("NovaDialogWindow\\(\\)").findAll(library).count(),
-        )
-        val settings = source("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt")
-        assertEquals(
-            "Nova Text Size and the other settings dialogs brought both bars back; every dialog in Modern Settings calls NovaDialogWindow",
-            Regex("\\b(Alert)?Dialog\\(\\n").findAll(settings).count(),
-            Regex("NovaDialogWindow\\(\\)").findAll(settings).count(),
+        // A host's Pair menu, Library Options and Nova Text Size each brought the status and navigation
+        // bars back over a screen that had hidden them, because each was a sheet or a dialog in a window
+        // of its own. Each is a page in NovaPanelWindow now, NovaPanelSourceGuardTest keeps any other
+        // window from coming back, and NovaDialogWindow, which adopted a Compose dialog's window, went
+        // with the last Compose dialog.
+        assertFalse(
+            "no Compose dialog is left to adopt a window of its own",
+            source("src/main/java/com/papi/nova/ui/NovaDialogWindows.kt").contains("fun NovaDialogWindow(")
         )
         // Both dialogs that were built outside the sheet chrome and adopted their own window are
         // gone: PcView's OTP pairing dialog is a Form page in NovaPanelWindow, and legacy lists

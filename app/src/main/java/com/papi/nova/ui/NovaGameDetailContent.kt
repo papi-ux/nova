@@ -4,7 +4,6 @@ import android.widget.ImageView
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,14 +23,12 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -48,13 +44,11 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -78,49 +72,6 @@ import org.json.JSONObject
 
 internal fun canPublishArtworkMutationUiForState(state: Lifecycle.State?): Boolean =
     state?.isAtLeast(Lifecycle.State.CREATED) == true
-@Composable
-private fun NovaSheetDragHandle(
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colors = LocalNovaComposeColors.current
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .size(height = 28.dp, width = 1.dp)
-            .novaSheetHandleDrag(onDismiss),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 42.dp, height = 4.dp)
-                .clip(RoundedCornerShape(NovaRadius.chip))
-                .background(colors.divider)
-        )
-    }
-}
-
-private fun Modifier.novaSheetHandleDrag(onDismiss: () -> Unit): Modifier = pointerInput(onDismiss) {
-    val dismissThreshold = 42.dp.toPx()
-    var draggedDown = 0f
-    detectVerticalDragGestures(
-        onDragStart = { draggedDown = 0f },
-        onDragCancel = { draggedDown = 0f },
-        onDragEnd = {
-            if (draggedDown >= dismissThreshold) {
-                onDismiss()
-            }
-            draggedDown = 0f
-        },
-        onVerticalDrag = { change, dragAmount ->
-            if (dragAmount > 0f) {
-                draggedDown += dragAmount
-                change.consume()
-            }
-        }
-    )
-}
-
 /**
  * @property preflightInFlight A preflight is on the wire and no answer has arrived yet.
  *

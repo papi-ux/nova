@@ -884,24 +884,6 @@ class NovaLibrarySourceGuardTest {
     }
 
     @Test
-    fun activeSessionCardStaysCompactAndShowsStreamContext() {
-        val activeSession = readNovaLibraryActivity().section(
-            "private fun NovaLibraryActiveSessionCard(",
-            "private fun NovaLibrarySummary("
-        )
-
-        assertTrue(
-            "active session card should include the stream profile when Polaris exposes it",
-            activeSession.contains("val streamDetail = formatStreamProfile(session)")
-        )
-        assertTrue(
-            "active session card should keep its primary action compact in the rail",
-            activeSession.contains("minHeight = 34.dp") &&
-                activeSession.contains("fontSize = 11.sp")
-        )
-    }
-
-    @Test
     fun libraryShowsCompactStatusMetadataWithoutPermanentRailCounts() {
         val source = readNovaLibraryActivity()
         val sharedToolbar = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt").section(
@@ -1372,28 +1354,19 @@ class NovaLibrarySourceGuardTest {
     }
 
     @Test
-    fun composeLibraryActiveSessionCardExposesEndSessionForOwnedStreams() {
+    fun composeLibraryEndSessionIsConfirmedByItsSplitAndClearsTheSession() {
+        // The active session card had no caller and is gone; the hero, the strip and the detail
+        // page carry the session, and libraryHeroExposesEndSessionForOwnedActiveStreams pins the
+        // hero's End.
         val source = readNovaLibraryActivity()
         val endActiveSession = source.section(
             "private fun endActiveSession(",
             "private fun openServerManagement("
         )
-        val card = source.section(
-            "private fun NovaLibraryActiveSessionCard(",
-            "private fun formatStreamProfile("
-        )
 
         assertTrue(
             "Compose library should pass an end-session callback into the screen",
             source.contains("onEndSession = ::endActiveSession")
-        )
-        assertTrue(
-            "active session card should offer End Session alongside Resume only for streams owned by this client, as a split that confirms in its own slot",
-            card.contains("onEndSession: (NovaLibraryActiveSessionUiState) -> Unit") &&
-                card.contains("if (!session.watchOnly)") &&
-                card.contains("R.string.applist_menu_quit") &&
-                card.contains("NovaSplitConfirm(") &&
-                card.contains("onConfirm = { onEndSession(session) }")
         )
         assertFalse(
             "every End is confirmed by its split, so ending asks nothing more",

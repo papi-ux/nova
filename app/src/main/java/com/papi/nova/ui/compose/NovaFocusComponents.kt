@@ -1,13 +1,9 @@
 package com.papi.nova.ui.compose
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -64,41 +60,30 @@ import com.papi.nova.ui.panel.novaFocusRing
 internal object NovaFocusMotionSpec {
     const val DurationMillis = 150
     const val CardFocusedScale = 1.025f
-    const val ButtonFocusedScale = 1.03f
-    const val ButtonPressedScale = 0.98f
     const val CardFocusedHaloAlpha = 0.34f
-    const val ButtonFocusedHaloAlpha = 0.28f
     const val ButtonPressedAlpha = 0.86f
 }
 
 private fun novaFocusFloatTween() = tween<Float>(durationMillis = NovaFocusMotionSpec.DurationMillis)
 
-private fun novaFocusDpTween() = tween<Dp>(durationMillis = NovaFocusMotionSpec.DurationMillis)
-
-private fun novaFocusColorTween() = tween<Color>(durationMillis = NovaFocusMotionSpec.DurationMillis)
-
+/**
+ * The card lift and halo the library's hero strip and the search field still draw. Nothing presses
+ * through it any more: buttons take the one focus look ([novaFocusRing]), with no scale.
+ */
 internal fun Modifier.novaFocusMotion(
     focused: Boolean,
-    enabled: Boolean = true,
-    pressed: Boolean = false,
     focusedScale: Float = NovaFocusMotionSpec.CardFocusedScale,
-    pressedScale: Float = NovaFocusMotionSpec.ButtonPressedScale,
     haloAlpha: Float = NovaFocusMotionSpec.CardFocusedHaloAlpha,
     cornerRadius: Dp = NovaRadius.row
 ): Modifier = composed {
     val surfaces = LocalNovaLibrarySurfaces.current
-    val targetScale = when {
-        pressed && enabled -> pressedScale
-        focused && enabled -> focusedScale
-        else -> 1f
-    }
     val scale by animateFloatAsState(
-        targetValue = targetScale,
+        targetValue = if (focused) focusedScale else 1f,
         animationSpec = novaFocusFloatTween(),
         label = "NovaFocusMotionScale"
     )
     val animatedHaloAlpha by animateFloatAsState(
-        targetValue = if (focused && enabled) haloAlpha else 0f,
+        targetValue = if (focused) haloAlpha else 0f,
         animationSpec = novaFocusFloatTween(),
         label = "NovaFocusMotionHalo"
     )
@@ -220,68 +205,6 @@ fun NovaControllerHintBar(
         }
         Spacer(Modifier.width(2.dp))
     }
-}
-
-@Composable
-fun NovaFocusableCard(
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    onClick: (() -> Unit)? = null,
-    contentDescription: String? = null,
-    contentPadding: PaddingValues = PaddingValues(12.dp),
-    content: @Composable BoxScope.() -> Unit
-) {
-    var focused by remember { mutableStateOf(false) }
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(NovaRadius.row)
-    val borderWidth by animateDpAsState(
-        targetValue = if (focused && enabled) 2.dp else 1.dp,
-        animationSpec = novaFocusDpTween(),
-        label = "NovaFocusableCardBorderWidth"
-    )
-    val borderColor by animateColorAsState(
-        targetValue = if (focused && enabled) surfaces.focusRing else surfaces.tileBorder,
-        animationSpec = novaFocusColorTween(),
-        label = "NovaFocusableCardBorderColor"
-    )
-    val clickableModifier = if (onClick != null) {
-        Modifier.clickable(
-            enabled = enabled,
-            role = Role.Button,
-            onClick = onClick
-        )
-    } else {
-        Modifier
-    }
-    val semanticsModifier = if (contentDescription != null) {
-        Modifier.semantics {
-            this.contentDescription = contentDescription
-            if (onClick != null) {
-                role = Role.Button
-            }
-        }
-    } else {
-        Modifier
-    }
-
-    Box(
-        modifier = modifier
-            .novaFocusMotion(
-                focused = focused,
-                enabled = enabled,
-                haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
-                cornerRadius = NovaRadius.row
-            )
-            .clip(shape)
-            .background(surfaces.tile)
-            .border(borderWidth, borderColor, shape)
-            .then(semanticsModifier)
-            .onFocusChanged { focused = it.isFocused || it.hasFocus }
-            .then(clickableModifier)
-            .focusable(enabled = enabled)
-            .padding(contentPadding),
-        content = content
-    )
 }
 
 // Shared haptic vocabulary for the gamepad-first surfaces: a light tick when focus moves,

@@ -11,7 +11,6 @@
     <string name="pair_pc_offline">Пристрій вимкнений або знаходиться поза мережею</string>
     <string name="pair_pc_ingame">Пристрій на даний момент знаходиться у грі. Ви повинні закрити гру перед створенням пари.</string>
     <string name="pair_pairing_title">Створення пари</string>
-    <string name="pair_pairing_msg">Будь ласка, введіть цей код на пристрої:</string>
     <string name="pair_incorrect_pin">Неправильний код</string>
     <string name="pair_fail">Створення пари не вдалося</string>
     <!-- WOL messages -->
@@ -47,8 +46,6 @@
     <string name="searching_pc">Пошук головного ПК у локальній мережі…
 \n
 \nПереконайтеся, що Sunshine запущено на вашому головному ПК або GameStream увімкнено в налаштуваннях GeForce Experience SHIELD.</string>
-    <string name="yes">Так</string>
-    <string name="no">Ні</string>
     <string name="lost_connection">З\'єднання з пристроєм втрачено</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">Відновити сесію</string>
@@ -63,7 +60,6 @@
     <string name="applist_quit_app">Виходимо з</string>
     <string name="applist_quit_success">Успішний вихід з</string>
     <string name="applist_quit_fail">Помилка при виході</string>
-    <string name="applist_quit_confirmation">Ви впевнені, що хочете вийти з запущеного застосунку\? Усі незбережені дані будуть втрачені.</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Додати пристрій вручну</string>
     <string name="msg_add_pc">З\'єднання з пристроєм…</string>
@@ -111,7 +107,6 @@
     <string name="help_loading_title">Перегляд допомоги</string>
     <string name="help_loading_msg">Завантаження сторінки допомоги…</string>
     <string name="pair_already_in_progress">Сполучення вже в процесі</string>
-    <string name="help">Допомога</string>
     <string name="applist_connect_msg">Підключення до пристрою…</string>
     <string name="title_decoding_error">Збій відео розцифрувача</string>
     <string name="message_decoding_error">Nova аварійно завершив роботу через несумісність із відеодекодером цього пристрою. Спробуйте налаштувати параметри потокового передавання, якщо збої триватимуть.</string>
@@ -141,7 +136,6 @@
     <string name="category_input_settings">Налаштування введення</string>
     <string name="title_checkbox_touchscreen_trackpad">Використовувати сенсорний екран як пальцевід</string>
     <string name="summary_checkbox_touchscreen_trackpad">Якщо увімкнено, сенсорний екран працює як ноутбуковий пальцевід. Якщо вимкнено, безпосередньо керує вказівником миші.</string>
-    <string name="delete_pc_msg">Ви впевнені що хочете видалити цей пристрій\?</string>
     <string name="pcview_menu_details">Переглянути деталі</string>
     <string name="poor_connection_msg">Слабке з\'єднання з пристроєм</string>
     <string name="title_details">Деталі</string>
@@ -257,7 +251,6 @@
 \nСпробуйте вимкнути режим HDR, змінити роздільну здатність потокового відео або змінити роздільну здатність дисплея головного комп\'ютера.</string>
     <string name="title_full_range">Сила повного спектру відео (експериментальна)</string>
     <string name="summary_full_range">Це може призвести до втрати деталей у світлих і темних областях, якщо пристрій не відображає належним чином весь діапазон відеоконтенту.</string>
-    <string name="pair_pairing_help">Якщо на вашому комп’ютері встановлений Sunshine, перейдіть до веб-інтерфейсу користувача Sunshine, щоб ввести PIN-код.</string>
     <string name="error_code_prefix">Код помилки:</string>
     <string name="title_seekbar_vibrate_fallback_strength">Налаштування інтенсивності вібро</string>
     <string name="summary_seekbar_vibrate_fallback_strength">Посилюйте або зменшуйте інтенсивність вібрації пристрою</string>

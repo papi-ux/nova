@@ -68,21 +68,17 @@ class NovaFocusDrawableTest {
             "AppView search height should keep the established portrait height",
             hasDimen(dimens, "nova_search_height", "48dp")
         )
-        assertTrue(
-            "shared card radius should remain available for XML View surfaces",
-            hasDimen(dimens, "nova_card_corner_radius", "14dp")
-        )
-        assertTrue(
-            "large shared card radius should remain available for XML View surfaces",
-            hasDimen(dimens, "nova_card_corner_radius_lg", "16dp")
+        assertFalse(
+            "the 14dp and 16dp card radii went with the cards that drew them: View cards take the row radius (spec section 2)",
+            File("src/main/res/values/dimens.xml").readText().contains("nova_card_corner_radius")
         )
         assertTrue(
             "landscape game cover height resource should remain available for XML View surfaces",
             hasDimen(landDimens, "nova_game_card_cover_height", "180dp")
         )
         assertTrue(
-            "server card ripple should continue to follow the shared card radius",
-            hasCorners(ripple, "@dimen/nova_card_corner_radius")
+            "the server card ripple follows the row radius the card itself takes",
+            hasCorners(ripple, "@dimen/nova_radius_row")
         )
         assertTrue(
             "legacy XML focusable cards should use the active theme accent instead of a static global accent",

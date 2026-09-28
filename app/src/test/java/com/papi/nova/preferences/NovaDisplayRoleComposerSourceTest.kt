@@ -128,7 +128,6 @@ class NovaDisplayRoleComposerSourceTest {
             "display_role_current",
             "display_role_pending",
             "display_role_apply",
-            "display_role_cancel",
             "display_role_swap",
             "display_role_next_stream",
             "display_role_resolution_refresh",

@@ -43,13 +43,13 @@ import androidx.preference.PreferenceManager
 import com.google.gson.Gson
 import com.papi.nova.BuildConfig
 import com.papi.nova.DebugInfoActivity
-import com.papi.nova.GameMenu
 import com.papi.nova.LimeLog
 import com.papi.nova.PcView
 import com.papi.nova.R
 import com.papi.nova.binding.input.virtual_controller.keyboard.KeyBoardControllerConfigurationLoader
 import com.papi.nova.binding.video.MediaCodecHelper
 import com.papi.nova.ui.NovaSnackbar
+import com.papi.nova.ui.NovaSpecialKeyPrefs
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.ui.panel.NovaAction
@@ -1305,9 +1305,9 @@ class StreamSettings : NovaActivity() {
                         return
                     }
                     val prefEditor = requireActivity()
-                        .getSharedPreferences(GameMenu.PREF_NAME, Activity.MODE_PRIVATE)
+                        .getSharedPreferences(NovaSpecialKeyPrefs.PREF_NAME, Activity.MODE_PRIVATE)
                         .edit()
-                    prefEditor.putString(GameMenu.KEY_NAME, json)
+                    prefEditor.putString(NovaSpecialKeyPrefs.KEY_NAME, json)
                     prefEditor.apply()
                     Toast.makeText(activity, getString(R.string.pref_import_success), Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {

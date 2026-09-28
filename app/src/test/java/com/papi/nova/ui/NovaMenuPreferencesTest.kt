@@ -3,7 +3,6 @@ package com.papi.nova.ui
 import android.content.Context
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
-import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.preferences.NOVA_STREAM_UI_DEFAULT_UPDATES
 import com.papi.nova.preferences.NOVA_STREAM_UI_RESET_REMOVALS
@@ -136,37 +135,6 @@ class NovaMenuPreferencesTest {
         assertEquals(24f, NovaMenuPreferences.blurRadiusDp(0), 0.001f)
         assertEquals(0f, NovaMenuPreferences.blurRadiusDp(150), 0.001f)
         assertEquals(24f, NovaMenuPreferences.blurRadiusDp(-10), 0.001f)
-    }
-
-    @Test
-    fun sharedSheetChromeScalesThemeGlassScrimAndBorder() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-        prefs.edit().clear().commit()
-
-        NovaMenuPreferences.writeOpacityPercent(prefs, 100)
-        val fullGlassAlpha = NovaSheetChrome.getSheetGlassAlpha(context)
-        val fullSurfaceAlpha = Color.alpha(NovaSheetChrome.createSheetSurfaceColor(context))
-        val fullStrokeAlpha = Color.alpha(NovaSheetChrome.getSheetStrokeColor(context))
-        assertEquals(1f, fullGlassAlpha, 0.001f)
-        assertEquals(255, fullSurfaceAlpha)
-
-        NovaMenuPreferences.writeOpacityPercent(prefs, 50)
-
-        assertEquals(0.5f, NovaSheetChrome.getSheetGlassAlpha(context), 0.001f)
-        assertEquals(127, Color.alpha(NovaSheetChrome.createSheetSurfaceColor(context)))
-        assertEquals(
-            NovaMenuPreferences.readabilityScrimAlpha(NovaSheetChrome.SCRIM_ALPHA, 50),
-            NovaSheetChrome.getSheetScrimAlpha(context),
-            0.001f
-        )
-        assertEquals(fullStrokeAlpha * 0.5f, Color.alpha(NovaSheetChrome.getSheetStrokeColor(context)).toFloat(), 1.0f)
-
-        NovaMenuPreferences.writeOpacityPercent(prefs, 0)
-
-        assertEquals(0f, NovaSheetChrome.getSheetGlassAlpha(context), 0.001f)
-        assertEquals(0, Color.alpha(NovaSheetChrome.createSheetSurfaceColor(context)))
-        assertEquals(NovaMenuPreferences.MIN_READABILITY_SCRIM_ALPHA, NovaSheetChrome.getSheetScrimAlpha(context), 0.001f)
-        assertEquals(0, Color.alpha(NovaSheetChrome.getSheetStrokeColor(context)))
     }
 
     @Test

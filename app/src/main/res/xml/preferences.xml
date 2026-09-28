@@ -574,8 +574,6 @@
             android:dialogMessage="@string/dialog_text_reset_osc"
             android:dialogTitle="@string/dialog_title_reset_osc"
             android:key="option_reset_osc_preference"
-            android:negativeButtonText="@string/no"
-            android:positiveButtonText="@string/yes"
             android:summary="@string/summary_reset_osc"
             android:title="@string/title_reset_osc"
             app:iconSpaceReserved="false" />

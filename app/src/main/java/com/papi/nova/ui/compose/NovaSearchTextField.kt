@@ -127,7 +127,7 @@ fun NovaSearchTextField(
                 detectTapGestures(onTap = { beginEditing() })
             }
             .height(heightDp.dp)
-            .novaFocusMotion(focused = focused, pressed = false)
+            .novaFocusMotion(focused = focused)
             .clip(shape)
             .background(surfaces.control)
             .border(

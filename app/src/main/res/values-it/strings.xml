@@ -17,7 +17,6 @@
     <string name="pair_pc_offline">Il PC è offline</string>
     <string name="pair_pc_ingame">PC con applicazione avviata. Devi chiudere l\'applicazione prima dell\'accoppiamento.</string>
     <string name="pair_pairing_title">Accoppiamento</string>
-    <string name="pair_pairing_msg">Inserisci il seguente PIN sul PC:</string>
     <string name="pair_incorrect_pin">PIN non corretto</string>
     <string name="pair_fail">Accoppiamento fallito</string>
     <string name="pair_already_in_progress">Accoppiamento già in corso</string>
@@ -63,10 +62,7 @@
     <string name="searching_pc">Ricerca di PC nella rete locale…
 \n
 \n Assicurati che Sunshine sia avviato o che GameStream sia abilitato nelle impostazioni SHIELD di GeForce Experience.</string>
-    <string name="yes">Sì</string>
-    <string name="no">No</string>
     <string name="lost_connection">Connessione con il PC persa</string>
-    <string name="help">Assistenza</string>
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connessione al PC in corso…</string>
     <string name="applist_menu_resume">Riprendi sessione</string>
@@ -80,7 +76,6 @@
     <string name="applist_quit_app">Chiusura in corso</string>
     <string name="applist_quit_success">Sessione chiusa con successo</string>
     <string name="applist_quit_fail">Chiusura sessione fallita</string>
-    <string name="applist_quit_confirmation">Sei sicuro di voler chiudere l\'applicazione avviata? Tutti i dati non salvati saranno persi.</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Aggiungi PC manualmente</string>
     <string name="msg_add_pc">Connessione al PC in corso…</string>
@@ -148,7 +143,6 @@
     <string name="pcview_menu_details">Mostra Dettagli</string>
     <string name="pcview_menu_test_network">Controlla la Connessione di Rete</string>
     <string name="title_details">Dettagli</string>
-    <string name="delete_pc_msg">Sei sicuro di voler rimuovere questo PC\?</string>
     <string name="slow_connection_msg">Connessione lenta al PC
 \nRidurre il bitrate</string>
     <string name="poor_connection_msg">Connessione al PC di bassa qualità</string>
@@ -276,7 +270,6 @@
     <string name="fps_suffix_fps">FPS</string>
     <string name="category_gamepad_settings">Impostazioni del gamepad</string>
     <string name="title_checkbox_gamepad_motion_fallback">Emula il supporto dei sensori giroscopici del gamepad</string>
-    <string name="pair_pairing_help">Se il tuo PC host sta eseguendo Sunshine, vai nella pagina web locale di Sunshine ed inserisci il PIN.</string>
     <string name="title_checkbox_gamepad_touchpad_as_mouse">Controlla sempre il mouse col touchpad</string>
     <string name="perf_overlay_hostprocessinglatency">Latenza di codifica da parte dell\'host min/max/average: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="error_code_prefix">Codice di errore:</string>

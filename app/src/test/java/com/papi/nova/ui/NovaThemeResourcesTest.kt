@@ -107,7 +107,6 @@ class NovaThemeResourcesTest {
     @Test
     fun miamiKeepsFlamingoPinkHeroAccentWithCyanAquaSupport() {
         val colors = File("src/main/res/values/colors_nova.xml").readText()
-        val strings = File("src/main/res/values/strings.xml").readText()
 
         assertTrue(colors.contains("nova_miami_accent") && colors.contains("#FFFF5CAB"))
         assertTrue(colors.contains("nova_miami_accent_surface") && colors.contains("#1AFF5CAB"))
@@ -115,14 +114,16 @@ class NovaThemeResourcesTest {
         assertTrue(colors.contains("nova_miami_water_accent") && colors.contains("#FF47F3FF"))
         assertTrue(colors.contains("nova_miami_water_accent_surface") && colors.contains("#1A47F3FF"))
         assertFalse("Miami must not replace flamingo pink with cyan as the primary accent", colors.lines().any { it.contains("nova_miami_accent") && it.contains("#FF47F3FF") })
-        assertTrue(strings.contains("flamingo pink"))
-        assertTrue(strings.contains("cyan/aqua"))
+        // The theme's description is the host theme page's caption now (the picker's subtitles
+        // went with its sheet), and it still leads with the pink and keeps the cyan as support.
+        val caption = File("src/main/res/values/strings_ui_hosts.xml").readText()
+            .substringAfter("name=\"hosts_theme_caption_miami\">").substringBefore("</string>")
+        assertTrue(caption, caption.contains("flamingo pink") && caption.contains("cyan"))
     }
 
     @Test
     fun portableChromeUsesSubtlePlayStationSymbolAccentTokens() {
         val colors = File("src/main/res/values/colors_nova.xml").readText()
-        val strings = File("src/main/res/values/strings.xml").readText()
 
         assertTrue(colors.contains("nova_portable_accent") && colors.contains("#FF5A93D6"))
         assertTrue(colors.contains("nova_portable_cross_accent") && colors.contains("#FF5A93D6"))
@@ -131,7 +132,9 @@ class NovaThemeResourcesTest {
         assertTrue(colors.contains("nova_portable_triangle_accent") && colors.contains("#FF6FBF8A"))
         val oldPortableAccent = "nova_portable_accent" + 34.toChar() + ">#FF7FA38D"
         assertFalse("Portable Chrome primary accent must not stay generic muted green", colors.contains(oldPortableAccent))
-        assertTrue(strings.contains("PlayStation-symbol accents"))
+        val caption = File("src/main/res/values/strings_ui_hosts.xml").readText()
+            .substringAfter("name=\"hosts_theme_caption_portable_chrome\">").substringBefore("</string>")
+        assertTrue("the host theme page names the PlayStation accents: $caption", caption.contains("PlayStation accents"))
     }
 
     @Test
@@ -187,7 +190,12 @@ class NovaThemeResourcesTest {
         assertTrue("the current theme is the Choice page's current value", page.contains("current = current,"))
         assertTrue("Material You should remain part of the dashboard picker when the device supports it", source.contains("NovaThemeManager.THEME_MATERIAL_YOU"))
         assertTrue("Portable Chrome should be eye-scan visible as the picker title", strings.contains("Portable Chrome"))
-        assertTrue("Portable Chrome subtitle should describe the chrome profile without PSP naming", strings.contains("Smoked graphite handheld chrome profile"))
+        val portableCaption = File("src/main/res/values/strings_ui_hosts.xml").readText()
+            .substringAfter("name=\"hosts_theme_caption_portable_chrome\">").substringBefore("</string>")
+        assertTrue(
+            "Portable Chrome's caption should describe the chrome profile without PSP naming",
+            portableCaption.contains("handheld chrome") && !portableCaption.contains("PSP")
+        )
         assertFalse("the picker copy should not repeat Press A after removing per-row action badges", strings.contains("Press A"))
     }
 
@@ -209,7 +217,7 @@ class NovaThemeResourcesTest {
 
 
     @Test
-    fun bottomSheetsShareNovaSheetChromeInsteadOfOneOffSurfaces() {
+    fun overlaysShareThePanelChromeInsteadOfOneOffSurfaces() {
         val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
         val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val appView = File("src/main/java/com/papi/nova/AppView.kt").readText()
@@ -222,11 +230,18 @@ class NovaThemeResourcesTest {
         val playSetupPages = File("src/main/java/com/papi/nova/ui/NovaPlaySetupPages.kt").readText()
         val panelFrame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
 
-        assertTrue("native sheets should use a single chrome helper", sheetChrome.contains("object NovaSheetChrome"))
-        assertTrue("sheet chrome should use theme-specific dialog surface colors", sheetChrome.contains("NovaThemeManager.getDialogBackgroundColor"))
-        assertTrue("sheet chrome should use theme-specific accents for the handle/stroke", sheetChrome.contains("NovaThemeManager.getAccentColor"))
-        assertTrue("sheet chrome should expose shared top corner radius", sheetChrome.contains("SHEET_CORNER_RADIUS_DP"))
-        assertTrue("sheet chrome should expose shared landscape width policy", sheetChrome.contains("LANDSCAPE_WIDTH_FRACTION"))
+        // The last View sheet and alert are panel pages now, so the View chrome that drew them is
+        // gone: NovaSheetChrome keeps only the glass alphas the Compose theme reads, and the panel
+        // frame draws the one surface, radius and scrim every overlay shares.
+        assertFalse(
+            "no View sheet or alert chrome is left to drift from the panel frame's",
+            sheetChrome.contains("fun applyBottomSheetChrome(") || sheetChrome.contains("fun applyAlertDialogChrome(") ||
+                sheetChrome.contains("fun createSheetBackground(") || sheetChrome.contains("BottomSheetDialog")
+        )
+        assertTrue(
+            "the drawer radius is a step of the one corner scale, not a sheet constant",
+            File("src/main/java/com/papi/nova/ui/compose/NovaRadius.kt").readText().contains("val drawer: Dp = 26.dp")
+        )
         // The theme picker, the host menu and the app menu are panels now: NovaPanelWindow draws
         // their chrome, so none of them builds a sheet or applies the sheet chrome itself.
         assertFalse("the Hosts screen's menus are panels, not sheets", pcView.contains("NovaSheetChrome.") || pcView.contains("BottomSheetDialog"))
@@ -247,8 +262,8 @@ class NovaThemeResourcesTest {
     }
 
     @Test
-    fun sheetChromeContractPreventsClippedOrStaticThemePickerSurfaces() {
-        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
+    fun themePickerCaptionsFitAndPanelsKeepAThemedEdge() {
+        val panelFrame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
         val captions = File("src/main/res/values/strings_ui_hosts.xml").readText()
 
         // The picker moved onto the panel foundation, whose rows keep their focus ring inside the
@@ -257,19 +272,10 @@ class NovaThemeResourcesTest {
         Regex("<string name=\"(hosts_theme_caption_[a-z_]+)\">([^<]+)</string>").findAll(captions).forEach { caption ->
             assertTrue("${caption.groupValues[1]} keeps to two lines: ${caption.groupValues[2]}", caption.groupValues[2].length <= 48)
         }
-        assertTrue("sheet chrome must draw a stroke around sheet surfaces for clean themed edges", sheetChrome.contains("setStroke"))
-        assertTrue("sheet chrome should include theme-specific light/dark stroke blending", sheetChrome.contains("getSheetStrokeColor"))
-    }
-
-    @Test
-    fun bottomSheetChromeClearsMaterialHostSoChildPanelDoesNotDrawABottomBump() {
-        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
-        val applyBody = sheetChrome.substringAfter("fun applyBottomSheetChrome(")
-            .substringBefore("fun applyAlertDialogChrome")
-
-        assertTrue("bottom-sheet chrome must clear the Material host/window to transparent so it cannot peek out as a bottom bump", applyBody.contains("ColorDrawable(Color.TRANSPARENT)"))
-        assertTrue("bottom-sheet chrome should draw the themed glass surface on the content panel, not the Material host", applyBody.contains("contentView?.background = createSheetBackground(context)"))
-        assertFalse("Material design_bottom_sheet host must not draw the same rounded sheet background behind the content panel", applyBody.contains("sheet.background = createSheetBackground(context)"))
+        assertTrue(
+            "a panel draws a themed hairline on its inner edge for a clean edge against what is behind it",
+            panelFrame.contains("val hairline = surfaces.panelBorder") && panelFrame.contains("NovaPanelMetrics.Hairline.toPx()")
+        )
     }
 
     @Test
@@ -300,36 +306,33 @@ class NovaThemeResourcesTest {
             File("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt").readText() +
             File("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt").readText()
 
-        assertTrue("native sheet chrome must expose a named glass alpha contract", sheetChrome.contains("SHEET_GLASS_ALPHA"))
-        assertTrue("native sheet backgrounds should preserve theme color while applying the absolute outer opacity", sheetChrome.contains("ColorUtils.setAlphaComponent") && sheetChrome.contains("NovaMenuPreferences.outerSurfaceAlpha"))
+        assertTrue("panel glass keeps a named alpha contract", sheetChrome.contains("SHEET_GLASS_ALPHA"))
         assertTrue("high contrast can remain more opaque for readability", sheetChrome.contains("HIGH_CONTRAST_SHEET_GLASS_ALPHA"))
-        assertTrue("shared scrim should be light enough for NovaHUD/game context to remain visible", sheetChrome.contains("const val SCRIM_ALPHA = 0.22f"))
-        assertTrue("default action row state should remain transparent glass, not an opaque mini slab", sheetChrome.contains("fillAccentBlend = 0f") && sheetChrome.contains("Color.TRANSPARENT"))
+        // The View sheets' 0.22 scrim and their action rows went with them (spec section 2): the
+        // panel frame draws the scrim, and panel rows take the one focus look.
         assertTrue("Compose library surfaces should reuse shared glass alpha language", composeTheme.contains("NovaSheetChrome.SHEET_GLASS_ALPHA"))
         // There was an assertion here that the game detail window reuses the sheet radius
         // token. It contradicted that window's own rule -- it raises no sheet, and
         // NovaLaunchSourceGuardTest asserts as much -- and it passed only because a
         // composable nothing ever called still mentioned the token. The window's radii come
-        // from NovaRadius; the sheet token belongs to surfaces that are actually sheets.
-        assertTrue("game detail must not reach for sheet chrome, since it raises no sheet", !gameDetail.contains("NovaSheetChrome.SHEET_CORNER_RADIUS_DP"))
+        // from NovaRadius, as the drawer's does now.
+        assertTrue("game detail must not reach for sheet chrome, since it raises no sheet", !gameDetail.contains("NovaSheetChrome."))
     }
 
 
     @Test
     fun menuOpacityWiresLiteralOuterSurfacesWithoutCouplingNovaHud() {
-        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
         val composeTheme = File("src/main/java/com/papi/nova/ui/compose/NovaComposeTheme.kt").readText()
         val quickMenuContent = File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
         val streamHud = File("src/main/java/com/papi/nova/ui/NovaStreamHud.kt").readText()
         val streamHudContent = File("src/main/java/com/papi/nova/ui/NovaStreamHudContent.kt").readText()
-        val legacyAlertChrome = sheetChrome
-            .substringAfter("fun applyMenuOpacityToLegacyAlert(dialog: AlertDialog")
-            .substringBefore("fun applyAlertDialogChrome(dialog: AlertDialog")
 
-        assertTrue("native sheet glass should read the shared menu opacity preference", sheetChrome.contains("NovaMenuPreferences.readOpacityPercent"))
-        assertTrue("native outer surfaces should use absolute opacity with the dark-text readability floor", sheetChrome.contains("NovaMenuPreferences.outerSurfaceAlpha"))
-        assertFalse("literal 100% opacity must not bypass shared alert chrome", legacyAlertChrome.contains("NovaMenuPreferences.MAX_OPACITY_PERCENT"))
-        assertTrue("native sheet scrims should expose a preference-scaled alpha", sheetChrome.contains("getSheetScrimAlpha"))
+        // The View sheet and alert chrome went with the last View sheet; the panel frame's scrim
+        // scales with the same menu opacity preference.
+        assertTrue(
+            "panel scrims should expose a preference-scaled alpha",
+            File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText().contains("NovaMenuPreferences.readabilityScrimAlpha(")
+        )
         assertTrue("Compose menus should publish one menu opacity composition local", composeTheme.contains("LocalNovaMenuOpacityScale"))
         assertTrue("Compose menu surfaces should receive the current opacity scale", composeTheme.contains("librarySurfaces(theme, menuOpacityScale)"))
         assertTrue(
@@ -355,24 +358,19 @@ class NovaThemeResourcesTest {
 
     @Test
     fun sessionQuitConfirmationUsesNovaGlassBottomSheetInsteadOfRawAlertDialog() {
-        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
         val spinnerDialog = File("src/main/java/com/papi/nova/utils/SpinnerDialog.kt").readText()
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val quitBody = game.substringAfter("fun quit() {").substringBefore("override fun showGameMenu")
-        val spinnerLayout = File("src/main/res/layout/nova_spinner_dialog.xml").readText()
         // The spinner is a Busy state page now, drawn by NovaStateScreen rather than a themed alert.
         val busyPage = File("src/main/java/com/papi/nova/ui/panel/NovaStateScreen.kt").readText()
             .substringAfter("private fun BusyContent(").substringBefore("private fun CodeContent(")
 
-        assertTrue("shared chrome should still expose AlertDialog styling for remaining legacy session popups", sheetChrome.contains("applyAlertDialogChrome"))
         assertTrue(
             "establishing-session spinner should draw as Nova's own full-screen Busy page, not a platform dialog",
             spinnerDialog.contains("NovaStatePage.Busy(") && !spinnerDialog.contains("AlertDialog")
         )
-        assertFalse("spinner progress must not hardcode the Polaris accent", spinnerLayout.contains("@color/nova_accent"))
-        assertFalse("spinner progress tint should be applied at runtime instead of risky XML attr tinting", spinnerLayout.contains("indeterminateTint"))
         assertTrue("spinner should tint progress from the active Nova theme at runtime", busyPage.contains("CircularProgressIndicator(") && busyPage.contains("color = colors.accent"))
-        assertTrue("spinner layout should consume theme text color attrs", spinnerLayout.contains("?android:attr/textColorPrimary"))
+        assertFalse("the spinner's View layout went with the platform dialog that drew it", File("src/main/res/layout/nova_spinner_dialog.xml").exists())
         // Ending splits in place wherever there is a button; quit() is the fallback for paths with
         // none, a destructive Confirm page in the panel window, which shares the panel's glass.
         assertTrue("quit confirmation should be a destructive panel Confirm page, not a sheet of its own", quitBody.contains("NovaCommonPage.Confirm(") && quitBody.contains("destructive = true") && !quitBody.contains("BottomSheetDialog"))
@@ -393,7 +391,6 @@ class NovaThemeResourcesTest {
         assertTrue("quit title should be Nova-session language, not raw stream-control wording", strings.contains("""<string name="game_dialog_title_quit_confirm">End this Nova session?</string>"""))
         assertTrue("quit message should distinguish ending the host app from disconnect/resume", strings.contains("This closes the host app and the resumable stream"))
         assertTrue("quit destructive action should say End session", strings.contains("""<string name="game_dialog_action_end_session">End Session</string>"""))
-        assertTrue("quit safe action should say Stay in game", strings.contains("""<string name="game_dialog_action_stay_in_game">Stay in Game</string>"""))
         assertFalse("old Keep streaming / End stream labels should not remain in the quit dialog copy", strings.contains("Keep streaming") || strings.contains("End stream and quit app?") || strings.contains("game_dialog_action_end_stream"))
     }
 
@@ -497,7 +494,6 @@ class NovaThemeResourcesTest {
         val blur = File("src/main/java/com/papi/nova/ui/NovaMenuBlur.kt").readText()
         val composeBlur = File("src/main/java/com/papi/nova/ui/compose/NovaMenuBackdropBlur.kt").readText()
         val composeTheme = File("src/main/java/com/papi/nova/ui/compose/NovaComposeTheme.kt").readText()
-        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
         val quickMenuHost = File("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt").readText()
         val quickMenu = File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
         val library = File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
@@ -508,7 +504,7 @@ class NovaThemeResourcesTest {
         assertTrue("adaptive blur should use API 31 RenderEffect rather than optional cross-window blur", blur.contains("Build.VERSION_CODES.S") && blur.contains("RenderEffect.createBlurEffect"))
         assertTrue("blur cleanup must be owner-scoped for overlapping overlays", blur.contains("class BlurLease") && blur.contains("ownerRadiiDp") && blur.contains("applyStrongestOwnedEffect"))
         assertTrue("all View and dialog mutations should be main-thread confined", blur.contains("Looper.myLooper() == Looper.getMainLooper()") && blur.contains("requireMainThread()"))
-        assertTrue("stale dialog listeners must not remove a newer binding", blur.contains("dialogBindings[view] !== binding") && blur.contains("dialogBindings[view] === binding"))
+        assertFalse("no dialog leases a blur through a binding of its own: NovaPanelWindow's frame leases the activity backdrop", blur.contains("fun attachBehindDialog("))
         assertTrue("releasing an owner should recompute the strongest remaining radius", blur.contains("state.ownerRadiiDp.remove(owner)") && blur.contains("state.ownerRadiiDp.values.maxOrNull()"))
         assertTrue("Compose drawers should lease the Activity backdrop and release only their own effect", composeBlur.contains("NovaMenuBlur.acquireActivityBackground") && composeBlur.contains("lease?.release()"))
         // The Command Center opens in the panel window. Over the stream the frame draws only the
@@ -538,13 +534,8 @@ class NovaThemeResourcesTest {
             settings.contains("NovaPageStackHost(") && !settings.contains("Dialog(") &&
                 File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText().contains("NovaMenuBackdropBlur()")
         )
-        assertTrue("native dialog blur should start on window attach and clear on detach", blur.contains("onViewAttachedToWindow") && blur.contains("isAttachedToWindow") && blur.contains("onViewDetachedFromWindow"))
-        assertTrue("native sheets and alerts should share the same adaptive blur contract", sheetChrome.contains("NovaMenuBlur.attachBehindDialog"))
-        assertTrue("dark-text native surfaces should retain a WCAG readability floor below 100%", sheetChrome.contains("NovaMenuPreferences.outerSurfaceAlpha") && sheetChrome.contains("ColorUtils.calculateLuminance"))
         assertTrue("Compose contrast scrims should use the stronger dark-text floor", composeTheme.contains("usesDarkText = textPrimary.luminance() < 0.5f"))
         assertFalse("Settings has no select dialog left to draw its own window scrim; its lists are pages", settings.contains("NovaDialogContrastBackdrop()"))
-        assertTrue("unfocused native action strokes should disappear with menu glass", sheetChrome.contains("strokeAccentBlend * menuOpacityScale"))
-        assertTrue("focused and pressed native action strokes should remain as readability cues", sheetChrome.contains("if (preservesFocusCue)"))
         assertTrue("session startup should release leases on explicit dismissal and unexpected view detach", progress.contains("NovaMenuBlur.acquireChildren") && progress.contains("releaseBackgroundBlur") && progress.contains("releaseOnUnexpectedDetach"))
         assertTrue("reconnecting should be a Busy state page, which holds no blur lease to leak", reconnect.contains("NovaStatePage.Busy(") && !reconnect.contains("NovaMenuBlur"))
     }
@@ -721,7 +712,6 @@ class NovaThemeResourcesTest {
             "NovaFilterChip",
             "NovaMaterialChip",
             "NovaMaterialChip.Action",
-            "NovaBottomSheet",
         ).forEach { styleName ->
             val block = styles.substringAfter("<style name=\"$styleName\"")
                 .substringBefore("</style>")
@@ -897,15 +887,5 @@ class NovaThemeResourcesTest {
 
         assertTrue("DebugInfoActivity must apply the selected theme before super.onCreate", debugBeforeSuper.contains("NovaThemeManager.applyTheme(this)"))
         assertTrue("ShortcutTrampoline dialogs must inherit the selected theme on cold start", shortcutBeforeSuper.contains("NovaThemeManager.applyTheme(this)"))
-    }
-
-    @Test
-    fun sheetActionRowsExposeDpadFocusedAndPressedFeedback() {
-        val sheetChrome = File("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt").readText()
-
-        assertTrue("sheet action rows should use a stateful background so D-pad focus is visible", sheetChrome.contains("StateListDrawable"))
-        assertTrue("sheet action rows should define a focused state", sheetChrome.contains("android.R.attr.state_focused"))
-        assertTrue("sheet action rows should define a pressed state", sheetChrome.contains("android.R.attr.state_pressed"))
-        assertTrue("focused/pressed rows should blend with the active theme accent", sheetChrome.contains("createActionStateBackground") && sheetChrome.contains("NovaThemeManager.getAccentColor"))
     }
 }

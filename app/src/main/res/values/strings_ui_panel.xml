@@ -17,7 +17,6 @@
     <string name="nova_panel_exact_value">Exact value</string>
     <string name="nova_panel_working">Working</string>
     <string name="nova_panel_back_to">Back to %1$s</string>
-    <string name="nova_panel_end_session_title">End this session?</string>
     <string name="nova_panel_end_session_message">The game closes on the host, and anything it has not saved is lost.</string>
     <!-- The title of a confirm page whose caller gave none. -->
     <string name="nova_panel_confirm_title">Confirm</string>

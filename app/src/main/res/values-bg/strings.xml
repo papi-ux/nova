@@ -28,7 +28,6 @@
     <string name="conn_client_latency">Средна латентност при декодиране на кадър:</string>
     <string name="conn_starting">Стартиране</string>
     <string name="conn_terminated_title">Връзката е прекратена</string>
-    <string name="yes">Да</string>
     <string name="applist_menu_hide_app">Скриване на приложението</string>
     <string name="applist_refresh_title">Списък с приложения</string>
     <string name="summary_resolution_list">Увеличете, за да подобрите яснотата на изображението. Намалете за по-добра производителност на устройства от по-нисък клас и по-бавни мрежи.</string>
@@ -58,7 +57,6 @@
 \nСледните мрежови портове са блокирани:
 \n</string>
     <string name="nettest_text_blocked">Текущата мрежова връзка на вашето устройство блокира Nova. Стриймването през интернет може да не работи, докато сте свързани към тази мрежа.</string>
-    <string name="pair_pairing_msg">Моля, въведете следния ПИН на избрания компютър:</string>
     <string name="pair_fail">Неуспешно сдвояване</string>
     <string name="pair_already_in_progress">Сдвояването вече е в ход</string>
     <string name="wol_pc_online">Компютърът е онлайн</string>
@@ -89,11 +87,8 @@
     <string name="conn_error_msg">Неуспешно стартиране</string>
     <string name="conn_terminated_msg">Връзката беше прекратена</string>
     <string name="conn_error_title">Грешка при свързване</string>
-    <string name="no">Не</string>
-    <string name="help">Помощ</string>
     <string name="lost_connection">Загубена връзка с компютър</string>
     <string name="title_details">Подробности</string>
-    <string name="delete_pc_msg">Сигурни ли сте, че искате да изтриете този компютър\?</string>
     <string name="poor_connection_msg">Лоша връзка с компютъра</string>
     <string name="perf_overlay_streamdetails">Видео поток: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Декодер: %1$s</string>
@@ -117,7 +112,6 @@
     <string name="applist_quit_app">Изключване</string>
     <string name="applist_quit_fail">Неуспешно изключване</string>
     <string name="applist_details_id">ID на приложението:</string>
-    <string name="applist_quit_confirmation">Сигурни ли сте, че искате да затворите работещото приложение\? Всички незапазени данни ще бъдат загубени.</string>
     <string name="title_add_pc">Ръчно добавяне на компютър</string>
     <string name="addpc_fail">Неуспешна връзка с посочения компютър. Уверете се, че необходимите портове са разрешени през защитната стена.</string>
     <string name="category_basic_settings">Основни настройки</string>

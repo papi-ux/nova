@@ -29,11 +29,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -42,13 +39,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
@@ -59,14 +54,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -82,41 +71,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.InputMode
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -139,10 +112,8 @@ import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
-import com.papi.nova.ui.compose.NovaSearchTextField
 import org.json.JSONObject
 import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.binding.PlatformBinding
@@ -2543,108 +2514,6 @@ class NovaLibraryActivity : NovaActivity() {
         PolarisClientSettings.MODE_DESKTOP_TAKEOVER -> "Takeover"
         PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "GPU Native"
         else -> null
-    }
-
-    @Composable
-    private fun NovaLibraryActiveSessionCard(
-        session: NovaLibraryActiveSessionUiState,
-        modifier: Modifier = Modifier,
-        onResumeSession: (NovaLibraryActiveSessionUiState) -> Unit,
-        onEndSession: (NovaLibraryActiveSessionUiState) -> Unit
-    ) {
-        val colors = LocalNovaComposeColors.current
-        val surfaces = LocalNovaLibrarySurfaces.current
-        val fallbackName = stringResource(R.string.applist_menu_watch_active_name)
-        val gameName = session.gameName.ifBlank { fallbackName }
-        val actionLabel = stringResource(
-            if (session.watchOnly) R.string.applist_menu_watch else R.string.applist_menu_resume
-        )
-        val ownerDetail = if (session.ownerDeviceName.isNotBlank()) {
-            stringResource(R.string.nova_library_active_session_owner_format, session.ownerDeviceName)
-        } else {
-            null
-        }
-        val viewerDetail = when {
-            session.viewerCount <= 0 -> null
-            session.viewerCount == 1 -> stringResource(
-                R.string.nova_library_active_session_viewer_count_one,
-                session.viewerCount
-            )
-            else -> stringResource(
-                R.string.nova_library_active_session_viewer_count_many,
-                session.viewerCount
-            )
-        }
-        val streamDetail = formatStreamProfile(session)
-        val detail = listOfNotNull(ownerDetail, viewerDetail, streamDetail).joinToString(" / ")
-        val shape = RoundedCornerShape(NovaRadius.row)
-
-        Column(
-            modifier = modifier
-                .clip(shape)
-                .background(surfaces.selectedControl)
-                .border(1.dp, colors.accent.copy(alpha = 0.52f), shape)
-                .padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.nova_library_active_session_title),
-                color = colors.accent,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = gameName,
-                color = colors.textPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (detail.isNotBlank()) {
-                Text(
-                    text = detail,
-                    color = colors.textSecondary,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            val endSplit = rememberNovaSplitConfirmState()
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Armed, End takes the row so its two halves keep their width.
-                if (!endSplit.armed) NovaActionButton(
-                    text = actionLabel,
-                    onClick = { onResumeSession(session) },
-                    modifier = Modifier.weight(1f),
-                    primary = true,
-                    minHeight = 34.dp,
-                    fontSize = 11.sp
-                )
-                if (!session.watchOnly) {
-                    NovaSplitConfirm(
-                        label = stringResource(R.string.applist_menu_quit),
-                        confirmLabel = stringResource(R.string.game_dialog_action_end_session),
-                        onConfirm = { onEndSession(session) },
-                        consequence = stringResource(R.string.nova_panel_end_session_message),
-                        state = endSplit,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-    }
-
-    private fun formatStreamProfile(session: NovaLibraryActiveSessionUiState): String? {
-        if (session.streamWidth <= 0 || session.streamHeight <= 0 || session.streamFps <= 0f) {
-            return null
-        }
-        return "${session.streamWidth}x${session.streamHeight} @ ${session.streamFps.toInt()} FPS"
     }
 
     @Composable

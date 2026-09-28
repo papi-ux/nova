@@ -23,7 +23,6 @@
     <string name="pair_pc_offline">Компьютер выключен или находится не в сети</string>
     <string name="pair_pc_ingame">Компьютер в данный момент находится в игре. Вы должны закрыть игру перед сопряжением.</string>
     <string name="pair_pairing_title">Сопряжение</string>
-    <string name="pair_pairing_msg">Пожалуйста введите этот PIN на целевом ПК:</string>
     <string name="pair_otp_pairing_help">Сопряжение по OTP доступно только с Apollo. При использовании другого ПО введите PIN вручную в веб-интерфейсе.</string>
     <string name="pair_incorrect_pin">Неправильный PIN</string>
     <string name="pair_fail">Сопряжение не удалось</string>
@@ -61,8 +60,6 @@
     <string name="searching_pc">Поиск хост-ПК в вашей локальной сети…
 \n
 \n Убедитесь, что Sunshine работает на вашем хост-компьютере или GameStream включен в настройках GeForce Experience SHIELD.</string>
-    <string name="yes">Да</string>
-    <string name="no">Нет</string>
     <string name="lost_connection">Потеряно соединение с ПК</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">Возобновить сессию</string>
@@ -80,7 +77,6 @@
     <string name="applist_quit_app">Выход из</string>
     <string name="applist_quit_success">Выход произошёл успешно из</string>
     <string name="applist_quit_fail">Ошибка при выходе</string>
-    <string name="applist_quit_confirmation">Вы уверены, что хотите выйти из запущенного приложения? Все несохранённые данные будут потеряны.</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Добавление ПК вручную</string>
     <string name="msg_add_pc">Соединение с ПК…</string>
@@ -138,7 +134,6 @@
     <string name="help_loading_title">Просмотр помощи</string>
     <string name="help_loading_msg">Загрузка страницы помощи…</string>
     <string name="pair_already_in_progress">Сопряжение уже в процессе</string>
-    <string name="help">Помощь</string>
     <string name="toast_no_logs">Данные о производительности отсутствуют.</string>
     <string name="applist_connect_msg">Подключение к ПК…</string>
     <string name="title_decoding_error">Сбой декодирования видео</string>
@@ -175,7 +170,6 @@
     <string name="category_input_settings">Настройки ввода</string>
     <string name="title_checkbox_touchscreen_trackpad">Использовать сенсор как тачпад</string>
     <string name="summary_checkbox_touchscreen_trackpad">Если включено, сенсор выступает в роли тачпада. Если отключено, сенсор напрямую контролирует курсор мыши.</string>
-    <string name="delete_pc_msg">Вы уверены что хотите удалить этот ПК?</string>
     <string name="pcview_menu_details">Посмотреть детали</string>
     <string name="poor_connection_msg">Слабое соединение с ПК</string>
     <string name="title_details">Детали</string>
@@ -289,7 +283,6 @@
     <string name="pan_zoom_mode_disabled">Режим прокрутки/масш. выключен</string>
     <string name="title_analog_scrolling">Использовать аналоговый джойстик для прокрутки</string>
     <string name="analogscroll_right">Правый аналоговый джойстик</string>
-    <string name="pair_pairing_help">Если на вашем хост-ПК установлен Sunshine, перейдите в веб-интерфейс Sunshine и введите PIN-код.</string>
     <string name="error_code_prefix">Код ошибки:</string>
     <string name="perf_overlay_hostprocessinglatency">Задержка обработки хоста мин/макс/среднее: %1$.1f/%2$.1f/%3$.1f мс</string>
     <string name="summary_seekbar_vibrate_fallback_strength">Увеличьте или уменьшите интенсивность вибрации на вашем устройстве</string>
@@ -309,7 +302,6 @@
     <string name="title_enable_commit_text">Включить передачу готового текста (свайп/голос)</string>
     <string name="summary_enable_commit_text">Передаёт на ПК многосимвольный текст из экранных клавиатур (жестовый ввод, подсказки, голосовой ввод). Может нарушить работу игр, ожидающих посимвольного ввода.</string>
     <string name="menu_button">Меню</string>
-    <string name="quick_menu_title">Быстрое меню</string>
     <string name="configuration_mode_move_buttons">Режим перемещения кнопок</string>
     <string name="configuration_mode_resize_buttons">Режим изменения размера кнопок</string>
     <string name="configuration_mode_disable_enable_buttons">Режим вкл./выкл. кнопок</string>
@@ -317,7 +309,6 @@
     <string name="align_center">Выровнять по центру</string>
     <string name="pcview_menu_open_management_page">Открыть настройки сервера</string>
     <string name="pair_pc_confirm_title">Сопряжение с ПК</string>
-    <string name="pair_otp_pairing_msg">Сопряжение, подождите…</string>
     <string name="pair_passphrase_hint">Пароль</string>
     <string name="pair_pin_length_msg">PIN должен состоять из 4 цифр</string>
     <string name="email_subject">Novatics - журнал производительности</string>
@@ -343,24 +334,8 @@
     <string name="pacing_warp">Warp Drive (экспериментально)</string>
     <string name="keyboard_service_label">Физическая клавиатура Nova</string>
     <string name="accessibility_description_text">Используется, если системные сочетания физической клавиатуры перехватываются Android. В таких случаях некоторые сочетания не проходят на хост-ПК. Nova не просматривает ваш ввод и не собирает пароли, номера карт или другую личную информацию.</string>
-    <string name="game_menu_toggle_keyboard">Показать экранную клавиатуру</string>
-    <string name="game_menu_toggle_hud">Вкл./выкл. панель производительности</string>
-    <string name="game_menu_toggle_floating_button">Вкл./выкл. плавающую кнопку</string>
-    <string name="game_menu_select_mouse_mode">Выбрать режим мыши</string>
     <string name="game_menu_select_steam_mode">Выбрать режим стрима</string>
-    <string name="game_menu_enable_zoom_mode">Включить прокрутку/масш.</string>
-    <string name="game_menu_disable_zoom_mode">Выключить прокрутку/масш.</string>
-    <string name="game_menu_rotate_screen">Повернуть экран</string>
-    <string name="game_menu_toggle_keyboard_model">Вкл./выкл. спец-клавиши</string>
-    <string name="game_menu_toggle_virtual_model">Вкл./выкл. экранный контроллер</string>
-    <string name="game_menu_toggle_virtual_keyboard_model">Вкл./выкл. полноэкранную клавиатуру</string>
-    <string name="game_menu_switch_touch_sensitivity_model">Изменить чувствительность касаний</string>
-    <string name="game_menu_toggle_mouse_on">Включить эмуляцию мыши контроллером</string>
-    <string name="game_menu_toggle_mouse_off">Отключить эмуляцию мыши контроллером</string>
     <string name="game_menu_disconnect">Отключиться</string>
-    <string name="game_menu_cancel">Отмена</string>
-    <string name="game_menu_task_manager">Открыть диспетчер задач</string>
-    <string name="game_menu_send_keys">Отправить спец-клавиши</string>
     <string name="game_menu_send_keys_shift_tab">Shift + Tab (панель Steam)</string>
     <string name="game_menu_send_keys_win_shift_left">Win + Shift + Left (переместить приложение между рабочими столами)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q (выход из стрима на ПК)</string>
@@ -529,10 +504,8 @@
     <string name="debug_info_vibration_amplitude">Амплитуда вибрации (%d)</string>
     <string name="debug_info_simple_vibration">Простая вибрация на 1 секунду</string>
     <string name="debug_info_continuous_hd_vibration">Непрерывная HD-вибрация</string>
-    <string name="debug_info_please_choose">Выберите</string>
     <string name="debug_info_no_gamepad_detected">Геймпад не обнаружен, подключите, нажмите обновить и попробуйте снова!</string>
     <string name="debug_info_no_vibrator">В геймпаде не обнаружен вибромотор!</string>
-    <string name="debug_info_set_amplitude">Установите амплитуду 0–255 (только для HD-вибрации)</string>
     <string name="debug_info_name">Имя:</string>
     <string name="debug_info_sensors">Датчики:</string>
     <string name="debug_info_no_relevant_driver">Нет (нет драйвера или геймпад не поддерживается)</string>
@@ -554,14 +527,9 @@
     <string name="pref_import_success">Импорт успешен!</string>
     <string name="pref_error_occurred">Произошла ошибка:</string>
     <string name="pref_save_keyboard_profile">Сохранить профиль экранной клавиатуры</string>
-    <string name="game_menu_advanced">Расширенное меню</string>
     <string name="game_dialog_title_quit_confirm">Действительно хотите выйти?</string>
     <string name="game_dialog_message_quit_confirm">Убедитесь, что нет несохранённого прогресса. Завершение сессии закроет текущее приложение.</string>
-    <string name="game_menu_quit_session">Завершить сессию</string>
     <string name="game_menu_server_cmd">Команды сервера</string>
-    <string name="game_menu_fetch_clipboard">Получить буфер обмена</string>
-    <string name="game_menu_upload_clipboard">Отправить буфер обмена</string>
-    <string name="game_dialog_title_server_cmd_empty">Нет команд сервера</string>
     <string name="game_dialog_message_server_cmd_empty">Убедитесь, что на сервере установлен Apollo и этому клиенту предоставлено разрешение Server Command.</string>
     <string name="vdisplay_not_ready">Виртуальный драйвер дисплея на сервере не готов. Пожалуйста, убедитесь, что драйвер SudoVDA установлен и включён.</string>
     <string name="clipboard_sync_unsupported">Этот сервер не поддерживает синхронизацию буфера. Установите или обновите сервер до последней версии Apollo.</string>
@@ -593,7 +561,6 @@
     <string name="keyboard_add_keys">Добавить клавиши</string>
     <string name="keyboard_select_keys">Выберите клавиши для добавления</string>
     <string name="keyboard_clear_all_confirm_title">Удалить все клавиши</string>
-    <string name="keyboard_clear_all_confirm_message">Вы уверены, что хотите скрыть все экранные элементы? Их можно вернуть в режиме настройки.</string>
     <string name="keyboard_keys_added">%d клавиш успешно добавлено</string>
     <string name="keyboard_duplicates_skipped">%d дубликатов пропущено</string>
     <string name="keyboard_configure_movable">Теперь можно переместить кнопку настроек.</string>
@@ -631,8 +598,6 @@
     <string name="profile_manager_choose_profile">Выбрать профиль</string>
     <string name="profile_manager_deactivated_profile">Деактивированный профиль</string>
     <string name="profile_manager_activated_profile">Профиль \'%s\' активирован</string>
-    <string name="profile_manager_delete_profile">Удалить профиль</string>
-    <string name="profile_manager_confirm_profile_deleteion">Уверены, что хотите удалить \'%s\'?</string>
     <string name="profile_manager_delete">Удалить</string>
     <string name="profile_manager_profile_deleted">Профиль \'%s\' удалён</string>
     <string name="profile_manager_failed_to_save">Не удалось сохранить профиль. Проверьте logcat.</string>

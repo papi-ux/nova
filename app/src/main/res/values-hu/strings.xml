@@ -90,7 +90,6 @@
     <string name="msg_add_pc">Csatlakozás a számítógéphez…</string>
     <string name="title_add_pc">Számítógép hozzáadása manuálisan</string>
     <string name="applist_details_id">Alkalmazásazonosító:</string>
-    <string name="applist_quit_confirmation">Biztosan kilép a futó alkalmazásból\? Minden nem mentett adat elvész.</string>
     <string name="applist_quit_fail">Nem sikerült kilépni</string>
     <string name="applist_quit_success">Sikeresen kiléptél</string>
     <string name="applist_quit_app">Kilépés</string>
@@ -117,12 +116,8 @@
     <string name="poor_connection_msg">Gyenge kapcsolat a PC-vel</string>
     <string name="slow_connection_msg">Lassú kapcsolat a PC-vel
 \nCsökkentse a bitrátát</string>
-    <string name="delete_pc_msg">Biztosan törli ezt a számítógépet\?</string>
-    <string name="help">Segítség</string>
     <string name="title_details">Részletek</string>
     <string name="lost_connection">Megszakadt a kapcsolat a PC-vel</string>
-    <string name="no">Nem</string>
-    <string name="yes">Igen</string>
     <string name="searching_pc">A helyi hálózaton lévő PC-k keresése...
 \n
 \nGyőződj meg róla, hogy a Sunshine fut a gazdaszámítógépen, vagy a GameStream engedélyezve van a GeForce Experience SHIELD beállításaiban.</string>
@@ -169,7 +164,6 @@
     <string name="pair_pairing_title">Párosítás</string>
     <string name="pair_fail">Párosítás nem sikerült</string>
     <string name="pair_incorrect_pin">Hibás PIN</string>
-    <string name="pair_pairing_msg">Kérjük, adja meg a következő PIN-kódot a cél PC-n:</string>
     <string name="pair_pc_ingame">A számítógép jelenleg játékban van. A párosítás előtt be kell zárni a játékot.</string>
     <string name="pair_pc_offline">A számítógép nem elérhető</string>
     <string name="nettest_text_blocked">Az eszköz jelenlegi hálózati kapcsolata blokkolja a Nova-ot. Előfordulhat, hogy az interneten keresztüli streaming nem működik, ha csatlakozik ehhez a hálózathoz.</string>
@@ -252,7 +246,6 @@
     <string name="summary_checkbox_reduce_refresh_rate">Az alacsonyabb kijelzőfrissítési frekvencia energiát takaríthat meg némi további videokésleltetés árán</string>
     <string name="resolution_prefix_native_portrait">(Portré)</string>
     <string name="summary_checkbox_absolute_mouse_mode">Ezáltal az egérgyorsítás természetesebben viselkedik a távoli asztali használat során, de sok játékkal nem kompatibilis.</string>
-    <string name="pair_pairing_help">Ha a számítógépen Sunshine fut, lépj a Sunshine webes felhasználói felületére a PIN-kód megadásához.</string>
     <string name="title_setup_guide">Telepítési útmutató</string>
     <string name="title_checkbox_gamepad_touchpad_as_mouse">Az egeret mindig az érintőpaddal vezérelje</string>
     <string name="resolution_prefix_native_landscape">(Tájkép)</string>

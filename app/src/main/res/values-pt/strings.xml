@@ -146,12 +146,8 @@
     <string name="conn_hardware_latency">Latência média de decodificação de hardware:</string>
     <string name="conn_starting">Iniciando</string>
     <string name="conn_error_title">Erro de Conexão</string>
-    <string name="yes">Sim</string>
-    <string name="no">Não</string>
     <string name="lost_connection">Conexão perdida com o PC</string>
     <string name="title_details">Detalhes</string>
-    <string name="help">Ajuda</string>
-    <string name="delete_pc_msg">Tem certeza de que deseja apagar este PC\?</string>
     <string name="poor_connection_msg">Conexão ruim com o PC</string>
     <string name="slow_connection_msg">Conexão lenta com o PC
 \nReduza sua taxa de bits</string>
@@ -169,7 +165,6 @@
     <string name="applist_menu_hide_app">Esconder app</string>
     <string name="applist_refresh_title">Lista de apps</string>
     <string name="applist_refresh_error_title">Erro</string>
-    <string name="applist_quit_confirmation">Tem certeza de que deseja sair da app em execução\? Todos os dados não salvos serão perdidos.</string>
     <string name="applist_details_id">ID do App:</string>
     <string name="title_add_pc">Adicionar PC Manualmente</string>
     <string name="msg_add_pc">Conectando ao PC…</string>
@@ -213,7 +208,6 @@
     <string name="pairing">A parear…</string>
     <string name="pair_pc_offline">Esse computador está offline</string>
     <string name="pair_pc_ingame">Esse computador está atualmente num jogo. Deve fechar o jogo antes de parear.</string>
-    <string name="pair_pairing_msg">Insira o seguinte PIN no PC de destino:</string>
     <string name="pair_incorrect_pin">PIN incorreto</string>
     <string name="pair_already_in_progress">Pareamento já em andamento</string>
     <string name="wol_pc_online">Esse computador está disponível</string>

@@ -8,7 +8,6 @@
 	<string name="scut_invalid_app_id">提供的應用程式無效</string>
 
 	<string name="menu_button">選單</string>
-	<string name="quick_menu_title">快速選單</string>
 	<string name="configuration_mode_move_buttons">移動按鈕模式</string>
 	<string name="configuration_mode_resize_buttons">調整按鈕大小模式</string>
 	<string name="configuration_mode_disable_enable_buttons">啟用/停用按鈕模式</string>
@@ -53,9 +52,6 @@
 	<string name="pair_pc_offline">電腦已離線</string>
 	<string name="pair_pc_ingame">電腦目前正在執行遊戲，必須先關閉遊戲才能配對。</string>
 	<string name="pair_pairing_title">正在配對</string>
-	<string name="pair_pairing_msg">請在目標電腦上輸入以下 PIN：</string>
-	<string name="pair_pairing_help">如果您的主機電腦正在執行 Sunshine，請進入 Sunshine 的網頁介面輸入 PIN。</string>
-	<string name="pair_otp_pairing_msg">正在進行配對，請稍候…</string>
 	<string name="pair_otp_pairing_help">OTP 配對僅適用於 Apollo，如果您使用其他主機軟體，請在網頁介面手動輸入剛剛提供的 PIN。</string>
 	<string name="pair_incorrect_pin">PIN 或密碼短語錯誤</string>
 	<string name="pair_fail">配對失敗</string>
@@ -117,12 +113,8 @@
 	<string name="ip_hint">主機電腦的 IP 位址</string>
 	<string name="searching_pc">正在搜尋您區域網路中的主機電腦…\n\n
 		請確認 Apollo 已在主機電腦上執行。</string>
-	<string name="yes">是</string>
-	<string name="no">否</string>
 	<string name="lost_connection">與電腦的連線中斷</string>
 	<string name="title_details">詳細資訊</string>
-	<string name="help">說明</string>
-	<string name="delete_pc_msg">您確定要刪除此電腦嗎？</string>
 	<string name="slow_connection_msg">與電腦連線速度緩慢\n請降低位元率</string>
 	<string name="poor_connection_msg">與電腦的連線品質不佳</string>
 	<string name="perf_overlay_streamdetails">影片串流：%1$s %2$.2f FPS</string>
@@ -171,7 +163,6 @@
 	<string name="applist_quit_app">正在結束</string>
 	<string name="applist_quit_success">已成功結束</string>
 	<string name="applist_quit_fail">結束失敗</string>
-	<string name="applist_quit_confirmation">您確定要結束正在執行的應用程式嗎？所有未儲存的資料將會遺失。</string>
 	<string name="applist_details_id">應用程式 ID：</string>
 
 	<!-- Add computer manually activity -->
@@ -368,26 +359,10 @@
 
 
 	<!-- In Game menu -->
-	<string name="game_menu_toggle_keyboard">顯示軟體鍵盤</string>
-	<string name="game_menu_toggle_hud">切換即時效能資訊</string>
-	<string name="game_menu_toggle_floating_button">切換浮動按鈕</string>
-	<string name="game_menu_select_mouse_mode">選擇滑鼠模式</string>
 	<string name="game_menu_select_steam_mode">選擇串流模式</string>
-	<string name="game_menu_enable_zoom_mode">啟用平移/縮放</string>
-	<string name="game_menu_disable_zoom_mode">停用平移/縮放</string>
-	<string name="game_menu_rotate_screen">旋轉螢幕</string>
-	<string name="game_menu_toggle_keyboard_model">切換特殊按鍵</string>
-	<string name="game_menu_toggle_virtual_model">切換虛擬手把</string>
-	<string name="game_menu_toggle_virtual_keyboard_model">切換螢幕完整鍵盤</string>
-	<string name="game_menu_switch_touch_sensitivity_model">切換觸控靈敏度</string>
 
 
-	<string name="game_menu_toggle_mouse_on">啟用手把滑鼠控制</string>
-	<string name="game_menu_toggle_mouse_off">停用手把滑鼠控制</string>
 	<string name="game_menu_disconnect">中斷連線</string>
-	<string name="game_menu_cancel">取消</string>
-	<string name="game_menu_task_manager">開啟工作管理員</string>
-	<string name="game_menu_send_keys">傳送特殊按鍵</string>
 	<string name="game_menu_send_keys_esc">ESC</string>
 	<string name="game_menu_send_keys_f11">F11</string>
 	<string name="game_menu_send_keys_alt_f4">Alt + F4</string>
@@ -637,10 +612,8 @@
 	<string name="debug_info_vibration_amplitude">震動振幅（%d）</string>
 	<string name="debug_info_simple_vibration">簡單震動 1 秒</string>
 	<string name="debug_info_continuous_hd_vibration">連續高品質震動</string>
-	<string name="debug_info_please_choose">請選擇</string>
 	<string name="debug_info_no_gamepad_detected">未偵測到手把，請連接手把、點選重新整理後再試！</string>
 	<string name="debug_info_no_vibrator">未在手把上偵測到震動裝置！</string>
-	<string name="debug_info_set_amplitude">設定振幅 0–255（僅對高品質震動有效）</string>
 	<string name="debug_info_name">名稱： </string>
 	<string name="debug_info_sensors">陀螺儀： </string>
 	<string name="debug_info_no_relevant_driver">無（無相關驅動或不支援該手把）</string>
@@ -665,14 +638,9 @@
 	<string name="pref_error_occurred">發生錯誤： </string>
 	<string name="pref_save_keyboard_profile">儲存 OSK 設定檔</string>
 
-	<string name="game_menu_advanced">進階選單</string>
 	<string name="game_dialog_title_quit_confirm">確定要離開？</string>
 	<string name="game_dialog_message_quit_confirm">請確認沒有未儲存的進度。離開工作階段將終止您目前執行的應用程式。</string>
-	<string name="game_menu_quit_session">結束工作階段</string>
 	<string name="game_menu_server_cmd">伺服器指令</string>
-	<string name="game_menu_fetch_clipboard">取得剪貼簿</string>
-	<string name="game_menu_upload_clipboard">上傳剪貼簿</string>
-	<string name="game_dialog_title_server_cmd_empty">無伺服器指令</string>
 	<string name="game_dialog_message_server_cmd_empty">請確認您使用的是 Apollo 作為伺服器軟體，且已授予此客戶端「伺服器指令」權限。</string>
 
 	<string name="vdisplay_not_ready">伺服器上的虛擬顯示器驅動尚未就緒。請確認已安裝並啟用 SudoVDA 驅動程式。</string>
@@ -712,7 +680,6 @@
 	<string name="keyboard_add_keys">新增按鍵</string>
 	<string name="keyboard_select_keys">選擇要新增的按鍵</string>
 	<string name="keyboard_clear_all_confirm_title">清除所有按鍵</string>
-	<string name="keyboard_clear_all_confirm_message">確定要隱藏所有螢幕控制嗎？之後可在配置模式中再行新增。</string>
 	<string name="keyboard_keys_added">成功新增 %d 個按鍵</string>
 	<string name="keyboard_duplicates_skipped">已略過 %d 個重複項目</string>
 	<string name="keyboard_configure_movable">您現在可以移動設定按鈕。</string>
@@ -764,8 +731,6 @@
 	<string name="profile_manager_choose_profile">選擇設定檔</string>
 	<string name="profile_manager_deactivated_profile">已停用的設定檔</string>
 	<string name="profile_manager_activated_profile">已啟用設定檔『%s』</string>
-	<string name="profile_manager_delete_profile">刪除設定檔</string>
-	<string name="profile_manager_confirm_profile_deleteion">確定要刪除『%s』嗎？</string>
 	<string name="profile_manager_delete">刪除</string>
 	<string name="profile_manager_profile_deleted">已刪除設定檔『%s』</string>
 	<string name="profile_manager_failed_to_save">無法儲存設定檔。請查看 logcat 以取得詳細資訊。</string>

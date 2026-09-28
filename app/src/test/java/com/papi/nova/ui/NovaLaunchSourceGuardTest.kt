@@ -112,7 +112,6 @@ class NovaLaunchSourceGuardTest {
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val nvHttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
-        val chrome = readSource("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt")
         val errorSection = game.section(
             "var dialogText:String = getResources().getString(R.string.conn_error_msg)",
             "private fun showNovaLaunchIssueSheet"
@@ -170,14 +169,13 @@ class NovaLaunchSourceGuardTest {
         )
         // Group 3: game detail and Polaris Sync host no bottom sheet any more (Play Setup is a panel
         // in the detail window, Polaris Sync a page of the library's System panel), so there is no
-        // sheet behaviour of theirs left to lock; a panel is dragged only by its frame.
+        // sheet behaviour of theirs left to lock; a panel is dragged only by its frame, and the
+        // sheet drag handle went with the sheet (R13 bans default drag handles).
         assertTrue(
-            "Nova drawers should let content scroll down without minimizing the whole sheet; only the top handle strip may drag-dismiss",
+            "game detail content scrolls without dragging anything away: no sheet behaviour and no drag handle",
             !detail.contains("BottomSheetBehavior") &&
-                detail.contains("novaSheetHandleDrag") &&
-                detail.contains("NovaSheetDragHandle(") &&
-                chrome.contains("isDraggable = false") &&
-                chrome.contains("attachHandleDragToDismiss")
+                !detail.contains("novaSheetHandleDrag") &&
+                !detail.contains("NovaSheetDragHandle(")
         )
     }
 

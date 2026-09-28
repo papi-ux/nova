@@ -142,13 +142,6 @@ class KotlinExternalDisplayUiMigrationTest {
             Runnable::class.java,
             Runnable::class.java
         )
-        UiHelper::class.java.getMethod(
-            "displayDeletePcConfirmationDialog",
-            Activity::class.java,
-            ComputerDetails::class.java,
-            Runnable::class.java,
-            Runnable::class.java
-        )
         UiHelper::class.java.getMethod("dpToPx", Context::class.java, Float::class.javaPrimitiveType!!)
     }
 
