@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <atomic>
 #include <iostream>
 
@@ -289,8 +290,21 @@ void automaticProfiles() {
         require(writes == 1, "automatic sync ignored five-second throttle");
         until([&] { return writes == 2 && !c.busy(); }, 7500);
         require(writeTimes[1] - writeTimes[0] >= 5000, "slow preflight compressed automatic POSTs to less than five seconds apart");
-        const int stable = writes; drain(3100);
+        const int stable = writes;
+        // Hold the next automatic read across the action boundary. A fixed
+        // polling interval can expire while that read still disables Clear.
+        hold = true; entered = false;
+        until([&] { return entered.load() && c.busy(); }, 4500);
         require(writes == stable, "matching profile repeatedly posted");
+        QTimer::singleShot(0, &c, [&] { hold = false; });
+        until([&] {
+            for (const auto& action : c.state().value("profileActions").toList()) {
+                const auto row = action.toMap();
+                if (row.value("id") == "clear") return row.value("enabled").toBool();
+            }
+            return false;
+        });
+        require(writes == stable, "matching profile posted after poll completed");
         require(c.profileAction("clear"), "clear while enabled refused"); until([&] { return !c.busy(); });
         require(writes == 3 && c.state().value("keepInStep") == "off", "clear did not turn sync off");
         c.close();

@@ -158,6 +158,18 @@ internal object NovaSpacesCopy {
         else -> R.string.nova_space_blocked_generic
     }
 
+    /** Explain the existing Space launch gate without changing its admission decision. */
+    @StringRes
+    fun launchBlockedReason(snapshot: PolarisSpaces?, spaceId: String, changing: Boolean, launchModeAvailable: Boolean): Int? {
+        if (changing) return R.string.nova_space_changing
+        snapshot ?: return R.string.nova_space_checking_status
+        unavailableReason(snapshot)?.let { return it }
+        if (snapshot.selectedId != spaceId) return R.string.nova_space_status_changed
+        val selected = snapshot.selected ?: return R.string.nova_space_blocked_generic
+        openBlockedReason(selected)?.let { return it }
+        return if (launchModeAvailable) null else R.string.nova_space_launch_mode_unavailable
+    }
+
     /** The short form of [openBlockedReason], for a Play button that cannot act yet. */
     @StringRes
     fun playBlockedLabel(state: String, blockedReason: String?): Int = when {
