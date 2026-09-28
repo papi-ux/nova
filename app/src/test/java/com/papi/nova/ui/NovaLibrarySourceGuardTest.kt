@@ -340,7 +340,6 @@ class NovaLibrarySourceGuardTest {
 
     @Test
     fun libraryCoverLoadingIsKeyedOutsideAndroidViewUpdate() {
-        val source = readNovaLibraryActivity()
         val chrome = readSource("src/main/java/com/papi/nova/ui/NovaLibraryCinematicChrome.kt")
         val posterCard = readSource("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
         val focusedRevisionKey = "key(PolarisApiClient.artworkPresentationKey(targetGame, PolarisGame.ARTWORK_KIND_POSTER))"
@@ -350,9 +349,11 @@ class NovaLibrarySourceGuardTest {
                 posterCard.contains("PolarisGame.ARTWORK_KIND_POSTER") &&
                 chrome.contains("PolarisApiClient.artworkPresentationKey(")
         )
+        // The home hero is drawn in NovaLibraryHero.kt, which the activity delegates to.
+        val hero = readSource("src/main/java/com/papi/nova/ui/NovaLibraryHero.kt")
         assertTrue(
             "the home Hero cover should recreate when the Poster revision changes, and the backdrop stays fenced by its presentation key",
-            source.split(focusedRevisionKey).size - 1 >= 1 &&
+            hero.split(focusedRevisionKey).size - 1 >= 1 &&
                 chrome.contains("R.id.nova_artwork_presentation_key")
         )
         assertTrue(
@@ -432,9 +433,16 @@ class NovaLibrarySourceGuardTest {
             "private fun NovaLibraryScreen(",
             "private fun NovaLibraryHomeHero("
         )
-        val hero = source.section(
-            "private fun NovaLibraryHomeHero(",
-            "private fun NovaLibraryLandscapeToolbar("
+        // The activity's hero and strip card delegate to NovaLibraryHero.kt, where a test can drive them.
+        val heroFile = readSource("src/main/java/com/papi/nova/ui/NovaLibraryHero.kt")
+        val hero = heroFile.section(
+            "internal fun NovaLibraryHeroCard(",
+            "internal fun novaLibraryHeroArtworkWidth("
+        )
+        assertTrue(
+            "the activity's hero is the shared card",
+            source.section("private fun NovaLibraryHomeHero(", "private fun NovaLibraryLandscapeToolbar(")
+                .contains("NovaLibraryHeroCard(")
         )
 
         val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
@@ -446,9 +454,14 @@ class NovaLibrarySourceGuardTest {
                 0 until landscape.indexOf("NovaLibraryContent(") &&
                 landscape.contains("NovaLibraryShowcaseContinue(")
         )
-        val continueCard = source.section(
-            "private fun RowScope.NovaLibraryShowcaseContinue(",
-            "private fun NovaLibraryTopHeader("
+        assertTrue(
+            "the activity's strip card is the shared one",
+            source.section("private fun RowScope.NovaLibraryShowcaseContinue(", "private fun NovaLibraryTopHeader(")
+                .contains("NovaLibraryStripContinue(")
+        )
+        val continueCard = heroFile.section(
+            "internal fun RowScope.NovaLibraryStripContinue(",
+            "internal const val NOVA_LIBRARY_HERO_TAG"
         )
         assertTrue(
             "the strip card's own action (Resume Stream while a game is live) is the highlighted button and End Session stays secondary, so the next step reads at a glance: End is a split confirm, quiet until armed",
@@ -544,9 +557,10 @@ class NovaLibrarySourceGuardTest {
 
     @Test
     fun libraryHomeHeroKeepsTitleVisibleBesideBoundedCoverAndCta() {
-        val source = readNovaLibraryActivity()
+        // The hero is drawn in NovaLibraryHero.kt; the activity delegates to it.
+        val source = readSource("src/main/java/com/papi/nova/ui/NovaLibraryHero.kt")
         val hero = source.section(
-            "private fun NovaLibraryHomeHero(",
+            "internal fun NovaLibraryHeroCard(",
             "private fun NovaLibraryHeroFallbackArtwork("
         )
 
@@ -1398,8 +1412,8 @@ class NovaLibrarySourceGuardTest {
     fun libraryHeroExposesEndSessionForOwnedActiveStreams() {
         val source = readNovaLibraryActivity()
         val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
-        val hero = source.section(
-            "private fun NovaLibraryHomeHero(",
+        val hero = readSource("src/main/java/com/papi/nova/ui/NovaLibraryHero.kt").section(
+            "internal fun NovaLibraryHeroCard(",
             "private fun NovaLibraryHeroFallbackArtwork("
         )
 

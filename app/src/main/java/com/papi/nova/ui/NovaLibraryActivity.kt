@@ -1929,6 +1929,10 @@ class NovaLibraryActivity : NovaActivity() {
         return coreHints
     }
 
+    /**
+     * The home hero above the grid in portrait. [NovaLibraryHeroCard] draws it, in its own file
+     * beside the strip's card, so a test can drive it.
+     */
     @Composable
     private fun NovaLibraryHomeHero(
         hero: NovaLibraryHeroState,
@@ -1936,287 +1940,18 @@ class NovaLibraryActivity : NovaActivity() {
         apiClient: PolarisApiClient,
         onPrimaryAction: () -> Unit,
         onSecondaryAction: (() -> Unit)? = null,
-        /**
-         * The card opens the game; the buttons do the thing. Without this the running
-         * game was the one entry whose detail could not be reached at all, because the
-         * whole card resumed and the grid omits it while a session is live.
-         */
         onOpenDetail: (() -> Unit)? = null,
         onGameFocused: (PolarisGame) -> Unit
     ) {
-        val colors = LocalNovaComposeColors.current
-        val surfaces = LocalNovaLibrarySurfaces.current
-        val heroGame = hero.game
-        val height = NovaLibraryUiStateMapper.heroHeightDp(compact = compact).dp
-        val showCaption = !compact || hero.badges.isEmpty()
-        var focused by remember { mutableStateOf(false) }
-        // End splits in its own slot; armed, the words step aside so the pair has two halves' width.
-        val endSplit = rememberNovaSplitConfirmState()
-        val endArmed = endSplit.armed && onSecondaryAction != null
-        LaunchedEffect(focused, heroGame) {
-            if (focused && heroGame != null) {
-                onGameFocused(heroGame)
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(height)
-                .novaFocusMotion(
-                    focused = focused,
-                    focusedScale = NovaFocusMotionSpec.CardFocusedScale,
-                    haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
-                    cornerRadius = NovaLibrarySurfaceCornerRadius
-                )
-                .clip(RoundedCornerShape(NovaLibrarySurfaceCornerRadius))
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            surfaces.tile.copy(alpha = 0.98f * LocalNovaMenuOpacityScale.current),
-                            surfaces.tile.copy(alpha = 0.82f * LocalNovaMenuOpacityScale.current),
-                            colors.accent.copy(alpha = if (focused) 0.22f else 0.12f)
-                        )
-                    )
-                )
-                .border(
-                    width = if (focused) 3.dp else 1.dp,
-                    color = if (focused) surfaces.focusRing else surfaces.tileBorder,
-                    shape = RoundedCornerShape(NovaLibrarySurfaceCornerRadius)
-                )
-                .onFocusChanged {
-                    focused = it.isFocused || it.hasFocus
-                }
-                .combinedClickable(onClick = onOpenDetail ?: onPrimaryAction)
-                .focusable()
-                .padding(if (compact) 8.dp else 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            NovaLibraryHeroArtwork(
-                game = heroGame,
-                apiClient = apiClient,
-                fallbackTitle = hero.artworkFallbackTitle,
-                fallbackSubtitle = hero.artworkFallbackSubtitle,
-                compact = compact
-            )
-            if (!endArmed) Column(
-                // fill = false so the action sits with the content it belongs to instead of
-                // being pushed to the far edge across a gulf of empty row.
-                modifier = Modifier.weight(1f, fill = false),
-                verticalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 5.dp)
-            ) {
-                Text(
-                    text = hero.eyebrow.uppercase(),
-                    color = colors.accent,
-                    fontSize = if (compact) 9.sp else 12.sp,
-                    lineHeight = if (compact) 11.sp else 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = hero.title,
-                    color = colors.textPrimary,
-                    fontSize = if (compact) 20.sp else 30.sp,
-                    lineHeight = if (compact) 22.sp else 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (compact && hero.supportingLine.isNotBlank()) {
-                    Text(
-                        text = hero.supportingLine,
-                        color = colors.textSecondary.copy(alpha = 0.9f),
-                        fontSize = 10.sp,
-                        lineHeight = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (!compact) {
-                    Text(
-                        text = hero.subtitle,
-                        color = colors.textSecondary,
-                        fontSize = if (compact) 11.sp else 14.sp,
-                        lineHeight = if (compact) 13.sp else 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (showCaption) {
-                        Text(
-                            text = hero.caption,
-                            color = colors.textSecondary.copy(alpha = 0.86f),
-                            fontSize = if (compact) 11.sp else 13.sp,
-                            lineHeight = if (compact) 13.sp else 15.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                if (!compact && hero.badges.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        hero.badges.take(if (compact) 3 else 4).forEach { badge ->
-                            NovaMiniBadge(text = badge)
-                        }
-                    }
-                }
-            }
-            Column(
-                // As wide as its buttons' labels, from one split half up to an armed pair's two, so
-                // the words beside it keep the rest of the row. Armed, End takes the words' room
-                // too, so its pair and the consequence under it have the width two halves need.
-                modifier = if (endArmed) {
-                    Modifier.weight(1f)
-                } else {
-                    Modifier
-                        .widthIn(
-                            min = NovaPanelMetrics.SplitHalfMinWidth,
-                            max = NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap,
-                        )
-                        .width(IntrinsicSize.Max)
-                },
-                verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)
-            ) {
-                // The panel's button, as the End split's halves are, so the two stacked buttons
-                // share one height and one type.
-                if (!endArmed) NovaPanelButton(
-                    text = hero.actionLabel,
-                    onClick = onPrimaryAction,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (hero.secondaryActionLabel != null && onSecondaryAction != null) {
-                    NovaSplitConfirm(
-                        label = hero.secondaryActionLabel,
-                        confirmLabel = stringResource(R.string.game_dialog_action_end_session),
-                        onConfirm = onSecondaryAction,
-                        consequence = stringResource(R.string.nova_panel_end_session_message),
-                        state = endSplit,
-                        modifier = Modifier.fillMaxWidth().testTag("nova-library-hero-end"),
-                    )
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun NovaLibraryHeroArtwork(
-        game: PolarisGame?,
-        apiClient: PolarisApiClient,
-        fallbackTitle: String,
-        fallbackSubtitle: String,
-        compact: Boolean
-    ) {
-        val targetGame = game
-        if (targetGame == null) {
-            NovaLibraryHeroFallbackArtwork(
-                title = fallbackTitle,
-                subtitle = fallbackSubtitle,
-                compact = compact
-            )
-            return
-        }
-
-        val surfaces = LocalNovaLibrarySurfaces.current
-        val shape = RoundedCornerShape(if (compact) NovaRadius.row else NovaRadius.hero)
-        Box(
-            modifier = Modifier
-                .width(if (compact) 58.dp else 108.dp)
-                .fillMaxHeight()
-                .clip(shape)
-                .background(surfaces.mediaPlaceholder)
-                .border(1.dp, surfaces.tileBorder.copy(alpha = 0.74f * LocalNovaMenuOpacityScale.current), shape)
-        ) {
-            key(PolarisApiClient.artworkPresentationKey(targetGame, PolarisGame.ARTWORK_KIND_POSTER)) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { context ->
-                        ImageView(context).apply {
-                            scaleType = ImageView.ScaleType.CENTER_CROP
-                            setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
-                            contentDescription = context.getString(R.string.nova_a11y_game_cover)
-                            apiClient.loadCoverInto(this, targetGame)
-                        }
-                    }
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to surfaces.mediaScrimTop.copy(alpha = 0.18f),
-                                0.62f to surfaces.mediaScrimTop.copy(alpha = 0.08f),
-                                1.0f to surfaces.mediaScrimBottom.copy(alpha = 0.68f)
-                            )
-                        )
-                    )
-            )
-        }
-    }
-
-    @Composable
-    private fun NovaLibraryHeroFallbackArtwork(
-        title: String,
-        subtitle: String,
-        compact: Boolean
-    ) {
-        val colors = LocalNovaComposeColors.current
-        val surfaces = LocalNovaLibrarySurfaces.current
-        val shape = RoundedCornerShape(if (compact) NovaRadius.row else NovaRadius.hero)
-        Column(
-            modifier = Modifier
-                .width(if (compact) 58.dp else 108.dp)
-                .fillMaxHeight()
-                .clip(shape)
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            colors.accent.copy(alpha = 0.34f),
-                            surfaces.tile.copy(alpha = 0.92f * LocalNovaMenuOpacityScale.current)
-                        )
-                    )
-                )
-                .border(1.dp, surfaces.tileBorder.copy(alpha = 0.74f * LocalNovaMenuOpacityScale.current), shape)
-                .padding(horizontal = if (compact) 6.dp else 10.dp, vertical = if (compact) 5.dp else 10.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.Start
-        ) {
-            Text(
-                text = "NOVA",
-                color = colors.textSecondary.copy(alpha = 0.76f),
-                fontSize = if (compact) 8.sp else 10.sp,
-                lineHeight = if (compact) 9.sp else 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    text = title,
-                    color = colors.textPrimary,
-                    fontSize = if (compact) 9.sp else 12.sp,
-                    lineHeight = if (compact) 10.sp else 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = if (compact) 1 else 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (!compact && subtitle.isNotBlank()) {
-                    Text(
-                        text = subtitle,
-                        color = colors.textSecondary.copy(alpha = 0.82f),
-                        fontSize = 10.sp,
-                        lineHeight = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
+        NovaLibraryHeroCard(
+            hero = hero,
+            compact = compact,
+            apiClient = apiClient,
+            onPrimaryAction = onPrimaryAction,
+            onSecondaryAction = onSecondaryAction,
+            onOpenDetail = onOpenDetail,
+            onGameFocused = onGameFocused,
+        )
     }
 
     @Composable
@@ -2243,119 +1978,22 @@ class NovaLibraryActivity : NovaActivity() {
         )
     }
 
-    /**
-     * The continue action as it appears inside the landscape strip: cover, what
-     * it is, and the verb. The old standalone card carried an eyebrow, a title,
-     * a subtitle, a caption and badges across a full-width panel whose right half
-     * was empty; at strip height only the first three earn their place.
-     */
+    /** The continue action inside the landscape strip, drawn by [NovaLibraryStripContinue]. */
     @Composable
     private fun RowScope.NovaLibraryShowcaseContinue(
         hero: NovaLibraryHeroState,
         apiClient: PolarisApiClient,
-        /** What the strip had room for: the cover goes first, then the words, End Session last. */
         fit: NovaTopBarFit,
         onPrimaryAction: () -> Unit,
         onSecondaryAction: (() -> Unit)?,
     ) {
-        val colors = LocalNovaComposeColors.current
-        val surfaces = LocalNovaLibrarySurfaces.current
-        // End splits in its own slot (R3). The strip cannot grow a line under it, so while it is
-        // armed the cover, the words and Resume step aside: the pair takes their room and a short
-        // consequence takes the words' place.
-        val endSplit = rememberNovaSplitConfirmState()
-        val endArmed = endSplit.armed && onSecondaryAction != null
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(start = 4.dp)
-                .testTag("nova-library-showcase-continue"),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            val game = hero.game
-            if (endArmed) {
-                Text(
-                    text = stringResource(R.string.nova_library_end_strip_consequence),
-                    style = novaPanelType.caption,
-                    color = colors.textSecondary,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            if (game != null && fit.showContinueCover && !endArmed) {
-                val shape = RoundedCornerShape(NovaRadius.chip)
-                Box(
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .fillMaxHeight()
-                        .clip(shape)
-                        .background(surfaces.mediaPlaceholder)
-                        .border(
-                            1.dp,
-                            surfaces.tileBorder.copy(alpha = 0.74f * LocalNovaMenuOpacityScale.current),
-                            shape,
-                        ),
-                ) {
-                    key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER)) {
-                        AndroidView(
-                            modifier = Modifier.fillMaxSize(),
-                            factory = { context ->
-                                ImageView(context).apply {
-                                    scaleType = ImageView.ScaleType.CENTER_CROP
-                                    setBackgroundColor(surfaces.mediaPlaceholder.toArgb())
-                                    contentDescription = context.getString(R.string.nova_a11y_game_cover)
-                                    apiClient.loadCoverInto(this, game)
-                                }
-                            },
-                            update = { apiClient.loadCoverInto(it, game) },
-                        )
-                    }
-                }
-            }
-            if (fit.showContinueText && !endArmed) Column(
-                modifier = Modifier.weight(1f, fill = false),
-                verticalArrangement = Arrangement.spacedBy(1.dp),
-            ) {
-                Text(
-                    text = hero.eyebrow.uppercase(),
-                    style = NovaChromeType.label(fontSize = 8.sp),
-                    color = colors.accent,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = hero.title,
-                    color = colors.textPrimary,
-                    fontSize = 14.sp,
-                    lineHeight = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (!endArmed) NovaActionButton(
-                text = hero.actionLabel,
-                onClick = onPrimaryAction,
-                modifier = Modifier.widthIn(min = 88.dp),
-                // The card's own action is the next step, so it carries the accent; End Session stays quiet.
-                primary = true,
-                // Without the title on screen the action still says what it continues.
-                contentDescription = if (fit.showContinueText) hero.actionLabel else "${hero.actionLabel}, ${hero.title}",
-                minHeight = 30.dp,
-                fontSize = 10.sp,
-            )
-            val secondaryLabel = hero.secondaryActionLabel
-            if (secondaryLabel != null && onSecondaryAction != null && fit.showContinueSecondary) {
-                NovaSplitConfirm(
-                    label = secondaryLabel,
-                    confirmLabel = stringResource(R.string.game_dialog_action_end_session),
-                    onConfirm = onSecondaryAction,
-                    state = endSplit,
-                    modifier = Modifier.testTag("nova-library-showcase-end"),
-                )
-            }
-        }
+        NovaLibraryStripContinue(
+            hero = hero,
+            apiClient = apiClient,
+            fit = fit,
+            onPrimaryAction = onPrimaryAction,
+            onSecondaryAction = onSecondaryAction,
+        )
     }
 
     @Composable
@@ -2932,21 +2570,6 @@ class NovaLibraryActivity : NovaActivity() {
             }
         }
         return focusRequester
-    }
-
-    @Composable
-    private fun NovaMiniBadge(text: String, modifier: Modifier = Modifier) {
-        val surfaces = LocalNovaLibrarySurfaces.current
-        NovaBadge(
-            text = text,
-            modifier = modifier,
-            color = surfaces.onMedia,
-            backgroundColor = surfaces.mediaScrimBottom.copy(alpha = 0.60f),
-            borderColor = surfaces.onMedia.copy(alpha = 0.20f),
-            fontSize = 8.sp,
-            fontWeight = FontWeight.Bold,
-            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp)
-        )
     }
 
     @Composable

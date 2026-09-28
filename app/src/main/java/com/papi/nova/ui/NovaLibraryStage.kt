@@ -80,6 +80,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
@@ -432,7 +433,36 @@ private fun rememberNovaLibraryTopBarFit(
                 width(text, buttonStyle.merge(TextStyle(fontSize = size, fontWeight = FontWeight.SemiBold))) + NOVA_TOP_BAR_BUTTON_PADDING
             val small = base.merge(TextStyle(fontSize = 10.sp, lineHeight = 12.sp))
             val iconScale = fontScale.coerceIn(1f, 1.6f)
-            novaLibraryTopBarFit(
+            // The card's words, whole: the eyebrow on one line and the title on the lines the
+            // strip's height leaves it, with the eyebrow or without it.
+            val eyebrowStyle = NovaChromeType.label(fontSize = 8.sp)
+            val titleStyle = base.merge(TextStyle(fontSize = 14.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold))
+            val stripInside = (NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText) - 2 * NOVA_TOP_BAR_VERTICAL_PADDING).dp.toPx()
+            val titleLine = titleStyle.lineHeight.toPx()
+            val eyebrowHeight = continueCard?.eyebrow?.takeIf { it.isNotBlank() }
+                ?.let { measurer.measure(it.uppercase(), eyebrowStyle, softWrap = false, maxLines = 1).size.height.toFloat() }
+                ?: 0f
+            val titleLinesUnderEyebrow = novaTopBarTitleLines(stripInside - eyebrowHeight - NOVA_TOP_BAR_WORDS_GAP.dp.toPx(), titleLine)
+            val titleLinesAlone = novaTopBarTitleLines(stripInside, titleLine).coerceAtLeast(1)
+            // The narrowest width at which the title takes no more than [lines] lines, never
+            // narrower than its longest word, which would be broken in two.
+            fun titleWidth(title: String, lines: Int): Float {
+                val single = width(title, titleStyle)
+                if (lines <= 1 || single == 0f) return single
+                var narrow = title.split(' ').maxOf { width(it, titleStyle) }
+                var wide = single
+                repeat(NOVA_TOP_BAR_TITLE_SEARCH_STEPS) {
+                    val middle = (narrow + wide) / 2f
+                    val laid = measurer.measure(
+                        title,
+                        titleStyle,
+                        constraints = Constraints(maxWidth = middle.dp.roundToPx().coerceAtLeast(1)),
+                    )
+                    if (laid.lineCount <= lines) wide = middle else narrow = middle
+                }
+                return wide
+            }
+            val fit = novaLibraryTopBarFit(
                 NovaTopBarWidths(
                     available = available.value,
                     gap = NOVA_TOP_BAR_GAP.value,
@@ -457,12 +487,15 @@ private fun rememberNovaLibraryTopBarFit(
                         )
                     },
                     continueCard = continueCard?.let { card ->
-                        // NovaLibraryShowcaseContinue: 4 dp start padding, a square cover as tall
+                        // NovaLibraryStripContinue: 4 dp start padding, a square cover as tall
                         // as the strip's inside, 7 dp gaps, and actions at least 88 and 72 dp wide.
-                        val text = maxOf(
-                            width(card.eyebrow.uppercase(), NovaChromeType.label(fontSize = 8.sp)),
-                            width(card.title, base.merge(TextStyle(fontSize = 14.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold))),
-                        )
+                        // Where no title line fits under the eyebrow, the words need more than any
+                        // strip has, so the eyebrow is always the first to go.
+                        val text = if (titleLinesUnderEyebrow > 0) {
+                            maxOf(width(card.eyebrow.uppercase(), eyebrowStyle), titleWidth(card.title, titleLinesUnderEyebrow))
+                        } else {
+                            available.value * 2
+                        }
                         NovaTopBarContinueWidths(
                             padding = 4f,
                             cover = if (card.hasCover) {
@@ -470,7 +503,8 @@ private fun rememberNovaLibraryTopBarFit(
                             } else {
                                 0f
                             },
-                            textMin = minOf(text, 64f),
+                            textMin = text + NOVA_TOP_BAR_WORDS_ROOM,
+                            titleMin = titleWidth(card.title, titleLinesAlone) + NOVA_TOP_BAR_WORDS_ROOM,
                             gap = 7f,
                             primary = maxOf(88f, button(card.actionLabel, 10.sp)),
                             secondary = card.secondaryActionLabel?.let {
@@ -482,9 +516,32 @@ private fun rememberNovaLibraryTopBarFit(
                     system = button(systemLabel, 10.sp),
                 ),
             )
+            fit.copy(
+                continueTitleLines = if (fit.showContinueEyebrow) {
+                    titleLinesUnderEyebrow.coerceAtLeast(1)
+                } else {
+                    titleLinesAlone
+                },
+            )
         }
     }
 }
+
+/**
+ * How many title lines of [linePx] a room [roomPx] tall holds, at most two: a third line in a strip
+ * reads as a paragraph where a name should be.
+ */
+internal fun novaTopBarTitleLines(roomPx: Float, linePx: Float): Int {
+    if (linePx <= 0f || roomPx <= 0f) return 0
+    return (roomPx / linePx).toInt().coerceIn(0, NOVA_TOP_BAR_TITLE_LINES_MAX)
+}
+
+private const val NOVA_TOP_BAR_TITLE_LINES_MAX = 2
+/** The eyebrow and the title stand this far apart in the card, in dp. */
+private const val NOVA_TOP_BAR_WORDS_GAP = 1f
+/** Rounding room on the words' measured width, so what fits here also wraps the same way there. */
+private const val NOVA_TOP_BAR_WORDS_ROOM = 2f
+private const val NOVA_TOP_BAR_TITLE_SEARCH_STEPS = 10
 
 @Composable
 private fun NovaLibraryToolbarIdentity(
