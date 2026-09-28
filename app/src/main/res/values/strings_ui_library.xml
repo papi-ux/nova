@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the library and game detail panels (migration group 3): Library Options, System,
+     Polaris Sync, Play Setup and the End splits. -->
+<resources>
+    <!-- End Session, from the library or game detail, when this device lacks what the host needs to end it. -->
+    <string name="nova_library_end_missing_details">Missing Polaris session details for End</string>
+    <!-- Beside an armed End Session in the library's top strip, which has no room for a longer line. -->
+    <string name="nova_library_end_strip_consequence">Unsaved progress is lost.</string>
+
+    <!-- Library Options. -->
+    <string name="nova_library_panel_filter">Filter</string>
+    <!-- Under the filter row: how many games each quick filter shows. -->
+    <string name="nova_library_panel_filter_counts">%1$d in all · %2$d recent · %3$d HDR</string>
+    <!-- Why a source filter cannot be stepped to in the filter row. -->
+    <string name="nova_library_panel_filter_set_in_sources">Chosen in Sources</string>
+    <!-- Why a category or genre filter cannot be stepped to in the filter row. -->
+    <string name="nova_library_panel_filter_set_in_more">Chosen in More Filters</string>
+    <!-- The More Filters row's value while no category or genre narrows the library. -->
+    <string name="nova_library_panel_more_none">None</string>
+    <string name="nova_library_panel_clear_caption">Show the whole library again.</string>
+    <!-- Section label above Sort, Layout and Poster Titles. -->
+    <string name="nova_library_panel_view">View</string>
+    <string name="nova_library_panel_search">Search</string>
+    <string name="nova_library_panel_show_results">Show Results</string>
+    <string name="nova_library_panel_clear_search">Clear Search</string>
+    <string name="nova_library_panel_refresh_caption">Ask the host for its library again.</string>
+    <string name="nova_library_panel_artwork_updating">Updating artwork</string>
+    <!-- A category's row on the More Filters page: how many games it holds. -->
+    <string name="nova_library_panel_category_caption">Category · %1$d games</string>
+    <!-- A genre's row on the More Filters page: how many games it holds. -->
+    <string name="nova_library_panel_genre_caption">Genre · %1$d games</string>
+
+    <!-- Play Setup: the row that chooses between this game and every game. -->
+    <string name="nova_play_setup_panel_scope">Applies To</string>
+    <!-- The hint bar's label for Y, which flips Play Setup between this game and every game. -->
+    <string name="nova_play_setup_panel_scope_hint">This or Every Game</string>
+</resources>

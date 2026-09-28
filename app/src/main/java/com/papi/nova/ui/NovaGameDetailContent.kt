@@ -70,7 +70,7 @@ import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaControllerHint
-import com.papi.nova.ui.compose.NovaFocusableCard
+import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.utils.GameShortcutPinState
 import kotlinx.coroutines.launch
@@ -233,11 +233,8 @@ internal fun NovaGameDetailContent(
     /** Host-scope rows and plan; empty and null while This Game is showing. */
     hostPlaySetupRows: List<NovaPlaySetupRowState>,
     hostPlaySetupPlan: NovaPlaySetupPlan?,
-    /** Full-panel mode picker; non-null while it owns the Play Setup body. */
-    modePicker: NovaPlaySetupModePickerState?,
-    onPickMode: (String) -> Unit,
-    onPickHostDefault: () -> Unit,
-    onConfigureHostMode: () -> Unit = {},
+    /** Play Setup's page stack; open while the panel is. Where It Runs is pushed onto it. */
+    playSetupPanel: NovaPanelState,
     playLabel: String,
     launchModeTitle: String,
     headlessModeLabel: String,
@@ -338,260 +335,7 @@ internal fun NovaGameDetailContent(
         )
 
         when (destination) {
-            NovaGameDetailDestination.OVERVIEW -> Unit
-
-            NovaGameDetailDestination.PLAY_SETUP -> NovaGameDetailWidePanel(
-                eyebrow = stringResource(R.string.nova_play_setup_title),
-                headline = uiState.game.name,
-                scrollState = verticalScroll,
-                onDismiss = onDismissDestination,
-                headerAccessory = if (uiState.game.space == null && steamDecision == null && modePicker == null) {
-                    {
-                        NovaPlaySetupScopePill(
-                            scope = playSetupScope,
-                            onSelected = onPlaySetupScopeSelected,
-                        )
-                    }
-                } else {
-                    // The blocked three-way choice owns the panel; a scope flip mid-choice
-                    // would swap the question out from under the person answering it.
-                    null
-                },
-            ) { bodyHeight ->
-                val decision = steamDecision
-                if (decision != null) {
-                    // A blocked three-way choice is the one moment nothing else on the
-                    // screen matters, so it keeps the body to itself.
-                    NovaDesktopSteamLaunchDecisionRows(
-                        decision = decision,
-                        onChoice = onSteamChoice,
-                    )
-                } else if (modePicker != null) {
-                    // Choosing where a game runs owns the body the way the Steam
-                    // decision does; the rows return when a choice lands or B backs out.
-                    NovaPlaySetupModePicker(
-                        state = modePicker,
-                        onPick = onPickMode,
-                        onPickHostDefault = if (playSetupScope == NovaPlaySetupScope.THIS_GAME) {
-                            onPickHostDefault
-                        } else {
-                            null
-                        },
-                        onConfigureHost = onConfigureHostMode,
-                    )
-                } else if (playSetupScope == NovaPlaySetupScope.EVERY_GAME && hostPlaySetupPlan != null) {
-                    // The same four-row shape, absorbing the Polaris Sync sheet's three
-                    // sections. The subject changed; how to read the panel did not.
-                    val consequenceLines =
-                        novaPlaySetupConsequenceLines(bodyHeight, hostPlaySetupRows.size)
-                    NovaPlaySetupBody(
-                        plan = hostPlaySetupPlan,
-                        readTitle = stringResource(R.string.nova_play_setup_host_read_title),
-                        introMaxLines = novaPlaySetupIntroLines(
-                            bodyHeight,
-                            factCount = hostPlaySetupPlan.facts.size,
-                        ),
-                        fitHeight = bodyHeight,
-                        rows = {
-                            NovaHostSetupRowList(
-                                rows = hostPlaySetupRows,
-                                onExplain = onExplainPlaySetupRow,
-                                onAdvance = onAdvancePlaySetupRow,
-                            )
-                        },
-                        comparison = {
-                            NovaHostSetupComparison(
-                                rows = hostPlaySetupRows,
-                                explainedRow = explainedPlaySetupRow,
-                                consequenceMaxLines = consequenceLines,
-                            )
-                        },
-                    )
-                } else {
-                    val summary = optimizationState.profileSummary
-                    // Where this game opens is drawn as its own control above the rows it used to
-                    // be one of, so the legend under the rows explains the rows, or the one place
-                    // whose card holds focus, never the places restated as choices.
-                    val destinationsRow = playSetupRows.firstOrNull { it.row == NovaPlaySetupRow.PLAY_IN }
-                    val settingRows = playSetupRows.filter { it.row != NovaPlaySetupRow.PLAY_IN }
-                    // Which destination card the cursor is on, for the legend to describe. By name,
-                    // because the list behind it can change while the cursor stays where it is.
-                    var focusedDestination by remember { mutableStateOf("") }
-                    // Spend the room that is there rather than a number picked in advance:
-                    // each advertised launch control leaves less room for the legend.
-                    // The legend is pinned under the rows, so it is budgeted against the few
-                    // rows kept in view above it rather than against every row the host added.
-                    val consequenceLines = novaPlaySetupPinnedLegendLines(bodyHeight, settingRows.size)
-                    NovaPlaySetupBody(
-                        plan = novaPlaySetupPlan(
-                            // The resolved mode, not the name of the control that sets
-                            // it: this is the one line the column exists to state.
-                            modeLabel = when (uiState.playMode) {
-                                PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> virtualDisplayModeLabel
-                                PolarisGame.MODE_HEADLESS_STREAM -> headlessModeLabel
-                                // A stale host default can be replaced for this launch.
-                                // Name the mode Nova will actually send, not the rejected
-                                // host-default label.
-                                else -> uiState.playModeLabel.ifBlank { headlessModeLabel }
-                            },
-                            lines = listOfNotNull(
-                                summary?.selectedLine
-                                    ?.takeIf { it.isNotBlank() }
-                                    ?.let(::novaPlaySetupValue),
-                                launchIntro.takeIf { it.isNotBlank() },
-                            ),
-                            summary = summary,
-                            lastSessionKey = stringResource(R.string.nova_play_setup_fact_last_session),
-                            limitedByKey = stringResource(R.string.nova_play_setup_fact_limited_by),
-                            askedKey = stringResource(R.string.nova_play_setup_fact_asked),
-                            profileKey = stringResource(R.string.nova_play_setup_fact_profile),
-                            grantedFormat = stringResource(R.string.nova_play_setup_granted_format),
-                            // A Space game runs in its Space's own session, so neither the host's
-                            // default mode nor its profile is what this launch uses. Stating them
-                            // beside it read as a fallback that was not happening.
-                            hostFacts = if (uiState.runsInSpace) emptyList() else buildList {
-                                if (uiState.hostStreamDisplayModeLabel.isNotBlank()) {
-                                    val safeFallbackDetail = if (uiState.usesSafeHostFallback) {
-                                        buildList {
-                                            add(
-                                                stringResource(
-                                                    R.string.nova_play_setup_host_safe_fallback,
-                                                    uiState.playModeLabel,
-                                                ),
-                                            )
-                                            uiState.hostStreamDisplayModeUnavailableReason
-                                                .takeIf { it.isNotBlank() }
-                                                ?.let(::add)
-                                        }.joinToString(" ")
-                                    } else {
-                                        ""
-                                    }
-                                    add(
-                                        NovaPlaySetupFact(
-                                            key = stringResource(R.string.nova_play_setup_fact_host_default),
-                                            value = uiState.hostStreamDisplayModeLabel,
-                                            detail = when {
-                                                uiState.usesSafeHostFallback -> safeFallbackDetail
-                                                uiState.overridesHostMode -> stringResource(
-                                                    R.string.nova_play_setup_host_overridden,
-                                                )
-                                                // The desktop does not take the host's default, and
-                                                // saying it follows one it ignores is the sentence
-                                                // that sent papi looking for a bug that was not there.
-                                                !uiState.followsHostDefault -> stringResource(
-                                                    R.string.nova_play_setup_host_not_followed,
-                                                    com.papi.nova.api.PolarisStreamDisplayMode.labelForMode(uiState.recommendedMode),
-                                                )
-                                                else -> stringResource(
-                                                    R.string.nova_play_setup_host_followed,
-                                                )
-                                            },
-                                            tone = if (
-                                                uiState.overridesHostMode || uiState.usesSafeHostFallback
-                                            ) {
-                                                NovaPlaySetupTone.WARN
-                                            } else {
-                                                NovaPlaySetupTone.PLAIN
-                                            },
-                                        ),
-                                    )
-                                }
-                                if (uiState.hostProfileLabel.isNotBlank()) {
-                                    add(
-                                        NovaPlaySetupFact(
-                                            key = stringResource(R.string.nova_play_setup_fact_host_profile),
-                                            value = uiState.hostProfileLabel,
-                                        ),
-                                    )
-                                }
-                            },
-                        ),
-                        introMaxLines = novaPlaySetupIntroLines(
-                            bodyHeight,
-                            factCount = summary?.let { 4 } ?: 2,
-                        ),
-                        fitHeight = bodyHeight,
-                        rows = {
-                            // Where this game opens, as the one control that sets it. When a place
-                            // can be chosen, the cards take first focus rather than the first row.
-                            val destinationsFocus = destinationsRow?.options
-                                ?.any { it.enabled && it.onSelect != null } == true
-                            if (destinationsRow != null) {
-                                NovaPlaySetupDestinations(
-                                    title = destinationsRow.stripTitle,
-                                    status = destinationsRow.caption,
-                                    options = destinationsRow.options,
-                                    autoFocus = destinationsFocus,
-                                    onFocused = { index ->
-                                        focusedDestination = destinationsRow.options.getOrNull(index)?.label.orEmpty()
-                                        onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN)
-                                    },
-                                )
-                            }
-                            // Host-backed rows, drawn in a fixed order. Each advances its own value
-                            // on A or a tap, and points the strip at itself on focus, so the
-                            // explanation follows the cursor without being a stop on it.
-                            settingRows.forEachIndexed { index, rowState ->
-                                NovaSteamChoiceRow(
-                                    autoFocus = index == 0 && !destinationsFocus,
-                                    label = rowState.label,
-                                    caption = rowState.caption,
-                                    enabled = rowState.enabled,
-                                    value = rowState.value,
-                                    selected = rowState.overridden,
-                                    onClick = { onAdvancePlaySetupRow(rowState.row) },
-                                    onFocused = { onExplainPlaySetupRow(rowState.row) },
-                                    firstPressFocuses = true,
-                                )
-                            }
-                            // After the choices and inside their scroll, so it cannot stand
-                            // between the rows and the legend that explains them.
-                            if (mangoHudEnabled) {
-                                MangoHudPassiveStatus(
-                                    label = mangoHudStatusLabel,
-                                    caption = mangoHudStatusCaption,
-                                    warning = mangoHudWarning
-                                )
-                            }
-                        },
-                        comparison = {
-                            // A legend for whichever row holds focus, not a picker with a
-                            // state of its own. A row that has nothing to compare -- one
-                            // launch mode, or no display planner on this host -- draws
-                            // nothing rather than a strip that repeats the row above it.
-                            // While a destination card holds focus, the legend says what that
-                            // one place means, in full where the card had to cut it. Falling
-                            // back to the first row opened Play Setup on "If you changed where
-                            // it runs" with the cursor on Desktop, and no legend at all opened
-                            // it with the drawer empty.
-                            val place = novaPlaySetupPlaceUnderCursor(
-                                explainedPlaySetupRow,
-                                destinationsRow?.options.orEmpty(),
-                                focusedDestination,
-                            )
-                            val explained = settingRows.firstOrNull { it.row == explainedPlaySetupRow }
-                            if (place != null) {
-                                NovaPlaySetupPlaceLegend(
-                                    title = stringResource(R.string.nova_play_setup_place_legend),
-                                    place = place,
-                                    consequenceMaxLines = consequenceLines,
-                                )
-                            } else if (explained != null && explained.options.size > 1) {
-                                NovaPlaySetupComparison(
-                                    title = explained.stripTitle,
-                                    options = explained.options,
-                                    consequenceMaxLines = if (explained.options.size > explained.optionsPerRow) 1 else consequenceLines,
-                                    perRow = explained.optionsPerRow,
-                                )
-                            }
-                        },
-                    )
-                }
-
-                // No sheets. Every one of these choices is made in the strip above,
-                // which is the rule this window already had for the preflight review:
-                // expand the lane rather than raise a dialog.
-            }
+            NovaGameDetailDestination.OVERVIEW, NovaGameDetailDestination.PLAY_SETUP -> Unit
 
             // The studio opens with a Row of weighted Columns, so it needs the window
             // rather than the panel Play Setup uses.
@@ -623,6 +367,265 @@ internal fun NovaGameDetailContent(
                     currentArtworkPresentationKey = currentArtworkPresentationKey,
                     currentArtworkLoader = currentArtworkLoader,
                 )
+            }
+        }
+
+        // Play Setup is a wide panel at the end edge, drawn in this window: the game stays in
+        // sight beside what is being changed, and its pages push and pop in place. No sheets:
+        // the choices are made in the rows, the desktop Steam decision is a page, and so is
+        // Where It Runs.
+        NovaPlaySetupPanel(
+            panel = playSetupPanel,
+            onClose = onDismissDestination,
+            hints = if (uiState.game.space == null) {
+                listOf(
+                    NovaControllerHint(
+                        key = stringResource(R.string.nova_controller_hint_y),
+                        label = stringResource(R.string.nova_play_setup_panel_scope_hint),
+                    ),
+                )
+            } else {
+                emptyList()
+            },
+        ) { page ->
+            when (page) {
+                is PlaySetupPage.PlayIn -> NovaPlayInPage(page)
+                is PlaySetupPage.SteamDecision -> steamDecision?.let { decision ->
+                    NovaSteamDecisionPage(decision = decision, onChoice = onSteamChoice)
+                }
+                is PlaySetupPage.Root -> Column(modifier = Modifier.fillMaxWidth()) {
+                    if (uiState.game.space == null) {
+                        NovaPlaySetupScopeRow(
+                            scope = playSetupScope,
+                            onSelected = onPlaySetupScopeSelected,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+                    // The scroll stays as the fallback for a font scale or an inset that makes
+                    // the content genuinely taller than the panel. Measuring outside it is what
+                    // lets the body lay itself out to fit in the ordinary case. The page opens on
+                    // the body's first choice, where its legend has something to explain, rather
+                    // than on the scope row above it.
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth().novaInitialFocus()) {
+                        val bodyHeight = maxHeight
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .novaFadeAtCut(verticalScroll.canScrollForward)
+                                .verticalScroll(verticalScroll),
+                        ) {
+                            if (playSetupScope == NovaPlaySetupScope.EVERY_GAME && hostPlaySetupPlan != null) {
+                                // The same four-row shape, absorbing the Polaris Sync sheet's three
+                                // sections. The subject changed; how to read the panel did not.
+                                val consequenceLines =
+                                    novaPlaySetupConsequenceLines(bodyHeight, hostPlaySetupRows.size)
+                                NovaPlaySetupBody(
+                                    plan = hostPlaySetupPlan,
+                                    readTitle = stringResource(R.string.nova_play_setup_host_read_title),
+                                    introMaxLines = novaPlaySetupIntroLines(
+                                        bodyHeight,
+                                        factCount = hostPlaySetupPlan.facts.size,
+                                    ),
+                                    fitHeight = bodyHeight,
+                                    rows = {
+                                        NovaHostSetupRowList(
+                                            rows = hostPlaySetupRows,
+                                            onExplain = onExplainPlaySetupRow,
+                                            onAdvance = onAdvancePlaySetupRow,
+                                        )
+                                    },
+                                    comparison = {
+                                        NovaHostSetupComparison(
+                                            rows = hostPlaySetupRows,
+                                            explainedRow = explainedPlaySetupRow,
+                                            consequenceMaxLines = consequenceLines,
+                                        )
+                                    },
+                                )
+                            } else {
+                                val summary = optimizationState.profileSummary
+                                // Where this game opens is drawn as its own control above the rows it used to
+                                // be one of, so the legend under the rows explains the rows, or the one place
+                                // whose card holds focus, never the places restated as choices.
+                                val destinationsRow = playSetupRows.firstOrNull { it.row == NovaPlaySetupRow.PLAY_IN }
+                                val settingRows = playSetupRows.filter { it.row != NovaPlaySetupRow.PLAY_IN }
+                                // Which destination card the cursor is on, for the legend to describe. By name,
+                                // because the list behind it can change while the cursor stays where it is.
+                                var focusedDestination by remember { mutableStateOf("") }
+                                // Spend the room that is there rather than a number picked in advance:
+                                // each advertised launch control leaves less room for the legend.
+                                // The legend is pinned under the rows, so it is budgeted against the few
+                                // rows kept in view above it rather than against every row the host added.
+                                val consequenceLines = novaPlaySetupPinnedLegendLines(bodyHeight, settingRows.size)
+                                NovaPlaySetupBody(
+                                    plan = novaPlaySetupPlan(
+                                        // The resolved mode, not the name of the control that sets
+                                        // it: this is the one line the column exists to state.
+                                        modeLabel = when (uiState.playMode) {
+                                            PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> virtualDisplayModeLabel
+                                            PolarisGame.MODE_HEADLESS_STREAM -> headlessModeLabel
+                                            // A stale host default can be replaced for this launch.
+                                            // Name the mode Nova will actually send, not the rejected
+                                            // host-default label.
+                                            else -> uiState.playModeLabel.ifBlank { headlessModeLabel }
+                                        },
+                                        lines = listOfNotNull(
+                                            summary?.selectedLine
+                                                ?.takeIf { it.isNotBlank() }
+                                                ?.let(::novaPlaySetupValue),
+                                            launchIntro.takeIf { it.isNotBlank() },
+                                        ),
+                                        summary = summary,
+                                        lastSessionKey = stringResource(R.string.nova_play_setup_fact_last_session),
+                                        limitedByKey = stringResource(R.string.nova_play_setup_fact_limited_by),
+                                        askedKey = stringResource(R.string.nova_play_setup_fact_asked),
+                                        profileKey = stringResource(R.string.nova_play_setup_fact_profile),
+                                        grantedFormat = stringResource(R.string.nova_play_setup_granted_format),
+                                        // A Space game runs in its Space's own session, so neither the host's
+                                        // default mode nor its profile is what this launch uses. Stating them
+                                        // beside it read as a fallback that was not happening.
+                                        hostFacts = if (uiState.runsInSpace) emptyList() else buildList {
+                                            if (uiState.hostStreamDisplayModeLabel.isNotBlank()) {
+                                                val safeFallbackDetail = if (uiState.usesSafeHostFallback) {
+                                                    buildList {
+                                                        add(
+                                                            stringResource(
+                                                                R.string.nova_play_setup_host_safe_fallback,
+                                                                uiState.playModeLabel,
+                                                            ),
+                                                        )
+                                                        uiState.hostStreamDisplayModeUnavailableReason
+                                                            .takeIf { it.isNotBlank() }
+                                                            ?.let(::add)
+                                                    }.joinToString(" ")
+                                                } else {
+                                                    ""
+                                                }
+                                                add(
+                                                    NovaPlaySetupFact(
+                                                        key = stringResource(R.string.nova_play_setup_fact_host_default),
+                                                        value = uiState.hostStreamDisplayModeLabel,
+                                                        detail = when {
+                                                            uiState.usesSafeHostFallback -> safeFallbackDetail
+                                                            uiState.overridesHostMode -> stringResource(
+                                                                R.string.nova_play_setup_host_overridden,
+                                                            )
+                                                            // The desktop does not take the host's default, and
+                                                            // saying it follows one it ignores is the sentence
+                                                            // that sent papi looking for a bug that was not there.
+                                                            !uiState.followsHostDefault -> stringResource(
+                                                                R.string.nova_play_setup_host_not_followed,
+                                                                com.papi.nova.api.PolarisStreamDisplayMode.labelForMode(uiState.recommendedMode),
+                                                            )
+                                                            else -> stringResource(
+                                                                R.string.nova_play_setup_host_followed,
+                                                            )
+                                                        },
+                                                        tone = if (
+                                                            uiState.overridesHostMode || uiState.usesSafeHostFallback
+                                                        ) {
+                                                            NovaPlaySetupTone.WARN
+                                                        } else {
+                                                            NovaPlaySetupTone.PLAIN
+                                                        },
+                                                    ),
+                                                )
+                                            }
+                                            if (uiState.hostProfileLabel.isNotBlank()) {
+                                                add(
+                                                    NovaPlaySetupFact(
+                                                        key = stringResource(R.string.nova_play_setup_fact_host_profile),
+                                                        value = uiState.hostProfileLabel,
+                                                    ),
+                                                )
+                                            }
+                                        },
+                                    ),
+                                    introMaxLines = novaPlaySetupIntroLines(
+                                        bodyHeight,
+                                        factCount = summary?.let { 4 } ?: 2,
+                                    ),
+                                    fitHeight = bodyHeight,
+                                    rows = {
+                                        // Where this game opens, as the one control that sets it. When a place
+                                        // can be chosen, the cards take first focus rather than the first row.
+                                        val destinationsFocus = destinationsRow?.options
+                                            ?.any { it.enabled && it.onSelect != null } == true
+                                        if (destinationsRow != null) {
+                                            NovaPlaySetupDestinations(
+                                                title = destinationsRow.stripTitle,
+                                                status = destinationsRow.caption,
+                                                options = destinationsRow.options,
+                                                autoFocus = destinationsFocus,
+                                                onFocused = { index ->
+                                                    focusedDestination = destinationsRow.options.getOrNull(index)?.label.orEmpty()
+                                                    onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN)
+                                                },
+                                            )
+                                        }
+                                        // Host-backed rows, drawn in a fixed order. Each advances its own value
+                                        // on A or a tap, and points the strip at itself on focus, so the
+                                        // explanation follows the cursor without being a stop on it.
+                                        settingRows.forEachIndexed { index, rowState ->
+                                            NovaSteamChoiceRow(
+                                                autoFocus = index == 0 && !destinationsFocus,
+                                                label = rowState.label,
+                                                caption = rowState.caption,
+                                                enabled = rowState.enabled,
+                                                value = rowState.value,
+                                                selected = rowState.overridden,
+                                                onClick = { onAdvancePlaySetupRow(rowState.row) },
+                                                onFocused = { onExplainPlaySetupRow(rowState.row) },
+                                                firstPressFocuses = true,
+                                            )
+                                        }
+                                        // After the choices and inside their scroll, so it cannot stand
+                                        // between the rows and the legend that explains them.
+                                        if (mangoHudEnabled) {
+                                            MangoHudPassiveStatus(
+                                                label = mangoHudStatusLabel,
+                                                caption = mangoHudStatusCaption,
+                                                warning = mangoHudWarning
+                                            )
+                                        }
+                                    },
+                                    comparison = {
+                                        // A legend for whichever row holds focus, not a picker with a
+                                        // state of its own. A row that has nothing to compare -- one
+                                        // launch mode, or no display planner on this host -- draws
+                                        // nothing rather than a strip that repeats the row above it.
+                                        // While a destination card holds focus, the legend says what that
+                                        // one place means, in full where the card had to cut it. Falling
+                                        // back to the first row opened Play Setup on "If you changed where
+                                        // it runs" with the cursor on Desktop, and no legend at all opened
+                                        // it with the drawer empty.
+                                        val place = novaPlaySetupPlaceUnderCursor(
+                                            explainedPlaySetupRow,
+                                            destinationsRow?.options.orEmpty(),
+                                            focusedDestination,
+                                        )
+                                        val explained = settingRows.firstOrNull { it.row == explainedPlaySetupRow }
+                                        if (place != null) {
+                                            NovaPlaySetupPlaceLegend(
+                                                title = stringResource(R.string.nova_play_setup_place_legend),
+                                                place = place,
+                                                consequenceMaxLines = consequenceLines,
+                                            )
+                                        } else if (explained != null && explained.options.size > 1) {
+                                            NovaPlaySetupComparison(
+                                                title = explained.stripTitle,
+                                                options = explained.options,
+                                                consequenceMaxLines = if (explained.options.size > explained.optionsPerRow) 1 else consequenceLines,
+                                                perRow = explained.optionsPerRow,
+                                            )
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                else -> Unit
             }
         }
     }

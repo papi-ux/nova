@@ -75,6 +75,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.R
+import com.papi.nova.ui.panel.NovaSplitConfirm
+import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.LocalNovaComposeColors
@@ -532,12 +534,18 @@ private fun NovaGameDetailActions(
         )
     }
 
+    // End splits in its own slot into Stay and End Session (R3). The library ends the session
+    // without asking again. While it is armed the other actions step aside, so the pair keeps
+    // its room and nothing else can be pressed by accident beside it.
+    val endSplit = rememberNovaSplitConfirmState()
     val endAction: @Composable (Modifier) -> Unit = { actionModifier ->
-        NovaGameDetailAction(
-            text = stringResource(R.string.nova_game_detail_end_session),
-            onClick = onEndSession,
-            mark = "◼",
-            modifier = actionModifier,
+        NovaSplitConfirm(
+            label = stringResource(R.string.nova_game_detail_end_session),
+            confirmLabel = stringResource(R.string.game_dialog_action_end_session),
+            onConfirm = onEndSession,
+            consequence = stringResource(R.string.nova_panel_end_session_message),
+            state = endSplit,
+            modifier = actionModifier.testTag("nova-game-detail-end-session"),
         )
     }
 
@@ -605,16 +613,20 @@ private fun NovaGameDetailActions(
     val showEnd = activeSession != null && !activeSession.watchOnly
     val showRetry = reviewExpanded && optimizationState.profileSummary?.showRetryHighFps == true
 
+    // The split stays at its own place in each layout while the others step aside, so arming it
+    // never moves it to a new slot, which would dispose and so disarm it.
+    val endArmed = showEnd && endSplit.armed
+
     if (stacked) {
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = modifier.fillMaxWidth(),
         ) {
-            primaryAction(Modifier.fillMaxWidth())
+            if (!endArmed) primaryAction(Modifier.fillMaxWidth())
             if (showEnd) endAction(Modifier.fillMaxWidth())
-            if (showRetry) retryAction(Modifier.fillMaxWidth())
+            if (showRetry && !endArmed) retryAction(Modifier.fillMaxWidth())
 
-            Row(
+            if (!endArmed) Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
@@ -623,7 +635,7 @@ private fun NovaGameDetailActions(
                 if (supportsHostCustomization) resetAction(Modifier.weight(1f))
             }
 
-            if (pinVisible || (!reviewExpanded && supportsHostCustomization)) {
+            if (!endArmed && (pinVisible || (!reviewExpanded && supportsHostCustomization))) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -643,7 +655,7 @@ private fun NovaGameDetailActions(
                 // row wrap stranded it alone on a second line. Launch keeps the two quick icons
                 // beside it, and the setup actions take the row below.
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
+                    if (!endArmed) Row(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -657,9 +669,9 @@ private fun NovaGameDetailActions(
                         itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (showEnd) endAction(Modifier)
-                        if (showRetry) retryAction(Modifier)
-                        if (!reviewExpanded) playSetupAction(Modifier)
-                        if (supportsHostCustomization) resetAction(Modifier)
+                        if (showRetry && !endArmed) retryAction(Modifier)
+                        if (!reviewExpanded && !endArmed) playSetupAction(Modifier)
+                        if (supportsHostCustomization && !endArmed) resetAction(Modifier)
                     }
                 }
             } else {
@@ -667,13 +679,13 @@ private fun NovaGameDetailActions(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    primaryAction(Modifier)
+                    if (!endArmed) primaryAction(Modifier)
                     if (showEnd) endAction(Modifier)
-                    if (showRetry) retryAction(Modifier)
-                    if (!reviewExpanded) playSetupAction(Modifier)
-                    if (supportsHostCustomization) resetAction(Modifier)
-                    if (pinVisible) pinAction(Modifier)
-                    if (showArtwork) artworkAction(Modifier)
+                    if (showRetry && !endArmed) retryAction(Modifier)
+                    if (!reviewExpanded && !endArmed) playSetupAction(Modifier)
+                    if (supportsHostCustomization && !endArmed) resetAction(Modifier)
+                    if (pinVisible && !endArmed) pinAction(Modifier)
+                    if (showArtwork && !endArmed) artworkAction(Modifier)
                 }
             }
         }

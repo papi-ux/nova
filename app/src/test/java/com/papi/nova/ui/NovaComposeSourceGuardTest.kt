@@ -15,9 +15,12 @@ class NovaComposeSourceGuardTest {
         // Modifier.novaFocusRing: a fill plus a 3dp ring inside the shape, with no scale and no
         // halo. The action button pins below follow it there; the chip pins are unchanged.
         val focusRing = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelTokens.kt")
-        val selectableChip = readNovaLibraryActivity().section(
-            "private fun NovaSelectableChip(",
-            "private fun NovaLibraryPanel("
+        // The library's selectable chips became panel rows in Library Options (group 3), so the chip
+        // pins below follow the row every option uses there, NovaRowLayout.
+        val libraryOptions = readSource("src/main/java/com/papi/nova/ui/NovaLibraryPanels.kt")
+        val selectableChip = readSource("src/main/java/com/papi/nova/ui/panel/NovaRows.kt").section(
+            "internal fun NovaRowLayout(",
+            "internal class NovaTitleAndValueMeasurePolicy("
         )
 
         assertTrue(
@@ -32,25 +35,25 @@ class NovaComposeSourceGuardTest {
                 actionButton.contains("focusedFill = focusedContainer")
         )
         assertTrue(
-            "selectable chips should use the same 3dp focused outline",
-            selectableChip.contains(".border(if (focused) 3.dp else 1.dp")
+            "selectable chips should use the same 3dp focused outline: library options are panel rows, drawn with the one focus ring",
+            libraryOptions.contains("NovaRow(") && !libraryOptions.contains("NovaSelectableChip(") &&
+                selectableChip.contains(".novaFocusRing(")
         )
         assertTrue(
             "selectable chips should visibly fill on focus even when not selected",
-            selectableChip.contains("focused -> surfaces.selectedControl")
+            selectableChip.contains("focusedFill = if (filled) colors.accent else Color.Unspecified") &&
+                focusRing.contains("focusedFill.takeOrElse { surfaces.selectedControl }")
         )
         assertTrue(
             "selectable chips should observe the focus target that receives D-pad focus",
             selectableChip.indexOf(".onFocusChanged {") in 0 until
-                selectableChip.indexOf(".combinedClickable(")
+                selectableChip.indexOf(".novaClickable(")
         )
         assertTrue(
             "selectable chips should expose one merged button semantics node so clipped child text never becomes the accessibility target",
             selectableChip.contains(".semantics(mergeDescendants = true)") &&
-                selectableChip.contains("val chipDescription = \"\$label. \$detail\"") &&
-                selectableChip.contains("contentDescription = chipDescription") &&
-                selectableChip.contains("role = Role.Button") &&
-                selectableChip.contains(".combinedClickable(")
+                selectableChip.contains("Role.Button") &&
+                selectableChip.contains(".novaClickable(")
         )
         assertTrue(
             "shared Compose focus controls should animate the one focus look over 150ms, with no scale and no halo",

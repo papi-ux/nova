@@ -9,6 +9,9 @@ class NovaLibraryActivitySourceTest {
     private fun readLibraryActivitySource(): String =
         File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
 
+    private fun readLibraryPanelsSource(): String =
+        File("src/main/java/com/papi/nova/ui/NovaLibraryPanels.kt").readText()
+
     private fun sourceBetween(source: String, startMarker: String, endMarker: String): String {
         val startIndex = source.indexOf(startMarker)
         val endIndex = source.indexOf(endMarker, startIndex + startMarker.length)
@@ -33,36 +36,41 @@ class NovaLibraryActivitySourceTest {
     }
 
     @Test
-    fun libraryOptionsDrawerOwnsFiltersRefreshAndGridCustomization() {
+    fun libraryOptionsPanelOwnsFiltersRefreshAndGridCustomization() {
         val source = readLibraryActivitySource()
-        val optionsSheet = sourceBetween(
-            source,
-            "private fun NovaLibraryOptionsSheet(",
-            "@OptIn(ExperimentalMaterial3Api::class)"
+        val options = sourceBetween(
+            readLibraryPanelsSource(),
+            "internal fun NovaPageScope.NovaLibraryOptionsPage(",
+            "private fun androidx.compose.foundation.lazy.LazyListScope.artworkRows("
         )
 
-        assertTrue(optionsSheet.contains("onRefresh: () -> Unit"))
-        assertTrue(optionsSheet.contains("align(Alignment.CenterStart)"))
-        assertTrue(optionsSheet.contains("NovaSearchField("))
-        assertTrue(optionsSheet.contains("NovaLibraryPrimaryFilter.entries.forEach"))
-        assertTrue(optionsSheet.contains("stringResource(R.string.nova_refresh)"))
-        assertTrue(optionsSheet.contains("NovaLibrarySortMode.entries.forEach"))
-        assertTrue(optionsSheet.contains("NovaLibraryLayoutMode.entries.forEach"))
+        // Library Options is a panel at the start edge (R6), no longer a Dialog aligned there.
+        assertTrue(readLibraryPanelsSource().contains("get() = if (this is LibraryPage.Options) NovaEdge.Start else NovaEdge.End"))
+        assertTrue(options.contains("onClick = { if (isTop) closeThen(action = actions.onRefresh) }"))
+        assertTrue(options.contains("stringResource(R.string.nova_refresh)"))
+        assertTrue(options.contains("R.string.nova_library_panel_search"))
+        // The quick filters change in one row; Sources, More and Sort are pages pushed from it.
+        assertTrue(options.contains("val filterOptions = QuickFilters.map"))
+        assertTrue(options.contains("push(actions.sourcesPage)") && options.contains("push(actions.morePage)"))
+        assertTrue(options.contains("push(actions.sortPage)"))
+        assertTrue(source.contains("options = NovaLibrarySortMode.entries.map"))
+        assertTrue(options.contains("NovaOption(NovaLibraryLayoutMode.GRID") && options.contains("NovaOption(NovaLibraryLayoutMode.STAGE"))
     }
 
     @Test
-    fun selectableChipsReserveVisibleLabelSpaceBeforeLongDetails() {
+    fun optionRowsKeepLabelsWholeAndTheirDetailsAsCaptions() {
+        // The selectable chips squeezed a detail beside each label and cut both with an ellipsis.
+        // Panel rows put the detail under the label, where it wraps, so neither is ever cut (R13).
         val source = readLibraryActivitySource()
-        val chip = sourceBetween(
-            source,
-            "private fun NovaSelectableChip(",
-            "@Composable\n    private fun NovaLibraryPanel("
-        )
+        val options = readLibraryPanelsSource()
+        val rows = File("src/main/java/com/papi/nova/ui/panel/NovaRows.kt").readText()
         val strings = File("src/main/res/values/strings.xml").readText()
 
-        assertTrue(chip.contains("modifier = Modifier.weight(0.34f)"))
-        assertTrue(chip.contains("modifier = Modifier.weight(0.66f)"))
-        assertTrue(chip.windowed("overflow = TextOverflow.Ellipsis".length).count { it == "overflow = TextOverflow.Ellipsis" } >= 2)
+        assertTrue(source.contains("NovaOption(it, sortModeLabel(it), caption = sortModeDetail(it))"))
+        assertTrue(source.contains("layoutCaption = layoutModeDetail(optionsState.layoutMode)"))
+        assertTrue(options.contains("caption = ui.layoutCaption"))
+        assertFalse(source.contains("private fun NovaSelectableChip("))
+        assertFalse(rows.contains("TextOverflow.Ellipsis"))
         assertTrue(
             strings.contains(
                 "name=\"nova_library_options_layout_stage_hint\">Artwork-first home with hero environment, icon identity, and immediate actions."
@@ -81,7 +89,8 @@ class NovaLibraryActivitySourceTest {
 
         assertTrue(source.contains("KeyEvent.KEYCODE_BUTTON_Y"))
         assertTrue(source.contains("cycleLibraryLayoutMode()"))
-        assertTrue(source.contains("activeOptionsSheet || activeSystemMenu || activeFilterSheet != null"))
+        // Y changes the grid behind the panels, so it does nothing while one is open.
+        assertTrue(source.contains("if (libraryPanelOpen) {\n            return false"))
         assertTrue(source.contains("selectLibraryLayoutMode(nextMode)"))
         assertTrue(source.contains("revealControllerHints(NovaControllerHintChromeEvent.LAYOUT_CHANGED)"))
         assertTrue(hints.contains("R.string.nova_controller_hint_y"))
@@ -112,50 +121,41 @@ class NovaLibraryActivitySourceTest {
     }
 
     @Test
-    fun systemMenuIsRightDrawerAndOwnsHostLevelActions() {
+    fun systemPanelIsAtTheEndEdgeAndOwnsHostLevelActions() {
         val source = readLibraryActivitySource()
         val systemMenu = sourceBetween(
-            source,
-            "private fun NovaSystemMenuSheet(",
-            "@OptIn(ExperimentalFoundationApi::class)"
+            readLibraryPanelsSource(),
+            "internal fun NovaPageScope.NovaLibrarySystemPage(",
+            "internal fun NovaPageScope.NovaLibrarySearchPage("
         )
 
-        assertTrue(systemMenu.contains("DialogProperties(usePlatformDefaultWidth = false)"))
-        assertTrue(systemMenu.contains("align(Alignment.CenterEnd)"))
-        assertTrue(systemMenu.contains("onSwitchHost: () -> Unit"))
+        // System is a panel at the end edge (R6), no longer a Dialog aligned there.
+        assertTrue(source.contains("private fun openLibrarySystem()"))
+        assertTrue(source.contains("LibraryPage.System(getString(R.string.nova_system_menu_title))"))
+        assertTrue(readLibraryPanelsSource().contains("get() = if (this is LibraryPage.Options) NovaEdge.Start else NovaEdge.End"))
+        assertTrue(systemMenu.contains("onClick = { leave(actions.onSwitchHost) }"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_switch_host"))
-        assertTrue(systemMenu.contains("onOpenSettings: () -> Unit"))
-        assertTrue(systemMenu.contains("onOpenPolarisSync: () -> Unit"))
-        assertTrue(systemMenu.contains("onManageServer: () -> Unit"))
-        assertTrue(systemMenu.contains("onOpenHelpDiagnostics: () -> Unit"))
-        assertTrue(systemMenu.contains("onOpenAbout: () -> Unit"))
-        assertTrue(systemMenu.contains("onOpenMatrixCommunity: () -> Unit"))
+        assertTrue(systemMenu.contains("onClick = { leave(actions.onSettings) }"))
+        assertTrue(systemMenu.contains("panel.push(actions.polarisSyncPage())"))
+        assertTrue(systemMenu.contains("onClick = { leave(actions.onManageServer) }"))
+        assertTrue(systemMenu.contains("onClick = { leave(actions.onHelp) }"))
+        assertTrue(systemMenu.contains("onClick = { leave(actions.onAbout) }"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_matrix"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_matrix_hint"))
-        assertTrue(systemMenu.contains("onOpenMatrixCommunity()"))
-        assertTrue(systemMenu.contains("onOpenSponsor: () -> Unit"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_sponsor"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_sponsor_hint"))
-        assertTrue(systemMenu.contains("onOpenSponsor()"))
         val matrixAction = sourceBetween(
             systemMenu,
-            "text = stringResource(R.string.nova_system_menu_matrix)",
-            "text = stringResource(R.string.nova_system_menu_sponsor)"
+            "title = stringResource(R.string.nova_system_menu_matrix)",
+            "title = stringResource(R.string.nova_system_menu_sponsor)"
         )
-        val sponsorAction = sourceBetween(
-            systemMenu,
-            "text = stringResource(R.string.nova_system_menu_sponsor)",
-            "Spacer(modifier = Modifier.height(4.dp))"
-        )
-        assertTrue(matrixAction.contains("onOpenMatrixCommunity()"))
-        assertFalse(matrixAction.contains("onOpenSponsor()"))
-        assertTrue(sponsorAction.contains("onOpenSponsor()"))
-        assertFalse(sponsorAction.contains("onOpenMatrixCommunity()"))
-        assertTrue(matrixAction.contains("minHeight = 48.dp"))
-        assertTrue(sponsorAction.contains("minHeight = 48.dp"))
-        assertTrue(systemMenu.contains("fontSize = 9.sp"))
-        assertTrue(source.contains("onOpenSponsor = ::openSponsor"))
-        assertTrue(source.contains("onOpenMatrixCommunity = ::openMatrixCommunity"))
+        val sponsorAction = systemMenu.substring(systemMenu.indexOf("title = stringResource(R.string.nova_system_menu_sponsor)"))
+        assertTrue(matrixAction.contains("leave(actions.onMatrix)"))
+        assertFalse(matrixAction.contains("leave(actions.onSponsor)"))
+        assertTrue(sponsorAction.contains("leave(actions.onSponsor)"))
+        assertFalse(sponsorAction.contains("leave(actions.onMatrix)"))
+        assertTrue(source.contains("onSponsor = ::openSponsor"))
+        assertTrue(source.contains("onMatrix = ::openMatrixCommunity"))
         assertTrue(source.contains("private fun openMatrixCommunity()"))
         assertTrue(source.contains("HelpLauncher.launchMatrixCommunity(this)"))
         assertTrue(source.contains("private fun openSponsor()"))

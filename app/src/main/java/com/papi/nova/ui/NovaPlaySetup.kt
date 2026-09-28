@@ -787,77 +787,6 @@ internal enum class NovaPlaySetupRow {
 }
 
 /**
- * This Game | Every Game, at the panel header's edge. Touch takes a segment directly;
- * Y flips, and its glyph rides with the pill because the key exists only while this
- * panel is open — the bottom hint bar names the keys every screen has, not this one.
- */
-@Composable
-internal fun NovaPlaySetupScopePill(
-    scope: NovaPlaySetupScope,
-    onSelected: (NovaPlaySetupScope) -> Unit,
-) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = stringResource(R.string.nova_play_setup_scope_key),
-            color = colors.textMuted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .clip(RoundedCornerShape(NovaRadius.pill))
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.pill))
-                .padding(horizontal = 7.dp, vertical = 3.dp),
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(NovaRadius.pill))
-                .background(surfaces.tile)
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.pill)),
-        ) {
-            NovaPlaySetupScopeSegment(
-                label = stringResource(R.string.nova_play_setup_scope_this_game),
-                isSelected = scope == NovaPlaySetupScope.THIS_GAME,
-                onClick = { onSelected(NovaPlaySetupScope.THIS_GAME) },
-            )
-            NovaPlaySetupScopeSegment(
-                label = stringResource(R.string.nova_play_setup_every_game),
-                isSelected = scope == NovaPlaySetupScope.EVERY_GAME,
-                onClick = { onSelected(NovaPlaySetupScope.EVERY_GAME) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun NovaPlaySetupScopeSegment(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val description = stringResource(R.string.nova_play_setup_scope_cd, label)
-    Text(
-        text = label,
-        color = if (isSelected) colors.onAccent else colors.textSecondary,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-        modifier = Modifier
-            .clip(RoundedCornerShape(NovaRadius.pill))
-            .background(if (isSelected) colors.accent else surfaces.tile)
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics {
-                contentDescription = description
-                if (isSelected) selected = true
-            }
-            .padding(horizontal = 11.dp, vertical = 5.dp),
-    )
-}
-
-/**
  * One row: what it is called, what it currently reads, and what the alternatives mean.
  *
  * The options travel with the row rather than in a state the row has to open, because the
@@ -928,7 +857,7 @@ internal fun NovaPlaySetupDestinations(
                     caption = option.consequence,
                     enabled = option.enabled,
                     onClick = option.onSelect,
-                    selected = option.current,
+                    current = option.current,
                     autoFocus = autoFocus && index == focusIndex,
                     onFocused = { onFocused(index) },
                     describeCaption = true,

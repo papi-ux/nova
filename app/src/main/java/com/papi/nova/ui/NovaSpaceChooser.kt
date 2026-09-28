@@ -38,8 +38,8 @@ import com.papi.nova.ui.compose.NovaControllerHintBar
 import kotlinx.coroutines.delay
 
 /**
- * The Space chooser, in the detail window's row grammar: the current Space marked, a status
- * chip on every row, and A/B hints at the foot.
+ * The Space chooser, in the detail window's row grammar: the current Space carrying the one
+ * current mark, a status chip on every row, the one focus look, and A/B hints at the foot.
  *
  * Rows stay selectable while a Space is starting, stopping or in use, because choosing a
  * Space is how you browse its games; only what the host says cannot run at all is off. Focus
@@ -105,7 +105,7 @@ internal fun NovaSpaceChooser(
                 caption = stringResource(desktop.caption),
                 enabled = desktop.enabled,
                 onClick = { onChoose("desktop") },
-                selected = current == "desktop",
+                current = current == "desktop",
                 autoFocus = current == "desktop",
                 modifier = Modifier.testTag("nova-space-choice-desktop"),
                 describeCaption = !snapshot.desktopAllowed,
@@ -124,7 +124,7 @@ internal fun NovaSpaceChooser(
                     ),
                     enabled = snapshot.canSwitch && space.state != "unavailable",
                     onClick = { onChoose(space.id) },
-                    selected = space.selected,
+                    current = space.selected,
                     badge = stringResource(NovaSpacesCopy.stateLabel(space.state)),
                     autoFocus = space.selected,
                     modifier = Modifier.testTag("nova-space-choice-${space.id}"),

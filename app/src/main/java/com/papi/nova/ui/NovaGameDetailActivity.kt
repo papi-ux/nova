@@ -14,9 +14,7 @@ import android.view.KeyEvent
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.widget.ImageView
-import android.widget.ScrollView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.ScrollState
@@ -80,12 +78,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
@@ -109,7 +103,9 @@ import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
-import com.papi.nova.ui.compose.NovaFocusableCard
+import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaPage
+import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.GameShortcutPinState
 import com.papi.nova.utils.ServerHelper
@@ -241,7 +237,18 @@ class NovaGameDetailActivity : NovaActivity() {
      * and the header pill does the same by touch.
      */
     private var playSetupScope by mutableStateOf(NovaPlaySetupScope.THIS_GAME)
-    private var modePickerOpen by mutableStateOf(false)
+
+    /**
+     * Play Setup's pages, in a panel at the end edge of this window: Root, and Where It Runs or the
+     * desktop Steam decision on top of it. Open exactly while [destination] is Play Setup.
+     */
+    private val playSetupPanel = NovaPanelState()
+
+    /**
+     * This screen's A and B go through the key gate: A acts on release and only where it was
+     * pressed, and B is Back on release. Play Setup's panel pops its own pages on that Back.
+     */
+    override val novaKeyGate: Boolean = true
 
     /** The strip explains this row; rows point it at themselves as focus moves. */
     private var explainedRow by mutableStateOf(NovaPlaySetupRow.WHERE_IT_RUNS)
@@ -291,7 +298,7 @@ class NovaGameDetailActivity : NovaActivity() {
         directSpaceOpen = spaceGame != null && savedInstanceState == null && intent.getBooleanExtra(EXTRA_OPEN_SPACE, false)
         if (intent.getBooleanExtra(EXTRA_PLAY_SETUP, false) ||
             spaceGame != null && intent.getBooleanExtra(EXTRA_SPACE_SETTINGS, false)) {
-            destination = NovaGameDetailDestination.PLAY_SETUP
+            openPlaySetup()
         }
         defaultToVirtualDisplay = intent.getBooleanExtra(EXTRA_DEFAULT_VIRTUAL_DISPLAY, false)
 
@@ -389,33 +396,56 @@ class NovaGameDetailActivity : NovaActivity() {
      * so there is nothing to close and back has one fewer step to take.
      */
     private fun dismissActiveDetailDestination(): Boolean = when {
+        // Play Setup's pages go first: its panel covers everything else, so a Back meant for it
+        // must never collapse a review hidden underneath instead.
+        destination == NovaGameDetailDestination.PLAY_SETUP -> {
+            closePlaySetup()
+            true
+        }
         reviewExpanded -> {
             reviewExpanded = false
             true
         }
-        modePickerOpen -> {
-            modePickerOpen = false
-            true
-        }
-        spaceGame != null && destination == NovaGameDetailDestination.PLAY_SETUP &&
-            intent.getBooleanExtra(EXTRA_SPACE_SETTINGS, false) -> {
-            // Settings opened from Library return to its selected Space and live status.
-            publishGameUpdate()
-            finish()
-            true
-        }
         destination != NovaGameDetailDestination.OVERVIEW -> {
             destination = NovaGameDetailDestination.OVERVIEW
-            steamDecision = null
-            modePickerOpen = false
-            // The panel reopens on the game it was opened for; host scope is a place
-            // someone flips to, not a place the panel should quietly resume in.
-            playSetupScope = NovaPlaySetupScope.THIS_GAME
-            explainedRow = openingExplainedRow()
-            hostSyncEngine?.close()
             true
         }
         else -> false
+    }
+
+    /**
+     * Opens Play Setup's panel, on the desktop Steam decision when one is waiting and on Root
+     * otherwise, unless it already shows that page at its root.
+     */
+    private fun openPlaySetup() {
+        destination = NovaGameDetailDestination.PLAY_SETUP
+        val root: NovaPage = if (steamDecision != null) {
+            // The decision's own card names what the host reported, so the panel keeps its name.
+            PlaySetupPage.SteamDecision(getString(R.string.nova_play_setup_title))
+        } else {
+            PlaySetupPage.Root(getString(R.string.nova_play_setup_title))
+        }
+        if (playSetupPanel.depth != 1 || playSetupPanel.top?.key != root.key) {
+            playSetupPanel.open(root, NovaEdge.End)
+        }
+    }
+
+    /** Leaves Play Setup for the Overview, whichever way it was left: B at its root, Start, the scrim. */
+    private fun closePlaySetup() {
+        if (spaceGame != null && intent.getBooleanExtra(EXTRA_SPACE_SETTINGS, false)) {
+            // Settings opened from Library return to its selected Space and live status.
+            publishGameUpdate()
+            finish()
+            return
+        }
+        playSetupPanel.close()
+        destination = NovaGameDetailDestination.OVERVIEW
+        steamDecision = null
+        // The panel reopens on the game it was opened for; host scope is a place
+        // someone flips to, not a place the panel should quietly resume in.
+        playSetupScope = NovaPlaySetupScope.THIS_GAME
+        explainedRow = openingExplainedRow()
+        hostSyncEngine?.close()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -440,7 +470,8 @@ class NovaGameDetailActivity : NovaActivity() {
             return
         }
         playSetupScope = scope
-        modePickerOpen = false
+        // Where It Runs belongs to the scope it was opened for.
+        if (playSetupPanel.top is PlaySetupPage.PlayIn) playSetupPanel.pop()
         explainedRow = if (scope == NovaPlaySetupScope.EVERY_GAME) {
             NovaPlaySetupRow.HOST_DEFAULT_DISPLAY
         } else {
@@ -816,7 +847,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 }
             }
             if (spaceConstraint() != null) {
-                pendingLaunch = false; destination = NovaGameDetailDestination.PLAY_SETUP; return
+                pendingLaunch = false; openPlaySetup(); return
             }
             if (!uiState.playEnabled) { pendingLaunch = false; return }
             val optimization = launchOptimization()
@@ -841,7 +872,7 @@ class NovaGameDetailActivity : NovaActivity() {
             }
             pendingLaunch = false
             if (spaceConstraint() != null) {
-                destination = NovaGameDetailDestination.PLAY_SETUP
+                openPlaySetup()
                 return
             }
             val decision = NovaDesktopSteamLaunchDecision.from(uiState, optimization)
@@ -850,7 +881,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 // owns where it runs, not in a sheet raised over the artwork.
                 decision.required -> {
                     steamDecision = decision
-                    destination = NovaGameDetailDestination.PLAY_SETUP
+                    openPlaySetup()
                 }
                 // The review is a statement about the profile, and the status
                 // line is where the profile lives, so it expands in place.
@@ -1100,7 +1131,6 @@ class NovaGameDetailActivity : NovaActivity() {
          * pair gate to re-check: the override becomes the chosen canonical id.
          */
         fun pickPlayMode(mode: String) {
-            modePickerOpen = false
             NovaLaunchModeOverrides.save(this@NovaGameDetailActivity, currentGame, mode)
             refreshUiState()
             chosenResolution = null
@@ -1110,7 +1140,6 @@ class NovaGameDetailActivity : NovaActivity() {
 
         /** The pinned entry: drop the override so this game follows the host again. */
         fun pickHostDefault() {
-            modePickerOpen = false
             NovaLaunchModeOverrides.clear(this@NovaGameDetailActivity, currentGame)
             refreshUiState()
             chosenResolution = null
@@ -1733,6 +1762,55 @@ class NovaGameDetailActivity : NovaActivity() {
             }
         }
 
+        /** Where It Runs for Every Game: the host catalog, picked into the host's Default Display. */
+        fun hostPlayInPage() = PlaySetupPage.PlayIn(
+            title = getString(R.string.nova_play_setup_host_default_display),
+            picker = {
+                buildHostModePickerState(
+                    modes = hostScopeUiState().modes,
+                    title = getString(R.string.nova_play_setup_host_default_display),
+                )
+            },
+            onPick = { mode -> hostSyncEngine?.setStreamDisplayMode(mode) },
+        )
+
+        /** Where It Runs for this game: the catalog cut to its contract, with Host default pinned first. */
+        fun gamePlayInPage() = PlaySetupPage.PlayIn(
+            title = getString(R.string.nova_game_detail_where_it_runs),
+            picker = {
+                buildGameModePickerState(
+                    modes = hostScopeUiState().modes,
+                    allowedModes = currentGame.launchMode?.allowedModes.orEmpty(),
+                    playMode = uiState.playMode,
+                    hasExplicitOverride = uiState.hasExplicitOverride,
+                    aiRecommendedMode = optimizationState.aiRecommendedMode,
+                    title = getString(R.string.nova_game_detail_where_it_runs),
+                    hostDefaultLabel = if (uiState.followsHostDefault) {
+                        getString(
+                            R.string.nova_play_setup_host_default_entry_detail,
+                            uiState.hostStreamDisplayModeLabel.ifBlank {
+                                getString(R.string.nova_polaris_sync_unset)
+                            },
+                        )
+                    } else {
+                        // Naming the host's mode here would promise the one thing this
+                        // row will not do: an entry that answers for itself resolves to
+                        // its own display, and the row is what clears a choice back to it.
+                        getString(
+                            R.string.nova_play_setup_host_default_entry_own_detail,
+                            PolarisStreamDisplayMode.labelForMode(uiState.recommendedMode)
+                                .ifBlank { getString(R.string.nova_polaris_sync_unset) },
+                        )
+                    },
+                    hostDefaultOnlyDetail = getString(R.string.nova_play_setup_mode_host_default_only),
+                    plainModeDetails = playSetupModeDetails(),
+                )
+            },
+            onPick = { mode -> pickPlayMode(mode) },
+            onPickHostDefault = { pickHostDefault() },
+            onConfigureHost = { finishWithManageServerRequest() },
+        )
+
         setContentView(
             ComposeView(this).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
@@ -1768,7 +1846,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         hostName = serverName,
                         activeSession = activeSession,
                         onOpen = { attemptLaunch() },
-                        onSettings = { pendingLaunch = false; destination = NovaGameDetailDestination.PLAY_SETUP },
+                        onSettings = { pendingLaunch = false; openPlaySetup() },
                         onBack = { if (!dismissActiveDetailDestination()) finish() },
                         showSettings = destination == NovaGameDetailDestination.PLAY_SETUP,
                         settingsRows = buildPlaySetupRows(),
@@ -1840,54 +1918,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else {
                         null
                     },
-                    modePicker = if (modePickerOpen && steamDecision == null) {
-                        if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
-                            buildHostModePickerState(
-                                modes = hostScopeUiState().modes,
-                                title = getString(R.string.nova_play_setup_host_default_display),
-                            )
-                        } else {
-                            buildGameModePickerState(
-                                modes = hostScopeUiState().modes,
-                                allowedModes = currentGame.launchMode?.allowedModes.orEmpty(),
-                                playMode = uiState.playMode,
-                                hasExplicitOverride = uiState.hasExplicitOverride,
-                                aiRecommendedMode = optimizationState.aiRecommendedMode,
-                                title = getString(R.string.nova_game_detail_where_it_runs),
-                                hostDefaultLabel = if (uiState.followsHostDefault) {
-                                    getString(
-                                        R.string.nova_play_setup_host_default_entry_detail,
-                                        uiState.hostStreamDisplayModeLabel.ifBlank {
-                                            getString(R.string.nova_polaris_sync_unset)
-                                        },
-                                    )
-                                } else {
-                                    // Naming the host's mode here would promise the one thing this
-                                    // row will not do: an entry that answers for itself resolves to
-                                    // its own display, and the row is what clears a choice back to it.
-                                    getString(
-                                        R.string.nova_play_setup_host_default_entry_own_detail,
-                                        PolarisStreamDisplayMode.labelForMode(uiState.recommendedMode)
-                                            .ifBlank { getString(R.string.nova_polaris_sync_unset) },
-                                    )
-                                },
-                                hostDefaultOnlyDetail = getString(R.string.nova_play_setup_mode_host_default_only),
-                                plainModeDetails = playSetupModeDetails(),
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                    onPickMode = { mode ->
-                        if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
-                            modePickerOpen = false
-                            hostSyncEngine?.setStreamDisplayMode(mode)
-                        } else {
-                            pickPlayMode(mode)
-                        }
-                    },
-                    onPickHostDefault = { pickHostDefault() },
-                    onConfigureHostMode = { finishWithManageServerRequest() },
+                    playSetupPanel = playSetupPanel,
                     playLabel = if (environmentChanging) {
                         getString(R.string.nova_space_changing)
                     } else if (environmentError != null) {
@@ -1931,14 +1962,14 @@ class NovaGameDetailActivity : NovaActivity() {
                                 novaModePickerEligible(hostScopeUiState().modes.size)
                             ) {
                                 explainedRow = row
-                                modePickerOpen = true
+                                playSetupPanel.push(hostPlayInPage())
                             } else {
                                 advanceHostPlaySetupRow(row)
                             }
                         } else {
                             if (row == NovaPlaySetupRow.WHERE_IT_RUNS && gameModePickerEligible()) {
                                 explainedRow = row
-                                modePickerOpen = true
+                                playSetupPanel.push(gamePlayInPage())
                             } else {
                                 advancePlaySetupRow(row)
                             }
@@ -1949,7 +1980,9 @@ class NovaGameDetailActivity : NovaActivity() {
                     reviewExpanded = reviewExpanded,
                     apiClient = apiClient,
                     sourceLabel = currentGame.sourceLabel,
-                    onDestination = { next -> destination = next },
+                    onDestination = { next ->
+                        if (next == NovaGameDetailDestination.PLAY_SETUP) openPlaySetup() else destination = next
+                    },
                     onDismissDestination = { dismissActiveDetailDestination() },
                     activeSession = activeSession,
                     onResumeSession = { finishWithSessionRequest(RESULT_SESSION_RESUME) },
@@ -2370,59 +2403,6 @@ class NovaGameDetailActivity : NovaActivity() {
     }
 
 
-
-    private fun expandBottomSheet(bottomSheetDialog: BottomSheetDialog?, contentView: View) {
-        val sheet = bottomSheetDialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) ?: return
-        NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog, contentView)
-        contentView.post {
-            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            val maxHeightRatio = if (isLandscape) 0.96f else 0.90f
-            val maxHeight = (resources.displayMetrics.heightPixels * maxHeightRatio).toInt()
-            val contentHeight = contentView.measuredHeight.takeIf { it > 0 } ?: return@post
-            val desiredHeight = contentHeight.coerceAtMost(maxHeight)
-            val displayWidth = resources.displayMetrics.widthPixels
-            val density = resources.displayMetrics.density
-            val desiredWidth = if (isLandscape) {
-                val minWidth = (720 * density).toInt()
-                val maxWidth = (1260 * density).toInt()
-                (displayWidth * 0.7f).toInt().coerceIn(minWidth, maxWidth)
-            } else {
-                displayWidth
-            }
-            val horizontalMargin = if (isLandscape) {
-                ((displayWidth - desiredWidth) / 2).coerceAtLeast((18 * density).toInt())
-            } else {
-                0
-            }
-
-            contentView.layoutParams = contentView.layoutParams.apply {
-                height = if (contentHeight > maxHeight) desiredHeight else ViewGroup.LayoutParams.WRAP_CONTENT
-            }
-            sheet.layoutParams = sheet.layoutParams.apply {
-                width = if (isLandscape) displayWidth - (horizontalMargin * 2) else ViewGroup.LayoutParams.MATCH_PARENT
-                height = desiredHeight
-            }
-            (sheet.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
-                lp.marginStart = horizontalMargin
-                lp.marginEnd = horizontalMargin
-                sheet.layoutParams = lp
-            }
-            sheet.minimumHeight = 0
-            sheet.requestLayout()
-
-            val behavior = BottomSheetBehavior.from(sheet)
-            behavior.isFitToContents = true
-            behavior.isDraggable = false
-            behavior.skipCollapsed = true
-            behavior.peekHeight = desiredHeight
-            behavior.state = BottomSheetBehavior.STATE_EXPANDED
-
-            when (contentView) {
-                is NestedScrollView -> contentView.post { contentView.scrollTo(0, 0) }
-                is ScrollView -> contentView.post { contentView.scrollTo(0, 0) }
-            }
-        }
-    }
 
     private fun modeLabel(mode: String): String {
         return when (PolarisGame.normalizeLaunchMode(mode)) {
