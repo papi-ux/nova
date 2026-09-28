@@ -7,7 +7,7 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.view.MotionEvent
-import android.widget.HorizontalScrollView
+import android.widget.ScrollView
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import com.papi.nova.R
@@ -152,6 +152,80 @@ class NovaCompanionCommandDeckViewTest {
     }
 
     @Test
+    fun theStripAndTheRailWrapSoNothingIsCutAtRest() {
+        // About the size of a handheld's lower screen: every status line and every tile whole inside
+        // its strip, on as many lines as they need, and neither strip scrolls.
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val deck = NovaCompanionCommandDeckView(activity) { }
+        activity.setContentView(deck)
+        deck.render(state())
+
+        val density = activity.resources.displayMetrics.density
+        val width = (400 * density).toInt()
+        val height = (480 * density).toInt()
+        deck.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
+        )
+        deck.layout(0, 0, width, height)
+
+        listOf(deck.getChildAt(0) as ScrollView, deck.getChildAt(1) as ScrollView).forEach { strip ->
+            val lines = strip.getChildAt(0) as ViewGroup
+            assertTrue("the strip holds all of its lines at rest", lines.measuredHeight <= strip.measuredHeight - strip.paddingTop - strip.paddingBottom)
+            for (index in 0 until lines.childCount) {
+                val item = lines.getChildAt(index)
+                assertTrue("item $index starts inside the strip", item.left >= 0)
+                assertTrue("item $index ends inside the strip", item.right <= lines.width)
+            }
+        }
+        val rail = (deck.getChildAt(1) as ScrollView).getChildAt(0) as ViewGroup
+        val tileRows = (0 until rail.childCount).map { rail.getChildAt(it).top }.distinct()
+        assertTrue("eight tiles at their widths take more than one row here", tileRows.size > 1)
+        assertEquals(8, countActions(activity, deck))
+    }
+
+    @Test
+    fun theFlowStartsANewRowWhereTheNextItemWouldNotFitAndCentresIt() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val flow = NovaDeckFlowLayout(activity, gapPx = 10)
+        repeat(3) { flow.addView(View(activity), ViewGroup.LayoutParams(100, 40)) }
+        flow.addView(View(activity), ViewGroup.LayoutParams(400, 40))
+        flow.measure(
+            View.MeasureSpec.makeMeasureSpec(250, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        flow.layout(0, 0, 250, flow.measuredHeight)
+
+        val (first, second, third, wide) = (0 until 4).map(flow::getChildAt)
+        assertEquals("two fit on the first row, centred", 20, first.left)
+        assertEquals(first.top, second.top)
+        assertEquals("the third starts a row of its own, centred", 75, third.left)
+        assertEquals(50, third.top)
+        assertEquals("an item wider than a row is held to the row", 250, wide.width)
+        assertEquals(40 * 3 + 10 * 2, flow.measuredHeight)
+    }
+
+    @Test
+    fun withCellsTheTilesShareEachRowEquallyAndAWholeRowTileStandsAlone() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val flow = NovaDeckFlowLayout(activity, gapPx = 10, cellMinWidthPx = 100)
+        repeat(4) { flow.addView(View(activity), ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 40)) }
+        flow.addView(View(activity), ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 40))
+        flow.measure(
+            View.MeasureSpec.makeMeasureSpec(330, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        flow.layout(0, 0, 330, flow.measuredHeight)
+
+        val cells = (0 until 4).map(flow::getChildAt)
+        assertTrue("three cells of at least 100 fill a 330 row", cells.all { it.width == 103 })
+        assertEquals(listOf(0, 0, 0, 50), cells.map { it.top })
+        val whole = flow.getChildAt(4)
+        assertEquals("a whole row tile takes the row", 330, whole.width)
+        assertEquals(100, whole.top)
+    }
+
+    @Test
     fun compactTwoXFontUsesBoundedScrollableChrome() {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val configuration = Configuration(activity.resources.configuration).apply { fontScale = 2f }
@@ -169,11 +243,15 @@ class NovaCompanionCommandDeckViewTest {
         )
         deck.layout(0, 0, width, height)
 
-        val statusViewport = deck.getChildAt(0) as HorizontalScrollView
-        val actionViewport = deck.getChildAt(1) as HorizontalScrollView
+        // A tiny display at twice the font: the strips keep to the deck's width and to their share
+        // of its height, and the rail, taller than its share, scrolls up and down rather than across.
+        val statusViewport = deck.getChildAt(0) as ScrollView
+        val actionViewport = deck.getChildAt(1) as ScrollView
         assertEquals(width, statusViewport.measuredWidth)
         assertEquals(width, actionViewport.measuredWidth)
-        assertTrue(actionViewport.getChildAt(0).measuredWidth > actionViewport.measuredWidth)
+        assertTrue(statusViewport.measuredHeight + actionViewport.measuredHeight < height)
+        assertTrue(actionViewport.getChildAt(0).measuredHeight > actionViewport.measuredHeight)
+        assertEquals(width - actionViewport.paddingLeft - actionViewport.paddingRight, actionViewport.getChildAt(0).measuredWidth)
         assertEquals(8, countActions(activity, deck))
     }
 

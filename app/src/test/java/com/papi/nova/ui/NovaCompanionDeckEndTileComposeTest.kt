@@ -57,6 +57,24 @@ class NovaCompanionDeckEndTileComposeTest {
     }
 
     @Test
+    fun armedTheTileTakesTheRailsWholeRowAndGivesItBackWhenDisarmed() {
+        showDeck()
+        val tile = rule.activity.window.decorView.findViewWithTag<android.view.View>(NovaCompanionCommandDeckView.END_SESSION_TILE_TAG)
+        val rail = tile.parent as android.view.View
+        val row = rail.width - rail.paddingLeft - rail.paddingRight
+        assertTrue("at rest the tile is one cell of its row", tile.width < row)
+
+        rule.onNodeWithText("End Session").performClick()
+        rule.waitForIdle()
+        assertTrue(split.armed)
+        assertEquals("armed, its halves get the whole row (R3)", row, tile.width)
+
+        rule.runOnUiThread { split.disarm() }
+        rule.waitForIdle()
+        assertTrue("disarmed, it is a cell again", tile.width < row)
+    }
+
+    @Test
     fun theDecksBackTakesTheArmedTileBack() {
         showDeck()
         rule.onNodeWithText("End Session").performClick()

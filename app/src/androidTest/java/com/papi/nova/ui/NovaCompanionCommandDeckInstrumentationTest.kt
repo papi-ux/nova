@@ -4,7 +4,7 @@ import android.content.res.Configuration
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.HorizontalScrollView
+import android.widget.ScrollView
 import androidx.activity.ComponentActivity
 import androidx.core.view.ViewCompat
 import androidx.test.core.app.ActivityScenario
@@ -55,11 +55,13 @@ class NovaCompanionCommandDeckInstrumentationTest {
             )
             root.layout(0, 0, width, height)
 
-            val statusViewport = deck.getChildAt(0) as HorizontalScrollView
-            val actionViewport = deck.getChildAt(1) as HorizontalScrollView
+            // The strips keep to the deck's width and wrap; the rail, taller than its share at
+            // twice the font on so small a display, scrolls up and down rather than across.
+            val statusViewport = deck.getChildAt(0) as ScrollView
+            val actionViewport = deck.getChildAt(1) as ScrollView
             assertEquals(width, statusViewport.measuredWidth)
             assertEquals(width, actionViewport.measuredWidth)
-            assertTrue(actionViewport.getChildAt(0).measuredWidth > actionViewport.measuredWidth)
+            assertTrue(actionViewport.getChildAt(0).measuredHeight > actionViewport.measuredHeight)
 
             val down = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, width / 2f, height / 2f, 0)
             val up = MotionEvent.obtain(0, 10, MotionEvent.ACTION_UP, width / 2f, height / 2f, 0)

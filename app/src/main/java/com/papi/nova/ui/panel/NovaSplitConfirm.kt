@@ -201,7 +201,9 @@ fun NovaSplitConfirm(
                     filled = false,
                     enabled = enabled,
                     minHeight = minHeight,
-                    rowCorner = shape == NovaSplitShape.Row,
+                    // At rest a row or a tile has the row corner of the rows and tiles around it;
+                    // only a button, and the armed halves, take the button corner.
+                    rowCorner = shape != NovaSplitShape.Button,
                     modifier = Modifier
                         .then(
                             if (shape == NovaSplitShape.Button) {
