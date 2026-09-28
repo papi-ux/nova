@@ -25,10 +25,6 @@ import java.util.Locale
 
 @Suppress("DEPRECATION")
 class DebugInfoActivity : NovaActivity(), View.OnClickListener {
-    // The screen has no A or B handling of its own: through the gate, A clicks a button on release
-    // and B leaves the screen on release.
-    override val novaKeyGate: Boolean = true
-
     private lateinit var gamepadInfoText: TextView
     private var vibrator: Vibrator? = null
     private lateinit var vibratorButton: Button

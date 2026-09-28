@@ -38,9 +38,6 @@ import com.papi.nova.utils.UiHelper
 import java.util.UUID
 
 class EditProfileActivity : NovaActivity() {
-    /** A acts on release and B goes back through the dispatcher; the screen has no key handling of its own. */
-    override val novaKeyGate: Boolean = true
-
     private var profileUuid: String? = null
     private var currentProfile: SettingsProfile? = null
     private lateinit var inMemoryPrefs: InMemorySharedPreferences

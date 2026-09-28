@@ -7,30 +7,31 @@ import android.os.Bundle
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.window.OnBackInvokedCallback
-import android.window.OnBackInvokedDispatcher
+import androidx.activity.OnBackPressedCallback
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.SpinnerDialog
 import com.papi.nova.utils.UiHelper
 
-@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+@Suppress("DEPRECATION")
 class HelpActivity : NovaActivity() {
     private var loadingDialog: SpinnerDialog? = null
     private lateinit var webView: WebView
-    private var backCallbackRegistered = false
-    private var onBackInvokedCallback: OnBackInvokedCallback? = null
+
+    /**
+     * Back steps back through the pages read here before it leaves. B reaches the dispatcher through
+     * the key gate, which never runs an onBackPressed override, so this is a callback, on only while
+     * there is a page to go back to.
+     */
+    private val pageBack = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            webView.goBack()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            onBackInvokedCallback = OnBackInvokedCallback {
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                }
-            }
-        }
+        onBackPressedDispatcher.addCallback(this, pageBack)
 
         webView = WebView(this)
         setContentView(webView)
@@ -97,37 +98,6 @@ class HelpActivity : NovaActivity() {
     }
 
     private fun refreshBackDispatchState() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val callback = onBackInvokedCallback ?: return
-            if (webView.canGoBack() && !backCallbackRegistered) {
-                onBackInvokedDispatcher.registerOnBackInvokedCallback(
-                    OnBackInvokedDispatcher.PRIORITY_DEFAULT,
-                    callback,
-                )
-                backCallbackRegistered = true
-            } else if (!webView.canGoBack() && backCallbackRegistered) {
-                onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback)
-                backCallbackRegistered = false
-            }
-        }
-    }
-
-    override fun onDestroy() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && backCallbackRegistered) {
-            onBackInvokedCallback?.let {
-                onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it)
-            }
-        }
-
-        super.onDestroy()
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
-        }
+        pageBack.isEnabled = webView.canGoBack()
     }
 }

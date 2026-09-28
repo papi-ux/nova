@@ -266,7 +266,9 @@ class NovaLibrarySourceGuardTest {
         )
         assertTrue(
             "B goes through the key gate as Back on release, which the panel window answers before the library, so the screen reads B nowhere itself",
-            activity.contains("override val novaKeyGate: Boolean = true") &&
+            // The gate is every Nova screen's since the closing step, so the library takes it
+            // without an override (NovaActivityKeyGateTest).
+            !activity.contains("override val novaKeyGate") &&
                 !keyHandler.contains("KEYCODE_BUTTON_B") &&
                 activity.contains("dismissActiveLibraryOverlay()")
         )

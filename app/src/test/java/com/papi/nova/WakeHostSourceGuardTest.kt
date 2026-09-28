@@ -91,10 +91,12 @@ class WakeHostSourceGuardTest {
             pcView.contains("busy -> R.string.pcview_sleep_in_progress") && strings.contains("name=\"pcview_sleep_in_progress\"")
         )
         // The fallback check moved into the screen's key gate: the gate consumes A and delivers it
-        // as one center press, so Android never adds a fallback press that could count twice.
+        // as one center press, so Android never adds a fallback press that could count twice. The
+        // gate is every Nova screen's since the closing step, so PcView no longer turns it on.
         assertTrue(
             "a controller's A holds the button like the D-pad center does, counted once",
-            pcView.contains("override val novaKeyGate: Boolean = true") &&
+            File("src/main/java/com/papi/nova/NovaActivity.kt").readText().contains("protected open val novaKeyGate: Boolean = true") &&
+                !pcView.contains("override val novaKeyGate") &&
                 pcView.contains("keyCode != KeyEvent.KEYCODE_DPAD_CENTER") &&
                 !pcView.contains("KeyEvent.FLAG_FALLBACK")
         )

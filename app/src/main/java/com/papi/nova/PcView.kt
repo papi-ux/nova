@@ -218,9 +218,6 @@ internal fun dashboardSetupActionHeight(collapsed: Boolean, compactHeight: Int):
     if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT
 
 class PcView : NovaActivity(), AdapterFragmentCallbacks {
-    // The screen's own A and B handling is gone: the host menu and the theme picker are panels,
-    // and A reaches the power control as the center press the gate makes of it.
-    override val novaKeyGate: Boolean = true
     private var noPcFoundLayout: View? = null
     private lateinit var pcGridAdapter: PcGridAdapter
     private var serverGridView: RecyclerView? = null

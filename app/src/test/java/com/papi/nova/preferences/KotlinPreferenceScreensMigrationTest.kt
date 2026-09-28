@@ -149,7 +149,8 @@ class KotlinPreferenceScreensMigrationTest {
     fun composeSettingsBGoesThroughTheKeyGateAndTheBackDispatcher() {
         val streamSettings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
 
-        assertTrue(streamSettings.contains("override val novaKeyGate: Boolean = true"))
+        // The gate is every Nova screen's since the closing step (NovaActivityKeyGateTest).
+        assertFalse(streamSettings.contains("override val novaKeyGate"))
         assertTrue(streamSettings.contains("onBackPressedDispatcher.addCallback(this, leaveCallback)"))
         assertTrue(streamSettings.contains("override fun handleOnBackPressed() = leaveSettings()"))
         assertTrue(streamSettings.contains("onBack = ::leaveSettings"))

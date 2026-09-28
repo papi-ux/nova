@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
@@ -17,16 +16,11 @@ import android.text.TextWatcher
 import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.View
-import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.OnBackPressedCallback
 import androidx.compose.ui.platform.ComposeView
-import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -205,9 +199,6 @@ internal fun novaAppMenuHeader(context: Context, app: NvApp, runningAppId: Int, 
 }
 
 class AppView : NovaActivity(), AdapterFragmentCallbacks {
-    // The screen has no A or B handling of its own left: its menus are panels, and the search
-    // field's keyboard is put away by the back callback below.
-    override val novaKeyGate: Boolean = true
     private var appGridAdapter: AppGridAdapter? = null
     private var uuidString: String? = null
     private lateinit var shortcutHelper: ShortcutHelper
@@ -495,31 +486,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
 
         prefConfig = PreferenceConfiguration.readPreferences(this)
 
-        onBackPressedDispatcher.addCallback(
-            this,
-            object : OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() {
-                    // The key gate turns a controller's B into Back after the keyboard has passed
-                    // on it, so while the search field's keyboard is up, B only puts it away, as
-                    // the Back key does.
-                    if (hideSearchKeyboard()) return
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
-                    isEnabled = true
-                }
-            },
-        )
-
         bindService(Intent(this, ComputerManagerService::class.java), serviceConnection, Service.BIND_AUTO_CREATE)
-    }
-
-    /** Puts the search field's keyboard away if it is up. Returns whether it was. */
-    private fun hideSearchKeyboard(): Boolean {
-        val search = findViewById<EditText>(R.id.app_search) ?: return false
-        val keyboardUp = ViewCompat.getRootWindowInsets(search)?.isVisible(WindowInsetsCompat.Type.ime()) == true
-        if (!search.hasFocus() || !keyboardUp) return false
-        (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)?.hideSoftInputFromWindow(search.windowToken, 0)
-        return true
     }
 
     private fun updateHiddenApps() {

@@ -244,12 +244,6 @@ class NovaGameDetailActivity : NovaActivity() {
      */
     private val playSetupPanel = NovaPanelState()
 
-    /**
-     * This screen's A and B go through the key gate: A acts on release and only where it was
-     * pressed, and B is Back on release. Play Setup's panel pops its own pages on that Back.
-     */
-    override val novaKeyGate: Boolean = true
-
     /** The strip explains this row; rows point it at themselves as focus moves. */
     private var explainedRow by mutableStateOf(NovaPlaySetupRow.WHERE_IT_RUNS)
 

@@ -169,13 +169,6 @@ private data class LibraryLoadResult(
 
 class NovaLibraryActivity : NovaActivity() {
 
-    /**
-     * A and B go through the key gate: A acts on release and only where it was pressed, and B is
-     * Back on release, so this screen no longer reads B itself. Library Options and System are
-     * panels in their own window, which pops and closes them on that Back.
-     */
-    override val novaKeyGate: Boolean = true
-
     private lateinit var apiClient: PolarisApiClient
     private lateinit var streamHost: String
     private var streamHttpPort: Int = 47989

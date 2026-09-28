@@ -82,9 +82,6 @@ class StreamSettings : NovaActivity() {
     private var prefsFragment: SettingsFragment? = null
     private var legacyMode = false
 
-    /** A acts on release and B goes back through the dispatcher; the screen has no key handling of its own. */
-    override val novaKeyGate: Boolean = true
-
     /**
      * Back leaves Settings, from the legacy screen and from Compose Settings when its pane has
      * nothing left to go back through. The key gate and the back gesture reach the dispatcher

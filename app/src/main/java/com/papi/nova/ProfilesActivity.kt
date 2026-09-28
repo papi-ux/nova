@@ -12,9 +12,6 @@ import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.UiHelper
 
 class ProfilesActivity : NovaActivity(), ProfilesManager.ProfileChangeListener {
-    /** A acts on release and B goes back through the dispatcher; the screen has no key handling of its own. */
-    override val novaKeyGate: Boolean = true
-
     private lateinit var adapter: ProfilesAdapter
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyState: View
