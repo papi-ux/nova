@@ -119,10 +119,16 @@ internal val LocalNovaStatePosted = compositionLocalOf<(String) -> Boolean> { { 
  *
  * Its actions run only while the page is still posted. An action that should run once takes its
  * page down first, as the legacy helpers do, and a second press that lands before the page has
- * gone then does nothing.
+ * gone then does nothing. A state page is a panel host: it is drawn at the panel density for the
+ * window ([NovaPanelDensityHost]).
  */
 @Composable
 fun NovaStateScreen(page: NovaStatePage, modifier: Modifier = Modifier) {
+    NovaPanelDensityHost { NovaStateScreenBody(page, modifier) }
+}
+
+@Composable
+private fun NovaStateScreenBody(page: NovaStatePage, modifier: Modifier) {
     val colors = LocalNovaComposeColors.current
     val tvSafe = LocalNovaFormFactor.current == NovaFormFactor.Television
     val focusTarget = remember(page.key) { FocusRequester() }

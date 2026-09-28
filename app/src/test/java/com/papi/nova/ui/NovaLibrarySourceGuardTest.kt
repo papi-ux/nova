@@ -1336,11 +1336,13 @@ class NovaLibrarySourceGuardTest {
                 detail.contains("nova_controller_hint_back")
         )
         // Group 4 moved Settings' pane onto NovaPageStackHost, which draws its own hint row
-        // under the page, so the pane (not a separate bar) is what stays weighted.
+        // under the page, so the pane (not a separate bar) is what stays weighted. The layout sits
+        // one level in, inside the panel density host.
         assertTrue(
             "settings should keep the main rows weighted above the hint row instead of letting rows consume and clip the bottom controls",
             settingsContent.contains("val hints = novaSettingsHints(") &&
-                settingsContent.contains("Row(\n                modifier = Modifier\n                    .weight(1f)") &&
+                settingsContent.contains("NovaPanelDensityHost {") &&
+                settingsContent.contains("Row(\n                    modifier = Modifier\n                        .weight(1f)") &&
                 settingsContent.contains("paneHost(Modifier.weight(1f).fillMaxHeight())") &&
                 settingsContent.contains("NovaPageStackHost(") &&
                 settingsContent.contains("hints = hints")

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     The View mirror of the Compose tokens: NovaRadius for corners and NovaPanelMetrics for the ring
-    and the row. View cards and buttons read these instead of a number of their own, and
-    NovaPanelTokensTest keeps both sides equal.
+    and the row, at the regular, television and compact densities. View cards and buttons read
+    these instead of a number of their own, and NovaPanelTokensTest keeps both sides equal.
 -->
 <resources>
     <dimen name="nova_radius_chip">4dp</dimen>
@@ -14,6 +14,7 @@
     <dimen name="nova_focus_ring_width">3dp</dimen>
     <dimen name="nova_row_min_height">52dp</dimen>
     <dimen name="nova_row_min_height_tv">56dp</dimen>
+    <dimen name="nova_row_min_height_compact">44dp</dimen>
 
     <!-- Material You's theme swatch before Android 12, where there is no system palette to read. -->
     <color name="nova_swatch_material_you_window">#FF111318</color>

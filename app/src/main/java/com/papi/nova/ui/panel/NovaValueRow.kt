@@ -355,7 +355,7 @@ private fun NovaValueRowFrame(
     }
 }
 
-// The title keeps a row's usual inset; the control, 44dp tall, keeps the row at 52dp.
+// The title keeps a row's usual inset; the control, 4dp in from the top and bottom, keeps a plain row's height.
 private val ValueRowMeasurePolicy = NovaTitleAndValueMeasurePolicy(
     labelInset = NovaPanelMetrics.SpaceSm,
     valueInset = NovaPanelMetrics.SpaceXs,

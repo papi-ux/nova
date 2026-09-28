@@ -1,10 +1,13 @@
 package com.papi.nova.ui.panel
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusEventModifierNode
 import androidx.compose.ui.focus.FocusState
@@ -26,6 +29,7 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -41,10 +45,43 @@ import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
 import kotlinx.coroutines.launch
 
 /**
+ * How tightly panels are drawn. [Compact] is for a landscape handheld whose window is under
+ * [NovaPanelMetrics.CompactBelowHeight] tall, such as the RP6 at 833 x 468dp: smaller type, 44dp
+ * rows 4dp apart, 12dp padding and a one line page header, so a short screen shows whole pages.
+ * [Regular] is the scale for televisions and taller windows.
+ */
+enum class NovaPanelDensity { Regular, Compact }
+
+/**
+ * The density of the panel being drawn, which [novaPanelType] and [NovaPanelMetrics] read. A
+ * panel host chooses it through [NovaPanelDensityHost]: the panel frame, a state page and
+ * Settings. Outside a host it is [NovaPanelDensity.Regular].
+ */
+val LocalNovaPanelDensity = staticCompositionLocalOf { NovaPanelDensity.Regular }
+
+/**
+ * Draws [content] at the density for this form factor and window, as every panel host does. The
+ * height is the window's, from its configuration, so a keyboard coming up never changes the scale;
+ * a configuration that leaves the height undefined keeps the regular scale.
+ */
+@Composable
+fun NovaPanelDensityHost(content: @Composable () -> Unit) {
+    val height = LocalConfiguration.current.screenHeightDp
+    val density = if (height == Configuration.SCREEN_HEIGHT_DP_UNDEFINED) {
+        NovaPanelDensity.Regular
+    } else {
+        NovaPanelMetrics.density(LocalNovaFormFactor.current, height.dp)
+    }
+    CompositionLocalProvider(LocalNovaPanelDensity provides density, content = content)
+}
+
+/**
  * Sizes, timings and motion for panels, pages and their components.
  *
- * Everything a panel draws takes its numbers from here, so a component never picks its own.
- * Corners stay in NovaRadius; `res/values/nova_tokens.xml` mirrors the ones View code needs.
+ * Everything a panel draws takes its numbers from here, so a component never picks its own. The
+ * sizes that follow [LocalNovaPanelDensity] are read in composition, and each has a plain function
+ * of the density for code outside it. Corners stay in NovaRadius; `res/values/nova_tokens.xml`
+ * mirrors the ones View code needs.
  */
 object NovaPanelMetrics {
     /** The one spacing scale: 4, 8, 12, 16 and 24dp. */
@@ -65,11 +102,29 @@ object NovaPanelMetrics {
     val SheetBelowWidth: Dp = 480.dp
     const val SheetMaxHeightFraction = 0.88f
 
+    /**
+     * A window shorter than this draws its panels [NovaPanelDensity.Compact], unless it is a
+     * television's. The RP6 in landscape is 468dp tall.
+     */
+    val CompactBelowHeight: Dp = 560.dp
+
     val RowMinHeight: Dp = 52.dp
     val RowMinHeightTv: Dp = 56.dp
-    val RowGap: Dp = 6.dp
+    val RowMinHeightCompact: Dp = 44.dp
     val PanelPadding: Dp = 16.dp
     val PanelPaddingTv: Dp = 20.dp
+    val PanelPaddingCompact: Dp = 12.dp
+
+    /** The gap between a page's rows: 6dp, or 4dp compact. */
+    val RowGap: Dp
+        @Composable @ReadOnlyComposable
+        get() = rowGap(LocalNovaPanelDensity.current)
+
+    /**
+     * A page header at the compact density is one line, the root's title or a pushed page's
+     * `‹ Title`, at least this tall, so a pushed page's rows start where the root's did.
+     */
+    val HeaderHeightCompact: Dp = 40.dp
     /** TV title-safe padding on a panel's outer screen edge, and at top and bottom. */
     val TvSafeHorizontal: Dp = 48.dp
     val TvSafeVertical: Dp = 27.dp
@@ -94,12 +149,23 @@ object NovaPanelMetrics {
     val StateColumnMaxWidth: Dp = 480.dp
     /**
      * The height of a value row's control: segments, cycler arrows. With 4dp above and below, a
-     * value row is 52dp, the height of a plain row, and the arrows keep a 48dp wide target.
+     * value row is as tall as a plain row, 52dp or 44dp compact, and the arrows keep their 48dp
+     * wide target at either density.
      */
-    val ValueControlHeight: Dp = 44.dp
+    val ValueControlHeight: Dp
+        @Composable @ReadOnlyComposable
+        get() = valueControlHeight(LocalNovaPanelDensity.current)
+
     /** A segment of a segmented value row, as tall as the control. */
-    val SegmentMinHeight: Dp = ValueControlHeight
-    val ButtonMinHeight: Dp = 44.dp
+    val SegmentMinHeight: Dp
+        @Composable @ReadOnlyComposable
+        get() = ValueControlHeight
+
+    /** A button on a panel page or a state page: 44dp, or 40dp compact. */
+    val ButtonMinHeight: Dp
+        @Composable @ReadOnlyComposable
+        get() = buttonMinHeight(LocalNovaPanelDensity.current)
+
     val TileMinHeight: Dp = 72.dp
     val SwitchTrackWidth: Dp = 40.dp
     val SwitchTrackHeight: Dp = 24.dp
@@ -154,11 +220,52 @@ object NovaPanelMetrics {
     fun usesSheet(windowWidth: Dp, windowHeight: Dp): Boolean =
         windowWidth <= windowHeight || windowWidth < SheetBelowWidth
 
-    fun rowMinHeight(formFactor: NovaFormFactor): Dp =
-        if (formFactor == NovaFormFactor.Television) RowMinHeightTv else RowMinHeight
+    /** The density for a window [windowHeight] tall: compact under [CompactBelowHeight], never on a television. */
+    fun density(formFactor: NovaFormFactor, windowHeight: Dp): NovaPanelDensity =
+        if (formFactor != NovaFormFactor.Television && windowHeight < CompactBelowHeight) {
+            NovaPanelDensity.Compact
+        } else {
+            NovaPanelDensity.Regular
+        }
 
-    fun panelPadding(formFactor: NovaFormFactor): Dp =
-        if (formFactor == NovaFormFactor.Television) PanelPaddingTv else PanelPadding
+    /** A row's least height on [formFactor] at the density in effect. */
+    @Composable
+    @ReadOnlyComposable
+    fun rowMinHeight(formFactor: NovaFormFactor): Dp = rowMinHeight(formFactor, LocalNovaPanelDensity.current)
+
+    fun rowMinHeight(formFactor: NovaFormFactor, density: NovaPanelDensity): Dp = when {
+        formFactor == NovaFormFactor.Television -> RowMinHeightTv
+        density == NovaPanelDensity.Compact -> RowMinHeightCompact
+        else -> RowMinHeight
+    }
+
+    /** A panel's padding on [formFactor] at the density in effect. */
+    @Composable
+    @ReadOnlyComposable
+    fun panelPadding(formFactor: NovaFormFactor): Dp = panelPadding(formFactor, LocalNovaPanelDensity.current)
+
+    fun panelPadding(formFactor: NovaFormFactor, density: NovaPanelDensity): Dp = when {
+        formFactor == NovaFormFactor.Television -> PanelPaddingTv
+        density == NovaPanelDensity.Compact -> PanelPaddingCompact
+        else -> PanelPadding
+    }
+
+    fun rowGap(density: NovaPanelDensity): Dp = if (density == NovaPanelDensity.Compact) 4.dp else 6.dp
+
+    fun valueControlHeight(density: NovaPanelDensity): Dp = if (density == NovaPanelDensity.Compact) 36.dp else 44.dp
+
+    fun buttonMinHeight(density: NovaPanelDensity): Dp = if (density == NovaPanelDensity.Compact) 40.dp else 44.dp
+
+    /**
+     * Above a page's header: the panel padding, or 4dp at the compact density, where the header's
+     * own 40dp line leaves the room above its title.
+     */
+    fun headerTopPadding(formFactor: NovaFormFactor, density: NovaPanelDensity): Dp =
+        if (formFactor != NovaFormFactor.Television && density == NovaPanelDensity.Compact) SpaceXs else panelPadding(formFactor, density)
+
+    /** Above and below the hint bar: the panel padding, or 8dp compact. Its sides keep the panel padding. */
+    fun hintBarMargin(formFactor: NovaFormFactor, density: NovaPanelDensity): Dp =
+        if (formFactor != NovaFormFactor.Television && density == NovaPanelDensity.Compact) SpaceSm else panelPadding(formFactor, density)
 }
 
 /** Geometry of the small theme preview, kept with the other tokens rather than at its call site. */
@@ -174,34 +281,73 @@ internal object NovaSwatchMetrics {
     const val BarAlpha = 0.42f
 }
 
-/** The panel type scale. On a television every size is 2sp larger. */
+/**
+ * The panel type scale. On a television every size is 2sp larger. At the compact density the
+ * sizes a page's header, rows and hints use step down to 18, 16, 14, 13, 12 and 10sp, and a
+ * hint's key reads at 12sp; a state page's title and a pairing code keep their size.
+ */
 @Immutable
-class NovaPanelType internal constructor(bump: TextUnit) {
-    val panelTitle = TextStyle(fontSize = 20.sp + bump, fontWeight = FontWeight.SemiBold)
-    val pageTitle = TextStyle(fontSize = 18.sp + bump, fontWeight = FontWeight.SemiBold)
-    val rowTitle = TextStyle(fontSize = 16.sp + bump, fontWeight = FontWeight.Medium)
-    val caption = TextStyle(fontSize = 13.sp + bump)
-    val value = TextStyle(fontSize = 15.sp + bump, fontWeight = FontWeight.SemiBold)
-    val sectionLabel = NovaChromeType.label(fontSize = 11.sp + bump)
+class NovaPanelType private constructor(
+    panelTitleSize: TextUnit,
+    pageTitleSize: TextUnit,
+    rowTitleSize: TextUnit,
+    captionSize: TextUnit,
+    valueSize: TextUnit,
+    sectionLabelSize: TextUnit,
+    hintKeySize: TextUnit,
+    bump: TextUnit,
+) {
+    val panelTitle = TextStyle(fontSize = panelTitleSize + bump, fontWeight = FontWeight.SemiBold)
+    val pageTitle = TextStyle(fontSize = pageTitleSize + bump, fontWeight = FontWeight.SemiBold)
+    val rowTitle = TextStyle(fontSize = rowTitleSize + bump, fontWeight = FontWeight.Medium)
+    val caption = TextStyle(fontSize = captionSize + bump)
+    val value = TextStyle(fontSize = valueSize + bump, fontWeight = FontWeight.SemiBold)
+    val sectionLabel = NovaChromeType.label(fontSize = sectionLabelSize + bump)
+    /** A controller hint's key, on its chip in the hint bar. */
+    val hintKey = NovaChromeType.label(fontSize = hintKeySize + bump)
     val stateTitle = TextStyle(fontSize = 24.sp + bump, fontWeight = FontWeight.Bold)
     val code = NovaChromeType.code(fontSize = 40.sp + bump)
 
     companion object {
-        internal val Handheld = NovaPanelType(0.sp)
-        internal val Television = NovaPanelType(2.sp)
+        internal val Handheld = regular(bump = 0.sp)
+        internal val Television = regular(bump = 2.sp)
+        internal val Compact = NovaPanelType(
+            panelTitleSize = 18.sp,
+            pageTitleSize = 16.sp,
+            rowTitleSize = 14.sp,
+            captionSize = 12.sp,
+            valueSize = 13.sp,
+            sectionLabelSize = 10.sp,
+            hintKeySize = 12.sp,
+            bump = 0.sp,
+        )
+
+        private fun regular(bump: TextUnit) = NovaPanelType(
+            panelTitleSize = 20.sp,
+            pageTitleSize = 18.sp,
+            rowTitleSize = 16.sp,
+            captionSize = 13.sp,
+            valueSize = 15.sp,
+            sectionLabelSize = 11.sp,
+            hintKeySize = 11.sp,
+            bump = bump,
+        )
+
+        /** The scale on [formFactor] at [density]; a television is never compact. */
+        internal fun of(formFactor: NovaFormFactor, density: NovaPanelDensity): NovaPanelType = when {
+            formFactor == NovaFormFactor.Television -> Television
+            density == NovaPanelDensity.Compact -> Compact
+            else -> Handheld
+        }
     }
 }
 
 private operator fun TextUnit.plus(other: TextUnit): TextUnit = (value + other.value).sp
 
-/** The panel type scale for the current form factor. */
+/** The panel type scale for the current form factor and panel density. */
 val novaPanelType: NovaPanelType
     @Composable @ReadOnlyComposable
-    get() = if (LocalNovaFormFactor.current == NovaFormFactor.Television) {
-        NovaPanelType.Television
-    } else {
-        NovaPanelType.Handheld
-    }
+    get() = NovaPanelType.of(LocalNovaFormFactor.current, LocalNovaPanelDensity.current)
 
 /**
  * The one focus look: [focusedFill] behind the content and a 3dp [ring] drawn inside [shape],

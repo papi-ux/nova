@@ -111,7 +111,8 @@ var SemanticsPropertyReceiver.novaPanelPlacement by NovaPanelPlacementKey
  * [open] drives the slide in and out on the Command Center's spring. A tap on the scrim, or a drag
  * toward the edge past [NovaPanelMetrics.DismissFraction], calls [onDismissRequest]; [onClosed]
  * runs when the exit motion lands. Content is padded by the safe drawing insets, the keyboard and,
- * on a television, the title-safe area, so nothing is cut by the screen.
+ * on a television, the title-safe area, so nothing is cut by the screen. The frame is a panel
+ * host: its content is drawn at the panel density for the window ([NovaPanelDensityHost]).
  */
 @Composable
 fun NovaPanelFrame(
@@ -185,7 +186,7 @@ fun NovaPanelFrame(
                 progress = { progress.value },
                 drag = drag,
                 tvSafe = tvSafe,
-                content = content,
+                content = { NovaPanelDensityHost(content) },
             )
         } else {
             NovaEdgePanel(
@@ -194,7 +195,7 @@ fun NovaPanelFrame(
                 progress = { progress.value },
                 drag = drag,
                 tvSafe = tvSafe,
-                content = content,
+                content = { NovaPanelDensityHost(content) },
             )
         }
     }

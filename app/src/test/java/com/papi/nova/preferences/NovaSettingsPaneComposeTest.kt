@@ -12,6 +12,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -19,7 +21,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.panel.NovaTestKeys
 import com.papi.nova.ui.panel.frames
@@ -124,6 +128,15 @@ class NovaSettingsPaneComposeTest {
     private fun category(key: String) = rule.onNodeWithTag("nova-settings-category-$key")
     private fun row(key: String) = rule.onNodeWithTag("nova-settings-row-$key")
     private fun settle() = rule.frames(8)
+
+    @Test
+    fun aWindowUnder560dpTallDrawsThePaneAtTheCompactDensity() {
+        show()
+        val results = mutableListOf<TextLayoutResult>()
+        rule.onNode(hasText("HDR") and hasAnyAncestor(hasTestTag("nova-settings-row-checkbox_enable_hdr")), useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        assertEquals("a pane row's title in the compact size", 14.sp, results.first().layoutInput.style.fontSize)
+    }
 
     @Test
     fun settingsOpensOnTheRailAndBrowsingItNeverPullsFocusIntoThePane() {

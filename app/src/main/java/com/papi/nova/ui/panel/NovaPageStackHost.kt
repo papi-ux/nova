@@ -196,6 +196,7 @@ fun NovaPageStackHost(
         listOf(NovaControllerHint(keyA, select), NovaControllerHint(keyB, back)) + hints
     }
     val formFactor = LocalNovaFormFactor.current
+    val panelDensity = LocalNovaPanelDensity.current
     val padding = NovaPanelMetrics.panelPadding(formFactor)
     val contextPx = with(LocalDensity.current) {
         (NovaPanelMetrics.rowMinHeight(formFactor) + NovaPanelMetrics.RowGap).toPx()
@@ -271,7 +272,9 @@ fun NovaPageStackHost(
                             title = shown.page.title,
                             parentTitle = state.entryBelow(shown)?.page?.title,
                             onBack = { scope.exit.back() },
-                            modifier = Modifier.padding(horizontal = padding).padding(top = padding),
+                            modifier = Modifier
+                                .padding(horizontal = padding)
+                                .padding(top = NovaPanelMetrics.headerTopPadding(formFactor, panelDensity)),
                         )
                         Box(modifier = Modifier.padding(horizontal = padding)) {
                             CompositionLocalProvider(LocalBringIntoViewSpec provides contextSpec) {
@@ -290,14 +293,18 @@ fun NovaPageStackHost(
                 }
             }
         }
-        NovaPanelHints(hints = allHints, modifier = Modifier.padding(padding))
+        NovaPanelHints(
+            hints = allHints,
+            modifier = Modifier.padding(horizontal = padding, vertical = NovaPanelMetrics.hintBarMargin(formFactor, panelDensity)),
+        )
     }
 }
 
 /**
  * The panel's controller hints: a key chip and its label for each, in the panel type, so a
- * television reads them 2sp larger. They wrap onto a second line when they must, rather than
- * scrolling sideways and cutting the last hint at the panel's edge.
+ * television reads them 2sp larger and a compact panel's keys stay at 12sp. They wrap onto a
+ * second line when they must, rather than scrolling sideways and cutting the last hint at the
+ * panel's edge.
  */
 @Composable
 private fun NovaPanelHints(hints: List<NovaControllerHint>, modifier: Modifier = Modifier) {
@@ -327,7 +334,7 @@ private fun NovaPanelHints(hints: List<NovaControllerHint>, modifier: Modifier =
             ) {
                 Text(
                     text = hint.key,
-                    style = type.sectionLabel,
+                    style = type.hintKey,
                     color = colors.onAccent,
                     modifier = Modifier
                         .clip(chip)
@@ -415,8 +422,11 @@ private fun pageTransition(push: Boolean, fromLeft: Boolean, offsetPx: Int): Con
 }
 
 /**
- * The page title. A pushed page shows `‹ Title` under a small label naming the page below;
- * tapping it pops. It is never a focus stop: B does the same on a pad.
+ * The page title. A pushed page shows `‹ Title`; tapping it pops. It is never a focus stop: B does
+ * the same on a pad. At the regular density a small label above it names the page below. At the
+ * compact density the header is one line, root and pushed alike, at least
+ * [NovaPanelMetrics.HeaderHeightCompact] tall, so nothing under it moves when a page opens; the
+ * page below is still named to accessibility, as the tap's label.
  */
 @Composable
 private fun NovaPageHeader(title: String, parentTitle: String?, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -424,25 +434,45 @@ private fun NovaPageHeader(title: String, parentTitle: String?, onBack: () -> Un
     val type = novaPanelType
     val backLabel = parentTitle?.let { stringResource(R.string.nova_panel_back_to, it) }
     val back by rememberUpdatedState(onBack)
+    val oneLine = LocalNovaPanelDensity.current == NovaPanelDensity.Compact
+    // The touch B, though never a focus stop.
+    val backTarget = Modifier
+        .pointerInput(Unit) { detectTapGestures(onTap = { back() }) }
+        .semantics(mergeDescendants = true) {
+            role = Role.Button
+            onClick(label = backLabel) {
+                back()
+                true
+            }
+        }
+    if (oneLine) {
+        Box(
+            contentAlignment = Alignment.CenterStart,
+            modifier = modifier.fillMaxWidth().heightIn(min = NovaPanelMetrics.HeaderHeightCompact),
+        ) {
+            if (parentTitle == null) {
+                Text(text = title, style = type.panelTitle, color = colors.textPrimary)
+            } else {
+                Box(
+                    contentAlignment = Alignment.CenterStart,
+                    modifier = Modifier.heightIn(min = NovaPanelMetrics.HeaderHeightCompact).then(backTarget),
+                ) {
+                    Text(text = "$BackGlyph $title", style = type.pageTitle, color = colors.textPrimary)
+                }
+            }
+        }
+        return
+    }
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
         if (parentTitle == null) {
             Text(text = title, style = type.panelTitle, color = colors.textPrimary)
             return@Column
         }
         Text(text = parentTitle, style = type.caption, color = colors.textSecondary)
-        // A full touch target for the touch B, though never a focus stop.
+        // A full touch target for the touch B.
         Box(
             contentAlignment = Alignment.CenterStart,
-            modifier = Modifier
-                .heightIn(min = NovaPanelMetrics.ArrowTarget)
-                .pointerInput(Unit) { detectTapGestures(onTap = { back() }) }
-                .semantics(mergeDescendants = true) {
-                    role = Role.Button
-                    onClick(label = backLabel) {
-                        back()
-                        true
-                    }
-                },
+            modifier = Modifier.heightIn(min = NovaPanelMetrics.ArrowTarget).then(backTarget),
         ) {
             Text(text = "$BackGlyph $title", style = type.pageTitle, color = colors.textPrimary)
         }

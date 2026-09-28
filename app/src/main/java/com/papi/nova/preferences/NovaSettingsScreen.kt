@@ -88,6 +88,7 @@ import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPageScope
 import com.papi.nova.ui.panel.NovaPageStackHost
+import com.papi.nova.ui.panel.NovaPanelDensityHost
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.panel.NovaPressLatch
@@ -251,112 +252,115 @@ internal fun NovaSettingsContent(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.window)
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-            // L1 and R1 step categories from anywhere on the screen, on release.
-            .onKeyEvent { event ->
-                val delta = when (event.key) {
-                    Key.ButtonL1 -> -1
-                    Key.ButtonR1 -> 1
-                    else -> return@onKeyEvent false
+    // Settings is a panel host: its rail and pane are drawn at the panel density for the window.
+    NovaPanelDensityHost {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(colors.window)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                // L1 and R1 step categories from anywhere on the screen, on release.
+                .onKeyEvent { event ->
+                    val delta = when (event.key) {
+                        Key.ButtonL1 -> -1
+                        Key.ButtonR1 -> 1
+                        else -> return@onKeyEvent false
+                    }
+                    val native = event.nativeKeyEvent
+                    when (event.type) {
+                        KeyEventType.KeyDown -> if (native.repeatCount == 0) shoulderLatch.press(native.keyCode)
+                        KeyEventType.KeyUp -> if (shoulderLatch.release(native.keyCode) && !native.isCanceled) stepCategory(delta)
+                    }
+                    true
                 }
-                val native = event.nativeKeyEvent
-                when (event.type) {
-                    KeyEventType.KeyDown -> if (native.repeatCount == 0) shoulderLatch.press(native.keyCode)
-                    KeyEventType.KeyUp -> if (shoulderLatch.release(native.keyCode) && !native.isCanceled) stepCategory(delta)
-                }
-                true
-            }
-    ) {
-        NovaSettingsCompactHeader(
-            title = title,
-            subtitle = subtitle,
-            query = state.searchQuery,
-            onQuery = onSearch,
-            onClear = onClearSearch,
-            onBack = onBack,
-            onOpenLegacy = onOpenLegacy,
-            headerActions = headerActions,
-            wide = wide
-        )
-        Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
-        NovaSettingsQuickStrip(
-            state = state,
-            // Down from the strip lands on the rail; without one it moves on as Compose finds.
-            modifier = if (wide) focus.quickStripModifier { latestState.selectedCategoryKey } else Modifier,
-            firstPillModifier = Modifier.focusRequester(focus.firstQuick),
-            onPill = { definition ->
-                pane.popToRoot()
-                if (latestState.isSearchActive()) clearSearch()
-                select(definition.categoryKey)
-                focus.enterPane(
-                    paneKey = definition.categoryKey,
-                    rowKey = definition.key,
-                    then = if (definition.opensPageFromRow()) ({ opener.open(definition, latestState) }) else null,
-                )
-            }
-        )
-        Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
-
-        val paneHost: @Composable (Modifier) -> Unit = { modifier ->
-            NovaPageStackHost(
-                state = pane,
-                modifier = modifier
-                    .then(focus.paneModifier)
-                    .then(if (wide) focus.paneLeftModifier { latestState.selectedCategoryKey } else Modifier),
-                // Pages pushed over the rows keep focus; the rows themselves may give it to the rail.
-                containFocus = pane.depth > 1,
-                onCloseRequest = {
-                    if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
-                },
-                hints = hints,
-            ) { page ->
-                when (page) {
-                    is SettingsPage.Rows -> NovaSettingsRowsPage(
-                        page = page,
-                        state = latestState,
-                        focus = focus,
-                        onValue = { definition, value, done -> opener.onValue(definition, value, done) },
-                        onOpen = { definition -> opener.open(definition, latestState) },
-                        onSetting = onSetting,
-                        onResetSetting = onResetSetting,
+        ) {
+            NovaSettingsCompactHeader(
+                title = title,
+                subtitle = subtitle,
+                query = state.searchQuery,
+                onQuery = onSearch,
+                onClear = onClearSearch,
+                onBack = onBack,
+                onOpenLegacy = onOpenLegacy,
+                headerActions = headerActions,
+                wide = wide
+            )
+            Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
+            NovaSettingsQuickStrip(
+                state = state,
+                // Down from the strip lands on the rail; without one it moves on as Compose finds.
+                modifier = if (wide) focus.quickStripModifier { latestState.selectedCategoryKey } else Modifier,
+                firstPillModifier = Modifier.focusRequester(focus.firstQuick),
+                onPill = { definition ->
+                    pane.popToRoot()
+                    if (latestState.isSearchActive()) clearSearch()
+                    select(definition.categoryKey)
+                    focus.enterPane(
+                        paneKey = definition.categoryKey,
+                        rowKey = definition.key,
+                        then = if (definition.opensPageFromRow()) ({ opener.open(definition, latestState) }) else null,
                     )
-                    is SettingsPage.DisplayRole -> NovaDisplayRolePage(page)
-                    else -> Unit
+                }
+            )
+            Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
+
+            val paneHost: @Composable (Modifier) -> Unit = { modifier ->
+                NovaPageStackHost(
+                    state = pane,
+                    modifier = modifier
+                        .then(focus.paneModifier)
+                        .then(if (wide) focus.paneLeftModifier { latestState.selectedCategoryKey } else Modifier),
+                    // Pages pushed over the rows keep focus; the rows themselves may give it to the rail.
+                    containFocus = pane.depth > 1,
+                    onCloseRequest = {
+                        if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
+                    },
+                    hints = hints,
+                ) { page ->
+                    when (page) {
+                        is SettingsPage.Rows -> NovaSettingsRowsPage(
+                            page = page,
+                            state = latestState,
+                            focus = focus,
+                            onValue = { definition, value, done -> opener.onValue(definition, value, done) },
+                            onOpen = { definition -> opener.open(definition, latestState) },
+                            onSetting = onSetting,
+                            onResetSetting = onResetSetting,
+                        )
+                        is SettingsPage.DisplayRole -> NovaDisplayRolePage(page)
+                        else -> Unit
+                    }
                 }
             }
-        }
 
-        if (wide) {
-            focus.RailFocusEffect(state)
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.wideColumnSpacingDp().dp)
-            ) {
-                // Settings opened on whatever Android's traversal picked first, which is
-                // Back, so the first press on a controller left the screen you had just
-                // asked for. It lands on the rail instead, where the next press moves
-                // between categories.
-                NovaSettingsCategoryRail(
-                    state = state,
-                    focus = focus,
-                    onCategory = onCategory,
+            if (wide) {
+                focus.RailFocusEffect(state)
+                Row(
                     modifier = Modifier
-                        .novaHoldsFirstFocus()
-                        .width(NovaSettingsMetrics.categoryRailWidthDp().dp)
-                        .fillMaxHeight()
-                )
-                paneHost(Modifier.weight(1f).fillMaxHeight())
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.wideColumnSpacingDp().dp)
+                ) {
+                    // Settings opened on whatever Android's traversal picked first, which is
+                    // Back, so the first press on a controller left the screen you had just
+                    // asked for. It lands on the rail instead, where the next press moves
+                    // between categories.
+                    NovaSettingsCategoryRail(
+                        state = state,
+                        focus = focus,
+                        onCategory = onCategory,
+                        modifier = Modifier
+                            .novaHoldsFirstFocus()
+                            .width(NovaSettingsMetrics.categoryRailWidthDp().dp)
+                            .fillMaxHeight()
+                    )
+                    paneHost(Modifier.weight(1f).fillMaxHeight())
+                }
+            } else {
+                NovaSettingsCategoryChips(state, onCategory)
+                Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+                paneHost(Modifier.fillMaxWidth().weight(1f))
             }
-        } else {
-            NovaSettingsCategoryChips(state, onCategory)
-            Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
-            paneHost(Modifier.fillMaxWidth().weight(1f))
         }
     }
 }
