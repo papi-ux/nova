@@ -21,9 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -54,7 +51,7 @@ import com.papi.nova.api.PolarisArtworkMatchCandidate
 import com.papi.nova.shared.polaris.model.PolarisGame
 import kotlinx.coroutines.delay
 import com.papi.nova.ui.compose.NovaRevealingText
-import com.papi.nova.ui.compose.NovaInPlaceKeyboard
+import com.papi.nova.ui.panel.NovaTextField
 import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
@@ -793,32 +790,28 @@ private fun NovaArtworkIdentityPicker(
         fontSize = 11.sp,
         modifier = Modifier.padding(top = 2.dp),
     )
-    // The field was the studio's first focusable, so opening the studio handed it focus, and a
-    // focused text field raises the keyboard: in landscape that is a full screen of typing over a
-    // studio nobody had seen yet. It sits out the panel's first-focus pass, which then lands on
-    // Search below it, and takes focus like anything else from then on.
+    // The field was the studio's first focusable, so opening the studio handed it focus. It sits
+    // out the first-focus pass, which then lands on Search below it, so A on a fresh studio
+    // searches the game's name, and takes focus like anything else from then on.
     var fieldTakesFocus by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(NOVA_FIRST_FOCUS_SETTLE_MS * 4)
         fieldTakesFocus = true
     }
-    NovaInPlaceKeyboard {
-    OutlinedTextField(
+    // Nova's field: walking the cursor onto it raises nothing, A on release or a tap opens it, B
+    // while it is open hides the keyboard and leaves the studio where it is (R4), and the
+    // keyboard's search key runs the search. It types in place, with no full screen keyboard.
+    NovaTextField(
         value = query,
         onValueChange = onQueryChanged,
-        label = { Text(stringResource(R.string.nova_artwork_search_title)) },
-        singleLine = true,
-        enabled = !state.working,
-        // Walking the cursor onto the field does not raise the keyboard either; a press or a
-        // tap does, and its action key runs the search.
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = false),
-        keyboardActions = KeyboardActions(onSearch = { if (!state.working && query.isNotBlank()) onSearch() }),
+        label = stringResource(R.string.nova_artwork_search_title),
+        imeAction = ImeAction.Search,
+        onImeAction = { if (!state.working && query.isNotBlank()) onSearch() },
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp)
             .focusProperties { canFocus = fieldTakesFocus },
     )
-    }
     NovaActionButton(
         text = stringResource(
             if (state.working) R.string.nova_artwork_searching else R.string.nova_artwork_search,
@@ -928,7 +921,8 @@ private fun NovaArtworkChoicePicker(
                 onClick = { onKindSelected(kind) },
                 modifier = Modifier.weight(1f),
                 enabled = !state.working,
-                primary = kind == state.activeKind,
+                // The kind on show carries the one current mark, the check; a fill means focus (R9).
+                selected = kind == state.activeKind,
                 contentDescription = stringResource(
                     R.string.nova_artwork_kind_tab_description,
                     stringResource(artworkKindLabel(kind)),
@@ -975,11 +969,9 @@ private fun NovaArtworkChoicePicker(
                             .height(if (choice.kind == NovaArtworkKinds.POSTER) 132.dp else 76.dp)
                             .clip(RoundedCornerShape(NovaRadius.row))
                             .background(colors.window)
-                            .border(
-                                if (selected) 2.dp else 1.dp,
-                                if (selected) colors.accent else colors.divider,
-                                RoundedCornerShape(NovaRadius.row),
-                            ),
+                            // The same hairline whichever is chosen: the button under it carries the
+                            // check, and an accent border would read as focus (R9).
+                            .border(1.dp, colors.divider, RoundedCornerShape(NovaRadius.row)),
                         scaleType = if (choice.kind == NovaArtworkKinds.LOGO || choice.kind == NovaArtworkKinds.ICON) {
                             ImageView.ScaleType.FIT_CENTER
                         } else {
@@ -993,7 +985,7 @@ private fun NovaArtworkChoicePicker(
                         onClick = { onChoiceSelected(choice) },
                         modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
                         enabled = !state.working && state.loadingKinds.isEmpty(),
-                        primary = selected,
+                        selected = selected,
                         contentDescription = stringResource(
                             R.string.nova_artwork_choice_select_description,
                             stringResource(artworkKindLabel(choice.kind)),

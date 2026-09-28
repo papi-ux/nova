@@ -72,8 +72,10 @@ class NovaArtworkStudioLayoutTest {
         assertTrue(options and EditorInfo.IME_FLAG_NO_EXTRACT_UI != 0)
         assertTrue(options and EditorInfo.IME_FLAG_NO_FULLSCREEN != 0)
         assertTrue(
-            "the studio's search field lost the results it narrows behind a full screen of keyboard",
-            read("NovaArtworkStudio.kt").contains("NovaInPlaceKeyboard {\n    OutlinedTextField(")
+            "the studio's search field lost the results it narrows behind a full screen of keyboard; " +
+                "it is NovaTextField now, which types in place",
+            read("NovaArtworkStudio.kt").contains("NovaTextField(") &&
+                read("panel/NovaTextField.kt").contains("NovaInPlaceKeyboard {")
         )
         val panels = read("NovaGameDetailDestinations.kt")
         assertTrue(
