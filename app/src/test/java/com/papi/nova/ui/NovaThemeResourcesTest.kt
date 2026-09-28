@@ -269,8 +269,7 @@ class NovaThemeResourcesTest {
             "src/main/res/drawable/nova_chip_default.xml",
             "src/main/res/drawable/nova_chip_selected.xml",
             "src/main/res/drawable/nova_featured_action_bg.xml",
-            "src/main/res/drawable/nova_card_focus_ring.xml",
-            "src/main/res/drawable/nova_server_row_focus_ring.xml"
+            "src/main/res/drawable/nova_card_focus_ring.xml"
         )
         drawableFiles.forEach { path ->
             val xml = File(path).readText()
@@ -279,7 +278,6 @@ class NovaThemeResourcesTest {
         }
         assertTrue(File("src/main/res/drawable/nova_dialog_choice_bg.xml").readText().contains("?attr/colorAccent"))
         assertTrue(File("src/main/res/drawable/nova_dialog_choice_bg.xml").readText().contains("?attr/colorControlHighlight"))
-        assertTrue(File("src/main/res/drawable/nova_server_row_focus_ring.xml").readText().contains("?attr/colorSurface"))
     }
 
 

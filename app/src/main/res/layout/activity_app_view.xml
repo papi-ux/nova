@@ -94,7 +94,7 @@
             <androidx.cardview.widget.CardView
                 android:layout_width="86dp"
                 android:layout_height="112dp"
-                app:cardCornerRadius="14dp"
+                app:cardCornerRadius="@dimen/nova_radius_row"
                 app:cardElevation="0dp"
                 app:cardBackgroundColor="?attr/colorSurface">
 

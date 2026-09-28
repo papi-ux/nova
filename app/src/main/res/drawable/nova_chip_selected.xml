@@ -6,13 +6,13 @@
             <stroke
                 android:width="3dp"
                 android:color="?attr/colorOnSurface" />
-            <corners android:radius="12dp" />
+            <corners android:radius="@dimen/nova_radius_hero" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
             <solid android:color="?attr/colorAccent" />
-            <corners android:radius="12dp" />
+            <corners android:radius="@dimen/nova_radius_hero" />
         </shape>
     </item>
 </selector>

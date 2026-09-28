@@ -36,22 +36,24 @@ class NovaFocusDrawableTest {
     @Test
     fun serverRowsUseFocusableOutlineBackground() {
         val doc = parseXml("src/main/res/layout/pc_grid_item.xml")
+        val adapter = readSource("src/main/java/com/papi/nova/grid/PcGridAdapter.kt")
 
-        assertTrue(
-            "server row root should carry the D-pad focus outline",
-            doc.documentElement.getAttribute("android:background") == "@drawable/nova_card_focus_frame"
+        // The row still carries the D-pad focus outline, in the one focus look (spec section 2): the
+        // 3dp ring from NovaViewBridge, drawn inside the card's corner rather than as an 18dp frame
+        // around it, in the same colours the Compose components use.
+        assertFalse(
+            "the row's old focus frame, a filled 18dp ring around the card, is gone",
+            doc.documentElement.hasAttribute("android:background") ||
+                File("src/main/res/drawable/nova_card_focus_frame.xml").exists()
         )
-
-        val frame = parseXml("src/main/res/drawable/nova_card_focus_frame.xml")
         assertTrue(
-            "server row focus frame should use the row-specific filled ring",
-            hasFocusedDrawable(frame, "@drawable/nova_server_row_focus_ring")
+            "server row root should carry the D-pad focus ring as its foreground, inside its padding, on the card",
+            adapter.contains("(parentView as? FrameLayout)?.foreground = NovaViewBridge.focusRing(context)")
         )
-
-        val rowRing = parseXml("src/main/res/drawable/nova_server_row_focus_ring.xml")
         assertTrue(
-            "server row focus ring should use a slimmer themed accent stroke",
-            hasStroke(rowRing, "2dp", "?attr/colorAccent")
+            "the card takes the row corner the Compose rows use",
+            adapter.contains("val corner = context.resources.getDimension(R.dimen.nova_radius_row)") &&
+                adapter.contains("background.cornerRadius = corner")
         )
     }
 
@@ -300,9 +302,9 @@ class NovaFocusDrawableTest {
             ready.contains("primaryAction.setBackgroundResource(R.drawable.nova_chip_default)")
         )
         assertTrue(
-            "the two pills are one pair: the fill takes the corner the shared chip has",
-            adapter.contains("private const val NOVA_HOST_CARD_PILL_RADIUS_DP = 12f") &&
-                chip.split("<corners ").size == chip.split("<corners android:radius=\"12dp\" />").size
+            "the two pills are one pair: the fill takes the corner the shared chip has, the button corner",
+            adapter.contains("cornerRadius = context.resources.getDimension(R.dimen.nova_radius_hero)") &&
+                chip.split("<corners ").size == chip.split("<corners android:radius=\"@dimen/nova_radius_hero\" />").size
         )
         assertTrue(
             "server rows should keep the row/card as the single focus owner",
