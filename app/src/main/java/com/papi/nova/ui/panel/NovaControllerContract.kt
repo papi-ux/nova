@@ -46,8 +46,8 @@ object NovaKeys {
 
     /**
      * Keys the gate turns into Back on release. KEYCODE_BACK is not one: the platform delivers it,
-     * and on API 33 and later, in an activity that opts in to OnBackInvokedCallback, the gate never
-     * sees it at all (see [NovaKeyGate]).
+     * and on API 34 and later, in an activity that opts in to OnBackInvokedCallback, the gate never
+     * sees it at all (see [NovaKeyGate] and [NovaBackStartGate]).
      */
     fun isGatedBack(keyCode: Int): Boolean =
         keyCode == KeyEvent.KEYCODE_BUTTON_B || keyCode == KeyEvent.KEYCODE_ESCAPE
@@ -101,13 +101,13 @@ enum class NovaKeyDecision {
  * event some screens work around today. B and Escape become Back on an uncancelled release that
  * matches a press seen here, so the release of a press that opened a surface does nothing in it.
  *
- * KEYCODE_BACK passes, and the guarantee for it is narrower. In an activity that keeps
- * enableOnBackInvokedCallback off (Game, and the application default), Dialog and Activity act
- * only on a tracked, uncancelled release. In one that opts in (PcView, AppView, the settings
- * screens and others), API 33 and later hand KEYCODE_BACK to the window's OnBackInvokedCallback
- * before dispatchKeyEvent, on any release: this gate never sees it, and Android 13 does not skip
- * a cancelled release, so a Back held while a surface appears can close that surface when it is
- * let go. The foundation notes record this for the groups that opt those screens in.
+ * KEYCODE_BACK passes. Where the platform delivers it through dispatchKeyEvent (Game, the
+ * application default, and every screen on Android 13, which reads only the application's
+ * enableOnBackInvokedCallback), Dialog and Activity act only on a tracked, uncancelled release. In
+ * an activity that opts in (PcView, AppView, the settings screens and others), API 34 and later hand
+ * KEYCODE_BACK to the window's back callback before dispatchKeyEvent, so this gate never sees it;
+ * NovaPanelWindow puts that callback behind [NovaBackStartGate] instead, so a Back held while a
+ * panel or state page appears cannot close it on release.
  */
 class NovaKeyGate {
     private val confirm = NovaPressLatch()

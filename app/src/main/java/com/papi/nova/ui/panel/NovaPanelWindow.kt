@@ -10,8 +10,10 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
+import android.window.OnBackInvokedDispatcher
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -67,9 +69,9 @@ internal val NovaWindowPlacement.canShow: Boolean
  *
  * The window is transparent, undimmed and full size ([R.style.NovaPanelWindowTheme] keeps it from
  * floating), drawn behind the bars and into a short-edge cutout, resized by the keyboard. Its keys
- * go through [NovaKeyGate], and its touches feed [NovaSplitConfirmRegistry] first. [ComponentDialog]
- * supplies the lifecycle, saved-state and back dispatcher owners for any context, including the
- * stream and a companion display.
+ * go through [NovaKeyGate], its platform Back through [NovaBackStartGate], and its touches feed
+ * [NovaSplitConfirmRegistry] first. [ComponentDialog] supplies the lifecycle, saved-state and back
+ * dispatcher owners for any context, including the stream and a companion display.
  *
  * It is not cancelable: only [NovaSurfaces] closes it, through [closeNow]. A cancelable dialog
  * dismisses itself on a Back that no handler takes, which happens during a panel's exit motion and
@@ -80,10 +82,22 @@ internal class NovaPanelWindow(
     private val surfaces: NovaSurfaces,
 ) : ComponentDialog(placement.context, R.style.NovaPanelWindowTheme) {
     private val keyGate = NovaKeyGate()
+    private val backStartGate = NovaBackStartGate()
+    private var startGatedBack: Any? = null
 
     init {
         setCancelable(false)
     }
+
+    /**
+     * The window's back dispatcher behind [backStartGate]. ComponentDialog hands it to this window's
+     * OnBackPressedDispatcher in onCreate, so on API 34 and later a Back held while this window
+     * appears cannot close it on release.
+     */
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun getOnBackInvokedDispatcher(): OnBackInvokedDispatcher =
+        startGatedBack as? NovaStartGatedBackDispatcher
+            ?: NovaStartGatedBackDispatcher(super.getOnBackInvokedDispatcher(), backStartGate).also { startGatedBack = it }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -142,7 +156,10 @@ internal class NovaPanelWindow(
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus) keyGate.reset()
+        if (!hasFocus) {
+            keyGate.reset()
+            backStartGate.reset()
+        }
     }
 
     /** Shows the window, reading a companion display's window token at show time. */
