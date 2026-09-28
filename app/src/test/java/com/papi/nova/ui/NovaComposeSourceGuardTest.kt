@@ -1828,7 +1828,7 @@ class NovaComposeSourceGuardTest {
     fun settingsWideLayoutUsesRetroidCompactHierarchyMetrics() {
         val settings = readNovaSettingsScreen()
         val content = settings.section(
-            "private fun NovaSettingsContent(",
+            "fun NovaSettingsContent(",
             "@Composable\nprivate fun novaSettingsControllerHints()"
         )
         val quickStrip = settings.section(
@@ -1976,7 +1976,7 @@ class NovaComposeSourceGuardTest {
         )
         val settings = readNovaSettingsScreen()
         val settingsContent = settings.section(
-            "private fun NovaSettingsContent(",
+            "fun NovaSettingsContent(",
             "@Composable\nprivate fun NovaSettingsCompactHeader("
         )
 
