@@ -811,6 +811,19 @@ finish()
 return
 }
 
+// Saved profiles and per-game overrides can bypass the picker. Refuse before creating a
+// renderer or starting any host connection, preserving the player's codec preference.
+if (prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
+    val availability = com.papi.nova.binding.video.PyroWaveAvailability.inspect(applicationContext)
+    if (!com.papi.nova.binding.video.PyroWaveAvailability.canLaunch(prefConfig.videoFormat, availability)) {
+        val reason = com.papi.nova.binding.video.PyroWaveAvailability.reason(this, availability)
+        LimeLog.warning("PyroWave: launch refused: $availability")
+        Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+        finish()
+        return
+    }
+}
+
 if (prefConfig!!.fullScreen)
 {
  // Full-screen
