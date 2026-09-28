@@ -121,6 +121,37 @@ class NovaStateScreenComposeTest {
     }
 
     @Test
+    fun aBusyPagesCancelWaitsOutTheGuardOnceVisibleSoAMashedPressEndsNothing() {
+        var cancels = 0
+        var pages by mutableStateOf(emptyList<NovaStatePage>())
+        val keys = rule.setPanelContent { NovaStatePages(pages = pages, onShowingChange = {}) }
+        rule.mainClock.autoAdvance = false
+        pages = listOf(
+            NovaStatePage.Busy(
+                key = "reconnecting",
+                title = "Reconnecting",
+                message = MutableStateFlow("Attempt 1 of 5"),
+                cancel = NovaAction("Disconnect") { cancels++ },
+            ),
+        )
+        rule.waitForIdle()
+        rule.advance(NovaPanelMetrics.BusyShowDelayMillis + 50)
+        rule.frames(4)
+        rule.onNodeWithText("Disconnect").assertIsFocused()
+
+        // Just visible: A and B from a player still mashing do nothing.
+        keys.press(NovaTestKeys.CENTER)
+        keys.back()
+        rule.frames(2)
+        assertEquals(0, cancels)
+
+        rule.advance(NovaPanelMetrics.SplitGuardMillis)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(2)
+        assertEquals("past the guard the cancel is the way out", 1, cancels)
+    }
+
+    @Test
     fun aBusyPageGoneBefore300msNeverShows() {
         var pages by mutableStateOf(emptyList<NovaStatePage>())
         rule.setPanelContent { NovaStatePages(pages = pages, onShowingChange = {}) }

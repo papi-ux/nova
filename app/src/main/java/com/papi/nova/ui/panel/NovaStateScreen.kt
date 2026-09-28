@@ -82,7 +82,9 @@ sealed interface NovaStatePage {
     /**
      * Work the player must wait for. It appears 300ms after it is shown and, once visible, stays
      * at least 500ms. [cancel], when present, is focused and is what B does; without it the page
-     * holds focus and absorbs A and B.
+     * holds focus and absorbs A and B. Once visible, the cancel ignores A and B for the split
+     * guard's 400ms, so a press already on its way, such as a player mashing A in game when the
+     * stream drops, never ends anything.
      */
     data class Busy(
         override val key: String,
@@ -218,8 +220,15 @@ private fun BusyContent(page: NovaStatePage.Busy, focusTarget: FocusRequester, a
     val progress = page.progress?.collectAsState()?.value
     val cancel = page.cancel
     val working = stringResource(R.string.nova_panel_working)
+    // The page appears under thumbs still busy with whatever it interrupted. Its cancel waits out
+    // the split's guard from the moment it is visible, as an armed End waits after arming.
+    val guardPassed = remember(page.key) { mutableStateOf(false) }
+    LaunchedEffect(page.key) {
+        delay(NovaPanelMetrics.SplitGuardMillis)
+        guardPassed.value = true
+    }
     // Without a cancel, B is held here so the work cannot be left half done.
-    NovaBackHandler(active = true) { cancel?.let(act::run) }
+    NovaBackHandler(active = true) { if (guardPassed.value) cancel?.let(act::run) }
     Text(text = page.title, style = type.stateTitle, color = colors.textPrimary, textAlign = TextAlign.Center)
     if (progress != null) {
         LinearProgressIndicator(
@@ -245,7 +254,13 @@ private fun BusyContent(page: NovaStatePage.Busy, focusTarget: FocusRequester, a
         )
     }
     if (cancel != null) {
-        StateAction(cancel, act, primary = false, modifier = Modifier.focusRequester(focusTarget))
+        StateAction(
+            cancel,
+            act,
+            primary = false,
+            modifier = Modifier.focusRequester(focusTarget),
+            guard = { guardPassed.value },
+        )
     } else {
         // Holds focus so A and B land here, where they do nothing.
         Box(
@@ -270,10 +285,17 @@ private fun CodeContent(page: NovaStatePage.Code, focusTarget: FocusRequester, a
 }
 
 @Composable
-private fun StateAction(action: NovaAction, act: NovaStateActions, primary: Boolean, modifier: Modifier = Modifier) {
+private fun StateAction(
+    action: NovaAction,
+    act: NovaStateActions,
+    primary: Boolean,
+    modifier: Modifier = Modifier,
+    /** Read at the press: false swallows it. */
+    guard: () -> Boolean = { true },
+) {
     NovaPanelButton(
         text = action.label,
-        onClick = { act.run(action) },
+        onClick = { if (guard()) act.run(action) },
         primary = primary,
         destructive = action.destructive,
         modifier = modifier.fillMaxWidth(),
