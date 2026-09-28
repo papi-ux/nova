@@ -1,6 +1,9 @@
 #include "runtime/deck_play_settings.h"
 
 #include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QThread>
+#include <atomic>
 #include <QFile>
 #include <QSettings>
 #include <QTemporaryDir>
@@ -153,6 +156,35 @@ int main(int argc, char** argv) {
     require(settings.streamPlan(forcedHevc, {{"h264", false}, {"hevc", true}}, {}).value("playable").toBool(), "HEVC-only PC rejected");
     require(!DeckPlaySettings{}.streamPlan(defaults, bothCodecs, {}).value("playable").toBool(), "unprobed decoder allowed playback");
     {
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        {
+            DeckPlaySettings lazy(directory.filePath("lazy-pyrowave.ini"));
+            lazy.setVideoDecodeSupport({.h264 = {4096, 4096}, .hevc = {4096, 4096}});
+            std::atomic<int> calls{0};
+            lazy.setPyrowaveProbe([&] {
+                ++calls;
+                QThread::msleep(60);
+                return nova::deck::stream::DeckPyrowaveProbeResult{{4096, 4096}, {}};
+            });
+            QVariantMap config = defaults;
+            const QVariantMap host{{"h264", true}, {"hevc", true}, {"pyrowave", true}, {"maxFps", 60}};
+            for (const auto* codec : {"h264", "hevc", "auto"}) {
+                config["videoCodec"] = codec;
+                require(lazy.streamPlan(config, host, {}).value("playable").toBool(), "ordinary codec lost support");
+            }
+            require(calls == 0, "ordinary codec triggered the PyroWave probe");
+            config["videoCodec"] = "pyrowave";
+            require(!lazy.streamPlan(config, host, {}).value("playable").toBool(), "unchecked PyroWave was playable");
+            QElapsedTimer wait; wait.start();
+            while (lazy.videoSupportRevision() == 0 && wait.elapsed() < 2000) {
+                QCoreApplication::processEvents(); QThread::msleep(1);
+            }
+            require(lazy.videoSupportRevision() == 1, "async probe did not notify the Play Setup binding");
+            require(lazy.streamPlan(config, host, {}).value("playable").toBool(), "successful lazy probe did not enable Play");
+            lazy.streamPlan(config, host, {});
+            require(calls == 1, "review repeated the cached PyroWave probe");
+        }
+#endif
         DeckPlaySettings pyroSettings(directory.filePath("pyrowave.ini"));
         pyroSettings.setVideoDecodeSupport({.h264 = {4096, 4096}, .pyrowave = {1920, 1200}});
         auto pyro = defaults; pyro["videoCodec"] = "pyrowave";

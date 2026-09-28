@@ -10,7 +10,7 @@ on:
       channel:
         description: Update channel
         type: choice
-        options: [beta, stable, pyrowave]
+        options: [beta, stable]
         default: beta
       bootstrap:
         description: Start the first feed (only allowed when the existing summary returns 404)
@@ -84,9 +84,6 @@ jobs:
         run: |
           test -f source/clients/deck/src/runtime/deck_updates.cpp
           manifest=source/clients/deck/packaging/flatpak/com.papi_ux.Nova.json
-          if [ "$NOVA_CHANNEL" = pyrowave ]; then
-            manifest=source/clients/deck/packaging/flatpak/com.papi_ux.Nova.pyrowave.json
-          fi
           python3 automation/tools/nova_flatpak_feed.py prepare "$manifest" \
             source/clients/deck/packaging/flatpak/feed-build.json \
             --channel "$NOVA_CHANNEL" --url "$NOVA_FEED_URL"
@@ -135,7 +132,7 @@ jobs:
             ostree --repo=site/repo remote add --gpg-import="$RUNNER_TEMP/nova-public.gpg" \
               --set=gpg-verify=true --set=gpg-verify-summary=true previous "$NOVA_FEED_URL/repo"
             ostree --repo=site/repo pull --mirror previous
-            for channel in stable beta pyrowave; do
+            for channel in stable beta; do
               if ostree --repo=site/repo rev-parse "app/com.papi_ux.Nova/x86_64/$channel" >/dev/null 2>&1; then
                 curl --fail --silent --show-error --max-time 30 "$NOVA_FEED_URL/$channel.json" -o "previous/$channel.json"
               fi

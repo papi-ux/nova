@@ -1,4 +1,5 @@
 #include "runtime/deck_native_target.h"
+#include "stream/deck_pyrowave_probe.h"
 #include "runtime/deck_doctor_receipts.h"
 #include <QSslCertificate>
 #include "stream/deck_gamestream_library.h"
@@ -51,6 +52,7 @@ DeckNativeTargetResolver nativeTargetResolver(
         target.streamCapabilities = game->streamCapabilities;
 #ifdef NOVA_DECK_NATIVE_MEDIA
         target.probeVideoSupport = detectVideoDecodeSupport;
+        target.probePyrowaveSupport = [] { return cachedPyrowaveDecodeSupport().limits; };
 #endif
         // Cached app ids are local identifiers, not Polaris app UUIDs.
         if (!game->id.starts_with("moonlight-app-") && !standardHost) target.appUuid = game->id;

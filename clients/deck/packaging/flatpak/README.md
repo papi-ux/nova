@@ -26,13 +26,12 @@ PipeWire audio output. This exposes the default PipeWire socket, not the whole
 runtime directory. Packaging this audio backend does not establish standalone
 Deck release readiness.
 
-Releases with the separate-asset workflow also attach
-`Nova-Linux-PyroWave-x86_64-alpha.flatpak` and a matching checksum. That explicitly
-experimental bundle enables PyroWave and replaces the standard app under the
-same ID. See the [PyroWave install and return instructions](../../docs/pyrowave.md#packaging-and-compatibility)
-before switching. The normal bundle keeps PyroWave disabled.
+Starting with 1.4.14, the standard bundle includes PyroWave. Selecting it starts
+an isolated device check; H.264, HEVC and Auto never run that check. The separate
+PyroWave bundle is retired. See the [PyroWave installation guide](../../docs/pyrowave.md#packaging-and-compatibility)
+for compatibility and upgrades from older bundles.
 
-Both manifests also include the opt-in Vulkan stream presenter and a pinned
+The manifest also includes the opt-in Vulkan stream presenter and a pinned
 libplacebo build. The normal launcher continues to use the OpenGL/EGL presenter.
 To exercise the Vulkan path in a development bundle:
 

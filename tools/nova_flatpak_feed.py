@@ -14,7 +14,7 @@ import subprocess
 from urllib.parse import urlsplit
 
 APP = "com.papi_ux.Nova"
-CHANNELS = ("stable", "beta", "pyrowave")
+CHANNELS = ("stable", "beta")
 COMMIT = re.compile(r"[0-9a-f]{64}\Z")
 TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?\Z")
 
@@ -46,8 +46,8 @@ def prepare(manifest, channel, url):
     module = next(item for item in manifest["modules"] if isinstance(item, dict) and item.get("name") == "nova-deck")
     opts = module["config-opts"]
     enabled = "-DNOVA_DECK_BUILD_PYROWAVE=ON" in opts
-    if enabled != (channel == "pyrowave"):
-        raise ValueError("PyroWave builds must use the separate pyrowave channel")
+    if not enabled or "modules/pyrowave.json" not in manifest["modules"]:
+        raise ValueError("The standard Linux package must include PyroWave and its lazy probe")
     opts[:] = [v for v in opts if not v.startswith(("-DNOVA_DECK_UPDATE_CHANNEL=", "-DNOVA_DECK_UPDATE_URL="))]
     opts.extend([f"-DNOVA_DECK_UPDATE_CHANNEL={channel}", f"-DNOVA_DECK_UPDATE_URL={feed_url(url)}"])
     manifest["branch"] = channel
