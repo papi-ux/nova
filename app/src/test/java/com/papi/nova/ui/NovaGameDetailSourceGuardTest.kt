@@ -62,8 +62,10 @@ class NovaGameDetailSourceGuardTest {
         )
 
         assertTrue(
-            "the primary action holds first focus, and nothing scrolls above it",
-            detail.contains("val playFocusRequester = remember { FocusRequester() }") &&
+            "the primary action holds first focus, and nothing scrolls above it. Its requester is " +
+                "hoisted to the activity, so Play Setup opened on the launch path gives focus back to it",
+            detail.contains("playFocusRequester: FocusRequester = remember { FocusRequester() },") &&
+                detail.contains("playFocusRequester = playButtonFocus,") &&
                 actions.contains(".focusRequester(playFocusRequester)") &&
                 actions.contains("primary = activeSession?.watchOnly != true") &&
                 !overview.contains("verticalScroll")
@@ -364,6 +366,24 @@ class NovaGameDetailSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
+
+    @Test
+    fun playSetupGivesFocusBackToWhatOpenedIt() {
+        val activity = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val pages = readSource("src/main/java/com/papi/nova/ui/NovaPlaySetupPages.kt")
+        assertTrue(
+            "Play Setup opens with where focus goes back (R7): its own button, or Launch when the " +
+                "launch path opened it. The Overview cannot hold focus while the panel is open, so " +
+                "without this the first D-pad press after B started from no ring at all",
+            activity.contains("playSetupPanel.open(root, NovaEdge.End, NovaFocusReturn.Compose(returnTo))") &&
+                activity.contains("openPlaySetup(returnTo = playButtonFocus)") &&
+                activity.contains("playSetupFocusRequester = playSetupButtonFocus,")
+        )
+        assertTrue(
+            "the in tree panel honours it once its exit has landed, as NovaSurfaces does for a window",
+            pages.section("onClosed = {", "scrim = NovaScrim.Stream,").contains("panel.takeReturnFocus()")
+        )
+    }
 
     @Test
     fun playSetupLaunchSettingsRowReadsActionableModeState() {

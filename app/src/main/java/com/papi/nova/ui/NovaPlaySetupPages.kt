@@ -11,11 +11,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.papi.nova.R
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaFocusReturn
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageContent
@@ -73,7 +75,9 @@ internal sealed interface PlaySetupPage : NovaPage {
  * Play Setup's panel, in the game detail window's own tree: attached to the end edge at full
  * height and rounded on its inner edge only, wide, over the game rather than instead of it.
  * [panel] drives it: open while it has a page, and still drawn while it slides away. B pops one
- * page and at the root runs [onClose], as do the scrim and a drag toward the edge.
+ * page and at the root runs [onClose], as do the scrim and a drag toward the edge. Once the exit
+ * has landed, focus goes back to what [panel] was opened with (R7): the element that held focus
+ * inside the panel is gone by then, and nothing else would put it anywhere.
  *
  * The scrim is the light one with no backdrop blur. Blur is taken from the window under a
  * panel, and this panel is inside the window it would blur.
@@ -87,14 +91,33 @@ internal fun NovaPlaySetupPanel(
 ) {
     val open = panel.isOpen
     var present by remember { mutableStateOf(open) }
+    // Where focus goes once the panel has left the tree. Its host keeps focus inside itself while
+    // it is there, so the request waits for the frame after the panel is gone.
+    var giveBack by remember { mutableStateOf<NovaFocusReturn?>(null) }
     LaunchedEffect(open) { if (open) present = true }
+    LaunchedEffect(giveBack) {
+        val target = giveBack ?: return@LaunchedEffect
+        withFrameNanos { }
+        giveBack = null
+        // A button that is not on screen now, such as Play Setup's while a review is expanded,
+        // has nothing to take focus.
+        when (target) {
+            is NovaFocusReturn.Compose -> runCatching { target.requester.requestFocus() }
+            is NovaFocusReturn.View -> target.view?.requestFocus()
+            NovaFocusReturn.None -> Unit
+        }
+    }
     if (!present && !open) return
     NovaPanelFrame(
         edge = NovaEdge.End,
         width = NovaPanelWidth.Wide,
         open = open,
         onDismissRequest = onClose,
-        onClosed = { present = false },
+        onClosed = {
+            present = false
+            // The window's panels do this in NovaSurfaces; an in-tree panel does it here.
+            giveBack = panel.takeReturnFocus()
+        },
         scrim = NovaScrim.Stream,
     ) {
         NovaPageStackHost(state = panel, onCloseRequest = onClose, hints = hints, content = content)

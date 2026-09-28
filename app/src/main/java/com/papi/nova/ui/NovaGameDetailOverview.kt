@@ -149,6 +149,8 @@ internal fun NovaGameDetailOverview(
     logoLoader: (ImageView) -> Unit,
     logoContentDescription: String,
     playFocusRequester: FocusRequester,
+    /** Play Setup's button, where focus goes back when the panel it opened closes (R7). */
+    playSetupFocusRequester: FocusRequester? = null,
     onPrimaryLaunch: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
@@ -295,6 +297,7 @@ internal fun NovaGameDetailOverview(
                 reviewExpanded = reviewExpanded,
                 showLaunchModeAction = showLaunchModeAction,
                 playFocusRequester = playFocusRequester,
+                playSetupFocusRequester = playSetupFocusRequester,
                 onPrimaryFocus = { primaryFocused = it },
                 onPrimaryLaunch = onPrimaryLaunch,
                 onRetryHighFps = onRetryHighFps,
@@ -496,6 +499,7 @@ private fun NovaGameDetailActions(
     reviewExpanded: Boolean,
     showLaunchModeAction: Boolean,
     playFocusRequester: FocusRequester,
+    playSetupFocusRequester: FocusRequester?,
     onPrimaryFocus: (Boolean) -> Unit,
     onPrimaryLaunch: () -> Unit,
     onRetryHighFps: () -> Unit,
@@ -563,7 +567,9 @@ private fun NovaGameDetailActions(
             text = stringResource(R.string.nova_play_setup_title),
             onClick = { onDestination(NovaGameDetailDestination.PLAY_SETUP) },
             iconRes = R.drawable.ic_settings,
-            modifier = actionModifier.testTag("nova-game-detail-play-setup"),
+            modifier = actionModifier
+                .then(playSetupFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                .testTag("nova-game-detail-play-setup"),
         )
     }
 

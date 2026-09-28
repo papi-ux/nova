@@ -104,6 +104,7 @@ import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaFocusReturn
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.utils.DeviceUtils
@@ -243,6 +244,13 @@ class NovaGameDetailActivity : NovaActivity() {
      * desktop Steam decision on top of it. Open exactly while [destination] is Play Setup.
      */
     private val playSetupPanel = NovaPanelState()
+
+    /**
+     * Where focus goes back when Play Setup closes (R7): its own button when that opened it, and
+     * Launch when the launch path opened it for the desktop Steam decision or a Space's settings.
+     */
+    private val playSetupButtonFocus = FocusRequester()
+    private val playButtonFocus = FocusRequester()
 
     /** The strip explains this row; rows point it at themselves as focus moves. */
     private var explainedRow by mutableStateOf(NovaPlaySetupRow.WHERE_IT_RUNS)
@@ -411,7 +419,7 @@ class NovaGameDetailActivity : NovaActivity() {
      * Opens Play Setup's panel, on the desktop Steam decision when one is waiting and on Root
      * otherwise, unless it already shows that page at its root.
      */
-    private fun openPlaySetup() {
+    private fun openPlaySetup(returnTo: FocusRequester = playSetupButtonFocus) {
         destination = NovaGameDetailDestination.PLAY_SETUP
         val root: NovaPage = if (steamDecision != null) {
             // The decision's own card names what the host reported, so the panel keeps its name.
@@ -420,7 +428,7 @@ class NovaGameDetailActivity : NovaActivity() {
             PlaySetupPage.Root(getString(R.string.nova_play_setup_title))
         }
         if (playSetupPanel.depth != 1 || playSetupPanel.top?.key != root.key) {
-            playSetupPanel.open(root, NovaEdge.End)
+            playSetupPanel.open(root, NovaEdge.End, NovaFocusReturn.Compose(returnTo))
         }
     }
 
@@ -841,7 +849,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 }
             }
             if (spaceConstraint() != null) {
-                pendingLaunch = false; openPlaySetup(); return
+                pendingLaunch = false; openPlaySetup(returnTo = playButtonFocus); return
             }
             if (!uiState.playEnabled) { pendingLaunch = false; return }
             val optimization = launchOptimization()
@@ -866,7 +874,7 @@ class NovaGameDetailActivity : NovaActivity() {
             }
             pendingLaunch = false
             if (spaceConstraint() != null) {
-                openPlaySetup()
+                openPlaySetup(returnTo = playButtonFocus)
                 return
             }
             val decision = NovaDesktopSteamLaunchDecision.from(uiState, optimization)
@@ -875,7 +883,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 // owns where it runs, not in a sheet raised over the artwork.
                 decision.required -> {
                     steamDecision = decision
-                    openPlaySetup()
+                    openPlaySetup(returnTo = playButtonFocus)
                 }
                 // The review is a statement about the profile, and the status
                 // line is where the profile lives, so it expands in place.
@@ -1990,6 +1998,8 @@ class NovaGameDetailActivity : NovaActivity() {
                         if (next == NovaGameDetailDestination.PLAY_SETUP) openPlaySetup() else destination = next
                     },
                     onDismissDestination = { dismissActiveDetailDestination() },
+                    playFocusRequester = playButtonFocus,
+                    playSetupFocusRequester = playSetupButtonFocus,
                     activeSession = activeSession,
                     onResumeSession = { finishWithSessionRequest(RESULT_SESSION_RESUME) },
                     onEndSession = { finishWithSessionRequest(RESULT_SESSION_END) },

@@ -245,9 +245,12 @@ internal fun NovaGameDetailContent(
     onResumeSession: () -> Unit,
     onEndSession: () -> Unit,
     onDismissDestination: () -> Unit,
+    /** Launch, where focus goes back when Play Setup opened on the launch path closes. */
+    playFocusRequester: FocusRequester = remember { FocusRequester() },
+    /** Play Setup's own button, where focus goes back when the panel it opened closes. */
+    playSetupFocusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     val verticalScroll = rememberScrollState()
-    val playFocusRequester = remember { FocusRequester() }
     val detailsFocusRequester = remember { FocusRequester() }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -265,6 +268,7 @@ internal fun NovaGameDetailContent(
             logoLoader = logoLoader,
             logoContentDescription = logoContentDescription,
             playFocusRequester = playFocusRequester,
+            playSetupFocusRequester = playSetupFocusRequester,
             onPrimaryLaunch = onPrimaryLaunch,
             onRetryHighFps = onRetryHighFps,
             onResetProfile = onResetProfile,

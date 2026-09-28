@@ -1,7 +1,14 @@
 package com.papi.nova.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -10,8 +17,10 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
 import com.papi.nova.ui.panel.NovaCurrentMarkTag
 import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaFocusReturn
 import com.papi.nova.ui.panel.NovaPageStackHost
 import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.panel.NovaRow
@@ -27,7 +36,8 @@ import org.robolectric.annotation.Config
 
 /**
  * Where It Runs as a Play Setup page: it opens on the current mode, focus and current are two
- * different marks, one A picks and pops, and a mode the host will not take only says why.
+ * different marks, one A picks and pops, and a mode the host will not take only says why. And
+ * Play Setup's panel itself: closing it gives focus back to the button that opened it.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -162,5 +172,46 @@ class NovaPlaySetupPagesComposeTest {
 
         assertEquals(1, hostDefaultPicks)
         assertEquals(1, state.depth)
+    }
+
+    @Test
+    fun closingThePanelGivesFocusBackToTheButtonThatOpenedIt() {
+        // As game detail draws it: the Overview is out of reach while the panel covers it, so the
+        // element that held focus goes with the panel, and focus would otherwise fall to nothing.
+        val button = FocusRequester()
+        val keys = rule.setPanelContent {
+            Box(Modifier.fillMaxSize()) {
+                // Launch comes first, as it does on the Overview, so a focus that fell to whatever
+                // is first could not pass for one that was given back.
+                Column {
+                    NovaRow(
+                        title = "Launch",
+                        onClick = {},
+                        modifier = Modifier.testTag("launch").focusProperties { canFocus = !state.isOpen },
+                    )
+                    NovaRow(
+                        title = "Open Play Setup",
+                        onClick = { state.open(PlaySetupPage.Root("Play Setup"), NovaEdge.End, NovaFocusReturn.Compose(button)) },
+                        modifier = Modifier
+                            .testTag("play-setup-button")
+                            .focusRequester(button)
+                            .focusProperties { canFocus = !state.isOpen },
+                    )
+                }
+                NovaPlaySetupPanel(panel = state, onClose = { state.close() }) {
+                    NovaRow(title = "Setup rows", onClick = {}, modifier = Modifier.novaInitialFocus())
+                }
+            }
+        }
+        rule.runOnIdle { button.requestFocus() }
+        rule.onNodeWithTag("play-setup-button").assertIsFocused()
+
+        keys.press(NovaTestKeys.CENTER)
+        rule.onNode(hasText("Setup rows")).assertIsFocused()
+
+        keys.back()
+        rule.waitForIdle()
+        assertTrue("B at the root closes Play Setup", !state.isOpen)
+        rule.onNodeWithTag("play-setup-button").assertIsFocused()
     }
 }
