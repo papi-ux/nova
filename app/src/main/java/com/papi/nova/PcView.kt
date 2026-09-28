@@ -214,6 +214,19 @@ internal fun novaPairingCodePage(context: Context, key: String, pin: String, onC
         close = NovaAction(context.getString(R.string.nova_panel_close), run = onClose),
     )
 
+/**
+ * OTP pairing has nothing to type on the host, so it waits instead of showing a code: a full
+ * screen Busy page whose Close hides the wait while pairing goes on, as the code page's Close
+ * does. The page also goes when pairing ends, however it ends.
+ */
+internal fun novaOtpPairingWaitPage(context: Context, key: String, onClose: () -> Unit): NovaStatePage.Busy =
+    NovaStatePage.Busy(
+        key = key,
+        title = context.getString(R.string.pair_pairing_title),
+        message = MutableStateFlow(context.getString(R.string.pair_otp_pairing_help)),
+        cancel = NovaAction(context.getString(R.string.nova_panel_close), run = onClose),
+    )
+
 internal fun dashboardSetupActionHeight(collapsed: Boolean, compactHeight: Int): Int =
     if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT
 
@@ -2147,14 +2160,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
      */
     private fun showOtpPairingWait() {
         val surfaces = novaSurfaces
-        surfaces.show(
-            NovaStatePage.Busy(
-                key = PAIRING_PAGE_KEY,
-                title = getString(R.string.pair_pairing_title),
-                message = MutableStateFlow(getString(R.string.pair_otp_pairing_help)),
-                cancel = NovaAction(getString(R.string.nova_panel_close)) { surfaces.dismiss(PAIRING_PAGE_KEY) },
-            ),
-        )
+        surfaces.show(novaOtpPairingWaitPage(this, PAIRING_PAGE_KEY) { surfaces.dismiss(PAIRING_PAGE_KEY) })
     }
 
     /** Takes the pairing page down, where pairing used to close its dialogs. Any thread. */

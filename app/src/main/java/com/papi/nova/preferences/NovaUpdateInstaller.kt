@@ -2,6 +2,7 @@ package com.papi.nova.preferences
 
 import android.app.Activity
 import android.widget.Toast
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -290,19 +291,23 @@ internal object NovaUpdateInstaller {
 
     private fun showUnknownSourcesPermissionDialog(activity: Activity) {
         if (activity.isFinishing) return
-        // Nova's own word before Android's trust screen, which stays Android's (spec section 8).
-        NovaSurfaces.of(activity).present(
-            NovaCommonPage.Notice(
-                key = "nova-update-permission",
-                title = activity.getString(R.string.nova_update_permission_title),
-                message = activity.getString(R.string.nova_update_permission_message),
-                primary = NovaAction(activity.getString(R.string.nova_update_open_android_settings)) {
-                    openUnknownSourcesSettings(activity)
-                },
-                closeLabel = activity.getString(R.string.nova_panel_cancel),
-            ),
-        )
+        NovaSurfaces.of(activity).present(unknownSourcesNotice(activity) { openUnknownSourcesSettings(activity) })
     }
+
+    /**
+     * Nova's own word before Android's trust screen, which stays Android's (spec section 8): why
+     * Nova asks, with the way to Android's setting as the primary and Cancel to leave it.
+     */
+    internal fun unknownSourcesNotice(context: Context, onOpenSettings: () -> Unit): NovaCommonPage.Notice =
+        NovaCommonPage.Notice(
+            key = UNKNOWN_SOURCES_NOTICE_KEY,
+            title = context.getString(R.string.nova_update_permission_title),
+            message = context.getString(R.string.nova_update_permission_message),
+            primary = NovaAction(context.getString(R.string.nova_update_open_android_settings), run = onOpenSettings),
+            closeLabel = context.getString(R.string.nova_panel_cancel),
+        )
+
+    internal const val UNKNOWN_SOURCES_NOTICE_KEY = "nova-update-permission"
 
     private fun openUnknownSourcesSettings(activity: Activity) {
         val packageUri = Uri.parse("package:${BuildConfig.APPLICATION_ID}")

@@ -101,11 +101,13 @@ class Issue157ThorRegressionSourceTest {
         assertTrue(source.contains("serviceBound = bindService("))
         assertTrue(source.contains("thread.join(500L)"))
         assertTrue(source.contains("if (serviceBound)"))
-        // The deep link's pairing confirm is a Confirm page now; its action queues the host and
-        // leaves the screen to the add worker, as the dialog's Proceed did.
-        val deepLinkConfirm = source.substringAfter("onConfirm = {").substringBefore("}")
+        // The deep link's pairing confirm is a Confirm page now, built by novaPairLinkConfirmPage;
+        // its Pair queues the host and leaves the screen to the add worker, as the dialog's
+        // Proceed did.
+        val deepLinkConfirm = source.substringAfter("novaPairLinkConfirmPage(this, hostName) {").substringBefore("}")
         assertTrue(deepLinkConfirm.contains("computersToAdd.add("))
         assertFalse(deepLinkConfirm.contains("finish()"))
+        assertTrue(source.contains("onConfirm = onPair,"))
         assertFalse(source.contains("managerBinder!!.addComputerBlocking"))
         assertFalse(source.contains("thread.join()"))
     }

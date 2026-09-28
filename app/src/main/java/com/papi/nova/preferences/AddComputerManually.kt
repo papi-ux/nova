@@ -40,6 +40,22 @@ import java.net.NetworkInterface
 import java.util.Collections
 import java.util.concurrent.LinkedBlockingQueue
 
+/**
+ * A pairing link asks before it pairs. It has no button to split, so it asks on a Confirm page at
+ * the right edge with Cancel focused; pairing is not destructive, so Pair is the primary rather
+ * than a red half. [onPair] runs only from Pair.
+ */
+internal fun novaPairLinkConfirmPage(context: Context, hostName: String, onPair: () -> Unit): NovaCommonPage.Confirm =
+    NovaCommonPage.Confirm(
+        key = "pair_link",
+        title = context.getString(R.string.pair_pc_confirm_title),
+        message = AnnotatedString(context.getString(R.string.pair_pc_confirm_message, hostName)),
+        stayLabel = context.getString(R.string.nova_panel_cancel),
+        actionLabel = context.getString(R.string.hosts_pair),
+        destructive = false,
+        onConfirm = onPair,
+    )
+
 class AddComputerManually : NovaActivity() {
     private lateinit var hostText: TextView
     private var managerBinder: ComputerManagerService.ComputerManagerBinder? = null
@@ -383,17 +399,7 @@ class AddComputerManually : NovaActivity() {
 
             // A link has no button to split, so it asks on a Confirm page at the right edge, with
             // Cancel focused. Pairing is not destructive.
-            novaSurfaces.present(
-                NovaCommonPage.Confirm(
-                    key = "pair_link",
-                    title = getString(R.string.pair_pc_confirm_title),
-                    message = AnnotatedString(getString(R.string.pair_pc_confirm_message, hostName)),
-                    stayLabel = getString(R.string.nova_panel_cancel),
-                    actionLabel = getString(R.string.hosts_pair),
-                    destructive = false,
-                    onConfirm = { computersToAdd.add("$server?$query") },
-                ),
-            )
+            novaSurfaces.present(novaPairLinkConfirmPage(this, hostName) { computersToAdd.add("$server?$query") })
         }
     }
 
