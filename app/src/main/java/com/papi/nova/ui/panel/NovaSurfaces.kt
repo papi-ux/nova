@@ -199,7 +199,16 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
     private fun ensureWindow() {
         if (disposed || window != null || !placement.canShow) return
         window = NovaPanelWindow(placement, this).also { created ->
-            created.setOnDismissListener { if (window === created) window = null }
+            created.setOnDismissListener {
+                // A dismissal closeWindow did not start (the system took the window away): the
+                // panel goes with it, and input and focus still go back where they belong.
+                if (window === created) {
+                    window = null
+                    panel.close()
+                    created.restorePlacement()
+                    returnFocus()
+                }
+            }
             created.showNow()
         }
     }
@@ -207,8 +216,13 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
     private fun closeWindow() {
         val closing = window ?: return
         window = null
-        val target = panel.returnFocus
         closing.closeNow()
+        returnFocus()
+    }
+
+    /** Sends focus back to what opened the panel that closed last, once. */
+    private fun returnFocus() {
+        val target = panel.takeReturnFocus()
         if (placement is NovaWindowPlacement.Screen) {
             placement.hostView.post { returnFocusTo(target) }
         }

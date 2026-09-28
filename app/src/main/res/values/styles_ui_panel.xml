@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        NovaPanelWindow's theme, applied over the screen's own. The dialog themes a screen brings
+        (platform, AppCompat and Material) are floating, and a floating window is fitted inside any
+        visible bar and skipped by edge to edge. This one is a full-screen window that draws behind
+        the bars, so a panel meets the screen edge and the scrim covers the whole display. The
+        cutout mode is set in NovaPanelWindow.onCreate, which also runs on API 27 and older.
+    -->
+    <style name="NovaPanelWindowTheme">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

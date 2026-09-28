@@ -165,4 +165,23 @@ class NovaSplitConfirmComposeTest {
         assertFalse(state.armed)
         outside.recycle()
     }
+
+    @Test
+    fun aWindowWithTheInstalledFeedDisarmsOnATouchOutside() {
+        val keys = setUp()
+        rule.runOnUiThread {
+            // A plain Activity window, such as the companion deck's, feeds the registry this way.
+            NovaSplitConfirmRegistry.install(rule.activity.window)
+            NovaSplitConfirmRegistry.install(rule.activity.window)
+        }
+        keys.press(NovaTestKeys.CENTER)
+        frames()
+        assertTrue(state.armed)
+        val now = SystemClock.uptimeMillis()
+        val outside = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 1f, 1f, 0)
+        rule.runOnUiThread { rule.activity.window.callback.dispatchTouchEvent(outside) }
+        frames()
+        assertFalse(state.armed)
+        outside.recycle()
+    }
 }

@@ -2,6 +2,7 @@ package com.papi.nova.ui.panel
 
 import android.view.MotionEvent
 import android.view.View
+import android.view.Window
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -300,7 +301,8 @@ private class BoundsHolder {
 
 /**
  * Armed split confirms, so a touch anywhere outside an armed pair cancels it. NovaActivity and
- * NovaPanelWindow feed it every touch of their windows before dispatching it.
+ * NovaPanelWindow feed it every touch of their windows before dispatching it; any other window
+ * that hosts a split, such as the companion deck's, calls [install].
  */
 object NovaSplitConfirmRegistry {
     private class Armed(root: View, val bounds: () -> Rect?, val cancel: () -> Unit) {
@@ -327,6 +329,26 @@ object NovaSplitConfirmRegistry {
         armed.filter { entry ->
             entry.root.get() === root && entry.bounds()?.contains(Offset(event.x, event.y)) != true
         }.forEach { it.cancel() }
+    }
+
+    /**
+     * Feeds every touch of [window] to [onTouch] before the window dispatches it, for a window
+     * whose owner does not, such as a plain Activity. Installing it twice in a row does nothing.
+     */
+    fun install(window: Window) {
+        val callback = window.callback ?: return
+        if (callback is TouchFeed) return
+        window.callback = TouchFeed(callback, window)
+    }
+
+    private class TouchFeed(
+        private val base: Window.Callback,
+        private val window: Window,
+    ) : Window.Callback by base {
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            onTouch(window.decorView, event)
+            return base.dispatchTouchEvent(event)
+        }
     }
 }
 

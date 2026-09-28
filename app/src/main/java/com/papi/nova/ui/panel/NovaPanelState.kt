@@ -62,9 +62,12 @@ class NovaPanelState {
     var edge: NovaEdge by mutableStateOf(NovaEdge.End)
         private set
 
-    /** Where focus returns when the panel closes. */
+    /** Where focus returns when the open panel closes. */
     var returnFocus: NovaFocusReturn = NovaFocusReturn.None
         private set
+
+    // The closed panel's return target, held until the window that showed it closes and takes it.
+    private var closedReturnFocus: NovaFocusReturn = NovaFocusReturn.None
 
     val isOpen: Boolean get() = entries.isNotEmpty()
     val top: NovaPage? get() = entries.lastOrNull()?.page
@@ -115,9 +118,19 @@ class NovaPanelState {
         }
     }
 
+    /** Closes the panel. Where focus returns is kept for [takeReturnFocus], and forgotten here. */
     fun close() {
+        if (isOpen) closedReturnFocus = returnFocus
+        returnFocus = NovaFocusReturn.None
         entries.clear()
     }
+
+    /**
+     * Where focus goes now that the panel has closed, handed out once, so a later window that
+     * only held state pages never sends focus back to this panel's opener.
+     */
+    internal fun takeReturnFocus(): NovaFocusReturn =
+        closedReturnFocus.also { closedReturnFocus = NovaFocusReturn.None }
 
     /** Removes every page [predicate] matches, wherever it is in the stack. */
     internal fun removeWhere(predicate: (NovaPage) -> Boolean) {

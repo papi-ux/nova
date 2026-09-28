@@ -89,6 +89,26 @@ class NovaPanelStateTest {
     }
 
     @Test
+    fun closingHandsOutWhereFocusReturnsOnlyOnce() {
+        val state = NovaPanelState()
+        val card = NovaFocusReturn.Compose(FocusRequester())
+        state.open(root, returnFocus = card)
+        assertSame("nothing to hand out while the panel is open", NovaFocusReturn.None, state.takeReturnFocus())
+
+        state.close()
+
+        assertSame(NovaFocusReturn.None, state.returnFocus)
+        assertSame(card, state.takeReturnFocus())
+        assertSame(
+            "a later window that only held state pages sends focus nowhere",
+            NovaFocusReturn.None,
+            state.takeReturnFocus(),
+        )
+        state.close()
+        assertSame("closing a closed panel keeps nothing to return to", NovaFocusReturn.None, state.takeReturnFocus())
+    }
+
+    @Test
     fun pushOnAClosedPanelOpensItAtTheEnd() {
         val state = NovaPanelState()
         state.push(second)

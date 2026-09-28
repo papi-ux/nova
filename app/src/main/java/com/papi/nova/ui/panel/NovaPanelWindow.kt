@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowCompat
 import com.papi.nova.Game
+import com.papi.nova.R
 import com.papi.nova.ui.NovaDialogWindows
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.ExternalDisplayControlHost
@@ -64,16 +65,25 @@ internal val NovaWindowPlacement.canShow: Boolean
  * The one window Nova opens for its own UI: panel plus state pages, over a screen, the stream or
  * a companion display.
  *
- * The window is transparent, undimmed and full size, drawn behind the bars and into a short-edge
- * cutout, resized by the keyboard. Its keys go through [NovaKeyGate], and its touches feed
- * [NovaSplitConfirmRegistry] first. [ComponentDialog] supplies the lifecycle, saved-state and back
- * dispatcher owners for any context, including the stream and a companion display.
+ * The window is transparent, undimmed and full size ([R.style.NovaPanelWindowTheme] keeps it from
+ * floating), drawn behind the bars and into a short-edge cutout, resized by the keyboard. Its keys
+ * go through [NovaKeyGate], and its touches feed [NovaSplitConfirmRegistry] first. [ComponentDialog]
+ * supplies the lifecycle, saved-state and back dispatcher owners for any context, including the
+ * stream and a companion display.
+ *
+ * It is not cancelable: only [NovaSurfaces] closes it, through [closeNow]. A cancelable dialog
+ * dismisses itself on a Back that no handler takes, which happens during a panel's exit motion and
+ * before a Busy page shows, and that would skip handing input back to the stream or the deck.
  */
 internal class NovaPanelWindow(
     private val placement: NovaWindowPlacement,
     private val surfaces: NovaSurfaces,
-) : ComponentDialog(placement.context) {
+) : ComponentDialog(placement.context, R.style.NovaPanelWindowTheme) {
     private val keyGate = NovaKeyGate()
+
+    init {
+        setCancelable(false)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -151,6 +161,11 @@ internal class NovaPanelWindow(
     fun closeNow() {
         window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         if (isShowing) dismiss()
+        restorePlacement()
+    }
+
+    /** Hands back what the window took: stream input over the stream, deck focus on a companion display. */
+    fun restorePlacement() {
         when (placement) {
             is NovaWindowPlacement.Stream -> placement.game.restoreStreamInputAfterModalDismissal()
             is NovaWindowPlacement.Companion -> placement.onClosed()
