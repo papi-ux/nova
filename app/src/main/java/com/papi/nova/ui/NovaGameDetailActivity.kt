@@ -1403,15 +1403,21 @@ class NovaGameDetailActivity : NovaActivity() {
                     )
                 }
             }
+            val modePicker = gameModePickerEligible()
             rows += NovaPlaySetupRowState(
                 row = NovaPlaySetupRow.WHERE_IT_RUNS,
                 label = getString(R.string.nova_game_detail_where_it_runs),
-                caption = getString(R.string.nova_play_setup_where_caption),
+                caption = novaPlaySetupSetHereCaption(
+                    getString(R.string.nova_play_setup_where_caption),
+                    setHere = uiState.overridesHostMode,
+                    note = getString(R.string.nova_play_setup_set_for_game),
+                ),
                 value = modeBadgeLabel(uiState.playMode),
                 stripTitle = getString(R.string.nova_play_setup_strip_where),
                 options = modeOptions,
-                enabled = modeOptions.count { it.enabled } > 1 || gameModePickerEligible(),
+                enabled = modeOptions.count { it.enabled } > 1 || modePicker,
                 overridden = uiState.overridesHostMode,
+                opensPage = modePicker,
             )
 
             val planner = resolutionPlanner(currentGame)
@@ -1487,6 +1493,8 @@ class NovaGameDetailActivity : NovaActivity() {
                         }
                     },
                     overridden = chosenFps != null,
+                    // Auto, then the rates in order: a scale, so Left and Right stop at its ends.
+                    ordered = true,
                 )
             } else if (chosenFps != null) {
                 // The Frame Rate row only exists alongside the display planner above. A
@@ -1572,15 +1580,19 @@ class NovaGameDetailActivity : NovaActivity() {
                 rows += NovaPlaySetupRowState(
                     row = NovaPlaySetupRow.FACE_BUTTONS,
                     label = getString(R.string.nova_play_setup_face_buttons),
-                    caption = when (selectedLayout) {
-                        NovaFaceButtonLayoutOverrides.POSITIONS -> getString(R.string.nova_play_setup_face_buttons_positions_caption)
-                        NovaFaceButtonLayoutOverrides.LABELS -> getString(R.string.nova_play_setup_face_buttons_labels_caption)
-                        else -> if (switchGame) {
-                            getString(R.string.nova_play_setup_face_buttons_switch_hint)
-                        } else {
-                            getString(R.string.nova_play_setup_face_buttons_app_setting_caption)
-                        }
-                    },
+                    caption = novaPlaySetupSetHereCaption(
+                        when (selectedLayout) {
+                            NovaFaceButtonLayoutOverrides.POSITIONS -> getString(R.string.nova_play_setup_face_buttons_positions_caption)
+                            NovaFaceButtonLayoutOverrides.LABELS -> getString(R.string.nova_play_setup_face_buttons_labels_caption)
+                            else -> if (switchGame) {
+                                getString(R.string.nova_play_setup_face_buttons_switch_hint)
+                            } else {
+                                getString(R.string.nova_play_setup_face_buttons_app_setting_caption)
+                            }
+                        },
+                        setHere = selectedLayout != null,
+                        note = getString(R.string.nova_play_setup_set_for_game),
+                    ),
                     value = when (selectedLayout) {
                         NovaFaceButtonLayoutOverrides.POSITIONS -> getString(R.string.nova_play_setup_face_buttons_positions)
                         NovaFaceButtonLayoutOverrides.LABELS -> getString(R.string.nova_play_setup_face_buttons_labels)

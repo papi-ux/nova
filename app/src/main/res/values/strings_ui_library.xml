@@ -34,4 +34,6 @@
     <string name="nova_play_setup_panel_scope">Applies To</string>
     <!-- The hint bar's label for Y, which flips Play Setup between this game and every game. -->
     <string name="nova_play_setup_panel_scope_hint">This or Every Game</string>
+    <!-- Leads a Play Setup row's caption while its value was chosen for this game, not by the host. -->
+    <string name="nova_play_setup_set_for_game">Set for this game</string>
 </resources>

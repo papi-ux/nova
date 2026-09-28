@@ -181,6 +181,8 @@ internal fun buildNovaPlaySetupHostRows(
         },
         enabled = ready,
         overridden = sync.relaunchRequired,
+        // More modes than the classic pair do not fit a row: A opens their page.
+        opensPage = novaModePickerEligible(sync.modes.size),
     )
     rows += NovaPlaySetupRowState(
         row = NovaPlaySetupRow.HOST_PROFILE,

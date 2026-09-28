@@ -339,8 +339,6 @@
     <string name="nova_play_setup_steam_big_picture">Opens Big Picture first, which takes the controller until the game starts.</string>
     <string name="nova_play_setup_every_game_caption">Host defaults and paired-device profile for every game</string>
     <string name="nova_play_setup_scope_this_game">This Game</string>
-    <string name="nova_play_setup_press_show">show its choices</string>
-    <string name="nova_play_setup_press_change">change it</string>
     <string name="nova_play_setup_host_read_title">What the host defaults to</string>
     <string name="nova_play_setup_host_intro">Every game that doesn\'t choose for itself gets this.</string>
     <string name="nova_play_setup_fact_desired">Desired</string>

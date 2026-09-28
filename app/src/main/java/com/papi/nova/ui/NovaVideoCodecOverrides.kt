@@ -96,9 +96,13 @@ internal fun novaPlaySetupCodecRow(
         label = context.getString(R.string.nova_play_setup_video_codec),
         value = if (selected == null) context.getString(R.string.nova_play_setup_codec_inherited,
             NovaVideoCodecOverrides.label(appSetting)) else options.firstOrNull { it.first == selected }?.second.orEmpty(),
-        caption = if (effective == FormatOption.FORCE_PYROWAVE && unavailableReason.isNotEmpty())
-            unavailableReason else context.getString(if (effective == FormatOption.FORCE_PYROWAVE)
-                R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_caption),
+        caption = novaPlaySetupSetHereCaption(
+            if (effective == FormatOption.FORCE_PYROWAVE && unavailableReason.isNotEmpty())
+                unavailableReason else context.getString(if (effective == FormatOption.FORCE_PYROWAVE)
+                    R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_caption),
+            setHere = selected != null,
+            note = context.getString(R.string.nova_play_setup_set_for_game),
+        ),
         stripTitle = context.getString(R.string.nova_play_setup_video_codec),
         options = listOf(NovaPlaySetupOption(
             label = context.getString(R.string.nova_play_setup_codec_app_setting),

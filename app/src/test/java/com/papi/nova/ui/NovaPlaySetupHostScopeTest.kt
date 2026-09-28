@@ -287,6 +287,29 @@ class NovaPlaySetupHostScopeTest {
     }
 
     @Test
+    fun defaultDisplayOpensItsPageOnlyWhenTheHostOffersMoreThanThePair() {
+        val recorded = RecordedActions()
+        fun defaultDisplay(sync: NovaPolarisSyncUiState) =
+            rows(sync, recorded).single { it.row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY }
+        assertFalse(
+            "the classic pair changes in its own row (R1)",
+            defaultDisplay(sync()).opensPage,
+        )
+        assertTrue(
+            "a catalog past the pair does not fit a row, so A opens its page (R2)",
+            defaultDisplay(
+                sync(
+                    modes = listOf(
+                        mode("headless_stream", desired = true, effective = true),
+                        mode("desktop_display"),
+                        mode("host_virtual_display"),
+                    ),
+                ),
+            ).opensPage,
+        )
+    }
+
+    @Test
     fun onlyKeepInStepRemainsAsAHostToggle() {
         val recorded = RecordedActions()
         val sync = sync(aiChecked = true, autoSyncChecked = false)

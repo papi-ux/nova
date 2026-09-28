@@ -26,9 +26,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Alignment
@@ -41,10 +43,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.unit.Constraints
 import kotlin.math.roundToInt
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,6 +60,14 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRevealingText
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.panel.NovaCurrentMark
+import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.NovaRow
+import com.papi.nova.ui.panel.NovaRowTrailing
+import com.papi.nova.ui.panel.NovaValueRow
+import com.papi.nova.ui.panel.NovaValueStyle
+import com.papi.nova.ui.panel.novaPanelType
 
 /**
  * Play Setup: one destination for the whole question of how this game should run.
@@ -187,15 +195,9 @@ private fun NovaPlaySetupReadColumn(
         }
         Column(modifier = Modifier.fillMaxWidth()) {
             NovaPlaySetupColumnHead(readTitle ?: stringResource(R.string.nova_play_setup_what_will_happen))
-            Text(
-                text = plan.mode,
-                color = colors.textPrimary,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.02).em,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // In the page title style, and wrapping: a mode name longer than the column is read
+            // whole on a second line rather than cut (R13). The fit below measures it as drawn.
+            Text(text = plan.mode, style = novaPanelType.pageTitle, color = colors.textPrimary)
             plan.lines.forEachIndexed { index, line ->
                 NovaRevealingText(
                     text = line,
@@ -240,7 +242,8 @@ private fun rememberNovaPlaySetupReadFit(
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val base = LocalTextStyle.current
-    return remember(plan, introMaxLines, width, fitHeight, density, base) {
+    val modeType = novaPanelType.pageTitle
+    return remember(plan, introMaxLines, width, fitHeight, density, base, modeType) {
         val unfitted = NovaPlaySetupReadFit(
             lineMaxLines = List(plan.lines.size) { introMaxLines },
             detailMaxLines = List(plan.facts.size) { Int.MAX_VALUE },
@@ -262,11 +265,13 @@ private fun rememberNovaPlaySetupReadFit(
             val valueStyle = base.merge(TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium))
             val detailStyle = base.merge(TextStyle(fontSize = 11.sp, lineHeight = 15.sp))
             val valueWidth = width - NOVA_PLAY_SETUP_FACT_KEY
-            val fixed = NOVA_PLAY_SETUP_COLUMN_HEAD + NOVA_PLAY_SETUP_MODE_LINE +
-                (if (plan.facts.isNotEmpty()) NOVA_PLAY_SETUP_RULE_BLOCK else 0.dp)
+            // The mode wraps rather than being cut, so it is measured at its width, not assumed one line.
+            val modeHeight = measure(plan.mode, base.merge(modeType), width).height(Int.MAX_VALUE)
+            val fixed = NOVA_PLAY_SETUP_COLUMN_HEAD.roundToPx() + modeHeight +
+                (if (plan.facts.isNotEmpty()) NOVA_PLAY_SETUP_RULE_BLOCK else 0.dp).roundToPx()
             novaPlaySetupFitReadColumn(
                 available = (fitHeight - NOVA_PLAY_SETUP_SLACK).roundToPx(),
-                fixed = fixed.roundToPx(),
+                fixed = fixed,
                 lineGap = 6.dp.roundToPx(),
                 lines = plan.lines.map { measure(it, lineStyle, width) },
                 lineCap = introMaxLines,
@@ -521,8 +526,10 @@ private fun NovaPlaySetupComparisonCard(
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
+    val type = novaPanelType
     val shape = RoundedCornerShape(NovaRadius.row)
     val actionable = option.onSelect != null && option.enabled
+    val currentLabel = stringResource(R.string.nova_panel_current)
     Column(
         modifier = modifier
             .then(
@@ -538,38 +545,34 @@ private fun NovaPlaySetupComparisonCard(
             )
             .heightIn(min = NovaGameDetailActionHeight)
             .clip(shape)
-            .background(if (option.current) colors.accentSurface else surfaces.tile)
-            .border(
-                1.dp,
-                when {
-                    option.current -> colors.accent.copy(alpha = 0.58f)
-                    // What the host is actually doing right now, as against what it is
-                    // set to do — the same two-state drawing the sync sheet's mode grid
-                    // uses, so a fallback reads the same on both surfaces.
-                    option.active -> colors.accent.copy(alpha = 0.34f)
-                    else -> surfaces.tileBorder
-                },
-                shape,
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            // The tile and its hairline whatever the card holds: a fill or a border means focus
+            // (R9), and the current choice is the check beside its name. What the host is doing
+            // right now, as against what it is set to do, is its sentence in the accent colour.
+            .background(surfaces.tile)
+            .border(NovaPanelMetrics.Hairline, surfaces.tileBorder, shape)
+            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm)
             .semantics {
                 // This was an escaped template, so a screen reader was read the source text,
                 // "dollar brace option dot label", for every card.
                 contentDescription = novaPlaySetupOptionDescription(option)
-                if (option.current) selected = true
+                if (option.current) {
+                    selected = true
+                    stateDescription = currentLabel
+                }
             },
     ) {
-        Text(
-            text = option.label,
-            color = if (option.enabled) colors.textPrimary else colors.textMuted,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            // Two, because four cards across a handheld leave a label about eleven characters,
-            // and a name cut short names nothing. The host's titles and a translation can both
-            // run longer than that.
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
+            // Wrapping onto as many lines as it needs: four cards across a handheld leave a
+            // label about eleven characters, and a name cut short names nothing (R13).
+            Text(
+                text = option.label,
+                style = type.caption,
+                color = if (option.enabled) colors.textPrimary else colors.textMuted,
+                fontWeight = if (option.current) FontWeight.SemiBold else FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            if (option.current) NovaCurrentMark()
+        }
         NovaRevealingText(
             text = option.consequence,
             // The cursor never stops on a legend card, so its highlight is being the current
@@ -636,17 +639,16 @@ internal fun NovaPlaySetupPlaceLegend(
                 .heightIn(min = NovaGameDetailActionHeight)
                 .clip(shape)
                 .background(surfaces.tile)
-                .border(1.dp, surfaces.tileBorder, shape)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .border(NovaPanelMetrics.Hairline, surfaces.tileBorder, shape)
+                .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm)
                 .semantics { contentDescription = novaPlaySetupOptionDescription(place) },
         ) {
+            // The whole name, on as many lines as it takes.
             Text(
                 text = place.label,
+                style = novaPanelType.caption,
                 color = if (place.enabled) colors.textPrimary else colors.textMuted,
-                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             NovaRevealingText(
                 text = place.consequence,
@@ -669,16 +671,12 @@ internal fun novaPlaySetupOptionDescription(option: NovaPlaySetupOption): String
     listOf(option.label, option.consequence).filter { it.isNotBlank() }.joinToString(". ")
 
 /**
- * Whether a press on a row acts, or only moves the legend to it.
- *
- * A row's alternatives are shown in the legend, and the legend follows focus. With a controller
- * the row under the cursor is always the one being explained, so A changes a value whose
- * alternatives are on screen. A finger has no cursor: it lands on a row the legend is not
- * showing, and the press used to change that row's value unseen. So the first press on a row
- * that does not hold focus brings the legend to it, and a press on the row that does changes it.
+ * A row's caption, led by [note] ("Set for this game") while [setHere] says its value was chosen
+ * here rather than answered by the host. The words replace the accent bar the row used to draw,
+ * which read as focus or as the current value (R9).
  */
-internal fun novaPlaySetupPressActs(firstPressFocuses: Boolean, heldFocus: Boolean): Boolean =
-    !firstPressFocuses || heldFocus
+internal fun novaPlaySetupSetHereCaption(caption: String, setHere: Boolean, note: String): String =
+    if (setHere) listOf(note, caption).filter { it.isNotBlank() }.joinToString(" \u00b7 ") else caption
 
 /** The column rests and goes round again. */
 internal const val NOVA_PLAY_SETUP_TURN_REST = -1
@@ -803,13 +801,106 @@ internal data class NovaPlaySetupRowState(
     val options: List<NovaPlaySetupOption>,
     val enabled: Boolean = true,
     /**
-     * This row holds a choice made here rather than the answer the host would have given.
-     * Drawn as the selection tint and the accent edge, because a setting that will change
-     * the next launch should not look identical to one that is simply reporting.
+     * This row holds a choice made here rather than the answer the host would have given. It is
+     * not drawn as a mark: a fill, a border or an edge bar would read as focus or as current (R9),
+     * so where the caption does not already say it, the builder's caption does ("Set for this
+     * game").
      */
     val overridden: Boolean = false,
     val optionsPerRow: Int = Int.MAX_VALUE,
+    /** The options are a scale, such as frame rates, so Left and Right stop at its ends (R1). */
+    val ordered: Boolean = false,
+    /**
+     * The choices outgrow the row, so A opens their page instead of stepping through them in
+     * place: Where It Runs, and the host's Default Display, once the host offers more modes than
+     * the classic pair.
+     */
+    val opensPage: Boolean = false,
 )
+
+/**
+ * One of Play Setup's rows, for this game or for every game.
+ *
+ * A row that holds one of a set of values changes in place (R1): Left and Right step through the
+ * options, A steps forward, and a tap on an arrow or on the row acts at once (R12). Its legend
+ * under the rows sets every option out with what it would mean, so the row draws a cycler rather
+ * than segments, which would draw the same choices a second time. A row whose choices outgrow
+ * the row opens its page ([NovaPlaySetupRowState.opensPage]); a row with no current value to step
+ * through, such as the host profile's verbs, acts once on A through [onAdvance]. Whatever changes
+ * or takes focus points the legend at this row through [onExplain].
+ *
+ * A value the row's option does not name, such as the frame rate Auto picks, is read after the
+ * caption, so nothing the old value column said is lost.
+ */
+@Composable
+internal fun NovaPlaySetupSettingRow(
+    state: NovaPlaySetupRowState,
+    onExplain: (NovaPlaySetupRow) -> Unit,
+    onAdvance: (NovaPlaySetupRow) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val explain by rememberUpdatedState(onExplain)
+    val advance by rememberUpdatedState(onAdvance)
+    val row = state.row
+    val options = state.options
+    val currentIndex = options.indexOfFirst { it.current }
+    val selectable = options.count { it.enabled && it.onSelect != null }
+    val followsFocus = Modifier.onFocusChanged { if (it.hasFocus) explain(row) }
+    when {
+        state.opensPage -> NovaRow(
+            title = state.label,
+            caption = state.caption.takeIf { it.isNotBlank() },
+            trailing = if (state.value.isBlank()) NovaRowTrailing.Opens else NovaRowTrailing.Value(state.value),
+            disabledReason = if (state.enabled) null else state.caption,
+            onClick = {
+                explain(row)
+                advance(row)
+            },
+            modifier = modifier.padding(bottom = NovaPanelMetrics.RowGap).then(followsFocus),
+        )
+        currentIndex >= 0 && options.size > 1 -> {
+            val shownValue = state.value.takeIf { it.isNotBlank() && it != options[currentIndex].label }
+            NovaValueRow(
+                title = state.label,
+                // By position, so two options that read alike are still two options. One the host
+                // will not take stays in the list for the legend, and the row steps over it.
+                options = options.mapIndexed { index, option ->
+                    NovaOption(
+                        value = index,
+                        label = option.label,
+                        disabledReason = if (option.enabled && option.onSelect != null) null else option.consequence,
+                    )
+                },
+                current = currentIndex,
+                onChange = { index ->
+                    explain(row)
+                    options.getOrNull(index)?.onSelect?.invoke()
+                },
+                caption = listOfNotNull(state.caption.takeIf { it.isNotBlank() }, shownValue)
+                    .joinToString(" \u00b7 ")
+                    .takeIf { it.isNotBlank() },
+                style = NovaValueStyle.Cycler,
+                ordered = state.ordered,
+                enabled = state.enabled && selectable > 1,
+                modifier = modifier.padding(bottom = NovaPanelMetrics.RowGap).then(followsFocus),
+            )
+        }
+        else -> NovaSteamChoiceRow(
+            label = state.label,
+            caption = state.caption,
+            enabled = state.enabled,
+            value = state.value,
+            onClick = {
+                explain(row)
+                advance(row)
+            },
+            onFocused = { explain(row) },
+            // A row that cannot act now keeps a stop, so what its caption says can be read.
+            focusableWhenDisabled = true,
+            modifier = modifier,
+        )
+    }
+}
 
 /**
  * Where this game opens, as the one control that sets it.
@@ -826,7 +917,12 @@ internal fun NovaPlaySetupDestinations(
     title: String,
     status: String,
     options: List<NovaPlaySetupOption>,
-    autoFocus: Boolean,
+    /**
+     * Focus marks for each card: whether it is the one the page opens on (the place the game
+     * opens in, or else the first it can open in), and where focus returns to it after a page
+     * above pops. The page's host settles focus from these, so no card asks for focus itself.
+     */
+    focusModifier: (option: NovaPlaySetupOption, initial: Boolean) -> Modifier = { _, _ -> Modifier },
     /** Told which card took focus, so the legend below describes that place rather than a row nobody is on. */
     onFocused: (Int) -> Unit = {},
 ) {
@@ -837,14 +933,12 @@ internal fun NovaPlaySetupDestinations(
     Column(modifier = Modifier.fillMaxWidth().testTag("nova-play-setup-destinations")) {
         NovaPlaySetupColumnHead(title)
         if (status.isNotBlank()) {
+            // A change in flight or why it failed, said whole.
             Text(
                 text = status,
+                style = novaPanelType.caption,
                 color = colors.textSecondary,
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = 6.dp),
+                modifier = Modifier.padding(bottom = NovaPanelMetrics.SpaceSm),
             )
         }
         Row(
@@ -858,12 +952,11 @@ internal fun NovaPlaySetupDestinations(
                     enabled = option.enabled,
                     onClick = option.onSelect,
                     current = option.current,
-                    autoFocus = autoFocus && index == focusIndex,
                     onFocused = { onFocused(index) },
                     describeCaption = true,
                     // A place the game cannot open in still has a reason to read.
                     focusableWhenDisabled = true,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    modifier = focusModifier(option, index == focusIndex).weight(1f).fillMaxHeight(),
                 )
             }
         }

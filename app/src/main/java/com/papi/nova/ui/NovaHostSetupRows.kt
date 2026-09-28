@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import com.papi.nova.R
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.manager.PolarisProfileSync
@@ -18,18 +19,18 @@ internal fun NovaHostSetupRowList(
     rows: List<NovaPlaySetupRowState>,
     onExplain: (NovaPlaySetupRow) -> Unit,
     onAdvance: (NovaPlaySetupRow) -> Unit,
+    /**
+     * Focus marks for each row, from the page that draws them: whether it is the row the page
+     * opens on (the first), and where focus returns after a page above it pops.
+     */
+    rowModifier: (row: NovaPlaySetupRow, first: Boolean) -> Modifier = { _, _ -> Modifier },
 ) {
     rows.forEachIndexed { index, rowState ->
-        NovaSteamChoiceRow(
-            autoFocus = index == 0,
-            label = rowState.label,
-            caption = rowState.caption,
-            enabled = rowState.enabled,
-            value = rowState.value,
-            selected = rowState.overridden,
-            onClick = { onAdvance(rowState.row) },
-            onFocused = { onExplain(rowState.row) },
-            firstPressFocuses = true,
+        NovaPlaySetupSettingRow(
+            state = rowState,
+            onExplain = onExplain,
+            onAdvance = onAdvance,
+            modifier = rowModifier(rowState.row, index == 0),
         )
     }
 }

@@ -55,14 +55,10 @@ class NovaPlaySetupCodecComposeTest {
                     NovaVideoCodecOverrides.save(context, host, game, 1, it)
                 }
                 Column(Modifier.width(440.dp).background(LocalNovaComposeColors.current.window).padding(16.dp)) {
-                    NovaSteamChoiceRow(
-                        label = row.label, caption = row.caption, value = row.value,
-                        enabled = row.enabled, selected = row.overridden,
-                        firstPressFocuses = true, modifier = Modifier.testTag("codec-row"),
-                        onClick = {
-                            val next = (row.options.indexOfFirst { it.current } + 1) % row.options.size
-                            row.options[next].onSelect?.invoke()
-                        },
+                    // The production row: A steps the codec forward in place, as Right does.
+                    NovaPlaySetupSettingRow(
+                        state = row, onExplain = {}, onAdvance = {},
+                        modifier = Modifier.testTag("codec-row"),
                     )
                     NovaPlaySetupComparison(row.stripTitle, row.options,
                         consequenceMaxLines = 1, perRow = row.optionsPerRow)

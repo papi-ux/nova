@@ -1,12 +1,10 @@
 package com.papi.nova.ui
 
 import android.content.res.Configuration
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -18,7 +16,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,7 +29,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -54,12 +49,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
@@ -72,7 +67,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import com.papi.nova.ui.compose.NovaRevealingText
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
@@ -80,12 +74,16 @@ import com.papi.nova.ui.compose.novaHoldsFirstFocus
 import kotlinx.coroutines.delay
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
+import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.panel.NovaCurrentMark
-import com.papi.nova.ui.panel.novaActivatable
 import com.papi.nova.ui.panel.novaFocusRing
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.NovaTitleAndValueMeasurePolicy
+import com.papi.nova.ui.panel.novaClickable
+import com.papi.nova.ui.panel.novaPanelType
 
 /** The three ways a launch can go when Polaris reports desktop Steam active. */
 internal enum class NovaSteamLaunchChoice {
@@ -423,24 +421,22 @@ internal fun NovaDesktopSteamLaunchDecisionRows(
 }
 
 /**
- * One selectable row. A card at the row radius, which is the shape the option cards in this
- * window already used -- drawing rows full bleed here and as cards there meant two shapes for
- * one kind of control.
+ * One selectable row: a card at the row radius, laid out as the foundation's rows are. The title
+ * and the caption wrap rather than being cut, and a [value] too wide to sit beside the title goes
+ * under it, so nothing in the row is clipped, ellipsized or scrolled at any size (R13).
  *
- * @param selected this row holds a choice made here rather than the host's answer. Drawn as
- *   the accent edge only: a fill or a border would read as focus (R9).
- * @param current this row is the one current value of a choice, such as the Space this
- *   device is on. It carries the trailing check, and Current for TalkBack.
- * @param onFocused the row has just taken focus. Play Setup uses this to point the
- *   comparison strip at whatever is under the cursor, so the explanation follows the
- *   d-pad without the strip having to be a stop on it.
+ * @param current this row is the one current value of a choice, such as the Space this device
+ *   is on. It carries the trailing check, a SemiBold title and Current for TalkBack (R9).
+ * @param onFocused the row has just taken focus. Play Setup uses this to point its legend at
+ *   whatever is under the cursor, so the explanation follows the d-pad without the legend having
+ *   to be a stop on it.
  *
- * Focus is the one focus look, the selection fill and a ring inside the card, so it never
- * reads as the current value, and a focused row the cursor may stand on but not choose
- * takes a quieter ring. A acts on release and only on the row it was pressed on.
+ * Focus is the one focus look, the selection fill and a ring inside the card, so it never reads
+ * as the current value, and a focused row the cursor may stand on but not choose takes a quieter
+ * ring. A acts on release and only on the row it was pressed on; a tap acts at once.
  *
- * The row never moves on focus. Scaling or offsetting a focused cell is what caused the
- * #183 regression.
+ * The row never moves on focus. Scaling or offsetting a focused cell is what caused the #183
+ * regression.
  */
 @Composable
 internal fun NovaSteamChoiceRow(
@@ -449,15 +445,11 @@ internal fun NovaSteamChoiceRow(
     enabled: Boolean,
     onClick: (() -> Unit)? = null,
     value: String = "",
-    selected: Boolean = false,
     onFocused: (() -> Unit)? = null,
     /**
-     * Claim focus when the panel opens.
-     *
-     * Set on the first row rather than left to traversal order. Adding one focusable below
-     * the strip was enough to make the panel open scrolled to the bottom with the cursor on
-     * a recovery button, because "whatever the group hands focus to" is not a stable answer
-     * when the group's contents change.
+     * Claim focus once the screen has settled. Only for a screen with no page stack of its own,
+     * the Space chooser: a panel page marks its first row with novaInitialFocus instead, so the
+     * host settles focus and restores it after a pop without a second request racing it.
      */
     autoFocus: Boolean = false,
     modifier: Modifier = Modifier,
@@ -469,32 +461,25 @@ internal fun NovaSteamChoiceRow(
      */
     describeCaption: Boolean = false,
     /**
-     * A press on this row while it does not hold focus only takes focus. Play Setup's rows
-     * change a value on a press and show the alternatives in a legend that follows focus, so a
-     * finger needs one press to see them and the next to choose. See [novaPlaySetupPressActs].
-     */
-    firstPressFocuses: Boolean = false,
-    /**
      * Let the cursor stop on this row while it cannot be chosen. A place a game cannot open in
-     * says why in its caption, and the caption is cut to two lines: with no way to stand on the
-     * card there was no way to read the reason. A press still does nothing.
+     * says why in its caption, and with no way to stand on the card there was no way to have it
+     * read out. A press still does nothing.
      */
     focusableWhenDisabled: Boolean = false,
     current: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
+    val type = novaPanelType
     var focused by remember { mutableStateOf(false) }
     val actionable = onClick != null && enabled
-    val accentBar = colors.accent
-    val barWidth = NOVA_DETAIL_ROW_FOCUS_BAR
     val shape = RoundedCornerShape(NovaRadius.row)
     val currentLabel = stringResource(R.string.nova_panel_current)
-    // A tap has to move the focus ring as well as act, or the row you pressed and the row
-    // the panel says you are on are two different rows.
+    val ink = if (enabled) colors.textPrimary else colors.textMuted
+    val quietInk = if (enabled) colors.textSecondary else colors.textMuted
     val focusRequester = remember { FocusRequester() }
     if (autoFocus) {
-        // After the panel's own first-focus pass, so this is the answer that sticks.
+        // After the screen's own first-focus pass, so this is the answer that sticks.
         LaunchedEffect(Unit) {
             delay(NOVA_DETAIL_FIRST_ROW_FOCUS_DELAY_MS)
             runCatching { focusRequester.requestFocus() }
@@ -502,16 +487,17 @@ internal fun NovaSteamChoiceRow(
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = NOVA_DETAIL_ROW_GAP)
-            .heightIn(min = NOVA_DETAIL_ROW_MIN_HEIGHT)
+            .padding(bottom = NovaPanelMetrics.RowGap)
+            .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .focusRequester(focusRequester)
             .onFocusChanged { state ->
-                val gained = state.isFocused || state.hasFocus
-                if (gained && !focused) onFocused?.invoke()
-                focused = gained
+                if (state.hasFocus && !focused) onFocused?.invoke()
+                focused = state.hasFocus
             }
+            .clip(shape)
             // The one focus look, and under the cursor but not choosable a quieter ring, so it
             // reads as here and not as ready.
             .novaFocusRing(
@@ -519,47 +505,8 @@ internal fun NovaSteamChoiceRow(
                 ring = if (actionable) Color.Unspecified else surfaces.focusRing.copy(alpha = NOVA_DETAIL_RESTING_RING_ALPHA),
                 restFill = surfaces.tile,
                 restBorder = surfaces.tileBorder,
-                restBorderWidth = 1.dp,
+                restBorderWidth = NovaPanelMetrics.Hairline,
             )
-            // A on release, and only on the row it was pressed on; a row that cannot be chosen
-            // swallows it rather than letting it reach whatever holds this row. A key press
-            // lands on a focused row, so it acts at once.
-            .novaActivatable(enabled = actionable) { onClick?.invoke() }
-            .then(
-                if (actionable) {
-                    Modifier.clickable(
-                        role = Role.Button,
-                        // What the press will do, for a screen reader: it differs by whether
-                        // this row is the one the legend is showing.
-                        onClickLabel = if (!firstPressFocuses) {
-                            null
-                        } else if (focused) {
-                            stringResource(R.string.nova_play_setup_press_change)
-                        } else {
-                            stringResource(R.string.nova_play_setup_press_show)
-                        },
-                    ) {
-                        val heldFocus = focused
-                        runCatching { focusRequester.requestFocus() }
-                        if (novaPlaySetupPressActs(firstPressFocuses, heldFocus)) onClick?.invoke()
-                    }
-                } else {
-                    Modifier
-                }
-            )
-            // Explicit, like every other focusable in the app: clickable alone did not
-            // register the row as a focus target and the d-pad had nothing to reach.
-            .focusable(enabled = actionable || focusableWhenDisabled)
-            .clip(shape)
-            .drawBehind {
-                if (selected) {
-                    drawRect(color = accentBar, size = Size(barWidth.toPx(), size.height))
-                }
-            }
-            // 6dp, so a row with a caption lands exactly on the 48dp accessible floor
-            // rather than 6dp above it. Four rows plus a legend has to clear a 325dp
-            // landscape viewport, and four times six is most of the difference.
-            .padding(horizontal = 14.dp, vertical = 6.dp)
             .semantics {
                 contentDescription = listOf(label, value, badge, if (describeCaption) caption else "")
                     .filter { it.isNotBlank() }
@@ -570,79 +517,66 @@ internal fun NovaSteamChoiceRow(
                     this.selected = true
                     stateDescription = currentLabel
                 }
-            },
+            }
+            // A on release, and only on the row it was pressed on; a row that cannot be chosen
+            // swallows it rather than letting it reach whatever holds this row.
+            .novaClickable(
+                enabled = actionable,
+                role = Role.Button,
+                focusableWhenDisabled = focusableWhenDisabled,
+            ) { onClick?.invoke() }
+            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                color = if (enabled) colors.textPrimary else colors.textMuted,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                // Under the cursor a name too long for its card runs past rather than ending in
-                // an ellipsis: "papi - s…" was every Space on a narrow card. It moves only when
-                // it does not fit.
-                overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis,
-                modifier = if (focused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier,
-            )
-            if (caption.isNotBlank()) {
-                // The caption is where a card says why it cannot be chosen, and it was cut at two
-                // lines with no way to read the rest. Under the cursor it shows all of itself.
-                NovaRevealingText(
-                    text = caption,
-                    highlighted = focused,
-                    maxLines = 2,
-                    color = colors.textMuted,
-                    fontSize = 11.sp,
-                    lineHeight = 14.sp,
-                    modifier = Modifier.padding(top = 2.dp),
+        val titleBlock: @Composable () -> Unit = {
+            Column {
+                Text(
+                    text = label,
+                    style = type.rowTitle,
+                    fontWeight = if (current) FontWeight.SemiBold else type.rowTitle.fontWeight,
+                    color = ink,
                 )
+                if (caption.isNotBlank()) {
+                    Text(text = caption, style = type.caption, color = quietInk)
+                }
             }
         }
         if (value.isNotBlank()) {
-            Text(
-                text = value,
-                color = if (enabled) colors.textSecondary else colors.textMuted,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                // a value read against other values, so the digits line up
-                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-                maxLines = 1,
-                modifier = Modifier.padding(start = 12.dp),
+            Layout(
+                contents = listOf(
+                    titleBlock,
+                    {
+                        // A value read against other values, so the digits line up.
+                        Text(text = value, style = type.value.copy(fontFeatureSettings = "tnum"), color = quietInk)
+                    },
+                ),
+                modifier = Modifier.weight(1f),
+                measurePolicy = ChoiceRowValueMeasurePolicy,
             )
+        } else {
+            Box(modifier = Modifier.weight(1f)) { titleBlock() }
         }
         if (badge.isNotBlank()) {
-            NovaBadge(
-                text = badge,
-                color = if (enabled) colors.textSecondary else colors.textMuted,
-                modifier = Modifier.padding(start = 10.dp),
-            )
+            NovaBadge(text = badge, color = quietInk)
         }
         if (current) {
-            NovaCurrentMark(modifier = Modifier.padding(start = 10.dp))
+            NovaCurrentMark()
         }
         if (actionable) {
-            Text(
-                text = "\u203a",
-                color = colors.textMuted,
-                fontSize = 17.sp,
-                modifier = Modifier.padding(start = 10.dp, end = 4.dp),
-            )
+            Text(text = "›", style = type.value, color = colors.textMuted)
         }
     }
 }
 
-/** Every row is at least a full action's worth of height. */
-private val NOVA_DETAIL_ROW_MIN_HEIGHT = 48.dp
-
-/** A row holding a choice made here grows a bar at its edge instead of a border that reads as focus. */
-private val NOVA_DETAIL_ROW_FOCUS_BAR = 3.dp
+// Inside a row, which pads itself: the value beside the title while the title keeps its share,
+// and under it otherwise.
+private val ChoiceRowValueMeasurePolicy = NovaTitleAndValueMeasurePolicy(
+    labelInset = 0.dp,
+    valueInset = 0.dp,
+    stackGap = NovaPanelMetrics.SpaceXs,
+)
 
 /** The ring on a row the cursor may stand on but not choose: here, and not ready. */
 private const val NOVA_DETAIL_RESTING_RING_ALPHA = 0.45f
-
-/** Cards need air between them where hairline rows did not. */
-private val NOVA_DETAIL_ROW_GAP = 5.dp
 
 /** The body dissolves over this much before the hint bar, marking the cut. */
 private val NOVA_DETAIL_BOTTOM_FADE = 52.dp

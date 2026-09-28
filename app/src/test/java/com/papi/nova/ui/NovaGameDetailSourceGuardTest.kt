@@ -40,10 +40,12 @@ class NovaGameDetailSourceGuardTest {
         assertTrue(
             "the primary launch and the mode choices stay compact enough for Retroid landscape. " +
                 "This used to measure the pinned footer, which the window replaced with the " +
-                "action rail; the floor now lives on the rail's own action height",
+                "action rail; the floor now lives on the rail's own action height, and the choice " +
+                "rows stand on the panel's own row height rather than a floor of their own",
             detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
                 detail.contains("heightIn(min = NovaGameDetailActionHeight)") &&
-                detail.contains("NOVA_DETAIL_ROW_MIN_HEIGHT = 48.dp")
+                detail.contains(".heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))") &&
+                !detail.contains("NOVA_DETAIL_ROW_MIN_HEIGHT")
         )
     }
 
@@ -177,9 +179,10 @@ class NovaGameDetailSourceGuardTest {
             "the strip is a legend for whichever row holds focus, not a picker with a state of " +
                 "its own. Three picker states ranked by a when is what made Steam Launch work " +
                 "from a fresh panel and go dead once either other row had been touched",
-            detail.contains("onFocused = { onExplainPlaySetupRow(rowState.row) },") &&
+            detail.contains("onExplain = onExplainPlaySetupRow,") &&
+                detail.contains("val followsFocus = Modifier.onFocusChanged { if (it.hasFocus) explain(row) }") &&
                 detail.contains("it.row == explainedPlaySetupRow") &&
-                detail.contains("onClick = { onAdvancePlaySetupRow(rowState.row) },")
+                detail.contains("onAdvance = onAdvancePlaySetupRow,")
         )
         assertFalse(
             "no picker state may come back: each one is a rank in a chain, and a chain needs " +

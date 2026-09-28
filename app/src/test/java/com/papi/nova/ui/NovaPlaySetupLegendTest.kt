@@ -19,17 +19,6 @@ import org.junit.Test
 class NovaPlaySetupLegendTest {
 
     @Test
-    fun aControllerPressActsAndAFirstTouchOnlyBringsTheLegend() {
-        // A on the row under the cursor: it holds focus, its alternatives are on screen.
-        assertTrue(novaPlaySetupPressActs(firstPressFocuses = true, heldFocus = true))
-        // A finger on a row the legend is not showing: show them first.
-        assertFalse(novaPlaySetupPressActs(firstPressFocuses = true, heldFocus = false))
-        // Every other row in the app acts on its first press, whatever holds focus.
-        assertTrue(novaPlaySetupPressActs(firstPressFocuses = false, heldFocus = false))
-        assertTrue(novaPlaySetupPressActs(firstPressFocuses = false, heldFocus = true))
-    }
-
-    @Test
     fun theLegendDescribesTheDestinationCardUnderTheCursorAndGuessesNothing() {
         // Found on a Retroid Pocket 6: Play Setup opened with the cursor on the Desktop card and
         // the drawer below it empty, while four cards across had cut every sentence short.
@@ -98,22 +87,33 @@ class NovaPlaySetupLegendTest {
     }
 
     @Test
-    fun playSetupRowsShowTheirChoicesBeforeTheyChangeThem() {
-        // The press itself: the row also asks for focus when the panel opens, which is not this.
-        val row = read("NovaGameDetailDestinations.kt")
-            .section("internal fun NovaSteamChoiceRow(", ".focusable(enabled = actionable")
-            .section("Modifier.clickable(", "// Explicit, like every other focusable")
+    fun playSetupRowsShowTheirChoicesWhereverTheyChange() {
+        // nova#302: one tap on Resolution changed the game with none of its alternatives shown. A
+        // first tap that only moved focus fixed that at the cost of R12; now the row changes in
+        // place, where Left, Right, its arrows and A all act at once (R1), and whatever changes it
+        // brings the legend to it, so the alternatives are on screen however the value moved.
+        val row = read("NovaPlaySetup.kt")
+            .section("internal fun NovaPlaySetupSettingRow(", "internal fun NovaPlaySetupDestinations(")
         assertTrue(
-            "whether the row held focus is read before the press moves focus onto it, or every " +
-                "press would find the row focused and act",
-            row.contains("val heldFocus = focused") &&
-                row.indexOf("val heldFocus = focused") < row.indexOf("runCatching { focusRequester.requestFocus() }") &&
-                row.contains("if (novaPlaySetupPressActs(firstPressFocuses, heldFocus)) onClick?.invoke()")
+            "an enumerated row is a value row, a cycler because the legend already sets out every option",
+            row.contains("NovaValueRow(") && row.contains("style = NovaValueStyle.Cycler,") &&
+                row.contains("ordered = state.ordered,")
         )
         assertTrue(
-            "both scopes of Play Setup advance a value on a press, so both ask for the first press to focus",
-            read("NovaGameDetailContent.kt").contains("firstPressFocuses = true,") &&
-                read("NovaHostSetupRows.kt").contains("firstPressFocuses = true,")
+            "a change explains the row before it applies, so a tap that moves no focus still moves the legend",
+            row.section("onChange = { index ->", "caption = ").let {
+                it.indexOf("explain(row)") in 0 until it.indexOf("?.onSelect?.invoke()")
+            } && row.contains("val followsFocus = Modifier.onFocusChanged { if (it.hasFocus) explain(row) }")
+        )
+        assertFalse(
+            "no row waits for a second press any more (R12)",
+            listOf("NovaGameDetailContent.kt", "NovaHostSetupRows.kt", "NovaGameDetailDestinations.kt", "NovaPlaySetup.kt")
+                .any { read(it).contains("firstPressFocuses") }
+        )
+        assertTrue(
+            "both scopes draw their rows the same way",
+            read("NovaGameDetailContent.kt").contains("NovaPlaySetupSettingRow(") &&
+                read("NovaHostSetupRows.kt").contains("NovaPlaySetupSettingRow(")
         )
     }
 
@@ -146,9 +146,10 @@ class NovaPlaySetupLegendTest {
         val card = read("NovaPlaySetup.kt").section("internal fun NovaPlaySetupComparison(", "internal fun novaPlaySetupOptionDescription(")
         assertTrue(card.contains("Modifier.fillMaxWidth().height(IntrinsicSize.Min)"))
         assertTrue(card.contains("modifier = Modifier.weight(1f).fillMaxHeight(),"))
-        assertTrue(
-            "a name cut short names nothing; the second line is there for a title that needs it",
-            card.section("text = option.label,", "text = option.consequence,").contains("maxLines = 2,")
+        val label = card.section("text = option.label,", "text = option.consequence,")
+        assertFalse(
+            "a name cut short names nothing, so a label wraps onto as many lines as it needs (R13)",
+            label.contains("maxLines") || label.contains("TextOverflow")
         )
     }
 

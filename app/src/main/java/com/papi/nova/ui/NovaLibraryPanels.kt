@@ -733,6 +733,9 @@ internal fun NovaPageScope.NovaPolarisSyncPage(
                                 advanceNovaPlaySetupHostRow(row = row, rows = rows, sync = uiState, actions = actions)
                             }
                         },
+                        rowModifier = { row, first ->
+                            (if (first) Modifier.novaInitialFocus() else Modifier).novaRestorableFocus(row.name)
+                        },
                     )
                 },
                 comparison = {
