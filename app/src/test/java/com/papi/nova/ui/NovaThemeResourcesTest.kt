@@ -493,7 +493,18 @@ class NovaThemeResourcesTest {
             Regex("""surfaces\.(panel|tile|control|selectedControl)\.copy\(alpha = [0-9.]+f\)""").containsMatchIn(gameDetail)
         )
         assertTrue("options fixed glass overrides should consume the menu opacity local", settings.contains("LocalNovaMenuOpacityScale.current"))
-        assertTrue("shared focus components should scale panel glass while retaining focus rings", focusComponents.contains("LocalNovaMenuOpacityScale.current"))
+        // The one hint bar is the panels' own since the older bar left the shared focus components;
+        // it scales its glass by the menu opacity as that bar did.
+        val hintBar = File("src/main/java/com/papi/nova/ui/panel/NovaPageStackHost.kt").readText()
+        assertTrue(
+            "the shared hint bar should scale its panel glass by the menu opacity",
+            hintBar.contains("fun NovaPanelHintBar(") &&
+                hintBar.contains("NovaPanelMetrics.HintBarAlpha * LocalNovaMenuOpacityScale.current")
+        )
+        assertFalse(
+            "shared focus components should keep no fixed glass that ignores the menu opacity",
+            Regex("""surfaces\.(panel|tile|control|selectedControl)\.copy\(alpha = [0-9.]+f\)""").containsMatchIn(focusComponents)
+        )
         assertTrue("Stream UI reset should restore menu opacity to its declared default", settingsViewModel.contains("NovaMenuPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaMenuPreferences.DEFAULT_OPACITY_PERCENT)"))
         assertTrue("Stream UI reset should remove stale HUD coordinates in the same authoritative batch", settingsViewModel.contains("NOVA_STREAM_UI_RESET_REMOVALS") && settingsViewModel.contains("store.updateAtomically(updates, NOVA_STREAM_UI_RESET_REMOVALS)"))
         assertTrue("reset construction should fail closed instead of silently skipping filtered definitions", settingsViewModel.contains("definitions.require(key) to value"))

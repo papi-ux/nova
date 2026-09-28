@@ -1300,13 +1300,15 @@ class NovaLibrarySourceGuardTest {
             "@Composable\nprivate fun NovaSettingsCompactHeader("
         )
 
+        // One hint bar style (2026-09-28): the panels' bar is the reusable one now, and the older
+        // bar that scrolled its hints sideways at a 30dp height is gone.
+        val panelHost = readSource("src/main/java/com/papi/nova/ui/panel/NovaPageStackHost.kt")
         assertTrue(
-            "shared focus components should retain the reusable model and bar for non-library surfaces",
+            "shared focus components should retain the reusable hint model, and the one reusable bar for non-library surfaces is the panels' own",
             focusComponents.contains("data class NovaControllerHint(") &&
-                focusComponents.contains("fun NovaControllerHintBar(") &&
-                focusComponents.contains(".horizontalScroll(rememberScrollState())") &&
-                focusComponents.contains(".heightIn(min = 30.dp)") &&
-                focusComponents.contains("contentDescription = hintContentDescription")
+                !focusComponents.contains("fun NovaControllerHintBar(") &&
+                panelHost.contains("fun NovaPanelHintBar(hints: List<NovaControllerHint>") &&
+                panelHost.contains("semantics { contentDescription = description }")
         )
         assertTrue(
             "library should use its borderless full-width cinematic hint renderer while preserving reserved footer space",
@@ -1332,7 +1334,7 @@ class NovaLibrarySourceGuardTest {
             "the game detail window keeps the shared hint model; the Overview paints it borderless on the artwork while destinations keep the reusable bar",
             detail.contains("List<NovaControllerHint>") &&
                 detail.contains("novaGameDetailOverviewHints()") &&
-                detail.contains("NovaControllerHintBar(") &&
+                detail.contains("NovaPanelHintBar(") &&
                 detail.contains("nova_controller_hint_back")
         )
         // Group 4 moved Settings' pane onto NovaPageStackHost, which draws its own hint row

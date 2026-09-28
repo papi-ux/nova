@@ -167,7 +167,7 @@ class NovaSpacesVocabularyTest {
     @Test
     fun theChooserIsBuiltFromTheDetailWindowRows() {
         val chooser = File("src/main/java/com/papi/nova/ui/NovaSpaceChooser.kt").readText()
-        assertTrue(chooser.contains("NovaSteamChoiceRow(") && chooser.contains("NovaControllerHintBar("))
+        assertTrue(chooser.contains("NovaSteamChoiceRow(") && chooser.contains("NovaPanelHintBar("))
         assertFalse(
             "focus is claimed once when the chooser opens; re-requesting it on every snapshot moved the cursor on poll blips",
             chooser.contains("LaunchedEffect(snapshot"),

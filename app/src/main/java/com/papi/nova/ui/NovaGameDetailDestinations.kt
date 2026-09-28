@@ -77,9 +77,10 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaControllerHint
-import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.panel.NovaCurrentMark
 import com.papi.nova.ui.panel.novaFocusRing
+import com.papi.nova.ui.panel.NovaPanelDensityHost
+import com.papi.nova.ui.panel.NovaPanelHintBar
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaTitleAndValueMeasurePolicy
 import com.papi.nova.ui.panel.novaClickable
@@ -210,23 +211,24 @@ private fun NovaGameDetailDestinationHints(
     /** False inside a panel that already pads its sides; see [NovaGameDetailDestinationHeader]. */
     selfInset: Boolean = true,
 ) {
-    NovaControllerHintBar(
-        hints = listOf(
-            NovaControllerHint(
-                key = stringResource(R.string.nova_controller_hint_a),
-                label = stringResource(R.string.nova_controller_hint_select),
+    // The one hint bar, at the density the panels on this screen draw theirs.
+    NovaPanelDensityHost {
+        NovaPanelHintBar(
+            hints = listOf(
+                NovaControllerHint(
+                    key = stringResource(R.string.nova_controller_hint_a),
+                    label = stringResource(R.string.nova_controller_hint_select),
+                ),
+                NovaControllerHint(
+                    key = stringResource(R.string.nova_controller_hint_b),
+                    label = stringResource(R.string.nova_controller_hint_back),
+                ),
             ),
-            NovaControllerHint(
-                key = stringResource(R.string.nova_controller_hint_b),
-                label = stringResource(R.string.nova_controller_hint_back),
-            ),
-        ),
-        compact = true,
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(novaGameDetailSelfInset(selfInset))
-            .padding(top = 10.dp),
-    )
+            modifier = Modifier
+                .then(novaGameDetailSelfInset(selfInset))
+                .padding(top = NovaPanelMetrics.SpaceSm),
+        )
+    }
 }
 
 @Composable

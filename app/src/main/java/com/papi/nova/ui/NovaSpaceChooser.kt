@@ -34,7 +34,8 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaControllerHint
-import com.papi.nova.ui.compose.NovaControllerHintBar
+import com.papi.nova.ui.panel.NovaPanelDensityHost
+import com.papi.nova.ui.panel.NovaPanelHintBar
 import kotlinx.coroutines.delay
 
 /**
@@ -136,13 +137,15 @@ internal fun NovaSpaceChooser(
                 minHeight = 48.dp,
                 modifier = Modifier.focusRequester(backFocus).testTag("nova-space-chooser-back"),
             )
-            NovaControllerHintBar(
-                hints = listOf(
-                    NovaControllerHint(stringResource(R.string.nova_controller_hint_a), stringResource(R.string.nova_controller_hint_select)),
-                    NovaControllerHint(stringResource(R.string.nova_controller_hint_b), stringResource(R.string.nova_controller_hint_back)),
-                ),
-                compact = true,
-            )
+            // The one hint bar, at the density the panels on this screen draw theirs.
+            NovaPanelDensityHost {
+                NovaPanelHintBar(
+                    hints = listOf(
+                        NovaControllerHint(stringResource(R.string.nova_controller_hint_a), stringResource(R.string.nova_controller_hint_select)),
+                        NovaControllerHint(stringResource(R.string.nova_controller_hint_b), stringResource(R.string.nova_controller_hint_back)),
+                    ),
+                )
+            }
         }
     }
 }

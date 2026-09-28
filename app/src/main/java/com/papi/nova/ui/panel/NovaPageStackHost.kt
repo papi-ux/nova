@@ -293,7 +293,7 @@ fun NovaPageStackHost(
                 }
             }
         }
-        NovaPanelHints(
+        NovaPanelHintBar(
             hints = allHints,
             modifier = Modifier.padding(horizontal = padding, vertical = NovaPanelMetrics.hintBarMargin(formFactor, panelDensity)),
         )
@@ -301,13 +301,15 @@ fun NovaPageStackHost(
 }
 
 /**
- * The panel's controller hints: a key chip and its label for each, in the panel type, so a
- * television reads them 2sp larger and a compact panel's keys stay at 12sp. They wrap onto a
- * second line when they must, rather than scrolling sideways and cutting the last hint at the
- * panel's edge.
+ * The one controller hint bar: every panel draws it under its pages, and a screen outside a panel
+ * that shows controller hints (the Artwork studio, the Space chooser) draws this same bar. A key
+ * chip and its label for each hint, in the panel type, so a television reads them 2sp larger and
+ * a compact panel's keys stay at 12sp. Its hints start 12dp in, on the text line of the rows
+ * above it. They wrap onto a second line when they must, rather than scrolling sideways and
+ * cutting the last hint at the edge.
  */
 @Composable
-private fun NovaPanelHints(hints: List<NovaControllerHint>, modifier: Modifier = Modifier) {
+fun NovaPanelHintBar(hints: List<NovaControllerHint>, modifier: Modifier = Modifier) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val type = novaPanelType
@@ -322,7 +324,7 @@ private fun NovaPanelHints(hints: List<NovaControllerHint>, modifier: Modifier =
             .background(surfaces.panel.copy(alpha = NovaPanelMetrics.HintBarAlpha * LocalNovaMenuOpacityScale.current))
             .border(NovaPanelMetrics.Hairline, surfaces.panelBorder, shape)
             .semantics { contentDescription = description }
-            .padding(horizontal = NovaPanelMetrics.SpaceSm, vertical = NovaPanelMetrics.SpaceXs),
+            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceXs),
         horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs),
         itemVerticalAlignment = Alignment.CenterVertically,

@@ -101,8 +101,6 @@ import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaComposeTheme
-import com.papi.nova.ui.compose.NovaControllerHint
-import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaFocusReturn
 import com.papi.nova.ui.panel.NovaPage

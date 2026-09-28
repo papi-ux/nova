@@ -85,7 +85,6 @@ import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaControllerHint
-import com.papi.nova.ui.compose.NovaControllerHintBar
 import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.NovaRevealingText
 import com.papi.nova.ui.compose.novaKeyChipSize

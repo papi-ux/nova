@@ -4,7 +4,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -12,13 +11,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -146,70 +141,14 @@ fun novaKeyChipSize(base: Dp): Dp = novaKeyChipSize(base, LocalDensity.current.f
 
 internal fun novaKeyChipSize(base: Dp, fontScale: Float): Dp = base * fontScale.coerceAtLeast(1f)
 
+/**
+ * One controller hint: a key and what it does here. Panels and screens alike draw a list of them
+ * with the one hint bar, NovaPanelHintBar; the library paints its own on the artwork.
+ */
 data class NovaControllerHint(
     val key: String,
     val label: String
 )
-
-@Composable
-fun NovaControllerHintBar(
-    hints: List<NovaControllerHint>,
-    modifier: Modifier = Modifier,
-    compact: Boolean = false,
-    semanticsDescription: String? = null
-) {
-    if (hints.isEmpty()) return
-
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(NovaRadius.hero)
-    val hintContentDescription = semanticsDescription
-        ?: hints.joinToString(separator = " · ") { hint -> "${hint.key} ${hint.label}" }
-    val horizontalPadding = if (compact) 8.dp else 10.dp
-    val itemSpacing = if (compact) 8.dp else 12.dp
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 30.dp)
-            .clip(shape)
-            .background(surfaces.panel.copy(alpha = 0.86f * LocalNovaMenuOpacityScale.current))
-            .border(1.dp, surfaces.panelBorder, shape)
-            .semantics { contentDescription = hintContentDescription }
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = horizontalPadding, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(itemSpacing),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        hints.forEach { hint ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Text(
-                    text = hint.key,
-                    color = colors.onAccent,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(NovaRadius.row))
-                        .background(colors.accent.copy(alpha = 0.92f))
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
-                )
-                Text(
-                    text = hint.label,
-                    color = colors.textSecondary,
-                    fontSize = if (compact) 11.sp else 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-        Spacer(Modifier.width(2.dp))
-    }
-}
 
 // Shared haptic vocabulary for the gamepad-first surfaces: a light tick when focus moves,
 // a firmer confirm when a primary action fires. The platform suppresses these when the
