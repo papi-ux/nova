@@ -54,8 +54,12 @@ back silently to another codec.
    input. Selecting the codec does not establish that the GPU and host capture
    path can sustain it.
 
-**Android beta.3 cannot install on devices using 16 KB memory pages.** Follow
-the beta guide's release requirements; clearing app data does not fix the APK.
+**Android beta.2 and beta.3 may fail to start PyroWave on devices using 16 KB
+memory pages.** Their codec library lacks the required native alignment and may
+not load there. PyroWave still appears in Settings; if the library cannot load,
+a PyroWave stream fails during startup. Other codecs are unaffected. This has
+not been validated on a 16 KB device and does not establish an APK installation
+failure. Use a later beta whose notes confirm the alignment fix.
 
 ## Packaging and compatibility
 
@@ -117,9 +121,12 @@ installed side by side like the Android beta app.
   capture path and validation. A successful SDR session is not HDR acceptance.
 - **Unexpectedly high bandwidth or slow capture:** each frame is independent.
   Compare the received bitrate with the available link capacity and reduce the
-  resolution or frame rate if needed. CPU capture and colour conversion can
-  still precede Vulkan encoding; seeing a Vulkan encoder does not prove a
-  zero-copy capture path. Follow the
+  resolution or frame rate if needed. The host converts colour on the GPU by
+  default. Frames captured in host memory are uploaded first; compatible
+  GPU-resident DMA-BUF frames can be imported without that CPU upload. The CPU
+  colour converter is an SDR fallback when GPU input is disabled or cannot
+  start. Seeing a Vulkan encoder alone does not establish GPU-native capture.
+  Follow the
   [Polaris guide](https://github.com/papi-ux/polaris/blob/master/docs/pyrowave.md)
   for host capture requirements.
 
@@ -151,9 +158,9 @@ separate. If the PC reports a different target, Nova explains the mismatch and
 leaves the saved preference alone; it never retries or calls that request applied.
 
 PyroWave's host encoder can update its per-frame budget without restarting the
-stream. The budget follows the negotiated rational frame rate and remains subject
-to transport bounds. This adds runtime rate control, not a codec-specific automatic
-quality policy or a promise of equal sharpness at equal bitrate across codecs.
+stream. The host derives the budget from the requested bitrate and its effective
+frame rate; transport limits still apply. Runtime rate control does not guarantee
+equal sharpness at equal bitrate across codecs.
 
 ## Building the Linux client
 
@@ -189,9 +196,11 @@ The Linux route uses GameStream transport with this contract:
 - One GameStream decode unit contains one complete **raw upstream bitstream**.
   The PyroWave coefficient packets are concatenated in order. Their block
   headers are self-delimiting; there is no Nova-specific outer envelope.
-- The current host permits up to 3 MiB per frame, within GameStream's shard-count
-  limits, and accepts network payloads of at least 992 bytes (1024 minus the
-  video encryption prefix). Larger frames can lose FEC parity protection.
+- The Polaris v1.4.13 host derives a per-frame target from bitrate divided by
+  frame rate, with a minimum of 4096 bytes. It has no separate 3 MiB codec budget
+  ceiling or PyroWave-specific 992-byte payload minimum. GameStream transport
+  limits still apply: a frame needing more than the allowed FEC blocks is sent
+  without parity protection.
 - All frames are IDR. GameStream's short frame header carries the exact final
   payload length, so FEC padding never reaches the codec.
 - Validate dimensions, block count/order/sequence, payload lengths and coefficient
