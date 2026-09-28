@@ -36,6 +36,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -278,6 +279,9 @@ fun NovaActionButton(
  * [selected] marks the current value the one way R9 allows: the check ([NovaCurrentMark]) after the
  * content, selected semantics and the state description Current. It never fills the surface,
  * because fills only ever mean focus.
+ *
+ * At rest an unfilled surface draws the control fill, or [restFill] where it stands among rows,
+ * such as a destructive row that splits in place, so it rests as the tile the rows around it do.
  */
 @Composable
 fun NovaActionSurface(
@@ -293,6 +297,7 @@ fun NovaActionSurface(
     cornerRadius: Dp = NovaRadius.hero,
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
     contentAlignment: Alignment = Alignment.Center,
+    restFill: Color = Color.Unspecified,
     content: @Composable BoxScope.(contentColor: Color, focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -309,7 +314,7 @@ fun NovaActionSurface(
         pressed && filled -> fill.copy(alpha = fill.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
         pressed && enabled -> surfaces.selectedControl.copy(alpha = surfaces.selectedControl.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
         filled -> fill
-        else -> surfaces.control
+        else -> restFill.takeOrElse { surfaces.control }
     }
     // A filled surface keeps its fill under focus; everything else takes the focused control fill.
     val focusedContainer = if (filled) restContainer else surfaces.selectedControl

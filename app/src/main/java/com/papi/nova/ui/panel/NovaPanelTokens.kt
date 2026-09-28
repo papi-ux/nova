@@ -350,6 +350,49 @@ val novaPanelType: NovaPanelType
     get() = NovaPanelType.of(LocalNovaFormFactor.current, LocalNovaPanelDensity.current)
 
 /**
+ * The one resting look of a selectable row, in every panel: the theme's tile fill under a 1dp
+ * hairline of its tile border, cut to NovaRadius.row. Rows sit [NovaPanelMetrics.RowGap] apart, so
+ * a page of rows reads as one stack of tiles, and focus draws the one focus look over it.
+ */
+@Immutable
+class NovaRowRest(val fill: Color, val border: Color, val borderWidth: Dp)
+
+/** True inside a card that is itself a tile, whose rows rest bare so no tile sits in another. */
+internal val LocalNovaRowsNested = staticCompositionLocalOf { false }
+
+/** The resting look of a selectable row here: the tile, or nothing inside [NovaNestedRows]. */
+val novaRowRest: NovaRowRest
+    @Composable @ReadOnlyComposable
+    get() = if (LocalNovaRowsNested.current) {
+        BareRowRest
+    } else {
+        LocalNovaLibrarySurfaces.current.let { NovaRowRest(it.tile, it.tileBorder, NovaPanelMetrics.Hairline) }
+    }
+
+private val BareRowRest = NovaRowRest(Color.Transparent, Color.Transparent, 0.dp)
+
+/** Draws [content] inside a card that is already the tile: its rows rest bare. */
+@Composable
+fun NovaNestedRows(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalNovaRowsNested provides true, content = content)
+}
+
+/** [novaFocusRing] resting as [rest]: the tile and its hairline for a selectable row. */
+fun Modifier.novaFocusRing(
+    shape: Shape,
+    rest: NovaRowRest,
+    ring: Color = Color.Unspecified,
+    focusedFill: Color = Color.Unspecified,
+): Modifier = novaFocusRing(
+    shape = shape,
+    ring = ring,
+    focusedFill = focusedFill,
+    restFill = rest.fill,
+    restBorder = rest.border,
+    restBorderWidth = rest.borderWidth,
+)
+
+/**
  * The one focus look: [focusedFill] behind the content and a 3dp [ring] drawn inside [shape],
  * animated over 150ms, with no scale and no halo.
  *

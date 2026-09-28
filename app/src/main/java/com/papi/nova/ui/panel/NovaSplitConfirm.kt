@@ -41,6 +41,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -122,6 +123,9 @@ enum class NovaSplitShape { Button, Row, Tile }
  * underneath. B, focus leaving both halves, a touch outside the pair, or the page changing
  * cancels. The destructive half ignores activation for 400ms after arming, so a single A, a held
  * A, mashed A presses or a double tap never confirm; A, Right, A does.
+ *
+ * At rest a [NovaSplitShape.Row] is a row among rows: the row tile, its icon and label at the
+ * start in the row title type, with the destructive text and hairline.
  */
 @Composable
 fun NovaSplitConfirm(
@@ -207,6 +211,8 @@ fun NovaSplitConfirm(
                     rowCorner = shape != NovaSplitShape.Button,
                     // A tile at rest reads as the tiles beside it: its icon over its label.
                     tile = shape == NovaSplitShape.Tile,
+                    // A row at rest reads as the rows around it: the tile, its label at the start.
+                    row = shape == NovaSplitShape.Row,
                     modifier = Modifier
                         .then(
                             if (shape == NovaSplitShape.Button) {
@@ -291,6 +297,7 @@ private fun SplitHalf(
     rowCorner: Boolean,
     modifier: Modifier,
     tile: Boolean = false,
+    row: Boolean = false,
     onClick: () -> Unit,
 ) {
     NovaActionSurface(
@@ -302,6 +309,8 @@ private fun SplitHalf(
         contentDescription = text,
         minHeight = minHeight,
         cornerRadius = if (rowCorner) NovaRadius.row else NovaRadius.hero,
+        contentAlignment = if (row) Alignment.CenterStart else Alignment.Center,
+        restFill = if (row) novaRowRest.fill else Color.Unspecified,
         contentPadding = if (tile) {
             PaddingValues(horizontal = TileSidePadding, vertical = NovaPanelMetrics.SpaceSm)
         } else {
@@ -325,6 +334,22 @@ private fun SplitHalf(
                     )
                 }
                 Text(text = text, style = novaPanelType.caption, color = contentColor, textAlign = TextAlign.Center)
+            }
+        } else if (row) {
+            // As a NovaRow lays out its icon and title.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
+            ) {
+                icon?.let {
+                    Icon(
+                        painter = painterResource(it),
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(NovaPanelMetrics.IconSize),
+                    )
+                }
+                Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
             }
         } else {
             Row(

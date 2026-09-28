@@ -5,12 +5,12 @@ package com.papi.nova.ui.compose
  *
  * Command Center and NovaHUD intentionally use the same glass hierarchy so bright
  * and dark game scenes read as one overlay system instead of separate floating
- * panels with almost-but-not-quite matching alpha values.
+ * panels with almost-but-not-quite matching alpha values. The Command Center's rows
+ * and cards rest as the one row tile every panel uses (novaRowRest), so it names no
+ * nested fill of its own.
  */
 object NovaInGameOverlayAlpha {
     const val CommandCenterScrim = 0.42f
-    const val NestedTile = 0.76f
-    const val NestedControl = 0.82f
     const val Border = 0.90f
     const val AccentHandle = 0.74f
     const val AccentDivider = 0.35f

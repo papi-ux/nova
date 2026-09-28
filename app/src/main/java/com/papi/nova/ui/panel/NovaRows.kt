@@ -70,10 +70,10 @@ sealed interface NovaRowTrailing {
  * One row of a panel page: a title, an optional caption and icon, and a [trailing] mark.
  *
  * The row is one focus stop with the one focus look, and acts on release through [novaClickable].
- * An [emphasis] row takes the accent fill, as a menu's primary action does. A row with a
- * [disabledReason] stays focusable, shows the reason as its caption and swallows A. Titles and
- * captions wrap rather than ellipsize, and a [NovaRowTrailing.Value] too long to sit beside the
- * title goes under it.
+ * At rest it is the one row tile ([novaRowRest]). An [emphasis] row takes the accent fill instead,
+ * as a menu's primary action does. A row with a [disabledReason] stays focusable, shows the reason
+ * as its caption and swallows A. Titles and captions wrap rather than ellipsize, and a
+ * [NovaRowTrailing.Value] too long to sit beside the title goes under it.
  */
 @Composable
 fun NovaRow(
@@ -133,6 +133,7 @@ internal fun NovaRowLayout(
     val quietInk = if (filled) colors.onAccent else colors.textSecondary
     var focused by remember { mutableStateOf(false) }
     val interactive = onClick != null || !enabled
+    val rest = novaRowRest
 
     Row(
         modifier = modifier
@@ -143,7 +144,9 @@ internal fun NovaRowLayout(
                 shape = shape,
                 ring = if (filled) colors.onAccent else Color.Unspecified,
                 focusedFill = if (filled) colors.accent else Color.Unspecified,
-                restFill = if (filled) colors.accent else Color.Transparent,
+                restFill = if (filled) colors.accent else rest.fill,
+                restBorder = if (filled) Color.Transparent else rest.border,
+                restBorderWidth = if (filled) 0.dp else rest.borderWidth,
             )
             .semantics(mergeDescendants = true) {
                 if (current) {

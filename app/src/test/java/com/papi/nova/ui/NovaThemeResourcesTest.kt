@@ -429,7 +429,15 @@ class NovaThemeResourcesTest {
         assertTrue("the rendered control should offer every preset from state", menuOpacityControl.contains("menuOpacity.presets.map"))
         assertTrue("each preset step should dispatch the menu-opacity callback", menuOpacityControl.contains("onChange = callbacks.onMenuOpacityChange"))
         assertTrue("the control should be one controller-sized value row that steps in place", menuOpacityControl.contains("NovaValueRow("))
-        assertTrue("Command Center explicit glass constants should consume the menu opacity composition local", content.contains("LocalNovaMenuOpacityScale.current"))
+        // The Command Center keeps no glass constants of its own since its rows and cards became the
+        // panels' one row tile; the tile follows the menu opacity through the surfaces it is read from.
+        assertTrue(
+            "Command Center boxes should follow the menu opacity: they are the row tile, which the library surfaces scale by it",
+            content.contains("rest = novaRowRest") &&
+                !content.contains("NovaInGameOverlayAlpha.") &&
+                composeTheme.contains("tile = surfaces.tile.copy(alpha = surfaces.tile.alpha * opacityScale)") &&
+                composeTheme.contains("tileBorder = surfaces.tileBorder.copy(alpha = surfaces.tileBorder.alpha * opacityScale)")
+        )
         assertTrue("Command Center should label the new control as Menu Opacity", strings.contains("<string name=\"nova_quick_menu_menu_opacity\">Menu Opacity</string>"))
     }
 

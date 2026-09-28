@@ -100,6 +100,7 @@ import com.papi.nova.ui.panel.NovaValueStyle
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
+import com.papi.nova.ui.panel.novaRowRest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -788,7 +789,7 @@ private fun NovaCategoryRow(
             .fillMaxWidth()
             .heightIn(min = NovaPanelMetrics.ButtonMinHeight)
             .clip(shape)
-            .novaFocusRing(shape)
+            .novaFocusRing(shape, rest = novaRowRest)
             .semantics { this.selected = selected }
             .novaClickable(role = Role.Tab, onClick = onClick)
             .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),

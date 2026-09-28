@@ -49,6 +49,7 @@ import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
+import com.papi.nova.ui.panel.novaRowRest
 import com.papi.nova.utils.AndroidDisplayCandidateAdapter
 import com.papi.nova.utils.AndroidDisplayRolePlan
 import com.papi.nova.utils.AndroidStreamDisplayTarget
@@ -277,7 +278,7 @@ private fun NovaDisplayRoleChoice(
             .fillMaxWidth()
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(DisplayRoleRowShape)
-            .novaFocusRing(DisplayRoleRowShape)
+            .novaFocusRing(DisplayRoleRowShape, rest = novaRowRest)
             .semantics(mergeDescendants = true) {
                 contentDescription = description
                 stateDescription = selectionState

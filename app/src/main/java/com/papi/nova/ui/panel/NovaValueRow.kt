@@ -267,8 +267,8 @@ fun NovaStepperRow(
 
 /**
  * The shared frame of value and stepper rows: one focus stop that owns Left, Right and A, with the
- * control beside the title while the title keeps 40% of the row, and under it otherwise. It sits
- * on the 52dp row scale: the 44dp control gets 4dp above and below. [onPrevious] and [onNext] get
+ * control beside the title while the title keeps 40% of the row, and under it otherwise. It rests
+ * as the one row tile and sits on the row scale: the control gets 4dp above and below. [onPrevious] and [onNext] get
  * the key's repeat count, and [control] the width it may take.
  */
 @Composable
@@ -302,7 +302,7 @@ private fun NovaValueRowFrame(
             .fillMaxWidth()
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
-            .novaFocusRing(shape)
+            .novaFocusRing(shape, rest = novaRowRest)
             .semantics(mergeDescendants = true) {
                 stateDescription = stateLabel
                 role?.let { this.role = it }
@@ -370,7 +370,9 @@ private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, o
     val select by rememberUpdatedState(onSelect)
     Layout(
         modifier = Modifier
-            .clip(RoundedCornerShape(NovaRadius.hero))
+            // The row's own corner: a control inside a 6dp tile with a rounder 8dp edge read as
+            // a box of a different kind.
+            .clip(RoundedCornerShape(NovaRadius.row))
             .background(surfaces.control)
             .padding(horizontal = NovaPanelMetrics.SpaceXs),
         measurePolicy = SegmentsMeasurePolicy,
@@ -380,7 +382,7 @@ private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, o
                 Row(
                     modifier = Modifier
                         .heightIn(min = NovaPanelMetrics.SegmentMinHeight)
-                        .clip(RoundedCornerShape(NovaRadius.row))
+                        .clip(RoundedCornerShape(NovaRadius.chip))
                         .pointerInput(i) { detectTapGestures(onTap = { select(i) }) }
                         .padding(horizontal = NovaPanelMetrics.SpaceSm),
                     verticalAlignment = Alignment.CenterVertically,

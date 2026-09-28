@@ -362,21 +362,24 @@ class NovaCommandCenterSourceGuardTest {
         val commandCenter = readNovaQuickMenuContent()
         val hud = readNovaStreamHudContent()
 
+        // One box style (2026-09-28): the Command Center's rows and cards rest as the one row tile
+        // every panel draws, so the nested tile and control alphas it alone used are gone. The
+        // scrim and the border stay shared with the HUD.
         assertTrue(
-            "token file should name the nested overlay alpha contract for controls, scrim, and borders",
+            "token file should name the overlay alpha contract for the scrim and borders",
             tokens.contains("object NovaInGameOverlayAlpha") &&
-                tokens.contains("const val NestedTile") &&
-                tokens.contains("const val NestedControl") &&
                 tokens.contains("const val CommandCenterScrim") &&
-                tokens.contains("const val Border")
+                tokens.contains("const val Border") &&
+                !tokens.contains("const val NestedTile") &&
+                !tokens.contains("const val NestedControl")
         )
         val panelTokens = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelTokens.kt")
         assertTrue(
-            "Command Center should use the shared nested tile, control and border tokens, and the frame's stream scrim, which is the Command Center scrim token",
+            "Command Center should draw its boxes as the panels' one row tile, with no alpha of its own, and use the frame's stream scrim, which is the Command Center scrim token",
             panelTokens.contains("const val StreamScrimAlpha = NovaInGameOverlayAlpha.CommandCenterScrim") &&
-                commandCenter.contains("NovaInGameOverlayAlpha.NestedTile") &&
-                commandCenter.contains("NovaInGameOverlayAlpha.NestedControl") &&
-                commandCenter.contains("NovaInGameOverlayAlpha.Border")
+                panelTokens.contains("val novaRowRest: NovaRowRest") &&
+                commandCenter.contains("rest = novaRowRest") &&
+                !commandCenter.contains("NovaInGameOverlayAlpha.")
         )
         assertTrue(
             "NovaHUD should use its own literal outer opacity plus the same border and divider tokens",

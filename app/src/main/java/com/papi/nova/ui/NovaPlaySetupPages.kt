@@ -42,6 +42,7 @@ import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.NovaScrim
 import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.panel.novaFocusRing
+import com.papi.nova.ui.panel.novaRowRest
 
 /**
  * The pages of Play Setup's panel, at the end edge of the game detail window, all wide so the
@@ -239,7 +240,7 @@ private fun NovaPlaySetupReadStop(modifier: Modifier = Modifier, content: @Compo
             .fillMaxWidth()
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
-            .novaFocusRing(shape)
+            .novaFocusRing(shape, rest = novaRowRest)
             .semantics(mergeDescendants = true) {}
             .focusable()
             .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),

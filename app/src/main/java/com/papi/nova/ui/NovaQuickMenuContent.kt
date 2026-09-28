@@ -51,9 +51,6 @@ import androidx.compose.ui.unit.dp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
-import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
-import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
-import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
 import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaConfirm
 import com.papi.nova.ui.compose.novaFocusTick
@@ -61,6 +58,7 @@ import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.OpensGlyph
 import com.papi.nova.ui.panel.NovaPageScope
 import com.papi.nova.ui.panel.NovaPanelButton
+import com.papi.nova.ui.panel.NovaNestedRows
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaSectionLabel
 import com.papi.nova.ui.panel.NovaSplitConfirm
@@ -71,6 +69,7 @@ import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
+import com.papi.nova.ui.panel.novaRowRest
 import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
 import kotlinx.coroutines.flow.StateFlow
 
@@ -404,10 +403,8 @@ private fun NovaQuickMenuSessionStrip(
     val healthDetail by ui.slice { it.healthDetail }
     val healthTone by ui.slice { it.healthTone }
     val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
     val haptics = LocalHapticFeedback.current
     val type = novaPanelType
-    val opacity = LocalNovaMenuOpacityScale.current
     val shape = RoundedCornerShape(NovaRadius.row)
     var focused by remember { mutableStateOf(false) }
     val description = listOf(sessionMode.label, sessionDetail, healthSummary, healthDetail)
@@ -419,12 +416,7 @@ private fun NovaQuickMenuSessionStrip(
             .fillMaxWidth()
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
-            .novaFocusRing(
-                shape = shape,
-                restFill = surfaces.control.copy(alpha = NovaInGameOverlayAlpha.NestedControl * opacity),
-                restBorder = surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * opacity),
-                restBorderWidth = NovaPanelMetrics.Hairline,
-            )
+            .novaFocusRing(shape, rest = novaRowRest)
             .semantics { contentDescription = description }
             .onFocusChanged {
                 if (it.hasFocus && !focused) haptics.novaFocusTick()
@@ -511,21 +503,23 @@ private fun NovaQuickMenuStabilityCard(
     }
 }
 
-/** A card that shows and does nothing itself; its rows are the focus stops. */
+/**
+ * A card that shows and does nothing itself; its rows are the focus stops. The card is the row
+ * tile, so the rows inside it rest bare rather than as a tile inside a tile.
+ */
 @Composable
 private fun NovaQuickMenuStaticCard(content: @Composable () -> Unit) {
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val opacity = LocalNovaMenuOpacityScale.current
+    val rest = novaRowRest
     val shape = RoundedCornerShape(NovaRadius.row)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile * opacity), shape)
-            .border(NovaPanelMetrics.Hairline, surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * opacity), shape)
+            .background(rest.fill, shape)
+            .border(rest.borderWidth, rest.border, shape)
             .padding(NovaPanelMetrics.SpaceMd),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs),
-    ) { content() }
+    ) { NovaNestedRows(content) }
 }
 
 /** A card that acts: the Doctor's receipt, Sync and Advanced. */
@@ -690,7 +684,6 @@ private fun NovaQuickMenuRow(
         enabled = action.enabled,
         onClick = { callbacks.perform(action) },
         modifier = modifier.fillMaxWidth(),
-        flat = true,
         contentPadding = PaddingValues(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
         contentDescription = listOfNotNull(action.label, action.caption, action.chip?.label)
             .filter { it.isNotBlank() }
@@ -794,23 +787,20 @@ private fun NovaQuickMenuHudModePicker(
 
 /**
  * The Command Center's own tappable surface: one focus stop with the one focus look, acting on
- * release through [novaClickable], at least a row tall. A flat surface is a row; otherwise it is a
- * card with the nested tile fill and a hairline.
+ * release through [novaClickable], at least a row tall. Row or card, it rests as the one row tile
+ * every panel's rows do, so the rows and the cards between them read as one stack.
  */
 @Composable
 private fun NovaQuickMenuClickableSurface(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    flat: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(NovaPanelMetrics.SpaceMd),
     contentDescription: String,
     content: @Composable () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val opacity = LocalNovaMenuOpacityScale.current
     val shape = RoundedCornerShape(NovaRadius.row)
 
     Box(
@@ -818,12 +808,7 @@ private fun NovaQuickMenuClickableSurface(
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .alpha(if (enabled) 1f else NovaPanelMetrics.DisabledAlpha)
             .clip(shape)
-            .novaFocusRing(
-                shape = shape,
-                restFill = if (flat) Color.Transparent else surfaces.tile.copy(alpha = NovaInGameOverlayAlpha.NestedTile * opacity),
-                restBorder = if (flat) Color.Transparent else surfaces.tileBorder.copy(alpha = NovaInGameOverlayAlpha.Border * opacity),
-                restBorderWidth = if (flat) 0.dp else NovaPanelMetrics.Hairline,
-            )
+            .novaFocusRing(shape, rest = novaRowRest)
             .semantics { this.contentDescription = contentDescription }
             .onFocusChanged {
                 if (it.hasFocus && !focused) haptics.novaFocusTick()

@@ -84,6 +84,7 @@ import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaTitleAndValueMeasurePolicy
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaPanelType
+import com.papi.nova.ui.panel.novaRowRest
 
 /** The three ways a launch can go when Polaris reports desktop Steam active. */
 internal enum class NovaSteamLaunchChoice {
@@ -482,10 +483,8 @@ internal fun NovaSteamChoiceRow(
             // reads as here and not as ready.
             .novaFocusRing(
                 shape = shape,
+                rest = novaRowRest,
                 ring = if (actionable) Color.Unspecified else surfaces.focusRing.copy(alpha = NOVA_DETAIL_RESTING_RING_ALPHA),
-                restFill = surfaces.tile,
-                restBorder = surfaces.tileBorder,
-                restBorderWidth = NovaPanelMetrics.Hairline,
             )
             .semantics {
                 contentDescription = listOf(label, value, badge, if (describeCaption) caption else "")
