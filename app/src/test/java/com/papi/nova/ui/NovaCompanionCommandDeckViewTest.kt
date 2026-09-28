@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.activity.ComponentActivity
 import android.content.res.Configuration
 import android.os.Looper
+import android.graphics.drawable.StateListDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.view.MotionEvent
@@ -13,6 +14,8 @@ import androidx.core.view.ViewCompat
 import com.papi.nova.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -70,6 +73,33 @@ class NovaCompanionCommandDeckViewTest {
         assertFalse(novaKeyboard.isSelected)
         assertEquals("Inactive", ViewCompat.getStateDescription(novaKeyboard))
         assertTrue(hud.isSelected)
+
+        // R9: an on tile carries the one check, and a fill or a border only ever means focus.
+        fun mark(tile: View): View =
+            requireNotNull(tile.findViewWithTag(NovaCompanionCommandDeckView.TILE_CURRENT_MARK_TAG))
+        assertEquals(View.VISIBLE, mark(androidKeyboard).visibility)
+        assertEquals(View.VISIBLE, mark(hud).visibility)
+        assertEquals("an off tile keeps the mark's room but shows nothing", View.INVISIBLE, mark(novaKeyboard).visibility)
+        val background = hud.background as StateListDrawable
+        background.state = intArrayOf(android.R.attr.state_enabled, android.R.attr.state_selected)
+        val selectedLook = background.current
+        background.state = intArrayOf(android.R.attr.state_enabled)
+        assertSame("an on tile draws the resting fill and hairline, not the accent", background.current, selectedLook)
+        background.state = intArrayOf(android.R.attr.state_enabled, android.R.attr.state_focused)
+        assertNotSame("focus still fills the tile", background.current, selectedLook)
+
+        // Turning the HUD off takes its mark away without rebuilding the rail.
+        deck.render(
+            state().withActionSelections(
+                androidKeyboardVisible = true,
+                novaKeyboardVisible = false,
+                novaHudVisible = false,
+                zoomPanEnabled = true,
+            ),
+        )
+        shadowOf(activity.mainLooper).idle()
+        assertFalse(hud.isSelected)
+        assertEquals(View.INVISIBLE, mark(hud).visibility)
     }
 
     @Test

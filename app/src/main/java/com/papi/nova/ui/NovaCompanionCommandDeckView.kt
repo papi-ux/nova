@@ -3,8 +3,10 @@ package com.papi.nova.ui
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Rect
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
+import android.os.Build
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -216,10 +218,11 @@ class NovaCompanionCommandDeckView(
         } else {
             NovaThemeManager.getAccentColor(context)
         }
-        return LinearLayout(context).apply {
+        // The tile: its icon over its label, centred, with the one current mark in its trailing
+        // corner while what it toggles is on (R9). The mark sits outside the icon and label, so a
+        // tile turning on moves nothing.
+        return FrameLayout(context).apply {
             id = View.generateViewId()
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
             minimumWidth = dp(TILE_MIN_WIDTH_DP)
             minimumHeight = dp(TILE_MIN_HEIGHT_DP)
             isClickable = true
@@ -230,27 +233,51 @@ class NovaCompanionCommandDeckView(
             contentDescription = context.getString(labelRes)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             background = actionBackground(tint)
-            setPadding(dp(6), dp(8), dp(6), dp(6))
 
             addView(
-                ImageView(context).apply {
-                    setImageResource(actionIcon(action.id))
-                    imageTintList = ColorStateList.valueOf(tint)
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setPadding(dp(6), dp(8), dp(6), dp(6))
+                    addView(
+                        ImageView(context).apply {
+                            setImageResource(actionIcon(action.id))
+                            imageTintList = ColorStateList.valueOf(tint)
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        },
+                        LinearLayout.LayoutParams(dp(28), dp(28)),
+                    )
+                    addView(
+                        TextView(context).apply {
+                            tag = TILE_LABEL_TAG
+                            setText(labelRes)
+                            setTextColor(NovaThemeManager.getTextPrimaryColor(context))
+                            textSize = 12f
+                            gravity = Gravity.CENTER
+                            // A label wraps inside its cell on as many lines as it takes, never cut.
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        },
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ).apply {
+                            topMargin = dp(4)
+                        },
+                    )
                 },
-                LinearLayout.LayoutParams(dp(28), dp(28)),
+                LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER),
             )
             addView(
-                TextView(context).apply {
-                    setText(labelRes)
-                    setTextColor(NovaThemeManager.getTextPrimaryColor(context))
-                    textSize = 12f
-                    gravity = Gravity.CENTER
-                    // A label wraps inside its cell on as many lines as it takes, never cut.
+                ImageView(context).apply {
+                    tag = TILE_CURRENT_MARK_TAG
+                    setImageResource(R.drawable.ic_check)
+                    imageTintList = ColorStateList.valueOf(NovaThemeManager.getAccentColor(context))
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    visibility = View.INVISIBLE
                 },
-                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = dp(4)
+                LayoutParams(dp(CURRENT_MARK_DP), dp(CURRENT_MARK_DP), Gravity.TOP or Gravity.END).apply {
+                    topMargin = dp(CURRENT_MARK_INSET_DP)
+                    marginEnd = dp(CURRENT_MARK_INSET_DP)
                 },
             )
             setOnClickListener { view ->
@@ -319,6 +346,12 @@ class NovaCompanionCommandDeckView(
         view.isEnabled = action.enabled
         view.isSelected = action.selected
         view.alpha = if (action.enabled) 1f else 0.4f
+        // What the tile toggles is on: the check in its corner and a SemiBold label (R9). The
+        // tile's fill and border stay the resting ones, because those only ever mean focus.
+        view.findViewWithTag<View>(TILE_CURRENT_MARK_TAG)?.visibility =
+            if (action.selected) View.VISIBLE else View.INVISIBLE
+        view.findViewWithTag<TextView>(TILE_LABEL_TAG)?.typeface =
+            if (action.selected) semiBold else Typeface.DEFAULT
         val reportsSelection = when (action.id) {
             NovaCompanionCommandActionId.ANDROID_KEYBOARD,
             NovaCompanionCommandActionId.NOVA_KEYBOARD,
@@ -354,6 +387,8 @@ class NovaCompanionCommandDeckView(
         setStroke(dp(1), NovaThemeManager.getDividerColor(context))
     }
 
+    // Focus and the press under a finger fill the tile. Selected has no state of its own: a tile
+    // that is on carries the check instead, so an on tile never reads as the focused one (R9).
     private fun actionBackground(accent: Int): StateListDrawable = StateListDrawable().apply {
         addState(
             intArrayOf(android.R.attr.state_focused),
@@ -361,10 +396,6 @@ class NovaCompanionCommandDeckView(
         )
         addState(
             intArrayOf(android.R.attr.state_pressed),
-            roundedBackground(NovaThemeManager.getAccentSurfaceColor(context), accent, dp(2)),
-        )
-        addState(
-            intArrayOf(android.R.attr.state_selected),
             roundedBackground(NovaThemeManager.getAccentSurfaceColor(context), accent, dp(2)),
         )
         addState(
@@ -411,9 +442,29 @@ class NovaCompanionCommandDeckView(
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
+    // The panel type's SemiBold, which a label carries while its tile is on.
+    private val semiBold: Typeface by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Typeface.create(Typeface.DEFAULT, SEMI_BOLD_WEIGHT, false)
+        } else {
+            Typeface.DEFAULT_BOLD
+        }
+    }
+
     companion object {
         /** Tag of the End Session tile, a ComposeView holding its split. */
         const val END_SESSION_TILE_TAG = "nova-deck-end-session"
+
+        /** Tag of the check a tile shows while what it toggles is on. */
+        const val TILE_CURRENT_MARK_TAG = "nova-deck-current-mark"
+
+        /** Tag of a tile's label. */
+        const val TILE_LABEL_TAG = "nova-deck-tile-label"
+
+        /** The one current mark's size and its inset from the tile's corner, as in NovaCurrentMark. */
+        private const val CURRENT_MARK_DP = 18
+        private const val CURRENT_MARK_INSET_DP = 4
+        private const val SEMI_BOLD_WEIGHT = 600
 
         /**
          * A tile's narrowest cell: five across a handheld's companion screen, so its nine tiles
