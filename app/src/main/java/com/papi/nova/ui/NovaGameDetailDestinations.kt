@@ -324,37 +324,6 @@ internal fun novaGameDetailWindowInset(): Dp {
     return if (television) NovaGameDetailInset else NOVA_DETAIL_WINDOW_INSET
 }
 
-/**
- * Divides what you read from what you do. The sheet presented both as one list, so a
- * readout like "MangoHUD: On" sat in the same shape as "Reset profile" — one is a
- * statement, the other has consequences.
- */
-@Composable
-internal fun NovaGameDetailGroupLabel(text: String) {
-    val colors = LocalNovaComposeColors.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeContent.only(WindowInsetsSides.Horizontal))
-            .padding(horizontal = NovaGameDetailInset)
-            .padding(top = 16.dp, bottom = 6.dp),
-    ) {
-        Text(
-            text = text.uppercase(),
-            color = colors.textMuted,
-            style = NovaChromeType.label(fontSize = 8.sp),
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(colors.divider.copy(alpha = 0.5f)),
-        )
-    }
-}
-
 @Composable
 internal fun NovaDesktopSteamLaunchDecisionRows(
     decision: NovaDesktopSteamLaunchDecision,

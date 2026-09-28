@@ -208,7 +208,9 @@ class NovaArtworkStudioSourceGuardTest {
                 "heroPresentationKey = PolarisApiClient.artworkPresentationKey(currentGame, PolarisGame.ARTWORK_KIND_HERO)",
             ),
         )
-        assertTrue(detail.contains("if (heroAvailable)"))
+        // The hero view that read heroAvailable was the dead GameDetailsPanel's, deleted with it; the
+        // Overview's backdrop is the library's cinematic one, which follows the artwork itself.
+        assertFalse(detail.contains("private fun NovaGameDetailHero("))
     }
 
     @Test

@@ -990,7 +990,7 @@ class NovaLibrarySourceGuardTest {
         val source = readNovaGameDetail()
         val content = source.section(
             "fun NovaGameDetailContent(",
-            "@Composable\nprivate fun NovaGameDetailScrollableContent("
+            "/** Enough to read as texture behind a translucent destination, not as text. */"
         )
         assertTrue(
             "artwork curation should be its own destination, and a full-screen one: the studio lays itself out as a Row of weighted Columns and cannot fold into a side panel",
@@ -1275,7 +1275,7 @@ class NovaLibrarySourceGuardTest {
         val detail = readNovaGameDetail()
         val detailContent = detail.section(
             "fun NovaGameDetailContent(",
-            "@Composable\nprivate fun NovaDetailPanel("
+            "/** Enough to read as texture behind a translucent destination, not as text. */"
         )
         val settings = readNovaSettingsScreen()
         val settingsContent = settings.section(

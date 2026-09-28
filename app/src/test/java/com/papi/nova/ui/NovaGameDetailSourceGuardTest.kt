@@ -15,28 +15,12 @@ import org.junit.Test
  */
 class NovaGameDetailSourceGuardTest {
     @Test
-    fun gameDetailRetroidFirstPaintUsesCompactGameIdentityHeader() {
+    fun gameDetailActionsAndChoiceRowsKeepTheirHeightFloors() {
         val detail = readNovaGameDetail()
-        val detailsPanel = detail.section(
-            "private fun GameDetailsPanel(",
-            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
-        )
-        assertTrue(
-            "Retroid landscape first paint should keep either Hero or Poster identity inside the compact launch header ceiling",
-            detailsPanel.contains(".heightIn(min = 136.dp)") &&
-                detailsPanel.contains("contentPadding = PaddingValues(12.dp)") &&
-                detailsPanel.contains(".height(136.dp)") &&
-                detailsPanel.contains(".width(108.dp)") &&
-                detailsPanel.contains("fontSize = if (compact) 17.sp else 20.sp") &&
-                detailsPanel.contains("lineHeight = if (compact) 19.sp else 22.sp") &&
-                detailsPanel.contains("maxLines = if (compact) 1 else 2")
-        )
-        assertFalse(
-            "game detail should not keep the old oversized first-paint panel that pushed launch mode choices below the fold",
-            detailsPanel.contains(".heightIn(min = 172.dp)") ||
-                detailsPanel.contains(".width(126.dp)") ||
-                detailsPanel.contains("fontSize = 22.sp")
-        )
+        // The compact identity header this also pinned was GameDetailsPanel, which lost its last
+        // caller when the Overview replaced the sheet; it is deleted, and the Overview's own layout
+        // has its guards in NovaGameDetailOverviewLayoutTest.
+        assertFalse(detail.contains("private fun GameDetailsPanel("))
         assertTrue(
             "the primary launch and the mode choices stay compact enough for Retroid landscape. " +
                 "This used to measure the pinned footer, which the window replaced with the " +
@@ -260,7 +244,7 @@ class NovaGameDetailSourceGuardTest {
         val detail = readNovaGameDetail()
         val sheetContent = detail.section(
             "fun NovaGameDetailContent(",
-            "@Composable\nprivate fun NovaDetailPanel("
+            "/** Enough to read as texture behind a translucent destination, not as text. */"
         )
 
         assertFalse(
@@ -278,18 +262,10 @@ class NovaGameDetailSourceGuardTest {
     }
 
     @Test
-    fun gameDetailCoverLoadingIsKeyedByGameIdentity() {
+    fun gameDetailArtworkFollowsRevisionChanges() {
         val source = readNovaGameDetail()
-        val detailsPanel = source.section(
-            "private fun GameDetailsPanel(",
-            "@Composable\ninternal fun LaunchProfilePrimaryNotice("
-        )
-
-        assertTrue(
-            "detail sheet cover view should follow artwork revision changes",
-            detailsPanel.contains("key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER))") &&
-                detailsPanel.contains("coverLoader(this)")
-        )
+        // The cover view this also pinned was the dead GameDetailsPanel's; the Overview draws the
+        // library's cinematic backdrop instead, which follows the artwork itself.
         assertTrue("logo view should follow artwork revision changes", source.contains("key(logoPresentationKey)"))
         assertTrue(
             "successful artwork mutations should refresh detail state before propagation",

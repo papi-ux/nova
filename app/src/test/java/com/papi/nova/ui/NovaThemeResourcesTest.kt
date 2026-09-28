@@ -478,7 +478,12 @@ class NovaThemeResourcesTest {
                 library.contains("openLibraryPanel(LibraryPage.System(")
         )
         assertTrue("Library fixed glass overrides should consume the menu opacity local", library.contains("LocalNovaMenuOpacityScale.current"))
-        assertTrue("game detail fixed glass overrides should consume the menu opacity local", gameDetail.contains("LocalNovaMenuOpacityScale.current"))
+        // Game detail's fixed glass overrides were the dead sheet panel's, and went with it: what is
+        // left draws the theme's surfaces, which carry the menu opacity already.
+        assertFalse(
+            "game detail should keep no fixed glass override that ignores the menu opacity",
+            Regex("""surfaces\.(panel|tile|control|selectedControl)\.copy\(alpha = [0-9.]+f\)""").containsMatchIn(gameDetail)
+        )
         assertTrue("options fixed glass overrides should consume the menu opacity local", settings.contains("LocalNovaMenuOpacityScale.current"))
         assertTrue("shared focus components should scale panel glass while retaining focus rings", focusComponents.contains("LocalNovaMenuOpacityScale.current"))
         assertTrue("Stream UI reset should restore menu opacity to its declared default", settingsViewModel.contains("NovaMenuPreferences.KEY_OPACITY to NovaSettingValue.IntValue(NovaMenuPreferences.DEFAULT_OPACITY_PERCENT)"))
