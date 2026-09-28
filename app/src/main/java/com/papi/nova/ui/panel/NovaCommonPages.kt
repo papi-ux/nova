@@ -203,6 +203,7 @@ private fun NovaPageScope.MenuItem(item: NovaMenuItem, modifier: Modifier, exit:
             label = item.label,
             confirmLabel = item.confirmLabel,
             onConfirm = item.onConfirm,
+            stayLabel = item.stayLabel ?: stringResource(R.string.nova_panel_stay),
             consequence = item.consequence,
             icon = item.icon,
             shape = NovaSplitShape.Row,

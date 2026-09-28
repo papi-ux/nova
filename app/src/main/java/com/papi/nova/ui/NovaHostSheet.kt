@@ -221,12 +221,12 @@ internal class NovaHostSheetMenu(
 
     /** Splits in its own row into Stay and [confirmLabel], with [consequence] under the pair. */
     fun destructive(action: NovaHostSheetAction, confirmLabel: String, consequence: String, run: () -> Unit) {
-        rows += action.split(confirmLabel, consequence, run)
+        rows += action.split(confirmLabel, consequence, run = run)
     }
 
-    /** Removing the host: a split in the last row, apart from what manages it. */
-    fun remove(action: NovaHostSheetAction, confirmLabel: String, consequence: String, run: () -> Unit) {
-        removal = action.split(confirmLabel, consequence, run)
+    /** Removing the host: a split in the last row, apart from what manages it, whose safe half is [stayLabel]. */
+    fun remove(action: NovaHostSheetAction, confirmLabel: String, consequence: String, stayLabel: String, run: () -> Unit) {
+        removal = action.split(confirmLabel, consequence, stayLabel, run)
     }
 
     private fun NovaHostSheetAction.row(emphasis: Boolean = false, run: () -> Unit) = NovaMenuItem.Action(
@@ -241,12 +241,18 @@ internal class NovaHostSheetMenu(
         },
     )
 
-    private fun NovaHostSheetAction.split(confirmLabel: String, consequence: String, run: () -> Unit) =
+    private fun NovaHostSheetAction.split(
+        confirmLabel: String,
+        consequence: String,
+        stayLabel: String? = null,
+        run: () -> Unit,
+    ) =
         NovaMenuItem.Destructive(
             key = key,
             label = label,
             confirmLabel = confirmLabel,
             consequence = consequence,
+            stayLabel = stayLabel,
             icon = iconRes,
             onConfirm = {
                 // The panel leaves first, so what the confirmed action opens is not opened under it.
@@ -385,6 +391,7 @@ internal fun novaHostMenuItems(
         action("delete", R.string.pcview_menu_delete_pc, R.string.pcview_sheet_caption_delete, R.drawable.ic_delete),
         confirmLabel = context.getString(R.string.pcview_menu_delete_pc),
         consequence = context.getString(novaHostDeleteConsequence(details)),
+        stayLabel = context.getString(R.string.nova_panel_keep),
     ) { actions.delete() }
     return menu.items
 }

@@ -77,12 +77,16 @@ sealed interface NovaMenuItem {
         val page: () -> NovaPage,
     ) : NovaMenuItem
 
-    /** Splits in its own row into Stay and [confirmLabel]; see NovaSplitConfirm. */
+    /**
+     * Splits in its own row into [stayLabel] and [confirmLabel]; see NovaSplitConfirm. [stayLabel]
+     * is Stay unless the safe half has a better word, as Keep is for deleting something.
+     */
     data class Destructive(
         override val key: String,
         val label: String,
         val confirmLabel: String,
         val consequence: String? = null,
+        val stayLabel: String? = null,
         @DrawableRes val icon: Int? = null,
         val onConfirm: () -> Unit,
     ) : NovaMenuItem

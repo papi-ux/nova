@@ -114,6 +114,7 @@ class NovaHostMenuTest {
         assertEquals(listOf("resume", "end_session", "app_list", "server_config", "test_network", "details", "delete"), items.keys())
         val end = items[1] as NovaMenuItem.Destructive
         assertEquals(context.getString(R.string.game_dialog_action_end_session), end.confirmLabel)
+        assertEquals("ending a session stays on Stay", null, end.stayLabel)
         assertEquals(context.getString(R.string.nova_panel_end_session_message), end.consequence)
         end.onConfirm()
         assertEquals(listOf("end_session"), ran)
@@ -150,6 +151,7 @@ class NovaHostMenuTest {
         val removal = menu(host()).last() as NovaMenuItem.Destructive
         assertEquals("delete", removal.key)
         assertEquals(context.getString(R.string.pcview_menu_delete_pc), removal.confirmLabel)
+        assertEquals("deleting keeps the host on Keep (spec 9.3, row 2)", context.getString(R.string.nova_panel_keep), removal.stayLabel)
     }
 
     @Test

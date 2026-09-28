@@ -88,7 +88,7 @@ class NovaHostsPanelComposeTest {
     }
 
     @Test
-    fun theHostMenuOpensOnItsPrimaryAndDeleteSplitsInPlaceWithStayFocused() {
+    fun theHostMenuOpensOnItsPrimaryAndDeleteSplitsInPlaceWithKeepFocused() {
         val keys = openHostMenu()
         rule.onNodeWithText(string(R.string.pcview_menu_nova_library)).assertIsFocused()
 
@@ -96,7 +96,7 @@ class NovaHostsPanelComposeTest {
         repeat(5) { keys.press(NovaTestKeys.DOWN) }
         rule.onNodeWithText(string(R.string.pcview_menu_delete_pc)).assertIsFocused()
         keys.press(NovaTestKeys.CENTER)
-        rule.onNodeWithText(string(R.string.nova_panel_stay)).assertIsFocused()
+        rule.onNodeWithText(string(R.string.nova_panel_keep)).assertIsFocused()
         rule.onNodeWithText(string(R.string.hosts_delete_consequence)).assertExists()
 
         keys.back()

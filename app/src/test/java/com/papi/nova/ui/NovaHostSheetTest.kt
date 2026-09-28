@@ -30,7 +30,7 @@ class NovaHostSheetTest {
         menu.play(action("watch")) { ran += "watch" }
         menu.play(action("open_library")) { ran += "open_library" }
         menu.manage(action("app_list")) { ran += "app_list" }
-        menu.remove(action("delete"), confirmLabel = "Delete PC", consequence = "gone") { ran += "delete" }
+        menu.remove(action("delete"), confirmLabel = "Delete PC", consequence = "gone", stayLabel = "Keep") { ran += "delete" }
 
         val items = menu.items
         assertEquals(listOf("watch", "open_library", "app_list", "delete"), items.map { it.key })
@@ -40,6 +40,7 @@ class NovaHostSheetTest {
             (items[1] as NovaMenuItem.Action).emphasis,
         )
         assertTrue("removing the host splits in its own row", items[3] is NovaMenuItem.Destructive)
+        assertEquals("and its safe half says what it keeps", "Keep", (items[3] as NovaMenuItem.Destructive).stayLabel)
 
         (items[1] as NovaMenuItem.Action).onClick()
         (items[3] as NovaMenuItem.Destructive).onConfirm()
