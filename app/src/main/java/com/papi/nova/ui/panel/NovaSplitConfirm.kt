@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
@@ -204,6 +205,8 @@ fun NovaSplitConfirm(
                     // At rest a row or a tile has the row corner of the rows and tiles around it;
                     // only a button, and the armed halves, take the button corner.
                     rowCorner = shape != NovaSplitShape.Button,
+                    // A tile at rest reads as the tiles beside it: its icon over its label.
+                    tile = shape == NovaSplitShape.Tile,
                     modifier = Modifier
                         .then(
                             if (shape == NovaSplitShape.Button) {
@@ -287,6 +290,7 @@ private fun SplitHalf(
     minHeight: Dp,
     rowCorner: Boolean,
     modifier: Modifier,
+    tile: Boolean = false,
     onClick: () -> Unit,
 ) {
     NovaActionSurface(
@@ -298,27 +302,52 @@ private fun SplitHalf(
         contentDescription = text,
         minHeight = minHeight,
         cornerRadius = if (rowCorner) NovaRadius.row else NovaRadius.hero,
-        contentPadding = PaddingValues(
-            horizontal = NovaPanelMetrics.SpaceMd,
-            vertical = NovaPanelMetrics.SpaceSm,
-        ),
+        contentPadding = if (tile) {
+            PaddingValues(horizontal = TileSidePadding, vertical = NovaPanelMetrics.SpaceSm)
+        } else {
+            PaddingValues(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm)
+        },
     ) { contentColor, _ ->
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm, Alignment.CenterHorizontally),
-        ) {
-            icon?.let {
-                Icon(
-                    painter = painterResource(it),
-                    contentDescription = null,
-                    tint = contentColor,
-                    modifier = Modifier.size(NovaPanelMetrics.IconSize),
-                )
+        if (tile) {
+            // The icon over the label in the caption type, as the deck's other tiles draw theirs, so
+            // a tile a fifth of a companion screen wide wraps "End Session" between its words and
+            // never inside one.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs),
+            ) {
+                icon?.let {
+                    Icon(
+                        painter = painterResource(it),
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(TileIconSize),
+                    )
+                }
+                Text(text = text, style = novaPanelType.caption, color = contentColor, textAlign = TextAlign.Center)
             }
-            Text(text = text, style = novaPanelType.value, color = contentColor, textAlign = TextAlign.Center)
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm, Alignment.CenterHorizontally),
+            ) {
+                icon?.let {
+                    Icon(
+                        painter = painterResource(it),
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(NovaPanelMetrics.IconSize),
+                    )
+                }
+                Text(text = text, style = novaPanelType.value, color = contentColor, textAlign = TextAlign.Center)
+            }
         }
     }
 }
+
+/** A resting tile's icon and side padding: the deck's View tiles' 28dp icon and 6dp inset. */
+private val TileIconSize = 28.dp
+private val TileSidePadding = 6.dp
 
 private class BoundsHolder {
     var bounds: Rect? = null

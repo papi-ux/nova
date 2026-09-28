@@ -2,11 +2,14 @@ package com.papi.nova.ui
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.os.Build
+import android.text.TextPaint
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -27,6 +30,7 @@ import androidx.core.view.ViewCompat
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import kotlin.math.ceil
 import com.papi.nova.R
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.ui.panel.NovaSplitConfirm
@@ -208,6 +212,21 @@ class NovaCompanionCommandDeckView(
             view.nextFocusLeftId = actionViews.values.elementAtOrNull(index - 1)?.id ?: View.NO_ID
             view.nextFocusRightId = actionViews.values.elementAtOrNull(index + 1)?.id ?: View.NO_ID
         }
+        // A cell holds its label's longest word on one line, so a label wraps between its words
+        // and never inside one: at a large font scale "keyboard" outgrew the 72dp cell and broke.
+        actionRail.cellMinWidthPx = maxOf(
+            dp(TILE_MIN_WIDTH_DP),
+            novaDeckLongestWordPx(actions.map { context.getString(actionLabel(it.id)) }) + dp(TILE_WORD_ROOM_DP),
+        )
+    }
+
+    /** The width of the longest word in [labels], in the tile label's type at its SemiBold, its widest. */
+    private fun novaDeckLongestWordPx(labels: List<String>): Int {
+        val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, TILE_WORD_MEASURE_SP, resources.displayMetrics)
+            typeface = semiBold
+        }
+        return labels.flatMap { it.split(' ') }.maxOfOrNull { ceil(paint.measureText(it)).toInt() } ?: 0
     }
 
     private fun createActionView(action: NovaCompanionCommandAction): View {
@@ -472,6 +491,15 @@ class NovaCompanionCommandDeckView(
          */
         private const val TILE_MIN_WIDTH_DP = 72
 
+        /**
+         * The type a tile's words are measured in: the End tile's caption, a point above the other
+         * tiles' 12sp labels, so one width holds both.
+         */
+        private const val TILE_WORD_MEASURE_SP = 13f
+
+        /** A label's side insets in its tile, and a little room for rounding. */
+        private const val TILE_WORD_ROOM_DP = 16
+
         /** A split tile's height, which every tile keeps so the rail's rows read as rows. */
         private const val TILE_MIN_HEIGHT_DP = 72
 
@@ -498,8 +526,16 @@ class NovaCompanionCommandDeckView(
 internal class NovaDeckFlowLayout(
     context: Context,
     private val gapPx: Int,
-    private val cellMinWidthPx: Int = 0,
+    cellMinWidthPx: Int = 0,
 ) : ViewGroup(context) {
+    /** The narrowest a cell may be; the deck widens it to the longest word its labels hold. */
+    var cellMinWidthPx: Int = cellMinWidthPx
+        set(value) {
+            if (field == value) return
+            field = value
+            requestLayout()
+        }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val bounded = MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED
         val available = if (bounded) {

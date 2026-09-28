@@ -256,6 +256,38 @@ class NovaCompanionCommandDeckViewTest {
     }
 
     @Test
+    fun aTilesCellHoldsTheLongestWordOfAnyLabel() {
+        // At 130% "keyboard" outgrew the 72dp cell and broke inside the word, and the End tile's
+        // label beside its icon broke "End Session" a letter or two to a line. The measuring is the
+        // device's (Robolectric's text is not), so this reads what the deck asks for.
+        val deck = String(
+            java.nio.file.Files.readAllBytes(java.nio.file.Path.of("src/main/java/com/papi/nova/ui/NovaCompanionCommandDeckView.kt")),
+            Charsets.UTF_8,
+        )
+        assertTrue(
+            deck.contains("actionRail.cellMinWidthPx = maxOf(") &&
+                deck.contains("novaDeckLongestWordPx(actions.map { context.getString(actionLabel(it.id)) })") &&
+                deck.contains("TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, TILE_WORD_MEASURE_SP, resources.displayMetrics)")
+        )
+        val split = String(
+            java.nio.file.Files.readAllBytes(java.nio.file.Path.of("src/main/java/com/papi/nova/ui/panel/NovaSplitConfirm.kt")),
+            Charsets.UTF_8,
+        )
+        assertTrue(
+            "the End tile at rest draws its icon over its label in the caption type, as the tiles beside it do",
+            split.contains("tile = shape == NovaSplitShape.Tile,") &&
+                split.contains("Text(text = text, style = novaPanelType.caption, color = contentColor, textAlign = TextAlign.Center)")
+        )
+
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val view = NovaCompanionCommandDeckView(activity) { }
+        activity.setContentView(view)
+        view.render(state())
+        val rail = (view.getChildAt(1) as ScrollView).getChildAt(0) as NovaDeckFlowLayout
+        assertTrue("never under the 72dp cell", rail.cellMinWidthPx >= (72 * activity.resources.displayMetrics.density).toInt())
+    }
+
+    @Test
     fun compactTwoXFontUsesBoundedScrollableChrome() {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val configuration = Configuration(activity.resources.configuration).apply { fontScale = 2f }
