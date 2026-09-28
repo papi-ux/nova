@@ -729,11 +729,14 @@ internal fun NovaPageScope.NovaPolarisSyncPage(
         )
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val bodyHeight: Dp = maxHeight
+            val readTitle = stringResource(R.string.nova_play_setup_host_read_title)
             NovaPlaySetupBody(
                 plan = plan,
-                readTitle = stringResource(R.string.nova_play_setup_host_read_title),
-                introMaxLines = novaPlaySetupIntroLines(bodyHeight, factCount = plan.facts.size),
+                readTitle = readTitle,
                 fitHeight = bodyHeight,
+                // Too narrow for the plan beside the rows, the plan opens whole on its own page.
+                onOpenPlan = { shown -> if (isTop) panel.push(PlaySetupPage.Plan(readTitle, shown)) },
+                planRowModifier = Modifier.novaRestorableFocus("plan"),
                 rows = {
                     NovaHostSetupRowList(
                         rows = rows,
@@ -752,11 +755,11 @@ internal fun NovaPageScope.NovaPolarisSyncPage(
                         },
                     )
                 },
-                comparison = {
+                comparison = { form ->
                     NovaHostSetupComparison(
                         rows = rows,
                         explainedRow = controller.explainedRow,
-                        consequenceMaxLines = novaPlaySetupConsequenceLines(bodyHeight, rows.size),
+                        form = form,
                     )
                 },
             )

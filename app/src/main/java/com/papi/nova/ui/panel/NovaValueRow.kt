@@ -102,7 +102,8 @@ internal fun <T> novaValueStep(options: List<NovaOption<T>>, index: Int, delta: 
  *
  * The row keeps its size as the value changes: a cycler reserves its widest label and a segment
  * reserves room for the check. Segments that cannot fit the row even under the title draw as a
- * cycler instead of breaking their labels.
+ * cycler instead of breaking their labels. With [wrapUnderTitle] false, segments that cannot sit
+ * beside the title draw as a cycler too, so the row stays one line tall where height is short.
  */
 @Composable
 fun <T> NovaValueRow(
@@ -116,6 +117,7 @@ fun <T> NovaValueRow(
     ordered: Boolean = false,
     enabled: Boolean = true,
     onOpenList: (() -> Unit)? = null,
+    wrapUnderTitle: Boolean = true,
 ) {
     val resolved = remember(options, style) { resolveNovaValueStyle(options, style) }
     val labelWidths = rememberNovaLabelWidths(remember(options) { options.map { it.label } })
@@ -163,7 +165,7 @@ fun <T> NovaValueRow(
                 on = options.getOrNull(index)?.value == true,
                 onToggle = { step(if (options.getOrNull(latestIndex)?.value == true) -1 else 1, wrap = false) },
             )
-            resolved == NovaValueStyle.Segmented && segmentsWidth <= available ->
+            resolved == NovaValueStyle.Segmented && segmentsWidth <= novaSegmentsRoom(available, wrapUnderTitle) ->
                 NovaSegmentedControl(options, index, onSelect = ::select)
             else -> NovaCyclerControl(
                 label = options.getOrNull(index)?.label.orEmpty(),
@@ -188,6 +190,13 @@ private fun rememberNovaLabelWidths(labels: List<String>): List<Dp> {
         }
     }
 }
+
+/**
+ * The widest segmented control a row [available] wide can draw: the whole row, under the title,
+ * or with [wrapUnderTitle] false only what sits beside the title while it keeps its share.
+ */
+internal fun novaSegmentsRoom(available: Dp, wrapUnderTitle: Boolean): Dp =
+    if (wrapUnderTitle) available else available * (1f - NovaPanelMetrics.TitleShare) - NovaPanelMetrics.SpaceMd
 
 /** The natural width of a segmented control whose labels are [labelWidths] wide. */
 private fun novaSegmentsWidth(labelWidths: List<Dp>): Dp {

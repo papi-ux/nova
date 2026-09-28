@@ -19,13 +19,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.contentDescription
@@ -35,14 +31,21 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.unit.Constraints
-import kotlin.math.roundToInt
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,15 +53,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
-import kotlinx.coroutines.delay
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaChromeType
-import com.papi.nova.ui.compose.NovaRevealingText
 import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.panel.NovaCurrentMark
 import com.papi.nova.ui.panel.NovaOption
@@ -89,33 +89,60 @@ import com.papi.nova.ui.panel.novaPanelType
  * Nothing here is new data. [NovaLaunchProfileSummary] already computes every figure in
  * the left column; three of its fields -- `historyLines`, `requestedLine` and
  * `primaryLaunchLabel` -- were computed on every launch and rendered nowhere at all.
+ *
+ * Nothing in it is cut, and nothing moves by itself (R13). Every line wraps whole. What does
+ * not fit where it stands is shown whole somewhere it does: the plan as a row that opens the
+ * plan's own page, the legend as the one card for the current choice, or not at all.
  */
 @Composable
 internal fun NovaPlaySetupBody(
     plan: NovaPlaySetupPlan,
     rows: @Composable () -> Unit,
-    comparison: (@Composable () -> Unit)? = null,
-    introMaxLines: Int = 2,
+    /** The legend for the row under the cursor, in the form the room it has allows. */
+    comparison: (@Composable (NovaPlaySetupLegendForm) -> Unit)? = null,
     /** The read column's head; host scope reads differently than a game does. */
     readTitle: String? = null,
     /**
      * The height the body has. Side by side, the read column fits itself into it: its lines
      * are not a stop on the d-pad, so the panel's scroll, which follows focus, could never bring
-     * a cut line into view.
+     * a line below the fold into view.
      */
     fitHeight: Dp = Dp.Unspecified,
+    /**
+     * Opens the plan whole on a page of its own, where each part of it is a stop the cursor can
+     * scroll to. Given, a panel too narrow for two columns shows the plan as one row that opens
+     * it; null keeps the whole plan in the body.
+     */
+    onOpenPlan: ((NovaPlaySetupPlan) -> Unit)? = null,
+    /** Focus marks for the plan's row, so focus comes back to it when the plan's page pops (R7). */
+    planRowModifier: Modifier = Modifier,
 ) {
+    val title = readTitle ?: stringResource(R.string.nova_play_setup_what_will_happen)
+    val planRow: @Composable () -> Unit = {
+        NovaPlaySetupPlanRow(plan, title, { onOpenPlan?.invoke(plan) }, planRowModifier)
+    }
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // A phone in portrait has no room for two columns, and stacking them keeps the
         // same reading order: read the plan, then act on it.
         val stacked = maxWidth < NOVA_PLAY_SETUP_TWO_COLUMN_MIN
         // Given its height, the body keeps the legend in sight and scrolls the rows above it.
         val pinned = fitHeight != Dp.Unspecified && fitHeight > 0.dp
+        // Stacked, the plan shares one scroll with the rows, and the cursor, which stops only on
+        // the rows, would scroll the top of a tall plan away with no way back to it. So the plan
+        // is a row there, whole, and its page holds the rest.
+        val stackedPlan: @Composable () -> Unit = if (onOpenPlan != null) {
+            planRow
+        } else {
+            { NovaPlaySetupReadColumn(plan, Modifier.fillMaxWidth(), title) }
+        }
         if (stacked && pinned) {
             Column(modifier = Modifier.fillMaxWidth().height(fitHeight)) {
-                NovaPlaySetupRowsRegion {
-                    NovaPlaySetupReadColumn(plan, introMaxLines, Modifier.fillMaxWidth(), readTitle)
-                    Spacer(modifier = Modifier.height(18.dp))
+                NovaPlaySetupRowsRegion(
+                    above = {
+                        stackedPlan()
+                        Spacer(modifier = Modifier.height(NOVA_PLAY_SETUP_READ_GAP))
+                    },
+                ) {
                     NovaPlaySetupColumnHead(stringResource(R.string.nova_play_setup_what_you_can_change))
                     rows()
                 }
@@ -123,19 +150,27 @@ internal fun NovaPlaySetupBody(
             }
         } else if (stacked) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                NovaPlaySetupReadColumn(plan, introMaxLines, Modifier.fillMaxWidth(), readTitle)
-                Spacer(modifier = Modifier.height(18.dp))
+                stackedPlan()
+                Spacer(modifier = Modifier.height(NOVA_PLAY_SETUP_READ_GAP))
                 NovaPlaySetupActColumn(rows, comparison, Modifier.fillMaxWidth())
             }
         } else {
             Row(modifier = Modifier.fillMaxWidth().then(if (pinned) Modifier.height(fitHeight) else Modifier)) {
-                NovaPlaySetupReadColumn(
-                    plan = plan,
-                    introMaxLines = introMaxLines,
-                    modifier = Modifier.width(NOVA_PLAY_SETUP_READ_WIDTH).fillMaxHeight(),
-                    readTitle = readTitle,
-                    fitHeight = fitHeight,
-                )
+                // Beside the rows the plan has the column's whole height: whole when it fits, and
+                // the row that opens its page when it does not, never a line cut at the bottom.
+                val readModifier = Modifier.width(NOVA_PLAY_SETUP_READ_WIDTH).fillMaxHeight()
+                if (pinned && onOpenPlan != null) {
+                    NovaFirstThatFits(
+                        maxHeight = fitHeight,
+                        forms = listOf(
+                            { NovaPlaySetupReadColumn(plan, Modifier.fillMaxWidth(), title) },
+                            planRow,
+                        ),
+                        modifier = readModifier,
+                    )
+                } else {
+                    NovaPlaySetupReadColumn(plan, readModifier, title)
+                }
                 Spacer(modifier = Modifier.width(NOVA_PLAY_SETUP_GUTTER))
                 NovaPlaySetupActColumn(
                     rows = rows,
@@ -150,144 +185,80 @@ internal fun NovaPlaySetupBody(
 }
 
 /**
- * What will happen, and where each part of it came from. Read, never operated.
- *
- * Given a height, it fits into it. Nothing here is a stop on the d-pad, so the panel's scroll,
- * which follows focus, could never reach a line cut off at the bottom: on the Retroid a Space
- * launch printed its host profile under the hint bar with no way to see it. The column measures
- * its own text and gives up prose first, then the detail under each fact, a line at a time, and
- * never a fact's value.
+ * What will happen, and where each part of it came from. Read, never operated, and whole: every
+ * line and every fact's detail wraps onto the lines it needs, so nothing here is cut and nothing
+ * has to scroll itself into view to be read.
  */
 @Composable
 private fun NovaPlaySetupReadColumn(
     plan: NovaPlaySetupPlan,
-    introMaxLines: Int,
     modifier: Modifier = Modifier,
-    readTitle: String? = null,
-    fitHeight: Dp = Dp.Unspecified,
+    readTitle: String,
 ) {
-    val colors = LocalNovaComposeColors.current
-    BoxWithConstraints(modifier = modifier) {
-        val fit = rememberNovaPlaySetupReadFit(plan, introMaxLines, maxWidth, fitHeight)
-        // The column fits itself by cutting lines, and nothing in it takes the cursor, so what it
-        // cut could not be read at all. Its texts take turns instead: one at a time, top to
-        // bottom, each shows the rest of itself once and hands on. A round in which nothing had
-        // anything hidden is the last; otherwise the column rests and goes round again.
-        val items = plan.lines.size + plan.facts.size
-        var turn by remember(plan, fit) { mutableIntStateOf(-1) }
-        var round by remember(plan, fit) { mutableIntStateOf(0) }
-        var revealedThisRound by remember(plan, fit) { mutableStateOf(false) }
-        LaunchedEffect(plan, fit, round) {
-            if (items == 0) return@LaunchedEffect
-            delay(if (round == 0) NOVA_PLAY_SETUP_READ_FIRST_TURN_MS else NOVA_PLAY_SETUP_READ_REST_MS)
-            revealedThisRound = false
-            turn = 0
-        }
-        val played: (Int, Boolean) -> Unit = { index, revealed ->
-            if (turn == index) {
-                if (revealed) revealedThisRound = true
-                when (val next = novaPlaySetupNextTurn(index, items, revealedThisRound)) {
-                    NOVA_PLAY_SETUP_TURN_REST -> { turn = -1; round++ }
-                    NOVA_PLAY_SETUP_TURN_DONE -> turn = -1
-                    else -> turn = next
-                }
-            }
-        }
-        Column(modifier = Modifier.fillMaxWidth()) {
-            NovaPlaySetupColumnHead(readTitle ?: stringResource(R.string.nova_play_setup_what_will_happen))
-            // In the page title style, and wrapping: a mode name longer than the column is read
-            // whole on a second line rather than cut (R13). The fit below measures it as drawn.
-            Text(text = plan.mode, style = novaPanelType.pageTitle, color = colors.textPrimary)
-            plan.lines.forEachIndexed { index, line ->
-                NovaRevealingText(
-                    text = line,
-                    highlighted = turn == index,
-                    passes = 1,
-                    onPlayed = { revealed -> played(index, revealed) },
-                    // The last line is the part nobody asked for but everyone wants to know:
-                    // whether anything outside this game is about to be touched.
-                    color = if (index == plan.lines.lastIndex) colors.textMuted else colors.textSecondary,
-                    fontSize = 14.sp,
-                    lineHeight = 19.sp,
-                    modifier = Modifier.padding(top = 6.dp),
-                    maxLines = fit.lineMaxLines.getOrElse(index) { introMaxLines },
-                )
-            }
-
-            if (plan.facts.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(20.dp))
-                NovaPlaySetupRule()
-                plan.facts.forEachIndexed { index, fact ->
-                    val item = plan.lines.size + index
-                    NovaPlaySetupFact(
-                        fact = fact,
-                        detailMaxLines = fit.detailMaxLines.getOrElse(index) { Int.MAX_VALUE },
-                        revealing = turn == item,
-                        onPlayed = { revealed -> played(item, revealed) },
-                    )
-                }
-            }
+    Column(modifier = modifier.testTag(NOVA_PLAY_SETUP_READ_TAG)) {
+        NovaPlaySetupColumnHead(readTitle)
+        NovaPlaySetupPlanStatement(plan)
+        if (plan.facts.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(20.dp))
+            NovaPlaySetupRule()
+            plan.facts.forEach { fact -> NovaPlaySetupFact(fact = fact) }
         }
     }
 }
 
-/** The line limits that fit this plan into [fitHeight]; everything it needs when there is no height to fit. */
+/** The plan's statement: the resolved mode in the page title style, then its lines, all wrapping. */
 @Composable
-private fun rememberNovaPlaySetupReadFit(
-    plan: NovaPlaySetupPlan,
-    introMaxLines: Int,
-    width: Dp,
-    fitHeight: Dp,
-): NovaPlaySetupReadFit {
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    val base = LocalTextStyle.current
-    val modeType = novaPanelType.pageTitle
-    return remember(plan, introMaxLines, width, fitHeight, density, base, modeType) {
-        val unfitted = NovaPlaySetupReadFit(
-            lineMaxLines = List(plan.lines.size) { introMaxLines },
-            detailMaxLines = List(plan.facts.size) { Int.MAX_VALUE },
-        )
-        if (fitHeight == Dp.Unspecified || fitHeight <= 0.dp || width == Dp.Infinity || width <= NOVA_PLAY_SETUP_FACT_KEY) {
-            return@remember unfitted
-        }
-        with(density) {
-            fun measure(text: String, style: TextStyle, maxWidth: Dp): NovaPlaySetupMeasuredText {
-                if (text.isBlank()) return NovaPlaySetupMeasuredText(emptyList())
-                val layout = measurer.measure(
-                    text = text,
-                    style = style,
-                    constraints = Constraints(maxWidth = maxWidth.roundToPx().coerceAtLeast(1)),
-                )
-                return NovaPlaySetupMeasuredText(List(layout.lineCount) { layout.getLineBottom(it).roundToInt() })
-            }
-            val lineStyle = base.merge(TextStyle(fontSize = 14.sp, lineHeight = 19.sp))
-            val valueStyle = base.merge(TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium))
-            val detailStyle = base.merge(TextStyle(fontSize = 11.sp, lineHeight = 15.sp))
-            val valueWidth = width - NOVA_PLAY_SETUP_FACT_KEY
-            // The mode wraps rather than being cut, so it is measured at its width, not assumed one line.
-            val modeHeight = measure(plan.mode, base.merge(modeType), width).height(Int.MAX_VALUE)
-            val fixed = NOVA_PLAY_SETUP_COLUMN_HEAD.roundToPx() + modeHeight +
-                (if (plan.facts.isNotEmpty()) NOVA_PLAY_SETUP_RULE_BLOCK else 0.dp).roundToPx()
-            novaPlaySetupFitReadColumn(
-                available = (fitHeight - NOVA_PLAY_SETUP_SLACK).roundToPx(),
-                fixed = fixed,
-                lineGap = 6.dp.roundToPx(),
-                lines = plan.lines.map { measure(it, lineStyle, width) },
-                lineCap = introMaxLines,
-                factChrome = 10.dp.roundToPx(),
-                detailGap = 4.dp.roundToPx(),
-                keyMin = NOVA_PLAY_SETUP_FACT_KEY_MIN.roundToPx(),
-                facts = plan.facts.map {
-                    NovaPlaySetupMeasuredFact(
-                        value = measure(it.value, valueStyle, valueWidth),
-                        detail = measure(it.detail, detailStyle, valueWidth),
-                    )
-                },
+internal fun NovaPlaySetupPlanStatement(plan: NovaPlaySetupPlan) {
+    val colors = LocalNovaComposeColors.current
+    Column {
+        // A mode name longer than the column is read whole on a second line rather than cut (R13).
+        Text(text = plan.mode, style = novaPanelType.pageTitle, color = colors.textPrimary)
+        plan.lines.forEachIndexed { index, line ->
+            Text(
+                text = line,
+                // The last line is the part nobody asked for but everyone wants to know:
+                // whether anything outside this game is about to be touched.
+                color = if (index == plan.lines.lastIndex) colors.textMuted else colors.textSecondary,
+                fontSize = 14.sp,
+                lineHeight = 19.sp,
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
     }
 }
+
+/**
+ * The plan as one row: the mode it resolved to, what it resolves to in one line, and, when
+ * anything holds it back, what does. A opens the whole plan on its own page.
+ */
+@Composable
+private fun NovaPlaySetupPlanRow(
+    plan: NovaPlaySetupPlan,
+    readTitle: String,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = Modifier.fillMaxWidth().testTag(NOVA_PLAY_SETUP_PLAN_ROW_TAG)) {
+        NovaPlaySetupColumnHead(readTitle)
+        NovaRow(
+            title = plan.mode,
+            caption = novaPlaySetupPlanSummary(plan),
+            trailing = NovaRowTrailing.Opens,
+            onClick = onOpen,
+            modifier = modifier,
+        )
+    }
+}
+
+/**
+ * The plan's row caption: its first line, and the first fact that warns, as "Key: value". The
+ * rest is a press away on the plan's page.
+ */
+internal fun novaPlaySetupPlanSummary(plan: NovaPlaySetupPlan): String? =
+    listOfNotNull(
+        plan.lines.firstOrNull()?.takeIf { it.isNotBlank() },
+        plan.facts.firstOrNull { it.tone == NovaPlaySetupTone.WARN }?.let { "${it.key}: ${it.value}" },
+    ).joinToString("\n").takeIf { it.isNotBlank() }
 
 /**
  * The few real choices, and what the alternatives to the focused one would mean.
@@ -303,7 +274,7 @@ private fun rememberNovaPlaySetupReadFit(
 @Composable
 private fun NovaPlaySetupActColumn(
     rows: @Composable () -> Unit,
-    comparison: (@Composable () -> Unit)?,
+    comparison: (@Composable (NovaPlaySetupLegendForm) -> Unit)?,
     modifier: Modifier = Modifier,
     pinned: Boolean = false,
     legendCap: Dp = Dp.Unspecified,
@@ -317,76 +288,185 @@ private fun NovaPlaySetupActColumn(
             rows()
             if (comparison != null) {
                 Spacer(modifier = Modifier.height(4.dp))
-                comparison()
+                comparison(NovaPlaySetupLegendForm.All)
             }
         }
     }
 }
 
 /**
- * The part of the body that scrolls: the rows, and on a narrow screen the plan above them.
+ * The part of the body that scrolls: the rows, and on a narrow screen the plan [above] them.
  *
  * It takes what its content needs and no more, so a short list keeps its legend directly under
  * it rather than across a gap at the bottom of the panel. Focus brings a row into view here the
- * way it does in the panel's own scroll.
+ * way it does in the panel's own scroll, except that it never stops part of the way into the plan
+ * above the rows: it stops at the top, or below the plan, so the plan is whole or out of view.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ColumnScope.NovaPlaySetupRowsRegion(content: @Composable () -> Unit) {
+private fun ColumnScope.NovaPlaySetupRowsRegion(
+    above: (@Composable () -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
     val scroll = rememberScrollState()
+    var abovePx by remember { mutableIntStateOf(0) }
+    val page = LocalBringIntoViewSpec.current
+    val spec = remember(page, scroll) { NovaPlaySetupWholePlanSpec(page, scroll) { abovePx } }
     // More than the gap under the last row. Focus brings a row's own bounds into view and not
     // the gap below it, so at the last row the scroll could still move by that gap, and "can
     // scroll" kept the dissolve drawn over the final row as if another followed.
     val slack = with(LocalDensity.current) { NOVA_PLAY_SETUP_ROWS_FADE.toPx() }
     val moreBelow = scroll.maxValue - scroll.value > slack
+    // Scrolled down past the rows' head, the row at the top edge may be cut; it dissolves there,
+    // as the last row does at the bottom, rather than ending in half a line. Stopped just below
+    // the plan, the head stands whole at the edge and is not dimmed.
+    val moreAbove = scroll.value > abovePx + slack
     Column(
         modifier = Modifier
             .weight(1f, fill = false)
             .fillMaxWidth()
             // A slim band. The panel's own is as tall as a row, and focus brings a row to the
             // bottom edge of this region, so the full band dissolved the row under the cursor.
-            .novaFadeAtCut(moreBelow, band = NOVA_PLAY_SETUP_ROWS_FADE)
-            .verticalScroll(scroll)
+            .novaFadeAtCut(moreBelow, band = NOVA_PLAY_SETUP_ROWS_FADE, atTop = moreAbove)
             .testTag("nova-play-setup-rows"),
     ) {
-        content()
+        CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(scroll)) {
+                if (above != null) {
+                    Column(modifier = Modifier.fillMaxWidth().onSizeChanged { abovePx = it.height }) { above() }
+                }
+                content()
+            }
+        }
     }
+}
+
+/**
+ * The page's own scrolling, [page], except where it would stop inside the first [above] pixels of
+ * the rows' scroll: there it stops at the top when the row it brings in fits there, and below
+ * that part otherwise, so the plan above the rows is never left cut at the region's top edge.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+private class NovaPlaySetupWholePlanSpec(
+    private val page: BringIntoViewSpec,
+    private val scroll: ScrollState,
+    private val above: () -> Int,
+) : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val wanted = page.calculateScrollDistance(offset, size, containerSize)
+        val stop = novaPlaySetupWholePlanStop(
+            current = scroll.value.toFloat(),
+            wanted = wanted,
+            above = above().toFloat(),
+            fitsAtTop = offset + scroll.value + size <= containerSize,
+        )
+        return stop - scroll.value
+    }
+}
+
+/**
+ * Where the rows' scroll stops for a move that wants to go [wanted] from [current]: there, unless
+ * that is part of the way into the [above] part, where it goes to the top when the row fits there
+ * ([fitsAtTop]) and just past that part when it does not.
+ */
+internal fun novaPlaySetupWholePlanStop(current: Float, wanted: Float, above: Float, fitsAtTop: Boolean): Float {
+    val target = current + wanted
+    if (above <= 0f || target <= 0f || target >= above) return target
+    return if (fitsAtTop) 0f else above
+}
+
+/** How much of the legend there is room to show. */
+internal enum class NovaPlaySetupLegendForm {
+    /** Every option, each with what choosing it would mean. */
+    All,
+
+    /** Only the current option's card, whole, for a legend whose every card would not fit. */
+    Current,
 }
 
 /**
  * The legend, under the rows and outside their scroll.
  *
- * It is laid out before the rows, which take what is left, so it is held to [cap]. Every Game's
- * Default Display is seven modes in three rows of cards, and uncapped it took the whole body and
- * left the rows it explains a few pixels tall.
+ * It is laid out before the rows, which take what is left, so it is held to [cap]: all of its
+ * cards whole when they fit, the current choice's card whole when they do not, and nothing when
+ * not even that fits, so the row under the cursor always keeps its room. It is never cut (R13).
+ * Every Game's Default Display is seven modes in three rows of cards, and a handheld has room for
+ * the one that is set.
+ *
+ * It keeps the tallest height it has had, so moving the cursor from a row with a long legend to
+ * one with a short one does not grow the rows above it and then shrink them back on the next move.
  */
 @Composable
-private fun NovaPlaySetupPinnedLegend(comparison: (@Composable () -> Unit)?, cap: Dp) {
+private fun NovaPlaySetupPinnedLegend(comparison: (@Composable (NovaPlaySetupLegendForm) -> Unit)?, cap: Dp) {
     if (comparison == null) return
-    Column(
+    NovaFirstThatFits(
+        maxHeight = cap,
+        forms = listOf(
+            { comparison(NovaPlaySetupLegendForm.All) },
+            { comparison(NovaPlaySetupLegendForm.Current) },
+        ),
+        keepTallest = true,
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = NOVA_PLAY_SETUP_LEGEND_GAP)
-            .then(if (cap != Dp.Unspecified) Modifier.heightIn(max = cap).clipToBounds() else Modifier)
             .testTag("nova-play-setup-legend"),
-    ) {
-        comparison()
+    )
+}
+
+/**
+ * The first of [forms] whose natural height fits [maxHeight], placed whole, or nothing when none
+ * does. Each form is measured as it would be drawn, so the choice is the drawing's, not an estimate.
+ * With [keepTallest] it keeps the tallest height it has placed, up to [maxHeight].
+ */
+@Composable
+internal fun NovaFirstThatFits(
+    maxHeight: Dp,
+    forms: List<@Composable () -> Unit>,
+    modifier: Modifier = Modifier,
+    keepTallest: Boolean = false,
+) {
+    val tallest = remember(maxHeight) { NovaTallestHeight() }
+    SubcomposeLayout(modifier = modifier) { constraints ->
+        val limit = if (maxHeight == Dp.Unspecified || maxHeight == Dp.Infinity) {
+            Constraints.Infinity
+        } else {
+            maxHeight.roundToPx().coerceAtLeast(0)
+        }
+        val loose = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
+        var chosen = emptyList<Placeable>()
+        for ((index, form) in forms.withIndex()) {
+            val placeables = subcompose(index, form).map { it.measure(loose) }
+            if ((placeables.maxOfOrNull { it.height } ?: 0) <= limit) {
+                chosen = placeables
+                break
+            }
+        }
+        var height = chosen.maxOfOrNull { it.height } ?: 0
+        if (keepTallest) {
+            tallest.px = maxOf(tallest.px, height)
+            height = tallest.px.coerceAtMost(limit)
+        }
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else chosen.maxOfOrNull { it.width } ?: 0
+        layout(width, height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            chosen.forEach { it.placeRelative(0, 0) }
+        }
     }
+}
+
+/** The tallest a [NovaFirstThatFits] has been; kept outside snapshot state, since it is written while measuring. */
+private class NovaTallestHeight {
+    var px = 0
 }
 
 /**
  * One key/value fact about why the plan is what it is.
  *
  * A definition list rather than four stacked blocks: the keys line up, so the eye reads
- * down one edge instead of hunting for where each one starts.
+ * down one edge instead of hunting for where each one starts. Key, value and detail each
+ * wrap whole.
  */
 @Composable
-private fun NovaPlaySetupFact(
-    fact: NovaPlaySetupFact,
-    detailMaxLines: Int = Int.MAX_VALUE,
-    /** It is this fact's turn to show the part of its detail the fit cut off. */
-    revealing: Boolean = false,
-    onPlayed: ((revealed: Boolean) -> Unit)? = null,
-) {
+internal fun NovaPlaySetupFact(fact: NovaPlaySetupFact) {
     val colors = LocalNovaComposeColors.current
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
         Text(
@@ -394,9 +474,8 @@ private fun NovaPlaySetupFact(
             color = colors.textMuted,
             style = NovaChromeType.label(fontSize = 9.sp),
             lineHeight = 13.sp,
-            // Two lines rather than one, because a key that runs past its column prints
-            // itself over the value it is labelling.
-            maxLines = 2,
+            // Wrapping in its own column, because a key that ran past it printed itself over the
+            // value it is labelling.
             modifier = Modifier.width(NOVA_PLAY_SETUP_FACT_KEY).padding(top = 3.dp, end = 6.dp),
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -413,27 +492,20 @@ private fun NovaPlaySetupFact(
                 fontWeight = FontWeight.Medium,
             )
             if (fact.detail.isNotBlank()) {
-                NovaRevealingText(
+                Text(
                     text = fact.detail,
-                    highlighted = revealing,
-                    passes = 1,
-                    onPlayed = onPlayed,
                     color = colors.textMuted,
                     fontSize = 11.sp,
                     lineHeight = 15.sp,
-                    maxLines = detailMaxLines,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-            } else if (revealing) {
-                // Nothing to show, so the turn passes straight on.
-                LaunchedEffect(Unit) { onPlayed?.invoke(false) }
             }
         }
     }
 }
 
 @Composable
-private fun NovaPlaySetupRule() {
+internal fun NovaPlaySetupRule() {
     val colors = LocalNovaComposeColors.current
     Box(
         modifier = Modifier
@@ -473,20 +545,16 @@ internal fun NovaPlaySetupColumnHead(text: String) {
  * its siblings. Steam Launch was last in that chain, so it worked from a fresh panel and
  * went dead the moment either other row had been touched. There is no picker state now, so
  * there is no precedence to get wrong.
+ *
+ * Every card says its whole sentence, wrapping; the cards of a row share the tallest one's
+ * height. [form] [NovaPlaySetupLegendForm.Current] draws the current choice's card alone, at the
+ * legend's full width, for a body with no room for all of them.
  */
 @Composable
 internal fun NovaPlaySetupComparison(
     title: String,
     options: List<NovaPlaySetupOption>,
-    /**
-     * One line rather than two once the column grows beyond its compact shape.
-     *
-     * The panel has to fit a ~325dp landscape viewport without scrolling. Four rows at the
-     * 48dp accessible floor plus their gaps consume most of it, and the legend has to live
-     * in what is left. The legend gives up extra lines before the panel uses its scrolling
-     * fallback.
-     */
-    consequenceMaxLines: Int = 2,
+    form: NovaPlaySetupLegendForm = NovaPlaySetupLegendForm.All,
     /**
      * Cards per strip row. The default keeps one row; host scope's Default Display puts
      * its four modes in the 2x2 the Polaris Sync sheet taught people, because four
@@ -494,9 +562,15 @@ internal fun NovaPlaySetupComparison(
      */
     perRow: Int = Int.MAX_VALUE,
 ) {
+    val shown = when (form) {
+        NovaPlaySetupLegendForm.All -> options
+        NovaPlaySetupLegendForm.Current -> options.filter { it.current }
+    }
+    if (shown.isEmpty()) return
+    val cardsPerRow = if (form == NovaPlaySetupLegendForm.Current) 1 else perRow.coerceAtLeast(1)
     Column(modifier = Modifier.fillMaxWidth()) {
         NovaPlaySetupColumnHead(title)
-        options.chunked(perRow.coerceAtLeast(1)).forEachIndexed { chunkIndex, chunk ->
+        shown.chunked(cardsPerRow).forEachIndexed { chunkIndex, chunk ->
             if (chunkIndex > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -509,7 +583,6 @@ internal fun NovaPlaySetupComparison(
                 chunk.forEach { option ->
                     NovaPlaySetupComparisonCard(
                         option = option,
-                        consequenceMaxLines = consequenceMaxLines,
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
                 }
@@ -521,7 +594,6 @@ internal fun NovaPlaySetupComparison(
 @Composable
 private fun NovaPlaySetupComparisonCard(
     option: NovaPlaySetupOption,
-    consequenceMaxLines: Int,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
@@ -573,23 +645,16 @@ private fun NovaPlaySetupComparisonCard(
             )
             if (option.current) NovaCurrentMark()
         }
-        NovaRevealingText(
-            text = option.consequence,
-            // The cursor never stops on a legend card, so its highlight is being the current
-            // choice. That one plays its whole sentence twice and rests; the others are a press
-            // of A or a tap away from being it.
-            highlighted = option.current,
-            passes = 2,
-            color = if (option.active && !option.current) colors.accent else colors.textMuted,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            // Bounded, so a long consequence cannot push the card past the cut.
-            // And held at that height: the legend changes with the row under the cursor, and a
-            // legend that grew and shrank would resize the rows above it on every move.
-            minLines = consequenceMaxLines,
-            maxLines = consequenceMaxLines,
-            modifier = Modifier.padding(top = 4.dp),
-        )
+        if (option.consequence.isNotBlank()) {
+            // The whole sentence, wrapping; the card grows to hold it and its row grows with it.
+            Text(
+                text = option.consequence,
+                color = if (option.active && !option.current) colors.accent else colors.textMuted,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
     }
 }
 
@@ -616,17 +681,15 @@ internal fun novaPlaySetupPlaceUnderCursor(
 /**
  * What the place under the cursor means, while a destination card holds focus.
  *
- * Four cards across a handheld cut their sentence short, so the drawer says it whole for the one
- * the cursor is on. It describes and does not choose: the card above is the control, and the
- * cards restated as a second set of choices is what LaunchControls was removed for. It keeps the
- * shape and height of the legend it stands in for, so the rows above do not move when the
- * cursor goes from a card to a row.
+ * Four cards across a handheld leave their sentences a few words a line, so the drawer says it
+ * whole, at its full width, for the one the cursor is on. It describes and does not choose: the
+ * card above is the control, and the cards restated as a second set of choices is what
+ * LaunchControls was removed for. It is one card in either form of the legend.
  */
 @Composable
 internal fun NovaPlaySetupPlaceLegend(
     title: String,
     place: NovaPlaySetupOption,
-    consequenceMaxLines: Int = 2,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -650,18 +713,15 @@ internal fun NovaPlaySetupPlaceLegend(
                 color = if (place.enabled) colors.textPrimary else colors.textMuted,
                 fontWeight = FontWeight.SemiBold,
             )
-            NovaRevealingText(
-                text = place.consequence,
-                // The cursor is on this place's card, so its whole sentence is what it is here for.
-                highlighted = true,
-                passes = 2,
-                color = colors.textMuted,
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
-                minLines = consequenceMaxLines,
-                maxLines = consequenceMaxLines,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            if (place.consequence.isNotBlank()) {
+                Text(
+                    text = place.consequence,
+                    color = colors.textMuted,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
         }
     }
 }
@@ -676,25 +736,7 @@ internal fun novaPlaySetupOptionDescription(option: NovaPlaySetupOption): String
  * which read as focus or as the current value (R9).
  */
 internal fun novaPlaySetupSetHereCaption(caption: String, setHere: Boolean, note: String): String =
-    if (setHere) listOf(note, caption).filter { it.isNotBlank() }.joinToString(" \u00b7 ") else caption
-
-/** The column rests and goes round again. */
-internal const val NOVA_PLAY_SETUP_TURN_REST = -1
-
-/** Nothing in the column was cut, so there is nothing to go round for. */
-internal const val NOVA_PLAY_SETUP_TURN_DONE = -2
-
-/**
- * Whose turn it is after [index] has had its own, among [items] texts in the read column.
- *
- * The next one down; after the last, a rest and another round if anything this round actually
- * had text hidden, and an end if nothing did, so a column that fits never stirs.
- */
-internal fun novaPlaySetupNextTurn(index: Int, items: Int, revealedThisRound: Boolean): Int = when {
-    index + 1 < items -> index + 1
-    revealedThisRound -> NOVA_PLAY_SETUP_TURN_REST
-    else -> NOVA_PLAY_SETUP_TURN_DONE
-}
+    if (setHere) listOf(note, caption).filter { it.isNotBlank() }.joinToString(" · ") else caption
 
 /**
  * The most a pinned legend may take of a body [fitHeight] tall: all of it but the room a row and
@@ -706,17 +748,6 @@ internal fun novaPlaySetupLegendCap(fitHeight: Dp, columnHead: Boolean): Dp {
         (if (columnHead) NOVA_PLAY_SETUP_COLUMN_HEAD else 0.dp)
     return (fitHeight - kept).coerceAtLeast(0.dp)
 }
-
-/**
- * How many lines a legend card may use once the legend is pinned under scrolling rows.
- *
- * Pinned, the legend no longer competes with every row, only with the rows that should stay in
- * view above it. Three is what the panel keeps: past that the rows scroll, so a fourth, fifth or
- * seventh row costs the legend nothing, where unpinned each one took a line and then the legend.
- */
-internal fun novaPlaySetupPinnedLegendLines(availableHeight: Dp, rowCount: Int): Int =
-    novaPlaySetupConsequenceLines(availableHeight, rowCount.coerceAtMost(NOVA_PLAY_SETUP_ROWS_KEPT_IN_VIEW))
-
 /** The resolved plan, as one readable statement plus the facts behind it. */
 internal data class NovaPlaySetupPlan(
     val mode: String,
@@ -963,131 +994,6 @@ internal fun NovaPlaySetupDestinations(
     }
 }
 
-/**
- * How much of the legend the column can afford, and how much prose the plan can.
- *
- * Both are a function of how many rows the host produced: a host advertising a display
- * planner adds Resolution, and those 53dp come out of whatever is below. Rather than pick
- * one answer for every case and truncate the rest, the panel measures its body and this
- * spends what is actually there -- three lines of consequence where there is room for
- * three, one where there is room for one.
- */
-internal fun novaPlaySetupConsequenceLines(
-    availableHeight: Dp,
-    rowCount: Int,
-    /** Where this game opens is drawn above the rows, with a head of its own. */
-    destinations: Boolean = false,
-): Int {
-    if (availableHeight <= 0.dp) return 2
-    val used = NOVA_PLAY_SETUP_COLUMN_HEAD +
-        (if (destinations) NOVA_PLAY_SETUP_COLUMN_HEAD + NOVA_PLAY_SETUP_DESTINATION_STRIDE else 0.dp) +
-        (NOVA_PLAY_SETUP_ROW_STRIDE * rowCount) +
-        NOVA_PLAY_SETUP_LEGEND_GAP +
-        NOVA_PLAY_SETUP_COLUMN_HEAD +
-        NOVA_PLAY_SETUP_CARD_CHROME +
-        NOVA_PLAY_SETUP_SLACK
-    val room = availableHeight - used
-    if (room <= 0.dp) return 1
-    return (room / NOVA_PLAY_SETUP_CONSEQUENCE_LINE).toInt().coerceIn(1, 3)
-}
-
-/** The plan's opening sentences get the same treatment, from the same measurement. */
-internal fun novaPlaySetupIntroLines(availableHeight: Dp, factCount: Int): Int {
-    if (availableHeight <= 0.dp) return 2
-    val used = NOVA_PLAY_SETUP_COLUMN_HEAD + NOVA_PLAY_SETUP_MODE_LINE +
-        NOVA_PLAY_SETUP_RULE_BLOCK + (NOVA_PLAY_SETUP_FACT * factCount)
-    val room = availableHeight - used
-    if (room <= 0.dp) return 1
-    return (room / NOVA_PLAY_SETUP_INTRO_LINE).toInt().coerceIn(1, 4)
-}
-
-/** A text's bottom edge after each of its lines, in pixels, as measured at its column width. */
-internal class NovaPlaySetupMeasuredText(private val lineBottoms: List<Int>) {
-    val lineCount: Int get() = lineBottoms.size
-
-    fun height(maxLines: Int): Int =
-        if (lineBottoms.isEmpty() || maxLines <= 0) 0 else lineBottoms[minOf(maxLines, lineBottoms.size) - 1]
-}
-
-internal class NovaPlaySetupMeasuredFact(
-    val value: NovaPlaySetupMeasuredText,
-    val detail: NovaPlaySetupMeasuredText,
-)
-
-/** How many lines each plan line and each fact detail may use; Int.MAX_VALUE is all it needs. */
-internal data class NovaPlaySetupReadFit(
-    val lineMaxLines: List<Int>,
-    val detailMaxLines: List<Int>,
-)
-
-/**
- * Trim the read column until it fits [available], one line at a time, and stop the moment it does.
- *
- * Prose goes before facts: the plan's last line, the opening sentence, down to two lines, then
- * every fact's detail to two, then the sentence to one, the details to one, and every plan line
- * to one. The longest part gives a line first, so no single detail collapses while another keeps
- * its length. A fact's value is never trimmed; it is the fact. When even that is not enough the
- * column keeps one line of everything and the panel's scroll remains the fallback.
- */
-internal fun novaPlaySetupFitReadColumn(
-    available: Int,
-    fixed: Int,
-    lineGap: Int,
-    lines: List<NovaPlaySetupMeasuredText>,
-    lineCap: Int,
-    factChrome: Int,
-    detailGap: Int,
-    keyMin: Int,
-    facts: List<NovaPlaySetupMeasuredFact>,
-): NovaPlaySetupReadFit {
-    val lineMax = lines.map { minOf(lineCap.coerceAtLeast(1), it.lineCount.coerceAtLeast(1)) }.toMutableList()
-    val detailMax = facts.map { it.detail.lineCount }.toMutableList()
-    fun total(): Int {
-        var sum = fixed
-        lines.forEachIndexed { index, line ->
-            if (line.lineCount > 0) sum += lineGap + line.height(lineMax[index])
-        }
-        facts.forEachIndexed { index, fact ->
-            val detail = if (fact.detail.lineCount > 0 && detailMax[index] > 0) {
-                detailGap + fact.detail.height(detailMax[index])
-            } else {
-                0
-            }
-            sum += factChrome + maxOf(keyMin, fact.value.height(Int.MAX_VALUE) + detail)
-        }
-        return sum
-    }
-    fun trim(limits: MutableList<Int>, indices: List<Int>, floor: Int): Boolean {
-        while (total() > available) {
-            val index = indices.filter { limits[it] > floor }.maxByOrNull { limits[it] } ?: break
-            limits[index] -= 1
-        }
-        return total() <= available
-    }
-    val last = listOfNotNull(lines.indices.lastOrNull())
-    val details = facts.indices.toList()
-    if (total() > available) {
-        trim(lineMax, last, 2) ||
-            trim(detailMax, details, 2) ||
-            trim(lineMax, last, 1) ||
-            trim(detailMax, details, 1) ||
-            trim(lineMax, lines.indices.toList(), 1)
-    }
-    return NovaPlaySetupReadFit(
-        lineMaxLines = lineMax.toList(),
-        detailMaxLines = detailMax.map { if (it <= 0) Int.MAX_VALUE else it },
-    )
-}
-
-/** Long enough to have read what is on the screen before any of it moves. */
-private const val NOVA_PLAY_SETUP_READ_FIRST_TURN_MS = 2600L
-
-/** Between rounds. The column is for reading; it should mostly be still. */
-private const val NOVA_PLAY_SETUP_READ_REST_MS = 9000L
-
-/** The rows a pinned legend leaves room for; the rest are a scroll away. */
-private const val NOVA_PLAY_SETUP_ROWS_KEPT_IN_VIEW = 3
-
 /** The dissolve at the bottom of the scrolling rows: enough to say more follows, less than a row. */
 private val NOVA_PLAY_SETUP_ROWS_FADE = 18.dp
 
@@ -1096,22 +1002,10 @@ private val NOVA_PLAY_SETUP_ROWS_FLOOR = 80.dp
 
 /** Drawn heights, kept beside the drawing so the two cannot drift apart unnoticed. */
 private val NOVA_PLAY_SETUP_COLUMN_HEAD = 16.dp
-private val NOVA_PLAY_SETUP_ROW_STRIDE = 53.dp
 private val NOVA_PLAY_SETUP_LEGEND_GAP = 4.dp
-private val NOVA_PLAY_SETUP_CARD_CHROME = 40.dp
-/**
- * Slack, so the budget aims to fit rather than to just fit.
- *
- * Without it the four-row case landed a few dp over, which turns the bottom fade on --
- * and the fade exists to say there is more below, so a layout that overflows by 4dp
- * dissolves 52dp of itself saying so. Being wrong in this direction is much cheaper.
- */
-private val NOVA_PLAY_SETUP_SLACK = 12.dp
-private val NOVA_PLAY_SETUP_CONSEQUENCE_LINE = 14.dp
-private val NOVA_PLAY_SETUP_MODE_LINE = 35.dp
-private val NOVA_PLAY_SETUP_RULE_BLOCK = 22.dp
-private val NOVA_PLAY_SETUP_FACT = 34.dp
-private val NOVA_PLAY_SETUP_INTRO_LINE = 19.dp
+
+/** Between the plan and the rows under it. */
+private val NOVA_PLAY_SETUP_READ_GAP = 18.dp
 
 /** Below this the two columns stack; a phone has no room to put them side by side. */
 private val NOVA_PLAY_SETUP_TWO_COLUMN_MIN = 640.dp
@@ -1120,13 +1014,12 @@ private val NOVA_PLAY_SETUP_TWO_COLUMN_MIN = 640.dp
 private val NOVA_PLAY_SETUP_READ_WIDTH = 246.dp
 private val NOVA_PLAY_SETUP_GUTTER = 22.dp
 private val NOVA_PLAY_SETUP_FACT_KEY = 104.dp
-/** A fact is never shorter than its key: one 13sp label line under a 3dp inset. */
-private val NOVA_PLAY_SETUP_FACT_KEY_MIN = 16.dp
-/**
- * One row of destination cards: a choice row's 48dp floor with a two line caption, plus its gap.
- * Their captions say why a place cannot be chosen, so they are budgeted at two lines.
- */
-private val NOVA_PLAY_SETUP_DESTINATION_STRIDE = 70.dp
+
+/** The whole plan, where it is drawn in the body. */
+internal const val NOVA_PLAY_SETUP_READ_TAG = "nova-play-setup-read"
+
+/** The plan's row, where the body shows the plan as one row that opens its page. */
+internal const val NOVA_PLAY_SETUP_PLAN_ROW_TAG = "nova-play-setup-plan-row"
 
 /**
  * Turn the launch profile summary into what the left column reads.

@@ -2798,6 +2798,7 @@ class NovaLibraryActivity : NovaActivity() {
                 )
             }
             is PlaySetupPage.PlayIn -> NovaPlayInPage(page)
+            is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)
             else -> Unit
         }
     }

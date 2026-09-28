@@ -60,13 +60,14 @@ class NovaRevealingTextTest {
                 row.contains("maxLines") || row.contains("TextOverflow")
         )
         val setup = read("main/java/com/papi/nova/ui/NovaPlaySetup.kt")
-        assertTrue(
-            "the cursor never stops on a legend card, so the current choice is the one that plays, twice",
-            setup.contains("highlighted = option.current,") && setup.contains("passes = 2,")
+        assertFalse(
+            "Play Setup cuts nothing, so it has nothing to reveal: the legend's cards and the plan say every " +
+                "sentence whole, and the reveal that replayed inside the panel was an animation with no end (R13)",
+            setup.contains("NovaRevealingText(") || setup.contains("passes =")
         )
         assertTrue(
             "a place the game cannot open in says why in a caption, so the cursor may stand on it to read it",
-            setup.section("internal fun NovaPlaySetupDestinations(", "internal fun novaPlaySetupConsequenceLines(")
+            setup.section("internal fun NovaPlaySetupDestinations(", "private val NOVA_PLAY_SETUP_ROWS_FADE")
                 .contains("focusableWhenDisabled = true,") &&
                 read("main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
                     .contains("focusableWhenDisabled = focusableWhenDisabled,")

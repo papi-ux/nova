@@ -57,7 +57,7 @@ class NovaPlaySetupLegendTest {
         val setup = read("NovaPlaySetup.kt")
         val column = setup.section("private fun NovaPlaySetupActColumn(", "private fun ColumnScope.NovaPlaySetupRowsRegion(")
         val region = setup.section("private fun ColumnScope.NovaPlaySetupRowsRegion(", "private fun NovaPlaySetupPinnedLegend(")
-        val legend = setup.section("private fun NovaPlaySetupPinnedLegend(", "private fun NovaPlaySetupFact(")
+        val legend = setup.section("private fun NovaPlaySetupPinnedLegend(", "internal fun NovaPlaySetupFact(")
 
         assertTrue(
             "pinned, the legend comes after the rows' own scroll region rather than inside it",
@@ -68,20 +68,23 @@ class NovaPlaySetupLegendTest {
             "the region scrolls, fades at its own cut, and takes only what its rows need so a " +
                 "short list keeps its legend directly under it",
             region.contains(".verticalScroll(scroll)") &&
-                region.contains(".novaFadeAtCut(moreBelow, band = NOVA_PLAY_SETUP_ROWS_FADE)") &&
+                region.contains(".novaFadeAtCut(moreBelow, band = NOVA_PLAY_SETUP_ROWS_FADE, atTop = moreAbove)") &&
                 region.contains("val moreBelow = scroll.maxValue - scroll.value > slack") &&
                 region.contains(".weight(1f, fill = false)")
         )
         assertFalse("a legend inside a scroll is a legend that can be scrolled away", legend.contains("verticalScroll"))
         assertTrue(
-            "the legend is measured before the rows, so it is capped or a tall one takes the whole body",
-            legend.contains("Modifier.heightIn(max = cap).clipToBounds()")
+            "the legend is measured before the rows, so it is held to its cap or a tall one takes the whole body. " +
+                "It is held by choosing what fits, never by cutting: all of it, the current card, or nothing (R13)",
+            legend.contains("maxHeight = cap,") &&
+                legend.contains("{ comparison(NovaPlaySetupLegendForm.All) },\n            { comparison(NovaPlaySetupLegendForm.Current) },") &&
+                !legend.contains("clipToBounds")
         )
         assertTrue(
             "stacked on a narrow screen the plan scrolls with the rows and the legend still stays",
             setup.contains("if (stacked && pinned) {") &&
                 setup.section("if (stacked && pinned) {", "} else if (stacked) {").let {
-                    it.indexOf("NovaPlaySetupRowsRegion {") in 0 until it.indexOf("NovaPlaySetupPinnedLegend(comparison, ")
+                    it.indexOf("NovaPlaySetupRowsRegion(") in 0 until it.indexOf("NovaPlaySetupPinnedLegend(comparison, ")
                 }
         )
     }
@@ -126,18 +129,29 @@ class NovaPlaySetupLegendTest {
         assertTrue("and a three-row legend of one-line cards still fits under that cap", cap.value >= 194f)
         assertEquals(androidx.compose.ui.unit.Dp.Unspecified, novaPlaySetupLegendCap(androidx.compose.ui.unit.Dp.Unspecified, columnHead = true))
         assertTrue(
-            "a legend that stacks rows of cards gives each one line",
-            read("NovaHostSetupRows.kt").contains("consequenceMaxLines = if (explained.options.size > perRow) 1 else consequenceMaxLines,")
+            "a legend that stacks rows of cards says every sentence whole, and where the rows of cards do not " +
+                "fit under the rows the body asks for the current mode's card alone",
+            read("NovaHostSetupRows.kt").contains("form = form,") &&
+                !read("NovaHostSetupRows.kt").contains("consequenceMaxLines")
         )
     }
 
     @Test
     fun theLegendKeepsItsHeightAsTheCursorMoves() {
-        val card = read("NovaPlaySetup.kt").section("private fun NovaPlaySetupComparisonCard(", "internal fun novaPlaySetupOptionDescription(")
+        val setup = read("NovaPlaySetup.kt")
+        val legend = setup.section("private fun NovaPlaySetupPinnedLegend(", "private class NovaTallestHeight")
         assertTrue(
             "the legend changes with every row, and one that grew and shrank would resize the rows " +
-                "above it and leave the row under the cursor half out of view",
-            card.contains("minLines = consequenceMaxLines,") && card.contains("maxLines = consequenceMaxLines,")
+                "above it and leave the row under the cursor half out of view. Its cards say their whole " +
+                "sentences now, so it keeps the tallest height it has had rather than a fixed count of lines",
+            legend.contains("keepTallest = true,") &&
+                legend.contains("tallest.px = maxOf(tallest.px, height)") &&
+                legend.contains("height = tallest.px.coerceAtMost(limit)")
+        )
+        val card = setup.section("private fun NovaPlaySetupComparisonCard(", "internal fun novaPlaySetupOptionDescription(")
+        assertFalse(
+            "a card is never cut to a count of lines (R13)",
+            card.contains("maxLines") || card.contains("minLines") || card.contains("TextOverflow")
         )
     }
 
@@ -184,26 +198,66 @@ class NovaPlaySetupLegendTest {
     }
 
     @Test
-    fun theReadColumnsCutTextTakesTurnsAndAColumnThatFitsNeverStirs() {
-        // Six texts: each hands on to the next.
-        assertEquals(1, novaPlaySetupNextTurn(index = 0, items = 6, revealedThisRound = false))
-        assertEquals(5, novaPlaySetupNextTurn(index = 4, items = 6, revealedThisRound = true))
-        // After the last: another round only if this one had something hidden to show.
-        assertEquals(NOVA_PLAY_SETUP_TURN_REST, novaPlaySetupNextTurn(index = 5, items = 6, revealedThisRound = true))
-        assertEquals(NOVA_PLAY_SETUP_TURN_DONE, novaPlaySetupNextTurn(index = 5, items = 6, revealedThisRound = false))
-        assertEquals(NOVA_PLAY_SETUP_TURN_DONE, novaPlaySetupNextTurn(index = 0, items = 1, revealedThisRound = false))
+    fun theReadColumnIsWholeAndNothingInItMovesByItself() {
+        val setup = read("NovaPlaySetup.kt")
+        val column = setup.section("private fun NovaPlaySetupReadColumn(", "private fun NovaPlaySetupPlanRow(")
+        assertFalse(
+            "nothing in the read column takes the cursor, so its lines used to be cut to fit and then take turns " +
+                "showing the rest every nine seconds: text cut at rest and an animation with no end inside a " +
+                "panel (R13). Its lines and its facts' details now wrap whole",
+            column.contains("maxLines") || column.contains("LaunchedEffect") || column.contains("delay(") ||
+                setup.contains("NOVA_PLAY_SETUP_READ_REST_MS")
+        )
+        val fact = setup.section("internal fun NovaPlaySetupFact(", "internal fun NovaPlaySetupRule(")
+        assertFalse("a fact's key, value and detail wrap whole", fact.contains("maxLines") || fact.contains("NovaRevealingText("))
+        val body = setup.section("internal fun NovaPlaySetupBody(", "private fun NovaPlaySetupReadColumn(")
+        assertTrue(
+            "stacked, the plan shares one scroll with the rows the cursor walks, so it is one row that opens the " +
+                "whole plan on its page; beside the rows it is whole when it fits and that row when it does not",
+            body.contains("val stackedPlan: @Composable () -> Unit = if (onOpenPlan != null) {") &&
+                body.contains("NovaFirstThatFits(\n                        maxHeight = fitHeight,")
+        )
+        val pages = read("NovaPlaySetupPages.kt")
+        assertTrue(
+            "the plan's page holds every part of the plan, each a stop, so the cursor scrolls to all of it",
+            pages.contains("data class Plan(override val title: String, val plan: NovaPlaySetupPlan) : PlaySetupPage") &&
+                pages.contains("NovaPlaySetupReadStop(Modifier.novaInitialFocus()) { NovaPlaySetupPlanStatement(page.plan) }") &&
+                pages.contains("page.plan.facts.forEach { fact ->")
+        )
+        assertTrue(
+            "both hosts of Play Setup's pages draw the plan's page",
+            read("NovaGameDetailContent.kt").contains("is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)") &&
+                read("NovaLibraryActivity.kt").contains("is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)")
+        )
+    }
 
-        val column = read("NovaPlaySetup.kt").section("private fun NovaPlaySetupReadColumn(", "private fun rememberNovaPlaySetupReadFit(")
-        assertTrue(
-            "nothing in the read column takes the cursor, so what the fit cut off could not be read at all; " +
-                "its lines and its facts' details show the rest of themselves one at a time",
-            column.contains("highlighted = turn == index,") && column.contains("revealing = turn == item,") &&
-                column.contains("passes = 1,") && column.contains("novaPlaySetupNextTurn(index, items, revealedThisRound)")
+    @Test
+    fun theRowsScrollNeverStopsPartOfTheWayIntoThePlanAboveThem() {
+        // The plan above the rows is 120px. A move that would stop 10px into it stops at the top
+        // when the row fits there, and past the plan when it does not.
+        assertEquals(0f, novaPlaySetupWholePlanStop(current = 0f, wanted = 10f, above = 120f, fitsAtTop = true))
+        assertEquals(120f, novaPlaySetupWholePlanStop(current = 0f, wanted = 10f, above = 120f, fitsAtTop = false))
+        // Back up from below the plan to a row near its foot: whole again, from the top.
+        assertEquals(0f, novaPlaySetupWholePlanStop(current = 200f, wanted = -150f, above = 120f, fitsAtTop = true))
+        // Anywhere else the page's own scrolling stands.
+        assertEquals(260f, novaPlaySetupWholePlanStop(current = 200f, wanted = 60f, above = 120f, fitsAtTop = false))
+        assertEquals(0f, novaPlaySetupWholePlanStop(current = 40f, wanted = -40f, above = 120f, fitsAtTop = true))
+        assertEquals("with nothing above the rows it is the page's scrolling", 10f, novaPlaySetupWholePlanStop(0f, 10f, 0f, true))
+    }
+
+    @Test
+    fun thePlansRowSaysItsFirstLineAndWhatHoldsItBack() {
+        val plan = NovaPlaySetupPlan(
+            mode = "Private Stream",
+            lines = listOf("1920x1080 \u00b7 60 FPS \u00b7 HEVC", "Nothing outside this game changes."),
+            facts = listOf(
+                NovaPlaySetupFact(key = "Last session", value = "Smooth", tone = NovaPlaySetupTone.GOOD),
+                NovaPlaySetupFact(key = "Limited by", value = "Network", detail = "12 ms jitter", tone = NovaPlaySetupTone.WARN),
+            ),
         )
-        assertTrue(
-            "a change to the plan starts the turns again from the top",
-            column.contains("var turn by remember(plan, fit) { mutableIntStateOf(-1) }")
-        )
+        assertEquals("1920x1080 \u00b7 60 FPS \u00b7 HEVC\nLimited by: Network", novaPlaySetupPlanSummary(plan))
+        assertEquals("1920x1080 \u00b7 60 FPS \u00b7 HEVC", novaPlaySetupPlanSummary(plan.copy(facts = plan.facts.take(1))))
+        assertNull(novaPlaySetupPlanSummary(plan.copy(lines = emptyList(), facts = emptyList())))
     }
 
     @Test

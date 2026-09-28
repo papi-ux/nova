@@ -60,8 +60,7 @@ class NovaPlaySetupCodecComposeTest {
                         state = row, onExplain = {}, onAdvance = {},
                         modifier = Modifier.testTag("codec-row"),
                     )
-                    NovaPlaySetupComparison(row.stripTitle, row.options,
-                        consequenceMaxLines = 1, perRow = row.optionsPerRow)
+                    NovaPlaySetupComparison(row.stripTitle, row.options, perRow = row.optionsPerRow)
                 }
             }
         }

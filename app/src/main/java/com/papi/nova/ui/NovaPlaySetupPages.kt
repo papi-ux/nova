@@ -1,6 +1,11 @@
 package com.papi.nova.ui
 
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -12,10 +17,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.papi.nova.R
+import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.NovaControllerHint
+import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaFocusReturn
 import com.papi.nova.ui.panel.NovaOption
@@ -29,6 +41,7 @@ import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.NovaScrim
 import com.papi.nova.ui.panel.NovaValueRow
+import com.papi.nova.ui.panel.novaFocusRing
 
 /**
  * The pages of Play Setup's panel, at the end edge of the game detail window, all wide so the
@@ -64,10 +77,20 @@ internal sealed interface PlaySetupPage : NovaPage {
         override val key: String get() = KEY_STEAM_DECISION
     }
 
+    /**
+     * The whole plan, as it stood when its row was pressed: the statement and every fact behind
+     * it, each whole and each a stop, so the cursor scrolls through all of it. Pushed from the
+     * plan's row where the panel is too narrow to show the plan beside the rows.
+     */
+    data class Plan(override val title: String, val plan: NovaPlaySetupPlan) : PlaySetupPage {
+        override val key: String get() = KEY_PLAN
+    }
+
     companion object {
         const val KEY_ROOT = "play-setup"
         const val KEY_PLAY_IN = "play-in"
         const val KEY_STEAM_DECISION = "steam-decision"
+        const val KEY_PLAN = "play-setup-plan"
     }
 }
 
@@ -182,8 +205,61 @@ internal fun NovaPageScope.NovaSteamDecisionPage(
 }
 
 /**
+ * The plan's page: what will happen, then each fact behind it. Every part is a stop with the one
+ * focus look and nothing to do on A, so the cursor walks the plan and the page scrolls with it,
+ * one part and its neighbour in view at a time; nothing is cut and nothing scrolls by itself.
+ * The page opens on the statement.
+ */
+@Composable
+internal fun NovaPageScope.NovaPlaySetupPlanPage(page: PlaySetupPage.Plan) {
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            // A part below the fold dissolves into the edge rather than ending in half a line.
+            .novaFadeAtCut(scroll.canScrollForward, band = NOVA_PLAY_SETUP_PLAN_FADE)
+            .verticalScroll(scroll)
+            .padding(vertical = NovaPanelMetrics.SpaceSm)
+            .testTag(NOVA_PLAY_SETUP_PLAN_PAGE_TAG),
+        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
+    ) {
+        NovaPlaySetupReadStop(Modifier.novaInitialFocus()) { NovaPlaySetupPlanStatement(page.plan) }
+        page.plan.facts.forEach { fact ->
+            NovaPlaySetupReadStop { NovaPlaySetupFact(fact) }
+        }
+    }
+}
+
+/** One part of the plan on its page: a stop the cursor can rest on to read it, which does nothing on A. */
+@Composable
+private fun NovaPlaySetupReadStop(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val shape = RoundedCornerShape(NovaRadius.row)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
+            .clip(shape)
+            .novaFocusRing(shape)
+            .semantics(mergeDescendants = true) {}
+            .focusable()
+            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        content()
+    }
+}
+
+/** The plan's page, for a test to find it. */
+internal const val NOVA_PLAY_SETUP_PLAN_PAGE_TAG = "nova-play-setup-plan-page"
+
+/** The dissolve at the foot of the plan's page: enough to say more follows. */
+private val NOVA_PLAY_SETUP_PLAN_FADE = 24.dp
+
+/**
  * This Game or Every Game, as one row whose Left and Right change it in place. Y flips it too,
- * which the panel's hint bar says.
+ * which the panel's hint bar says. It stays one line tall: where the two segments cannot sit
+ * beside the title it is a cycler, because under the title they cost the rows below a row's
+ * height on a short handheld.
  */
 @Composable
 internal fun NovaPlaySetupScopeRow(
@@ -200,5 +276,6 @@ internal fun NovaPlaySetupScopeRow(
         current = scope,
         onChange = onSelected,
         modifier = modifier.fillMaxWidth(),
+        wrapUnderTitle = false,
     )
 }

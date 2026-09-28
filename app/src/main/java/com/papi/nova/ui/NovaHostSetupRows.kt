@@ -39,7 +39,8 @@ internal fun NovaHostSetupRowList(
 internal fun NovaHostSetupComparison(
     rows: List<NovaPlaySetupRowState>,
     explainedRow: NovaPlaySetupRow,
-    consequenceMaxLines: Int,
+    /** All of the legend, or the current choice alone, as the room under the rows allows. */
+    form: NovaPlaySetupLegendForm = NovaPlaySetupLegendForm.All,
 ) {
     val explained = rows.firstOrNull { it.row == explainedRow } ?: rows.firstOrNull()
     if (explained != null && explained.options.size > 1) {
@@ -50,12 +51,12 @@ internal fun NovaHostSetupComparison(
         } else {
             Int.MAX_VALUE
         }
+        // Every card says its whole sentence. A legend that stacks rows of cards is tall, and where
+        // it does not fit under the rows it explains, the body draws the current mode's card alone.
         NovaPlaySetupComparison(
             title = explained.stripTitle,
             options = explained.options,
-            // A legend that stacks rows of cards is already tall, and it sits under the rows it
-            // explains. One line each keeps those rows on the screen.
-            consequenceMaxLines = if (explained.options.size > perRow) 1 else consequenceMaxLines,
+            form = form,
             perRow = perRow,
         )
     }

@@ -102,21 +102,32 @@ internal fun Modifier.novaFadeAtCut(
     active: Boolean = true,
     /** How tall the dissolve is. A short list of rows wants a slim one; see Play Setup's rows. */
     band: Dp = NOVA_DETAIL_BOTTOM_FADE,
-): Modifier = if (!active) this else this
+    /** The top band too, for a body scrolled down past a part that is now cut at its top edge. */
+    atTop: Boolean = false,
+): Modifier = if (!active && !atTop) this else this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithContent {
         drawContent()
         val fade = band.toPx().coerceAtMost(size.height)
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(Color.Black, Color.Transparent),
-                startY = size.height - fade,
-                endY = size.height,
-            ),
-            topLeft = Offset(0f, size.height - fade),
-            size = Size(size.width, fade),
-            blendMode = BlendMode.DstIn,
-        )
+        if (active) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Black, Color.Transparent),
+                    startY = size.height - fade,
+                    endY = size.height,
+                ),
+                topLeft = Offset(0f, size.height - fade),
+                size = Size(size.width, fade),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+        if (atTop) {
+            drawRect(
+                brush = Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black), startY = 0f, endY = fade),
+                size = Size(size.width, fade),
+                blendMode = BlendMode.DstIn,
+            )
+        }
     }
 
 /** A tap target that swallows the gesture, with no ripple to imply a button. */

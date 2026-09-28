@@ -297,6 +297,7 @@ internal fun NovaGameDetailContent(
         ) { page ->
             when (page) {
                 is PlaySetupPage.PlayIn -> NovaPlayInPage(page)
+                is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)
                 is PlaySetupPage.SteamDecision -> steamDecision?.let { decision ->
                     NovaSteamDecisionPage(decision = decision, onChoice = onSteamChoice)
                 }
@@ -334,19 +335,21 @@ internal fun NovaGameDetailContent(
                                     .novaFadeAtCut(verticalScroll.canScrollForward)
                                     .verticalScroll(verticalScroll),
                             ) {
+                                // The plan opens whole on its own page where the panel is too narrow
+                                // to show it beside the rows, and focus comes back to its row (R7).
+                                val openPlan: (String) -> (NovaPlaySetupPlan) -> Unit = { title ->
+                                    { plan -> if (isTop) playSetupPanel.push(PlaySetupPage.Plan(title, plan)) }
+                                }
                                 if (playSetupScope == NovaPlaySetupScope.EVERY_GAME && hostPlaySetupPlan != null) {
                                     // The same four-row shape, absorbing the Polaris Sync sheet's three
                                     // sections. The subject changed; how to read the panel did not.
-                                    val consequenceLines =
-                                        novaPlaySetupConsequenceLines(bodyHeight, hostPlaySetupRows.size)
+                                    val hostReadTitle = stringResource(R.string.nova_play_setup_host_read_title)
                                     NovaPlaySetupBody(
                                         plan = hostPlaySetupPlan,
-                                        readTitle = stringResource(R.string.nova_play_setup_host_read_title),
-                                        introMaxLines = novaPlaySetupIntroLines(
-                                            bodyHeight,
-                                            factCount = hostPlaySetupPlan.facts.size,
-                                        ),
+                                        readTitle = hostReadTitle,
                                         fitHeight = bodyHeight,
+                                        onOpenPlan = openPlan(hostReadTitle),
+                                        planRowModifier = Modifier.novaRestorableFocus("plan"),
                                         rows = {
                                             NovaHostSetupRowList(
                                                 rows = hostPlaySetupRows,
@@ -358,11 +361,11 @@ internal fun NovaGameDetailContent(
                                                 },
                                             )
                                         },
-                                        comparison = {
+                                        comparison = { form ->
                                             NovaHostSetupComparison(
                                                 rows = hostPlaySetupRows,
                                                 explainedRow = explainedPlaySetupRow,
-                                                consequenceMaxLines = consequenceLines,
+                                                form = form,
                                             )
                                         },
                                     )
@@ -376,11 +379,7 @@ internal fun NovaGameDetailContent(
                                     // Which destination card the cursor is on, for the legend to describe. By name,
                                     // because the list behind it can change while the cursor stays where it is.
                                     var focusedDestination by remember { mutableStateOf("") }
-                                    // Spend the room that is there rather than a number picked in advance:
-                                    // each advertised launch control leaves less room for the legend.
-                                    // The legend is pinned under the rows, so it is budgeted against the few
-                                    // rows kept in view above it rather than against every row the host added.
-                                    val consequenceLines = novaPlaySetupPinnedLegendLines(bodyHeight, settingRows.size)
+                                    val gameReadTitle = stringResource(R.string.nova_play_setup_what_will_happen)
                                     NovaPlaySetupBody(
                                         plan = novaPlaySetupPlan(
                                             // The resolved mode, not the name of the control that sets
@@ -465,11 +464,9 @@ internal fun NovaGameDetailContent(
                                                 }
                                             },
                                         ),
-                                        introMaxLines = novaPlaySetupIntroLines(
-                                            bodyHeight,
-                                            factCount = summary?.let { 4 } ?: 2,
-                                        ),
                                         fitHeight = bodyHeight,
+                                        onOpenPlan = openPlan(gameReadTitle),
+                                        planRowModifier = Modifier.novaRestorableFocus("plan"),
                                         rows = {
                                             // Where this game opens, as the one control that sets it. When a place
                                             // can be chosen, the cards take first focus rather than the first row.
@@ -512,7 +509,7 @@ internal fun NovaGameDetailContent(
                                                 )
                                             }
                                         },
-                                        comparison = {
+                                        comparison = { form ->
                                             // A legend for whichever row holds focus, not a picker with a
                                             // state of its own. A row that has nothing to compare -- one
                                             // launch mode, or no display planner on this host -- draws
@@ -528,17 +525,18 @@ internal fun NovaGameDetailContent(
                                                 focusedDestination,
                                             )
                                             val explained = settingRows.firstOrNull { it.row == explainedPlaySetupRow }
+                                            // Every card says its whole sentence; where they do not all fit under
+                                            // the rows, [form] asks for the current choice's card alone.
                                             if (place != null) {
                                                 NovaPlaySetupPlaceLegend(
                                                     title = stringResource(R.string.nova_play_setup_place_legend),
                                                     place = place,
-                                                    consequenceMaxLines = consequenceLines,
                                                 )
                                             } else if (explained != null && explained.options.size > 1) {
                                                 NovaPlaySetupComparison(
                                                     title = explained.stripTitle,
                                                     options = explained.options,
-                                                    consequenceMaxLines = if (explained.options.size > explained.optionsPerRow) 1 else consequenceLines,
+                                                    form = form,
                                                     perRow = explained.optionsPerRow,
                                                 )
                                             }
