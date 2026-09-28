@@ -27,7 +27,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.AlertDialog
@@ -59,6 +61,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import android.os.Build
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
@@ -237,7 +240,7 @@ private object NovaSettingsMetrics {
 }
 
 @Composable
-private fun NovaSettingsContent(
+internal fun NovaSettingsContent(
     state: NovaSettingsUiState,
     title: String,
     subtitle: String,
@@ -253,6 +256,7 @@ private fun NovaSettingsContent(
     val colors = LocalNovaComposeColors.current
     val wide = LocalConfiguration.current.screenWidthDp >= 720
     val controllerHints = novaSettingsControllerHints()
+    val focus = if (wide) rememberNovaSettingsFocus(state, onCategory) else null
 
     Column(
         modifier = Modifier
@@ -272,7 +276,11 @@ private fun NovaSettingsContent(
             wide = wide
         )
         Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
-        NovaSettingsQuickStrip(state, onSetting)
+        NovaSettingsQuickStrip(
+            state, onSetting,
+            modifier = focus?.quickStripModifier ?: Modifier,
+            firstPillModifier = focus?.firstQuickModifier ?: Modifier,
+        )
         Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
         if (wide) {
             Row(
@@ -288,6 +296,8 @@ private fun NovaSettingsContent(
                 NovaSettingsCategoryRail(
                     state = state,
                     onCategory = onCategory,
+                    listState = focus!!.railState,
+                    categoryModifier = focus.categoryModifier,
                     modifier = Modifier
                         .novaHoldsFirstFocus()
                         .width(NovaSettingsMetrics.categoryRailWidthDp().dp)
@@ -304,7 +314,10 @@ private fun NovaSettingsContent(
                         state = state,
                         onSetting = onSetting,
                         onResetSetting = onResetSetting,
+                        listState = focus.rowsState,
+                        rowModifier = focus.rowModifier,
                         modifier = Modifier
+                            .then(focus.paneModifier)
                             .fillMaxWidth()
                             .weight(1f)
                     )
@@ -496,11 +509,13 @@ private fun SearchResultSummary(state: NovaSettingsUiState) {
 @Composable
 private fun NovaSettingsQuickStrip(
     state: NovaSettingsUiState,
-    onSetting: (NovaSettingDefinition) -> Unit
+    onSetting: (NovaSettingDefinition) -> Unit,
+    modifier: Modifier = Modifier,
+    firstPillModifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(NovaSettingsMetrics.quickStripHeightDp().dp)
     ) {
@@ -514,6 +529,7 @@ private fun NovaSettingsQuickStrip(
                 NovaSettingPill(
                     definition = definition,
                     value = state.valueLabel(definition),
+                    modifier = if (definition == state.quickSettings.firstOrNull()) firstPillModifier else Modifier,
                     onClick = { onSetting(definition) }
                 )
             }
@@ -557,14 +573,16 @@ private fun NovaSettingsQuickStripEdgeHint(modifier: Modifier = Modifier) {
 private fun NovaSettingPill(
     definition: NovaSettingDefinition,
     value: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     var focused by remember { mutableStateOf(false) }
     val shape = NovaSettingsCardShape
     Column(
-        modifier = Modifier
+        modifier = modifier
+            .testTag("nova-settings-quick-${definition.key}")
             .width(NovaSettingsMetrics.quickPillWidthDp().dp)
             .heightIn(min = NovaSettingsMetrics.quickStripHeightDp().dp)
             .clip(shape)
@@ -601,9 +619,12 @@ private fun NovaSettingPill(
 private fun NovaSettingsCategoryRail(
     state: NovaSettingsUiState,
     onCategory: (String) -> Unit,
+    listState: LazyListState = rememberLazyListState(),
+    categoryModifier: (NovaSettingCategory) -> Modifier = { Modifier },
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
+        state = listState,
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.categoryRailSpacingDp().dp),
         contentPadding = PaddingValues(bottom = 12.dp)
@@ -612,6 +633,7 @@ private fun NovaSettingsCategoryRail(
             NovaCategoryRow(
                 category = category,
                 selected = category.key == state.selectedCategoryKey && state.searchQuery.isBlank(),
+                modifier = categoryModifier(category),
                 onClick = { onCategory(category.key) }
             )
         }
@@ -643,7 +665,8 @@ private fun NovaCategoryRow(
     category: NovaSettingCategory,
     selected: Boolean,
     onClick: () -> Unit,
-    compact: Boolean = false
+    compact: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -657,7 +680,8 @@ private fun NovaCategoryRow(
         else -> surfaces.control
     }
     Column(
-        modifier = Modifier
+        modifier = modifier
+            .testTag("nova-settings-category-${category.key}")
             .fillMaxWidth(if (compact) 0.48f else 1f)
             .clip(shape)
             .novaFocusMotion(focused = focused, pressed = false)
@@ -695,9 +719,12 @@ private fun NovaSettingsRows(
     state: NovaSettingsUiState,
     onSetting: (NovaSettingDefinition) -> Unit,
     onResetSetting: (NovaSettingDefinition) -> Unit,
+    listState: LazyListState = rememberLazyListState(),
+    rowModifier: (NovaSettingDefinition) -> Modifier = { Modifier },
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
+        state = listState,
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.settingsRowSpacingDp().dp),
         contentPadding = PaddingValues(bottom = NovaSettingsMetrics.rowsBottomPaddingDp().dp)
@@ -710,6 +737,7 @@ private fun NovaSettingsRows(
         items(state.visibleSettings, key = { it.key }, contentType = { it.type }) { definition ->
             NovaSettingRow(
                 definition = definition,
+                modifier = rowModifier(definition),
                 value = state.valueLabel(definition),
                 checked = state.booleanValue(definition),
                 enabled = state.isEnabled(definition),
@@ -803,7 +831,8 @@ private fun NovaSettingRow(
     isOverride: Boolean,
     canReset: Boolean,
     onReset: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -811,7 +840,8 @@ private fun NovaSettingRow(
     val shape = NovaSettingsCardShape
     val alpha = if (enabled) 1f else 0.44f
     Row(
-        modifier = Modifier
+        modifier = modifier
+            .testTag("nova-settings-row-${definition.key}")
             .fillMaxWidth()
             .clip(shape)
             .novaFocusMotion(focused = focused, pressed = false)
@@ -1436,7 +1466,7 @@ internal fun NovaSettingsUiState.stringValue(definition: NovaSettingDefinition):
     return (value as? NovaSettingValue.StringValue)?.value.orEmpty()
 }
 
-private fun NovaSettingsUiState.isEnabled(definition: NovaSettingDefinition): Boolean {
+internal fun NovaSettingsUiState.isEnabled(definition: NovaSettingDefinition): Boolean {
     val dependency = definition.dependencyKey ?: return true
     val value = values[dependency]
     return (value as? NovaSettingValue.BooleanValue)?.value ?: true
