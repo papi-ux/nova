@@ -44,7 +44,11 @@ object NovaKeys {
         else -> false
     }
 
-    /** Keys the gate turns into Back on release. KEYCODE_BACK is not one: the platform tracks it. */
+    /**
+     * Keys the gate turns into Back on release. KEYCODE_BACK is not one: the platform delivers it,
+     * and on API 33 and later, in an activity that opts in to OnBackInvokedCallback, the gate never
+     * sees it at all (see [NovaKeyGate]).
+     */
     fun isGatedBack(keyCode: Int): Boolean =
         keyCode == KeyEvent.KEYCODE_BUTTON_B || keyCode == KeyEvent.KEYCODE_ESCAPE
 }
@@ -96,7 +100,14 @@ enum class NovaKeyDecision {
  * original A, the platform never generates its own fallback DPAD_CENTER for it, which is the double
  * event some screens work around today. B and Escape become Back on an uncancelled release that
  * matches a press seen here, so the release of a press that opened a surface does nothing in it.
- * KEYCODE_BACK passes: Dialog and Activity already act only on a tracked, uncancelled release.
+ *
+ * KEYCODE_BACK passes, and the guarantee for it is narrower. In an activity that keeps
+ * enableOnBackInvokedCallback off (Game, and the application default), Dialog and Activity act
+ * only on a tracked, uncancelled release. In one that opts in (PcView, AppView, the settings
+ * screens and others), API 33 and later hand KEYCODE_BACK to the window's OnBackInvokedCallback
+ * before dispatchKeyEvent, on any release: this gate never sees it, and Android 13 does not skip
+ * a cancelled release, so a Back held while a surface appears can close that surface when it is
+ * let go. The foundation notes record this for the groups that opt those screens in.
  */
 class NovaKeyGate {
     private val confirm = NovaPressLatch()
