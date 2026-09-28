@@ -58,6 +58,8 @@ import com.papi.nova.ui.NovaLaunchStreamOverride
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaSheetChrome
+import com.papi.nova.ui.NovaMouseModePicker
+import com.papi.nova.ui.NovaStreamSheetFocus
 import com.papi.nova.ui.StreamContainer
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.utils.Dialog
@@ -6406,18 +6408,7 @@ options.add(MouseModeOption(i, label))
 
 options.add(MouseModeOption(-1, getString(R.string.toggle_local_mouse_cursor)))
 
-var labels:Array<String?> = arrayOfNulls<String?>(options.size)
-for (i:Int in 0 until options.size)
-{
-labels[i] = options[i].label
-}
-var optionArray:Array<MouseModeOption> = options.toTypedArray()
-
-val mouseModeDialog = AlertDialog.Builder(context)
-.setTitle(getString(R.string.game_menu_select_mouse_mode))
-.setItems(labels, { dialog, which->
-dialog!!.dismiss()
-var selected:MouseModeOption = optionArray[which]
+val mouseModeDialog = NovaMouseModePicker.create(context ?: this, options, currentMouseModeIndex) { selected ->
 if (selected.index == -1)
 {
 toggleMouseLocalCursor()
@@ -6432,12 +6423,17 @@ ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
 .putString("mouse_mode_list", java.lang.String.valueOf(selected.index))
 .apply()
 }
-} })
-.create()
+}
+}
 dialogWindowType?.let { windowType ->
 mouseModeDialog.window?.setType(windowType)
 }
+if (dialogWindowToken != null) {
 mouseModeDialog.window?.attributes?.token = dialogWindowToken
+}
+mouseModeDialog.setOnDismissListener {
+if (context == null || context === this) restoreStreamInputAfterModalDismissal()
+}
 mouseModeDialog.show()
 }
 
@@ -7388,6 +7384,8 @@ setTextColor(com.papi.nova.ui.NovaThemeManager.getTextSecondaryColor(context))
 container.addView(message, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
 val stay = TextView(context).apply {
+id = View.generateViewId()
+tag = "nova-end-session-stay"
 text = getString(R.string.game_dialog_action_stay_in_game)
 gravity = Gravity.CENTER
 NovaSheetChrome.styleSheetAction(this)
@@ -7396,6 +7394,8 @@ setOnClickListener { sheet.dismiss() }
 container.addView(stay, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()))
 
 val endSession = TextView(context).apply {
+id = View.generateViewId()
+tag = "nova-end-session-confirm"
 text = if (spaceSession) getString(R.string.nova_space_leave_action) else getString(R.string.game_dialog_action_end_session)
 gravity = Gravity.CENTER
 NovaSheetChrome.styleSheetAction(this, destructive = true)
@@ -7411,7 +7411,15 @@ topMargin = UiHelper.dpToPx(context, 10f).toInt()
 })
 
 sheet.setContentView(container)
-sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
+stay.nextFocusDownId = endSession.id
+endSession.nextFocusUpId = stay.id
+sheet.setOnShowListener {
+NovaSheetChrome.applyBottomSheetChrome(sheet, container)
+NovaStreamSheetFocus.onShow(sheet, stay)
+}
+sheet.setOnDismissListener {
+if (companionPresentation == null) restoreStreamInputAfterModalDismissal()
+}
 sheet.show()
 NovaSheetChrome.applyBottomSheetChrome(sheet, container)
 }
