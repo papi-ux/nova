@@ -65,6 +65,8 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
     private var blockingLoadSpinner: SpinnerDialog? = null
     private var lastRawAppList: String? = null
     private var lastRunningAppId = 0
+    private var lastRunningAppOwned: Boolean? = null
+    private var lastRunningAppWatchable: Boolean? = null
     private var suspendGridUpdates = false
     private var inForeground = false
     private val runtimeTasks = NovaRuntimeTasks(this, "Nova app list")
@@ -220,8 +222,11 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                     }
 
                     if (details.rawAppList == null || details.rawAppList == lastRawAppList) {
+                        val sessionChanged = details.runningGameId != lastRunningAppId ||
+                            details.currentGameOwnedByClient != lastRunningAppOwned ||
+                            details.currentGameWatchable != lastRunningAppWatchable
                         activeComputer.update(details)
-                        if (details.runningGameId != lastRunningAppId) {
+                        if (sessionChanged) {
                             lastRunningAppId = details.runningGameId
                             updateUiWithServerInfo(details)
                         }
@@ -523,6 +528,10 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     private fun updateUiWithServerInfo(details: ComputerDetails) {
+        // ComputerManager may update the same ComputerDetails instance in place.
+        // Retain the last displayed values independently of that mutable object.
+        lastRunningAppOwned = details.currentGameOwnedByClient
+        lastRunningAppWatchable = details.currentGameWatchable
         runOnUiThread {
             val adapter = appGridAdapter ?: return@runOnUiThread
             var updated = false
@@ -531,7 +540,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                 val existingApp = adapter.getItem(i) as? AppObject ?: continue
 
                 if (existingApp.isRunning && existingApp.app.appId == details.runningGameId) {
-                    return@runOnUiThread
+                    continue
                 } else if (existingApp.app.appId == details.runningGameId) {
                     existingApp.isRunning = true
                     updated = true
@@ -590,10 +599,14 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
         val activeComputer = computer
         val appIsRunning = lastRunningAppId == finalTargetApp.app.appId
         val appOwnedByAnotherClient = appIsRunning && activeComputer?.currentGameOwnedByClient == false
+        val nothingToWatch = appOwnedByAnotherClient && activeComputer?.currentGameWatchable == false
+        card.isEnabled = !nothingToWatch
 
         nameView?.text = finalTargetApp.app.appName
         kickerView?.setText(
-            if (appOwnedByAnotherClient) {
+            if (nothingToWatch) {
+                R.string.applist_menu_in_use
+            } else if (appOwnedByAnotherClient) {
                 R.string.applist_hero_watch
             } else if (appIsRunning) {
                 R.string.applist_hero_live
@@ -601,7 +614,9 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                 R.string.applist_hero_continue
             },
         )
-        metaView?.text =
+        metaView?.text = if (nothingToWatch) {
+            getString(R.string.applist_nothing_to_watch)
+        } else {
             finalTargetApp.app.metadataLabel.ifEmpty {
                 getString(
                     if (appOwnedByAnotherClient) {
@@ -613,8 +628,10 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                     },
                 )
             }
+        }
         actionView?.setText(
             when {
+                nothingToWatch -> R.string.applist_menu_in_use
                 appOwnedByAnotherClient -> R.string.applist_menu_watch
                 // Resume is only honest while the host is still running the game. Otherwise
                 // this button launches it, and the kicker above already says Continue.
@@ -653,7 +670,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
             val pc = computer ?: return@setOnClickListener
             val prefs = prefConfig ?: return@setOnClickListener
             if (lastRunningAppId != 0 && pc.currentGameOwnedByClient == false) {
-                ServerHelper.doWatch(this, createWatchTargetApp(finalTargetApp.app), pc, binder)
+                watchActiveStream(finalTargetApp.app)
             } else {
                 ServerHelper.doStart(this, finalTargetApp.app, pc, binder, prefs.useVirtualDisplay)
             }
@@ -787,11 +804,19 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                     }
                 }
             }
+        } else if (ownedByOtherClient && activeComputer.currentGameWatchable == false) {
+            val explanation = TextView(this).apply {
+                setText(R.string.applist_nothing_to_watch)
+                val padding = UiHelper.dpToPx(this@AppView, 24f).toInt()
+                setPadding(padding, padding / 2, padding, padding / 2)
+                isEnabled = false
+            }
+            actions.addView(explanation)
         } else if (lastRunningAppId == selectedApp.app.appId) {
             if (ownedByOtherClient) {
                 addSheetAction(actions, getString(R.string.applist_menu_watch)) {
                     sheet.dismiss()
-                    ServerHelper.doWatch(this, createWatchTargetApp(selectedApp.app), activeComputer, binder)
+                    watchActiveStream(selectedApp.app)
                 }
             } else {
                 addSheetAction(actions, getString(R.string.applist_menu_resume)) {
@@ -811,7 +836,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
             if (ownedByOtherClient) {
                 addSheetAction(actions, getString(R.string.applist_menu_watch_active)) {
                     sheet.dismiss()
-                    ServerHelper.doWatch(this, createWatchTargetApp(selectedApp.app), activeComputer, binder)
+                    watchActiveStream(selectedApp.app)
                 }
             } else {
                 addSheetAction(actions, getString(R.string.applist_menu_quit_and_start)) {
@@ -894,6 +919,18 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
 
         item.setOnClickListener { action.run() }
         container.addView(item)
+    }
+
+    private fun watchActiveStream(fallbackApp: NvApp) {
+        val activeComputer = computer ?: return
+        val binder = managerBinder ?: return
+        // The stream may stop while a sheet is open. Keep that stale action from
+        // opening a stream screen when the latest host answer says there is none.
+        if (activeComputer.currentGameWatchable == false) {
+            Toast.makeText(this, R.string.applist_nothing_to_watch, Toast.LENGTH_SHORT).show()
+            return
+        }
+        ServerHelper.doWatch(this, createWatchTargetApp(fallbackApp), activeComputer, binder)
     }
 
     private fun createWatchTargetApp(fallbackApp: NvApp): NvApp {
@@ -1032,7 +1069,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                 if (lastRunningAppId != 0) {
                     if (activePrefs.resumeWithoutConfirm && lastRunningAppId == app.app.appId) {
                         if (activeComputer.currentGameOwnedByClient == false) {
-                            ServerHelper.doWatch(this@AppView, createWatchTargetApp(app.app), activeComputer, binder)
+                            watchActiveStream(app.app)
                         } else {
                             ServerHelper.doStart(
                                 this@AppView,

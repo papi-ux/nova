@@ -771,6 +771,8 @@
     <string name="applist_connect_msg">Connecting to PC…</string>
     <string name="applist_menu_resume">Resume Stream</string>
     <string name="applist_menu_watch">Watch Stream</string>
+    <string name="applist_menu_in_use">In Use</string>
+    <string name="applist_nothing_to_watch">Nobody is streaming this game, so there is nothing to watch.</string>
     <string name="applist_menu_watch_active">Watch Active Stream</string>
     <string name="applist_menu_watch_active_name">Active Stream</string>
     <string name="applist_menu_start_vdisplay">Start with Virtual Display</string>
@@ -1093,6 +1095,7 @@
     <string name="nova_quick_menu_end_stream">End Session</string>
     <string name="nova_quick_menu_key_meta">Meta</string>
     <string name="nova_quick_menu_quick_keys">Quick Keys</string>
+    <string name="nova_quick_menu_quick_keys_caption">Sends the key and closes Command Center to return input to the game.</string>
     <string name="nova_quick_menu_overlays">Overlays</string>
     <string name="nova_quick_menu_controls">Controls</string>
     <string name="nova_quick_menu_session">Session</string>
@@ -1184,6 +1187,7 @@
     <string name="nova_launch_envelope_bitrate">Polaris resolved a bitrate outside what this launch allows. Change the bitrate in Play Setup, then try again.</string>
     <string name="nova_quick_menu_safe">Safe</string>
     <string name="nova_quick_menu_mouse">Mouse</string>
+    <string name="nova_quick_menu_mouse_caption">Closes Command Center to open the mouse mode picker.</string>
     <string name="nova_quick_menu_controller">Touch Controls</string>
     <string name="nova_quick_menu_touch_controls_caption">On-screen overlay; physical gamepad stays active.</string>
     <string name="nova_quick_menu_players">Players</string>
@@ -1196,9 +1200,13 @@
     <string name="nova_quick_menu_players_nobody">Press a button on a controller to join.</string>
     <string name="nova_quick_menu_players_one_player">Every controller is player 1 while Automatic Gamepad Presence Detection is off in Settings.</string>
     <string name="nova_quick_menu_keyboard">Keyboard</string>
+    <string name="nova_quick_menu_keyboard_show_caption">Closes Command Center to show the on-screen keyboard.</string>
+    <string name="nova_quick_menu_keyboard_hide_caption">Closes Command Center and hides the on-screen keyboard.</string>
     <string name="nova_quick_menu_paste_clipboard">Paste</string>
     <string name="nova_quick_menu_rotate_screen">Rotate</string>
+    <string name="nova_quick_menu_rotate_screen_caption">Closes Command Center while the screen rotates.</string>
     <string name="nova_quick_menu_special_keys">More Keys</string>
+    <string name="nova_quick_menu_special_keys_caption">Closes Command Center to open the extended game menu.</string>
     <string name="nova_quick_menu_show">Show</string>
     <string name="nova_quick_menu_hide">Hide</string>
     <string name="nova_quick_menu_loading">Loading</string>

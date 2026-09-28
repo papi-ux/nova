@@ -662,7 +662,20 @@ def artwork_navigation(wait, keys, state, fixtures, save_capture):
     a = fixtures["a"]
     wait(lambda s: s.get("game") == "game-42" and s.get("artwork", {}).get("heroReady"))
     save_capture("artwork-grid.png")
-    keys("Up", "Up", "Up", "Return", "Return", "Return", "Escape", "Down", "Down", "Down")
+    for target in ("library-filter-all", "library-search", "library-options"):
+        keys("Up")
+        wait(lambda s: s.get("focus") == target)
+    keys("Return")
+    wait(lambda s: s.get("optionsOpen") and s.get("focus") == "library-layout-option")
+    for layout in ("compact", "stage"):
+        keys("Return")
+        wait(lambda s: s.get("layout") == layout and s.get("optionsOpen")
+             and s.get("focus") == "library-layout-option")
+    keys("Escape")
+    wait(lambda s: not s.get("optionsOpen") and s.get("focus") == "library-options")
+    for target in ("library-search", "library-filter-all", "game-42"):
+        keys("Down")
+        wait(lambda s: s.get("focus") == target)
     wait(lambda s: s.get("layout") == "stage" and s.get("focus") == "game-42" and s.get("artwork", {}).get("iconReady"))
     keys("Left")
     wait(lambda s: s.get("focus") == "game-7" and s.get("artwork", {}).get("heroReady") and s["artwork"]["iconReady"])
@@ -826,6 +839,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     assert "2024" in state()["lastPlayedLabel"], "epoch seconds rendered as a 1970 date"
     save_capture("android-details-metadata.png")
     keys("Escape")
+    wait(lambda s: not s.get("detailOpen") and s.get("focus") == s.get("game"))
     filter_focus(1)
     keys("Return")
     visible([42, 106, 7, 103], filter="recent", focus="library-filter-recent")
@@ -1106,7 +1120,21 @@ def profile_sync_navigation(wait, keys, state, fixtures, save_capture, window):
         wait(lambda s: status(s).get("phase") == "ready" and
              status(s).get("settings", {}).get("desiredDisplay") == expected_display and
              s.get("focus") == "host-defaults-back")
-    keys("Return", "Return")
+    # Hold the automatic list refresh to reproduce opening details before Play
+    # is enabled. Its completion must preserve Back focus, so the route must
+    # explicitly choose the now-ready Play action before sending Return.
+    fixture["entered"].clear()
+    fixture["release"].clear()
+    try:
+        wait(lambda s: s.get("busy") and s.get("automatic") and fixture["entered"].is_set())
+        keys("Return")
+        wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-back"
+             and not s.get("launchEnabled"))
+    finally:
+        fixture["release"].set()
+    wait(lambda s: s.get("detailOpen") and not s.get("busy") and s.get("launchEnabled")
+         and s.get("focus") == "game-detail-back")
+    activate_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     # Keep an explicit game bitrate while importing the other device defaults.
     keys("Down", "Down", "Down", "Return", "Down", "Down", "Return")

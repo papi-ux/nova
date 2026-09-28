@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.papi.nova.R
+import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisArtworkChoice
 import com.papi.nova.api.PolarisArtworkMatchCandidate
 import com.papi.nova.shared.polaris.model.PolarisGame
@@ -1078,6 +1079,7 @@ private fun StudioArtworkImage(
                 }
             },
             modifier = modifier.semantics { this.contentDescription = contentDescription },
+            onRelease = PolarisApiClient::releaseArtworkView,
         )
     }
 }
