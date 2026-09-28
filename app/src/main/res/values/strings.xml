@@ -1014,7 +1014,7 @@
     <string name="game_menu_enable_zoom_mode">Enable Pan/Zoom</string>
     <string name="game_menu_disable_zoom_mode">Disable Pan/Zoom</string>
     <string name="game_menu_rotate_screen">Rotate Screen</string>
-    <string name="game_menu_toggle_keyboard_model">Toggle Special keys</string>s
+    <string name="game_menu_toggle_keyboard_model">Toggle Special keys</string>
     <string name="game_menu_toggle_virtual_model">Toggle On-screen controller</string>
     <string name="game_menu_toggle_virtual_keyboard_model">Toggle On-screen full keyboard</string>
     <string name="game_menu_switch_touch_sensitivity_model">Switch touch sensitivity</string>
