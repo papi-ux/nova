@@ -100,7 +100,7 @@ class NovaReleaseMetadataTest {
     }
 
     @Test
-    fun versionNameCodeAndPublicReleaseMetadataStayConsistent() {
+    fun developmentAndReleaseNotesMetadataStayConsistent() {
         val root = repoRoot()
         val build = File(root, "app/build.gradle").readText()
         val changelog = File(root, "CHANGELOG.md").readText()
@@ -112,17 +112,20 @@ class NovaReleaseMetadataTest {
         )
         val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
-        assertTrue(build.contains("versionName \"1.4.13\""))
+        assertTrue(build.contains("versionName \"1.4.14\""))
         // The Deck bundle reports the same version in its support report and its AppStream data.
-        assertTrue(File(root, "clients/deck/CMakeLists.txt").readText().contains("project(NovaDeck VERSION 1.4.13 "))
+        assertTrue(File(root, "clients/deck/CMakeLists.txt").readText().contains("project(NovaDeck VERSION 1.4.14 "))
         assertTrue(
             File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
                 .contains("<release version=\"1.4.13\" date=\"2026-09-24\"/>")
         )
-        // Stable's code is still a hand-maintained pin, and still 54, because the store notes above
-        // are filed under that number. It now has a name so the prerelease derivation can read it
-        // rather than repeat it.
-        assertTrue(build.contains("def novaVersionCode = 54"))
+        assertTrue(
+            File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
+                .contains("<release version=\"1.4.14\" type=\"development\" date=\"2026-09-27\"/>"),
+        )
+        // Development builds advance to code 55. Keep 1.4.13's store notes under 54
+        // until the next release's notes are prepared.
+        assertTrue(build.contains("def novaVersionCode = 55"))
         assertTrue(build.contains("versionCode = novaVersionCode"))
 
         // A beta's code is derived from that pin, because beta.2 and beta.3 both shipped 54 when it
