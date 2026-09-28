@@ -119,9 +119,10 @@ internal val LocalNovaFocusRefresh = compositionLocalOf { 0 }
  * Hosts a stack of pages: the page header, the back handler, the focus rules and the page motion.
  *
  * It draws every [NovaCommonPage] itself and hands other pages to [content]. B pops one page and
- * at the root calls [onCloseRequest]. L1 and R1 go to [onShoulder]; Start and Menu close. Those
- * keys act on release and are read in the bubble phase, so a focused control sees them first.
- * With [containFocus], focus cannot leave the host.
+ * at the root calls [onCloseRequest]. L1 and R1 go to [onShoulder] when there is one, and pass to
+ * the screen around the host when there is not; Start and Menu close. Those keys act on release
+ * and are read in the bubble phase, so a focused control sees them first. With [containFocus],
+ * focus cannot leave the host.
  *
  * Focus: a page opens on the element marked [NovaPageScope.novaInitialFocus], or its first
  * focusable; returning to a page restores the element marked [NovaPageScope.novaRestorableFocus]
@@ -133,7 +134,7 @@ fun NovaPageStackHost(
     state: NovaPanelState,
     modifier: Modifier = Modifier,
     containFocus: Boolean = true,
-    onShoulder: (NovaShoulder) -> Boolean = { false },
+    onShoulder: ((NovaShoulder) -> Unit)? = null,
     onCloseRequest: () -> Unit = state::close,
     hints: List<NovaControllerHint> = emptyList(),
     content: NovaPageContent,
@@ -175,16 +176,18 @@ fun NovaPageStackHost(
             .onKeyEvent { event ->
                 val native = event.nativeKeyEvent
                 val code = native.keyCode
-                val handled = event.key in HostKeys
+                val side = when (event.key) {
+                    Key.ButtonL1 -> NovaShoulder.Left
+                    Key.ButtonR1 -> NovaShoulder.Right
+                    else -> null
+                }
+                // Shoulders stay the screen's unless the owner takes them.
+                val handled = if (side != null) shoulder != null else event.key in CloseKeys
                 if (!handled) return@onKeyEvent false
                 when (event.type) {
                     KeyEventType.KeyDown -> if (native.repeatCount == 0) releaseLatch.press(code)
                     KeyEventType.KeyUp -> if (releaseLatch.release(code) && !native.isCanceled) {
-                        when (event.key) {
-                            Key.ButtonL1 -> shoulder(NovaShoulder.Left)
-                            Key.ButtonR1 -> shoulder(NovaShoulder.Right)
-                            else -> closeRequest()
-                        }
+                        if (side != null) shoulder?.invoke(side) else closeRequest()
                     }
                 }
                 true
@@ -256,8 +259,8 @@ fun NovaPageStackHost(
     }
 }
 
-/** Keys the host answers in the bubble phase: shoulders switch peers, Start and Menu close. */
-private val HostKeys = setOf(Key.ButtonL1, Key.ButtonR1, Key.ButtonStart, Key.Menu)
+/** Keys that close the panel from anywhere in it, answered in the bubble phase. */
+private val CloseKeys = setOf(Key.ButtonStart, Key.Menu)
 
 /**
  * Scrolls a focused row into view together with one row of context on the side it scrolls

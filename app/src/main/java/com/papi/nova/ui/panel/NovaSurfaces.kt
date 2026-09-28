@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.papi.nova.Game
+import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.utils.ExternalDisplayControlHost
 import java.util.Collections
 import java.util.WeakHashMap
@@ -62,19 +63,35 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
     internal var pageContent: NovaPageContent by mutableStateOf({})
         private set
 
+    /** The owner's hints (L1/R1 for peer panels, X/Y page actions) for the panel opened last. */
+    internal var pageHints: List<NovaControllerHint> by mutableStateOf(emptyList())
+        private set
+
+    /** Where L1 and R1 go in the panel opened last; null leaves them alone. */
+    internal var pageShoulder: ((NovaShoulder) -> Unit)? by mutableStateOf(null)
+        private set
+
     // Main thread only: which owner presented each page key still on the stack.
     private val presented = HashMap<String, NovaStateOwner>()
     private var window: NovaPanelWindow? = null
     private var disposed = false
 
-    /** Opens the panel with [root] at [edge]. Main thread (posts if called elsewhere). */
+    /**
+     * Opens the panel with [root] at [edge]. [hints] join A and B in the hint bar, such as L1/R1
+     * for peer panels, and [onShoulder] takes L1 and R1, such as a [NovaPanelState.switchRoot] to
+     * a peer. Main thread (posts if called elsewhere).
+     */
     fun open(
         root: NovaPage,
         edge: NovaEdge = NovaEdge.End,
         returnFocus: NovaFocusReturn = NovaFocusReturn.None,
+        hints: List<NovaControllerHint> = emptyList(),
+        onShoulder: ((NovaShoulder) -> Unit)? = null,
         content: NovaPageContent = {},
     ) = onMain {
         pageContent = content
+        pageHints = hints
+        pageShoulder = onShoulder
         panel.open(root, edge, returnFocus)
         ensureWindow()
     }
@@ -83,7 +100,13 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
     fun present(page: NovaPage, owner: NovaStateOwner = NovaStateOwner.App) = onMain {
         presented.keys.retainAll { panel.contains(it) }
         presented[page.key] = owner
-        if (panel.isOpen) panel.push(page) else panel.open(page)
+        if (panel.isOpen) {
+            panel.push(page)
+        } else {
+            pageHints = emptyList()
+            pageShoulder = null
+            panel.open(page)
+        }
         ensureWindow()
     }
 
@@ -329,6 +352,8 @@ internal fun NovaSurfacesLayer(
     pageContent: NovaPageContent,
     onIdle: () -> Unit,
     modifier: Modifier = Modifier,
+    hints: List<NovaControllerHint> = emptyList(),
+    onShoulder: ((NovaShoulder) -> Unit)? = null,
 ) {
     val panelOpen = panel.isOpen
     var framePresent by remember { mutableStateOf(panelOpen) }
@@ -348,7 +373,7 @@ internal fun NovaSurfacesLayer(
                     onClosed = { framePresent = false },
                     scrim = scrim,
                 ) {
-                    NovaPageStackHost(state = panel, content = pageContent)
+                    NovaPageStackHost(state = panel, onShoulder = onShoulder, hints = hints, content = pageContent)
                 }
             }
         }

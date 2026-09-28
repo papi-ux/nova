@@ -10,6 +10,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -47,7 +50,7 @@ class NovaPageStackHostComposeTest {
             NovaPageStackHost(
                 state = state,
                 onCloseRequest = { closeRequests++ },
-                onShoulder = { shoulders += it; true },
+                onShoulder = { shoulders += it },
             ) { page ->
                 when (page.key) {
                     "rows" -> LazyColumn(state = listState) {
@@ -195,5 +198,32 @@ class NovaPageStackHostComposeTest {
         assertEquals(0, closeRequests)
         keys.press(KeyEvent.KEYCODE_BUTTON_START)
         assertEquals(1, closeRequests)
+    }
+
+    @Test
+    fun withNoShoulderHandlerL1AndR1PassToTheScreen() {
+        state.open(TestPage("plain"))
+        val outside = mutableListOf<Int>()
+        val keys = rule.setPanelContent {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .onKeyEvent {
+                        if (it.type == KeyEventType.KeyUp) outside += it.nativeKeyEvent.keyCode
+                        false
+                    },
+            ) {
+                NovaPageStackHost(state = state, onCloseRequest = { closeRequests++ }) { page ->
+                    NovaRow(title = "Page ${page.key}", onClick = {}, modifier = Modifier.novaInitialFocus())
+                }
+            }
+        }
+        keys.press(KeyEvent.KEYCODE_BUTTON_L1)
+        keys.press(KeyEvent.KEYCODE_BUTTON_R1)
+        assertEquals(
+            "a Settings pane with no peers leaves L1 and R1 to the category stepping around it",
+            listOf(KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1),
+            outside,
+        )
     }
 }

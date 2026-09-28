@@ -103,6 +103,8 @@ internal class NovaPanelWindow(
                             scrim = placement.scrim,
                             pageContent = surfaces.pageContent,
                             onIdle = surfaces::onWindowIdle,
+                            hints = surfaces.pageHints,
+                            onShoulder = surfaces.pageShoulder,
                         )
                     }
                 }

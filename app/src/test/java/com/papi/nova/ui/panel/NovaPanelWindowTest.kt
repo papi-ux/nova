@@ -6,6 +6,7 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
+import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.utils.SpinnerDialog
 import java.time.Duration
 import org.junit.After
@@ -131,6 +132,26 @@ class NovaPanelWindowTest {
 
         assertFalse("the window closed", spinnerWindow.isShowing)
         assertTrue("a wait that only held a state page leaves focus where it was", other.isFocused)
+    }
+
+    @Test
+    fun openHandsTheOwnersHintsAndShouldersToTheWindowAndPresentStartsClean() {
+        val activity = newActivity()
+        val surfaces = NovaSurfaces.of(activity)
+        val hints = listOf(NovaControllerHint("L1", "Options"), NovaControllerHint("R1", "System"))
+        val shoulders = mutableListOf<NovaShoulder>()
+        surfaces.open(menu(), hints = hints, onShoulder = { shoulders += it })
+        idle(50)
+
+        assertEquals(hints, surfaces.pageHints)
+        surfaces.pageShoulder?.invoke(NovaShoulder.Left)
+        assertEquals(listOf(NovaShoulder.Left), shoulders)
+
+        surfaces.panel.close()
+        surfaces.onWindowIdle()
+        surfaces.present(menu())
+        assertEquals("a presented page opens a plain panel", emptyList<NovaControllerHint>(), surfaces.pageHints)
+        assertEquals(null, surfaces.pageShoulder)
     }
 
     @Test
