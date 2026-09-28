@@ -40,6 +40,9 @@ internal class NovaStackEntry(val id: Long, val page: NovaPage) {
     /** Whether the page has been on top before, so returning to it restores rather than starts. */
     var shown: Boolean = false
 
+    /** Whether the page's own buttons or B answered it, so leaving it runs no Stay or Close of its own. */
+    var answered: Boolean = false
+
     fun requesterFor(key: Any): FocusRequester = requesters.getOrPut(key) { FocusRequester() }
 
     fun rememberFocus(key: Any, index: Int) {
@@ -52,6 +55,10 @@ internal class NovaStackEntry(val id: Long, val page: NovaPage) {
  * What a panel shows: a stack of pages, the edge it is attached to, and where focus returns
  * when it closes. Only the top page is composed. The stack is not saved across recreation,
  * because pages hold lambdas.
+ *
+ * A [NovaCommonPage.Confirm] or [NovaCommonPage.Notice] that leaves the stack without being
+ * answered, by the header, the scrim, Start, a close, a pop or a new root, runs its Stay or its
+ * Close, after it has gone, exactly as if the player had chosen it.
  */
 @Stable
 class NovaPanelState {
@@ -89,8 +96,10 @@ class NovaPanelState {
     /** Swaps to a peer root in the same window (L1/R1), keeping where focus returns. */
     fun switchRoot(root: NovaPage, edge: NovaEdge) {
         this.edge = edge
+        val removed = entries.toList()
         entries.clear()
         entries += newEntry(root)
+        dismissUnanswered(removed)
     }
 
     /** Pushes [page] on top. A closed panel opens with it as the root, at the right edge. */
@@ -105,7 +114,8 @@ class NovaPanelState {
     /** Pops the top page. Returns false at the root, where the host closes the panel instead. */
     fun pop(): Boolean {
         if (entries.size <= 1) return false
-        entries.removeAt(entries.lastIndex)
+        val removed = entries.removeAt(entries.lastIndex)
+        dismissUnanswered(listOf(removed))
         return true
     }
 
@@ -114,7 +124,9 @@ class NovaPanelState {
         if (!isOpen) {
             open(page)
         } else {
+            val removed = entries[entries.lastIndex]
             entries[entries.lastIndex] = newEntry(page)
+            dismissUnanswered(listOf(removed))
         }
     }
 
@@ -122,7 +134,9 @@ class NovaPanelState {
     fun close() {
         if (isOpen) closedReturnFocus = returnFocus
         returnFocus = NovaFocusReturn.None
+        val removed = entries.toList()
         entries.clear()
+        dismissUnanswered(removed)
     }
 
     /**
@@ -132,9 +146,24 @@ class NovaPanelState {
     internal fun takeReturnFocus(): NovaFocusReturn =
         closedReturnFocus.also { closedReturnFocus = NovaFocusReturn.None }
 
-    /** Removes every page [predicate] matches, wherever it is in the stack. */
+    /**
+     * Removes every page [predicate] matches, wherever it is in the stack, and quietly: an owner
+     * taking its own pages down (closeDialogs, a settled confirm) runs none of their callbacks.
+     */
     internal fun removeWhere(predicate: (NovaPage) -> Boolean) {
         entries.removeAll { predicate(it.page) }
+    }
+
+    /** Runs Stay or Close for the pages in [removed] nobody answered, top first. */
+    private fun dismissUnanswered(removed: List<NovaStackEntry>) {
+        removed.asReversed().filterNot { it.answered }.forEach { entry ->
+            entry.answered = true
+            when (val page = entry.page) {
+                is NovaCommonPage.Confirm -> page.onStay()
+                is NovaCommonPage.Notice -> page.onClose()
+                else -> Unit
+            }
+        }
     }
 
     private fun newEntry(page: NovaPage) = NovaStackEntry(nextId++, page)

@@ -141,7 +141,7 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
 
     /**
      * Presents [page] and suspends until it is answered: true for its action, false for Stay, B,
-     * or the panel closing any other way.
+     * or the panel closing any other way, which runs the page's onStay as Stay does.
      */
     suspend fun confirm(page: NovaCommonPage.Confirm): Boolean = withContext(Dispatchers.Main.immediate) {
         val answer = CompletableDeferred<Boolean>()
@@ -162,6 +162,7 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
             },
         )
         present(asked)
+        // Leaving the page any way runs its onStay; a quiet removal (clear, dispose) answers false.
         val closedElsewhere = launch {
             snapshotFlow { panel.contains(asked.key) }.first { !it }
             answer.complete(false)
@@ -209,7 +210,8 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
     fun dispose() = onMain {
         disposed = true
         stateList.value = emptyList()
-        panel.close()
+        // The screen is going; nothing on the panel is answered, as a destroyed dialog never was.
+        panel.removeWhere { true }
         closeWindow()
         unregister(this)
     }

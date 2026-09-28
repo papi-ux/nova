@@ -3,12 +3,19 @@ package com.papi.nova.ui.panel
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.SpinnerDialog
 import com.papi.nova.utils.UiHelper
 import java.time.Duration
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -29,6 +36,7 @@ import org.robolectric.shadows.ShadowDialog
  * their signatures unchanged. These tests read the state layer: the state pages and the panel's
  * pages each helper puts up, and what their actions do.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class NovaSurfacesHelpersTest {
@@ -100,6 +108,77 @@ class NovaSurfacesHelpersTest {
 
         notice.onClose()
         assertEquals(1, dismissed)
+    }
+
+    @Test
+    fun aNoticeLeftByTheScrimOrStartStillRunsItsDismissHandling() {
+        val activity = newActivity()
+        var acknowledged = 0
+        // The decoder crash notice acknowledges the crash here; skipping it brings the notice back.
+        Dialog.displayDialog(activity, "Decoder error", "The decoder stopped.", Runnable { acknowledged++ })
+
+        NovaSurfaces.of(activity).panel.close()
+
+        assertEquals(1, acknowledged)
+    }
+
+    @Test
+    fun closeDialogsTakesANoticeDownWithoutItsDismissHandlingAsBefore() {
+        val activity = newActivity()
+        var dismissed = 0
+        Dialog.displayDialog(activity, "Details", "name: Nova PC", Runnable { dismissed++ })
+
+        Dialog.closeDialogs()
+        idle()
+
+        assertFalse(NovaSurfaces.of(activity).panel.isOpen)
+        assertEquals(0, dismissed)
+    }
+
+    @Test
+    fun aQuitConfirmLeftAnyOtherWayRunsOnNo() {
+        val activity = newActivity()
+        // ShortcutTrampoline finishes itself in onNo; skipping it left a translucent screen alive.
+        UiHelper.displayQuitConfirmationDialog(activity, Runnable { yes++ }, Runnable { no++ })
+
+        NovaSurfaces.of(activity).panel.close()
+
+        assertEquals(1, no)
+        assertEquals(0, yes)
+    }
+
+    @Test
+    fun aSuspendingConfirmClosedByTheScrimRunsStayAndAnswersFalse() {
+        val activity = newActivity()
+        val surfaces = NovaSurfaces.of(activity)
+        var stays = 0
+        val answer = CompletableDeferred<Boolean>()
+        val scope = CoroutineScope(Dispatchers.Main)
+        scope.launch {
+            answer.complete(
+                surfaces.confirm(
+                    NovaCommonPage.Confirm(
+                        key = "end",
+                        title = "End this Nova session?",
+                        message = AnnotatedString("The game closes on the host."),
+                        stayLabel = "Stay",
+                        actionLabel = "End Session",
+                        destructive = true,
+                        onConfirm = {},
+                        onStay = { stays++ },
+                    ),
+                ),
+            )
+        }
+        idle()
+
+        surfaces.panel.close()
+        idle()
+
+        assertTrue(answer.isCompleted)
+        assertFalse(answer.getCompleted())
+        assertEquals(1, stays)
+        scope.cancel()
     }
 
     @Test

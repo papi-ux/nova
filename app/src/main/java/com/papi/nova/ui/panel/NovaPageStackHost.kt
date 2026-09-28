@@ -259,7 +259,7 @@ fun NovaPageStackHost(
                         NovaPageHeader(
                             title = shown.page.title,
                             parentTitle = state.entryBelow(shown)?.page?.title,
-                            onBack = { scope.exit.leaveThen() },
+                            onBack = { scope.exit.back() },
                             modifier = Modifier.padding(horizontal = padding).padding(top = padding),
                         )
                         Box(modifier = Modifier.padding(horizontal = padding)) {
@@ -301,21 +301,31 @@ private suspend fun PointerInputScope.swallowUnless(acts: () -> Boolean) {
 }
 
 /**
- * How a host-drawn page acts and leaves. Both check, at the moment of the press, that the page
+ * How a host-drawn page acts and leaves. Each checks, at the moment of the press, that the page
  * may still act: a second press that lands before the page has gone, or a tap on a page sliding
  * out, does nothing.
  */
-internal class NovaPageExit(private val mayAct: () -> Boolean, private val leave: () -> Unit) {
+internal class NovaPageExit(
+    private val mayAct: () -> Boolean,
+    private val answer: () -> Unit,
+    private val leave: () -> Unit,
+) {
     /** Runs [action] in place, while the page is on top. */
     fun act(action: () -> Unit) {
         if (mayAct()) action()
     }
 
-    /** Pops the page, or closes the panel at the root, then runs [action]. */
+    /** The page's own answer: pops the page, or closes the panel at the root, then runs [action]. */
     fun leaveThen(action: () -> Unit = {}) {
         if (!mayAct()) return
+        answer()
         leave()
         action()
+    }
+
+    /** Leaves without answering, as the header does: a Confirm left this way stays. */
+    fun back() {
+        if (mayAct()) leave()
     }
 }
 
@@ -400,7 +410,7 @@ private class NovaPageScopeImpl(
     // Snapshot reads: composition follows them, and an event reads them as they are now.
     override val isTop: Boolean get() = panel.topEntry?.id == entry.id && !covered.value
     val mayAct: () -> Boolean = { isTop }
-    val exit = NovaPageExit(mayAct, leave)
+    val exit = NovaPageExit(mayAct, answer = { entry.answered = true }, leave = leave)
     var holdsFocus: Boolean = false
 
     override fun Modifier.novaInitialFocus(): Modifier = focusRequester(entry.initialRequester)

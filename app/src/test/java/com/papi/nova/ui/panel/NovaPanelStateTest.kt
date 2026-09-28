@@ -1,6 +1,7 @@
 package com.papi.nova.ui.panel
 
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.AnnotatedString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -153,6 +154,53 @@ class NovaPanelStateTest {
         assertEquals("row-30", state.topEntry!!.focusKey)
         assertEquals(30, state.topEntry!!.focusIndex)
     }
+
+    @Test
+    fun aConfirmOrNoticeLeftWithoutAnAnswerRunsItsStayOrCloseTopFirst() {
+        val state = NovaPanelState()
+        val ran = mutableListOf<String>()
+        state.open(root)
+        state.push(confirm { ran += "stay" })
+        state.push(notice { ran += "close" })
+
+        state.close()
+
+        assertEquals("the scrim or Start is B for both, the top page first", listOf("close", "stay"), ran)
+    }
+
+    @Test
+    fun popAndANewRootAlsoCountAsLeavingButAnAnswerOrAQuietRemovalDoNot() {
+        val state = NovaPanelState()
+        val ran = mutableListOf<String>()
+        state.open(root)
+        state.push(confirm { ran += "header" })
+        assertTrue(state.pop())
+        state.push(notice { ran += "new root" })
+        state.switchRoot(second, NovaEdge.End)
+        assertEquals(listOf("header", "new root"), ran)
+
+        state.push(confirm { ran += "answered" })
+        state.topEntry!!.answered = true
+        state.pop()
+        state.push(notice { ran += "removed" })
+        state.removeWhere { it.key == "notice" }
+        state.close()
+        assertEquals("an answered page and an owner's own removal run nothing more", listOf("header", "new root"), ran)
+    }
+
+    private fun confirm(onStay: () -> Unit) = NovaCommonPage.Confirm(
+        key = "confirm",
+        title = "Quit",
+        message = AnnotatedString("Quit the running app?"),
+        stayLabel = "Stay",
+        actionLabel = "Quit",
+        destructive = true,
+        onConfirm = {},
+        onStay = onStay,
+    )
+
+    private fun notice(onClose: () -> Unit) =
+        NovaCommonPage.Notice(key = "notice", title = "Details", message = "name: Nova PC", closeLabel = "Close", onClose = onClose)
 
     @Test
     fun removeWhereTakesPagesOutOfTheMiddleOfTheStack() {

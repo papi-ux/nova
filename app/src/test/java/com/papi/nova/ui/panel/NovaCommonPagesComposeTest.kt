@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.AnnotatedString
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -119,6 +120,30 @@ class NovaCommonPagesComposeTest {
         assertEquals(1, stayed)
         assertEquals(0, confirmed)
         assertEquals(1, state.depth)
+    }
+
+    @Test
+    fun theHeaderLeavesAConfirmAsStay() {
+        var stayed = 0
+        state.open(TestPage("root"))
+        state.push(
+            NovaCommonPage.Confirm(
+                key = "quit",
+                title = "Quit",
+                message = AnnotatedString("Quit the running app?"),
+                stayLabel = "Stay",
+                actionLabel = "Quit",
+                destructive = true,
+                onConfirm = {},
+                onStay = { stayed++ },
+            ),
+        )
+        host()
+
+        rule.onNodeWithText("$BackGlyph Quit").performClick()
+
+        assertEquals(1, state.depth)
+        assertEquals("tapping the header is the touch B, and B on a confirm is Stay", 1, stayed)
     }
 
     @Test

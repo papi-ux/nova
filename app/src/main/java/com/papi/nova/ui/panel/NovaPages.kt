@@ -139,7 +139,10 @@ sealed interface NovaCommonPage : NovaPage {
         val header: NovaMenuHeader? = null,
     ) : NovaCommonPage
 
-    /** The fallback confirm for a caller with no button to split. Stay is focused; B runs Stay. */
+    /**
+     * The fallback confirm for a caller with no button to split. Stay is focused; B runs Stay, and
+     * so does leaving the page any other way (the header, the scrim, Start, the panel closing).
+     */
     class Confirm(
         override val key: String,
         override val title: String,
@@ -151,7 +154,10 @@ sealed interface NovaCommonPage : NovaPage {
         val onStay: () -> Unit = {},
     ) : NovaCommonPage
 
-    /** A message with an optional [primary] action, a close action and an optional [help]. */
+    /**
+     * A message with an optional [primary] action, a close action and an optional [help]. Leaving
+     * it without an answer (the header, the scrim, Start, the panel closing) runs [onClose].
+     */
     class Notice(
         override val key: String,
         override val title: String,
