@@ -687,9 +687,10 @@ class NovaLibrarySourceGuardTest {
             searchField.contains("Key.DirectionDown -> if (editing)")
         )
         assertTrue(
-            "controller select should explicitly enter search edit mode on TV remotes",
-            searchField.contains("Key.Enter, Key.NumPadEnter, Key.DirectionCenter ->") &&
-                searchField.contains("beginEditing()")
+            "controller select should explicitly enter search edit mode on TV remotes, on the " +
+                "release of a press that began on the field, as every control acts (R8)",
+            searchField.contains("NovaKeys.isActivation(native.keyCode) && !editing ->") &&
+                searchField.contains("KeyEventType.KeyUp -> if (latch.release(native.keyCode) && !native.isCanceled) beginEditing()")
         )
         assertFalse(
             "controller select should not be swallowed without activating search",
