@@ -11,37 +11,49 @@
 #include <QProcess>
 #include <cmath>
 #include <algorithm>
+#include <memory>
+#include <QDebug>
 
 namespace nova::deck::stream {
 DeckPyrowaveProbeResult probePyrowaveInChild(const QString& program, const QStringList& arguments, int timeoutMs) {
     const auto failed = [](const char* reason) { return DeckPyrowaveProbeResult{{}, QString::fromUtf8(reason)}; };
     if (timeoutMs <= 0) return failed("PyroWave device check timed out. Restart Nova to check again.");
-    QProcess child;
-    child.setStandardErrorFile(QProcess::nullDevice());
-    child.setStandardInputFile(QProcess::nullDevice());
+    const auto dispose = [](QProcess* process) {
+        if (process->state() != QProcess::NotRunning) {
+            process->kill();
+            if (!process->waitForFinished(1000) && process->state() != QProcess::NotRunning) {
+                // A driver call can remain in uninterruptible sleep even after SIGKILL.
+                // Retain this rare stranded child until app exit instead of letting
+                // QProcess destruction block the worker and application shutdown.
+                qWarning("PyroWave device checker did not exit after termination.");
+                return;
+            }
+        }
+        delete process;
+    };
+    std::unique_ptr<QProcess, decltype(dispose)> child(new QProcess, dispose);
+    child->setStandardErrorFile(QProcess::nullDevice());
+    child->setStandardInputFile(QProcess::nullDevice());
     QElapsedTimer elapsed;
     elapsed.start();
-    child.start(program, arguments, QIODevice::ReadOnly);
-    if (!child.waitForStarted(timeoutMs)) {
-        child.kill(); child.waitForFinished(1000);
+    child->start(program, arguments, QIODevice::ReadOnly);
+    if (!child->waitForStarted(timeoutMs)) {
         return failed("The PyroWave device checker could not start. Reinstall Nova or choose another codec.");
     }
     QByteArray output;
-    while (child.state() != QProcess::NotRunning) {
+    while (child->state() != QProcess::NotRunning) {
         const auto remaining = timeoutMs - elapsed.elapsed();
         if (remaining <= 0) {
-            child.kill(); child.waitForFinished(1000);
             return failed("PyroWave device check timed out. Restart Nova to check again.");
         }
-        child.waitForReadyRead(static_cast<int>(std::min<qint64>(remaining, 50)));
-        output += child.readAllStandardOutput();
+        child->waitForReadyRead(static_cast<int>(std::min<qint64>(remaining, 50)));
+        output += child->readAllStandardOutput();
         if (output.size() > 4096) {
-            child.kill(); child.waitForFinished(1000);
             return failed("PyroWave device check returned an invalid result. Choose another codec.");
         }
     }
-    output += child.readAllStandardOutput();
-    if (child.exitStatus() != QProcess::NormalExit || child.exitCode() != 0)
+    output += child->readAllStandardOutput();
+    if (child->exitStatus() != QProcess::NormalExit || child->exitCode() != 0)
         return failed("PyroWave device check failed. Choose another codec; other codecs remain available.");
     const auto document = QJsonDocument::fromJson(output);
     const auto object = document.object();

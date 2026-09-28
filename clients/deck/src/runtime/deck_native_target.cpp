@@ -52,7 +52,7 @@ DeckNativeTargetResolver nativeTargetResolver(
         target.streamCapabilities = game->streamCapabilities;
 #ifdef NOVA_DECK_NATIVE_MEDIA
         target.probeVideoSupport = detectVideoDecodeSupport;
-        target.probePyrowaveSupport = [] { return cachedPyrowaveDecodeSupport().limits; };
+        target.probePyrowaveSupport = cachedPyrowaveDecodeSupport;
 #endif
         // Cached app ids are local identifiers, not Polaris app UUIDs.
         if (!game->id.starts_with("moonlight-app-") && !standardHost) target.appUuid = game->id;

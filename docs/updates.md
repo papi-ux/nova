@@ -110,9 +110,10 @@ the decoder to those clients.
   **Settings → Client Stream Defaults → Change codec settings → PyroWave (experimental)**.
   Auto does not select PyroWave, and stable Android builds do not expose it.
 - **Nova Linux:** starting with 1.4.14, the standard Linux package includes
-  PyroWave with a lazy, isolated device check. Older releases used a separate
-  codec bundle; the ordinary v1.4.13-beta.3 bundle does not include it. The
-  separate bundle and `pyrowave` update channel are retired for new releases.
+  PyroWave with a lazy, isolated device check. Version 1.4.13 attached a separate
+  codec bundle; install the new standard bundle over it to keep pairing and settings.
+  The ordinary v1.4.13-beta.3 bundle does not include PyroWave. The separate
+  bundle is retired, and no separate codec update channel is offered.
   Follow the [installation guide](../clients/deck/docs/pyrowave.md#packaging-and-compatibility).
 
 In an enabled Nova Linux build, open a game's **Play Setup → Video Codec →

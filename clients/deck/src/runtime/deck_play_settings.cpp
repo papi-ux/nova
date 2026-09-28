@@ -482,7 +482,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
         pyrowaveUnavailable = "PyroWave Vulkan decoding is unavailable on this Linux device. Choose another codec.";
     else pyrowaveUnavailable = "This stream size exceeds this device's PyroWave decoder limits. Choose a smaller size or another codec.";
 #else
-    pyrowaveUnavailable = "This Nova build does not include PyroWave. Use an enabled experimental build or choose another codec.";
+    pyrowaveUnavailable = "This Nova build does not include PyroWave. Install the standard Nova Linux package or choose another codec.";
 #endif
     QString reason;
     if (!requested || !limits.valid) reason = "Stream capabilities could not be verified. Refresh this PC and try again.";

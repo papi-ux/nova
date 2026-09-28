@@ -35,7 +35,7 @@ def validate_release(release, channel):
     if channel == "stable" and release.get("prerelease"):
         raise ValueError("A prerelease cannot enter the stable channel")
     if channel != "stable" and not release.get("prerelease"):
-        raise ValueError("Experimental channels require an explicitly marked prerelease")
+        raise ValueError("The beta channel requires an explicitly marked prerelease")
 
 
 def prepare(manifest, channel, url):
@@ -97,14 +97,14 @@ def write_site(repository, site, previous, channel, version, url, key):
         repo_text, ref_text = descriptors(url, key, branch)
         (site / "nova.flatpakrepo").write_text(repo_text)
         (site / f"nova-{branch}.flatpakref").write_text(ref_text)
-        links.append(f'<li><a href="nova-{branch}.flatpakref">Install Nova ({branch})</a> — {html.escape(data["version"])}</li>')
+        links.append(f'<li><a href="nova-{branch}.flatpakref">Install Nova ({branch})</a>: {html.escape(data["version"])}</li>')
     (site / "index.html").write_text(
         '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         '<title>Nova for Linux</title><main><h1>Nova for Linux</h1>'
         '<p>Choose a channel and open its installer in your software manager. '
         'Nova can then check for updates from Settings → Nova Updates.</p><ul>' + "".join(links) + '</ul>'
-        '<p>Beta builds are previews. The PyroWave channel includes an experimental SDR codec '
-        'and stays separate from regular builds.</p>'
+        '<p>Beta builds are previews. Both channels include PyroWave; '
+        'Nova checks your device only when you choose it.</p>'
         '<p>Your pairing and settings are kept when updating the same Nova app. '
         'Existing standalone downloads need this one-time channel installation.</p>'
         '<p><a href="https://github.com/papi-ux/nova/releases">Release notes and downloads</a></p></main></html>\n')

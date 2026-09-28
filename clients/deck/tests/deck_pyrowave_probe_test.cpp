@@ -12,6 +12,14 @@ using namespace nova::deck::stream;
 namespace { void require(bool value, const char* message) { if (!value) { std::cerr << message << '\n'; std::exit(1); } } }
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    if (app.arguments().size() == 3 && app.arguments().at(1) == "--real-helper") {
+        const auto result = probePyrowaveInChild(app.arguments().at(2));
+        require(result.reason.isEmpty() || result.reason ==
+            "PyroWave Vulkan decoding is unavailable on this Linux device. Choose another codec.",
+            "real helper did not return a valid availability result");
+        require(result.reason.isEmpty() == result.limits.supports(128, 128), "real helper limits contradict its result");
+        return 0;
+    }
     if (app.arguments().size() == 2) {
         const auto mode = app.arguments().at(1);
         if (mode == "hang") { QThread::msleep(10000); return 0; }

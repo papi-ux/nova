@@ -43,6 +43,9 @@
         "-DNOVA_DECK_BUILD_VULKAN_STREAM=ON",
         "-DNOVA_DECK_BUILD_PYROWAVE=ON"
       ],
+      "post-install": [
+        "test -x /app/bin/nova-deck-pyrowave-probe"
+      ],
       "sources": [
         {
           "type": "dir",

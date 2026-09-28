@@ -29,7 +29,9 @@ builds show installation guidance instead of claiming that a feed is configured.
 The implementation and workflow do not make the feed live by themselves. Before
 the first public channel is available:
 
-1. Merge the updater and publish a reviewed release containing it. Use an
+1. Merge the updater and publish a reviewed release containing it, version 1.4.14
+   or later. Feed preparation requires the standard package with PyroWave, so
+   1.4.13 is not eligible for the first feed publication. Use an
    explicitly marked prerelease for beta. Before tagging, include
    the [Linux update channels](https://papi-ux.github.io/nova/) link in that
    release's checked-in notes so **Open Nova Downloads** leads users to the

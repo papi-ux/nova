@@ -15,7 +15,7 @@ struct DeckPyrowaveProbeResult {
 
 // No Vulkan calls in the parent. Call on a worker, never the UI thread.
 DeckPyrowaveProbeResult probePyrowaveInChild(const QString& program,
-    const QStringList& arguments = {}, int timeoutMs = 5000);
+    const QStringList& arguments = {}, int timeoutMs = 10000);
 
 // Session cache: no result survives an app restart or a changed device/driver
 // fingerprint. Serializes concurrent review and launch requests into one child.

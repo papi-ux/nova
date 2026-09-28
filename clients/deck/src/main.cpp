@@ -1252,7 +1252,7 @@ int nativeLaunchCommand(
     if (options.videoFormat == VIDEO_FORMAT_PYROWAVE) {
         const auto support = nova::deck::stream::cachedPyrowaveDecodeSupport();
         if (!support.limits.supports(options.width, options.height)) {
-            std::cerr << "nova-deck native: " << (support.reason.isEmpty()
+            std::cout << "nova-deck native: " << (support.reason.isEmpty()
                 ? "The stream size exceeds this device's PyroWave limits." : support.reason.toStdString()) << std::endl;
             return 2;
         }

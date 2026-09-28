@@ -43,6 +43,9 @@ display. HDR stream selection, compositor/output metadata and installed OLED
 HDR90 acceptance remain tracked in
 [P14](../../../../docs/linux-objective-status.md).
 
+PyroWave, Granite, volk and Vulkan-Headers are built from the commits pinned in
+`modules/pyrowave.json`. Their licenses install under `/app/share/licenses/pyrowave`.
+
 The KDE runtime supplies Vulkan, shaderc and FFmpeg; libplacebo is built from the
 commit pinned in `modules/libplacebo.json`. Its Jinja/MarkupSafe shader-generation
 sources are checksum-pinned build dependencies and are not installed in the app.
