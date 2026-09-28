@@ -4,31 +4,29 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
-import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
-
-data class NovaReconnectOverlayState(
-    val attempt: Int,
-    val maxAttempts: Int,
-)
+import com.papi.nova.ui.compose.LocalNovaFormFactor
+import com.papi.nova.ui.compose.NovaFormFactor
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.novaPanelType
+import java.util.Locale
 
 data class NovaSessionProgressUiState(
     val state: String,
@@ -201,8 +199,9 @@ data class NovaSessionProgressUiState(
             }
             val stage = stages.getOrNull(index)
             // An unrecognized state must never surface its raw protocol token as the
-            // headline; a non-empty host message still wins.
-            val title = stage?.title ?: message.ifEmpty { "Working on it" }
+            // headline; a non-empty host message still wins. Empty words are filled from
+            // resources where the overlay draws them.
+            val title = stage?.title ?: message
             val completed = if (index >= 0) {
                 stages.take(index).map { it.title }
             } else {
@@ -211,138 +210,88 @@ data class NovaSessionProgressUiState(
             return NovaSessionProgressUiState(
                 state = stage?.state ?: normalizedState,
                 title = title,
-                stageLabel = stage?.stageLabel ?: "Startup update",
+                stageLabel = stage?.stageLabel.orEmpty(),
                 completedStages = completed,
-                confidenceLabel = stage?.confidenceLabel ?: "Working on it",
-                confidenceDetail = stage?.confidenceDetail ?: message.ifEmpty { "Nova is waiting for the next stream setup signal." },
+                confidenceLabel = stage?.confidenceLabel.orEmpty(),
+                confidenceDetail = stage?.confidenceDetail ?: message,
                 progressFraction = stage?.progressFraction ?: 0.5f
             )
         }
     }
 }
 
-@Composable
-fun NovaReconnectOverlayContent(
-    state: NovaReconnectOverlayState,
-    modifier: Modifier = Modifier
-) {
-    StreamOverlayScaffold(modifier = modifier, scrimAlpha = 0.86f) {
-        Text(
-            text = stringResource(R.string.nova_reconnect_title),
-            color = Color.White,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
-        )
-        LinearProgressIndicator(
-            modifier = Modifier
-                .padding(top = 34.dp, bottom = 24.dp)
-                .fillMaxWidth()
-                .widthIn(max = 520.dp),
-            color = LocalNovaComposeColors.current.accent,
-            trackColor = Color.White.copy(alpha = 0.18f)
-        )
-        Text(
-            text = stringResource(R.string.nova_reconnect_subtitle),
-            color = Color.White.copy(alpha = 0.72f),
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center
-        )
-        Text(
-            text = stringResource(R.string.nova_reconnect_attempt, state.attempt, state.maxAttempts),
-            color = Color.White.copy(alpha = 0.56f),
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 16.dp)
-        )
-    }
-}
-
+/**
+ * The stream screen's own loading state while a session starts. It stays in the stream's view
+ * tree, because it is bounded and asks nothing, and it wears the state pages' look: the window
+ * colour over the stream, a centred column clear of the insets, and the panel type.
+ */
 @Composable
 fun NovaSessionProgressOverlayContent(
     state: NovaSessionProgressUiState,
     modifier: Modifier = Modifier
 ) {
-    StreamOverlayScaffold(modifier = modifier, scrimAlpha = 0.80f) {
-        Text(
-            text = state.stageLabel,
-            color = LocalNovaComposeColors.current.accent,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(bottom = 10.dp)
-        )
-        Text(
-            text = state.title,
-            color = Color.White,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
-        )
-        if (state.indeterminate) LinearProgressIndicator(
-            modifier = Modifier.padding(top = 28.dp, bottom = 18.dp).fillMaxWidth().widthIn(max = 520.dp),
-            color = LocalNovaComposeColors.current.accent,
-            trackColor = Color.White.copy(alpha = 0.18f),
-        ) else LinearProgressIndicator(
-            progress = { state.progressFraction },
-            modifier = Modifier
-                .padding(top = 28.dp, bottom = 18.dp)
-                .fillMaxWidth()
-                .widthIn(max = 520.dp),
-            color = LocalNovaComposeColors.current.accent,
-            trackColor = Color.White.copy(alpha = 0.18f)
-        )
-        Text(
-            text = state.confidenceLabel,
-            color = LocalNovaComposeColors.current.accent,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
-        )
-        Text(
-            text = state.confidenceDetail,
-            color = Color.White.copy(alpha = 0.72f),
-            fontSize = 13.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .widthIn(max = 560.dp)
-        )
-        if (state.completedStages.isNotEmpty()) {
-            Text(
-                text = state.completedStages.takeLast(3).joinToString("\n") { "✓ $it" },
-                color = Color.White.copy(alpha = 0.72f),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
-
-@Composable
-private fun StreamOverlayScaffold(
-    modifier: Modifier,
-    scrimAlpha: Float,
-    content: @Composable ColumnScope.() -> Unit
-) {
+    val colors = LocalNovaComposeColors.current
+    val type = novaPanelType
+    val tvSafe = LocalNovaFormFactor.current == NovaFormFactor.Television
+    // A stage the table does not know has no English of its own; its words come from resources.
+    val stageLabel = state.stageLabel.ifEmpty { stringResource(R.string.nova_stream_progress_update) }
+    val title = state.title.ifEmpty { stringResource(R.string.nova_stream_progress_working) }
+    val confidenceLabel = state.confidenceLabel.ifEmpty { stringResource(R.string.nova_stream_progress_working) }
+    val confidenceDetail = state.confidenceDetail.ifEmpty { stringResource(R.string.nova_stream_progress_waiting) }
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Color.Black.copy(
-                    alpha = NovaMenuPreferences.readabilityScrimAlpha(
-                        scrimAlpha,
-                        LocalNovaMenuOpacityScale.current
-                    )
-                )
-            )
-            .padding(horizontal = 48.dp, vertical = 32.dp),
+            .background(colors.window.copy(alpha = NovaPanelMetrics.StatePageAlpha))
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .then(
+                if (tvSafe) {
+                    Modifier.padding(horizontal = NovaPanelMetrics.TvSafeHorizontal, vertical = NovaPanelMetrics.TvSafeVertical)
+                } else {
+                    Modifier
+                }
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(
+            modifier = Modifier
+                .widthIn(max = NovaPanelMetrics.StateColumnMaxWidth)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(NovaPanelMetrics.SpaceXl),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            content = content
-        )
+            verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd)
+        ) {
+            Text(
+                text = stageLabel.uppercase(Locale.getDefault()),
+                style = type.sectionLabel,
+                color = colors.accent,
+                textAlign = TextAlign.Center
+            )
+            Text(text = title, style = type.stateTitle, color = colors.textPrimary, textAlign = TextAlign.Center)
+            if (state.indeterminate) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = colors.accent,
+                    trackColor = colors.divider
+                )
+            } else {
+                LinearProgressIndicator(
+                    progress = { state.progressFraction },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = colors.accent,
+                    trackColor = colors.divider
+                )
+            }
+            Text(text = confidenceLabel, style = type.value, color = colors.accent, textAlign = TextAlign.Center)
+            Text(text = confidenceDetail, style = type.rowTitle, color = colors.textSecondary, textAlign = TextAlign.Center)
+            if (state.completedStages.isNotEmpty()) {
+                Text(
+                    text = state.completedStages.takeLast(3).joinToString("\n") { "✓ $it" },
+                    style = type.caption,
+                    color = colors.textSecondary,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }

@@ -453,7 +453,9 @@ class NovaThemeResourcesTest {
         val streamSettings = File("src/main/java/com/papi/nova/preferences/StreamSettings.kt").readText()
         val settingsRepository = File("src/main/java/com/papi/nova/preferences/NovaSettingsRepository.kt").readText()
 
-        assertTrue("session start/reconnect scrims should retain a contrast floor while honoring menu opacity", lifecycle.contains("NovaMenuPreferences.readabilityScrimAlpha(") && lifecycle.contains("scrimAlpha,"))
+        // Session start now wears the state pages' colour: the window at 0.94, a contrast floor
+        // of its own; reconnecting is a Busy state page drawn the same way.
+        assertTrue("session start should keep a contrast floor under its words", lifecycle.contains("colors.window.copy(alpha = NovaPanelMetrics.StatePageAlpha)"))
         assertTrue("Compose library modal scrims should retain a contrast floor", library.contains("NovaMenuPreferences.readabilityScrimAlpha"))
         assertTrue(
             "both Library Options and System drawer scrims should use the readability floor",
@@ -509,7 +511,7 @@ class NovaThemeResourcesTest {
         assertTrue("unfocused native action strokes should disappear with menu glass", sheetChrome.contains("strokeAccentBlend * menuOpacityScale"))
         assertTrue("focused and pressed native action strokes should remain as readability cues", sheetChrome.contains("if (preservesFocusCue)"))
         assertTrue("session startup should release leases on explicit dismissal and unexpected view detach", progress.contains("NovaMenuBlur.acquireChildren") && progress.contains("releaseBackgroundBlur") && progress.contains("releaseOnUnexpectedDetach"))
-        assertTrue("reconnect should release leases on explicit dismissal and unexpected view detach", reconnect.contains("NovaMenuBlur.acquireChildren") && reconnect.contains("releaseBackgroundBlur") && reconnect.contains("releaseOnUnexpectedDetach"))
+        assertTrue("reconnecting should be a Busy state page, which holds no blur lease to leak", reconnect.contains("NovaStatePage.Busy(") && !reconnect.contains("NovaMenuBlur"))
     }
 
     @Test

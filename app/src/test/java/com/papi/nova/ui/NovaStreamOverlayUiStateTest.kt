@@ -20,11 +20,7 @@ class NovaStreamOverlayUiStateTest {
         assertEquals("Waiting For Picture", NovaSessionProgressUiState.fromSpace("input_ready")!!.title)
     }
     @Test
-    fun reconnectOverlayReadsItsWordsFromStringResources() {
-        val state = NovaReconnectOverlayState(attempt = 2, maxAttempts = 5)
-        assertEquals(2, state.attempt)
-        assertEquals(5, state.maxAttempts)
-
+    fun reconnectPageReadsItsWordsFromStringResources() {
         val strings = File("src/main/res/values/strings.xml").readText()
         assertTrue(strings.contains("<string name=\"nova_reconnect_title\">Reconnecting stream…</string>"))
         assertTrue(
@@ -34,12 +30,14 @@ class NovaStreamOverlayUiStateTest {
         )
         assertTrue(strings.contains("<string name=\"nova_reconnect_attempt\">Attempt %1\$d of %2\$d</string>"))
 
-        val source = File("src/main/java/com/papi/nova/ui/NovaStreamOverlayContent.kt").readText()
-        val overlay = source.substringAfter("fun NovaReconnectOverlayContent(").substringBefore("fun NovaSessionProgressOverlayContent(")
-        assertTrue(overlay.contains("stringResource(R.string.nova_reconnect_title)"))
-        assertTrue(overlay.contains("stringResource(R.string.nova_reconnect_subtitle)"))
-        assertTrue(overlay.contains("stringResource(R.string.nova_reconnect_attempt, state.attempt, state.maxAttempts)"))
-        assertFalse("the overlay carries no English of its own", overlay.contains("text = \""))
+        // Reconnecting is a Busy state page now, with Disconnect as its way out; its words are
+        // still all resources.
+        val source = File("src/main/java/com/papi/nova/ui/ReconnectOverlay.kt").readText()
+        assertTrue(source.contains("getString(R.string.nova_reconnect_title)"))
+        assertTrue(source.contains("getString(R.string.nova_reconnect_subtitle)"))
+        assertTrue(source.contains("getString(R.string.nova_reconnect_attempt, attempt, maxAttempts)"))
+        assertTrue(source.contains("getString(R.string.game_menu_disconnect)"))
+        assertFalse("the page carries no English of its own", Regex("""(title|label|message) = """").containsMatchIn(source))
     }
 
     @Test
@@ -131,8 +129,10 @@ class NovaStreamOverlayUiStateTest {
         expectedLabels.forEach { (stage, expectedLabel) ->
             assertEquals(expectedLabel, NovaSessionProgressUiState.from(stage).stageLabel)
         }
+        // A stage the table does not know has no label of its own; the overlay draws
+        // nova_stream_progress_update ("Startup update") for it.
         assertEquals(
-            "Startup update",
+            "",
             NovaSessionProgressUiState.from("waiting_for_host", "Waiting for host").stageLabel
         )
     }
@@ -153,7 +153,8 @@ class NovaStreamOverlayUiStateTest {
         val state = NovaSessionProgressUiState.from("waiting_for_host", "Waiting for host")
 
         assertEquals("Waiting for host", state.title)
-        assertEquals("Working on it", state.confidenceLabel)
+        // Filled from nova_stream_progress_working where the overlay draws it.
+        assertEquals("", state.confidenceLabel)
         assertEquals("Waiting for host", state.confidenceDetail)
         assertEquals(0.5f, state.progressFraction, 0.001f)
         assertTrue(state.completedStages.isEmpty())
@@ -188,8 +189,15 @@ class NovaStreamOverlayUiStateTest {
         val state = NovaSessionProgressUiState.from("sess_negotiate_v2")
 
         assertEquals("sess_negotiate_v2", state.state)
-        assertEquals("Working on it", state.title)
-        assertEquals("Startup update", state.stageLabel)
+        // Never the raw token: the state leaves the headline empty and the overlay draws its
+        // fallback words from resources.
+        assertEquals("", state.title)
+        assertEquals("", state.stageLabel)
+        val overlay = File("src/main/java/com/papi/nova/ui/NovaStreamOverlayContent.kt").readText()
+        assertTrue(overlay.contains("state.title.ifEmpty { stringResource(R.string.nova_stream_progress_working) }"))
+        assertTrue(overlay.contains("state.stageLabel.ifEmpty { stringResource(R.string.nova_stream_progress_update) }"))
+        assertTrue(overlay.contains("state.confidenceDetail.ifEmpty { stringResource(R.string.nova_stream_progress_waiting) }"))
+        assertFalse("the progress state carries no English fallback of its own", overlay.contains("\"Working on it\""))
     }
 
 }

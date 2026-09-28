@@ -30,4 +30,21 @@
     <string name="nova_cc_mouse_mode">Mouse mode</string>
     <string name="nova_cc_host_section">Host</string>
     <string name="nova_cc_touch_section">Touch and screen</string>
+
+    <!-- Launch failure and stream errors, as full-screen state pages. -->
+    <string name="nova_stream_launch_retry">Try Again</string>
+    <string name="nova_stream_h264_unsupported">This device or ROM doesn\'t support hardware accelerated H.264 playback.</string>
+
+    <!-- The host's screen is locked: a state page over the stream. -->
+    <string name="nova_stream_lock_title">Host screen is locked</string>
+    <string name="nova_stream_lock_message">Polaris can unlock it for you. Not Now leaves the lock screen on the stream, so you can sign in there.</string>
+    <string name="nova_stream_lock_not_now">Not Now</string>
+
+    <!-- Reconnecting: a busy page over the stream with a way out. -->
+    <string name="nova_stream_reconnect_message">%1$s\n%2$s</string>
+
+    <!-- Session setup: what the progress overlay says for a stage it does not know. -->
+    <string name="nova_stream_progress_working">Working on it</string>
+    <string name="nova_stream_progress_waiting">Nova is waiting for the next stream setup signal.</string>
+    <string name="nova_stream_progress_update">Startup update</string>
 </resources>

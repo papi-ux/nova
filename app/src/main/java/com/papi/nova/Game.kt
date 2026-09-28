@@ -57,12 +57,12 @@ import com.papi.nova.ui.NovaHudUiState
 import com.papi.nova.ui.NovaLaunchStreamOverride
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
-import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.StreamContainer
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.papi.nova.ui.NovaMouseModeChoices
+import com.papi.nova.ui.panel.NovaAction
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaStatePage
 import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
@@ -136,8 +136,6 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
@@ -1146,7 +1144,7 @@ e!!.printStackTrace()
 novaFeatureScope = com.papi.nova.manager.FeatureFlagManager.beginScope()
 novaApiClient = com.papi.nova.api.PolarisApiClient(this, host ?: "", httpsPort, serverCert)
 novaLockScreenOverlay = com.papi.nova.ui.LockScreenOverlay(this, novaApiClient!!)
-novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this)
+novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this) { disconnect() }
 val reconnectAttemptsUsed:Int = this@Game.getIntent().getIntExtra(EXTRA_RECONNECT_ATTEMPT, 0)
 if (reconnectAttemptsUsed > 0)
 {
@@ -1879,7 +1877,7 @@ spinner = null
 
  // If we can't find an AVC decoder, we can't proceed
             Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title),
-"This device or ROM doesn't support hardware accelerated H.264 playback.", true)
+getResources().getString(R.string.nova_stream_h264_unsupported), true)
 return
 }
 
@@ -5661,6 +5659,12 @@ finishSecondScreen()
 return false
 }
 
+/**
+ * A launch the host refused or Nova gave up on, as a full-screen state page over the stream. The
+ * stream never started, so there is nothing to go back to: Try Again is focused, and Back (which
+ * is also what B does) returns to Nova. In a Space the retry is the library's, which checks the
+ * Space again before it starts anything, and the technical reason sits behind Details.
+ */
 private fun showNovaLaunchIssueSheet(message: String) {
 runOnUiThread {
 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -5668,78 +5672,35 @@ if (spinner != null) {
 spinner!!.dismiss()
 spinner = null
 }
-val sheet = BottomSheetDialog(this@Game)
-val density = resources.displayMetrics.density
-fun dp(value: Int): Int = (value * density).toInt()
-val container = LinearLayout(this@Game).apply {
-orientation = LinearLayout.VERTICAL
-setPadding(dp(18), dp(14), dp(18), dp(18))
-background = NovaSheetChrome.createSheetBackground(this@Game)
+val surfaces = novaSurfaces
+fun leaving(label: String, run: () -> Unit) = NovaAction(label) {
+surfaces.dismiss(LAUNCH_ISSUE_PAGE)
+run()
 }
-val handle = View(this@Game).apply {
-background = NovaSheetChrome.createHandleBackground(this@Game)
-}
-NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)
-container.addView(handle, LinearLayout.LayoutParams(dp(42), dp(4)).apply {
-gravity = Gravity.CENTER_HORIZONTAL
-bottomMargin = dp(14)
-})
-val title = TextView(this@Game).apply {
-text = if (spaceSession) getString(R.string.nova_space_launch_issue_title) else getString(R.string.nova_launch_issue_title)
-setTextColor(NovaThemeManager.getTextPrimaryColor(this@Game))
-textSize = 20f
-}
-container.addView(title)
-val body = TextView(this@Game).apply {
-text = if (spaceSession) listOfNotNull(conn?.lastHostRefusal?.message,
-    conn?.lastHostRefusal?.action ?: getString(R.string.nova_space_launch_issue_default))
-    .joinToString("\n\n") else message
-setTextColor(NovaThemeManager.getTextSecondaryColor(this@Game))
-textSize = 14f
-setPadding(0, dp(10), 0, dp(12))
-}
-val scroll = ScrollView(this@Game).apply {
-addView(body)
-}
-container.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
- // Every action wears the sheet chrome; a stock Button read as a stranger here.
-fun sheetAction(label: String, onClick: () -> Unit): TextView = TextView(this@Game).apply {
-text = label
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this)
-setOnClickListener { onClick() }
-}
-fun addAction(action: TextView) {
-container.addView(action, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
-}
-if (spaceSession) {
-val explanation = body.text
-var detailsVisible = false
-val details = sheetAction(getString(R.string.nova_space_launch_issue_details)) {}
-details.setOnClickListener {
-detailsVisible = !detailsVisible
-body.text = if (detailsVisible) "$explanation\n\n$message" else explanation
-details.text = getString(if (detailsVisible) R.string.nova_space_launch_issue_hide_details else R.string.nova_space_launch_issue_details)
-}
-addAction(details)
- // Try Again hands the retry to the library, which re-checks the Space before it starts anything.
-addAction(sheetAction(getString(R.string.nova_space_launch_issue_retry)) {
+val page = if (spaceSession) {
+val refusal = conn?.lastHostRefusal
+NovaStatePage.Problem(
+key = LAUNCH_ISSUE_PAGE,
+title = getString(R.string.nova_space_launch_issue_title),
+message = listOfNotNull(refusal?.message, refusal?.action ?: getString(R.string.nova_space_launch_issue_default))
+.joinToString("\n\n"),
+primary = leaving(getString(R.string.nova_space_launch_issue_retry)) {
 NovaSpaceRetrySignal.mark(this@Game, this@Game.getIntent().getStringExtra(EXTRA_PC_UUID), host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST))
-sheet.dismiss()
 finish()
-})
+},
+secondary = listOf(leaving(getString(R.string.nova_space_launch_issue_back)) { finish() }),
+detail = message,
+)
+} else {
+NovaStatePage.Problem(
+key = LAUNCH_ISSUE_PAGE,
+title = getString(R.string.nova_launch_issue_title),
+message = message,
+primary = leaving(getString(R.string.nova_stream_launch_retry)) { relaunchStream() },
+secondary = listOf(leaving(getString(R.string.nova_launch_issue_dismiss)) { finish() }),
+)
 }
-addAction(sheetAction(if (spaceSession) getString(R.string.nova_space_launch_issue_back) else getString(R.string.nova_launch_issue_dismiss)) {
-sheet.dismiss()
-finish()
-})
-sheet.setContentView(container)
- // A tap beside the sheet is not a decision to leave the failure behind; Back and the actions are.
-sheet.setCanceledOnTouchOutside(false)
-sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
-sheet.setOnDismissListener { finish() }
-sheet.show()
-NovaSheetChrome.applyBottomSheetChrome(sheet, container)
+surfaces.show(page)
 }
 }
 
@@ -5827,7 +5788,8 @@ MoonBridge.stringifyPortFlags(portFlags, "\n"))
 Dialog.displayDialog(this@Game, getResources().getString(R.string.conn_terminated_title),
 message, true,
 getResources().getString(R.string.nova_conn_reconnect),
-Runnable { relaunchStream() })
+Runnable { relaunchStream() },
+help = true)
 }
 else
 {
@@ -7580,6 +7542,7 @@ companion object {
  private const val FIVE_FINGER_TAP_THRESHOLD:Int = 300
  private const val NOVA_PROGRESS_READY_DISMISS_DELAY_MS:Long = 350L
  private const val INVALID_DISPLAY_ID:Int = -1
+ private const val LAUNCH_ISSUE_PAGE:String = "nova-launch-issue"
  private const val END_SESSION_PAGE:String = "nova-end-session"
  /** How long a sent key combination is held before its keys are released, last first. */
  const val SENT_KEY_UP_DELAY_MS:Long = 25

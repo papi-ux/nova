@@ -158,10 +158,14 @@ class NovaLaunchSourceGuardTest {
             game.contains("showNovaLaunchIssueSheet(") &&
                 ! errorSection.contains("Dialog.displayDialog(")
         )
+        // The launch issue is a full-screen state page now: no sheet, so no theme background
+        // to peek out as a clipped bump and no handle to drag it away.
+        val launchIssue = game.section("private fun showNovaLaunchIssueSheet(", "private fun finishSecondScreen(")
         assertTrue(
-            "Launch issue drawer must use shared transparent Nova glass sheet chrome so the old bottom-sheet theme background cannot peek out as a clipped bump",
-            game.contains("NovaSheetChrome.applyBottomSheetChrome(") &&
-                game.contains("NovaSheetChrome.createSheetBackground(") &&
+            "Launch issue must be a full-screen Nova state page, not a sheet whose theme background can peek out as a clipped bump",
+            launchIssue.contains("NovaStatePage.Problem(") &&
+                launchIssue.contains("surfaces.show(page)") &&
+                !launchIssue.contains("BottomSheetDialog") &&
                 !game.contains("setBackgroundColor(Color.rgb(18, 22, 28))")
         )
         assertTrue(
@@ -171,8 +175,7 @@ class NovaLaunchSourceGuardTest {
                 detail.contains("NovaSheetDragHandle(") &&
                 syncSheetGestureIsLocked() &&
                 chrome.contains("isDraggable = false") &&
-                chrome.contains("attachHandleDragToDismiss") &&
-                game.contains("NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)")
+                chrome.contains("attachHandleDragToDismiss")
         )
     }
 

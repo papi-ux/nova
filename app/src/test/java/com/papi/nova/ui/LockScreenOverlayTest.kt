@@ -1,20 +1,20 @@
 package com.papi.nova.ui
 
-import android.app.Activity
 import android.os.Looper
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
+import androidx.activity.ComponentActivity
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.ui.panel.NovaStatePage
+import com.papi.nova.ui.panel.NovaSurfaces
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
+import org.mockito.Mockito.never
 import org.mockito.Mockito.timeout
 import org.mockito.Mockito.verify
 import org.robolectric.Robolectric
@@ -22,13 +22,17 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
+/**
+ * The locked host is a full-screen state page over the stream. These drive it through the state
+ * layer: the page's actions are what A and B run on the page.
+ */
 @Config(sdk = [33])
 @RunWith(RobolectricTestRunner::class)
 class LockScreenOverlayTest {
 
     @Test
-    fun overlayTapRequestsUnlockAndPreventsDuplicateRequests() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+    fun unlockIsTheFocusedActionAndAPressDuringAnUnlockDoesNotSendAnother() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val client = Mockito.mock(PolarisApiClient::class.java)
         val unlockStarted = CountDownLatch(1)
         val finishUnlock = CountDownLatch(1)
@@ -41,59 +45,86 @@ class LockScreenOverlayTest {
 
         val overlay = LockScreenOverlay(activity, client)
         overlay.show()
-        shadowOf(Looper.getMainLooper()).idle()
+        idle()
 
-        val root = overlayRoot(activity)
-        val button = requireNotNull(findButton(root))
-        assertEquals("Unlock host", button.text.toString())
-        assertTrue("unlock button should hold initial focus for controller-first devices", button.isFocused)
+        val page = lockPage(activity)
+        assertEquals("Host screen is locked", page.title)
+        assertEquals("the primary action is the one the page focuses, so A unlocks", "Unlock host", page.primary.label)
+        assertEquals("B runs the least destructive way out, never the unlock", "Not Now", page.back.label)
 
-        root.performClick()
-        shadowOf(Looper.getMainLooper()).idle()
-
+        page.primary.run()
+        idle()
         assertTrue(unlockStarted.await(1, TimeUnit.SECONDS))
-        assertFalse(button.isEnabled)
-        assertEquals("Unlocking…", button.text.toString())
+        assertEquals("Unlocking…", lockPage(activity).primary.label)
 
-        root.performClick()
+        lockPage(activity).primary.run()
         verify(client, timeout(1000).times(1)).unlockScreen()
 
         finishUnlock.countDown()
         repeat(20) {
-            shadowOf(Looper.getMainLooper()).idle()
-            if (button.isEnabled) return@repeat
+            idle()
+            if (lockPage(activity).primary.label == "Unlock host") return@repeat
             Thread.sleep(50)
         }
 
-        assertTrue(button.isEnabled)
-        assertEquals("Unlock host", button.text.toString())
+        assertEquals("a failed unlock can be asked for again", "Unlock host", lockPage(activity).primary.label)
+        assertTrue(overlay.isShowing)
     }
 
     @Test
-    fun successfulUnlockDismissesOverlay() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+    fun successfulUnlockTakesThePageDown() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val client = Mockito.mock(PolarisApiClient::class.java)
         Mockito.`when`(client.unlockScreen()).thenReturn(true)
 
         val overlay = LockScreenOverlay(activity, client)
         overlay.show()
-        shadowOf(Looper.getMainLooper()).idle()
+        idle()
 
-        overlayRoot(activity).performClick()
+        lockPage(activity).primary.run()
 
         verify(client, timeout(1000)).unlockScreen()
         repeat(20) {
-            shadowOf(Looper.getMainLooper()).idle()
+            idle()
             if (!overlay.isShowing) return@repeat
             Thread.sleep(50)
         }
 
         assertFalse(overlay.isShowing)
+        assertNull(findLockPage(activity))
     }
 
     @Test
-    fun dismissedOverlayIgnoresLateUnlockFailure() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+    fun notNowLeavesTheLockScreenUntilTheHostLocksAgain() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val client = Mockito.mock(PolarisApiClient::class.java)
+
+        val overlay = LockScreenOverlay(activity, client)
+        overlay.show()
+        idle()
+
+        lockPage(activity).back.run()
+        idle()
+        assertFalse(overlay.isShowing)
+        assertNull(findLockPage(activity))
+        verify(client, never()).unlockScreen()
+
+        // Still locked: the next state update must not bring the page straight back.
+        overlay.show()
+        idle()
+        assertNull(findLockPage(activity))
+
+        // Unlocked, then locked again: the page is back.
+        overlay.dismiss()
+        overlay.show()
+        idle()
+        assertTrue(overlay.isShowing)
+        assertEquals("Unlock host", lockPage(activity).primary.label)
+    }
+
+    @Test
+    fun dismissedPageIgnoresALateUnlockFailure() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val client = Mockito.mock(PolarisApiClient::class.java)
         val unlockStarted = CountDownLatch(1)
         val finishUnlock = CountDownLatch(1)
@@ -106,34 +137,31 @@ class LockScreenOverlayTest {
 
         val overlay = LockScreenOverlay(activity, client)
         overlay.show()
-        shadowOf(Looper.getMainLooper()).idle()
+        idle()
 
-        overlayRoot(activity).performClick()
+        lockPage(activity).primary.run()
         assertTrue(unlockStarted.await(1, TimeUnit.SECONDS))
 
         overlay.dismiss()
-        shadowOf(Looper.getMainLooper()).idle()
+        idle()
         finishUnlock.countDown()
         repeat(10) {
-            shadowOf(Looper.getMainLooper()).idle()
+            idle()
             Thread.sleep(25)
         }
 
         assertFalse(overlay.isShowing)
+        assertNull(findLockPage(activity))
     }
 
-    private fun overlayRoot(activity: Activity): ViewGroup {
-        val content = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
-        return content.getChildAt(content.childCount - 1) as ViewGroup
+    private fun idle() {
+        shadowOf(Looper.getMainLooper()).idle()
     }
 
-    private fun findButton(view: View): Button? {
-        if (view is Button) return view
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                findButton(view.getChildAt(i))?.let { return it }
-            }
-        }
-        return null
-    }
+    private fun findLockPage(activity: ComponentActivity): NovaStatePage.Problem? =
+        NovaSurfaces.of(activity).states.value.filterIsInstance<NovaStatePage.Problem>()
+            .firstOrNull { it.key == "nova-host-locked" }
+
+    private fun lockPage(activity: ComponentActivity): NovaStatePage.Problem =
+        requireNotNull(findLockPage(activity)) { "the host-locked page is not showing" }
 }
