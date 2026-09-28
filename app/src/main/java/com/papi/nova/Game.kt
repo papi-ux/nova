@@ -1466,19 +1466,8 @@ if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROW
             MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444
         }
 
- // Said rather than silently corrected, because the bitrate is the player's to choose and a
-        // stream that quietly used four times the bandwidth asked for would be worse than a soft
-        // picture. Every frame of this codec is a keyframe, so a budget that would carry H.264
-        // comfortably leaves this one nothing to spend on detail, and the result looks like a broken
-        // codec rather than a starved one.
-        val wantedMbps = com.papi.nova.binding.video.PyroWaveDecoderRenderer.advisedMbps(
-prefConfig!!.width, prefConfig!!.height, prefConfig!!.fps.toInt())
-if (wantedMbps > 0 && prefConfig!!.bitrate < wantedMbps * 1000)
-{
-LimeLog.warning("PyroWave: " + prefConfig!!.bitrate + " kbps for " + prefConfig!!.width + "x" +
-prefConfig!!.height + " at " + prefConfig!!.fps.toInt() + "; it wants about " + wantedMbps + " Mbps")
-NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, wantedMbps))
-}
+        // The bitrate advice for this offer is given further down, once the launch has settled the
+        // stream it describes.
 }
 else
 {
@@ -1645,6 +1634,60 @@ chosenFrameRate = autoSafeTargetFps
 configuredStreamFrameRateFps = chosenFrameRate
 configuredHudTargetFps = launchRefreshRate
 configuredStreamHdr = willStreamHdr
+        // PyroWave's bitrate advice. Said rather than silently corrected, because the bitrate is the
+        // player's to choose and a stream that quietly used four times the bandwidth asked for would be
+        // worse than a soft picture. Every frame of this codec is a keyframe, so a budget that would
+        // carry H.264 comfortably leaves this one nothing to spend on detail, and the result looks like
+        // a broken codec rather than a starved one.
+        //
+        // Given here, once everything above has settled the stream, and not from the saved settings,
+        // because the two part ways. The size can come from the display, a watched stream or Auto Safe.
+        // The frame rate is held to the display's maximum and moved by Auto Safe and frame pacing, and
+        // it is the rate the encoder is asked for. The bitrate is the metered one on a metered network,
+        // and Auto Safe's when it sets one. A Space launch replaces the PyroWave offer with H.264, and
+        // an H.264 stream gets no PyroWave advice at all. The host can still lower the frame rate when
+        // it negotiates, which can only make this ask for more than the stream needs, not less.
+        //
+        // What it asks for is the codec author's model at 35 dB. The chroma is the one the offer settles
+        // on, because the host and client have not negotiated yet: the player chose PyroWave, the offer
+        // carries 4:4:4, and a host that serves PyroWave takes it. The distance is H 2.0 for a television
+        // or a stream on an external display and H 2.87 for the device's own screen.
+        // PyroWaveDecoderRenderer.adviceChroma444 and viewingHeightFactor say why, and bitrateAdvice
+        // says where the figure outruns the 300 Mbps the slider reaches.
+        if ((supportedVideoFormats and MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0)
+        {
+            val pyroWaveFps = Math.round(chosenFrameRate)
+            val pyroWaveTelevision = (getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager)
+                ?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+            val pyroWaveAdvice = com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateAdvice(
+                displayWidth, displayHeight, pyroWaveFps,
+                chroma444 = com.papi.nova.binding.video.PyroWaveDecoderRenderer.adviceChroma444(supportedVideoFormats),
+                heightFactor = com.papi.nova.binding.video.PyroWaveDecoderRenderer.viewingHeightFactor(
+                    television = pyroWaveTelevision,
+                    onExternalDisplay = isOnExternalDisplay,
+                ),
+            )
+            // Once per stream, whatever the player set, so a report says which rule and distance the
+            // advice came from even when it asked for nothing more. The model was measured on SDR, so an
+            // HDR stream is given the SDR figure, and the line says which this stream is.
+            LimeLog.info("PyroWave: bitrate advice for " + displayWidth + "x" + displayHeight +
+                " at " + pyroWaveFps + " fps: " + pyroWaveAdvice.describe() +
+                "; television=" + pyroWaveTelevision + " external_display=" + isOnExternalDisplay +
+                " hdr=" + willStreamHdr)
+            // Under the advice the log always says so, and the player is told only while the bitrate
+            // setting can still go higher. bitrateWarning says why.
+            val pyroWaveWarning = com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateWarning(
+                configuredStreamBitrateKbps, displayWidth, displayHeight, pyroWaveFps, pyroWaveAdvice,
+            )
+            if (pyroWaveWarning != null)
+            {
+                LimeLog.warning(pyroWaveWarning.logLine)
+                if (pyroWaveWarning.tellPlayer)
+                {
+                    NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, pyroWaveAdvice.mbps))
+                }
+            }
+        }
 doctorTelemetry.reset()
 doctorTelemetryUploadFailureLogged.set(false)
 doctorTelemetry.setTargetFps(launchRefreshRate.toDouble())

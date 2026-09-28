@@ -122,6 +122,6 @@ object NovaSettingsValidator {
 
     private fun isValidManualBitrate(value: String): Boolean {
         val bitrate = value.toFloatOrNull() ?: return false
-        return bitrate > 0f && bitrate <= 300f
+        return bitrate > 0f && bitrate <= PreferenceConfiguration.MAX_BITRATE_KBPS / 1000f
     }
 }
