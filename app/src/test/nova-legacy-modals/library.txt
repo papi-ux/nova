@@ -1,9 +1,0 @@
-# Group 3 (library and game detail): legacy modal constructors still to move onto the panel surfaces.
-#
-# One "path:count" per line, paths under app/src/main/java/com/papi/nova/. NovaPanelSourceGuardTest
-# fails when a file has more than its count here, or has any while no list names it. Only group 3
-# edits this file: it lowers or removes a line as each site moves. The closing step empties it.
-#
-# Empty: Library Options and System are panels in the library's NovaPanelWindow, the filter sheet
-# became the Sources and More Filters pages inside Options, and Polaris Sync is a page pushed from
-# System (its BottomSheetDialogFragment is deleted).

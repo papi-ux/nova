@@ -3,16 +3,16 @@ package com.papi.nova.ui.panel
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * Source rules for the panel foundation and for the migration toward it (spec R10 and section 9.1).
+ * Source rules for the panel foundation (spec R10 and section 9.1).
  *
- * Legacy modal constructors may only shrink: each is listed, per file, in its migration group's
- * allowlist under `src/test/nova-legacy-modals/`, and each file has exactly what its list says, so
- * a group lowers its line in the change that moves a site and no new modal can take the freed
- * place. The closing step empties every list but `platform.txt` and turns on [SEALED].
+ * Nova's own UI opens in NovaPanelWindow. During the migration each group listed its remaining
+ * legacy modal constructors under `src/test/nova-legacy-modals/` and lowered its line as it moved
+ * each site; the closing step removed the emptied group lists and sealed the guard. Only
+ * `platform.txt` is left, holding the platform surfaces section 8 keeps on purpose, and every file
+ * has exactly what it lists, so no legacy modal can come back.
  */
 class NovaPanelSourceGuardTest {
     @Test
@@ -37,15 +37,15 @@ class NovaPanelSourceGuardTest {
         assertEquals(
             "Nova's own UI opens in NovaPanelWindow (R10): a new AlertDialog.Builder, BottomSheetDialog, " +
                 "ModalBottomSheet, Compose Dialog or AlertDialog, platform or AppCompat dialog, " +
-                "DialogFragment or PopupWindow is a panel page, a state page or a split instead. Lists " +
-                "only shrink; see src/test/nova-legacy-modals.",
+                "DialogFragment or PopupWindow is a panel page, a state page or a split instead. Only " +
+                "the platform surfaces of spec section 8 are listed, in src/test/nova-legacy-modals/platform.txt.",
             emptyList<String>(),
             over,
         )
         val stale = allowed.filter { (path, count) -> (found[path] ?: 0) != count }
             .map { (path, count) -> "$path: ${found[path] ?: 0}, listed $count; lower its line in ${listedIn[path]}" }
         assertEquals(
-            "a group that moves a site lowers its line in the same change, so each list stays exact " +
+            "a change that removes a listed platform site lowers its line, so the list stays exact " +
                 "and a new legacy modal can never take the place one left",
             emptyList<String>(),
             stale,
@@ -53,25 +53,16 @@ class NovaPanelSourceGuardTest {
     }
 
     @Test
-    fun eachLegacyModalFileBelongsToOneGroup() {
-        val owners = allowlists().flatMap { (list, entries) -> entries.keys.map { it to list } }
-            .groupBy({ it.first }, { it.second })
-        val shared = owners.filterValues { it.size > 1 }
-        assertTrue(
-            "every main file belongs to exactly one group, so only that group edits its line: $shared",
-            shared.isEmpty(),
-        )
-        assertEquals(setOf(*ALLOWLISTS), allowlists().keys)
-    }
-
-    @Test
     fun onceSealedOnlyThePlatformListRemains() {
-        assumeTrue("off until the closing step empties the group lists and sets SEALED", SEALED)
-        val left = allowlists().filterKeys { it != PLATFORM }.filterValues { it.isNotEmpty() }
         assertEquals(
-            "the closing step emptied every group's list, so no legacy modal may come back",
-            emptyMap<String, Map<String, Int>>(),
-            left,
+            "the closing step emptied and removed every group's list, so no legacy modal may come back",
+            setOf(PLATFORM),
+            allowlists().keys,
+        )
+        assertEquals(
+            "platform.txt lists only the surfaces spec section 8 keeps on purpose",
+            SECTION_8_SITES,
+            allowlists().getValue(PLATFORM).keys,
         )
     }
 
@@ -179,13 +170,16 @@ class NovaPanelSourceGuardTest {
     }
 
     private companion object {
-        /** The closing step sets this once every group's list is empty; until then the seal check is skipped. */
-        const val SEALED = false
-
         val MAIN = File("src/main/java/com/papi/nova")
         const val PANEL_WINDOW = "ui/panel/NovaPanelWindow.kt"
         const val PLATFORM = "platform.txt"
-        val ALLOWLISTS = arrayOf("stream.txt", "hosts.txt", "library.txt", "settings.txt", "debug.txt", PLATFORM)
+
+        /**
+         * The section 8 sites these patterns match. The in-stream key preview is a popup, not a
+         * modal; the other section 8 surfaces (permission, installer, pickers, share sheets, the
+         * launcher's pin prompt, the soft keyboard) are platform intents and match none of them.
+         */
+        val SECTION_8_SITES = setOf("binding/input/virtual_controller/keyboard/KeyBoardLayoutController.kt")
 
         /** The HUD's traffic-light tones over live video are a fixed palette, not a destructive action. */
         val FIXED_PALETTE = setOf("ui/NovaStreamHudContent.kt")

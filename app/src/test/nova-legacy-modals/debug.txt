@@ -1,5 +1,0 @@
-# Group 5 (debug screens and dead code): legacy modal constructors still to move onto the panel surfaces.
-#
-# One "path:count" per line, paths under app/src/main/java/com/papi/nova/. NovaPanelSourceGuardTest
-# fails when a file has more than its count here, or has any while no list names it. Only group 5
-# edits this file: it lowers or removes a line as each site moves. The closing step empties it.

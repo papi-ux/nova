@@ -28,7 +28,7 @@ import org.robolectric.shadows.ShadowToast
  * The debug screen's pickers open as pages in the right-edge panel (spec group 5): the amplitude
  * is a Slider page, and the vibration and gamepad lists are Choice pages that mark the current
  * value. These tests read the state layer: the pages each button puts up and what picking does.
- * NovaPanelSourceGuardTest keeps the old dialogs from coming back; debug.txt lists none.
+ * NovaPanelSourceGuardTest keeps the old dialogs from coming back; its seal allows platform surfaces alone.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
