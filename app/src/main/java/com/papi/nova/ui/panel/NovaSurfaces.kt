@@ -277,6 +277,9 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
             }
         }
 
+        /** The surfaces [activity] already has, or null; unlike [of], this never creates any. */
+        fun existing(activity: Activity): NovaSurfaces? = synchronized(byActivity) { byActivity[activity] }
+
         /** Surfaces on a companion display. The caller disposes them with the display. */
         fun forCompanion(host: ExternalDisplayControlHost, onClosed: () -> Unit): NovaSurfaces =
             NovaSurfaces(NovaWindowPlacement.Companion(host, onClosed)).also {

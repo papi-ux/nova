@@ -148,13 +148,19 @@ class NovaSystemBarsTest {
             Regex("NovaDialogWindow\\(\\)").findAll(settings).count(),
         )
         for (path in listOf(
-            "src/main/java/com/papi/nova/utils/UiHelper.kt",
-            "src/main/java/com/papi/nova/utils/SpinnerDialog.kt",
             "src/main/java/com/papi/nova/PcView.kt",
             "src/main/java/com/papi/nova/preferences/NovaListPreferenceDialogFragment.kt",
         )) {
             assertTrue("$path builds a shared dialog outside the sheet chrome and adopts its window", source(path).contains("NovaDialogWindows.adopt("))
         }
+        // UiHelper's confirms and SpinnerDialog's waits no longer build a dialog of their own: they
+        // open in NovaPanelWindow, which is the one window that has to adopt.
+        assertTrue(
+            "the shared helpers open in NovaPanelWindow, and it adopts its window so the bars stay hidden",
+            source("src/main/java/com/papi/nova/ui/panel/NovaPanelWindow.kt").contains("NovaDialogWindows.adopt(placement.context, window)") &&
+                source("src/main/java/com/papi/nova/utils/UiHelper.kt").contains("NovaSurfaces.of(parent).present(") &&
+                source("src/main/java/com/papi/nova/utils/SpinnerDialog.kt").contains("NovaSurfaces.of(activity).show("),
+        )
     }
 
     @Test

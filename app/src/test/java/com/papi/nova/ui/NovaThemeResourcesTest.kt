@@ -344,12 +344,18 @@ class NovaThemeResourcesTest {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val quitBody = game.substringAfter("fun quit() {").substringBefore("override fun showGameMenu")
         val spinnerLayout = File("src/main/res/layout/nova_spinner_dialog.xml").readText()
+        // The spinner is a Busy state page now, drawn by NovaStateScreen rather than a themed alert.
+        val busyPage = File("src/main/java/com/papi/nova/ui/panel/NovaStateScreen.kt").readText()
+            .substringAfter("private fun BusyContent(").substringBefore("private fun CodeContent(")
 
         assertTrue("shared chrome should still expose AlertDialog styling for remaining legacy session popups", sheetChrome.contains("applyAlertDialogChrome"))
-        assertTrue("establishing-session spinner should apply Nova glass dialog chrome", spinnerDialog.contains("NovaSheetChrome.applyAlertDialogChrome(createdDialog"))
+        assertTrue(
+            "establishing-session spinner should draw as Nova's own full-screen Busy page, not a platform dialog",
+            spinnerDialog.contains("NovaStatePage.Busy(") && !spinnerDialog.contains("AlertDialog")
+        )
         assertFalse("spinner progress must not hardcode the Polaris accent", spinnerLayout.contains("@color/nova_accent"))
         assertFalse("spinner progress tint should be applied at runtime instead of risky XML attr tinting", spinnerLayout.contains("indeterminateTint"))
-        assertTrue("spinner should tint progress from the active Nova theme at runtime", spinnerDialog.contains("NovaThemeManager.getAccentColor") && spinnerDialog.contains("indeterminateDrawable"))
+        assertTrue("spinner should tint progress from the active Nova theme at runtime", busyPage.contains("CircularProgressIndicator(") && busyPage.contains("color = colors.accent"))
         assertTrue("spinner layout should consume theme text color attrs", spinnerLayout.contains("?android:attr/textColorPrimary"))
         assertTrue("quit confirmation should be rebuilt as a Nova bottom sheet so it shares drawer/HUD glass chrome", quitBody.contains("BottomSheetDialog"))
         assertTrue("quit confirmation should build its own themed glass sheet container", quitBody.contains("NovaSheetChrome.createSheetContainer"))
@@ -495,6 +501,7 @@ class NovaThemeResourcesTest {
             File("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt").readText()
         val legacySlider = File("src/main/java/com/papi/nova/preferences/SeekBarPreference.kt").readText()
         val sessionDialog = File("src/main/java/com/papi/nova/utils/Dialog.kt").readText()
+        val panelFrame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
 
         val preflight = gameDetail
             .substringAfter("private fun showPreflightReview(")
@@ -504,7 +511,14 @@ class NovaThemeResourcesTest {
             !preflight.contains("AlertDialog.Builder") && preflight.contains("reviewExpanded")
         )
         assertTrue("legacy sliders, including Menu & Drawer Opacity, should use shared literal-opacity alert chrome", legacySlider.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdDialog)"))
-        assertTrue("session termination/error alerts should use shared literal-opacity alert chrome", sessionDialog.contains("NovaSheetChrome.applyMenuOpacityToLegacyAlert(createdAlert)"))
+        assertTrue(
+            "session termination/error messages should post to NovaSurfaces, whose panel uses the shared menu opacity and blur",
+            sessionDialog.contains("NovaSurfaces.of(activity)") &&
+                sessionDialog.contains("NovaStatePage.Problem(") &&
+                sessionDialog.contains("NovaCommonPage.Notice(") &&
+                panelFrame.contains(".background(surfaces.panel)") &&
+                panelFrame.contains("NovaMenuBackdropBlur()")
+        )
     }
 
     @Test

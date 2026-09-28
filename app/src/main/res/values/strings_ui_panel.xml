@@ -19,6 +19,9 @@
     <string name="nova_panel_back_to">Back to %1$s</string>
     <string name="nova_panel_end_session_title">End this session?</string>
     <string name="nova_panel_end_session_message">The game closes on the host, and anything it has not saved is lost.</string>
+    <!-- The title of a confirm page whose caller gave none. -->
+    <string name="nova_panel_confirm_title">Confirm</string>
+    <string name="nova_panel_vdisplay_title">Virtual display unavailable</string>
     <!-- The scrim behind a panel, for TalkBack: tapping it closes the panel. -->
     <string name="nova_panel_close_panel">Close panel</string>
 
