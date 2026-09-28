@@ -10,8 +10,9 @@ import org.junit.Test
  * Source rules for the panel foundation and for the migration toward it (spec R10 and section 9.1).
  *
  * Legacy modal constructors may only shrink: each is listed, per file, in its migration group's
- * allowlist under `src/test/nova-legacy-modals/`, and a file may never have more than its list says.
- * The closing step empties every list but `platform.txt` and turns on [SEALED].
+ * allowlist under `src/test/nova-legacy-modals/`, and each file has exactly what its list says, so
+ * a group lowers its line in the change that moves a site and no new modal can take the freed
+ * place. The closing step empties every list but `platform.txt` and turns on [SEALED].
  */
 class NovaPanelSourceGuardTest {
     @Test
@@ -26,17 +27,28 @@ class NovaPanelSourceGuardTest {
     }
 
     @Test
-    fun legacyModalConstructorsNeverExceedTheirAllowlists() {
-        val allowed = allowlists().values.flatMap { it.entries }.associate { it.key to it.value }
+    fun legacyModalConstructorsMatchTheirAllowlistsExactly() {
+        val lists = allowlists()
+        val allowed = lists.values.flatMap { it.entries }.associate { it.key to it.value }
+        val listedIn = lists.flatMap { (list, entries) -> entries.keys.map { it to list } }.toMap()
         val found = legacyModalCounts()
         val over = found.filter { (path, count) -> count > (allowed[path] ?: 0) }
             .map { (path, count) -> "$path: $count, allowed ${allowed[path] ?: 0}" }
         assertEquals(
             "Nova's own UI opens in NovaPanelWindow (R10): a new AlertDialog.Builder, BottomSheetDialog, " +
-                "ModalBottomSheet, Compose Dialog or AlertDialog, DialogFragment or PopupWindow is a panel " +
-                "page, a state page or a split instead. Lists only shrink; see src/test/nova-legacy-modals.",
+                "ModalBottomSheet, Compose Dialog or AlertDialog, platform or AppCompat dialog, " +
+                "DialogFragment or PopupWindow is a panel page, a state page or a split instead. Lists " +
+                "only shrink; see src/test/nova-legacy-modals.",
             emptyList<String>(),
             over,
+        )
+        val stale = allowed.filter { (path, count) -> (found[path] ?: 0) != count }
+            .map { (path, count) -> "$path: ${found[path] ?: 0}, listed $count; lower its line in ${listedIn[path]}" }
+        assertEquals(
+            "a group that moves a site lowers its line in the same change, so each list stays exact " +
+                "and a new legacy modal can never take the place one left",
+            emptyList<String>(),
+            stale,
         )
     }
 
@@ -180,14 +192,20 @@ class NovaPanelSourceGuardTest {
 
         val NATIVE_GRAPHICS = Regex("""@GraphicsMode\(\s*(GraphicsMode\.)?(Mode\.)?NATIVE""")
 
+        /**
+         * Legacy modal constructors, qualified or not: alert builders, Compose and Material 3
+         * alerts, platform, AppCompat, progress and picker dialogs, bottom sheets, dialog
+         * fragments in Kotlin and Java, and popup windows.
+         */
         val LEGACY_MODAL = Regex(
             listOf(
                 """AlertDialog\.Builder\(""",
-                """(?<![\w.])AlertDialog\(""",
-                """(?<![\w.])Dialog\(""",
+                """(?<!\w)(Basic)?AlertDialog\(""",
+                """(?<!\w)(AppCompat|Progress|DatePicker|TimePicker)?Dialog\(""",
                 """BottomSheetDialog\(""",
                 """ModalBottomSheet\(""",
                 """:\s*\w*DialogFragment(Compat)?\(\)""",
+                """extends\s+\w*DialogFragment(Compat)?\b""",
                 """PopupWindow\(""",
             ).joinToString("|"),
         )

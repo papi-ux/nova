@@ -156,10 +156,16 @@ class NovaSystemBarsTest {
         // UiHelper's confirms and SpinnerDialog's waits no longer build a dialog of their own: they
         // open in NovaPanelWindow, which is the one window that has to adopt.
         assertTrue(
-            "the shared helpers open in NovaPanelWindow, and it adopts its window so the bars stay hidden",
-            source("src/main/java/com/papi/nova/ui/panel/NovaPanelWindow.kt").contains("NovaDialogWindows.adopt(placement.context, window)") &&
-                source("src/main/java/com/papi/nova/utils/UiHelper.kt").contains("NovaSurfaces.of(parent).present(") &&
-                source("src/main/java/com/papi/nova/utils/SpinnerDialog.kt").contains("NovaSurfaces.of(activity).show("),
+            "NovaPanelWindow adopts its window, so the bars stay hidden over a screen that hid them",
+            source("src/main/java/com/papi/nova/ui/panel/NovaPanelWindow.kt").contains("NovaDialogWindows.adopt(placement.context, window)"),
+        )
+        assertTrue(
+            "UiHelper's confirms present on the screen's NovaSurfaces, so they open in NovaPanelWindow",
+            source("src/main/java/com/papi/nova/utils/UiHelper.kt").contains("NovaSurfaces.of(parent).present("),
+        )
+        assertTrue(
+            "SpinnerDialog shows on the screen's NovaSurfaces, so its wait opens in NovaPanelWindow",
+            source("src/main/java/com/papi/nova/utils/SpinnerDialog.kt").contains("NovaSurfaces.of(activity).show("),
         )
     }
 

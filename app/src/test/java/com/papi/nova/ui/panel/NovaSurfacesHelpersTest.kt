@@ -268,7 +268,7 @@ class NovaSurfacesHelpersTest {
     }
 
     @Test
-    fun theQuitConfirmationIsDestructiveStartsSafeAndBRunsOnNo() {
+    fun theQuitConfirmationIsDestructiveAndBRunsOnNo() {
         val activity = newActivity()
         UiHelper.displayQuitConfirmationDialog(activity, Runnable { yes++ }, Runnable { no++ })
 
