@@ -147,6 +147,17 @@ class NovaArtworkStudioLayoutTest {
             picker.contains("NovaValueRow(") && picker.contains("current = state.activeKind,") &&
                 !picker.contains("selected = kind == state.activeKind")
         )
+        assertEquals(
+            "every row of buttons shares equal cells while each label fits, and wraps into fewer a row " +
+                "rather than cutting a label: Apply Selected Artwork ended in an ellipsis at 130%",
+            // Four rows, and the layout's own definition.
+            5, Regex("NovaStudioButtonCells\\(").findAll(studio).count()
+        )
+        assertEquals(3, novaStudioCellsPerRow(count = 3, width = 600, gap = 8, widest = 180))
+        assertEquals("a label too wide for a third takes half a row", 2, novaStudioCellsPerRow(count = 3, width = 600, gap = 8, widest = 220))
+        assertEquals(2, novaStudioCellsPerRow(count = 4, width = 290, gap = 6, widest = 100))
+        assertEquals(1, novaStudioCellsPerRow(count = 4, width = 290, gap = 6, widest = 200))
+        assertEquals(1, novaStudioCellsPerRow(count = 1, width = 100, gap = 6, widest = 300))
         // Cells stay at least the strip's old 112dp, 8dp apart.
         assertEquals(1, novaStudioChoiceColumns(200.dp))
         assertEquals(2, novaStudioChoiceColumns(232.dp))

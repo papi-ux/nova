@@ -32,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -408,14 +410,10 @@ fun NovaArtworkStudio(
                     }
                     // Refresh belongs at the floor of the column it refreshes, not third
                     // from the top between two things it is not about.
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
+                    NovaStudioButtonCells(modifier = Modifier.padding(top = 10.dp)) {
                         NovaActionButton(
                             text = stringResource(R.string.nova_artwork_refresh),
                             onClick = onRefresh,
-                            modifier = Modifier.weight(1f),
                             enabled = !state.working && state.loadingKinds.isEmpty(),
                             contentDescription = stringResource(R.string.nova_artwork_refresh_description),
                         )
@@ -423,7 +421,6 @@ fun NovaArtworkStudio(
                             NovaActionButton(
                                 text = stringResource(R.string.nova_artwork_clear_match),
                                 onClick = onClear,
-                                modifier = Modifier.weight(1f),
                                 enabled = !state.working && state.loadingKinds.isEmpty(),
                                 contentDescription = stringResource(R.string.nova_artwork_clear_match_description),
                             )
@@ -477,20 +474,15 @@ fun NovaArtworkStudio(
                     // Pinned below both columns, so the apply target stops moving as
                     // candidates load in above it.
                     if (state.selectedCandidate != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
+                        NovaStudioButtonCells(modifier = Modifier.padding(top = 10.dp)) {
                             NovaActionButton(
                                 text = stringResource(R.string.nova_artwork_studio_reset),
                                 onClick = { onReset(NovaArtworkStudioAction.EditingReset) },
-                                modifier = Modifier.weight(1f),
                                 enabled = !state.working,
                             )
                             NovaActionButton(
                                 text = stringResource(R.string.nova_artwork_studio_apply),
                                 onClick = { onApply(state.selectedCandidate, state.selections) },
-                                modifier = Modifier.weight(1f),
                                 enabled = state.canApply,
                                 primary = true,
                                 contentDescription = stringResource(R.string.nova_artwork_studio_apply_description),
@@ -503,7 +495,6 @@ fun NovaArtworkStudio(
                                     // has nothing to fold into: it used to leave the window empty.
                                     if (!fillsDestination) expanded = false
                                 },
-                                modifier = Modifier.weight(1f),
                                 enabled = !state.working,
                                 contentDescription = stringResource(R.string.nova_artwork_studio_cancel_description),
                             )
@@ -1020,6 +1011,50 @@ private fun NovaArtworkChoiceCell(
     }
 }
 
+/**
+ * Buttons in equal cells: all in one row while every label fits its cell on one line, and
+ * otherwise in rows of fewer cells, down to one a row, so no label is ever cut short (R13).
+ */
+@Composable
+private fun NovaStudioButtonCells(
+    modifier: Modifier = Modifier,
+    gap: Dp = 8.dp,
+    content: @Composable () -> Unit,
+) {
+    Layout(content = content, modifier = modifier.fillMaxWidth()) { measurables, constraints ->
+        val gapPx = gap.roundToPx()
+        val width = constraints.maxWidth
+        val widest = measurables.maxOfOrNull { it.maxIntrinsicWidth(Constraints.Infinity) } ?: 0
+        val perRow = novaStudioCellsPerRow(measurables.size, width, gapPx, widest)
+        val cell = ((width - gapPx * (perRow - 1)) / perRow).coerceAtLeast(0)
+        val rows = measurables.chunked(perRow).map { row -> row.map { it.measure(Constraints.fixedWidth(cell)) } }
+        val heights = rows.map { row -> row.maxOf { it.height } }
+        val height = heights.sum() + gapPx * (rows.size - 1).coerceAtLeast(0)
+        layout(width, height) {
+            var y = 0
+            rows.forEachIndexed { index, row ->
+                row.forEachIndexed { column, placeable ->
+                    placeable.placeRelative(column * (cell + gapPx), y + (heights[index] - placeable.height) / 2)
+                }
+                y += heights[index] + gapPx
+            }
+        }
+    }
+}
+
+/**
+ * How many of [count] buttons share a row [width] wide when the widest label needs [widest]: all
+ * of them if it fits, then half as many to a row, and so on down to one.
+ */
+internal fun novaStudioCellsPerRow(count: Int, width: Int, gap: Int, widest: Int): Int {
+    if (count <= 1) return 1
+    var perRow = count
+    while (perRow > 1 && (width - gap * (perRow - 1)) / perRow < widest) {
+        perRow = (perRow + 1) / 2
+    }
+    return perRow
+}
+
 /** A cell is never narrower than the strip's fixed cells were, so a preview still reads. */
 private val NOVA_STUDIO_CHOICE_MIN_WIDTH = 112.dp
 private val NOVA_STUDIO_CHOICE_GAP = 8.dp
@@ -1038,43 +1073,36 @@ private fun NovaArtworkLogoTransformControls(
         fontSize = 12.sp,
         modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    NovaStudioButtonCells(gap = 6.dp) {
         NovaActionButton(
             stringResource(R.string.nova_artwork_smaller),
             { onTransform((state.logoScale - 0.1f).coerceAtLeast(0.25f), state.logoX, state.logoY) },
-            Modifier.weight(1f),
         )
         NovaActionButton(
             stringResource(R.string.nova_artwork_reset),
             { onTransform(1f, 0.5f, 0.5f) },
-            Modifier.weight(1f),
         )
         NovaActionButton(
             stringResource(R.string.nova_artwork_larger),
             { onTransform((state.logoScale + 0.1f).coerceAtMost(4f), state.logoX, state.logoY) },
-            Modifier.weight(1f),
         )
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
+    NovaStudioButtonCells(gap = 6.dp, modifier = Modifier.padding(top = 6.dp)) {
         NovaActionButton(
             stringResource(R.string.nova_artwork_left),
             { onTransform(state.logoScale, (state.logoX - 0.05f).coerceAtLeast(0f), state.logoY) },
-            Modifier.weight(1f),
         )
         NovaActionButton(
             stringResource(R.string.nova_artwork_up),
             { onTransform(state.logoScale, state.logoX, (state.logoY - 0.05f).coerceAtLeast(0f)) },
-            Modifier.weight(1f),
         )
         NovaActionButton(
             stringResource(R.string.nova_artwork_down),
             { onTransform(state.logoScale, state.logoX, (state.logoY + 0.05f).coerceAtMost(1f)) },
-            Modifier.weight(1f),
         )
         NovaActionButton(
             stringResource(R.string.nova_artwork_right),
             { onTransform(state.logoScale, (state.logoX + 0.05f).coerceAtMost(1f), state.logoY) },
-            Modifier.weight(1f),
         )
     }
 }
