@@ -203,6 +203,11 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
         modifier = Modifier.fillMaxWidth(),
     ) {
+        // Each row's place in the list, counted as the list is built. Clear is there only while
+        // something narrows the library, so fixed numbers pointed every row below it at its
+        // neighbour, and a pop scrolled the wrong row into view and lost the one it restored.
+        var position = 0
+        val filterIndex = position++
         item(key = "filter", contentType = "value") {
             NovaValueRow(
                 title = stringResource(R.string.nova_library_panel_filter),
@@ -210,46 +215,52 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
                 current = ui.filter,
                 onChange = actions.onFilter,
                 caption = ui.filterCaption,
-                modifier = Modifier.novaInitialFocus().novaRestorableFocus("filter", 0),
+                modifier = Modifier.novaInitialFocus().novaRestorableFocus("filter", filterIndex),
             )
         }
+        val sourcesIndex = position++
         item(key = "sources", contentType = "row") {
             NovaRow(
                 title = stringResource(R.string.nova_library_filter_sheet_sources),
                 trailing = NovaRowTrailing.Value(ui.sourceValue),
                 onClick = { push(actions.sourcesPage) },
-                modifier = Modifier.novaRestorableFocus("sources", 1),
+                modifier = Modifier.novaRestorableFocus("sources", sourcesIndex),
             )
         }
+        val moreIndex = position++
         item(key = "more", contentType = "row") {
             NovaRow(
                 title = stringResource(R.string.nova_library_filter_sheet_more),
                 trailing = NovaRowTrailing.Value(ui.moreValue),
                 onClick = { push(actions.morePage) },
-                modifier = Modifier.novaRestorableFocus("more", 2),
+                modifier = Modifier.novaRestorableFocus("more", moreIndex),
             )
         }
         if (ui.clearable) {
+            val clearIndex = position++
             item(key = "clear", contentType = "row") {
                 NovaRow(
                     title = stringResource(R.string.nova_library_filter_clear_all),
                     caption = stringResource(R.string.nova_library_panel_clear_caption),
                     onClick = { if (isTop) actions.onClearFilters() },
-                    modifier = Modifier.novaRestorableFocus("clear", 3),
+                    modifier = Modifier.novaRestorableFocus("clear", clearIndex),
                 )
             }
         }
+        position++
         item(key = "view", contentType = "label") {
             NovaSectionLabel(stringResource(R.string.nova_library_panel_view))
         }
+        val sortIndex = position++
         item(key = "sort", contentType = "row") {
             NovaRow(
                 title = stringResource(R.string.nova_library_options_sort_title),
                 trailing = NovaRowTrailing.Value(ui.sortLabel),
                 onClick = { push(actions.sortPage) },
-                modifier = Modifier.novaRestorableFocus("sort", 5),
+                modifier = Modifier.novaRestorableFocus("sort", sortIndex),
             )
         }
+        val layoutIndex = position++
         item(key = "layout", contentType = "value") {
             NovaValueRow(
                 title = stringResource(R.string.nova_library_options_layout_title),
@@ -257,9 +268,10 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
                 current = ui.layoutMode,
                 onChange = actions.onLayoutMode,
                 caption = ui.layoutCaption,
-                modifier = Modifier.novaRestorableFocus("layout", 6),
+                modifier = Modifier.novaRestorableFocus("layout", layoutIndex),
             )
         }
+        val titlesIndex = position++
         item(key = "titles", contentType = "value") {
             NovaValueRow(
                 title = stringResource(R.string.nova_library_options_poster_titles_title),
@@ -274,24 +286,26 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
                         R.string.nova_library_options_poster_titles_hide_hint
                     },
                 ),
-                modifier = Modifier.novaRestorableFocus("titles", 7),
+                modifier = Modifier.novaRestorableFocus("titles", titlesIndex),
             )
         }
+        val searchIndex = position++
         item(key = "search", contentType = "row") {
             NovaRow(
                 title = stringResource(R.string.nova_library_panel_search),
                 caption = stringResource(R.string.nova_library_results_format, ui.resultCount),
                 trailing = if (ui.searchQuery.isBlank()) NovaRowTrailing.Opens else NovaRowTrailing.Value(ui.searchQuery),
                 onClick = { push(actions.searchPage) },
-                modifier = Modifier.novaRestorableFocus("search", 8),
+                modifier = Modifier.novaRestorableFocus("search", searchIndex),
             )
         }
+        val refreshIndex = position++
         item(key = "refresh", contentType = "row") {
             NovaRow(
                 title = stringResource(R.string.nova_refresh),
                 caption = stringResource(R.string.nova_library_panel_refresh_caption),
                 onClick = { if (isTop) closeThen(action = actions.onRefresh) },
-                modifier = Modifier.novaRestorableFocus("refresh", 9),
+                modifier = Modifier.novaRestorableFocus("refresh", refreshIndex),
             )
         }
         item(key = "artwork", contentType = "label") {

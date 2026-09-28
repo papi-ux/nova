@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import com.papi.nova.R
 import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageStackHost
@@ -131,6 +132,33 @@ class NovaLibraryPanelsComposeTest {
         rule.onNode(hasText("Filter")).assertIsFocused()
         assertEquals(options.key, state.top?.key)
         assertEquals(1, state.depth)
+    }
+
+    @Test
+    fun everyOptionsRowRecordsItsRealPlaceWithOrWithoutTheClearRow() {
+        // Clear is there only while something narrows the library. The place a row records is
+        // where a pop scrolls to before focusing it, so it has to be the row's own either way.
+        fun walkDown(keys: NovaTestKeys) {
+            val entry = requireNotNull(state.topEntry)
+            val walked = mutableSetOf<Any>()
+            repeat(12) {
+                keys.press(NovaTestKeys.DOWN)
+                val key = entry.focusKey ?: return@repeat
+                walked += key
+                val place = entry.listState.layoutInfo.visibleItemsInfo.first { it.key == key }.index
+                assertEquals("$key records its own place", place, entry.focusIndex)
+            }
+            assertTrue("the walk reached the rows below View: $walked", walked.containsAll(listOf("sort", "search", "refresh")))
+        }
+        state.open(options, options.edge)
+        val keys = host()
+        walkDown(keys)
+
+        filter = NovaLibraryPrimaryFilter.SOURCES
+        narrowed = "Steam"
+        state.open(options, options.edge)
+        rule.waitForIdle()
+        walkDown(keys)
     }
 
     @Test

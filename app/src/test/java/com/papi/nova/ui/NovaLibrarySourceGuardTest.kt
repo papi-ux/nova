@@ -789,11 +789,15 @@ class NovaLibrarySourceGuardTest {
                 posterFocus.contains("focusRequester.requestFocus()")
         )
         assertTrue(
-            "Options rows mark themselves so a page that pops returns focus to the row that pushed it",
-            options.contains("Modifier.novaRestorableFocus(\"sources\", 1)") &&
-                options.contains("Modifier.novaRestorableFocus(\"more\", 2)") &&
-                options.contains("Modifier.novaRestorableFocus(\"sort\", 5)") &&
-                options.contains("Modifier.novaRestorableFocus(\"search\", 8)")
+            "Options rows mark themselves so a page that pops returns focus to the row that pushed it, " +
+                "each at the place counted as the list is built: Clear comes and goes, and fixed numbers " +
+                "pointed every row below it at its neighbour",
+            options.contains("Modifier.novaRestorableFocus(\"sources\", sourcesIndex)") &&
+                options.contains("Modifier.novaRestorableFocus(\"more\", moreIndex)") &&
+                options.contains("Modifier.novaRestorableFocus(\"sort\", sortIndex)") &&
+                options.contains("Modifier.novaRestorableFocus(\"search\", searchIndex)") &&
+                options.contains("val sortIndex = position++") &&
+                options.contains("val clearIndex = position++")
         )
     }
 
