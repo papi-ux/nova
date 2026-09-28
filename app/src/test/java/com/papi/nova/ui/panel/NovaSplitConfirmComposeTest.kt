@@ -9,14 +9,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -121,6 +125,62 @@ class NovaSplitConfirmComposeTest {
         assertFalse(state.armed)
         rule.onNodeWithText("End session").assertIsFocused()
         assertEquals(0, ended)
+    }
+
+    @Test
+    fun aDisarmFromOutsideHandsFocusBackToTheButton() {
+        val keys = setUp()
+        keys.press(NovaTestKeys.CENTER)
+        frames()
+        rule.onNodeWithText("Stay").assertIsFocused()
+
+        // The companion deck's back disarms the hoisted state itself.
+        rule.runOnIdle { state.disarm() }
+        frames(16)
+
+        assertFalse(state.armed)
+        rule.onNodeWithText("End session").assertIsFocused()
+    }
+
+    @Test
+    fun anArmedButtonSplitsInItsOwnSlotNotAcrossTheRow() {
+        val keys = setUp()
+        keys.press(NovaTestKeys.CENTER)
+        frames(16)
+        val stay = rule.onNodeWithText("Stay").getUnclippedBoundsInRoot()
+        val end = rule.onNodeWithText("End").getUnclippedBoundsInRoot()
+        val pair = end.right - stay.left
+        val twoHalves = NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap
+        assertTrue("a narrow button widens only to two 96dp halves, not the full row: $pair", abs((pair - twoHalves).value) <= 1f)
+    }
+
+    @Test
+    fun aTouchInsideThePairKeepsItArmed() {
+        val keys = setUp()
+        keys.press(NovaTestKeys.CENTER)
+        frames()
+        val inside = rule.onNodeWithText("Stay").fetchSemanticsNode().boundsInWindow.center
+        val now = SystemClock.uptimeMillis()
+        val touch = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, inside.x, inside.y, 0)
+        rule.runOnUiThread { NovaSplitConfirmRegistry.onTouch(rule.activity.window.decorView, touch) }
+        frames()
+        assertTrue(state.armed)
+        touch.recycle()
+    }
+
+    @Test
+    fun aRecycledViewShowingAnotherItemStartsDisarmed() {
+        var view: ComposeView? = null
+        rule.setPanelContent { AndroidView(factory = { context -> ComposeView(context).also { view = it } }) }
+        rule.runOnUiThread { view!!.setNovaSplitConfirm("Delete profile", "Delete", itemKey = "handheld") {} }
+        rule.onNodeWithText("Delete profile").performClick()
+        rule.onNodeWithText("Stay").assertExists()
+
+        rule.runOnUiThread { view!!.setNovaSplitConfirm("Delete profile", "Delete", itemKey = "living room") {} }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Stay").assertDoesNotExist()
+        rule.onNodeWithText("Delete profile").assertExists()
     }
 
     @Test

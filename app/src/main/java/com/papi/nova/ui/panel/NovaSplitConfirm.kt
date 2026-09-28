@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +27,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,7 +42,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -80,13 +82,26 @@ class NovaSplitConfirmState {
     internal val buttonRequester = FocusRequester()
     internal val stayRequester = FocusRequester()
 
+    /** Whether either half holds focus, so a disarm knows whether focus must go back to the button. */
+    internal var pairHasFocus: Boolean = false
+
+    /** Set by a disarm that hands focus back to the button; the component clears it once it has. */
+    internal var refocus: Boolean by mutableStateOf(false)
+
     fun arm() {
         guardOpen = false
+        refocus = false
         armed = true
         arms++
     }
 
-    fun disarm() {
+    /**
+     * Cancels the split. With [restoreFocus], a pair that held focus hands it back to the button,
+     * so the next D-pad press moves from a visible ring, whoever disarms it (B, Stay, a companion
+     * deck's back). A touch outside the pair passes false: a touch does not move focus.
+     */
+    fun disarm(restoreFocus: Boolean = true) {
+        if (armed && restoreFocus && pairHasFocus) refocus = true
         armed = false
         guardOpen = false
     }
@@ -122,31 +137,28 @@ fun NovaSplitConfirm(
 ) {
     val confirm by rememberUpdatedState(onConfirm)
     val isTop = LocalNovaPageIsTop.current
+    val isTopNow by rememberUpdatedState(isTop)
     val root = LocalView.current.rootView
-    var refocusButton by remember(state) { mutableStateOf(false) }
     var pairHadFocus by remember(state) { mutableStateOf(false) }
     var pairFocused by remember(state) { mutableStateOf(false) }
     val pairBounds = remember(state) { BoundsHolder() }
+    // The button's own width, which an armed Button shape keeps when it can.
+    var slotWidth by remember(state) { mutableIntStateOf(0) }
 
-    fun stay() {
-        state.disarm()
-        refocusButton = true
-    }
-
-    NovaBackHandler(active = state.armed) { stay() }
-    LaunchedEffect(isTop) { if (!isTop) state.disarm() }
-    DisposableEffect(state) { onDispose { state.disarm() } }
-    LaunchedEffect(state.armed, state.arms) {
+    NovaBackHandler(active = state.armed) { state.disarm() }
+    LaunchedEffect(isTop) { if (!isTop) state.disarm(restoreFocus = false) }
+    DisposableEffect(state) { onDispose { state.disarm(restoreFocus = false) } }
+    LaunchedEffect(state.armed, state.arms, state.refocus) {
         if (state.armed) {
             pairHadFocus = false
             withFrameNanos { }
             state.stayRequester.requestFocus()
             delay(NovaPanelMetrics.SplitGuardMillis)
             state.guardOpen = true
-        } else if (refocusButton) {
+        } else if (state.refocus) {
             withFrameNanos { }
-            state.buttonRequester.requestFocus()
-            refocusButton = false
+            if (isTopNow) state.buttonRequester.requestFocus()
+            state.refocus = false
         }
     }
     // Read at recomposition, so focus moving from one half to the other never reads as leaving.
@@ -154,12 +166,14 @@ fun NovaSplitConfirm(
         if (pairFocused) {
             pairHadFocus = true
         } else if (pairHadFocus && state.armed) {
-            state.disarm()
+            state.disarm(restoreFocus = false)
         }
     }
     if (state.armed) {
         DisposableEffect(root, state) {
-            val registration = NovaSplitConfirmRegistry.register(root, { pairBounds.bounds }) { state.disarm() }
+            val registration = NovaSplitConfirmRegistry.register(root, { pairBounds.bounds }) {
+                state.disarm(restoreFocus = false)
+            }
             onDispose { registration.unregister() }
         }
     }
@@ -189,16 +203,27 @@ fun NovaSplitConfirm(
                     minHeight = minHeight,
                     rowCorner = shape == NovaSplitShape.Row,
                     modifier = Modifier
-                        .then(if (shape == NovaSplitShape.Button) Modifier else Modifier.fillMaxWidth())
+                        .then(
+                            if (shape == NovaSplitShape.Button) {
+                                Modifier.onSizeChanged { slotWidth = it.width }
+                            } else {
+                                Modifier.fillMaxWidth()
+                            },
+                        )
                         .focusRequester(state.buttonRequester),
                     onClick = { state.arm() },
                 )
             } else {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        // A button splits in its own slot and widens only as far as two 96dp
+                        // halves need; a row or a tile splits across its whole width.
+                        .then(if (shape == NovaSplitShape.Button) Modifier.splitPairWidth(slotWidth) else Modifier.fillMaxWidth())
                         .onGloballyPositioned { pairBounds.bounds = it.boundsInWindow() }
-                        .onFocusChanged { pairFocused = it.hasFocus },
+                        .onFocusChanged {
+                            pairFocused = it.hasFocus
+                            state.pairHasFocus = it.hasFocus
+                        },
                     horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SplitGap),
                 ) {
                     SplitHalf(
@@ -211,9 +236,8 @@ fun NovaSplitConfirm(
                         rowCorner = false,
                         modifier = Modifier
                             .weight(1f)
-                            .widthIn(min = NovaPanelMetrics.SplitHalfMinWidth)
                             .focusRequester(state.stayRequester),
-                        onClick = { stay() },
+                        onClick = { state.disarm() },
                     )
                     SplitHalf(
                         text = confirmLabel,
@@ -223,9 +247,7 @@ fun NovaSplitConfirm(
                         enabled = true,
                         minHeight = minHeight,
                         rowCorner = false,
-                        modifier = Modifier
-                            .weight(1f)
-                            .widthIn(min = NovaPanelMetrics.SplitHalfMinWidth),
+                        modifier = Modifier.weight(1f),
                         onClick = {
                             if (state.guardOpen) {
                                 state.disarm()
@@ -301,6 +323,18 @@ private class BoundsHolder {
 }
 
 /**
+ * The armed pair's width for the Button shape: the button's own [slotPx], or two 96dp halves and
+ * their gap when that is wider, and never wider than the slot allows, where it takes the row.
+ */
+private fun Modifier.splitPairWidth(slotPx: Int): Modifier = layout { measurable, constraints ->
+    val minimum = (NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap).roundToPx()
+    val wanted = maxOf(slotPx, minimum)
+    val width = if (constraints.hasBoundedWidth) wanted.coerceAtMost(constraints.maxWidth) else wanted
+    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+}
+
+/**
  * Armed split confirms, so a touch anywhere outside an armed pair cancels it. NovaActivity and
  * NovaPanelWindow feed it every touch of their windows before dispatching it; any other window
  * that hosts a split, such as the companion deck's, calls [install].
@@ -353,21 +387,28 @@ object NovaSplitConfirmRegistry {
     }
 }
 
-/** For View layouts: this ComposeView replaces the View button in place with a split confirm. */
+/**
+ * For View layouts: this ComposeView replaces the View button in place with a split confirm. A
+ * recycled view, such as a list row, passes the item it now shows as [itemKey], so a split armed
+ * for one item never carries over to the next.
+ */
 fun ComposeView.setNovaSplitConfirm(
     label: String,
     confirmLabel: String,
     consequence: String? = null,
     @DrawableRes icon: Int? = null,
+    itemKey: Any? = null,
     onConfirm: () -> Unit,
 ) {
     setNovaContent {
-        NovaSplitConfirm(
-            label = label,
-            confirmLabel = confirmLabel,
-            onConfirm = onConfirm,
-            consequence = consequence,
-            icon = icon,
-        )
+        key(itemKey) {
+            NovaSplitConfirm(
+                label = label,
+                confirmLabel = confirmLabel,
+                onConfirm = onConfirm,
+                consequence = consequence,
+                icon = icon,
+            )
+        }
     }
 }
