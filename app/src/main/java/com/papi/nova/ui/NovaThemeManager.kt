@@ -270,6 +270,24 @@ object NovaThemeManager {
         return if (readable) candidate else getTextPrimaryColor(context)
     }
 
+    /**
+     * Returns the semantic positive colour, for something on or healthy: the light green on a dark
+     * card and the deep green on a light one. Like [getErrorColor] it is checked at 4.5:1 against
+     * the card and the focused surface, and falls back to the text colour where neither reads.
+     */
+    fun getPositiveColor(context: Context): Int {
+        val window = getWindowBackgroundColor(context)
+        val card = ColorUtils.compositeColors(getCardBackgroundColor(context), window)
+        val focused = ColorUtils.compositeColors(getAccentSurfaceColor(context), card)
+        val onDark = ContextCompat.getColor(context, R.color.nova_success)
+        val onLight = ContextCompat.getColor(context, R.color.nova_success_on_light)
+        val candidates = if (ColorUtils.calculateLuminance(card) < 0.5) listOf(onDark, onLight) else listOf(onLight, onDark)
+        return candidates.firstOrNull { candidate ->
+            ColorUtils.calculateContrast(candidate, card) >= 4.5 &&
+                ColorUtils.calculateContrast(candidate, focused) >= 4.5
+        } ?: getTextPrimaryColor(context)
+    }
+
     /** Returns the semantic Activity surface used behind system bars and custom window backdrops. */
     fun getActivityWindowSurfaceColor(context: Context): Int =
         resolveThemeColor(

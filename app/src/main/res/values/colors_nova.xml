@@ -121,6 +121,8 @@
     <color name="nova_accent_glow">@color/nova_polaris_accent_glow</color>
     <color name="nova_accent_surface">@color/nova_polaris_accent_surface</color>
     <color name="nova_success">#FF4ade80</color>
+    <!-- The positive colour on a light card, where the light green would not read at 4.5:1. -->
+    <color name="nova_success_on_light">#FF166534</color>
     <color name="nova_warning">#FFfbbf24</color>
     <color name="nova_error">#FFf87171</color>
 

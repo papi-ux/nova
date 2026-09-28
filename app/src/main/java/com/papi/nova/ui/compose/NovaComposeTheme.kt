@@ -34,9 +34,9 @@ import com.papi.nova.utils.UiHelper
 /**
  * Nova's colour roles for Compose.
  *
- * [destructive] and [onDestructive] come last and default to [textPrimary] and [window], so a
- * palette built by hand before they existed still compiles. [novaComposeColors] fills them from
- * the theme.
+ * [destructive], [onDestructive] and [positive] come last and default to [textPrimary], [window]
+ * and [textPrimary], so a palette built by hand before they existed still compiles.
+ * [novaComposeColors] fills them from the theme.
  */
 @Immutable
 data class NovaComposeColors(
@@ -54,6 +54,8 @@ data class NovaComposeColors(
     val onAccent: Color,
     val destructive: Color = textPrimary,
     val onDestructive: Color = window,
+    /** Something on or healthy, such as an active status chip; checked for contrast like [destructive]. */
+    val positive: Color = textPrimary,
 )
 
 /** Handhelds, phones and tablets share one scale; a television reads from further away. */
@@ -86,6 +88,7 @@ fun novaComposeColors(context: Context): NovaComposeColors {
         onAccent = Color(NovaThemeManager.getOnAccentColor(context)),
         destructive = destructive,
         onDestructive = readableOn(destructive),
+        positive = Color(NovaThemeManager.getPositiveColor(context)),
     )
 }
 

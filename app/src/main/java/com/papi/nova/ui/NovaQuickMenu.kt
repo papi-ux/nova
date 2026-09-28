@@ -860,7 +860,7 @@ class NovaQuickMenu(
                             if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
                             liveTuningPending = false
                             hostStateUnavailable = !publishCurrentSessionStatus()
-                            if (!success) NovaSnackbar.showError(game, "Settings changed or could not be confirmed. Review Live Tuning and try again.", anchor = menu.anchor)
+                            if (!success) NovaSnackbar.showError(game, game.getString(R.string.nova_cc_live_tuning_unconfirmed), anchor = menu.anchor)
                             refreshState()
                         }
                     }

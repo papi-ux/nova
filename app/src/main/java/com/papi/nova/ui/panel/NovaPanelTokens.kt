@@ -129,6 +129,11 @@ object NovaPanelMetrics {
     const val StepperAccelerateAfterRepeats = 8
     const val StepperAcceleratedSteps = 5
 
+    /** A status chip's fill: its tone at this alpha, under a label in the tone itself. */
+    const val ToneChipFillAlpha = 0.20f
+    /** An inactive status chip's fill, a step quieter than [ToneChipFillAlpha]. */
+    const val QuietChipFillAlpha = 0.16f
+
     const val ScreenScrimAlpha = 0.56f
     const val StreamScrimAlpha = NovaInGameOverlayAlpha.CommandCenterScrim
     const val StatePageAlpha = 0.94f

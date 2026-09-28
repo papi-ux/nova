@@ -284,7 +284,7 @@ data class NovaQuickMenuUiState(
                 )
             }
 
-            val diagnosis = diagnosisState(status, healthSummary)
+            val diagnosis = diagnosisState(context, status, healthSummary)
             val stability = NovaQuickMenuStabilityState(
                 title = context.getString(R.string.nova_quick_menu_stream_card),
                 caption = if (hostStateUnavailable) context.getString(R.string.nova_quick_menu_host_state_unavailable) else "",
@@ -652,7 +652,11 @@ data class NovaQuickMenuUiState(
             )
         }
 
-        private fun diagnosisState(status: PolarisSessionStatus?, healthSummary: String): NovaQuickMenuDiagnosisState {
+        private fun diagnosisState(
+            context: Context,
+            status: PolarisSessionStatus?,
+            healthSummary: String,
+        ): NovaQuickMenuDiagnosisState {
             val doctor = status?.doctor
             val informationalAiExplanation = doctor?.aiExplanation
                 ?.takeIf { it.available && it.informational }
@@ -713,13 +717,13 @@ data class NovaQuickMenuUiState(
                             explanation.likelyCause.takeIf { it.isNotBlank() }?.let(::add)
                             explanation.tryFirst.firstOrNull()
                                 ?.takeIf { it.isNotBlank() }
-                                ?.let { add("Try first: $it") }
+                                ?.let { add(context.getString(R.string.nova_cc_doctor_try_first, it)) }
                         }.joinToString(" ")
                     }
                     .orEmpty(),
                 informationalSource = when {
                     informationalAiExplanation != null ->
-                        listOf("AI explanation only", informationalAiExplanation.sourceMode)
+                        listOf(context.getString(R.string.nova_cc_doctor_ai_only), informationalAiExplanation.sourceMode)
                             .filter { it.isNotBlank() }
                             .joinToString(" · ")
                     doctor?.explanationInformational == true &&

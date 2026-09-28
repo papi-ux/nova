@@ -188,6 +188,42 @@ class NovaThemeManagerTest {
 
     @Test
     @Config(sdk = [33], qualifiers = "notnight")
+    fun positiveColorReadsOnEveryThemeInLightMode() {
+        assertPositiveColorReadsOnEveryTheme()
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun positiveColorReadsOnEveryThemeInDarkMode() {
+        assertPositiveColorReadsOnEveryTheme()
+    }
+
+    /**
+     * The Command Center's active chip and anything else on or healthy: a green at 4.5:1 against
+     * the card and the focused surface in every theme, light and dark, as the destructive colour is.
+     */
+    private fun assertPositiveColorReadsOnEveryTheme() {
+        listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+            NovaThemeManager.THEME_MATERIAL_YOU,
+        ).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val window = NovaThemeManager.getWindowBackgroundColor(context)
+            val card = ColorUtils.compositeColors(NovaThemeManager.getCardBackgroundColor(context), window)
+            val focused = ColorUtils.compositeColors(NovaThemeManager.getAccentSurfaceColor(context), card)
+            val positive = NovaThemeManager.getPositiveColor(context)
+            assertTrue("$theme positive on card", ColorUtils.calculateContrast(positive, card) >= 4.5)
+            assertTrue("$theme positive on focus", ColorUtils.calculateContrast(positive, focused) >= 4.5)
+            assertNotEquals("$theme positive is not the destructive colour", NovaThemeManager.getErrorColor(context), positive)
+        }
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "notnight")
     fun portableChromeUsesLightIconsOnItsGraphiteSystemBars() {
         val controller = Robolectric.buildActivity(Activity::class.java)
         val activity = controller.get()

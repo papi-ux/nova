@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -344,16 +345,17 @@ private fun NovaQuickMenuDiagnosisCard(
         NovaQuickMenuDoctorCapability.RECHECK -> stringResource(R.string.nova_quick_menu_doctor_capability_recheck)
         NovaQuickMenuDoctorCapability.MANUAL -> stringResource(R.string.nova_quick_menu_doctor_capability_manual)
     }
+    val context = LocalContext.current
     // Built once per diagnosis, not once per recomposition of the page.
-    val detail = remember(diagnosis) {
+    val detail = remember(diagnosis, context) {
         val classification = diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") }
         buildList {
             classification?.let(::add)
-            diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add("Try first: $it") }
+            diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add(context.getString(R.string.nova_cc_doctor_try_first, it)) }
             // Confidence only means something next to the evidence it grades.
             diagnosis.evidenceHighlight.takeIf { it.isNotBlank() }?.let { evidence ->
-                add("Evidence: $evidence")
-                diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add("Confidence: $it") }
+                add(context.getString(R.string.nova_cc_doctor_evidence, evidence))
+                diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add(context.getString(R.string.nova_cc_doctor_confidence, it)) }
             }
         }.joinToString(" · ")
     }
@@ -363,7 +365,7 @@ private fun NovaQuickMenuDiagnosisCard(
     }
     val sourceSupportingLine = diagnosis.informationalSource
         .takeIf { it.isNotBlank() }
-        ?.let { "Source: $it" }
+        ?.let { stringResource(R.string.nova_cc_doctor_source, it) }
     val supportingLine = listOfNotNull(aiSupportingLine, sourceSupportingLine).joinToString("\n")
     // The finding is the title and the action lives in the chip, so "Recheck" no longer
     // shows up as title, chip, and button at once.
@@ -841,7 +843,9 @@ private fun NovaQuickMenuClickableSurface(
 @Composable
 private fun NovaQuickMenuChipView(chip: NovaQuickMenuChip) {
     val tone = toneColor(chip.tone)
-    val bg = tone.copy(alpha = if (chip.tone == NovaQuickMenuTone.INACTIVE) 0.16f else 0.20f)
+    val bg = tone.copy(
+        alpha = if (chip.tone == NovaQuickMenuTone.INACTIVE) NovaPanelMetrics.QuietChipFillAlpha else NovaPanelMetrics.ToneChipFillAlpha,
+    )
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(NovaRadius.pill))
@@ -857,7 +861,7 @@ private fun NovaQuickMenuChipView(chip: NovaQuickMenuChip) {
 private fun toneColor(tone: NovaQuickMenuTone): Color {
     val colors = LocalNovaComposeColors.current
     return when (tone) {
-        NovaQuickMenuTone.ACTIVE -> Color(0xFF4ADE80)
+        NovaQuickMenuTone.ACTIVE -> colors.positive
         NovaQuickMenuTone.INACTIVE -> colors.textSecondary
         NovaQuickMenuTone.MUTED -> colors.textMuted
         NovaQuickMenuTone.INFO -> colors.accent
