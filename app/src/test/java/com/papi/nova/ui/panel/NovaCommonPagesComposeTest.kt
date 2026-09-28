@@ -10,10 +10,13 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.AnnotatedString
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -140,10 +143,39 @@ class NovaCommonPagesComposeTest {
         )
         host()
 
+        val header = rule.onNodeWithText("$BackGlyph Quit").getUnclippedBoundsInRoot()
+        assertTrue("the header is a full touch target", header.bottom - header.top >= NovaPanelMetrics.ArrowTarget)
         rule.onNodeWithText("$BackGlyph Quit").performClick()
 
         assertEquals(1, state.depth)
         assertEquals("tapping the header is the touch B, and B on a confirm is Stay", 1, stayed)
+    }
+
+    @Test
+    fun multiChoiceRowsAreTogglesNotTheCurrentValue() {
+        var done: Set<Int>? = null
+        state.open(TestPage("root"))
+        state.push(
+            NovaCommonPage.MultiChoice(
+                key = "sources",
+                title = "Sources",
+                options = (0 until 3).map { NovaOption(it, "Source $it") },
+                selected = setOf(1),
+                doneLabel = "Done",
+                onDone = { done = it },
+            ),
+        )
+        val keys = host()
+        val on = SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, ToggleableState.On)
+        val off = SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, ToggleableState.Off)
+        rule.onNodeWithText("Source 1").assert(on)
+        rule.onNodeWithText("Source 1").assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
+        rule.onNodeWithText("Source 0").assert(off)
+
+        keys.press(NovaTestKeys.CENTER)
+        rule.onNodeWithText("Source 0").assert(on)
+        rule.onNodeWithText("Done").performClick()
+        assertEquals(setOf(0, 1), done)
     }
 
     @Test

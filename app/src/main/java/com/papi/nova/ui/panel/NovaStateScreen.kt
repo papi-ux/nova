@@ -248,7 +248,12 @@ private fun BusyContent(page: NovaStatePage.Busy, focusTarget: FocusRequester, a
         StateAction(cancel, act, primary = false, modifier = Modifier.focusRequester(focusTarget))
     } else {
         // Holds focus so A and B land here, where they do nothing.
-        Box(modifier = Modifier.focusRequester(focusTarget).novaClickable(onClick = {}))
+        Box(
+            modifier = Modifier
+                .focusRequester(focusTarget)
+                .semantics { contentDescription = working }
+                .novaClickable(onClick = {}),
+        )
     }
 }
 

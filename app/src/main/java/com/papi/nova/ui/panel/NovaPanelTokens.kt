@@ -107,6 +107,9 @@ object NovaPanelMetrics {
     val SliderTrackHeight: Dp = 6.dp
     val ProgressSize: Dp = 36.dp
     val ProgressStroke: Dp = 3.dp
+    /** The still busy mark inside a panel: an arc from the top, three quarters round. */
+    const val BusyArcStart = -90f
+    const val BusyArcSweep = 270f
 
     const val FocusMillis = 150
     /** Dragging a panel toward its edge past this share of its width dismisses it. */

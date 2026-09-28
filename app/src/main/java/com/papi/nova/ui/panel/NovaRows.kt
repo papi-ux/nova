@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -36,6 +37,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
@@ -95,7 +98,11 @@ fun NovaRow(
     )
 }
 
-/** [NovaRow] with an optional [leading] slot, such as a theme swatch on a Choice page. */
+/**
+ * [NovaRow] with an optional [leading] slot, such as a theme swatch on a Choice page. A row with
+ * [checked] is one toggle of a MultiChoice page: the same check trails it while it is on, with
+ * toggle semantics rather than the Current of the one current value.
+ */
 @Composable
 internal fun NovaRowLayout(
     title: String,
@@ -107,6 +114,7 @@ internal fun NovaRowLayout(
     emphasis: Boolean = false,
     disabledReason: String? = null,
     leading: (@Composable RowScope.() -> Unit)? = null,
+    checked: Boolean? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
@@ -114,6 +122,7 @@ internal fun NovaRowLayout(
     val enabled = disabledReason == null
     val filled = emphasis && enabled
     val current = trailing == NovaRowTrailing.Current
+    val marked = current || checked == true
     val currentLabel = stringResource(R.string.nova_panel_current)
     val shape = RoundedCornerShape(NovaRadius.row)
     val ink = when {
@@ -141,6 +150,7 @@ internal fun NovaRowLayout(
                     selected = true
                     stateDescription = currentLabel
                 }
+                checked?.let { toggleableState = ToggleableState(it) }
             }
             .onFocusChanged {
                 if (it.hasFocus && !focused) haptics.novaFocusTick()
@@ -148,7 +158,8 @@ internal fun NovaRowLayout(
             }
             .then(
                 if (interactive) {
-                    Modifier.novaClickable(enabled = enabled, role = Role.Button, focusableWhenDisabled = true) {
+                    val role = if (checked != null) Role.Checkbox else Role.Button
+                    Modifier.novaClickable(enabled = enabled, role = role, focusableWhenDisabled = true) {
                         haptics.novaConfirm()
                         onClick?.invoke()
                     }
@@ -174,7 +185,7 @@ internal fun NovaRowLayout(
                 Text(
                     text = title,
                     style = type.rowTitle,
-                    fontWeight = if (current) FontWeight.SemiBold else type.rowTitle.fontWeight,
+                    fontWeight = if (marked) FontWeight.SemiBold else type.rowTitle.fontWeight,
                     color = ink,
                 )
                 // The two-line caption budget is a copy rule the visual gate checks, not a cut.
@@ -190,7 +201,12 @@ internal fun NovaRowLayout(
             Text(text = OpensGlyph, style = type.value, color = quietInk)
         } else {
             Box(modifier = Modifier.weight(1f)) { titleBlock() }
-            NovaRowTrailingMark(trailing, quietInk)
+            when (checked) {
+                null -> NovaRowTrailingMark(trailing, quietInk)
+                true -> NovaCheckGlyph()
+                // Off keeps the check's room, so the label does not move when it toggles.
+                false -> Spacer(Modifier.size(NovaPanelMetrics.CurrentMarkSize))
+            }
         }
     }
 }
@@ -283,13 +299,17 @@ fun NovaSectionLabel(text: String, modifier: Modifier = Modifier) {
  */
 @Composable
 fun NovaCurrentMark(modifier: Modifier = Modifier) {
+    NovaCheckGlyph(modifier.testTag(NovaCurrentMarkTag))
+}
+
+/** The accent check itself, shared by the current mark and a MultiChoice toggle. */
+@Composable
+private fun NovaCheckGlyph(modifier: Modifier = Modifier) {
     Icon(
         painter = painterResource(R.drawable.ic_check),
         contentDescription = null,
         tint = LocalNovaComposeColors.current.accent,
-        modifier = modifier
-            .size(NovaPanelMetrics.CurrentMarkSize)
-            .testTag(NovaCurrentMarkTag),
+        modifier = modifier.size(NovaPanelMetrics.CurrentMarkSize),
     )
 }
 

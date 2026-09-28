@@ -93,6 +93,26 @@ class NovaPanelSourceGuardTest {
     }
 
     @Test
+    fun panelSurfacesMarkCurrentOnlyWithTheCheck() {
+        val surfaceCall = Regex("""NovaAction(Button|Surface)\(""")
+        val selectedArg = Regex("""\bselected\s*=""")
+        val offenders = panelSources().flatMap { file ->
+            val text = code(file.readText())
+            surfaceCall.findAll(text)
+                .mapNotNull { match -> balancedArgs(text, match.range.last + 1) }
+                .filter { args -> selectedArg.containsMatchIn(args) }
+                .map { "${file.name}: selected" }
+                .toList()
+        }
+        assertEquals(
+            "fills and borders only ever mean focus (R9): a panel marks the current value with " +
+                "NovaCurrentMark, never with NovaActionSurface's selected fill",
+            emptyList<String>(),
+            offenders,
+        )
+    }
+
+    @Test
     fun panelCornersComeFromNovaRadius() {
         val offenders = panelSources().flatMap { file ->
             val text = file.readText()

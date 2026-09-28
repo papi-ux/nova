@@ -383,6 +383,10 @@ fun NovaActionSurface(
         // button looked exactly like an unselected one. Call sites worked around that by
         // passing `primary = true` to mean "selected", which is why that flag ended up
         // carrying two meanings.
+        // TODO(migration groups 3 and 4): R9 marks the current value with NovaCurrentMark only,
+        // and fills mean focus. The library and settings chips still pass `selected`; once they
+        // mark current with the check, the closing step drops this fill and its pin in
+        // NovaFocusSelectionTest. ui/panel never passes it (NovaPanelSourceGuardTest).
         selected && enabled -> colors.accentSurface
         else -> surfaces.control
     }

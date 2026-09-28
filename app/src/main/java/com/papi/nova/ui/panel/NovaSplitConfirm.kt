@@ -174,7 +174,8 @@ fun NovaSplitConfirm(
         AnimatedContent(
             targetState = state.armed,
             transitionSpec = {
-                (fadeIn(motion) togetherWith fadeOut(motion)) using SizeTransform(clip = false)
+                (fadeIn(motion) togetherWith fadeOut(motion)) using
+                    SizeTransform(clip = false) { _, _ -> tween(NovaPanelMetrics.SplitMillis) }
             },
             label = "NovaSplitConfirm",
         ) { armed ->

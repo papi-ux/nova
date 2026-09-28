@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -429,20 +430,22 @@ private fun NovaPageHeader(title: String, parentTitle: String?, onBack: () -> Un
             return@Column
         }
         Text(text = parentTitle, style = type.caption, color = colors.textSecondary)
-        Text(
-            text = "$BackGlyph $title",
-            style = type.pageTitle,
-            color = colors.textPrimary,
+        // A full touch target for the touch B, though never a focus stop.
+        Box(
+            contentAlignment = Alignment.CenterStart,
             modifier = Modifier
+                .heightIn(min = NovaPanelMetrics.ArrowTarget)
                 .pointerInput(Unit) { detectTapGestures(onTap = { back() }) }
-                .semantics {
+                .semantics(mergeDescendants = true) {
                     role = Role.Button
                     onClick(label = backLabel) {
                         back()
                         true
                     }
                 },
-        )
+        ) {
+            Text(text = "$BackGlyph $title", style = type.pageTitle, color = colors.textPrimary)
+        }
     }
 }
 

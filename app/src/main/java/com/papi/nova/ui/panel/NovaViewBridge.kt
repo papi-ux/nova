@@ -38,6 +38,7 @@ object NovaViewBridge {
         return StateListDrawable().apply {
             addState(FOCUSED, rounded(corner, surfaces.selectedControl))
             addState(ANY, rounded(corner, surfaces.tile).apply { setStroke(hairline, surfaces.tileBorder.toArgb()) })
+            fadeLikeCompose()
         }
     }
 
@@ -49,7 +50,14 @@ object NovaViewBridge {
         return StateListDrawable().apply {
             addState(FOCUSED, rounded(corner, Color.Transparent).apply { setStroke(ring, surfaces.focusRing.toArgb()) })
             addState(ANY, rounded(corner, Color.Transparent))
+            fadeLikeCompose()
         }
+    }
+
+    /** Fades between states over the same 150ms as the Compose focus look. */
+    private fun StateListDrawable.fadeLikeCompose() {
+        setEnterFadeDuration(NovaPanelMetrics.FocusMillis)
+        setExitFadeDuration(NovaPanelMetrics.FocusMillis)
     }
 
     private fun surfaces(context: Context): NovaLibrarySurfaces {

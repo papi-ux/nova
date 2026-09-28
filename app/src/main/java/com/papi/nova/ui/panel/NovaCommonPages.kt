@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,7 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.Key
@@ -45,6 +48,7 @@ import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -136,7 +140,7 @@ private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T
                 title = option.label,
                 caption = option.caption,
                 disabledReason = option.disabledReason,
-                trailing = if (isChosen(index)) NovaRowTrailing.Current else NovaRowTrailing.None,
+                checked = isChosen(index),
                 onClick = { exit.act { chosen[index] = !isChosen(index) } },
                 modifier = Modifier
                     .then(if (index == 0) Modifier.novaInitialFocus() else Modifier)
@@ -453,6 +457,7 @@ private fun Modifier.novaTrackFill(fraction: Float, track: Color, fill: Color): 
 @Composable
 private fun NovaPageScope.BusyPage(page: NovaCommonPage.Busy, exit: NovaPageExit) {
     val colors = LocalNovaComposeColors.current
+    val working = stringResource(R.string.nova_panel_working)
     val message by page.message.collectAsState()
     val cancel = page.cancel
     // Without a cancel, the page holds B so the work cannot be left half done.
@@ -462,11 +467,7 @@ private fun NovaPageScope.BusyPage(page: NovaCommonPage.Busy, exit: NovaPageExit
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
         ) {
-            CircularProgressIndicator(
-                color = colors.accent,
-                strokeWidth = NovaPanelMetrics.ProgressStroke,
-                modifier = Modifier.size(NovaPanelMetrics.ProgressSize),
-            )
+            NovaBusyMark()
             Text(
                 text = message,
                 style = novaPanelType.rowTitle,
@@ -481,7 +482,45 @@ private fun NovaPageScope.BusyPage(page: NovaCommonPage.Busy, exit: NovaPageExit
                 modifier = Modifier.fillMaxWidth().novaInitialFocus(),
             )
         } else {
-            Box(modifier = Modifier.novaInitialFocus().novaClickable(onClick = {}))
+            // Holds focus so A and B land here, where they do nothing.
+            Box(
+                modifier = Modifier
+                    .novaInitialFocus()
+                    .semantics { contentDescription = working }
+                    .novaClickable(onClick = {}),
+            )
         }
     }
 }
+
+/**
+ * A still mark for work in progress: an accent arc on its track. No infinite animation runs inside
+ * a panel, which can sit over the stream and would cost it frames.
+ */
+@Composable
+private fun NovaBusyMark() {
+    val colors = LocalNovaComposeColors.current
+    val working = stringResource(R.string.nova_panel_working)
+    Box(
+        modifier = Modifier
+            .size(NovaPanelMetrics.ProgressSize)
+            .semantics { contentDescription = working }
+            .drawBehind {
+                val stroke = NovaPanelMetrics.ProgressStroke.toPx()
+                val topLeft = Offset(stroke / 2f, stroke / 2f)
+                val arc = Size(size.width - stroke, size.height - stroke)
+                drawArc(colors.divider, 0f, FullTurn, useCenter = false, topLeft = topLeft, size = arc, style = Stroke(stroke))
+                drawArc(
+                    colors.accent,
+                    NovaPanelMetrics.BusyArcStart,
+                    NovaPanelMetrics.BusyArcSweep,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arc,
+                    style = Stroke(stroke, cap = StrokeCap.Round),
+                )
+            },
+    )
+}
+
+private const val FullTurn = 360f
