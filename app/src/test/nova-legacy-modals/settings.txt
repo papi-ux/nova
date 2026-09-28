@@ -3,5 +3,9 @@
 # One "path:count" per line, paths under app/src/main/java/com/papi/nova/. NovaPanelSourceGuardTest
 # fails when a file has more than its count here, or has any while no list names it. Only group 4
 # edits this file: it lowers or removes a line as each site moves. The closing step empties it.
-EditProfileActivity.kt:1
-profiles/ProfilesAdapter.kt:1
+#
+# Empty since group 4 moved every site onto the panel surfaces: the Select, slider and text
+# dialogs are pages in the Settings pane, the legacy screen's dialogs open as pages through one
+# onDisplayPreferenceDialog override, rename is a Form page, Delete profile splits in its row and
+# the update prompts are Notice pages. The unknown-sources screen and the package installer stay
+# platform (spec section 8) and match none of these patterns.

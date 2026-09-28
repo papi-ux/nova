@@ -17,6 +17,7 @@ import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.utils.AndroidStreamDisplayTarget
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -28,6 +29,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
+import org.robolectric.fakes.RoboMenuItem
 
 /**
  * The legacy settings screen stays for beta.1, and its dialogs open as pages through one
@@ -138,6 +140,20 @@ class NovaLegacySettingsPagesTest {
         assertEquals("Left and Right move by the preference's key step", 1000, page.step)
         page.onSave(25_000)
         assertEquals(25_000, fragment.getPrefs().getInt(PreferenceConfiguration.BITRATE_PREF_STRING, 0))
+    }
+
+    @Test
+    fun renameIsAFormPageThatRefusesABlankName() = legacyEditor { activity, _ ->
+        activity.onOptionsItemSelected(RoboMenuItem(R.id.action_rename))
+        idle()
+
+        val page = top(activity) as NovaCommonPage.Form
+        assertEquals(context.getString(R.string.profile_manager_edit_profile_name), page.title)
+        val key = page.fields.single().key
+        assertEquals(context.getString(R.string.profile_manager_name_cannot_be_blank), page.onSubmit(mapOf(key to "  ")))
+        assertNull(page.onSubmit(mapOf(key to "Couch")))
+        assertTrue(activity.title.toString().contains("Couch"))
+        assertNotEquals(context.getString(R.string.profile_manager_new_profile), activity.title.toString())
     }
 
     companion object {

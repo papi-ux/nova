@@ -7,9 +7,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.Toolbar
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.ViewModelProvider
@@ -31,10 +29,18 @@ import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.profiles.SettingsProfile
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaField
+import com.papi.nova.ui.panel.NovaFocusReturn
+import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.utils.UiHelper
 import java.util.UUID
 
 class EditProfileActivity : NovaActivity() {
+    /** A acts on release and B goes back through the dispatcher; the screen has no key handling of its own. */
+    override val novaKeyGate: Boolean = true
+
     private var profileUuid: String? = null
     private var currentProfile: SettingsProfile? = null
     private lateinit var inMemoryPrefs: InMemorySharedPreferences
@@ -98,7 +104,7 @@ class EditProfileActivity : NovaActivity() {
                     NovaSettingsScreen(
                         viewModel = viewModel,
                         title = title.toString(),
-                        subtitle = "Profile overrides",
+                        subtitle = getString(R.string.nova_settings_profile_subtitle),
                         onBack = { finish() },
                         onOpenLegacy = {
                             NovaSettingsFeatureFlags.setComposeSettingsEnabled(this@EditProfileActivity, false)
@@ -106,8 +112,8 @@ class EditProfileActivity : NovaActivity() {
                         },
                         onAction = ::handleComposeAction,
                         headerActions = listOf(
-                            NovaSettingsHeaderAction("Rename") { showRenameDialog() },
-                            NovaSettingsHeaderAction("Save") { saveProfile() }
+                            NovaSettingsHeaderAction(getString(R.string.nova_settings_profile_rename)) { showRenamePage() },
+                            NovaSettingsHeaderAction(getString(R.string.nova_panel_save)) { saveProfile() }
                         )
                     )
                 }
@@ -135,7 +141,7 @@ class EditProfileActivity : NovaActivity() {
                 true
             }
             R.id.action_rename -> {
-                showRenameDialog()
+                showRenamePage()
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -170,7 +176,7 @@ class EditProfileActivity : NovaActivity() {
     private fun handleComposeAction(definition: NovaSettingDefinition) {
         Toast.makeText(
             this,
-            "Opening legacy profile settings for ${definition.title}",
+            getString(R.string.nova_settings_profile_opening_legacy, definition.title),
             Toast.LENGTH_SHORT
         ).show()
         showLegacyProfileEditor()
@@ -222,42 +228,57 @@ class EditProfileActivity : NovaActivity() {
         finish()
     }
 
-    private fun showRenameDialog() {
-        val input = EditText(this)
+    /**
+     * Rename, as a Form page in the right-edge panel: the name at the top with Save under it. A
+     * blank name stays on the page with the reason under the field.
+     */
+    private fun showRenamePage() {
         val initial = currentProfile?.getName() ?: pendingProfileName ?: ""
-        input.setText(initial)
-        input.setSelection(initial.length)
+        NovaSurfaces.of(this).open(
+            root = NovaCommonPage.Form(
+                key = "rename-profile",
+                title = getString(R.string.profile_manager_edit_profile_name),
+                fields = listOf(
+                    NovaField(key = RENAME_FIELD, label = getString(R.string.nova_settings_profile_name), initial = initial),
+                ),
+                submitLabel = getString(R.string.nova_panel_save),
+                onSubmit = { values ->
+                    val newName = values[RENAME_FIELD].orEmpty().trim()
+                    if (newName.isEmpty()) {
+                        getString(R.string.profile_manager_name_cannot_be_blank)
+                    } else {
+                        rename(newName)
+                        null
+                    }
+                },
+            ),
+            edge = NovaEdge.End,
+            returnFocus = currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None,
+        )
+    }
 
-        AlertDialog.Builder(this)
-            .setTitle(R.string.profile_manager_edit_profile_name)
-            .setView(input)
-            .setPositiveButton("OK") { _, _ ->
-                val newName = input.text.toString().trim()
-                if (newName.isEmpty()) {
-                    Toast.makeText(this, R.string.profile_manager_name_cannot_be_blank, Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
+    private fun rename(newName: String) {
+        val profile = currentProfile
+        if (profile != null) {
+            profile.setName(newName)
+            profile.setModifiedUtc(System.currentTimeMillis())
+            ProfilesManager.getInstance().update(profile)
+            title = getString(R.string.profile_manager_edit_profile_with, newName)
+        } else {
+            pendingProfileName = newName
+            title = getString(R.string.profile_manager_new_profile_with, newName)
+        }
 
-                val profile = currentProfile
-                if (profile != null) {
-                    profile.setName(newName)
-                    profile.setModifiedUtc(System.currentTimeMillis())
-                    ProfilesManager.getInstance().update(profile)
-                    title = getString(R.string.profile_manager_edit_profile_with, newName)
-                } else {
-                    pendingProfileName = newName
-                    title = getString(R.string.profile_manager_new_profile_with, newName)
-                }
-
-                if (!legacyMode) {
-                    showComposeProfileEditor()
-                }
-            }
-            .setNegativeButton(getString(R.string.cancel), null)
-            .show()
+        if (!legacyMode) {
+            showComposeProfileEditor()
+        }
     }
 
     fun getInMemoryPrefs(): SharedPreferences = inMemoryPrefs
+
+    private companion object {
+        const val RENAME_FIELD = "name"
+    }
 
     class ProfilePreferenceFragment(
         context: EditProfileActivity,

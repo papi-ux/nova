@@ -35,6 +35,13 @@
     <!-- Legacy settings -->
     <string name="nova_settings_reset_controls">Reset controls</string>
 
+    <!-- Profiles -->
+    <string name="nova_settings_profile_subtitle">Profile overrides</string>
+    <string name="nova_settings_profile_rename">Rename</string>
+    <string name="nova_settings_profile_name">Name</string>
+    <string name="nova_settings_profile_opening_legacy">Opening legacy profile settings for %1$s</string>
+    <string name="nova_profiles_delete_consequence">%1$s and every setting it overrides are deleted.</string>
+
     <!-- Updates and support -->
     <string name="nova_update_unknown_error">Unknown error</string>
     <string name="nova_support_report_share_title">Send Nova support report</string>

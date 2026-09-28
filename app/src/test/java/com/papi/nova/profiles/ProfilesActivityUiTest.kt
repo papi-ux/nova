@@ -1,13 +1,12 @@
 package com.papi.nova.profiles
 
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
-import android.os.Looper
 import android.view.View
 import android.widget.ImageButton
 import android.widget.RadioButton
 import androidx.preference.Preference
+import androidx.compose.ui.platform.ComposeView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.EditProfileActivity
@@ -21,6 +20,7 @@ import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.BeforeClass
@@ -151,8 +151,11 @@ class ProfilesActivityUiTest {
         assertEquals(p2.getUuid(), pm.getActive()!!.getUuid())
     }
 
+    // Delete was a stock AlertDialog; it is a split confirm in the row now, driven through its
+    // controller keys in ProfilesDeleteSplitComposeTest. Here: the row carries it in place of the
+    // old trash button, and the screen answers A and B through the key gate.
     @Test
-    fun deleteProfile_removesRowAndUpdatesEmptyState() {
+    fun deleteIsASplitConfirmInTheRow() {
         val p = SettingsProfile(UUID.randomUUID(), "ToDelete", System.currentTimeMillis(), System.currentTimeMillis(), null)
         pm.add(p)
 
@@ -162,20 +165,9 @@ class ProfilesActivityUiTest {
         rv.layout(0, 0, 1000, 1000)
         val vh = rv.findViewHolderForAdapterPosition(0)
         assertNotNull(vh)
-        val deleteBtn = vh!!.itemView.findViewById<ImageButton>(R.id.deleteProfile)
-        deleteBtn.performClick()
-
-        val dialog = ShadowAlertDialog.getLatestAlertDialog()
-        assertNotNull(dialog)
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
-
-        Shadows.shadowOf(Looper.getMainLooper()).idle()
-
-        assertEquals(0, rv.adapter!!.itemCount)
-        assertTrue(pm.getProfiles().isEmpty())
-
-        rv.layout(0, 0, 1000, 1000)
-        assertEquals(View.GONE, rv.visibility)
+        val delete = vh!!.itemView.findViewById<View>(R.id.deleteProfile)
+        assertTrue("Delete is drawn by Compose as a split confirm", delete is ComposeView)
+        assertNull("no stock dialog is raised for Delete", ShadowAlertDialog.getLatestAlertDialog())
     }
 
     companion object {
