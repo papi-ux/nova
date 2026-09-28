@@ -641,6 +641,9 @@ if(NOVA_DECK_BUILD_QT_SHELL)
         qt_add_executable(nova-deck
             src/main.cpp
         )
+        if(NOVA_DECK_BUILD_PYROWAVE)
+            add_dependencies(nova-deck nova-deck-pyrowave-probe)
+        endif()
         target_compile_definitions(nova-deck PRIVATE $<$<BOOL:${BUILD_TESTING}>:NOVA_DECK_TESTING>
             NOVA_DECK_VERSION="${PROJECT_VERSION}")
         if(NOVA_DECK_BUILD_VULKAN_STREAM)
