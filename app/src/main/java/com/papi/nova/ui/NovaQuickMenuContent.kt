@@ -877,6 +877,12 @@ private fun NovaQuickMenuInfoCard(
 @Composable
 private fun NovaQuickKeys(actions: List<NovaQuickMenuAction>, callbacks: NovaQuickMenuCallbacks) {
     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text(
+            text = stringResource(R.string.nova_quick_menu_quick_keys_caption),
+            color = LocalNovaComposeColors.current.textMuted,
+            fontSize = 10.sp,
+            lineHeight = 13.sp
+        )
         actions.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 row.forEach { action ->
