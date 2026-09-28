@@ -1881,6 +1881,7 @@
     <string name="nova_space_play_blocked_unavailable">Space unavailable</string>
     <string name="nova_space_play_blocked_at_capacity">Host at capacity</string>
     <string name="nova_space_open_launcher">Open %1$s</string>
+    <string name="nova_space_launch_mode_unavailable">No launch mode is available for this Space. Check its launch settings in Polaris.</string>
     <string name="nova_space_play">Play</string>
     <string name="nova_space_profile_label_format">Space: %1$s</string>
     <string name="nova_space_in_format">In %1$s</string>
