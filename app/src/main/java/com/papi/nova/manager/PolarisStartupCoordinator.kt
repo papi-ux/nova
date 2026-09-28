@@ -80,7 +80,7 @@ class PolarisStartupCoordinator(
             // the connect is up already; its Polaris is down, and no packet fixes that.
             hostAwake = reachabilityProbe.isAwake(current)
             if (!hostAwake) {
-                if (current.macAddress.isNullOrBlank()) {
+                if (current.wakeMacAddress.isNullOrBlank()) {
                     return PolarisStartupResult(PolarisStartupStatus.MISSING_MAC, current)
                 }
                 try {

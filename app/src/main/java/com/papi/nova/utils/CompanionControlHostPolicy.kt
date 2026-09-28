@@ -9,8 +9,8 @@ object CompanionControlHostPolicy {
     }
 
     @JvmStatic
-    fun select(displayId: Int): HostType {
-        return if (displayId == Display.DEFAULT_DISPLAY) {
+    fun select(displayId: Int, presentationCapable: Boolean): HostType {
+        return if (displayId == Display.DEFAULT_DISPLAY || !presentationCapable) {
             HostType.ACTIVITY
         } else {
             HostType.PRESENTATION

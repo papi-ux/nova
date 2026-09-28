@@ -9,7 +9,7 @@ class CompanionControlHostPolicyTest {
     fun defaultDisplayUsesActivityFallback() {
         assertEquals(
             CompanionControlHostPolicy.HostType.ACTIVITY,
-            CompanionControlHostPolicy.select(Display.DEFAULT_DISPLAY),
+            CompanionControlHostPolicy.select(Display.DEFAULT_DISPLAY, presentationCapable = true),
         )
     }
 
@@ -17,7 +17,15 @@ class CompanionControlHostPolicyTest {
     fun nonDefaultDisplayUsesPresentationHost() {
         assertEquals(
             CompanionControlHostPolicy.HostType.PRESENTATION,
-            CompanionControlHostPolicy.select(Display.DEFAULT_DISPLAY + 1),
+            CompanionControlHostPolicy.select(Display.DEFAULT_DISPLAY + 1, presentationCapable = true),
+        )
+    }
+
+    @Test
+    fun nonPresentationDisplayUsesActivityEvenWhenItIsNotDefault() {
+        assertEquals(
+            CompanionControlHostPolicy.HostType.ACTIVITY,
+            CompanionControlHostPolicy.select(Display.DEFAULT_DISPLAY + 1, presentationCapable = false),
         )
     }
 }
