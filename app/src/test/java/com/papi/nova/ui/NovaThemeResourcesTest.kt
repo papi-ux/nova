@@ -213,9 +213,10 @@ class NovaThemeResourcesTest {
             File("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt").readText() +
             File("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt").readText() +
             File("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt").readText()
-        val polarisSync = File("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt").readText()
-        val playSetupPages = File("src/main/java/com/papi/nova/ui/NovaPlaySetupPages.kt").readText()
         val library = File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
+        val libraryPanels = File("src/main/java/com/papi/nova/ui/NovaLibraryPanels.kt").readText()
+        val playSetupPages = File("src/main/java/com/papi/nova/ui/NovaPlaySetupPages.kt").readText()
+        val panelFrame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
         val contextSheet = File("src/main/res/layout/nova_app_context_sheet.xml").readText()
 
         assertTrue("native sheets should use a single chrome helper", sheetChrome.contains("object NovaSheetChrome"))
@@ -226,14 +227,18 @@ class NovaThemeResourcesTest {
         assertTrue("theme picker should use shared sheet chrome", pcView.contains("NovaSheetChrome.applyBottomSheetChrome(dialog"))
         assertTrue("pc context menu should use shared sheet chrome", pcView.contains("NovaSheetChrome.applyBottomSheetChrome(sheet"))
         assertTrue("app context menu should use shared sheet chrome", appView.contains("NovaSheetChrome.applyBottomSheetChrome(sheet"))
-        // Group 3's game detail sheet became a panel: it shares the panel frame's chrome rather than the sheet helper.
+        // Group 3's sheets became panels: they share the panel frame's chrome rather than the sheet helper.
         assertTrue(
             "game detail hosts no sheet: Play Setup is a panel frame in its own window",
             !gameDetail.contains("BottomSheetDialog") && playSetupPages.contains("NovaPanelFrame(")
         )
-        assertTrue("Polaris sync sheet should use shared sheet chrome", polarisSync.contains("NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog"))
-        assertTrue("Compose library sheets should use the same shared radius token", library.contains("NovaSheetChrome.SHEET_CORNER_RADIUS_DP"))
-        assertTrue("Compose library sheets should use a common themed scrim alpha", library.contains("NovaSheetChrome.SCRIM_ALPHA"))
+        assertTrue("Polaris Sync is a page of the library's System panel", libraryPanels.contains("internal fun NovaPageScope.NovaPolarisSyncPage("))
+        assertTrue(
+            "the library's panels take the one drawer radius and themed scrim from the panel frame",
+            library.contains("surfaces.open(") &&
+                panelFrame.contains("NovaRadius.drawer") &&
+                panelFrame.contains("NovaMenuPreferences.readabilityScrimAlpha(")
+        )
         assertFalse("context sheet XML must not hardcode the Polaris sheet drawable", contextSheet.contains("@drawable/nova_sheet_bg"))
         assertFalse("context sheet title must not hardcode Polaris ice text", contextSheet.contains("@color/nova_ice"))
     }
@@ -446,10 +451,17 @@ class NovaThemeResourcesTest {
         val settingsRepository = File("src/main/java/com/papi/nova/preferences/NovaSettingsRepository.kt").readText()
 
         assertTrue("session start/reconnect scrims should retain a contrast floor while honoring menu opacity", lifecycle.contains("NovaMenuPreferences.readabilityScrimAlpha(") && lifecycle.contains("scrimAlpha,"))
-        assertTrue("Compose library modal scrims should retain a contrast floor", library.contains("NovaMenuPreferences.readabilityScrimAlpha"))
+        // Library Options and System are panels in one window now; the panel frame draws their scrim.
+        val panelFrame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
         assertTrue(
-            "both Library Options and System drawer scrims should use the readability floor",
-            library.split("NovaMenuPreferences.readabilityScrimAlpha(").size - 1 >= 3
+            "Compose library modal scrims should retain a contrast floor",
+            library.contains("surfaces.open(") && panelFrame.contains("NovaMenuPreferences.readabilityScrimAlpha(")
+        )
+        assertTrue(
+            "both Library Options and System drawer scrims should use the readability floor: both open through the one panel window",
+            library.contains("private fun openLibraryPanel(root: LibraryPage)") &&
+                library.contains("openLibraryPanel(LibraryPage.Options(") &&
+                library.contains("openLibraryPanel(LibraryPage.System(")
         )
         assertTrue("Library fixed glass overrides should consume the menu opacity local", library.contains("LocalNovaMenuOpacityScale.current"))
         assertTrue("game detail fixed glass overrides should consume the menu opacity local", gameDetail.contains("LocalNovaMenuOpacityScale.current"))
@@ -484,10 +496,17 @@ class NovaThemeResourcesTest {
         assertTrue("Compose drawers should lease the Activity backdrop and release only their own effect", composeBlur.contains("NovaMenuBlur.acquireActivityBackground") && composeBlur.contains("lease?.release()"))
         assertTrue("Command Center must live in a separate Dialog window before leasing the Game backdrop", quickMenuHost.contains("val overlay = Dialog(game)") && quickMenuHost.contains("overlay.setContentView(composeView)"))
         assertTrue("Command Center should opt into adaptive backdrop blur", quickMenu.contains("NovaMenuBackdropBlur()"))
-        assertTrue("Library drawers should blur only while a separate-window drawer is active", library.contains("if (activeOptionsSheet || activeSystemMenu)") && library.contains("NovaMenuBackdropBlur()"))
-        assertFalse("same-window filter sheets must not blur their own controls through the Activity decor", library.contains("activeFilterSheet != null || activeOptionsSheet"))
+        // Library Options and System are panels in their own window, whose frame leases the blur;
         // Play Setup's panel is in the detail window's own tree, so it must not blur its window.
+        val panelFrame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
         val playSetupPages = File("src/main/java/com/papi/nova/ui/NovaPlaySetupPages.kt").readText()
+        assertTrue(
+            "Library drawers should blur only while a separate-window drawer is active",
+            library.contains("surfaces.open(") &&
+                panelFrame.contains("if (scrim == NovaScrim.Screen) NovaMenuBackdropBlur()") &&
+                !library.contains("NovaMenuBackdropBlur()")
+        )
+        assertFalse("same-window filter sheets must not blur their own controls through the Activity decor", library.contains("activeFilterSheet != null || activeOptionsSheet"))
         assertTrue(
             "an in-tree panel must not blur its own controls through the Activity decor",
             playSetupPages.contains("scrim = NovaScrim.Stream") && !playSetupPages.contains("NovaScrim.Screen")

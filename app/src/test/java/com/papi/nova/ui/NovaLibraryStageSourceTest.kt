@@ -411,7 +411,9 @@ class NovaLibraryStageSourceTest {
         assertTrue(source.contains("NovaPosterAnimationDurationMillis = 180"))
         assertTrue(source.contains("animationSpec = tween(durationMillis = NovaPosterAnimationDurationMillis)"))
         assertTrue(source.contains(".zIndex(if (focused) 1f else 0f)"))
-        assertTrue(source.contains("scaleX = scale") && source.contains("scaleY = scale"))
+        // Lift plus the one ring (spec section 2), no scale.
+        assertFalse(source.contains("scaleX = scale") || source.contains("scaleY = scale"))
+        assertTrue(source.contains("NovaPanelMetrics.FocusRingWidth"))
         assertTrue(source.contains("translationY = -lift.toPx()"))
         assertFalse(source.contains("NovaFocusMotionSpec.CardFocusedScale"))
         assertFalse(source.contains(".novaFocusMotion("))
@@ -452,8 +454,9 @@ class NovaLibraryStageSourceTest {
         assertTrue(source.contains(".semantics(mergeDescendants = true)"))
         assertTrue(source.contains("contentDescription = accessibleLabel"))
         assertTrue(source.contains("role = Role.Button"))
-        assertTrue(source.contains(".combinedClickable(") && source.contains("onOpenDetail()"))
-        assertTrue(source.windowed(".combinedClickable(".length).count { it == ".combinedClickable(" } == 1)
+        // Acts on release, and only on the poster the press began on.
+        assertTrue(source.contains(".novaClickable(") && source.contains("onOpenDetail()"))
+        assertTrue(source.windowed(".novaClickable(".length).count { it == ".novaClickable(" } == 1)
         assertFalse(source.contains(".focusable()"))
         assertFalse(source.contains("import androidx.compose.foundation.focusable"))
         assertTrue(source.contains("game.sourceLabel") && source.contains("game.categoryLabel"))
@@ -490,7 +493,7 @@ class NovaLibraryStageSourceTest {
         val modifierStart = source.indexOf("modifier = modifier")
         val requesterIndex = source.indexOf(".then(focusRequesterModifier)", modifierStart)
         val focusObserverIndex = source.indexOf(".onFocusChanged", modifierStart)
-        val clickOwnerIndex = source.indexOf(".combinedClickable(", modifierStart)
+        val clickOwnerIndex = source.indexOf(".novaClickable(", modifierStart)
         assertTrue(requesterIndex >= 0 && requesterIndex < focusObserverIndex && focusObserverIndex < clickOwnerIndex)
         assertTrue(source.contains("Key.DirectionLeft -> onNavigate?.invoke(-1) ?: false"))
         assertTrue(source.contains("Key.DirectionRight -> onNavigate?.invoke(1) ?: false"))
@@ -512,7 +515,8 @@ class NovaLibraryStageSourceTest {
             ),
             "src/test/java/com/papi/nova/ui/NovaLibrarySourceGuardTest.kt" to listOf(
                 "fun task9SharedPosterCardKeepsMetadataInAccessibilityOnly()",
-                "fun task9SharedPosterCardUsesScaleOnlyWithoutVisualBadgesOrBorders()",
+                // Posters moved from a scale to the lift and the one ring (spec section 2).
+                "fun task9SharedPosterCardUsesLiftAndTheOneRingWithoutBadgesOrBorders()",
                 "fun task9StageGridCompactAndRecentUseOnlySharedPosterCard()",
                 "fun task9StageIdentityUsesOneManifestIconAndOneRenderedTitle()",
             ),
@@ -642,15 +646,21 @@ class NovaLibraryStageSourceTest {
         assertTrue(action.contains(".height(if (largeText) 34.dp else 28.dp)"))
         assertTrue(action.contains(".testTag(\"${'$'}{testTag}-surface\")"))
         assertTrue(action.contains(".testTag(\"${'$'}{testTag}-label\")"))
-        // Focus reads as a scale and a brighter accent fill, never an outline.
-        assertTrue(action.contains("val focusedScale = if (focused) 1.06f else 1f"))
-        assertTrue(action.contains("emphasized && focused -> lerp(colors.accent, Color.White, 0.42f)"))
-        assertTrue(action.contains("colors.accent"))
+        // Focus is the one focus look (spec section 2): the fill and a ring inside the visible
+        // surface, with no scale, and the label in the theme's on-accent colour rather than a
+        // fixed near-black.
+        assertFalse(action.contains("focusedScale") || action.contains("scaleX"))
+        assertTrue(action.contains("NovaPanelMetrics.FocusRingWidth") && action.contains("NovaPanelMetrics.FocusMillis"))
+        assertTrue(action.contains("colors.accent") && action.contains("colors.onAccent"))
+        assertFalse(action.contains("Color(0xFF"))
         assertTrue(action.contains("maxLines = 1"))
         assertTrue(action.contains("overflow = TextOverflow.Ellipsis"))
         assertTrue(action.contains("role = Role.Button; contentDescription = label"))
-        assertTrue(action.contains(".combinedClickable(onClick = onClick, onLongClick = onClick)"))
-        assertTrue(action.contains(".focusable()"))
+        assertTrue(action.contains(".novaClickable(role = Role.Button, onClick = onClick)"))
+        assertTrue(
+            "the press target is the larger box, and the ring is drawn on the visible surface inside it",
+            action.indexOf(".novaClickable(") < action.indexOf(".width(if (largeText) 132.dp else 108.dp)")
+        )
         assertFalse("Stage CTA must not restore the hard white outline", action.contains(".border("))
 
         val composeTest = read("src/androidTest/java/com/papi/nova/ui/NovaLibraryStageComposeTest.kt")

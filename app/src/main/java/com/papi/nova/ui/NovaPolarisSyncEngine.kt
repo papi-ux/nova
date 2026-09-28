@@ -21,14 +21,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The host-settings engine behind Polaris Sync, factored out of the sheet so a second
- * surface can drive the same host without a second copy of the update discipline.
+ * The host-settings engine behind Polaris Sync, shared so a second surface can drive the
+ * same host without a second copy of the update discipline.
  *
- * Two surfaces own one of these each — the Polaris Sync sheet and Play Setup's
- * Every Game scope — and both get the same behaviour: the optimistic desired-mode
- * write with revert on failure, the busy gate, the auto-sync throttle, and the
- * polling refresh. What they choose per surface is only where messages land, which
- * is why feedback goes through [onMessage] instead of a Toast raised in here.
+ * Two surfaces own one of these each, the Polaris Sync page in the library's System panel
+ * (through [NovaPolarisSyncController]) and Play Setup's Every Game scope, and both get the
+ * same behaviour: the optimistic desired-mode write with revert on failure, the busy gate, the
+ * auto-sync throttle, and the polling refresh. What they choose per surface is only where
+ * messages land, which is why feedback goes through [onMessage] instead of a Toast raised in here.
  */
 internal class NovaPolarisSyncEngine(
     private val context: Context,

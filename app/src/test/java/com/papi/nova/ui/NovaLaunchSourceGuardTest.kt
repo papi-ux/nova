@@ -164,14 +164,14 @@ class NovaLaunchSourceGuardTest {
                 game.contains("NovaSheetChrome.createSheetBackground(") &&
                 !game.contains("setBackgroundColor(Color.rgb(18, 22, 28))")
         )
-        // Group 3: game detail hosts no bottom sheet any more (Play Setup is a panel in the detail
-        // window), so there is no sheet behaviour of its own left to lock.
+        // Group 3: game detail and Polaris Sync host no bottom sheet any more (Play Setup is a panel
+        // in the detail window, Polaris Sync a page of the library's System panel), so there is no
+        // sheet behaviour of theirs left to lock; a panel is dragged only by its frame.
         assertTrue(
             "Nova drawers should let content scroll down without minimizing the whole sheet; only the top handle strip may drag-dismiss",
             !detail.contains("BottomSheetBehavior") &&
                 detail.contains("novaSheetHandleDrag") &&
                 detail.contains("NovaSheetDragHandle(") &&
-                syncSheetGestureIsLocked() &&
                 chrome.contains("isDraggable = false") &&
                 chrome.contains("attachHandleDragToDismiss") &&
                 game.contains("NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)")
@@ -205,7 +205,7 @@ class NovaLaunchSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
-        val syncSheet = readSource("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt")
+        val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
 
         assertTrue(
             "the game detail window hosts no bottom sheet and no legacy alert at all, so there is no Material host left to restyle",
@@ -219,9 +219,10 @@ class NovaLaunchSourceGuardTest {
                 gameDetail.contains(".background(colors.window)\n                .background(surfaces.panel)")
         )
         assertTrue(
-            "Polaris sync sheet must use the same theme-aware host chrome instead of static nova_sheet_bg inset background",
-            syncSheet.contains("NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog, contentView)") &&
-                !syncSheet.contains("sheet.setBackgroundResource")
+            "Polaris Sync is a page of the library's System panel now, drawn on the panel's own theme-aware surface, so no sheet host with a static inset background is left",
+            library.contains("return LibraryPage.PolarisSync(getString(R.string.nova_polaris_sync_title))") &&
+                !library.contains("NovaPolarisSyncSheet") &&
+                !library.contains("sheet.setBackgroundResource")
         )
     }
 
@@ -1022,11 +1023,6 @@ class NovaLaunchSourceGuardTest {
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
 
-
-    private fun syncSheetGestureIsLocked(): Boolean {
-        val sync = readSource("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt")
-        return sync.contains("isDraggable = false")
-    }
 
     private fun String.section(startMarker: String, endMarker: String): String {
         val start = indexOf(startMarker)

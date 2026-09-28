@@ -57,6 +57,19 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import com.papi.nova.ui.panel.NovaSplitConfirm
+import com.papi.nova.ui.panel.NovaSplitConfirmState
+import com.papi.nova.ui.panel.novaClickable
+import com.papi.nova.ui.panel.novaPanelType
+import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalDensity
@@ -405,9 +418,11 @@ private fun rememberNovaLibraryTopBarFit(
     val buttonStyle = MaterialTheme.typography.labelLarge
     val optionsLabel = stringResource(R.string.nova_controller_hint_options)
     val systemLabel = stringResource(R.string.nova_system_menu_title)
+    // End Session is a split confirm, whose button draws its label in the panel value type.
+    val splitStyle = novaPanelType.value
     return remember(
         available, largeText, hostLabel, hostStatus, environment, continueCard,
-        density, base, buttonStyle, optionsLabel, systemLabel,
+        density, base, buttonStyle, optionsLabel, systemLabel, splitStyle,
     ) {
         if (available == Dp.Infinity || available <= 0.dp) return@remember NovaTopBarFit()
         with(density) {
@@ -458,7 +473,9 @@ private fun rememberNovaLibraryTopBarFit(
                             textMin = minOf(text, 64f),
                             gap = 7f,
                             primary = maxOf(88f, button(card.actionLabel, 10.sp)),
-                            secondary = card.secondaryActionLabel?.let { maxOf(72f, button(it, 10.sp)) } ?: 0f,
+                            secondary = card.secondaryActionLabel?.let {
+                                width(it, splitStyle) + NovaPanelMetrics.SpaceMd.value * 2
+                            } ?: 0f,
                         )
                     },
                     options = button(optionsLabel, 11.sp),
@@ -731,20 +748,17 @@ private fun NovaLibraryStageSessionHero(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            // End splits in its own slot; armed, Resume steps aside so the pair has its room.
+            val endSplit = rememberNovaSplitConfirmState()
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                NovaStageHeroAction(
+                if (!endSplit.armed) NovaStageHeroAction(
                     label = actionLabel,
                     emphasized = true,
                     testTag = "nova-stage-session-action",
                     onClick = onAction,
                 )
                 if (secondaryActionLabel != null && onSecondaryAction != null) {
-                    NovaStageHeroAction(
-                        label = secondaryActionLabel,
-                        emphasized = false,
-                        testTag = "nova-stage-secondary-action",
-                        onClick = onSecondaryAction,
-                    )
+                    NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction)
                 }
             }
         }
@@ -857,8 +871,12 @@ private fun NovaLibraryStageHero(
                     modifier = Modifier.weight(1f).testTag("nova-stage-title"),
                 )
             }
+            // End splits in its own slot; armed, the other actions and the metadata line step aside
+            // so the pair and its consequence line fit the hero's height.
+            val endSplit = rememberNovaSplitConfirmState()
+            val endArmed = endSplit.armed && secondaryActionLabel != null && onSecondaryAction != null
             val heroMetadata = stageHeroMetadata(game)
-            if (heroMetadata.isNotBlank() && !largeText) {
+            if (heroMetadata.isNotBlank() && !largeText && !endArmed) {
                 Text(
                     text = heroMetadata,
                     color = heroColors.textSecondary,
@@ -875,13 +893,13 @@ private fun NovaLibraryStageHero(
                 modifier = Modifier.padding(top = if (compact) 4.dp else 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                NovaStageHeroAction(
+                if (!endArmed) NovaStageHeroAction(
                     label = primaryActionLabel,
                     emphasized = true,
                     testTag = "nova-stage-primary-action",
                     onClick = onPrimaryAction,
                 )
-                if (sessionActionLabel != null && onSessionAction != null) {
+                if (sessionActionLabel != null && onSessionAction != null && !endArmed) {
                     NovaStageHeroAction(
                         label = sessionActionLabel,
                         emphasized = false,
@@ -890,19 +908,35 @@ private fun NovaLibraryStageHero(
                     )
                 }
                 if (secondaryActionLabel != null && onSecondaryAction != null) {
-                    NovaStageHeroAction(
-                        label = secondaryActionLabel,
-                        emphasized = false,
-                        testTag = "nova-stage-secondary-action",
-                        onClick = onSecondaryAction,
-                    )
+                    NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction)
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * End Session on the stage, as a split in its own slot: Stay and End Session, with what ending
+ * costs said once under the pair. The library ends the session without asking again.
+ */
+@Composable
+private fun NovaStageEndAction(label: String, state: NovaSplitConfirmState, onConfirm: () -> Unit) {
+    NovaSplitConfirm(
+        label = label,
+        confirmLabel = stringResource(R.string.game_dialog_action_end_session),
+        onConfirm = onConfirm,
+        consequence = stringResource(R.string.nova_panel_end_session_message),
+        state = state,
+        modifier = Modifier.testTag("nova-stage-secondary-action"),
+    )
+}
+
+/**
+ * A stage call to action, in the one focus look: the selection fill and a 3dp ring inside the
+ * visible surface, animated over 150ms, with no scale. The press target stays the larger box
+ * around the surface. The emphasized action keeps its accent fill and reads its label, and its
+ * ring, in the theme's on-accent colour, so it holds its contrast on every theme.
+ */
 @Composable
 private fun NovaStageHeroAction(
     label: String,
@@ -918,31 +952,17 @@ private fun NovaStageHeroAction(
     val surfaces = LocalNovaLibrarySurfaces.current
     val opacityScale = LocalNovaMenuOpacityScale.current
     val shape = RoundedCornerShape(NovaRadius.hero)
-    val focusedScale = if (focused) 1.06f else 1f
-    // Focus is a scale and a brighter fill, never an outline: the emphasized CTA lifts its
-    // accent toward white so the selected state reads from across the room.
-    val baseColor = when {
-        emphasized && focused -> lerp(colors.accent, Color.White, 0.42f)
-        emphasized -> colors.accent
-        else -> surfaces.focusedArtworkScrim
-    }
     // The hero's primary action is not menu chrome. Folding the menu-opacity preference
     // (64% by default) into its fill composited the accent down against the backdrop until
     // the on-accent label sat at 2:1 against it, which is below the large-text floor.
-    val surfaceAlpha = if (emphasized) {
-        1f
-    } else {
-        (if (focused) 0.98f else 0.72f) * opacityScale
-    }
-    // Derive the label from the fill it actually lands on rather than trusting a fixed
-    // on-accent colour: themes set accents of very different lightness.
-    // 0.179 is the relative-luminance crossover where black and white text give equal
-    // contrast against a fill; above it dark type wins, below it light type does.
-    val emphasizedLabelColor = if (baseColor.luminance() > 0.179f) {
-        Color(0xFF11121C)
-    } else {
-        Color.White
-    }
+    val restFill = if (emphasized) colors.accent else surfaces.focusedArtworkScrim.copy(alpha = 0.72f * opacityScale)
+    val focusedFill = if (emphasized) colors.accent else surfaces.selectedControl
+    val ring = if (emphasized) colors.onAccent else surfaces.focusRing
+    val focus by animateFloatAsState(
+        targetValue = if (focused) 1f else 0f,
+        animationSpec = tween(NovaPanelMetrics.FocusMillis),
+        label = "NovaStageActionFocus",
+    )
     val visualFontSize = when {
         density.fontScale >= 1.9f -> 9.sp
         largeText -> 11.sp
@@ -961,9 +981,9 @@ private fun NovaStageHeroAction(
             .onFocusChanged { focusState ->
                 focused = focusState.isFocused || focusState.hasFocus
             }
-            .combinedClickable(onClick = onClick, onLongClick = onClick)
-            .focusable()
             .semantics { role = Role.Button; contentDescription = label }
+            // A on release, and only where it was pressed.
+            .novaClickable(role = Role.Button, onClick = onClick)
             .testTag(testTag),
         contentAlignment = Alignment.Center,
     ) {
@@ -971,12 +991,19 @@ private fun NovaStageHeroAction(
             modifier = Modifier
                 .width(if (largeText) 132.dp else 108.dp)
                 .height(if (largeText) 34.dp else 28.dp)
-                .graphicsLayer {
-                    scaleX = focusedScale
-                    scaleY = 1f
-                }
                 .clip(shape)
-                .background(baseColor.copy(alpha = surfaceAlpha))
+                .background(lerp(restFill, focusedFill, focus))
+                .drawWithCache {
+                    val path = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
+                    val stroke = Stroke(NovaPanelMetrics.FocusRingWidth.toPx() * 2f)
+                    onDrawWithContent {
+                        drawContent()
+                        // The ring sits inside the surface's corners, as it does on every control.
+                        if (focus > 0f) {
+                            clipPath(path) { drawPath(path, ring.copy(alpha = ring.alpha * focus), style = stroke) }
+                        }
+                    }
+                }
                 .testTag("${testTag}-surface"),
             contentAlignment = Alignment.Center,
         ) {
@@ -986,7 +1013,7 @@ private fun NovaStageHeroAction(
             ) {
                 Text(
                     text = label,
-                    color = if (emphasized) emphasizedLabelColor else colors.textPrimary,
+                    color = if (emphasized) colors.onAccent else colors.textPrimary,
                     fontSize = visualFontSize,
                     lineHeight = visualLineHeight,
                     fontWeight = if (focused) FontWeight.Bold else FontWeight.SemiBold,

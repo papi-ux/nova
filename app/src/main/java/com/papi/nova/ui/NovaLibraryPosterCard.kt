@@ -7,7 +7,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,6 +52,13 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaConfirm
 import com.papi.nova.ui.compose.novaFocusTick
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.novaClickable
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 
 private const val NovaPosterAnimationDurationMillis = 180
 /** The mapper owns the number, because the grid's top inset is derived from it. */
@@ -84,11 +90,6 @@ internal fun NovaLibraryPosterCard(
     val posterLoaderIdentity: Any = posterLoader ?: apiClient
     var focused by remember(game.id) { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
-    val scale by animateFloatAsState(
-        targetValue = if (focused) presentationSpec.focusedScale else 1f,
-        animationSpec = tween(durationMillis = NovaPosterAnimationDurationMillis),
-        label = "NovaPosterScale",
-    )
     val alpha by animateFloatAsState(
         targetValue = if (focused) 1f else presentationSpec.unfocusedAlpha,
         animationSpec = tween(durationMillis = NovaPosterAnimationDurationMillis),
@@ -150,13 +151,11 @@ internal fun NovaLibraryPosterCard(
                 role = Role.Button
                 contentDescription = accessibleLabel
             }
-            .combinedClickable(
-                role = Role.Button,
-                onClick = {
-                    haptics.novaConfirm()
-                    onOpenDetail()
-                },
-            ),
+            // A on release, and only on the poster it was pressed on.
+            .novaClickable(role = Role.Button) {
+                haptics.novaConfirm()
+                onOpenDetail()
+            },
     ) {
         NovaLibraryPosterArtwork(
             game = game,
@@ -164,7 +163,6 @@ internal fun NovaLibraryPosterCard(
             apiClient = apiClient,
             posterLoader = posterLoader,
             posterLoaderIdentity = posterLoaderIdentity,
-            scale = scale,
             alpha = alpha,
             lift = lift,
             backgroundColor = surfaces.mediaPlaceholder,
@@ -190,13 +188,18 @@ private fun NovaLibraryPosterArtwork(
     apiClient: PolarisApiClient,
     posterLoader: ((ImageView, PolarisGame) -> Unit)?,
     posterLoaderIdentity: Any,
-    scale: Float,
     alpha: Float,
     lift: androidx.compose.ui.unit.Dp,
     backgroundColor: androidx.compose.ui.graphics.Color,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(NovaPosterCornerRadius)
+    val ring = LocalNovaLibrarySurfaces.current.focusRing
+    val ringProgress by animateFloatAsState(
+        targetValue = if (focused) 1f else 0f,
+        animationSpec = tween(durationMillis = NovaPanelMetrics.FocusMillis),
+        label = "NovaPosterRing",
+    )
     val artworkRevisionKey = PolarisApiClient.artworkPresentationKey(
         game,
         PolarisGame.ARTWORK_KIND_POSTER,
@@ -209,9 +212,9 @@ private fun NovaLibraryPosterArtwork(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(NovaLibraryUiStateMapper.posterAspectRatio())
+            // Focus lifts the poster and rings it; it no longer grows, so a focused poster
+            // never overlaps its neighbours or reaches past the grid's edges.
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
                 this.alpha = alpha
                 translationY = -lift.toPx()
                 this.shape = RoundedCornerShape(NovaPosterCornerRadius)
@@ -251,6 +254,21 @@ private fun NovaLibraryPosterArtwork(
                 },
             )
         }
+        // The one focus ring, 3dp inside the poster's corners, drawn over the artwork.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .drawWithCache {
+                    val outline = shape.createOutline(size, layoutDirection, this)
+                    val path = Path().apply { addOutline(outline) }
+                    val stroke = Stroke(NovaPanelMetrics.FocusRingWidth.toPx() * 2f)
+                    onDrawBehind {
+                        if (ringProgress > 0f) {
+                            clipPath(path) { drawPath(path, ring.copy(alpha = ring.alpha * ringProgress), style = stroke) }
+                        }
+                    }
+                },
+        )
     }
 }
 

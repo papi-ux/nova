@@ -16,31 +16,48 @@ import org.junit.Test
  */
 class NovaLibrarySourceGuardTest {
     @Test
-    fun libraryFilterSheetContentIsScrollable() {
-        val filterSheet = readNovaLibraryActivity().section(
-            "private fun NovaLibraryFilterSheet(",
-            "private fun NovaSelectableChip("
+    fun libraryFilterPagesKeepLongListsReachable() {
+        // The filter sheet became the Sources and More Filters pages inside Library Options: host
+        // drawn Choice pages, whose list scrolls and opens on the current choice.
+        val activity = readNovaLibraryActivity()
+        val commonPages = readSource("src/main/java/com/papi/nova/ui/panel/NovaCommonPages.kt")
+        val choicePage = commonPages.section(
+            "private fun <T> NovaPageScope.ChoicePage(",
+            "private fun <T> NovaPageScope.MultiChoicePage("
         )
 
         assertTrue(
-            "filter sheet should keep long source/category/genre lists reachable",
-            filterSheet.contains(".verticalScroll(rememberScrollState())")
+            "filter pages should keep long source/category/genre lists reachable",
+            activity.contains("key = LibraryPage.KEY_SOURCES") &&
+                activity.contains("key = LibraryPage.KEY_MORE") &&
+                activity.windowed("NovaCommonPage.Choice(".length).count { it == "NovaCommonPage.Choice(" } >= 3 &&
+                choicePage.contains("PageList {") &&
+                commonPages.contains("LazyColumn(\n        state = listState,")
+        )
+        assertFalse(
+            "the filter lists are pages in the Options panel, not a Material sheet over the library (R10)",
+            activity.contains("ModalBottomSheet(") || activity.contains("private fun NovaLibraryFilterSheet(")
         )
     }
 
     @Test
-    fun libraryQuickOptionsSheetExposesSortAndLayoutControls() {
+    fun libraryOptionsPanelExposesSortAndLayoutControls() {
         val activity = readNovaLibraryActivity()
+        val panels = readNovaLibraryPanels()
         val strings = readSource("src/main/res/values/strings.xml")
         val screen = activity.section(
             "private fun NovaLibraryScreen(",
             "private fun NovaLibraryHomeHero("
         )
+        val options = panels.section(
+            "internal fun NovaPageScope.NovaLibraryOptionsPage(",
+            "private fun androidx.compose.foundation.lazy.LazyListScope.artworkRows("
+        )
 
         assertTrue(
-            "library activity should keep quick options as durable Compose state",
+            "library activity should keep quick options as durable Compose state, and read whether a panel is open from the panel window",
             activity.contains("private var optionsState by mutableStateOf(NovaLibraryOptionsState())") &&
-                activity.contains("private var activeOptionsSheet by mutableStateOf(false)")
+                activity.contains("get() = novaSurfaces.panel.isOpen")
         )
         assertTrue(
             "remembered library model should be keyed by options state so sort changes are cheap and deliberate",
@@ -49,51 +66,36 @@ class NovaLibrarySourceGuardTest {
         )
         assertTrue(
             "library shell should pass an explicit Options opener into rail/header actions",
-            activity.contains("onOpenOptions = ::openLibraryOptionsSheet") &&
+            activity.contains("onOpenOptions = ::openLibraryOptions") &&
                 activity.contains("onOpenOptions = onOpenOptions")
         )
         assertTrue(
-            "quick options sheet should be rendered as an exclusive modal branch with source/more filter sheets",
-            screen.contains("activeOptionsSheet ->") &&
-                screen.contains("NovaLibraryOptionsSheet(") &&
-                screen.contains("activeFilterSheet != null ->")
+            "Options and System share one panel window, which swaps one for the other so they never stack",
+            activity.contains("if (surfaces.panel.swapToLibraryPeer(root)) return") &&
+                readNovaLibraryPanels().contains("if (depth != 1 || top?.key != root.key) switchRoot(root, root.edge)") &&
+                activity.contains("surfaces.open(") &&
+                !screen.contains("NovaLibraryOptionsSheet(") &&
+                !screen.contains("activeFilterSheet")
         )
         assertTrue(
-            "quick options sheet composable should exist before source/more filter sheet",
-            activity.contains("private fun NovaLibraryOptionsSheet(")
-        )
-        val optionsSheet = activity.section(
-            "private fun NovaLibraryOptionsSheet(",
-            "private fun NovaLibraryFilterSheet("
-        )
-        assertTrue(
-            "quick options drawer should use a real modal overlay with scrollable focusable content",
-            optionsSheet.contains("Dialog(") &&
-                optionsSheet.contains("usePlatformDefaultWidth = false") &&
-                optionsSheet.contains(".verticalScroll(rememberScrollState())") &&
-                optionsSheet.contains(".focusGroup()") &&
-                optionsSheet.contains("NovaLibrarySortMode.entries") &&
-                optionsSheet.contains("NovaLibraryLayoutMode.entries")
+            "Options should expose Sort, Layout, and Poster title rows rather than hiding browsing decisions in the rail",
+            options.contains("R.string.nova_library_options_sort_title") &&
+                options.contains("R.string.nova_library_options_layout_title") &&
+                options.contains("R.string.nova_library_options_poster_titles_title") &&
+                options.contains("onChange = actions.onLayoutMode") &&
+                options.contains("onChange = actions.onPosterTitles") &&
+                options.contains("style = NovaValueStyle.Switch") &&
+                activity.contains("key = LibraryPage.KEY_SORT")
         )
         assertTrue(
-            "quick options sheet should expose Sort, Layout, and Poster title sections rather than hiding browsing decisions in the rail",
-            optionsSheet.contains("R.string.nova_library_options_sort_title") &&
-                optionsSheet.contains("R.string.nova_library_options_layout_title") &&
-                optionsSheet.contains("R.string.nova_library_options_poster_titles_title") &&
-                optionsSheet.contains("onSortMode(sortMode)") &&
-                optionsSheet.contains("onLayoutMode(layoutMode)") &&
-                optionsSheet.contains("onPosterTitlesVisible(true)") &&
-                optionsSheet.contains("onPosterTitlesVisible(false)")
-        )
-        assertTrue(
-            "library drawer options should be persisted so sort, layout, poster titles, and filters survive relaunches",
+            "library options should be persisted so sort, layout, poster titles, and filters survive relaunches",
             activity.contains("NovaLibraryPreferences.loadOptions(libraryPreferences)") &&
                 activity.contains("NovaLibraryPreferences.loadFilterState(libraryPreferences)") &&
                 activity.contains("NovaLibraryPreferences.persistOptions(libraryPreferences(), nextState)") &&
                 activity.contains("NovaLibraryPreferences.persistFilterState(libraryPreferences(), normalized)") &&
-                activity.contains("updateLibraryOptions { it.copy(sortMode = sortMode) }") &&
+                activity.contains("updateLibraryOptions { it.copy(sortMode = mode) }") &&
                 activity.contains("updateLibraryOptions { it.copy(layoutMode = layoutMode) }") &&
-                activity.contains("updateLibraryOptions { it.copy(showPosterTitles = showPosterTitles) }") &&
+                activity.contains("updateLibraryOptions { it.copy(showPosterTitles = show) }") &&
                 activity.contains("updateLibraryFilterState(NovaLibraryFilterState())")
         )
         assertTrue(
@@ -172,72 +174,62 @@ class NovaLibrarySourceGuardTest {
     }
 
     @Test
-    fun libraryOptionsOverlayIsTightConsoleDrawerNotFullWidthMaterialSheet() {
-        val optionsSheet = readNovaLibraryActivity().section(
-            "private fun NovaLibraryOptionsSheet(",
-            "private fun NovaLibraryFilterSheet("
-        )
+    fun libraryOptionsIsAStartEdgePanelNotAFullWidthMaterialSheet() {
+        // The drawer's anchoring, scrim and rhythm are the panel frame's now (R6): attached to the
+        // start edge at full height, rounded on the inner edge, the screen scrim with its blur.
+        val activity = readNovaLibraryActivity()
+        val frame = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt")
 
         assertTrue(
-            "library options should render as an anchored console drawer with stronger scrim instead of a full-width bottom sheet",
-            optionsSheet.contains("Dialog(") &&
-                optionsSheet.contains("usePlatformDefaultWidth = false") &&
-                optionsSheet.contains("align(Alignment.CenterStart)") &&
-                optionsSheet.contains("widthIn(max = 420.dp)") &&
-                optionsSheet.contains("NovaMenuPreferences.readabilityScrimAlpha(")
+            "library options should open at the start edge of the panel window instead of a full-width bottom sheet",
+            readNovaLibraryPanels().contains("get() = if (this is LibraryPage.Options) NovaEdge.Start else NovaEdge.End") &&
+                frame.contains("NovaMenuPreferences.readabilityScrimAlpha(") &&
+                frame.contains("RoundedCornerShape(topEnd = NovaRadius.drawer, bottomEnd = NovaRadius.drawer)")
         )
         assertFalse(
-            "library options should not use the giant Material bottom sheet now that it is the primary browse drawer",
-            optionsSheet.contains("ModalBottomSheet(")
-        )
-        assertTrue(
-            "drawer internals should be denser than the previous material sheet rhythm",
-            optionsSheet.contains(".padding(horizontal = 14.dp, vertical = 12.dp)") &&
-                optionsSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)") &&
-                optionsSheet.contains("fontSize = 18.sp")
+            "library options should not use the giant Material bottom sheet or a Compose Dialog of its own",
+            activity.contains("ModalBottomSheet(") || activity.contains("DialogProperties(")
         )
     }
 
     @Test
-    fun libraryDrawersPrioritizeRetroidFirstPaintDensity() {
-        val activity = readNovaLibraryActivity()
-        val optionsSheet = activity.section(
-            "private fun NovaLibraryOptionsSheet(",
-            "private fun NovaLibraryFilterSheet("
+    fun libraryPanelsPutThePrimaryBrowseTaskFirst() {
+        val panels = readNovaLibraryPanels()
+        val options = panels.section(
+            "internal fun NovaPageScope.NovaLibraryOptionsPage(",
+            "private fun androidx.compose.foundation.lazy.LazyListScope.artworkRows("
         )
-        val systemSheet = activity.section(
-            "private fun NovaSystemMenuSheet(",
-            "private fun NovaLibraryOptionsSheet("
+        val systemPage = panels.section(
+            "internal fun NovaPageScope.NovaLibrarySystemPage(",
+            "internal fun NovaPageScope.NovaLibrarySearchPage("
         )
-        val searchIndex = optionsSheet.indexOf("NovaSearchField(")
-        val refreshIndex = optionsSheet.indexOf("R.string.nova_refresh")
 
         assertTrue(
-            "left drawer should put Search before Refresh so the primary browse task is first on Retroid",
-            searchIndex >= 0 && refreshIndex > searchIndex
+            "Options should open on the filter row, the primary browse task, with Refresh after search at the foot",
+            options.indexOf("item(key = \"filter\"") in 0 until options.indexOf("item(key = \"search\"") &&
+                options.indexOf("item(key = \"search\"") < options.indexOf("item(key = \"refresh\"") &&
+                options.section("item(key = \"filter\"", "item(key = \"sources\"").contains("Modifier.novaInitialFocus()")
         )
         assertFalse(
-            "left drawer should not spend first-paint height on prose hint copy after the split is visible in the shell",
-            optionsSheet.contains("R.string.nova_library_options_hint")
+            "Options should not spend first-paint height on prose hint copy",
+            options.contains("R.string.nova_library_options_hint")
         )
         assertTrue(
-            "left drawer should use a tighter first-paint rhythm: 40dp search, 32dp secondary refresh, and 6dp section spacing",
-            optionsSheet.contains("heightDp = 40") &&
-                optionsSheet.contains("minHeight = 32.dp") &&
-                optionsSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)")
+            "both panels list their rows with padding at top and bottom, so no row is cut at rest (R13)",
+            options.contains("contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm)") &&
+                systemPage.contains("contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm)") &&
+                systemPage.contains("state = listState")
         )
         assertTrue(
-            "right drawer should keep host status compact and make every safe action visible without bottom clipping on Retroid",
-            systemSheet.contains("maxLines = 1") &&
-                systemSheet.contains(".height(48.dp)") &&
-                systemSheet.contains(".padding(horizontal = 12.dp, vertical = 5.dp)") &&
-                systemSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)")
+            "System opens with focus on its first row, never on the panel",
+            systemPage.section("item(key = \"switch-host\"", "item(key = \"settings\"").contains("Modifier.novaInitialFocus()")
         )
     }
 
     @Test
-    fun librarySystemMenuSheetExposesTopLevelSafeActions() {
+    fun librarySystemPanelExposesTopLevelSafeActions() {
         val activity = readNovaLibraryActivity()
+        val panels = readNovaLibraryPanels()
         val strings = readSource("src/main/res/values/strings.xml")
         val screen = activity.section(
             "private fun NovaLibraryScreen(",
@@ -251,110 +243,84 @@ class NovaLibrarySourceGuardTest {
             "KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_START -> {",
             "else -> super.onKeyDown"
         )
+        val systemPage = panels.section(
+            "internal fun NovaPageScope.NovaLibrarySystemPage(",
+            "internal fun NovaPageScope.NovaLibrarySearchPage("
+        )
+        val systemUi = activity.section(
+            "private fun librarySystemUi(): NovaLibrarySystemUi {",
+            "private fun librarySourcesPage(): NovaPage {"
+        )
 
         assertTrue(
-            "system menu sheet composable should exist before browsing option/filter sheets",
-            activity.contains("private fun NovaSystemMenuSheet(")
+            "System should be a page family member drawn by the library's panel window",
+            panels.contains("data class System(override val title: String) : LibraryPage") &&
+                activity.contains("is LibraryPage.System -> NovaLibrarySystemPage(") &&
+                activity.contains("private fun openLibrarySystem()") &&
+                activity.contains("onOpenSystemMenu = ::openLibrarySystem")
         )
-        val systemSheet = activity.section(
-            "private fun NovaSystemMenuSheet(",
-            "private fun NovaLibraryOptionsSheet("
-        )
-
-        assertTrue(
-            "library activity should keep the Nova system menu as durable Compose state",
-            activity.contains("private var activeSystemMenu by mutableStateOf(false)") &&
-                activity.contains("onOpenSystemMenu = ::openLibrarySystemMenu") &&
-                activity.contains("onDismissSystemMenu = ::dismissLibrarySystemMenu") &&
-                activity.contains("private fun openLibrarySystemMenu()") &&
-                activity.contains("private fun dismissLibrarySystemMenu()")
+        assertFalse(
+            "the library screen draws no modal of its own; Options and System are one window's peer panels",
+            screen.contains("NovaSystemMenuSheet(") || screen.contains("NovaLibraryOptionsSheet(") ||
+                activity.contains("private var activeSystemMenu")
         )
         assertTrue(
-            "library screen should render only one top-level modal at a time so sheets cannot stack",
-            screen.contains("when {") &&
-                screen.contains("activeSystemMenu ->") &&
-                screen.contains("NovaSystemMenuSheet(") &&
-                screen.contains("activeOptionsSheet ->") &&
-                screen.contains("NovaLibraryOptionsSheet(") &&
-                screen.contains("activeFilterSheet != null ->") &&
-                screen.contains("NovaLibraryFilterSheet(")
+            "B goes through the key gate as Back on release, which the panel window answers before the library, so the screen reads B nowhere itself",
+            activity.contains("override val novaKeyGate: Boolean = true") &&
+                !keyHandler.contains("KEYCODE_BUTTON_B") &&
+                activity.contains("dismissActiveLibraryOverlay()")
         )
         assertTrue(
-            "system menu should dismiss via dialog onDismissRequest so Back/B and scrim close it before leaving the library",
-            systemSheet.contains("Dialog(") &&
-                systemSheet.contains("usePlatformDefaultWidth = false") &&
-                systemSheet.contains("onDismissRequest = onDismiss") &&
-                systemSheet.contains("align(Alignment.CenterEnd)") &&
-                systemSheet.contains(".verticalScroll(rememberScrollState())") &&
-                activity.contains("dismissActiveLibraryOverlay()") &&
-                keyHandler.contains("keyCode == KeyEvent.KEYCODE_BUTTON_B && dismissActiveLibraryOverlay()")
-        )
-        assertTrue(
-            "system menu should clear options/filter overlays on open and let controller shortcuts hop between left/right drawers",
-            activity.contains("private val hasActiveLibraryOverlay") &&
-                activity.contains("activeOptionsSheet = false") &&
-                activity.contains("activeFilterSheet = null") &&
-                keyHandler.contains("if (!activeOptionsSheet) openLibraryOptionsSheet()") &&
-                keyHandler.contains("if (!activeSystemMenu) openLibrarySystemMenu()") &&
-                systemSheet.contains("onOpenOptions: () -> Unit") &&
-                systemSheet.contains("event.nativeKeyEvent.keyCode") &&
-                systemSheet.contains("KeyEvent.KEYCODE_DPAD_LEFT") &&
-                systemSheet.contains("KeyEvent.KEYCODE_BUTTON_L1") &&
-                systemSheet.contains("KeyEvent.KEYCODE_BUTTON_X") &&
-                systemSheet.contains("event.key == Key.DirectionLeft") &&
-                systemSheet.contains("onOpenOptions()")
+            "L1 and R1 hop between the two peers in the same window, and neither panel traps the D-pad sideways",
+            activity.contains("onShoulder = ::onLibraryPanelShoulder") &&
+                activity.contains("NovaShoulder.Left -> if (NovaSpaceUiState.singleSpace(allGames) == null) openLibraryOptions()") &&
+                activity.contains("NovaShoulder.Right -> openLibrarySystem()") &&
+                !panels.contains("Key.DirectionLeft") && !panels.contains("Key.DirectionRight") &&
+                !panels.contains("KEYCODE_DPAD_")
         )
         assertTrue(
             "Menu/Start should be a destination-to-System shortcut, not a close toggle; Back/B owns dismiss",
-            menuKeyHandler.contains("if (!activeSystemMenu) openLibrarySystemMenu()") &&
-                !menuKeyHandler.contains("dismissLibrarySystemMenu()")
+            menuKeyHandler.contains("openLibrarySystem()") &&
+                !menuKeyHandler.contains("close()")
         )
         assertTrue(
-            "system menu should show the active host and Polaris readiness in the header",
-            systemSheet.contains("serverDisplayName") &&
-                systemSheet.contains("R.string.nova_system_menu_host_format") &&
-                systemSheet.contains("R.string.nova_system_menu_host_named_format") &&
-                systemSheet.contains("R.string.nova_system_menu_status_polaris_ready") &&
-                systemSheet.contains("R.string.nova_system_menu_status_offline")
+            "System should show the active host and Polaris readiness in its header",
+            systemUi.contains("serverDisplayName") &&
+                systemUi.contains("R.string.nova_system_menu_host_format") &&
+                systemUi.contains("R.string.nova_system_menu_host_named_format") &&
+                systemUi.contains("R.string.nova_system_menu_status_polaris_ready") &&
+                systemUi.contains("R.string.nova_system_menu_status_offline") &&
+                systemPage.contains("item(key = \"header\"")
         )
         assertTrue(
-            "system menu should expose the short top-level Nova/system actions only",
-            systemSheet.contains("R.string.nova_system_menu_switch_host") &&
-                systemSheet.contains("R.string.nova_system_menu_settings") &&
-                systemSheet.contains("R.string.nova_system_menu_polaris_sync") &&
-                systemSheet.contains("R.string.nova_system_menu_manage_server") &&
-                systemSheet.contains("R.string.nova_system_menu_help_diagnostics") &&
-                systemSheet.contains("R.string.nova_system_menu_about")
+            "System should expose the short top-level Nova/system actions only",
+            systemPage.contains("R.string.nova_system_menu_switch_host") &&
+                systemPage.contains("R.string.nova_system_menu_settings") &&
+                systemPage.contains("R.string.nova_system_menu_polaris_sync") &&
+                systemPage.contains("R.string.nova_system_menu_manage_server") &&
+                systemPage.contains("R.string.nova_system_menu_help_diagnostics") &&
+                systemPage.contains("R.string.nova_system_menu_about")
         )
         assertTrue(
-            "system rows should route to existing workflows and dismiss before launching secondary surfaces",
-            systemSheet.contains("onSwitchHost") &&
-                systemSheet.contains("onOpenSettings") &&
-                systemSheet.contains("onOpenPolarisSync") &&
-                systemSheet.contains("onManageServer") &&
-                systemSheet.contains("onOpenHelpDiagnostics") &&
-                systemSheet.contains("onOpenAbout") &&
-                systemSheet.contains("onDismiss()") &&
-                systemSheet.contains("role = Role.Button") &&
-                systemSheet.contains("semantics(mergeDescendants = true)")
-        )
-        assertTrue(
-            "system menu rows should stay compact enough for all safe actions to fit on Retroid landscape first paint",
-            systemSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)") &&
-                systemSheet.contains("fontSize = 18.sp") &&
-                systemSheet.contains(".height(48.dp)") &&
-                systemSheet.contains("fontSize = 13.sp") &&
-                systemSheet.contains("fontSize = 9.sp")
+            "System rows should route to existing workflows and close the panel before launching secondary surfaces",
+            systemPage.contains("val leave: (() -> Unit) -> Unit = { action -> if (isTop) closeThen(action = action) }") &&
+                systemPage.contains("leave(actions.onSwitchHost)") &&
+                systemPage.contains("leave(actions.onSettings)") &&
+                systemPage.contains("panel.push(actions.polarisSyncPage())") &&
+                systemPage.contains("leave(actions.onManageServer)") &&
+                systemPage.contains("leave(actions.onHelp)") &&
+                systemPage.contains("leave(actions.onAbout)") &&
+                systemPage.contains("NovaRow(")
         )
         assertFalse(
-            "system menu should not waste first-paint height on non-action footer copy that clips on Retroid landscape",
-            systemSheet.contains("R.string.nova_system_menu_safe_hint")
+            "System should not waste first-paint height on non-action footer copy",
+            systemPage.contains("R.string.nova_system_menu_safe_hint")
         )
         assertFalse(
-            "destructive stream/session actions should stay out of the top-level system menu",
-            systemSheet.contains("onEndSession") ||
-                systemSheet.contains("displayQuitConfirmationDialog") ||
-                systemSheet.contains("ServerHelper.doQuit")
+            "destructive stream/session actions should stay out of the top-level system panel",
+            systemPage.contains("onEndSession") ||
+                systemPage.contains("displayQuitConfirmationDialog") ||
+                systemPage.contains("ServerHelper.doQuit")
         )
         assertTrue(
             "system menu strings should keep the GameNative-inspired top level short and self-hosted",
@@ -483,9 +449,10 @@ class NovaLibrarySourceGuardTest {
             "private fun NovaLibraryTopHeader("
         )
         assertTrue(
-            "the strip card's own action (Resume Stream while a game is live) is the highlighted button and End Session stays secondary, so the next step reads at a glance",
+            "the strip card's own action (Resume Stream while a game is live) is the highlighted button and End Session stays secondary, so the next step reads at a glance: End is a split confirm, quiet until armed",
             continueCard.substringBefore("val secondaryLabel").contains("primary = true") &&
-                continueCard.substringAfter("val secondaryLabel").contains("primary = false")
+                continueCard.substringAfter("val secondaryLabel").contains("NovaSplitConfirm(") &&
+                !continueCard.substringAfter("val secondaryLabel").contains("primary = true")
         )
         assertTrue(
             "landscape library should restore the recent rail after picker/grid content, not between hero and picker",
@@ -729,88 +696,85 @@ class NovaLibrarySourceGuardTest {
     }
 
     @Test
-    fun libraryOptionsDrawerKeepsDpadTraversalInsideLeftDrawer() {
-        val optionsSheet = readNovaLibraryActivity().section(
-            "private fun NovaLibraryOptionsSheet(",
-            "private fun NovaLibraryFilterSheet("
+    fun libraryOptionsKeepsTheDpadInsideAndShouldersToItsPeer() {
+        // Right used to jump to System from anywhere in Options, even inside the filter chips,
+        // which could then never be walked. The panel window holds focus in by construction, the
+        // filter row takes Left and Right itself, and L1 and R1 swap to the peer.
+        val activity = readNovaLibraryActivity()
+        val options = readNovaLibraryPanels().section(
+            "internal fun NovaPageScope.NovaLibraryOptionsPage(",
+            "private fun androidx.compose.foundation.lazy.LazyListScope.artworkRows("
         )
 
         assertTrue(
-            "left library options drawer should be a focus group so vertical D-pad traversal stays inside browse controls",
-            optionsSheet.contains(".focusGroup()")
+            "the quick filters are one value row, whose Left and Right change the filter and never move focus",
+            options.contains("NovaValueRow(\n                title = stringResource(R.string.nova_library_panel_filter),") &&
+                !options.contains("onPreviewKeyEvent") &&
+                !options.contains("horizontalScroll")
         )
         assertTrue(
-            "left library options drawer should let Right hop to the system drawer for the two-zone controller map",
-            optionsSheet.contains("onOpenSystemMenu: () -> Unit") &&
-                optionsSheet.contains(".onPreviewKeyEvent { event ->") &&
-                optionsSheet.contains("event.nativeKeyEvent.keyCode") &&
-                optionsSheet.contains("KeyEvent.KEYCODE_DPAD_RIGHT") &&
-                optionsSheet.contains("KeyEvent.KEYCODE_BUTTON_R1") &&
-                optionsSheet.contains("KeyEvent.KEYCODE_BUTTON_START") &&
-                optionsSheet.contains("event.key == Key.DirectionRight") &&
-                optionsSheet.contains("onOpenSystemMenu()")
+            "the peers swap on the shoulders, in the same window",
+            activity.contains("onShoulder = ::onLibraryPanelShoulder") &&
+                activity.contains("NovaShoulder.Right -> openLibrarySystem()")
         )
     }
 
     @Test
-    fun libraryOptionsDrawerKeepsBottomControlsScrollableAboveSafeArea() {
-        val optionsSheet = readNovaLibraryActivity().section(
-            "private fun NovaLibraryOptionsSheet(",
-            "private fun NovaLibraryFilterSheet("
+    fun libraryOptionsKeepsBottomRowsScrollableAboveSafeArea() {
+        val options = readNovaLibraryPanels().section(
+            "internal fun NovaPageScope.NovaLibraryOptionsPage(",
+            "private fun androidx.compose.foundation.lazy.LazyListScope.artworkRows("
         )
+        val frame = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt")
 
         assertTrue(
-            "left library options drawer scroll content should include safe-area padding so the final layout options can scroll above gesture/nav chrome",
-            optionsSheet.contains(".windowInsetsPadding(WindowInsets.safeDrawing)") &&
-                optionsSheet.contains(".verticalScroll(rememberScrollState())") &&
-                optionsSheet.contains("Spacer(modifier = Modifier.height(14.dp))")
+            "Options scrolls its own list, padded at both ends, inside a frame that keeps clear of the safe area, so the last rows scroll above gesture and nav chrome",
+            options.contains("LazyColumn(\n        state = listState,") &&
+                options.contains("contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm)") &&
+                frame.contains(".windowInsetsPadding(WindowInsets.safeDrawing.only(outer + WindowInsetsSides.Vertical))")
         )
     }
 
     @Test
-    fun libraryOptionsDrawerUsesCompactBrowseControlsOnRetroidLandscape() {
-        val optionsSheet = readNovaLibraryActivity().section(
-            "private fun NovaLibraryOptionsSheet(",
-            "private fun NovaLibraryFilterSheet("
+    fun libraryOptionsOwnsBrowseControlsAndCutsNoChipAtTheEdge() {
+        val activity = readNovaLibraryActivity()
+        val options = readNovaLibraryPanels().section(
+            "internal fun NovaPageScope.NovaLibraryOptionsPage(",
+            "private fun androidx.compose.foundation.lazy.LazyListScope.artworkRows("
         )
 
         assertTrue(
-            "left drawer should own library refresh, search, filters, sort, and layout instead of a permanent rail",
-            optionsSheet.contains("R.string.nova_refresh") &&
-                optionsSheet.contains("NovaSearchField(") &&
-                optionsSheet.contains("NovaLibraryPrimaryFilter.entries.forEach") &&
-                optionsSheet.contains("NovaLibrarySortMode.entries") &&
-                optionsSheet.contains("NovaLibraryLayoutMode.entries")
+            "Options should own library refresh, search, filters, sort, and layout instead of a permanent rail",
+            options.contains("R.string.nova_refresh") &&
+                options.contains("R.string.nova_library_panel_search") &&
+                options.contains("val filterOptions = QuickFilters.map") &&
+                options.contains("R.string.nova_library_options_sort_title") &&
+                options.contains("NovaOption(NovaLibraryLayoutMode.COMPACT") &&
+                activity.contains("NovaLibrarySortMode.entries.map")
         )
-        assertTrue(
-            "left drawer should keep browse controls compact and horizontally scrollable for handheld landscape",
-            optionsSheet.contains(".horizontalScroll(rememberScrollState())") &&
-                optionsSheet.contains("Modifier.width(NovaLibraryUiStateMapper.filterChipWidthDp(filter).dp)") &&
-                optionsSheet.contains("verticalArrangement = Arrangement.spacedBy(6.dp)")
+        assertFalse(
+            "no strip of chips scrolls sideways and ends mid chip at the panel edge (R13): the filters are a value row",
+            options.contains(".horizontalScroll(") ||
+                activity.contains("filterChipWidthDp(")
         )
     }
 
     @Test
-    fun libraryRestoresLastFocusedGameAndFilter() {
+    fun libraryRestoresLastFocusedGameAndOptionsRow() {
         val source = readNovaLibraryActivity()
         val posterFocus = source.section(
             "private fun rememberLibraryPosterFocusRequester(",
             "@Composable\n    private fun NovaLibraryLoadingGrid("
         )
-        val filterChip = source.section(
-            "private fun NovaSelectableChip(",
-            "private fun NovaLibraryPanel("
+        val options = readNovaLibraryPanels().section(
+            "internal fun NovaPageScope.NovaLibraryOptionsPage(",
+            "private fun androidx.compose.foundation.lazy.LazyListScope.artworkRows("
         )
 
         assertTrue(
             "library should keep last focused game id in activity state for detail-sheet returns",
             source.contains("private var lastFocusedGameId by mutableStateOf<String?>(null)") &&
                 source.contains("onGameFocused = { lastFocusedGameId = it.id }")
-        )
-        assertTrue(
-            "library should keep last focused primary filter for rail/top-header traversal",
-            source.contains("private var lastFocusedPrimaryFilter by mutableStateOf(NovaLibraryPrimaryFilter.ALL)") &&
-                source.contains("onPrimaryFilterFocused = { lastFocusedPrimaryFilter = it }")
         )
         assertTrue(
             "shared poster call sites should request focus once when they match the remembered game " +
@@ -822,10 +786,11 @@ class NovaLibrarySourceGuardTest {
                 posterFocus.contains("focusRequester.requestFocus()")
         )
         assertTrue(
-            "filter chips should request focus when they match the remembered filter",
-            filterChip.contains("val focusRequester = remember { FocusRequester() }") &&
-                filterChip.contains(".focusRequester(focusRequester)") &&
-                filterChip.contains("if (restoreFocus && !restoreAttempted)")
+            "Options rows mark themselves so a page that pops returns focus to the row that pushed it",
+            options.contains("Modifier.novaRestorableFocus(\"sources\", 1)") &&
+                options.contains("Modifier.novaRestorableFocus(\"more\", 2)") &&
+                options.contains("Modifier.novaRestorableFocus(\"sort\", 5)") &&
+                options.contains("Modifier.novaRestorableFocus(\"search\", 8)")
         )
     }
 
@@ -998,9 +963,9 @@ class NovaLibrarySourceGuardTest {
     @Test
     fun libraryFiltersExposeClearActionWhenNarrowed() {
         val source = readNovaLibraryActivity()
-        val optionsSheet = source.section(
-            "private fun NovaLibraryOptionsSheet(",
-            "private fun NovaLibraryFilterSheet("
+        val options = readNovaLibraryPanels().section(
+            "internal fun NovaPageScope.NovaLibraryOptionsPage(",
+            "private fun androidx.compose.foundation.lazy.LazyListScope.artworkRows("
         )
         val topHeader = source.section(
             "private fun NovaLibraryTopHeader(",
@@ -1017,9 +982,10 @@ class NovaLibrarySourceGuardTest {
                 source.contains("searchQuery.isNotBlank() || filterState.hasActiveConstraint")
         )
         assertTrue(
-            "left library options drawer should show a clear filters action when filters/search are active",
-            optionsSheet.contains("if (hasClearableFilters(searchQuery, filterState))") &&
-                optionsSheet.contains("R.string.nova_library_filter_clear_all")
+            "Library Options should show a clear filters action when filters/search are active",
+            source.contains("clearable = hasClearableFilters(searchQuery, filterState)") &&
+                options.contains("if (ui.clearable) {") &&
+                options.contains("R.string.nova_library_filter_clear_all")
         )
         assertTrue(
             "portrait header should summarize active filters without remounting browse controls permanently above the grid",
@@ -1295,11 +1261,12 @@ class NovaLibrarySourceGuardTest {
                 hints.contains("label = stringResource(R.string.nova_controller_hint_options)")
         )
         assertTrue(
-            "closed-screen shoulders should open the spatial drawers directly instead of cycling source/filter chips",
+            "closed-screen shoulders should open the spatial panels directly instead of cycling source/filter chips, and the open panels name them too",
             keyHandler.contains("KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_PAGE_UP -> {") &&
-                keyHandler.contains("if (!activeOptionsSheet) openLibraryOptionsSheet()") &&
+                keyHandler.contains("openLibraryOptions()") &&
                 keyHandler.contains("KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_PAGE_DOWN -> {") &&
-                keyHandler.contains("if (!activeSystemMenu) openLibrarySystemMenu()")
+                keyHandler.contains("openLibrarySystem()") &&
+                activity.contains("label = getString(R.string.nova_controller_hint_library_system)")
         )
         assertFalse(
             "shoulder keys should no longer walk primary filters globally; filter cycling belongs inside the Library drawer",
@@ -1373,17 +1340,30 @@ class NovaLibrarySourceGuardTest {
 
     @Test
     fun libraryEmptyAndErrorTextIsBoundedAndCentered() {
-        val source = readNovaLibraryActivity()
-        val start = source.indexOf("private fun NovaLibraryRecoveryState(")
-        val end = source.indexOf("@OptIn(ExperimentalMaterial3Api::class)", start)
-        val recoveryState = source.substring(start, end)
+        // The recovery states are the one state page now, drawn in the library without a card (R5):
+        // the state page centres its text and bounds its column.
+        val recoveryState = readNovaLibraryActivity().section(
+            "private fun NovaLibraryRecoveryState(",
+            "private fun NovaLibraryPanel("
+        )
+        val stateScreen = readSource("src/main/java/com/papi/nova/ui/panel/NovaStateScreen.kt")
 
         assertTrue(
-            "empty/error copy should be centered for TV and narrow portrait layouts",
-            recoveryState.contains("textAlign = TextAlign.Center")
+            "empty/error copy should be a state page, centered for TV and narrow portrait layouts",
+            recoveryState.contains("NovaStateScreen(") &&
+                recoveryState.contains("NovaStatePage.Problem(") &&
+                stateScreen.contains("textAlign = TextAlign.Center")
         )
         assertTrue(
             "empty/error copy should be width bounded so long messages do not run edge to edge",
+            stateScreen.contains(".widthIn(max = NovaPanelMetrics.StateColumnMaxWidth)")
+        )
+        assertTrue(
+            "B leaves the library rather than running the recovery action",
+            recoveryState.contains("back = NovaAction(getString(R.string.nova_panel_back)) { finishWithTransition() }")
+        )
+        assertFalse(
+            "no centred card around the recovery state (R6)",
             recoveryState.contains(".widthIn(max = 360.dp)")
         )
     }
@@ -1405,14 +1385,19 @@ class NovaLibrarySourceGuardTest {
             source.contains("onEndSession = ::endActiveSession")
         )
         assertTrue(
-            "active session card should offer End Session alongside Resume only for streams owned by this client",
+            "active session card should offer End Session alongside Resume only for streams owned by this client, as a split that confirms in its own slot",
             card.contains("onEndSession: (NovaLibraryActiveSessionUiState) -> Unit") &&
                 card.contains("if (!session.watchOnly)") &&
                 card.contains("R.string.applist_menu_quit") &&
-                card.contains("onClick = { onEndSession(session) }")
+                card.contains("NovaSplitConfirm(") &&
+                card.contains("onConfirm = { onEndSession(session) }")
+        )
+        assertFalse(
+            "every End is confirmed by its split, so ending asks nothing more",
+            endActiveSession.contains("displayQuitConfirmationDialog")
         )
         assertTrue(
-            "ending from the library should route through the same confirmed quit path and clear the card",
+            "ending from the library should route through the quit path and clear the card",
             endActiveSession.contains("ComputerDetails.AddressTuple(streamHost, streamHttpPort)") &&
                 endActiveSession.contains("ServerHelper.doQuit(") &&
                 endActiveSession.contains("val generation = beginActiveSessionRefresh()") &&
@@ -1473,9 +1458,10 @@ class NovaLibrarySourceGuardTest {
         val strings = readSource("src/main/res/values/strings.xml")
         val apiClient = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
         val updater = readSource("src/main/java/com/papi/nova/ui/NovaArtworkLibraryUpdater.kt")
-        val optionsSheet = activity.section(
-            "private fun NovaLibraryOptionsSheet(",
-            "private fun NovaLibraryFilterSheet("
+        val panels = readNovaLibraryPanels()
+        val optionsSheet = panels.section(
+            "private fun androidx.compose.foundation.lazy.LazyListScope.artworkRows(",
+            "private fun ArtworkRetryAll("
         )
         val startOwnership = updater.section(
             "fun start(games: List<PolarisGame>): Boolean",
@@ -1585,11 +1571,13 @@ class NovaLibrarySourceGuardTest {
                 apiClient.contains("parseArtworkLibraryUpdateResponse(json)")
         )
         assertTrue(
-            optionsSheet.contains("R.string.nova_artwork_library_update_title") &&
+            panels.contains("NovaSectionLabel(stringResource(R.string.nova_artwork_library_update_title))") &&
                 optionsSheet.contains("NovaArtworkLibraryUpdateUiState.Running") &&
                 optionsSheet.contains("LinearProgressIndicator(") &&
-                optionsSheet.contains("onClick = ::cancelArtworkLibraryUpdate") &&
-                optionsSheet.contains("onClick = { startArtworkLibraryUpdate(")
+                optionsSheet.contains("onClick = actions.onCancelArtwork") &&
+                optionsSheet.contains("actions.onRetryArtwork(summary.failedGameIds)") &&
+                activity.contains("onCancelArtwork = ::cancelArtworkLibraryUpdate") &&
+                activity.contains("onRetryArtwork = { ids -> startArtworkLibraryUpdate(ids) }")
         )
         assertTrue(
             optionsSheet.contains("R.string.nova_artwork_library_update_policy") &&
@@ -1607,7 +1595,8 @@ class NovaLibrarySourceGuardTest {
 
     @Test
     fun artworkLibraryCapabilityFailureExplainsServerMismatch() {
-        val activity = readNovaLibraryActivity()
+        // The update's rows are drawn by Library Options, in the library's panels file.
+        val activity = readNovaLibraryActivity() + readNovaLibraryPanels()
         val strings = readSource("src/main/res/values/strings.xml")
         val api = readSource("src/main/java/com/papi/nova/api/PolarisApiClient.kt")
         assertTrue(activity.contains("NovaArtworkLibraryUpdateFailure.SERVER_CAPABILITY_UNAVAILABLE"))
@@ -1646,7 +1635,7 @@ class NovaLibrarySourceGuardTest {
         assertTrue(
             "poster semantic activation must remain the detail-only path",
             card.contains("onOpenDetail: () -> Unit") &&
-                card.contains(".combinedClickable(") &&
+                card.contains(".novaClickable(") &&
                 card.contains("onOpenDetail()")
         )
         listOf("onLaunch", "onStream", "launchGame", "startStream").forEach { forbidden ->
@@ -1672,7 +1661,9 @@ class NovaLibrarySourceGuardTest {
     }
 
     @Test
-    fun task9SharedPosterCardUsesScaleOnlyWithoutVisualBadgesOrBorders() {
+    fun task9SharedPosterCardUsesLiftAndTheOneRingWithoutBadgesOrBorders() {
+        // The spec's one focus look for posters: lift plus the ring, no scale (section 2). A scaled
+        // poster grew past its neighbours and read as a different focus from every other control.
         val poster = readSource("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
         val card = poster.section(
             "internal fun NovaLibraryPosterCard(",
@@ -1688,20 +1679,22 @@ class NovaLibrarySourceGuardTest {
         )
 
         assertTrue(
-            "shared PosterCard focus treatment must stay scale-led with the approved alpha/lift support",
+            "shared PosterCard focus treatment is the lift with the approved alpha support, and the one 3dp ring",
             card.contains("val presentationSpec = NovaLibraryUiStateMapper.posterPresentationSpec(layoutMode)") &&
-                card.contains("val scale by animateFloatAsState(") &&
-                card.contains("targetValue = if (focused) presentationSpec.focusedScale else 1f") &&
                 card.contains("val alpha by animateFloatAsState(") &&
                 card.contains("targetValue = if (focused) 1f else presentationSpec.unfocusedAlpha") &&
                 card.contains("val lift by animateDpAsState(") &&
                 card.contains("targetValue = if (focused) NovaPosterFocusedLift else 0.dp") &&
-                artwork.contains("scaleX = scale") &&
-                artwork.contains("scaleY = scale") &&
                 artwork.contains("translationY = -lift.toPx()") &&
-                artwork.contains("this.alpha = alpha")
+                artwork.contains("this.alpha = alpha") &&
+                artwork.contains("NovaPanelMetrics.FocusRingWidth") &&
+                artwork.contains("tween(durationMillis = NovaPanelMetrics.FocusMillis)")
         )
-        assertFalse("PosterCard implementation must remain borderless", implementation.contains(".border("))
+        assertFalse(
+            "posters no longer scale on focus",
+            artwork.contains("scaleX = scale") || card.contains("val scale by animateFloatAsState(")
+        )
+        assertFalse("PosterCard implementation must remain borderless at rest", implementation.contains(".border("))
         listOf(
             "NovaStagePill(",
             "NovaBadge(",
@@ -1794,15 +1787,16 @@ class NovaLibrarySourceGuardTest {
         val modifierStart = poster.indexOf("modifier = modifier", signatureStart)
         val requesterIndex = poster.indexOf(".then(focusRequesterModifier)", modifierStart)
         val focusObserverIndex = poster.indexOf(".onFocusChanged", modifierStart)
-        val clickOwnerIndex = poster.indexOf(".combinedClickable(", modifierStart)
+        val clickOwnerIndex = poster.indexOf(".novaClickable(", modifierStart)
 
         assertTrue(poster.contains("internal fun NovaLibraryPosterCard("))
         assertTrue(poster.contains(".semantics(mergeDescendants = true)"))
-        assertEquals(1, poster.windowed(".combinedClickable(".length).count { it == ".combinedClickable(" })
-        assertFalse("combinedClickable already owns focus and activation", poster.contains(".focusable()"))
+        assertEquals(1, poster.windowed(".novaClickable(".length).count { it == ".novaClickable(" })
+        assertFalse(poster.contains(".combinedClickable("))
+        assertFalse("novaClickable already owns focus and activation", poster.contains(".focusable()"))
         assertFalse(poster.contains("import androidx.compose.foundation.focusable"))
         assertTrue(
-            "FocusRequester and onFocusChanged must precede combinedClickable so they observe its focus target",
+            "FocusRequester and onFocusChanged must precede novaClickable so they observe its focus target",
             requesterIndex >= 0 && requesterIndex < focusObserverIndex && focusObserverIndex < clickOwnerIndex,
         )
         assertTrue(signature.contains("onOpenDetail: () -> Unit"))
@@ -1856,6 +1850,9 @@ class NovaLibrarySourceGuardTest {
 
     private fun readNovaLibraryActivity(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+
+    private fun readNovaLibraryPanels(): String =
+        readSource("src/main/java/com/papi/nova/ui/NovaLibraryPanels.kt")
 
     private fun readNovaGameDetail(): String =
         readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt") +
