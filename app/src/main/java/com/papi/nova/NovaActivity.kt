@@ -2,11 +2,14 @@ package com.papi.nova
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.view.KeyEvent
 import android.view.MotionEvent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import com.papi.nova.ui.NovaControllerTouchMode
 import com.papi.nova.ui.NovaFontScalePreferences
+import com.papi.nova.ui.panel.NovaKeyGate
+import com.papi.nova.ui.panel.NovaSplitConfirmRegistry
 import kotlin.math.abs
 
 open class NovaActivity : AppCompatActivity() {
@@ -57,6 +60,30 @@ open class NovaActivity : AppCompatActivity() {
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         if (hatPressLeavesTouchMode && NovaControllerTouchMode.leaveTouchMode(window, event)) return true
         return super.dispatchGenericMotionEvent(event)
+    }
+
+    /**
+     * Screens turn this on when their own A and B handling is gone, so A acts on release and B goes
+     * back through the dispatcher ([NovaKeyGate]). Game never does: its pad input is the host's.
+     */
+    protected open val novaKeyGate: Boolean = false
+    private val keyGate = NovaKeyGate()
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (!novaKeyGate) return super.dispatchKeyEvent(event)
+        return keyGate.dispatch(event, onBack = onBackPressedDispatcher::onBackPressed) { super.dispatchKeyEvent(it) }
+    }
+
+    /** A touch outside an armed split confirm cancels it, wherever on the screen it lands. */
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        NovaSplitConfirmRegistry.onTouch(window.decorView, event)
+        return super.dispatchTouchEvent(event)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // A press that began before another window took focus must not finish here.
+        if (!hasFocus) keyGate.reset()
     }
 
     private fun requestRecreateIfScaleChanged() {
