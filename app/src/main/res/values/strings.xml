@@ -1894,4 +1894,11 @@
     <string name="nova_pyrowave_library_unavailable">PyroWave is unavailable in this build on your device. Update Nova or choose another codec.</string>
     <string name="nova_pyrowave_decode_unavailable">PyroWave did not pass this device’s GPU capability or decode check. Choose another codec.</string>
     <string name="nova_pyrowave_compute_unavailable">PyroWave did not pass the GPU decode path Nova uses. Choose another codec.</string>
+    <string name="nova_pyrowave_gpu_features_unavailable">This device’s graphics driver is missing features PyroWave needs: %1$s. Choose another codec, such as HEVC.</string>
+    <string name="nova_pyrowave_feature_shader_int16">16-bit shader integers</string>
+    <string name="nova_pyrowave_feature_storage_16bit">16-bit storage</string>
+    <string name="nova_pyrowave_feature_storage_8bit">8-bit storage</string>
+    <string name="nova_pyrowave_feature_timeline">timeline semaphores</string>
+    <string name="nova_pyrowave_feature_subgroup_size">subgroup size control</string>
+    <string name="nova_pyrowave_feature_full_subgroups">full compute subgroups</string>
 </resources>
