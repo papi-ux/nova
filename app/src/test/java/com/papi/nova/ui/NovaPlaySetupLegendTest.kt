@@ -154,27 +154,31 @@ class NovaPlaySetupLegendTest {
 
     @Test
     fun thePanelsThatFillTheWindowStandOnTheLibrarysMargins() {
+        // Play Setup left the window-filling panel for an edge panel (spec R6), whose frame keeps
+        // clear of the bars and cutouts at its outer edge; Artwork is the one destination that
+        // still fills the window, and the side lane that had no callers is gone.
         val panels = read("NovaGameDetailDestinations.kt")
-        val wide = panels.section("internal fun NovaGameDetailWidePanel(", "/** Every destination says how to act and how to get back. */")
+        val full = panels.section("internal fun NovaGameDetailFullScreen(", "/** Every destination says how to act and how to get back. */")
         assertTrue(
             "papi, 2026-09-21: \"i feel like there a lot of open space on the sides\". safeContent also kept " +
                 "clear of the gesture edges, about 30dp a side on a handheld that the library never gave up",
-            wide.contains(".windowInsetsPadding(WindowInsets.safeDrawing)") && !wide.contains("WindowInsets.safeContent")
+            full.contains(".windowInsetsPadding(WindowInsets.safeDrawing)") && !full.contains("WindowInsets.safeContent")
         )
         assertEquals(
-            "both window-filling panels pad their own sides, so their header and hints must not pad again",
-            2, Regex("selfInset = false,\\n").findAll(wide).count()
+            "the window-filling panel pads its own sides, so its header and hints must not pad again",
+            1, Regex("selfInset = false,\\n").findAll(full).count()
         )
-        assertEquals(2, Regex("NovaGameDetailDestinationHints\\(selfInset = false\\)").findAll(wide).count())
+        assertEquals(1, Regex("NovaGameDetailDestinationHints\\(selfInset = false\\)").findAll(full).count())
         assertTrue(
             "a television keeps the wider margin: nothing reports its overscan",
             panels.contains("Configuration.UI_MODE_TYPE_TELEVISION") &&
                 panels.contains("return if (television) NovaGameDetailInset else NOVA_DETAIL_WINDOW_INSET")
         )
-        val lane = panels.section("BoxWithConstraints(", "internal fun Modifier.novaFadeAtCut(")
         assertTrue(
-            "the lane still leaves each child to keep itself clear of a cutout",
-            lane.contains("WindowInsets.safeContent.only(WindowInsetsSides.Vertical)") && !lane.contains("selfInset = false")
+            "Play Setup stands on the panel frame, attached to the end edge and clear of the screen's insets",
+            read("NovaPlaySetupPages.kt").contains("edge = NovaEdge.End") &&
+                read("panel/NovaPanelFrame.kt")
+                    .contains(".windowInsetsPadding(WindowInsets.safeDrawing.only(outer + WindowInsetsSides.Vertical))")
         )
     }
 

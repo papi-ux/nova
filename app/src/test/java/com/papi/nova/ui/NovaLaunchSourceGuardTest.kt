@@ -164,9 +164,11 @@ class NovaLaunchSourceGuardTest {
                 game.contains("NovaSheetChrome.createSheetBackground(") &&
                 !game.contains("setBackgroundColor(Color.rgb(18, 22, 28))")
         )
+        // Group 3: game detail hosts no bottom sheet any more (Play Setup is a panel in the detail
+        // window), so there is no sheet behaviour of its own left to lock.
         assertTrue(
             "Nova drawers should let content scroll down without minimizing the whole sheet; only the top handle strip may drag-dismiss",
-            detail.contains("behavior.isDraggable = false") &&
+            !detail.contains("BottomSheetBehavior") &&
                 detail.contains("novaSheetHandleDrag") &&
                 detail.contains("NovaSheetDragHandle(") &&
                 syncSheetGestureIsLocked() &&

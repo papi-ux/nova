@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the library and game detail panels (migration group 3): Library Options, System,
+     Polaris Sync, Play Setup and the End splits. -->
+<resources>
+    <!-- Play Setup: the row that chooses between this game and every game. -->
+    <string name="nova_play_setup_panel_scope">Applies To</string>
+    <!-- The hint bar's label for Y, which flips Play Setup between this game and every game. -->
+    <string name="nova_play_setup_panel_scope_hint">This or Every Game</string>
+</resources>

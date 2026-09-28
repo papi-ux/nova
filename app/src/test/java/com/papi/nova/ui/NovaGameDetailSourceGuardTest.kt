@@ -593,7 +593,7 @@ class NovaGameDetailSourceGuardTest {
         assertTrue(
             "the host-only card should ask the library to open host settings, not select a launch mode",
             detail.contains("EXTRA_RESULT_MANAGE_SERVER") &&
-                detail.contains("onConfigureHostMode = { finishWithManageServerRequest() }") &&
+                detail.contains("onConfigureHost = { finishWithManageServerRequest() }") &&
                 library.contains("openServerDisplaySettings()")
         )
         assertTrue(
