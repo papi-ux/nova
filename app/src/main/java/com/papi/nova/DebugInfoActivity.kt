@@ -1,6 +1,5 @@
 package com.papi.nova
 
-import android.app.AlertDialog
 import android.content.Context
 import android.hardware.Sensor
 import android.media.AudioAttributes
@@ -13,22 +12,36 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaFocusReturn
+import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.UiHelper
+import java.util.Locale
 
 @Suppress("DEPRECATION")
 class DebugInfoActivity : NovaActivity(), View.OnClickListener {
+    // The screen has no A or B handling of its own: through the gate, A clicks a button on release
+    // and B leaves the screen on release.
+    override val novaKeyGate: Boolean = true
+
     private lateinit var gamepadInfoText: TextView
     private var vibrator: Vibrator? = null
     private lateinit var vibratorButton: Button
     private val inputDevices = ArrayList<InputDevice>()
     private var onlineVibrator: Vibrator? = null
     private lateinit var amplitudeButton: Button
-    private var simulatedAmplitude = 220
+    private var simulatedAmplitude = DebugInfoPages.DEFAULT_AMPLITUDE
+
+    // What each list marks as current: the type this device ran last, the gamepad chosen last,
+    // and the type each gamepad ran last.
+    private var deviceVibration: DebugVibration? = null
+    private var chosenGamepadId: Int? = null
+    private val gamepadVibrations = HashMap<Int, DebugVibration>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
@@ -83,116 +96,100 @@ class DebugInfoActivity : NovaActivity(), View.OnClickListener {
 
     override fun onClick(view: View) {
         when (view.id) {
-            R.id.bt_vibrator_cancle -> {
-                cancelRumble()
-                return
-            }
-
-            R.id.bt_vibrator -> {
-                showDeviceVibrationPicker()
-                return
-            }
-
-            R.id.bt_vibrator_gamepad -> {
-                showGamepadVibrationPicker()
-                return
-            }
-
-            R.id.bt_update_gamepad -> {
-                updateGamePad()
-                return
-            }
-
-            R.id.bt_vibrator_value -> {
-                val seekBar = createSeekBar()
-                AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.debug_info_set_amplitude))
-                    .setView(seekBar)
-                    .create()
-                    .show()
-            }
+            R.id.bt_vibrator_cancle -> cancelRumble()
+            R.id.bt_vibrator -> showDeviceVibrationPage(view)
+            R.id.bt_vibrator_gamepad -> showGamepadRumblePages(view)
+            R.id.bt_update_gamepad -> updateGamePad()
+            R.id.bt_vibrator_value -> showAmplitudePage(view)
         }
     }
 
-    private fun showDeviceVibrationPicker() {
-        val titles = arrayOf(
-            getString(R.string.debug_info_simple_vibration),
-            getString(R.string.debug_info_continuous_hd_vibration),
+    /** The amplitude as a Slider page: Save sets it, and B leaves it as it was. */
+    private fun showAmplitudePage(opener: View) {
+        novaSurfaces.open(
+            DebugInfoPages.amplitude(this, simulatedAmplitude) { amplitude ->
+                simulatedAmplitude = amplitude
+                showSimulateAmplitude()
+            },
+            returnFocus = NovaFocusReturn.View(opener),
         )
-        AlertDialog.Builder(this)
-            .setItems(titles) { dialog, which ->
-                dialog.dismiss()
-                when (which) {
-                    0 -> vibrator?.vibrate(1000)
-                    1 -> vibrator?.let(::rumble)
-                }
-            }
-            .setTitle(getString(R.string.debug_info_please_choose))
-            .create()
-            .show()
     }
 
-    private fun showGamepadVibrationPicker() {
+    private fun showDeviceVibrationPage(opener: View) {
+        novaSurfaces.open(
+            DebugInfoPages.vibration(
+                context = this,
+                key = DebugInfoPages.DEVICE_VIBRATION_PAGE,
+                title = getString(R.string.debug_info_device_vibration_title),
+                current = deviceVibration,
+                amplitude = simulatedAmplitude,
+            ) { type ->
+                deviceVibration = type
+                when (type) {
+                    DebugVibration.Simple -> vibrator?.vibrate(DebugInfoPages.SIMPLE_VIBRATION_MILLIS)
+                    DebugVibration.Continuous -> vibrator?.let(::rumble)
+                }
+            },
+            returnFocus = NovaFocusReturn.View(opener),
+        )
+    }
+
+    private fun showGamepadRumblePages(opener: View) {
         if (inputDevices.isEmpty()) {
             Toast.makeText(this, getString(R.string.debug_info_no_gamepad_detected), Toast.LENGTH_LONG).show()
             return
         }
-
-        val deviceNames = Array(inputDevices.size) { index -> inputDevices[index].name }
-        AlertDialog.Builder(this)
-            .setItems(deviceNames) { dialog, which ->
-                dialog.dismiss()
-                val selectedDevice = inputDevices[which]
-                val selectedVibrator = selectedDevice.vibrator
-                if (selectedVibrator.hasVibrator()) {
-                    showGamepadVibrationModePicker(selectedVibrator)
-                } else {
-                    Toast.makeText(this, getString(R.string.debug_info_no_vibrator), Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setTitle(getString(R.string.debug_info_please_choose))
-            .create()
-            .show()
+        showGamepadRumblePages(inputDevices.map(::debugGamepad), opener, picked = null)
     }
 
-    private fun showGamepadVibrationModePicker(selectedVibrator: Vibrator) {
-        val titles = arrayOf(
-            getString(R.string.debug_info_simple_vibration),
-            getString(R.string.debug_info_continuous_hd_vibration),
+    /**
+     * The gamepad list, with [picked]'s vibration types over it when a gamepad has been picked.
+     *
+     * Picking a gamepad leaves the list, as every Choice page does. The pick puts the list straight
+     * back, marked with that gamepad, under its types, in the same frame, so the panel never closes:
+     * picking a type returns to the list, and so does B.
+     */
+    internal fun showGamepadRumblePages(gamepads: List<DebugGamepad>, opener: View, picked: DebugGamepad?) {
+        val surfaces = novaSurfaces
+        surfaces.open(
+            DebugInfoPages.gamepads(this, gamepads, current = chosenGamepadId) { gamepad ->
+                chosenGamepadId = gamepad.id
+                showGamepadRumblePages(gamepads, opener, picked = gamepad)
+            },
+            returnFocus = NovaFocusReturn.View(opener),
         )
-        AlertDialog.Builder(this)
-            .setItems(titles) { dialog, which ->
-                dialog.dismiss()
-                when (which) {
-                    0 -> selectedVibrator.vibrate(1000)
-                    1 -> {
-                        cancelRumble()
-                        onlineVibrator = selectedVibrator
-                        rumble(selectedVibrator)
-                    }
-                }
-            }
-            .setTitle(getString(R.string.debug_info_please_choose))
-            .create()
-            .show()
+        if (picked == null) return
+        surfaces.present(
+            DebugInfoPages.vibration(
+                context = this,
+                key = DebugInfoPages.GAMEPAD_VIBRATION_PAGE,
+                title = picked.name,
+                current = gamepadVibrations[picked.id],
+                amplitude = simulatedAmplitude,
+            ) { type ->
+                gamepadVibrations[picked.id] = type
+                inputDevices.firstOrNull { it.id == picked.id }?.let { rumbleGamepad(it.vibrator, type) }
+            },
+        )
     }
 
-    private fun createSeekBar(): SeekBar {
-        return SeekBar(this).apply {
-            max = 255
-            progress = simulatedAmplitude
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                    simulatedAmplitude = progress
-                    showSimulateAmplitude()
-                }
-
-                override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
-
-                override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
-            })
+    private fun rumbleGamepad(selectedVibrator: Vibrator, type: DebugVibration) {
+        when (type) {
+            DebugVibration.Simple -> selectedVibrator.vibrate(DebugInfoPages.SIMPLE_VIBRATION_MILLIS)
+            DebugVibration.Continuous -> {
+                cancelRumble()
+                onlineVibrator = selectedVibrator
+                rumble(selectedVibrator)
+            }
         }
     }
+
+    private fun debugGamepad(device: InputDevice) = DebugGamepad(
+        id = device.id,
+        name = device.name,
+        vidPid = "%04x_%04x".format(Locale.ROOT, device.vendorId, device.productId),
+        hasVibrator = device.vibrator.hasVibrator(),
+    )
 
     private fun rumble(vibrator: Vibrator) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -288,4 +285,79 @@ class DebugInfoActivity : NovaActivity(), View.OnClickListener {
                 ?: device.getMotionRange(axis, InputDevice.SOURCE_GAMEPAD)
         }
     }
+}
+
+/** What a vibration test runs: one short buzz, or a rumble at the set amplitude until it is stopped. */
+internal enum class DebugVibration { Simple, Continuous }
+
+/** A gamepad the rumble test lists; one with no vibrator is shown with the reason and cannot be picked. */
+internal data class DebugGamepad(val id: Int, val name: String, val vidPid: String, val hasVibrator: Boolean)
+
+/** The debug screen's panel pages: the amplitude, the vibration types and the gamepads. */
+internal object DebugInfoPages {
+    const val DEFAULT_AMPLITUDE = 220
+    const val SIMPLE_VIBRATION_MILLIS = 1000L
+
+    /** A vibration amplitude runs from off to full strength. */
+    val AmplitudeRange = 0..255
+
+    /** Left and Right move the amplitude five at a time; the page's field takes any exact value. */
+    const val AMPLITUDE_STEP = 5
+
+    const val AMPLITUDE_PAGE = "debug-amplitude"
+    const val DEVICE_VIBRATION_PAGE = "debug-device-vibration"
+    const val GAMEPADS_PAGE = "debug-gamepads"
+    const val GAMEPAD_VIBRATION_PAGE = "debug-gamepad-vibration"
+
+    fun amplitude(context: Context, value: Int, onSave: (Int) -> Unit) = NovaCommonPage.Slider(
+        key = AMPLITUDE_PAGE,
+        title = context.getString(R.string.debug_info_amplitude_title),
+        value = value,
+        range = AmplitudeRange,
+        step = AMPLITUDE_STEP,
+        format = { context.getString(R.string.debug_info_amplitude_value, it, AmplitudeRange.last) },
+        onSave = onSave,
+    )
+
+    fun vibration(
+        context: Context,
+        key: String,
+        title: String,
+        current: DebugVibration?,
+        amplitude: Int,
+        onChoose: (DebugVibration) -> Unit,
+    ) = NovaCommonPage.Choice(
+        key = key,
+        title = title,
+        options = listOf(
+            NovaOption(DebugVibration.Simple, context.getString(R.string.debug_info_simple_vibration)),
+            NovaOption(
+                DebugVibration.Continuous,
+                context.getString(R.string.debug_info_continuous_hd_vibration),
+                caption = context.getString(R.string.debug_info_continuous_caption, amplitude),
+            ),
+        ),
+        current = current,
+        onChoose = onChoose,
+    )
+
+    fun gamepads(
+        context: Context,
+        gamepads: List<DebugGamepad>,
+        current: Int?,
+        onChoose: (DebugGamepad) -> Unit,
+    ) = NovaCommonPage.Choice(
+        key = GAMEPADS_PAGE,
+        title = context.getString(R.string.debug_info_test_gamepad_rumble),
+        options = gamepads.map { gamepad ->
+            NovaOption(
+                value = gamepad.id,
+                label = gamepad.name,
+                caption = context.getString(R.string.debug_info_vid_pid) + gamepad.vidPid,
+                disabledReason = if (gamepad.hasVibrator) null else context.getString(R.string.debug_info_no_vibrator),
+            )
+        },
+        current = current,
+        onChoose = { id -> gamepads.firstOrNull { it.id == id }?.let(onChoose) },
+    )
 }
