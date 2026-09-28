@@ -1,11 +1,9 @@
 package com.papi.nova.ui
 
 import android.widget.ImageView
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,12 +12,12 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -29,7 +27,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,9 +35,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,8 +47,9 @@ import com.papi.nova.api.PolarisArtworkChoice
 import com.papi.nova.api.PolarisArtworkMatchCandidate
 import com.papi.nova.shared.polaris.model.PolarisGame
 import kotlinx.coroutines.delay
-import com.papi.nova.ui.compose.NovaRevealingText
+import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaTextField
+import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
@@ -359,13 +357,8 @@ fun NovaArtworkStudio(
             }
             Column(Modifier.weight(1f)) {
                 Text(title, color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    summary,
-                    color = colors.textMuted,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                // Whole, on a second line if it needs one (R13).
+                Text(summary, color = colors.textMuted, fontSize = 11.sp)
             }
             Text(if (expanded) "▴" else "▾", color = colors.textSecondary, fontSize = 18.sp)
         }
@@ -557,15 +550,15 @@ private fun NovaArtworkStudioMatchSummary(state: NovaArtworkStudioState) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // Nothing here takes the cursor, so the whole title is on screen at rest: it wraps onto
+        // as many lines as it needs, rather than running past in a marquee or ending in an
+        // ellipsis nobody can open (R13).
         Text(
             text = state.currentMatchTitle,
             color = colors.textPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            // Nothing here takes the cursor, so a title too long for the line shows the rest of
-            // itself twice and settles, rather than ending in an ellipsis nobody can open.
-            modifier = Modifier.weight(1f).basicMarquee(iterations = 2),
+            modifier = Modifier.weight(1f),
         )
         if (state.currentMatchSource.isNotBlank()) {
             NovaBadge(text = state.currentMatchSource, fontSize = 10.sp)
@@ -822,13 +815,10 @@ private fun NovaArtworkIdentityPicker(
         contentDescription = stringResource(R.string.nova_artwork_search_description),
     )
     state.candidates.forEach { candidate ->
-        // The cursor stands on the row's button, so that is what highlights the row.
-        var underCursor by remember(candidate) { mutableStateOf(false) }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp)
-                .onFocusChanged { underCursor = it.hasFocus },
+                .padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StudioArtworkImage(
@@ -842,10 +832,10 @@ private fun NovaArtworkIdentityPicker(
                 scaleType = ImageView.ScaleType.CENTER_CROP,
             )
             Column(Modifier.weight(1f).padding(start = 9.dp)) {
-                NovaRevealingText(
+                // The whole title, on as many lines as it takes: the row grows rather than cutting
+                // the name the choice is between (R13).
+                Text(
                     text = candidate.title,
-                    highlighted = underCursor,
-                    maxLines = 2,
                     color = colors.textPrimary,
                     fontSize = 13.sp,
                     lineHeight = 17.sp,
@@ -856,7 +846,7 @@ private fun NovaArtworkIdentityPicker(
                     candidate.provider.takeIf { it.isNotBlank() },
                 ).joinToString(" · ")
                 if (metadata.isNotBlank()) {
-                    Text(metadata, color = colors.textMuted, fontSize = 10.sp, maxLines = 1)
+                    Text(metadata, color = colors.textMuted, fontSize = 10.sp)
                 }
                 NovaActionButton(
                     text = stringResource(R.string.nova_artwork_select_identity),
@@ -893,13 +883,12 @@ private fun NovaArtworkChoicePicker(
                 color = colors.textMuted,
                 fontSize = 10.sp,
             )
+            // Wrapping, never a marquee: a title is read at rest (R13).
             Text(
                 candidate.title,
                 color = colors.textPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                modifier = Modifier.basicMarquee(iterations = 2),
             )
         }
         NovaActionButton(
@@ -911,27 +900,17 @@ private fun NovaArtworkChoicePicker(
             fontSize = 12.sp,
         )
     }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        NovaArtworkKinds.ALL.forEach { kind ->
-            NovaActionButton(
-                text = stringResource(artworkKindLabel(kind)),
-                onClick = { onKindSelected(kind) },
-                modifier = Modifier.weight(1f),
-                enabled = !state.working,
-                // The kind on show carries the one current mark, the check; a fill means focus (R9).
-                selected = kind == state.activeKind,
-                contentDescription = stringResource(
-                    R.string.nova_artwork_kind_tab_description,
-                    stringResource(artworkKindLabel(kind)),
-                ),
-                minHeight = 38.dp,
-                fontSize = 11.sp,
-            )
-        }
-    }
+    // Which kind's alternatives are on show, changed in its own row (R1): Left and Right step
+    // through the four, a tap takes one, and the kind on show carries the one check (R9). Four
+    // buttons across a column cut their own labels short beside the check.
+    NovaValueRow(
+        title = stringResource(R.string.nova_artwork_title),
+        options = NovaArtworkKinds.ALL.map { kind -> NovaOption(kind, stringResource(artworkKindLabel(kind))) },
+        current = state.activeKind,
+        onChange = onKindSelected,
+        enabled = !state.working,
+        modifier = Modifier.padding(top = 8.dp).testTag(NOVA_STUDIO_KIND_ROW_TAG),
+    )
 
     when {
         state.activeKind in state.loadingKinds -> Text(
@@ -946,59 +925,108 @@ private fun NovaArtworkChoicePicker(
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 10.dp),
         )
-        else -> Row(
+        // The alternatives wrap into rows of equal cells rather than running off the side of the
+        // column: every one is whole at rest, and the cursor moves down a row as it moves across
+        // one (R13). The screen scrolls with focus, so a long set is a scroll away, not a cut.
+        else -> BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(top = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(top = 10.dp)
+                .testTag(NOVA_STUDIO_CHOICES_TAG),
         ) {
-            state.choicesByKind[state.activeKind].orEmpty().forEachIndexed { index, choice ->
-                val selected = state.selections[state.activeKind] == choice
-                Column(Modifier.width(112.dp)) {
-                    StudioArtworkImage(
-                        presentationKey = "choice:${choice.kind}:${System.identityHashCode(choice)}",
-                        contentDescription = stringResource(
-                            R.string.nova_artwork_choice_description,
-                            stringResource(artworkKindLabel(choice.kind)),
-                            index + 1,
-                        ),
-                        loader = { choicePreviewLoader(it, choice) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(if (choice.kind == NovaArtworkKinds.POSTER) 132.dp else 76.dp)
-                            .clip(RoundedCornerShape(NovaRadius.row))
-                            .background(colors.window)
-                            // The same hairline whichever is chosen: the button under it carries the
-                            // check, and an accent border would read as focus (R9).
-                            .border(1.dp, colors.divider, RoundedCornerShape(NovaRadius.row)),
-                        scaleType = if (choice.kind == NovaArtworkKinds.LOGO || choice.kind == NovaArtworkKinds.ICON) {
-                            ImageView.ScaleType.FIT_CENTER
-                        } else {
-                            ImageView.ScaleType.CENTER_CROP
-                        },
-                    )
-                    NovaActionButton(
-                        text = stringResource(
-                            if (selected) R.string.nova_artwork_selected else R.string.nova_artwork_select,
-                        ),
-                        onClick = { onChoiceSelected(choice) },
-                        modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
-                        enabled = !state.working && state.loadingKinds.isEmpty(),
-                        selected = selected,
-                        contentDescription = stringResource(
-                            R.string.nova_artwork_choice_select_description,
-                            stringResource(artworkKindLabel(choice.kind)),
-                            index + 1,
-                        ),
-                        minHeight = 34.dp,
-                        fontSize = 11.sp,
-                    )
+            val columns = novaStudioChoiceColumns(maxWidth)
+            Column(verticalArrangement = Arrangement.spacedBy(NOVA_STUDIO_CHOICE_GAP)) {
+                state.choicesByKind[state.activeKind].orEmpty().withIndex().chunked(columns).forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(NOVA_STUDIO_CHOICE_GAP),
+                    ) {
+                        row.forEach { (index, choice) ->
+                            NovaArtworkChoiceCell(
+                                index = index,
+                                choice = choice,
+                                selected = state.selections[state.activeKind] == choice,
+                                enabled = !state.working && state.loadingKinds.isEmpty(),
+                                onChoiceSelected = onChoiceSelected,
+                                choicePreviewLoader = choicePreviewLoader,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        // A short last row keeps the cells the width of the rows above it.
+                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
                 }
             }
         }
     }
 }
+
+/**
+ * How many alternatives share a row of [width]: as many as keep a cell at least
+ * [NOVA_STUDIO_CHOICE_MIN_WIDTH] wide, and never fewer than one.
+ */
+internal fun novaStudioChoiceColumns(width: Dp): Int {
+    if (width == Dp.Infinity || width <= 0.dp) return 1
+    return ((width + NOVA_STUDIO_CHOICE_GAP) / (NOVA_STUDIO_CHOICE_MIN_WIDTH + NOVA_STUDIO_CHOICE_GAP))
+        .toInt()
+        .coerceAtLeast(1)
+}
+
+/** One alternative: its preview, and the button that takes it, which carries the check once it is taken. */
+@Composable
+private fun NovaArtworkChoiceCell(
+    index: Int,
+    choice: PolarisArtworkChoice,
+    selected: Boolean,
+    enabled: Boolean,
+    onChoiceSelected: (PolarisArtworkChoice) -> Unit,
+    choicePreviewLoader: (ImageView, PolarisArtworkChoice) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LocalNovaComposeColors.current
+    val kindLabel = stringResource(artworkKindLabel(choice.kind))
+    Column(modifier) {
+        StudioArtworkImage(
+            presentationKey = "choice:${choice.kind}:${System.identityHashCode(choice)}",
+            contentDescription = stringResource(R.string.nova_artwork_choice_description, kindLabel, index + 1),
+            loader = { choicePreviewLoader(it, choice) },
+            modifier = Modifier
+                .fillMaxWidth()
+                // The shapes the fixed 112dp cells had, kept as the cells take the row's width.
+                .aspectRatio(
+                    if (choice.kind == NovaArtworkKinds.POSTER) NOVA_STUDIO_POSTER_ASPECT else NOVA_STUDIO_WIDE_ASPECT,
+                )
+                .clip(RoundedCornerShape(NovaRadius.row))
+                .background(colors.window)
+                // The same hairline whichever is chosen: the button under it carries the
+                // check, and an accent border would read as focus (R9).
+                .border(1.dp, colors.divider, RoundedCornerShape(NovaRadius.row)),
+            scaleType = if (choice.kind == NovaArtworkKinds.LOGO || choice.kind == NovaArtworkKinds.ICON) {
+                ImageView.ScaleType.FIT_CENTER
+            } else {
+                ImageView.ScaleType.CENTER_CROP
+            },
+        )
+        NovaActionButton(
+            text = stringResource(if (selected) R.string.nova_artwork_selected else R.string.nova_artwork_select),
+            onClick = { onChoiceSelected(choice) },
+            modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
+            enabled = enabled,
+            selected = selected,
+            contentDescription = stringResource(R.string.nova_artwork_choice_select_description, kindLabel, index + 1),
+            minHeight = 34.dp,
+            fontSize = 11.sp,
+        )
+    }
+}
+
+/** A cell is never narrower than the strip's fixed cells were, so a preview still reads. */
+private val NOVA_STUDIO_CHOICE_MIN_WIDTH = 112.dp
+private val NOVA_STUDIO_CHOICE_GAP = 8.dp
+private const val NOVA_STUDIO_POSTER_ASPECT = 112f / 132f
+private const val NOVA_STUDIO_WIDE_ASPECT = 112f / 76f
+internal const val NOVA_STUDIO_CHOICES_TAG = "nova-artwork-choices"
+internal const val NOVA_STUDIO_KIND_ROW_TAG = "nova-artwork-kind"
 
 @Composable
 private fun NovaArtworkLogoTransformControls(
