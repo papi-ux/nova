@@ -57,11 +57,13 @@ import com.papi.nova.ui.NovaHudUiState
 import com.papi.nova.ui.NovaLaunchStreamOverride
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
-import com.papi.nova.ui.NovaSheetChrome
-import com.papi.nova.ui.NovaMouseModePicker
-import com.papi.nova.ui.NovaStreamSheetFocus
 import com.papi.nova.ui.StreamContainer
-import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.papi.nova.ui.NovaMouseModeChoices
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaStatePage
+import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.DisplayFocusTelemetry
@@ -70,11 +72,11 @@ import com.papi.nova.utils.CompanionControlLifecyclePolicy
 import com.papi.nova.utils.CompanionControlReopenGeneration
 import com.papi.nova.utils.DualScreenQuickMenuPolicy
 import com.papi.nova.utils.ExternalDisplayControlActivity
+import com.papi.nova.utils.ExternalDisplayControlController
 import com.papi.nova.utils.ExternalDisplayControlHost
 import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
 import com.papi.nova.utils.AndroidStreamDisplayTarget
-import com.papi.nova.utils.MouseModeOption
 import com.papi.nova.utils.PanZoomHandler
 import com.papi.nova.utils.PerformanceDataTracker
 import com.papi.nova.utils.ServerHelper
@@ -86,7 +88,6 @@ import org.json.JSONObject
 
 import android.annotation.SuppressLint
 import android.annotation.TargetApi
-import android.app.AlertDialog
 import android.app.PictureInPictureParams
 import android.app.Service
 import android.content.ClipData
@@ -135,8 +136,6 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
@@ -171,6 +170,17 @@ import java.util.concurrent.atomic.AtomicLong
 import android.view.SurfaceView
 import android.view.ViewGroup
 
+
+/**
+ * Where the special keys and the imported custom shortcuts are stored, under the name of the
+ * legacy menu that used to own them. StreamSettings and the on-screen keys loader still read them
+ * here; new code reads [com.papi.nova.ui.NovaSpecialKeyPrefs]. The closing step moves those two
+ * readers over and deletes this.
+ */
+object GameMenu {
+    const val PREF_NAME: String = com.papi.nova.ui.NovaSpecialKeyPrefs.PREF_NAME
+    const val KEY_NAME: String = com.papi.nova.ui.NovaSpecialKeyPrefs.KEY_NAME
+}
 
 class Game : NovaActivity(), SurfaceHolder.Callback, OnGenericMotionListener, OnTouchListener, NvConnectionListener, EvdevListener, OnSystemUiVisibilityChangeListener, GameGestures, StreamContainer.InputCallbacks, ExternalControllerView.InputCallbacks, PerfOverlayListener, UsbDriverService.UsbDriverStateListener, View.OnKeyListener {
     override fun shouldRecreateForFontScaleChange(): Boolean = false
@@ -434,6 +444,14 @@ MoonBridge.sendEmptyPayload()
 get() {
 return keyBoardLayoutController != null && keyBoardLayoutController!!.shown
 }
+
+ /** Whether the on-screen special keys layout is showing. */
+ val isKeyboardControllerShown:Boolean
+get() = keyBoardController?.shown == true
+
+ /** Whether the floating Command Center button is showing. */
+ val isFloatingButtonVisible:Boolean
+get() = floatingMenuButton?.getVisibility() == View.VISIBLE
 
 private val streamingDisplay:Display?
 get() {
@@ -1126,7 +1144,7 @@ e!!.printStackTrace()
 novaFeatureScope = com.papi.nova.manager.FeatureFlagManager.beginScope()
 novaApiClient = com.papi.nova.api.PolarisApiClient(this, host ?: "", httpsPort, serverCert)
 novaLockScreenOverlay = com.papi.nova.ui.LockScreenOverlay(this, novaApiClient!!)
-novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this)
+novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this) { disconnect() }
 val reconnectAttemptsUsed:Int = this@Game.getIntent().getIntExtra(EXTRA_RECONNECT_ATTEMPT, 0)
 if (reconnectAttemptsUsed > 0)
 {
@@ -1859,7 +1877,7 @@ spinner = null
 
  // If we can't find an AVC decoder, we can't proceed
             Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title),
-"This device or ROM doesn't support hardware accelerated H.264 playback.", true)
+getResources().getString(R.string.nova_stream_h264_unsupported), true)
 return
 }
 
@@ -4186,7 +4204,7 @@ var key:Short = keys!![pos]
                 modifier[0] = (modifier[0].toInt() and KeyboardTranslator.getModifier(key).toInt().inv()).toByte()
 
 	conn!!.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], 0.toByte())
-} }), GameMenu.KEY_UP_DELAY)
+} }), SENT_KEY_UP_DELAY_MS)
 }
 
 override fun handleFocusChange(hasFocus:Boolean):Boolean {
@@ -5641,6 +5659,12 @@ finishSecondScreen()
 return false
 }
 
+/**
+ * A launch the host refused or Nova gave up on, as a full-screen state page over the stream. The
+ * stream never started, so there is nothing to go back to: Try Again is focused, and Back (which
+ * is also what B does) returns to Nova. In a Space the retry is the library's, which checks the
+ * Space again before it starts anything, and the technical reason sits behind Details.
+ */
 private fun showNovaLaunchIssueSheet(message: String) {
 runOnUiThread {
 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -5648,78 +5672,35 @@ if (spinner != null) {
 spinner!!.dismiss()
 spinner = null
 }
-val sheet = BottomSheetDialog(this@Game)
-val density = resources.displayMetrics.density
-fun dp(value: Int): Int = (value * density).toInt()
-val container = LinearLayout(this@Game).apply {
-orientation = LinearLayout.VERTICAL
-setPadding(dp(18), dp(14), dp(18), dp(18))
-background = NovaSheetChrome.createSheetBackground(this@Game)
+val surfaces = novaSurfaces
+fun leaving(label: String, run: () -> Unit) = NovaAction(label) {
+surfaces.dismiss(LAUNCH_ISSUE_PAGE)
+run()
 }
-val handle = View(this@Game).apply {
-background = NovaSheetChrome.createHandleBackground(this@Game)
-}
-NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)
-container.addView(handle, LinearLayout.LayoutParams(dp(42), dp(4)).apply {
-gravity = Gravity.CENTER_HORIZONTAL
-bottomMargin = dp(14)
-})
-val title = TextView(this@Game).apply {
-text = if (spaceSession) getString(R.string.nova_space_launch_issue_title) else getString(R.string.nova_launch_issue_title)
-setTextColor(NovaThemeManager.getTextPrimaryColor(this@Game))
-textSize = 20f
-}
-container.addView(title)
-val body = TextView(this@Game).apply {
-text = if (spaceSession) listOfNotNull(conn?.lastHostRefusal?.message,
-    conn?.lastHostRefusal?.action ?: getString(R.string.nova_space_launch_issue_default))
-    .joinToString("\n\n") else message
-setTextColor(NovaThemeManager.getTextSecondaryColor(this@Game))
-textSize = 14f
-setPadding(0, dp(10), 0, dp(12))
-}
-val scroll = ScrollView(this@Game).apply {
-addView(body)
-}
-container.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
- // Every action wears the sheet chrome; a stock Button read as a stranger here.
-fun sheetAction(label: String, onClick: () -> Unit): TextView = TextView(this@Game).apply {
-text = label
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this)
-setOnClickListener { onClick() }
-}
-fun addAction(action: TextView) {
-container.addView(action, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
-}
-if (spaceSession) {
-val explanation = body.text
-var detailsVisible = false
-val details = sheetAction(getString(R.string.nova_space_launch_issue_details)) {}
-details.setOnClickListener {
-detailsVisible = !detailsVisible
-body.text = if (detailsVisible) "$explanation\n\n$message" else explanation
-details.text = getString(if (detailsVisible) R.string.nova_space_launch_issue_hide_details else R.string.nova_space_launch_issue_details)
-}
-addAction(details)
- // Try Again hands the retry to the library, which re-checks the Space before it starts anything.
-addAction(sheetAction(getString(R.string.nova_space_launch_issue_retry)) {
+val page = if (spaceSession) {
+val refusal = conn?.lastHostRefusal
+NovaStatePage.Problem(
+key = LAUNCH_ISSUE_PAGE,
+title = getString(R.string.nova_space_launch_issue_title),
+message = listOfNotNull(refusal?.message, refusal?.action ?: getString(R.string.nova_space_launch_issue_default))
+.joinToString("\n\n"),
+primary = leaving(getString(R.string.nova_space_launch_issue_retry)) {
 NovaSpaceRetrySignal.mark(this@Game, this@Game.getIntent().getStringExtra(EXTRA_PC_UUID), host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST))
-sheet.dismiss()
 finish()
-})
+},
+secondary = listOf(leaving(getString(R.string.nova_space_launch_issue_back)) { finish() }),
+detail = message,
+)
+} else {
+NovaStatePage.Problem(
+key = LAUNCH_ISSUE_PAGE,
+title = getString(R.string.nova_launch_issue_title),
+message = message,
+primary = leaving(getString(R.string.nova_stream_launch_retry)) { relaunchStream() },
+secondary = listOf(leaving(getString(R.string.nova_launch_issue_dismiss)) { finish() }),
+)
 }
-addAction(sheetAction(if (spaceSession) getString(R.string.nova_space_launch_issue_back) else getString(R.string.nova_launch_issue_dismiss)) {
-sheet.dismiss()
-finish()
-})
-sheet.setContentView(container)
- // A tap beside the sheet is not a decision to leave the failure behind; Back and the actions are.
-sheet.setCanceledOnTouchOutside(false)
-sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
-sheet.setOnDismissListener { finish() }
-sheet.show()
-NovaSheetChrome.applyBottomSheetChrome(sheet, container)
+surfaces.show(page)
 }
 }
 
@@ -5807,7 +5788,8 @@ MoonBridge.stringifyPortFlags(portFlags, "\n"))
 Dialog.displayDialog(this@Game, getResources().getString(R.string.conn_terminated_title),
 message, true,
 getResources().getString(R.string.nova_conn_reconnect),
-Runnable { relaunchStream() })
+Runnable { relaunchStream() },
+help = true)
 }
 else
 {
@@ -6383,58 +6365,40 @@ else
 applyMouseMode(savedMouseModeIndex)
 }
 }
-// Converted JavaDoc marker retained as a line comment.
-     @JvmOverloads
-     fun selectMouseMode(context:Context?, dialogWindowType:Int? = null, dialogWindowToken:IBinder? = null) {
-var allModes:Array<String?>? = getResources().getStringArray(R.array.mouse_mode_names)
-
-var allowedLabels:Set<String> = HashSet(Arrays.asList(
+/**
+ * The mouse modes this display allows, with their original indexes as values, then the local
+ * cursor toggle as -1. On an external display only the touchpad modes and Disabled make sense.
+ */
+fun mouseModeChoices():List<NovaOption<Int>> = NovaMouseModeChoices.options(
+modeNames = getResources().getStringArray(R.array.mouse_mode_names).toList(),
+onExternalDisplay = isOnExternalDisplay,
+externalModes = setOf(
 getString(R.string.mouse_mode_track_pad_natural),
 getString(R.string.mouse_mode_track_pad_gaming),
 getString(R.string.mouse_mode_disabled)
-))
+),
+localCursorLabel = getString(R.string.toggle_local_mouse_cursor),
+)
 
-var options:MutableList<MouseModeOption> = ArrayList()
+/** The mouse mode in use, as the value [mouseModeChoices] marks current. */
+val currentMouseModeChoice:Int
+get() = currentMouseModeIndex
 
-for (i:Int in allModes!!.indices)
-{
-var label:String = allModes!![i]!!
-var isAllowed:Boolean = !isOnExternalDisplay || allowedLabels.contains(label)
-if (isAllowed)
-{
-options.add(MouseModeOption(i, label))
-}
-}
-
-options.add(MouseModeOption(-1, getString(R.string.toggle_local_mouse_cursor)))
-
-val mouseModeDialog = NovaMouseModePicker.create(context ?: this, options, currentMouseModeIndex) { selected ->
-if (selected.index == -1)
+/** Applies a choice from [mouseModeChoices], remembering the mode when Settings asks to. */
+fun chooseMouseMode(choice:Int) {
+if (choice == NovaMouseModeChoices.LocalCursor)
 {
 toggleMouseLocalCursor()
+return
 }
-else
-{
-applyMouseMode(selected.index)
+applyMouseMode(choice)
 if (prefConfig!!.rememberMouseMode)
 {
 ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
 .edit()
-.putString("mouse_mode_list", java.lang.String.valueOf(selected.index))
+.putString("mouse_mode_list", java.lang.String.valueOf(choice))
 .apply()
 }
-}
-}
-dialogWindowType?.let { windowType ->
-mouseModeDialog.window?.setType(windowType)
-}
-if (dialogWindowToken != null) {
-mouseModeDialog.window?.attributes?.token = dialogWindowToken
-}
-mouseModeDialog.setOnDismissListener {
-if (context == null || context === this) restoreStreamInputAfterModalDismissal()
-}
-mouseModeDialog.show()
 }
 
  //本地鼠标光标切换
@@ -7354,74 +7318,39 @@ return
 novaReconnectOverlay?.dismiss()
 connectionTerminated(errorCode)
 }
+ /**
+  * Ends the session for good: the host closes the app and the resumable stream goes with it.
+  * Every button that asks first (the Command Center's End Session split, the companion deck's
+  * End tile) has already asked, so this does not ask again.
+  */
+ fun endSession() {
+quitOnStop = true
+markLocalSessionEnd()
+finish()
+}
+
+ /**
+  * Asks, then ends the session. Only for paths with no button to split, such as Disconnect in a
+  * Space, which would end the Space's game session: a Confirm page with Stay focused, on the
+  * companion display when its controls are showing, and over the stream otherwise.
+  */
  fun quit() {
 val companionPresentation:ExternalDisplayControlHost? = externalDisplayControlPresentation
 ?.takeIf { it.isHostShowing() }
-val context:Context = companionPresentation?.companionDialogContext ?: this
-
-val sheet = BottomSheetDialog(context)
-if (companionPresentation != null)
-{
-sheet.window?.setType(companionPresentation.companionDialogWindowType)
-sheet.window?.attributes?.token = companionPresentation.companionDialogWindowToken()
-}
-val container = NovaSheetChrome.createSheetContainer(context)
-
-val title = TextView(context).apply {
-if (spaceSession) setText(R.string.nova_space_leave_title) else setText(R.string.game_dialog_title_quit_confirm)
-textSize = 20f
-NovaSheetChrome.styleSheetTitle(this)
-}
-container.addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-val message = TextView(context).apply {
-if (spaceSession) setText(R.string.nova_space_leave_message)
-else setText(R.string.game_dialog_message_quit_confirm)
-textSize = 15f
-setPadding(0, UiHelper.dpToPx(context, 10f).toInt(), 0, UiHelper.dpToPx(context, 18f).toInt())
-setTextColor(com.papi.nova.ui.NovaThemeManager.getTextSecondaryColor(context))
-}
-container.addView(message, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-val stay = TextView(context).apply {
-id = View.generateViewId()
-tag = "nova-end-session-stay"
-text = getString(R.string.game_dialog_action_stay_in_game)
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this)
-setOnClickListener { sheet.dismiss() }
-}
-container.addView(stay, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()))
-
-val endSession = TextView(context).apply {
-id = View.generateViewId()
-tag = "nova-end-session-confirm"
-text = if (spaceSession) getString(R.string.nova_space_leave_action) else getString(R.string.game_dialog_action_end_session)
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this, destructive = true)
-setOnClickListener {
-quitOnStop = true
-markLocalSessionEnd()
-sheet.dismiss()
-finish()
-}
-}
-container.addView(endSession, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()).apply {
-topMargin = UiHelper.dpToPx(context, 10f).toInt()
-})
-
-sheet.setContentView(container)
-stay.nextFocusDownId = endSession.id
-endSession.nextFocusUpId = stay.id
-sheet.setOnShowListener {
-NovaSheetChrome.applyBottomSheetChrome(sheet, container)
-NovaStreamSheetFocus.onShow(sheet, stay)
-}
-sheet.setOnDismissListener {
-if (companionPresentation == null) restoreStreamInputAfterModalDismissal()
-}
-sheet.show()
-NovaSheetChrome.applyBottomSheetChrome(sheet, container)
+val surfaces = companionPresentation?.let { ExternalDisplayControlController.surfacesFor(it) } ?: novaSurfaces
+surfaces.present(
+NovaCommonPage.Confirm(
+key = END_SESSION_PAGE,
+title = getString(if (spaceSession) R.string.nova_space_leave_title else R.string.game_dialog_title_quit_confirm),
+message = androidx.compose.ui.text.AnnotatedString(
+getString(if (spaceSession) R.string.nova_space_leave_message else R.string.game_dialog_message_quit_confirm)
+),
+stayLabel = getString(R.string.nova_panel_stay),
+actionLabel = getString(if (spaceSession) R.string.nova_space_leave_action else R.string.game_dialog_action_end_session),
+destructive = true,
+onConfirm = { endSession() },
+)
+)
 }
 override fun showGameMenu(device:GameInputDevice?) {
 showGameMenuFromDisplay(INVALID_DISPLAY_ID, device)
@@ -7613,6 +7542,10 @@ companion object {
  private const val FIVE_FINGER_TAP_THRESHOLD:Int = 300
  private const val NOVA_PROGRESS_READY_DISMISS_DELAY_MS:Long = 350L
  private const val INVALID_DISPLAY_ID:Int = -1
+ private const val LAUNCH_ISSUE_PAGE:String = "nova-launch-issue"
+ private const val END_SESSION_PAGE:String = "nova-end-session"
+ /** How long a sent key combination is held before its keys are released, last first. */
+ const val SENT_KEY_UP_DELAY_MS:Long = 25
 
  const val EXTRA_HOST:String = "Host"
  const val EXTRA_PORT:String = "Port"

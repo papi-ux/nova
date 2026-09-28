@@ -24,7 +24,8 @@ class NovaSpacesVocabularyTest {
         "src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt",
         "src/main/java/com/papi/nova/grid/PcGridAdapter.kt",
         "src/main/java/com/papi/nova/Game.kt",
-        "src/main/java/com/papi/nova/GameMenu.kt",
+        // The legacy menu's successor: the Command Center's pages.
+        "src/main/java/com/papi/nova/ui/NovaCommandCenterPages.kt",
         "src/main/java/com/papi/nova/ui/NovaQuickMenuUiState.kt",
     )
 

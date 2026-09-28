@@ -45,9 +45,6 @@ class NovaHudOverlayContentComposeTest {
                             NovaStreamHudContent(
                                 state = NovaHudUiState.preview(NovaHudMode.DEBUG)
                             )
-                            NovaReconnectOverlayContent(
-                                state = NovaReconnectOverlayState(attempt = 1, maxAttempts = 3)
-                            )
                             NovaSessionProgressOverlayContent(
                                 state = NovaSessionProgressUiState.from("cage_starting")
                             )

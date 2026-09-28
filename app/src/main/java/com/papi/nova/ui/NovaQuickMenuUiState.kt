@@ -42,7 +42,8 @@ enum class NovaQuickMenuActionId {
     PLAYERS,
     PASTE_CLIPBOARD,
     ROTATE_SCREEN,
-    MORE_KEYS
+    MORE_KEYS,
+    MORE_CONTROLS
 }
 
 data class NovaQuickMenuChip(
@@ -455,6 +456,13 @@ data class NovaQuickMenuUiState(
                     id = NovaQuickMenuActionId.MORE_KEYS,
                     label = context.getString(R.string.nova_quick_menu_special_keys),
                     enabled = ownerInputAllowed
+                ),
+                // The legacy Quick Menu's extras, on one page of their own.
+                NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.MORE_CONTROLS,
+                    label = context.getString(R.string.nova_cc_more_controls),
+                    caption = context.getString(R.string.nova_cc_more_controls_caption),
+                    enabled = ownerInputAllowed
                 )
             )
 
@@ -479,22 +487,29 @@ data class NovaQuickMenuUiState(
                 healthSummary = healthSummary,
                 healthDetail = healthDetail,
                 healthTone = healthTone,
+                // In a Space, disconnecting would leave the Space anyway, so the one way out is
+                // the header's split, which reads Leave Space and confirms in place.
                 disconnectAction = NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.DISCONNECT,
-                    label = if (spaceSession) context.getString(R.string.nova_space_leave_action) else context.getString(R.string.game_menu_disconnect),
-                    caption = if (spaceSession) context.getString(R.string.nova_space_leave_caption) else "",
-                    destructive = spaceSession,
+                    label = context.getString(R.string.game_menu_disconnect),
+                    visible = !spaceSession,
                 ),
                 endAction = NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.END_STREAM,
-                    visible = !spaceSession,
                     label = when {
+                        spaceSession -> context.getString(R.string.nova_space_leave_action)
                         viewerSession -> context.getString(R.string.nova_quick_menu_leave)
                         status?.isShuttingDown == true -> context.getString(R.string.nova_quick_menu_ending)
                         else -> context.getString(R.string.nova_quick_menu_end_stream)
                     },
-                    enabled = viewerSession || status?.canQuit != false,
-                    destructive = true
+                    caption = when {
+                        spaceSession -> context.getString(R.string.nova_space_leave_caption)
+                        viewerSession -> ""
+                        else -> context.getString(R.string.nova_cc_end_session_consequence)
+                    },
+                    enabled = spaceSession || viewerSession || status?.canQuit != false,
+                    // A viewer's Leave ends nothing on the host, so it needs no confirm.
+                    destructive = !viewerSession || spaceSession
                 ),
                 stability = stability,
                 sync = sync,

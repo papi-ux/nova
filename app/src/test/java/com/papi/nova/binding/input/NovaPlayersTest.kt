@@ -84,7 +84,7 @@ class NovaPlayersTest {
         val players = menu.substring(menu.indexOf("NovaQuickMenuActionId.PLAYERS ->"))
         assertTrue(
             "Command Center takes every pad's buttons while open, so Reassign closes it before anyone can join",
-            players.indexOf("dismiss()") in 0 until players.indexOf("game.reassignPlayers()")
+            players.indexOf("closeThenOnStream(menu)") in 0 until players.indexOf("game.reassignPlayers()")
         )
     }
 }

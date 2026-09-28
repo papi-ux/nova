@@ -158,10 +158,14 @@ class NovaLaunchSourceGuardTest {
             game.contains("showNovaLaunchIssueSheet(") &&
                 ! errorSection.contains("Dialog.displayDialog(")
         )
+        // The launch issue is a full-screen state page now: no sheet, so no theme background
+        // to peek out as a clipped bump and no handle to drag it away.
+        val launchIssue = game.section("private fun showNovaLaunchIssueSheet(", "private fun finishSecondScreen(")
         assertTrue(
-            "Launch issue drawer must use shared transparent Nova glass sheet chrome so the old bottom-sheet theme background cannot peek out as a clipped bump",
-            game.contains("NovaSheetChrome.applyBottomSheetChrome(") &&
-                game.contains("NovaSheetChrome.createSheetBackground(") &&
+            "Launch issue must be a full-screen Nova state page, not a sheet whose theme background can peek out as a clipped bump",
+            launchIssue.contains("NovaStatePage.Problem(") &&
+                launchIssue.contains("surfaces.show(page)") &&
+                !launchIssue.contains("BottomSheetDialog") &&
                 !game.contains("setBackgroundColor(Color.rgb(18, 22, 28))")
         )
         assertTrue(
@@ -171,8 +175,7 @@ class NovaLaunchSourceGuardTest {
                 detail.contains("NovaSheetDragHandle(") &&
                 syncSheetGestureIsLocked() &&
                 chrome.contains("isDraggable = false") &&
-                chrome.contains("attachHandleDragToDismiss") &&
-                game.contains("NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)")
+                chrome.contains("attachHandleDragToDismiss")
         )
     }
 
@@ -338,9 +341,9 @@ class NovaLaunchSourceGuardTest {
             "private fun scheduleActiveSessionFollowUpRefreshes(",
             "private fun queryActiveSession()"
         )
-        val quit = game.section(
-            "fun quit()",
-            "override fun showGameMenu("
+        val endSession = game.section(
+            "fun endSession()",
+            "fun quit()"
         )
         val markLocalSessionEnd = game.section(
             "private fun markLocalSessionEnd()",
@@ -349,7 +352,7 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "Game End should mark the local session card stale before returning to Library",
-            quit.contains("markLocalSessionEnd()") &&
+            endSession.contains("markLocalSessionEnd()") &&
                 markLocalSessionEnd.contains("NovaSessionEndSignal.mark(") &&
                 markLocalSessionEnd.contains("EXTRA_PC_UUID") &&
                 markLocalSessionEnd.contains("EXTRA_HOST")
@@ -366,9 +369,9 @@ class NovaLaunchSourceGuardTest {
                 markLocalSessionEnd.contains("localSessionEndMarked = true")
         )
         assertTrue(
-            "Command Center End should defer the local End marker to the confirmed Game quit dialog",
+            "Command Center End should defer the local End marker to Game's confirmed end: the header's split confirms, then Game ends the session",
             !quickMenu.contains("NovaSessionEndSignal.mark(") &&
-                quickMenu.contains("game.quit()")
+                quickMenu.contains("game.endSession()")
         )
         assertTrue(
             "Library resume should consume the local End marker before polling can re-add a paused session",

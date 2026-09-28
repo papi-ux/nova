@@ -19,40 +19,42 @@ class NovaCommandCenterSourceGuardTest {
     fun commandCenterClosesOnlyWhenSomethingElseNeedsTheScreen() {
         val menu = readNovaQuickMenu()
 
-        // A change made from the drawer used to cost the drawer. Toggling the on-screen controller
-        // or sending the clipboard changes nothing about who owns the screen, so those stay open and
-        // the drawer refreshes its own row instead of leaving. The ones that still close hand the
-        // screen or the input to something else, and each says which.
+        // A change made from the Command Center used to cost the Command Center. Toggling the
+        // on-screen controller or sending the clipboard changes nothing about who owns the screen,
+        // and Mouse Mode, More Keys and More Controls are pages pushed inside it, so those stay
+        // open. The ones that close hand the screen or the input to something else, wait for the
+        // stream to hold focus again before they act, and each says why.
         val staysOpen = mapOf(
             "CONTROLLER" to "game.toggleVirtualController()",
             "PASTE_CLIPBOARD" to "game.sendClipboard(true)",
+            "MOUSE_MODE" to "surfaces.panel.push(mouseModePage",
+            "MORE_KEYS" to "surfaces.panel.push(keysPage(",
+            "MORE_CONTROLS" to "surfaces.panel.push(moreControlsPage(",
         )
         val closes = mapOf(
-            "MOUSE_MODE" to "game.selectMouseMode(game)",
             "KEYBOARD" to "game.toggleFullKeyboard()",
             "PLAYERS" to "game.reassignPlayers()",
             "ROTATE_SCREEN" to "game.rotateScreen()",
-            "MORE_KEYS" to "legacyMenu.showMenu(device)",
         )
 
         for ((action, call) in staysOpen + closes) {
             val branch = quickMenuActionBranch(menu, action)
-            assertTrue("$action must still be handled from the drawer", branch.contains(call))
-            val closesDrawer = branch.contains("dismiss()")
+            assertTrue("$action must still be handled from the Command Center", branch.contains(call))
+            val closesPanel = branch.contains("dismiss()") || branch.contains("closeThenOnStream(")
             if (action in staysOpen) {
                 assertFalse(
-                    "$action is a setting: the drawer must stay open so a change does not cost " +
-                        "the menu and the place in it",
-                    closesDrawer,
+                    "$action is a setting or a page of the Command Center: it must stay open so a " +
+                        "change does not cost the menu and the place in it",
+                    closesPanel,
                 )
             } else {
                 assertTrue(
                     "$action hands the screen or the input to something else, so it must close " +
-                        "the drawer",
-                    closesDrawer,
+                        "the Command Center and act once the stream holds focus again",
+                    branch.contains("closeThenOnStream(menu)"),
                 )
                 assertTrue(
-                    "$action closes the drawer, so the reason must be written next to it",
+                    "$action closes the Command Center, so the reason must be written next to it",
                     branch.lines().any { it.trim().startsWith("//") },
                 )
             }
@@ -69,8 +71,11 @@ class NovaCommandCenterSourceGuardTest {
             1,
             Regex(Regex.escape(marker)).findAll(menu).count(),
         )
-        val next = menu.indexOf("NovaQuickMenuActionId.", start + marker.length)
-        val end = if (next >= 0) next else menu.length
+        val ends = listOf(
+            menu.indexOf("NovaQuickMenuActionId.", start + marker.length),
+            menu.indexOf("else -> Unit", start + marker.length),
+        ).filter { it >= 0 }
+        val end = ends.minOrNull() ?: menu.length
         return menu.substring(start, end)
     }
 
@@ -86,7 +91,7 @@ class NovaCommandCenterSourceGuardTest {
                 content.contains("diagnosis.informationalSource") &&
                 content.contains("supportingLine = supportingLine") &&
                 content.contains("text = supportingLine") &&
-                content.contains("listOfNotNull(action.label, action.chip?.label, supportingLine)")
+                content.contains("listOfNotNull(action.label, action.chip?.label, supportingLine")
         )
         assertTrue(
             "Doctor capability chips must distinguish all four action classes using localized labels",
@@ -120,11 +125,12 @@ class NovaCommandCenterSourceGuardTest {
     fun commandCenterRequestsInitialFocusForDpadNavigationOnOpen() {
         val quickMenuContent = readNovaQuickMenuContent()
         val quickMenuHost = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt")
+        val panelWindow = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelWindow.kt")
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val controllerHandler = readSource("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")
         val content = quickMenuContent.section(
-            "fun NovaQuickMenuContent(",
-            "@Composable\nprivate fun NovaQuickMenuHeader("
+            "fun NovaPageScope.NovaQuickMenuContent(",
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuHeader("
         )
         val sessionStrip = quickMenuContent.section(
             "private fun NovaQuickMenuSessionStrip(",
@@ -136,47 +142,29 @@ class NovaCommandCenterSourceGuardTest {
         )
 
         assertTrue(
-            "Command Center should create a FocusRequester when opened so Android TV DPAD navigation has an initial target without requiring keyboard Tab",
-            quickMenuContent.contains("import androidx.compose.ui.focus.FocusRequester") &&
-                quickMenuContent.contains("import androidx.compose.ui.focus.focusRequester") &&
-                quickMenuContent.contains("import androidx.compose.runtime.withFrameNanos") &&
-                content.contains("val initialFocusRequester = remember { FocusRequester() }") &&
-                content.contains("LaunchedEffect(Unit)") &&
-                content.contains("withFrameNanos { }") &&
-                content.contains("runCatching { initialFocusRequester.requestFocus() }")
-        )
-        assertTrue(
-            "Command Center should land on the always-present session strip while asynchronous Doctor data is loading, rather than requesting focus from a disabled card",
-            content.contains("NovaQuickMenuSessionStrip(state, initialFocusRequester)") &&
-                sessionStrip.contains("initialFocusRequester: FocusRequester") &&
-                sessionStrip.contains(".focusRequester(initialFocusRequester)") &&
+            "Command Center should land on the always-present session strip while asynchronous Doctor data is loading, rather than requesting focus from a disabled card; the page host focuses it one frame after the page opens",
+            content.contains("NovaQuickMenuSessionStrip(ui, Modifier.novaInitialFocus())") &&
+                sessionStrip.contains("modifier: Modifier") &&
                 sessionStrip.contains(".focusable()")
         )
         assertFalse(
-            "the Close button must not carry the initial focus requester",
-            closeButton.contains("focusRequester")
+            "the Close button must not carry the initial focus",
+            closeButton.contains("novaInitialFocus") || closeButton.contains("focusRequester")
         )
         assertTrue(
-            "the Dialog ComposeView must itself accept Android TV focus before Compose moves it to the initial child",
-            quickMenuHost.contains("composeView.isFocusable = true") &&
-                quickMenuHost.contains("composeView.isFocusableInTouchMode = true") &&
-                quickMenuHost.contains("composeView.requestFocus()")
+            "the Command Center opens in the panel window, which holds focus in touch mode and translates A and B for every element through the key gate",
+            quickMenuHost.contains("surfaces.open(root, NovaEdge.Start)") &&
+                panelWindow.contains("prepareControllerWindow(window, content)") &&
+                panelWindow.contains("keyGate.dispatch(event")
         )
-        assertTrue(
-            "controller A must activate focused Compose controls through the TV-center key contract",
-            quickMenuHost.contains("KeyEvent.KEYCODE_BUTTON_A ->") &&
-                quickMenuHost.contains("KeyEvent.KEYCODE_DPAD_CENTER,") &&
-                quickMenuHost.contains("composeView.dispatchKeyEvent(")
-        )
-        assertTrue(
-            "a controller B release should dismiss the Command Center while the full press stays local",
-            quickMenuHost.contains("KeyEvent.KEYCODE_BUTTON_B ->") &&
-                quickMenuHost.contains("if (event.action == KeyEvent.ACTION_UP) requestDismissWithMotion()")
+        assertFalse(
+            "the Command Center translates no keys of its own any more",
+            quickMenuHost.contains("setOnKeyListener") || quickMenuHost.contains("KeyEvent.KEYCODE_BUTTON_A")
         )
         assertTrue(
             "Command Center dismissal must relinquish its focusable window and restore the stream input target",
-            quickMenuHost.contains("activeDialog.window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)") &&
-                quickMenuHost.contains("game.restoreStreamInputAfterModalDismissal()") &&
+            panelWindow.contains("window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)") &&
+                panelWindow.contains("placement.game.restoreStreamInputAfterModalDismissal()") &&
                 game.contains("fun restoreStreamInputAfterModalDismissal()") &&
                 game.contains("val viewFocusRestored = target.requestFocus()")
         )
@@ -293,18 +281,14 @@ class NovaCommandCenterSourceGuardTest {
     @Test
     fun commandCenterDragSnapsThroughOneCollectorNotACoroutinePerMove() {
         val content = readNovaQuickMenuContent()
-        val dragHandler = content.section(
-            "onHorizontalDrag = { change, dragAmount ->",
-            "NovaQuickMenuContent("
-        )
+        val frame = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt")
         assertTrue(
-            "dragging the drawer used to launch a coroutine per pointer-move event — " +
-                "sixty to a hundred and twenty a second, each stopping whatever the one " +
-                "before it started. The handler writes one float; a single snapshotFlow " +
-                "collector snaps the drawer at a frame's pace",
-            !dragHandler.contains("scope.launch") &&
-                dragHandler.contains("dragProgress.floatValue =") &&
-                content.contains("snapshotFlow { if (dragInProgress.value) dragProgress.floatValue else Float.NaN }")
+            "dragging the drawer used to launch a coroutine per pointer-move event, sixty to a " +
+                "hundred and twenty a second, each stopping whatever the one before it started. " +
+                "The panel frame the Command Center now sits in keeps the single snapshotFlow " +
+                "collector that snaps it at a frame's pace, and the page adds no drag of its own",
+            frame.contains("snapshotFlow { if (dragging.value) dragProgress.floatValue else Float.NaN }") &&
+                !content.contains("detectHorizontalDragGestures")
         )
     }
 
@@ -312,90 +296,58 @@ class NovaCommandCenterSourceGuardTest {
     fun commandCenterUsesAnchoredLeftDrawerInsteadOfBottomSheet() {
         val quickMenu = readNovaQuickMenu()
         val content = readNovaQuickMenuContent()
+        val pages = readSource("src/main/java/com/papi/nova/ui/NovaCommandCenterPages.kt")
+        val frame = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt")
+        val tokens = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelTokens.kt")
 
         assertFalse(
             "in-stream Command Center should not use a bottom sheet that floats high/off-center in landscape",
             quickMenu.contains("BottomSheetDialog") || quickMenu.contains("BottomSheetBehavior")
         )
         assertTrue(
-            "in-stream Command Center should be hosted by a full-screen dialog overlay so the drawer can anchor to the left edge",
-            quickMenu.contains("Dialog(game") &&
-                quickMenu.contains("WindowManager.LayoutParams.MATCH_PARENT") &&
-                quickMenu.contains("Gravity.START")
+            "the Command Center is the panel attached to the start edge, in the panel window, not a dialog of its own",
+            quickMenu.contains("surfaces.open(root, NovaEdge.Start)") && !quickMenu.contains("Dialog(game")
         )
         assertTrue(
-            "full-screen Command Center dialog must remove platform/decor insets so the drawer is visually flush with the left display edge",
-            quickMenu.contains("decorView.setPadding(0, 0, 0, 0)") &&
-                quickMenu.contains("layoutInDisplayCutoutMode =")
+            "its root is a Wide panel, today's proven width on the RP6 and 560dp on a television",
+            pages.contains("override val width: NovaPanelWidth get() = NovaPanelWidth.Wide")
         )
+        // Which corners are rounded is the guarantee; the frame rounds only the inner edge.
         assertTrue(
-            "Command Center content should render inside a named left-side drawer wrapper",
-            quickMenu.contains("NovaQuickMenuDrawer(") &&
-                content.contains("fun NovaQuickMenuDrawer(")
-        )
-        assertTrue(
-            "Compose overlay dialogs must inherit the stream activity lifecycle before attach",
-            quickMenu.contains("composeView.setViewTreeLifecycleOwner(game)")
-        )
-        assertTrue(
-            "left drawer should be width-capped for landscape phones/TV while staying near-full-width on compact portrait screens",
-            content.contains(".widthIn(max = 460.dp)") &&
-                content.contains("compactDrawerWidth = (configuration.screenWidthDp * 0.92f).dp")
-        )
-        // Which corners are rounded is the guarantee; how far is the shared scale's business.
-        // This used to pin 28.dp, and the negative pinned one specific bottom-sheet spelling,
-        // so a bottom sheet at any other radius would have passed.
-        assertTrue(
-            "left drawer should use trailing rounded corners, not a bottom-sheet top-only shape",
-            content.contains("RoundedCornerShape(topEnd = NovaRadius.drawer, bottomEnd = NovaRadius.drawer)")
+            "the frame rounds the panel's inner edge only, with the drawer radius",
+            frame.contains("NovaRadius.drawer")
         )
         assertFalse(
-            "a topStart+topEnd pair is the bottom-sheet corner set this drawer replaced",
-            Regex("""RoundedCornerShape\(\s*topStart = [^,)]+,\s*topEnd = """).containsMatchIn(content)
+            "the page draws no panel, corner or handle of its own: the frame owns the container",
+            content.contains("RoundedCornerShape(topEnd = NovaRadius.drawer") ||
+                content.contains(".background(surfaces.panel)") ||
+                content.contains("AccentHandle")
         )
         assertTrue(
-            "drawer surface should consume the literal shared outer panel at x=0 instead of a theme-glass multiplier",
-            content.contains(".background(surfaces.panel)")
+            "over the stream the frame keeps the Command Center's tuned scrim",
+            tokens.contains("const val StreamScrimAlpha = NovaInGameOverlayAlpha.CommandCenterScrim")
         )
         assertTrue(
-            "scrim should dismiss the Command Center while keeping the stream visible behind the drawer",
-            content.contains("NovaInGameOverlayAlpha.CommandCenterScrim") &&
-                content.contains("callbacks.onDismiss")
+            "Close invokes the same dismiss the scrim and B do",
+            content.contains("onClick = callbacks.onDismiss") && quickMenu.contains("surfaces.panel.close()")
         )
     }
 
     @Test
     fun commandCenterDrawerUsesFingerTrackedHorizontalMotion() {
         val content = readNovaQuickMenuContent()
-        val drawer = content.section(
-            "fun NovaQuickMenuDrawer(",
-            "@Composable\nfun NovaQuickMenuContent("
-        )
+        val frame = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt")
 
         assertFalse(
-            "Retroid Command Center should not be a canned AnimatedVisibility drawer once tactile polish is enabled",
-            drawer.contains("AnimatedVisibility(") || drawer.contains("slideInHorizontally(")
+            "the Command Center is not a canned AnimatedVisibility drawer; the page slides with the panel frame",
+            content.contains("slideInHorizontally(") || content.contains("fun NovaQuickMenuDrawer(")
         )
         assertTrue(
-            "drawer motion should be progress-aware: spring in, offset by progress, and move with horizontal drag distance",
-            drawer.contains("Animatable(0f)") &&
-                drawer.contains("animateDrawerTo(") &&
-                drawer.contains("spring(") &&
-                drawer.contains("IntOffset(") &&
-                drawer.contains("drawerProgress.value") &&
-                drawer.contains("dragAmount / drawerWidthPx")
-        )
-        assertTrue(
-            "horizontal drag should be orientation-locked so vertical Command Center scrolling does not accidentally dismiss",
-            drawer.contains("detectHorizontalDragGestures(") &&
-                drawer.contains("onHorizontalDrag =") &&
-                drawer.contains("change.consume()")
-        )
-        assertTrue(
-            "swipe-left dismissal should close only after a meaningful progress threshold, preserving tap/back dismissal semantics",
-            drawer.contains("NovaQuickMenuDrawerDismissProgress") &&
-                drawer.contains("dismissDrawerWithMotion()") &&
-                drawer.contains("callbacks.onDismiss()")
+            "the frame's motion is progress-aware: spring in, offset by progress, and follow the finger, dismissing past a threshold",
+            frame.contains("Animatable(0f)") &&
+                frame.contains("PanelSpring") &&
+                frame.contains("offset {") &&
+                frame.contains("NovaPanelMetrics.DismissFraction")
         )
     }
 
@@ -418,14 +370,13 @@ class NovaCommandCenterSourceGuardTest {
                 tokens.contains("const val CommandCenterScrim") &&
                 tokens.contains("const val Border")
         )
+        val panelTokens = readSource("src/main/java/com/papi/nova/ui/panel/NovaPanelTokens.kt")
         assertTrue(
-            "Command Center should use literal outer opacity plus shared nested scrim, tile, control, border, and handle tokens",
-            commandCenter.contains("NovaInGameOverlayAlpha.CommandCenterScrim") &&
-                commandCenter.contains(".background(surfaces.panel)") &&
+            "Command Center should use the shared nested tile, control and border tokens, and the frame's stream scrim, which is the Command Center scrim token",
+            panelTokens.contains("const val StreamScrimAlpha = NovaInGameOverlayAlpha.CommandCenterScrim") &&
                 commandCenter.contains("NovaInGameOverlayAlpha.NestedTile") &&
                 commandCenter.contains("NovaInGameOverlayAlpha.NestedControl") &&
-                commandCenter.contains("NovaInGameOverlayAlpha.Border") &&
-                commandCenter.contains("NovaInGameOverlayAlpha.AccentHandle")
+                commandCenter.contains("NovaInGameOverlayAlpha.Border")
         )
         assertTrue(
             "NovaHUD should use its own literal outer opacity plus the same border and divider tokens",
@@ -500,12 +451,16 @@ class NovaCommandCenterSourceGuardTest {
     fun commandCenterFirstPaintPutsSessionHealthThenItsExplanationBeforeTheDailyPanels() {
         val content = readNovaQuickMenuContent()
         val body = content.section(
-            "fun NovaQuickMenuContent(",
-            "@Composable\nprivate fun NovaQuickMenuHeader("
+            "fun NovaPageScope.NovaQuickMenuContent(",
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuHeader("
         )
         val header = content.section(
-            "private fun NovaQuickMenuHeader(",
-            "@Composable\nprivate fun NovaQuickMenuTitleBlock("
+            "private fun NovaPageScope.NovaQuickMenuHeader(",
+            "@Composable\nprivate fun NovaQuickMenuEndButton("
+        )
+        val endButton = content.section(
+            "private fun NovaQuickMenuEndButton(",
+            "@Composable\nprivate fun NovaQuickMenuHeaderButton("
         )
         val headerButton = content.section(
             "private fun NovaQuickMenuHeaderButton(",
@@ -516,17 +471,17 @@ class NovaCommandCenterSourceGuardTest {
             "@Composable\nprivate fun NovaQuickMenuDiagnosisCard("
         )
 
-        val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(state, initialFocusRequester)")
-        val pinnedKeys = body.indexOf("NovaQuickKeys(state.pinnedQuickKeys, callbacks)")
-        val quickKeysPanel = body.indexOf("NovaQuickMenuPanel(title = quickKeysTitle)")
-        val controlsPanel = body.indexOf("title = controlsTitle")
-        val sessionPanel = body.indexOf("NovaQuickMenuPanel(title = sessionTitle)")
-        val overlaysPanel = body.indexOf("title = overlaysTitle")
-        val diagnosisCard = body.indexOf("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)")
-        val stabilityCard = body.indexOf("NovaQuickMenuStabilityCard(state.stability, callbacks)")
-        val syncCard = body.indexOf("action = state.sync")
-        val advancedToggleCard = body.indexOf("action = state.advancedToggle")
-        val reportCard = body.indexOf("NovaQuickMenuPostSessionReportCard(state.postSessionReport)")
+        val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier.novaInitialFocus())")
+        val pinnedKeys = body.indexOf("NovaQuickKeys(ui, { it.pinnedQuickKeys }, callbacks)")
+        val quickKeysPanel = body.indexOf("NovaSectionLabel(quickKeysTitle)")
+        val controlsPanel = body.indexOf("NovaSectionLabel(controlsTitle)")
+        val sessionPanel = body.indexOf("NovaSectionLabel(sessionTitle)")
+        val overlaysPanel = body.indexOf("NovaSectionLabel(overlaysTitle)")
+        val diagnosisCard = body.indexOf("NovaQuickMenuDiagnosisCard(ui, callbacks)")
+        val stabilityCard = body.indexOf("NovaQuickMenuStabilityCard(ui, callbacks)")
+        val syncCard = body.indexOf("{ it.sync }")
+        val advancedToggleCard = body.indexOf("{ it.advancedToggle }")
+        val reportCard = body.indexOf("NovaQuickMenuPostSessionReportCard(ui)")
 
         assertTrue(
             "Command Center first paint should keep the session strip, which carries the health verdict, immediately after the header, with the three keys a handheld cannot press any other way right under it",
@@ -538,7 +493,7 @@ class NovaCommandCenterSourceGuardTest {
                 stabilityCard in 0 until overlaysPanel
         )
         assertTrue(
-            "the panels a player adjusts follow: Overlays first because the HUD switch is the frequent tap, then Controls and Session, and the full Quick Keys grid last of them because its top three are already pinned under the strip",
+            "the sections a player adjusts follow: Overlays first because the HUD switch is the frequent tap, then Controls and Session, and the full Quick Keys grid last of them because its top three are already pinned under the strip",
             overlaysPanel in 0 until controlsPanel &&
                 controlsPanel in 0 until sessionPanel &&
                 sessionPanel in 0 until quickKeysPanel &&
@@ -551,40 +506,40 @@ class NovaCommandCenterSourceGuardTest {
         assertTrue(
             "the host safe profile is observational history and lives inside the expanded Advanced section, not in the first paint",
             reportCard > advancedToggleCard &&
-                body.substring(advancedToggleCard, reportCard).contains("if (state.advancedExpanded) {")
+                body.substring(advancedToggleCard, reportCard).contains("if (advancedExpanded) {")
         )
         assertTrue(
             "Command Center header should expose an explicit close affordance that invokes the same dismiss callback as scrim/back",
             header.contains("NovaQuickMenuCloseButton(callbacks") &&
-                content.contains("stringResource(R.string.nova_quick_menu_close_command_center)") &&
-                content.contains("contentDescription = closeCommandCenter") &&
-                content.contains("onClick = callbacks.onDismiss")
+                closeButton.contains("onClick = callbacks.onDismiss")
         )
         assertTrue(
-            "Close is the primary header button: the menu opens on every Back press, so the safe action wears the accent while Disconnect stays quiet and End Session reads destructive",
+            "Close is the primary header button: the menu opens on every Back press, so the safe action wears the accent while Disconnect stays quiet",
             closeButton.contains("primary = true") &&
                 headerButton.contains("primary = false") &&
-                headerButton.contains("destructive = action.destructive") &&
-                !content.contains("primary = !action.destructive")
+                headerButton.contains("destructive = false")
+        )
+        assertTrue(
+            "End Session confirms in its own slot: a split with the hoisted state, and while it is armed Close and Disconnect make room for the pair",
+            endButton.contains("NovaSplitConfirm(") &&
+                endButton.contains("state = endSplit") &&
+                header.contains("if (!armed) {")
         )
     }
 
     @Test
     fun commandCenterPanelsUseSectionHeadersForHierarchy() {
         val content = readNovaQuickMenuContent()
-        val panel = content.section(
-            "private fun NovaQuickMenuPanel(",
-            "@Composable\nprivate fun NovaQuickMenuRow("
-        )
+        val pages = readSource("src/main/java/com/papi/nova/ui/NovaCommandCenterPages.kt")
 
-        assertTrue(panel.contains("NovaQuickMenuSectionHeader"))
-        assertTrue(panel.contains("title.uppercase()"))
-        assertTrue(panel.contains("colors.accent.copy(alpha = 0.14f)"))
-        assertTrue(panel.contains("surfaces.focusRing.copy(alpha = 0.52f)"))
-        assertTrue(content.contains("NovaQuickMenuPanel(title = overlaysTitle)"))
-        assertTrue(content.contains("NovaQuickMenuPanel(title = quickKeysTitle)"))
-        assertTrue(content.contains("NovaQuickMenuPanel(title = controlsTitle)"))
-        assertTrue(content.contains("NovaQuickMenuPanel(title = sessionTitle)"))
+        // The sections are the panel's own section labels, in the accent chrome face, as every
+        // other panel's are; the pill headers and nested boxes went with the drawer.
+        assertTrue(content.contains("NovaSectionLabel(overlaysTitle)"))
+        assertTrue(content.contains("NovaSectionLabel(quickKeysTitle)"))
+        assertTrue(content.contains("NovaSectionLabel(controlsTitle)"))
+        assertTrue(content.contains("NovaSectionLabel(sessionTitle)"))
+        assertTrue(pages.contains("NovaSectionLabel(title)"))
+        assertFalse(content.contains("private fun NovaQuickMenuSectionHeader("))
     }
 
     @Test
@@ -592,7 +547,7 @@ class NovaCommandCenterSourceGuardTest {
         val state = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuUiState.kt")
         val content = readNovaQuickMenuContent()
         val menu = readNovaQuickMenu()
-        val legacyGameMenu = readSource("src/main/java/com/papi/nova/GameMenu.kt")
+        val keysPage = readSource("src/main/java/com/papi/nova/ui/NovaCommandCenterPages.kt")
         val strings = readSource("src/main/res/values/strings.xml")
 
         assertTrue(
@@ -611,9 +566,8 @@ class NovaCommandCenterSourceGuardTest {
             menu.contains("NovaQuickMenuActionId.QUICK_INSERT -> keys(KeyboardTranslator.VK_INSERT)")
         )
         assertTrue(
-            "legacy Send special keys menu should also expose Insert for users entering through More Keys",
-            legacyGameMenu.contains("R.string.game_menu_send_keys_insert") &&
-                legacyGameMenu.contains("KeyboardTranslator.VK_INSERT.toShort()")
+            "the Keys page More Keys opens should also expose Insert",
+            keysPage.contains("R.string.game_menu_send_keys_insert, KeyboardTranslator.VK_INSERT")
         )
         assertTrue(
             "Insert label should be public-resource backed like the other special keys",
@@ -745,12 +699,12 @@ class NovaCommandCenterSourceGuardTest {
     fun commandCenterHeaderStaysFixedWhileSectionsScroll() {
         val content = readNovaQuickMenuContent()
         val body = content.section(
-            "fun NovaQuickMenuContent(",
-            "@Composable\nprivate fun NovaQuickMenuHeader("
+            "fun NovaPageScope.NovaQuickMenuContent(",
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuHeader("
         )
-        val header = body.indexOf("NovaQuickMenuHeader(state, callbacks)")
+        val header = body.indexOf("NovaQuickMenuHeader(ui, callbacks, endSplit)")
         val scroll = body.indexOf(".verticalScroll(rememberScrollState())")
-        val strip = body.indexOf("NovaQuickMenuSessionStrip(state, initialFocusRequester)")
+        val strip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier.novaInitialFocus())")
 
         assertTrue(
             "Close, Disconnect, and End Session must not scroll away: the header lives above the scrolling column, and only the sections scroll",
@@ -762,12 +716,16 @@ class NovaCommandCenterSourceGuardTest {
     fun commandCenterPicksTheHudModeDirectly() {
         val content = readNovaQuickMenuContent()
         val quickMenu = readNovaQuickMenu()
+        val picker = content.section(
+            "private fun NovaQuickMenuHudModePicker(",
+            "\n/**"
+        )
 
         assertTrue(
-            "HUD Mode is a picker of every layout, not a cycle button that hid where the next press would land",
-            content.contains("private fun NovaQuickMenuHudModePicker(") &&
-                content.contains("hudMode.options.forEach") &&
-                content.contains("callbacks.onHudModeSelect(NovaHudMode.fromPreference(option.value))")
+            "HUD Mode is one value row of every layout, which Left and Right move through in place with the current one checked, not a cycle button that hid where the next press would land",
+            picker.contains("hudMode.options.map") &&
+                picker.contains("NovaValueRow(") &&
+                picker.contains("onChange = callbacks.onHudModeSelect")
         )
         assertTrue(
             "the picker sits right under the Nova HUD row it configures",
@@ -786,48 +744,49 @@ class NovaCommandCenterSourceGuardTest {
     @Test
     fun commandCenterOpacityPresetsStayCollapsedUntilOpened() {
         val content = readNovaQuickMenuContent()
+        val quickMenu = readNovaQuickMenu()
         val menuOpacity = content.section(
-            "private fun NovaQuickMenuMenuOpacityControl(",
-            "@Composable\nprivate fun NovaQuickMenuHudOpacityControl("
+            "private fun NovaPageScope.NovaQuickMenuMenuOpacityControl(",
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuHudOpacityControl("
         )
         val hudOpacity = content.section(
-            "private fun NovaQuickMenuHudOpacityControl(",
-            "@Composable\nprivate fun NovaQuickMenuOpacityHeader("
+            "private fun NovaPageScope.NovaQuickMenuHudOpacityControl(",
+            "// Four layouts in one row"
         )
 
+        // Two open preset strips were most of the Overlays section on a Retroid. Each opacity is
+        // now one row that steps through its presets in place, so there is nothing to open.
         assertTrue(
-            "menu opacity presets render only after the row is opened; two open strips were most of the Overlays panel on a Retroid",
-            menuOpacity.contains("var expanded by remember { mutableStateOf(false) }") &&
-                menuOpacity.contains("if (expanded) {")
+            "menu opacity is one ordered value row",
+            menuOpacity.contains("NovaValueRow(") && menuOpacity.contains("ordered = true") && !menuOpacity.contains("expanded")
         )
         assertTrue(
-            "HUD opacity presets render only after the row is opened, and close again with the HUD",
-            hudOpacity.contains("var expanded by remember { mutableStateOf(false) }") &&
-                hudOpacity.contains("val presetsOpen = expanded && state.hudOpacity.enabled") &&
-                hudOpacity.contains("if (presetsOpen) {")
+            "HUD opacity is one ordered value row that waits for the HUD",
+            hudOpacity.contains("NovaValueRow(") && hudOpacity.contains("enabled = hudOpacity.enabled") && !hudOpacity.contains("expanded")
+        )
+        assertTrue(
+            "a held Left or Right writes the preference once, after the steps stop",
+            quickMenu.contains("writeAfterSteps(MENU_OPACITY_WRITE)") &&
+                quickMenu.contains("writeAfterSteps(HUD_OPACITY_WRITE)") &&
+                quickMenu.contains("SETTING_WRITE_DEBOUNCE_MS = 250L")
         )
     }
 
     @Test
     fun commandCenterEveryExitSlidesTheDrawerOut() {
-        val content = readNovaQuickMenuContent()
         val quickMenu = readNovaQuickMenu()
-        val drawer = content.section(
-            "fun NovaQuickMenuDrawer(",
-            "@Composable\nfun NovaQuickMenuContent("
-        )
+        val content = readNovaQuickMenuContent()
 
         assertTrue(
-            "Close goes through the drawer's motion like scrim-tap and drag do",
-            drawer.contains("callbacks.copy(onDismiss = { dismissDrawerWithMotion() })") &&
-                drawer.contains("callbacks = contentCallbacks")
+            "Close, B, Back and programmatic hides all close the panel, which slides out on the frame's motion before the window goes",
+            content.contains("onClick = callbacks.onDismiss") &&
+                quickMenu.contains("onDismiss = { dismiss() }") &&
+                quickMenu.contains("override fun hideMenu() {\n        dismiss()") &&
+                quickMenu.contains("if (isMenuOpen()) surfaces.panel.close()")
         )
-        assertTrue(
-            "B and Back ask the drawer to slide out instead of dropping the dialog, with a fallback in case composition is not running",
-            drawer.contains("LaunchedEffect(dismissRequests)") &&
-                quickMenu.contains("dismissMotionRequests.intValue++") &&
-                quickMenu.contains("DISMISS_MOTION_FALLBACK_MS") &&
-                quickMenu.contains("dismissWithMotion?.invoke() ?: dismiss()")
+        assertFalse(
+            "no fallback timer of its own: the panel window closes when the exit lands",
+            quickMenu.contains("DISMISS_MOTION_FALLBACK_MS")
         )
     }
 
@@ -914,8 +873,48 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "the diagnosis card takes callbacks and passes them to the card it draws",
-            quickMenu.contains("NovaQuickMenuDiagnosisCard(state.diagnosis, callbacks)") &&
+            quickMenu.contains("NovaQuickMenuDiagnosisCard(ui, callbacks)") &&
                 quickMenu.contains("callbacks: NovaQuickMenuCallbacks,")
+        )
+    }
+
+    @Test
+    fun endingIsConfirmedOnceInItsOwnSlotAndNeverAskedAgain() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val menu = readNovaQuickMenu()
+        val controller = readSource("src/main/java/com/papi/nova/utils/ExternalDisplayControlController.kt")
+        val deck = readSource("src/main/java/com/papi/nova/ui/NovaCompanionCommandDeckView.kt")
+
+        val endSession = game.section("fun endSession() {", "fun quit() {")
+        assertTrue(
+            "endSession ends for good and asks nothing: every button that reaches it has already split and been confirmed",
+            endSession.contains("quitOnStop = true") &&
+                endSession.contains("markLocalSessionEnd()") &&
+                endSession.contains("finish()") &&
+                !endSession.contains("present(") &&
+                !endSession.contains("Confirm(")
+        )
+        val quit = game.section("fun quit() {", "override fun showGameMenu(")
+        assertTrue(
+            "quit is only the fallback for paths with no button to split: a Confirm page with Stay focused that ends through endSession",
+            quit.contains("NovaCommonPage.Confirm(") && quit.contains("onConfirm = { endSession() }")
+        )
+        val endStream = menu.section("onEndStream = {", "onStability = {")
+        assertTrue(
+            "the Command Center's End Session is confirmed by the header's split, so it ends without a second confirm",
+            endStream.contains("game.endSession()") && !endStream.contains("game.quit()")
+        )
+        val deckEnd = controller.section("NovaCompanionCommandActionId.END_SESSION -> {", "handler.post(::renderCommandDeck)")
+        assertTrue(
+            "the companion deck's End tile splits in the tile and ends without a second confirm",
+            deckEnd.contains("game.endSession()") && !deckEnd.contains("game.quit()") &&
+                deck.contains("shape = NovaSplitShape.Tile") &&
+                deck.contains("state = endSessionSplit")
+        )
+        val back = controller.section("fun handleCompanionBack() {", "fun handleBackFromOwningGame()")
+        assertTrue(
+            "the deck's Back takes an armed End back before it does anything else",
+            back.indexOf("endSessionSplit.disarm()") in 0 until back.indexOf("isNovaKeyboardVisible")
         )
     }
 

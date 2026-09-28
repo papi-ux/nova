@@ -53,12 +53,13 @@ class NovaInStreamFeedbackTest {
 
         val calls = Regex("""NovaSnackbar\.(show|showError|showSuccess|showSuccessWithAction|showQuiet)\(""")
             .findAll(menu).count()
-        val anchored = Regex("""anchor = composeView""").findAll(menu).count()
+        val anchored = Regex("""anchor = menu.anchor""").findAll(menu).count()
 
         assertTrue("the Command Center should report through NovaSnackbar", calls > 0)
         assertEquals(
-            "every one of them anchors to the drawer's own view; an unanchored call from " +
-                "inside the drawer is invisible while the drawer is up",
+            "every one of them anchors to a view in the panel window; an unanchored call from " +
+                "inside the Command Center is invisible while the panel is up, and one made " +
+                "after it closes falls back to the stream because that view has gone",
             calls,
             anchored
         )
