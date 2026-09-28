@@ -309,6 +309,10 @@ private fun NovaValueRowFrame(
                 )
             }
             .onPreviewKeyEvent { event ->
+                // A row that cannot change has nothing for Left and Right to do, so they move focus
+                // on, as they would past any other row. Kept, they trapped the cursor: Left from a
+                // disabled row in Settings never reached the rail beside it.
+                if (!enabled) return@onPreviewKeyEvent false
                 val native = event.nativeKeyEvent
                 val direction = when (event.key) {
                     Key.DirectionLeft -> leftKey

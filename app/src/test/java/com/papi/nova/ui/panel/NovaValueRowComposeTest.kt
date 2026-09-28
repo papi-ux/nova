@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -109,6 +110,50 @@ class NovaValueRowComposeTest {
         rule.onNodeWithTag("row").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "M"))
         keys.press(NovaTestKeys.RIGHT)
         rule.onNodeWithTag("row").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "L"))
+    }
+
+    @Test
+    fun aDisabledRowLetsLeftAndRightMoveFocusOnAndChangesNothing() {
+        var current by mutableStateOf("M")
+        var steps by mutableIntStateOf(4)
+        val keys = rule.setPanelContent {
+            Row {
+                NovaRow(title = "Rail", onClick = {}, modifier = Modifier.width(RAIL_WIDTH).testTag("rail"))
+                Column(Modifier.weight(1f)) {
+                    NovaValueRow(
+                        title = "Size",
+                        options = sizes,
+                        current = current,
+                        onChange = { current = it },
+                        enabled = false,
+                        modifier = Modifier.testTag("row"),
+                    )
+                    NovaStepperRow(
+                        title = "Steps",
+                        value = steps,
+                        range = 0..10,
+                        step = 1,
+                        format = { "$it" },
+                        onChange = { steps = it },
+                        enabled = false,
+                        modifier = Modifier.testTag("stepper"),
+                    )
+                }
+            }
+        }
+        rule.onNodeWithTag("row").requestFocus()
+        rule.waitForIdle()
+        rule.onNodeWithTag("row").assertIsFocused()
+
+        keys.press(NovaTestKeys.LEFT)
+        rule.onNodeWithTag("rail").assertIsFocused()
+        assertEquals("a row that cannot change keeps its value", "M", current)
+
+        rule.onNodeWithTag("stepper").requestFocus()
+        rule.waitForIdle()
+        keys.press(NovaTestKeys.LEFT)
+        rule.onNodeWithTag("rail").assertIsFocused()
+        assertEquals(4, steps)
     }
 
     @Test
@@ -262,5 +307,6 @@ class NovaValueRowComposeTest {
 
     private companion object {
         val NARROW_ROW = 80.dp
+        val RAIL_WIDTH = 120.dp
     }
 }
