@@ -48,7 +48,6 @@ import androidx.compose.ui.text.style.TextAlign
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
-import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaFormFactor
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -267,13 +266,12 @@ private fun CodeContent(page: NovaStatePage.Code, focusTarget: FocusRequester, a
 
 @Composable
 private fun StateAction(action: NovaAction, act: NovaStateActions, primary: Boolean, modifier: Modifier = Modifier) {
-    NovaActionButton(
+    NovaPanelButton(
         text = action.label,
         onClick = { act.run(action) },
         primary = primary,
         destructive = action.destructive,
         modifier = modifier.fillMaxWidth(),
-        minHeight = NovaPanelMetrics.ButtonMinHeight,
     )
 }
 

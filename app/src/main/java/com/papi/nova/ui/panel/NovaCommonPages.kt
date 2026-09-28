@@ -54,7 +54,6 @@ import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
-import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaRadius
 
 /**
@@ -145,7 +144,7 @@ private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T
             )
         }
         item(key = "done") {
-            NovaActionButton(
+            NovaPanelButton(
                 text = page.doneLabel,
                 primary = true,
                 onClick = {
@@ -153,7 +152,6 @@ private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T
                     exit.leaveThen { page.onDone(result) }
                 },
                 modifier = Modifier.fillMaxWidth().novaRestorableFocus("done", page.options.size),
-                minHeight = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current),
             )
         }
     }
@@ -272,22 +270,17 @@ private fun NovaPageScope.ConfirmPage(page: NovaCommonPage.Confirm, exit: NovaPa
     NovaBackHandler(active = true, onBack = stay)
     PageColumn {
         Text(text = page.message, style = novaPanelType.rowTitle, color = colors.textSecondary)
-        Row(horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SplitGap)) {
-            NovaActionButton(
-                text = page.stayLabel,
-                onClick = stay,
-                modifier = Modifier.weight(1f).novaInitialFocus(),
-                minHeight = NovaPanelMetrics.ButtonMinHeight,
-            )
-            NovaActionButton(
-                text = page.actionLabel,
-                destructive = page.destructive,
-                primary = !page.destructive,
-                onClick = { exit.leaveThen(page.onConfirm) },
-                modifier = Modifier.weight(1f),
-                minHeight = NovaPanelMetrics.ButtonMinHeight,
-            )
-        }
+        NovaPanelButtonPair(
+            first = { NovaPanelButton(text = page.stayLabel, onClick = stay, modifier = Modifier.novaInitialFocus()) },
+            second = {
+                NovaPanelButton(
+                    text = page.actionLabel,
+                    destructive = page.destructive,
+                    primary = !page.destructive,
+                    onClick = { exit.leaveThen(page.onConfirm) },
+                )
+            },
+        )
     }
 }
 
@@ -296,39 +289,36 @@ private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, exit: NovaPage
     val colors = LocalNovaComposeColors.current
     val close = { exit.leaveThen(page.onClose) }
     NovaBackHandler(active = true, onBack = close)
-    val buttonHeight = NovaPanelMetrics.ButtonMinHeight
     PageColumn {
+        // A notice carries whole error messages, so it reads at the size every other message does.
         Text(
             text = page.message,
-            style = novaPanelType.caption,
+            style = novaPanelType.rowTitle,
             fontFamily = if (page.monospace) FontFamily.Monospace else null,
             color = colors.textSecondary,
         )
         page.primary?.let { primary ->
-            NovaActionButton(
+            NovaPanelButton(
                 text = primary.label,
                 primary = true,
                 destructive = primary.destructive,
                 onClick = { exit.leaveThen(primary.run) },
                 modifier = Modifier.fillMaxWidth().novaInitialFocus(),
-                minHeight = buttonHeight,
             )
         }
         page.help?.let { help ->
-            NovaActionButton(
+            NovaPanelButton(
                 text = help.label,
                 onClick = { exit.leaveThen(help.run) },
                 modifier = Modifier.fillMaxWidth(),
-                minHeight = buttonHeight,
             )
         }
-        NovaActionButton(
+        NovaPanelButton(
             text = page.closeLabel,
             onClick = close,
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (page.primary == null) Modifier.novaInitialFocus() else Modifier),
-            minHeight = buttonHeight,
         )
     }
 }
@@ -368,12 +358,11 @@ private fun NovaPageScope.FormPage(page: NovaCommonPage.Form, exit: NovaPageExit
             )
             field.hint?.let { Text(text = it, style = novaPanelType.caption, color = colors.textSecondary) }
         }
-        NovaActionButton(
+        NovaPanelButton(
             text = page.submitLabel,
             primary = true,
             onClick = submit,
             modifier = Modifier.fillMaxWidth(),
-            minHeight = NovaPanelMetrics.ButtonMinHeight,
         )
         page.warning?.let { Text(text = it, style = novaPanelType.caption, color = colors.warning) }
     }
@@ -407,12 +396,11 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPage
             maxLength = page.range.last.toString().length,
             modifier = Modifier.fillMaxWidth(),
         )
-        NovaActionButton(
+        NovaPanelButton(
             text = stringResource(R.string.nova_panel_save),
             primary = true,
             onClick = { exit.leaveThen { page.onSave(value) } },
             modifier = Modifier.fillMaxWidth(),
-            minHeight = NovaPanelMetrics.ButtonMinHeight,
         )
     }
 }
@@ -487,11 +475,10 @@ private fun NovaPageScope.BusyPage(page: NovaCommonPage.Busy, exit: NovaPageExit
             )
         }
         if (cancel != null) {
-            NovaActionButton(
+            NovaPanelButton(
                 text = cancel.label,
                 onClick = { exit.act(cancel.run) },
                 modifier = Modifier.fillMaxWidth().novaInitialFocus(),
-                minHeight = NovaPanelMetrics.ButtonMinHeight,
             )
         } else {
             Box(modifier = Modifier.novaInitialFocus().novaClickable(onClick = {}))

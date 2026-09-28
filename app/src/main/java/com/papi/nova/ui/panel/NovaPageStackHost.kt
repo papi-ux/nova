@@ -14,6 +14,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -21,9 +23,12 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -37,7 +42,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -56,6 +63,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
@@ -67,8 +75,10 @@ import com.papi.nova.BuildConfig
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
+import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaControllerHint
-import com.papi.nova.ui.compose.NovaControllerHintBar
+import com.papi.nova.ui.compose.NovaRadius
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -279,11 +289,53 @@ fun NovaPageStackHost(
                 }
             }
         }
-        NovaControllerHintBar(
-            hints = allHints,
-            compact = true,
-            modifier = Modifier.padding(padding),
-        )
+        NovaPanelHints(hints = allHints, modifier = Modifier.padding(padding))
+    }
+}
+
+/**
+ * The panel's controller hints: a key chip and its label for each, in the panel type, so a
+ * television reads them 2sp larger. They wrap onto a second line when they must, rather than
+ * scrolling sideways and cutting the last hint at the panel's edge.
+ */
+@Composable
+private fun NovaPanelHints(hints: List<NovaControllerHint>, modifier: Modifier = Modifier) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val type = novaPanelType
+    val shape = RoundedCornerShape(NovaRadius.hero)
+    val chip = RoundedCornerShape(NovaRadius.row)
+    val separator = stringResource(R.string.nova_panel_hint_separator)
+    val description = remember(hints, separator) { hints.joinToString(separator) { "${it.key} ${it.label}" } }
+    FlowRow(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(surfaces.panel.copy(alpha = NovaPanelMetrics.HintBarAlpha * LocalNovaMenuOpacityScale.current))
+            .border(NovaPanelMetrics.Hairline, surfaces.panelBorder, shape)
+            .semantics { contentDescription = description }
+            .padding(horizontal = NovaPanelMetrics.SpaceSm, vertical = NovaPanelMetrics.SpaceXs),
+        horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
+        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        hints.forEach { hint ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs),
+            ) {
+                Text(
+                    text = hint.key,
+                    style = type.sectionLabel,
+                    color = colors.onAccent,
+                    modifier = Modifier
+                        .clip(chip)
+                        .background(colors.accent)
+                        .padding(horizontal = NovaPanelMetrics.SpaceSm, vertical = NovaPanelMetrics.HintChipPadding),
+                )
+                Text(text = hint.label, style = type.caption, color = colors.textSecondary)
+            }
+        }
     }
 }
 

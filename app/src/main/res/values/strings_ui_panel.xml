@@ -25,6 +25,8 @@
     <!-- The scrim behind a panel, for TalkBack: tapping it closes the panel. -->
     <string name="nova_panel_close_panel">Close panel</string>
 
+    <!-- Joins the hints in the hint bar's TalkBack description. -->
+    <string name="nova_panel_hint_separator" translatable="false">", "</string>
     <!-- Controller button names in the hint bar. They name physical buttons, so they stay as printed. -->
     <string name="nova_panel_key_a" translatable="false">A</string>
     <string name="nova_panel_key_b" translatable="false">B</string>

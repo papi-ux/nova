@@ -75,6 +75,15 @@ object NovaPanelMetrics {
     val TvSafeVertical: Dp = 27.dp
 
     val FocusRingWidth: Dp = 3.dp
+    /** The hint bar's tint over the panel, before the menu opacity setting. */
+    const val HintBarAlpha = 0.86f
+    /** Top and bottom padding of a hint's key chip. */
+    val HintChipPadding: Dp = 2.dp
+    /**
+     * A value beside a row's title leaves the title at least this share of the row; a value
+     * that needs more goes under the title instead of squeezing it.
+     */
+    const val TitleShare = 0.4f
     val Hairline: Dp = 1.dp
     val IconSize: Dp = 20.dp
     val CurrentMarkSize: Dp = 18.dp
