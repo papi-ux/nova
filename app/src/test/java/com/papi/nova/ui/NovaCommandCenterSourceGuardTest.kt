@@ -528,6 +528,14 @@ class NovaCommandCenterSourceGuardTest {
                 endButton.contains("state = endSplit") &&
                 header.contains("if (!armed) {")
         )
+        // papi 2026-09-28, "some of the boxes are mismatched": End Session was a row-shaped confirm,
+        // taller and squarer than the Close and Disconnect buttons beside it.
+        assertTrue(
+            "End Session sits in the header's row of buttons, so it is a button there: their height, their corners, its third of the row",
+            endButton.contains("shape = NovaSplitShape.Button") &&
+                endButton.contains("fillSlot = true") &&
+                !endButton.contains("NovaSplitShape.Row")
+        )
     }
 
     @Test

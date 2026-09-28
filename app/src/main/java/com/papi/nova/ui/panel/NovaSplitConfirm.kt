@@ -125,7 +125,11 @@ enum class NovaSplitShape { Button, Row, Tile }
  * A, mashed A presses or a double tap never confirm; A, Right, A does.
  *
  * At rest a [NovaSplitShape.Row] is a row among rows: the row tile, its icon and label at the
- * start in the row title type, with the destructive text and hairline.
+ * start in the row title type, with the destructive text and hairline. A split that sits in a row
+ * of buttons is a [NovaSplitShape.Button], as tall as they are with their 8dp corners; with
+ * [fillSlot] it spans the slot it is given, as a button sharing its row by weight does, and so
+ * does its armed pair. Otherwise a button keeps its own width and its pair widens only as far as
+ * two 96dp halves need.
  */
 @Composable
 fun NovaSplitConfirm(
@@ -139,6 +143,7 @@ fun NovaSplitConfirm(
     shape: NovaSplitShape = NovaSplitShape.Button,
     enabled: Boolean = true,
     state: NovaSplitConfirmState = rememberNovaSplitConfirmState(),
+    fillSlot: Boolean = false,
 ) {
     val confirm by rememberUpdatedState(onConfirm)
     val isTop = LocalNovaPageIsTop.current
@@ -183,6 +188,8 @@ fun NovaSplitConfirm(
         }
     }
 
+    // A row or a tile always spans its slot; a button only when asked to.
+    val fills = shape != NovaSplitShape.Button || fillSlot
     val minHeight = when (shape) {
         NovaSplitShape.Button -> NovaPanelMetrics.ButtonMinHeight
         NovaSplitShape.Row -> NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current)
@@ -214,13 +221,7 @@ fun NovaSplitConfirm(
                     // A row at rest reads as the rows around it: the tile, its label at the start.
                     row = shape == NovaSplitShape.Row,
                     modifier = Modifier
-                        .then(
-                            if (shape == NovaSplitShape.Button) {
-                                Modifier.onSizeChanged { slotWidth = it.width }
-                            } else {
-                                Modifier.fillMaxWidth()
-                            },
-                        )
+                        .then(if (fills) Modifier.fillMaxWidth() else Modifier.onSizeChanged { slotWidth = it.width })
                         .focusRequester(state.buttonRequester),
                     onClick = { state.arm() },
                 )
@@ -228,8 +229,9 @@ fun NovaSplitConfirm(
                 Row(
                     modifier = Modifier
                         // A button splits in its own slot and widens only as far as two 96dp
-                        // halves need; a row or a tile splits across its whole width.
-                        .then(if (shape == NovaSplitShape.Button) Modifier.splitPairWidth(slotWidth) else Modifier.fillMaxWidth())
+                        // halves need; a row, a tile or a button that fills its slot splits
+                        // across the whole slot.
+                        .then(if (fills) Modifier.fillMaxWidth() else Modifier.splitPairWidth(slotWidth))
                         .onGloballyPositioned { pairBounds.bounds = it.boundsInWindow() }
                         .onFocusChanged {
                             pairFocused = it.hasFocus

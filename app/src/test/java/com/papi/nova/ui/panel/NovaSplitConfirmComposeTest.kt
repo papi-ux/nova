@@ -6,8 +6,10 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.testTag
@@ -19,6 +21,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
@@ -152,6 +156,34 @@ class NovaSplitConfirmComposeTest {
         val pair = end.right - stay.left
         val twoHalves = NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap
         assertTrue("a narrow button widens only to two 96dp halves, not the full row: $pair", abs((pair - twoHalves).value) <= 1f)
+    }
+
+    @Test
+    fun aButtonThatFillsItsSlotRestsAndSplitsAcrossIt() {
+        rule.setPanelContent {
+            Row(Modifier.width(600.dp)) {
+                NovaPanelButton(text = "Close", onClick = {}, modifier = Modifier.weight(1f))
+                NovaSplitConfirm(
+                    label = "End session",
+                    confirmLabel = "End",
+                    onConfirm = {},
+                    state = state,
+                    fillSlot = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        val close = rule.onNodeWithText("Close").getUnclippedBoundsInRoot()
+        val rest = rule.onNodeWithText("End session").getUnclippedBoundsInRoot()
+        assertEquals("the split is the button beside it, as wide", close.width.value, rest.width.value, 0.5f)
+        assertEquals("and as tall", close.height.value, rest.height.value, 0.5f)
+
+        rule.onNodeWithText("End session").performClick()
+        rule.waitForIdle()
+        val stay = rule.onNodeWithText("Stay").getUnclippedBoundsInRoot()
+        val end = rule.onNodeWithText("End").getUnclippedBoundsInRoot()
+        assertEquals("armed, the pair spans its own slot", rest.left.value, stay.left.value, 0.5f)
+        assertEquals(rest.right.value, end.right.value, 0.5f)
     }
 
     @Test

@@ -294,8 +294,10 @@ private fun NovaQuickMenuEndButton(
         onConfirm = { callbacks.perform(end) },
         modifier = modifier,
         icon = R.drawable.ic_close,
-        // It shares the header row by weight, and armed its pair takes the whole row.
-        shape = NovaSplitShape.Row,
+        // A button of the header's button row, as tall as Close and Disconnect with their corners.
+        // It shares the row by weight, and armed its pair takes the whole row.
+        shape = NovaSplitShape.Button,
+        fillSlot = true,
         enabled = end.enabled,
         state = endSplit,
     )
@@ -586,8 +588,9 @@ private fun NovaQuickMenuTitleAndChip(title: @Composable () -> Unit, chip: NovaQ
  * Keys in rows of three, each one a button that sends it.
  *
  * Alt + F4 closes the focused window on the host, which is normally the game, so it is not one A
- * away: it splits in its own slot into Stay and Close App (R3). Armed, it takes its whole row, as
- * a split does when its halves would be narrower than 96dp, and its neighbours step aside.
+ * away: it splits in its own slot into Stay and Close App (R3). At rest it is a key like the keys
+ * beside it, a third of the row. Armed, it takes its whole row, as a split does when its halves
+ * would be narrower than 96dp, and its neighbours step aside.
  */
 @Composable
 private fun NovaQuickKeys(
@@ -613,6 +616,7 @@ private fun NovaQuickKeys(
                                 consequence = stringResource(R.string.nova_cc_alt_f4_consequence),
                                 enabled = action.enabled,
                                 state = closeApp,
+                                fillSlot = true,
                                 modifier = Modifier.weight(1f),
                             )
                             !splitTakesRow -> NovaPanelButton(

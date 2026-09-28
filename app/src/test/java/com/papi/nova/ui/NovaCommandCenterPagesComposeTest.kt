@@ -6,11 +6,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.requestFocus
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import com.papi.nova.ui.panel.NovaMenuItem
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPageStackHost
@@ -178,6 +181,26 @@ class NovaCommandCenterPagesComposeTest {
         assertEquals("B disarms before it closes anything", 1, panel.depth)
         rule.onNodeWithText("Close").assertExists()
         rule.onNodeWithText("End Session").assertIsFocused()
+    }
+
+    @Test
+    fun endSessionIsAButtonOfTheHeaderRowAndItsPairSpansTheRow() {
+        val keys = open()
+        val close = rule.onNodeWithText("Close").getUnclippedBoundsInRoot()
+        val disconnect = rule.onNodeWithText("Disconnect").getUnclippedBoundsInRoot()
+        val end = rule.onNodeWithText("End Session").getUnclippedBoundsInRoot()
+        assertEquals("as tall as the buttons beside it", close.height.value, end.height.value, 0.5f)
+        assertEquals("its third of the row", disconnect.width.value, end.width.value, 0.5f)
+        assertEquals("on their line", close.top.value, end.top.value, 0.5f)
+
+        focus("End Session")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        val stay = rule.onNodeWithText("Stay").getUnclippedBoundsInRoot()
+        val confirm = rule.onNodeWithText("End Session").getUnclippedBoundsInRoot()
+        assertEquals("armed, the pair starts where Close did", close.left.value, stay.left.value, 0.5f)
+        assertEquals("and ends where End Session did", end.right.value, confirm.right.value, 0.5f)
+        assertEquals("each half a button's height", close.height.value, stay.height.value, 0.5f)
     }
 
     @Test
