@@ -327,7 +327,12 @@ class NovaThemeResourcesTest {
                 composeTheme.contains("opacityScale = opacityScale") &&
                 !composeTheme.contains("surfaces.panel.alpha * opacityScale")
         )
-        assertTrue("Command Center outer panel should consume the shared absolute panel", quickMenuContent.contains(".background(surfaces.panel)"))
+        // The Command Center is a page in the panel frame now; the frame draws the one outer panel.
+        val panelFrame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
+        assertTrue(
+            "Command Center outer panel should consume the shared absolute panel, drawn once by the panel frame",
+            panelFrame.contains(".background(surfaces.panel)") && !quickMenuContent.contains(".background(surfaces.panel)")
+        )
         assertFalse("Command Center outer panel must not retain the historical glass multiplier", quickMenuContent.contains("NovaInGameOverlayAlpha.GlassPanel * LocalNovaMenuOpacityScale.current"))
         assertTrue("Compose roots should observe saved menu opacity changes without requiring Activity recreation", composeTheme.contains("registerOnSharedPreferenceChangeListener") && composeTheme.contains("NovaMenuPreferences.KEY_OPACITY"))
         assertTrue(
@@ -357,13 +362,13 @@ class NovaThemeResourcesTest {
         assertFalse("spinner progress tint should be applied at runtime instead of risky XML attr tinting", spinnerLayout.contains("indeterminateTint"))
         assertTrue("spinner should tint progress from the active Nova theme at runtime", busyPage.contains("CircularProgressIndicator(") && busyPage.contains("color = colors.accent"))
         assertTrue("spinner layout should consume theme text color attrs", spinnerLayout.contains("?android:attr/textColorPrimary"))
-        assertTrue("quit confirmation should be rebuilt as a Nova bottom sheet so it shares drawer/HUD glass chrome", quitBody.contains("BottomSheetDialog"))
-        assertTrue("quit confirmation should build its own themed glass sheet container", quitBody.contains("NovaSheetChrome.createSheetContainer"))
-        assertTrue("quit confirmation should apply shared bottom-sheet chrome", quitBody.contains("NovaSheetChrome.applyBottomSheetChrome(sheet"))
-        assertTrue("quit confirmation should style custom action rows through shared sheet chrome", quitBody.contains("NovaSheetChrome.styleSheetAction"))
+        // Ending splits in place wherever there is a button; quit() is the fallback for paths with
+        // none, a destructive Confirm page in the panel window, which shares the panel's glass.
+        assertTrue("quit confirmation should be a destructive panel Confirm page, not a sheet of its own", quitBody.contains("NovaCommonPage.Confirm(") && quitBody.contains("destructive = true") && !quitBody.contains("BottomSheetDialog"))
+        assertTrue("quit confirmation should present in the stream's or the companion display's panel window", quitBody.contains("surfaces.present("))
         assertFalse("quit confirmation should not use a raw AlertDialog shell", quitBody.contains("AlertDialog.Builder"))
         assertFalse("quit confirmation should not use platform dialog buttons", quitBody.contains("setPositiveButton") || quitBody.contains("setNegativeButton"))
-        assertTrue("quit confirmation should use Nova-themed session action copy", game.contains("R.string.game_dialog_action_end_session") && game.contains("R.string.game_dialog_action_stay_in_game"))
+        assertTrue("quit confirmation should use Nova-themed session action copy", game.contains("R.string.game_dialog_action_end_session") && game.contains("R.string.nova_panel_stay"))
         assertFalse("quit confirmation should drop the old generic streaming button labels", game.contains("game_dialog_action_end_stream") || game.contains("game_dialog_action_keep_streaming"))
         assertTrue("Command Center NovaHUD toggles should persist the next-stream preference", game.contains("setNovaHudPreference(true)") && game.contains("setNovaHudPreference(false)"))
     }
@@ -398,16 +403,24 @@ class NovaThemeResourcesTest {
         val content = File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
         val strings = File("src/main/res/values/strings.xml").readText()
 
-        assertTrue("Command Center state should read the saved menu opacity", quickMenu.contains("menuOpacityPercent = NovaMenuPreferences.readOpacityPercent(prefs)"))
+        val composeTheme = File("src/main/java/com/papi/nova/ui/compose/NovaComposeTheme.kt").readText()
+        assertTrue("Command Center state should read the saved menu opacity", quickMenu.contains("NovaMenuPreferences.readOpacityPercent(prefs)"))
         assertTrue("Command Center should expose a menu-opacity callback", quickMenu.contains("onMenuOpacityChange = { percent ->"))
-        assertTrue("the open Command Center should recompose from its live opacity state", quickMenu.contains("NovaComposeTheme(menuOpacityPercent = uiState.menuOpacity.percent)"))
+        // The row shows a step at once; the preference is written once the steps stop, and the
+        // panel window's theme follows the saved preference, so the whole panel changes with it.
+        assertTrue(
+            "the open Command Center should follow its live opacity: the row at once, the panel once the preference is written",
+            quickMenu.contains("pendingMenuOpacity = percent") &&
+                quickMenu.contains("NovaMenuPreferences.writeOpacityPercent(game, percent)") &&
+                composeTheme.contains("registerOnSharedPreferenceChangeListener")
+        )
         assertTrue("Command Center content should render the independent menu opacity control", content.contains("NovaQuickMenuMenuOpacityControl"))
         val menuOpacityControl = content
-            .substringAfter("private fun NovaQuickMenuMenuOpacityControl(")
+            .substringAfter("private fun NovaPageScope.NovaQuickMenuMenuOpacityControl(")
             .substringBefore("\n@Composable")
-        assertTrue("the rendered control should expose every preset from state", menuOpacityControl.contains("state.menuOpacity.presets.forEach"))
-        assertTrue("each rendered preset should dispatch the menu-opacity callback", menuOpacityControl.contains("callbacks.onMenuOpacityChange(percent)"))
-        assertTrue("rendered presets should retain controller-sized focus targets", menuOpacityControl.contains("minHeight = 44.dp"))
+        assertTrue("the rendered control should offer every preset from state", menuOpacityControl.contains("menuOpacity.presets.map"))
+        assertTrue("each preset step should dispatch the menu-opacity callback", menuOpacityControl.contains("onChange = callbacks.onMenuOpacityChange"))
+        assertTrue("the control should be one controller-sized value row that steps in place", menuOpacityControl.contains("NovaValueRow("))
         assertTrue("Command Center explicit glass constants should consume the menu opacity composition local", content.contains("LocalNovaMenuOpacityScale.current"))
         assertTrue("Command Center should label the new control as Menu Opacity", strings.contains("<string name=\"nova_quick_menu_menu_opacity\">Menu Opacity</string>"))
     }
@@ -477,8 +490,14 @@ class NovaThemeResourcesTest {
         assertTrue("stale dialog listeners must not remove a newer binding", blur.contains("dialogBindings[view] !== binding") && blur.contains("dialogBindings[view] === binding"))
         assertTrue("releasing an owner should recompute the strongest remaining radius", blur.contains("state.ownerRadiiDp.remove(owner)") && blur.contains("state.ownerRadiiDp.values.maxOrNull()"))
         assertTrue("Compose drawers should lease the Activity backdrop and release only their own effect", composeBlur.contains("NovaMenuBlur.acquireActivityBackground") && composeBlur.contains("lease?.release()"))
-        assertTrue("Command Center must live in a separate Dialog window before leasing the Game backdrop", quickMenuHost.contains("val overlay = Dialog(game)") && quickMenuHost.contains("overlay.setContentView(composeView)"))
-        assertTrue("Command Center should opt into adaptive backdrop blur", quickMenu.contains("NovaMenuBackdropBlur()"))
+        // The Command Center opens in the panel window. Over the stream the frame draws only the
+        // Command Center scrim; the backdrop blur is for screens (spec section 2).
+        val panelFrame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
+        assertTrue("Command Center must live in the separate panel window", quickMenuHost.contains("surfaces.open(root, NovaEdge.Start)"))
+        assertTrue(
+            "the panel frame blurs the backdrop over screens only, and the Command Center adds none of its own",
+            panelFrame.contains("if (scrim == NovaScrim.Screen) NovaMenuBackdropBlur()") && !quickMenu.contains("NovaMenuBackdropBlur()")
+        )
         assertTrue("Library drawers should blur only while a separate-window drawer is active", library.contains("if (activeOptionsSheet || activeSystemMenu)") && library.contains("NovaMenuBackdropBlur()"))
         assertFalse("same-window filter sheets must not blur their own controls through the Activity decor", library.contains("activeFilterSheet != null || activeOptionsSheet"))
         assertTrue("Settings editors should blur the underlying Settings surface", settings.contains("NovaMenuBackdropBlur()"))
@@ -522,19 +541,22 @@ class NovaThemeResourcesTest {
     }
 
     @Test
-    fun legacyGameMenuUsesNovaGlassBottomSheetInsteadOfRawAlertList() {
-        val source = File("src/main/java/com/papi/nova/GameMenu.kt").readText()
-        val showMenuDialog = source.substringAfter("private fun showMenuDialog(").substringBefore("private fun showSpecialKeysMenu")
-
-        assertTrue("GameMenu should render its in-stream menu as a Material bottom sheet", source.contains("BottomSheetDialog"))
-        assertTrue("GameMenu should use shared Nova glass sheet containers", showMenuDialog.contains("NovaSheetChrome.createSheetContainer"))
-        assertTrue("GameMenu should apply shared Nova bottom-sheet chrome", showMenuDialog.contains("NovaSheetChrome.applyBottomSheetChrome"))
-        assertTrue("GameMenu title should use shared sheet title styling", showMenuDialog.contains("NovaSheetChrome.styleSheetTitle"))
-        assertTrue("GameMenu rows should use shared focusable sheet action styling", showMenuDialog.contains("NovaSheetChrome.styleSheetAction"))
-        assertFalse("GameMenu list must not use raw AlertDialog.Builder for the menu shell", showMenuDialog.contains("AlertDialog.Builder"))
-        assertFalse("GameMenu list must not use Android simple_list_item_1 rows", showMenuDialog.contains("android.R.layout.simple_list_item_1"))
-        assertFalse("GameMenu list must not use ArrayAdapter-backed legacy rows", showMenuDialog.contains("ArrayAdapter"))
-        assertTrue("server-command empty dialog should still receive Nova alert chrome", source.contains("NovaSheetChrome.applyAlertDialogChrome(serverCommandDialog"))
+    fun legacyQuickMenuExtrasArePanelPagesInsteadOfRawAlertLists() {
+        // The legacy Quick Menu is gone. Its extras are the Command Center's More Controls page,
+        // its key list the Keys page, and its empty server commands a disabled row with its reason.
+        assertFalse("the legacy Quick Menu sheet must not come back", File("src/main/java/com/papi/nova/GameMenu.kt").exists())
+        val pages = File("src/main/java/com/papi/nova/ui/NovaCommandCenterPages.kt").readText()
+        val menu = File("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt").readText()
+        assertTrue("the extras draw as panel rows under section labels", pages.contains("NovaSectionLabel(title)") && pages.contains("NovaRow("))
+        for (source in listOf(pages, menu)) {
+            assertFalse("no raw AlertDialog.Builder for a menu shell", source.contains("AlertDialog.Builder"))
+            assertFalse("no Android simple_list_item_1 rows", source.contains("android.R.layout.simple_list_item_1"))
+            assertFalse("no ArrayAdapter-backed legacy rows", source.contains("ArrayAdapter"))
+        }
+        assertTrue(
+            "no server commands is a disabled row that says why, not a dialog with no buttons",
+            menu.contains("disabledReason = game.getString(R.string.game_dialog_message_server_cmd_empty)")
+        )
     }
 
 

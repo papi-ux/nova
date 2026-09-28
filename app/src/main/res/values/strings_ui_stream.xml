@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the stream and the companion display on the panel foundation: the Command Center
+     pages, the state pages over the stream, and the on-screen keyboard editor. -->
+<resources>
+    <!-- Command Center: the Session row that opens the page of legacy extras. -->
+    <string name="nova_cc_more_controls">More Controls</string>
+    <string name="nova_cc_more_controls_caption">Clipboard, zoom, touch and server commands</string>
+    <!-- Command Center: the header while the split is armed, under Stay and End Session. -->
+    <string name="nova_cc_end_session_consequence">The game closes on the host and the stream cannot be resumed.</string>
+    <!-- Command Center: the Keys page when no key can be offered. -->
+    <string name="nova_cc_keys_empty">No keys to send</string>
+    <string name="nova_cc_keys_empty_reason">Default keys are turned off in Settings and no custom keys are imported.</string>
+    <string name="nova_cc_custom_keys">Custom keys</string>
+    <!-- Command Center: More Controls. -->
+    <string name="nova_cc_android_keyboard">Android keyboard</string>
+    <string name="nova_cc_android_keyboard_caption">Types into the host with this device\'s keyboard.</string>
+    <string name="nova_cc_zoom">Pan and zoom</string>
+    <string name="nova_cc_floating_button">Floating button</string>
+    <string name="nova_cc_special_keys_layout">On-screen special keys</string>
+    <string name="nova_cc_touch_sensitivity">Touch sensitivity</string>
+    <string name="nova_cc_task_manager">Task Manager</string>
+    <string name="nova_cc_task_manager_caption">Sends Ctrl + Shift + Esc to the host.</string>
+    <string name="nova_cc_fetch_clipboard">Fetch clipboard</string>
+    <string name="nova_cc_fetch_clipboard_caption">Copies the host\'s clipboard to this device.</string>
+    <string name="nova_cc_on">On</string>
+    <string name="nova_cc_off">Off</string>
+    <string name="nova_cc_controller_section">Controller</string>
+    <string name="nova_cc_controller_mouse">Controller as mouse</string>
+    <!-- Command Center: the Mouse Mode page, opened from the Controls row. -->
+    <string name="nova_cc_mouse_mode">Mouse mode</string>
+    <string name="nova_cc_host_section">Host</string>
+    <string name="nova_cc_touch_section">Touch and screen</string>
+</resources>

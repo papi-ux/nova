@@ -13,16 +13,36 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.ViewCompat
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.papi.nova.R
+import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.panel.NovaSplitConfirm
+import com.papi.nova.ui.panel.NovaSplitConfirmState
+import com.papi.nova.ui.panel.NovaSplitShape
 
 /**
  * Shared companion-display chrome. The view fills its parent only as a transparent layout host;
  * interactive chrome is constrained to the top status strip and bottom action rail so the
  * underlying [ExternalControllerView] remains the touchpad owner everywhere else.
+ *
+ * End Session confirms in its own tile: A or a tap splits it into Stay and End Session, and End
+ * ignores activation for a moment after arming. [endSessionSplit] is hoisted so the deck's owner
+ * can disarm it from its own Back handling. A companion window is not a ComponentActivity, so
+ * [composeOwner] lends the tile its lifecycle and saved state.
  */
 class NovaCompanionCommandDeckView(
     context: Context,
+    private val endSessionSplit: NovaSplitConfirmState = NovaSplitConfirmState(),
+    private val composeOwner: ComponentActivity? = null,
     private val onAction: (NovaCompanionCommandActionId) -> Unit,
 ) : FrameLayout(context) {
     private val statusRow = LinearLayout(context)
@@ -43,6 +63,7 @@ class NovaCompanionCommandDeckView(
     private var renderedActionOrder = emptyList<NovaCompanionCommandActionId>()
     private var initialFocusRequested = false
     private var latestState: NovaCompanionCommandDeckState? = null
+    private val endSessionEnabled = mutableStateOf(true)
 
     init {
         isClickable = false
@@ -170,12 +191,16 @@ class NovaCompanionCommandDeckView(
     private fun rebuildActionRail(actions: List<NovaCompanionCommandAction>) {
         actionRail.removeAllViews()
         actionViews.clear()
+        endSessionSplit.disarm(restoreFocus = false)
         actions.forEach { action ->
             val actionView = createActionView(action)
             actionViews[action.id] = actionView
+            // Every tile is at least a split tile tall and centred in the rail; the End Session
+            // tile is wide enough for its armed pair, so arming never changes the rail.
+            val width = if (action.id == NovaCompanionCommandActionId.END_SESSION) dp(END_TILE_WIDTH_DP) else ViewGroup.LayoutParams.WRAP_CONTENT
             actionRail.addView(
                 actionView,
-                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                LinearLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     marginEnd = dp(6)
                 },
             )
@@ -187,6 +212,7 @@ class NovaCompanionCommandDeckView(
     }
 
     private fun createActionView(action: NovaCompanionCommandAction): View {
+        if (action.id == NovaCompanionCommandActionId.END_SESSION) return createEndSessionTile(action)
         val labelRes = actionLabel(action.id)
         val tint = if (action.destructive) {
             NovaThemeManager.getErrorColor(context)
@@ -198,6 +224,7 @@ class NovaCompanionCommandDeckView(
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             minimumWidth = dp(108)
+            minimumHeight = dp(TILE_MIN_HEIGHT_DP)
             isClickable = true
             isFocusable = true
             isFocusableInTouchMode = true
@@ -237,7 +264,46 @@ class NovaCompanionCommandDeckView(
         }
     }
 
+    /**
+     * End Session as a split tile. Its own touch and keys confirm it; the deck forwards nothing
+     * to it. On confirm it runs the deck's action, which ends the session without asking again.
+     */
+    private fun createEndSessionTile(action: NovaCompanionCommandAction): View = ComposeView(context).apply {
+        id = View.generateViewId()
+        tag = END_SESSION_TILE_TAG
+        composeOwner?.let { owner ->
+            setViewTreeLifecycleOwner(owner)
+            setViewTreeSavedStateRegistryOwner(owner)
+            setViewTreeViewModelStoreOwner(owner)
+        }
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        val label = context.getString(R.string.companion_deck_end_session)
+        endSessionEnabled.value = action.enabled
+        setContent {
+            NovaComposeTheme {
+                NovaSplitConfirm(
+                    label = label,
+                    confirmLabel = label,
+                    onConfirm = {
+                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        onAction(NovaCompanionCommandActionId.END_SESSION)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = actionIcon(NovaCompanionCommandActionId.END_SESSION),
+                    shape = NovaSplitShape.Tile,
+                    enabled = endSessionEnabled.value,
+                    state = endSessionSplit,
+                )
+            }
+        }
+    }
+
     private fun updateActionView(view: View, action: NovaCompanionCommandAction) {
+        if (view.tag == END_SESSION_TILE_TAG) {
+            endSessionEnabled.value = action.enabled
+            if (!action.enabled) endSessionSplit.disarm(restoreFocus = false)
+            return
+        }
         view.isEnabled = action.enabled
         view.isSelected = action.selected
         view.alpha = if (action.enabled) 1f else 0.4f
@@ -331,4 +397,15 @@ class NovaCompanionCommandDeckView(
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        /** Tag of the End Session tile, a ComposeView holding its split. */
+        const val END_SESSION_TILE_TAG = "nova-deck-end-session"
+
+        /** Wide enough for Stay and End Session side by side at their smallest. */
+        private const val END_TILE_WIDTH_DP = 216
+
+        /** A split tile's height, which every tile keeps so the rail reads as one row. */
+        private const val TILE_MIN_HEIGHT_DP = 72
+    }
 }

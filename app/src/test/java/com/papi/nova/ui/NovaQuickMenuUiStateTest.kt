@@ -282,6 +282,59 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun endSessionIsTheHeadersSplitAndInASpaceItReadsLeaveSpace() {
+        val preview = NovaQuickMenuUiState.preview(context)
+        assertTrue("an owner's End Session confirms in place, so it is destructive", preview.endAction.destructive)
+        assertEquals(
+            "the armed split says what ending does",
+            context.getString(com.papi.nova.R.string.nova_cc_end_session_consequence),
+            preview.endAction.caption,
+        )
+        assertTrue(
+            "the legacy Quick Menu's extras have a row of their own in Session",
+            preview.sessionRows.any { it.id == NovaQuickMenuActionId.MORE_CONTROLS && it.label == "More Controls" }
+        )
+
+        val space = NovaQuickMenuUiState.from(
+            context = context,
+            status = status(),
+            apiAvailable = true,
+            adaptiveSupported = true,
+            aiSupported = true,
+            adaptiveEnabled = false,
+            aiEnabled = false,
+            mangoHudEnabled = false,
+            stabilityApplied = false,
+            advancedExpanded = false,
+            profileClearInProgress = false,
+            currentGameName = "Portal",
+            currentGameUuid = "game-1",
+            profilePreference = "auto",
+            hudShowing = false,
+            perfOverlayEnabled = false,
+            onscreenControllerEnabled = false,
+            keyboardVisible = false,
+            mouseModeLabel = "Direct",
+            allowChangeMouseMode = true,
+            isOnExternalDisplay = false,
+            fallbackBitrateKbps = 20000,
+            fallbackTargetFps = 60.0,
+            spaceSession = true,
+        )
+        assertEquals("Leave Space", space.endAction.label)
+        assertTrue(space.endAction.visible && space.endAction.destructive && space.endAction.enabled)
+        assertFalse("in a Space, Disconnect would leave the Space anyway, so it gives way to the split", space.disconnectAction.visible)
+
+        val viewer = quickState(
+            status = status(
+                clientRole = "viewer",
+                controls = PolarisSessionStatus.ControlsStatus(hostTuningAllowed = false, quitAllowed = false)
+            )
+        )
+        assertFalse("a viewer's Leave ends nothing on the host, so it needs no split", viewer.endAction.destructive)
+    }
+
+    @Test
     fun commandCenterLabelsPrivateGpuNativeCaptureInsteadOfRawHeadless() {
         val state = quickState(
             status = status(

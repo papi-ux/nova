@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.app.Activity
+import androidx.activity.ComponentActivity
 import android.content.res.Configuration
 import android.os.Looper
 import android.view.View
@@ -25,7 +26,7 @@ import org.robolectric.annotation.Config
 class NovaCompanionCommandDeckViewTest {
     @Test
     fun initialFocusTargetsFirstSafeActionAndNeverEndSession() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val deck = NovaCompanionCommandDeckView(activity) { }
         activity.setContentView(deck)
 
@@ -33,7 +34,7 @@ class NovaCompanionCommandDeckViewTest {
         shadowOf(activity.mainLooper).idle()
 
         val androidKeyboard = requireAction(activity, deck, R.string.companion_deck_android_keyboard)
-        val endSession = requireAction(activity, deck, R.string.companion_deck_end_session)
+        val endSession = requireEndTile(deck)
         assertTrue(androidKeyboard.hasFocus())
         assertFalse(endSession.hasFocus())
 
@@ -47,7 +48,7 @@ class NovaCompanionCommandDeckViewTest {
 
     @Test
     fun selectedActionsExposeVisibleAndAccessibilityState() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val deck = NovaCompanionCommandDeckView(activity) { }
         activity.setContentView(deck)
 
@@ -73,7 +74,7 @@ class NovaCompanionCommandDeckViewTest {
 
     @Test
     fun everyBuiltInPaletteRendersBoundedChromeAndSemanticDestructiveAction() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val originalTheme = NovaThemeManager.getTheme(activity)
         val themes = listOf(
             NovaThemeManager.THEME_POLARIS,
@@ -87,6 +88,8 @@ class NovaCompanionCommandDeckViewTest {
             themes.forEach { theme ->
                 NovaThemeManager.setTheme(activity, theme)
                 val deck = NovaCompanionCommandDeckView(activity) { }
+                // The End Session tile is a ComposeView, which composes only once it is attached.
+                activity.setContentView(deck)
                 deck.render(state())
                 deck.measure(
                     View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY),
@@ -95,7 +98,7 @@ class NovaCompanionCommandDeckViewTest {
                 deck.layout(0, 0, 800, 400)
                 assertEquals(800, deck.getChildAt(0).measuredWidth)
                 assertEquals(800, deck.getChildAt(1).measuredWidth)
-                assertTrue(requireAction(activity, deck, R.string.companion_deck_end_session).background != null)
+                assertTrue(requireEndTile(deck).isAttachedToWindow)
 
                 val window = NovaThemeManager.getWindowBackgroundColor(activity)
                 val card = ColorUtils.compositeColors(NovaThemeManager.getCardBackgroundColor(activity), window)
@@ -113,7 +116,7 @@ class NovaCompanionCommandDeckViewTest {
 
     @Test
     fun transparentCenterPreservesUnderlyingTouchpadOwnership() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val root = ExternalControllerView(activity)
         val deck = NovaCompanionCommandDeckView(activity) { }
         var touchpadEvents = 0
@@ -150,7 +153,7 @@ class NovaCompanionCommandDeckViewTest {
 
     @Test
     fun compactTwoXFontUsesBoundedScrollableChrome() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val configuration = Configuration(activity.resources.configuration).apply { fontScale = 2f }
         activity.resources.updateConfiguration(configuration, activity.resources.displayMetrics)
         val deck = NovaCompanionCommandDeckView(activity) { }
@@ -184,6 +187,10 @@ class NovaCompanionCommandDeckViewTest {
     private fun requireAction(activity: Activity, root: View, label: Int): View =
         requireNotNull(findByDescription(root, activity.getString(label)))
 
+    /** End Session is a split tile drawn in Compose, found by its tag rather than a description. */
+    private fun requireEndTile(root: View): View =
+        requireNotNull(root.findViewWithTag(NovaCompanionCommandDeckView.END_SESSION_TILE_TAG))
+
     private fun findByDescription(view: View, description: String): View? {
         if (view.contentDescription?.toString() == description) return view
         if (view is ViewGroup) {
@@ -202,6 +209,6 @@ class NovaCompanionCommandDeckViewTest {
         R.string.companion_deck_zoom_pan,
         R.string.companion_deck_command_center,
         R.string.companion_deck_disconnect,
-        R.string.companion_deck_end_session,
-    ).count { findByDescription(root, activity.getString(it)) != null }
+    ).count { findByDescription(root, activity.getString(it)) != null } +
+        (if (root.findViewWithTag<View>(NovaCompanionCommandDeckView.END_SESSION_TILE_TAG) != null) 1 else 0)
 }

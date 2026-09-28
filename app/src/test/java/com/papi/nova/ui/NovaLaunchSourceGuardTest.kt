@@ -338,9 +338,9 @@ class NovaLaunchSourceGuardTest {
             "private fun scheduleActiveSessionFollowUpRefreshes(",
             "private fun queryActiveSession()"
         )
-        val quit = game.section(
-            "fun quit()",
-            "override fun showGameMenu("
+        val endSession = game.section(
+            "fun endSession()",
+            "fun quit()"
         )
         val markLocalSessionEnd = game.section(
             "private fun markLocalSessionEnd()",
@@ -349,7 +349,7 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "Game End should mark the local session card stale before returning to Library",
-            quit.contains("markLocalSessionEnd()") &&
+            endSession.contains("markLocalSessionEnd()") &&
                 markLocalSessionEnd.contains("NovaSessionEndSignal.mark(") &&
                 markLocalSessionEnd.contains("EXTRA_PC_UUID") &&
                 markLocalSessionEnd.contains("EXTRA_HOST")
@@ -366,9 +366,9 @@ class NovaLaunchSourceGuardTest {
                 markLocalSessionEnd.contains("localSessionEndMarked = true")
         )
         assertTrue(
-            "Command Center End should defer the local End marker to the confirmed Game quit dialog",
+            "Command Center End should defer the local End marker to Game's confirmed end: the header's split confirms, then Game ends the session",
             !quickMenu.contains("NovaSessionEndSignal.mark(") &&
-                quickMenu.contains("game.quit()")
+                quickMenu.contains("game.endSession()")
         )
         assertTrue(
             "Library resume should consume the local End marker before polling can re-add a paused session",
