@@ -7348,6 +7348,8 @@ showGameMenuFromDisplay(INVALID_DISPLAY_ID, device)
 }
 
 fun showGameMenuFromDisplay(originDisplayId:Int, device:GameInputDevice?) {
+// An on-screen keys editor's Clear All left armed under the Command Center is taken back first.
+keyBoardController?.disarmEditControls()
 val companionPresentation = externalDisplayControlPresentation
 val presentation = companionPresentation?.takeIf { it.isCompanionDisplayAvailable() }
 val companionDisplayId = if (presentation != null && companionControlDisplayId != INVALID_DISPLAY_ID)

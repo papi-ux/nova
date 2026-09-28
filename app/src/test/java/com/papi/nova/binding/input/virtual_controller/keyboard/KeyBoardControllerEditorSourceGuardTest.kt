@@ -30,6 +30,31 @@ class KeyBoardControllerEditorSourceGuardTest {
     }
 
     @Test
+    fun theEditorIsTouchOnlyAndLeavesThePadToTheStream() {
+        assertTrue(
+            "the editor sits on the stream window, where the stream container's focus is how the pad " +
+                "reaches the host: neither the view nor its controls may take focus from it",
+            source.contains("descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS") &&
+                source.contains(".focusProperties { canFocus = false }")
+        )
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        assertTrue(
+            "the Command Center takes an armed Clear All back as it opens",
+            game.section("fun showGameMenuFromDisplay(", "val companionPresentation")
+                .contains("keyBoardController?.disarmEditControls()") &&
+                source.contains("fun disarmEditControls()")
+        )
+    }
+
+    private fun String.section(start: String, end: String): String {
+        val from = indexOf(start)
+        require(from >= 0) { "Missing start marker: $start" }
+        val to = indexOf(end, from)
+        require(to >= 0) { "Missing end marker: $end" }
+        return substring(from, to)
+    }
+
+    @Test
     fun addKeysIsAPageOfTogglesThatStartsWithNothingChosen() {
         assertTrue(
             "Add Keys presents a MultiChoice page in the stream's panel, every key starting off",

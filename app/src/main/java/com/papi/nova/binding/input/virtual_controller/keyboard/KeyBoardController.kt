@@ -15,6 +15,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.Toast
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.platform.ComposeView
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
@@ -61,13 +63,24 @@ class KeyBoardController(
     private var currentMode = ControllerMode.Active
     private val buttonConfigure = Button(context)
 
-    /** Clear All, which confirms in its own slot, and Add Keys: shown while keys can be switched on and off. */
+    /**
+     * Clear All, which confirms in its own slot, and Add Keys: shown while keys can be switched on
+     * and off. Edit mode is entered and worked by touch, and the controls are touch only: they sit
+     * on the stream's own window, where focus belongs to the stream container, whose key listener
+     * is how the pad reaches the host. A focusable editor took that focus when Clear All armed and
+     * moved Stay into it, so the pad drove Stay and Clear All instead of the game, B went to the
+     * host rather than to the split, and the pair stayed armed under the Command Center.
+     */
     private val clearAllSplit = NovaSplitConfirmState()
     private val editControls = ComposeView(context).apply {
         visibility = View.GONE
+        isFocusable = false
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         setNovaContent {
             Row(
-                modifier = Modifier.padding(NovaPanelMetrics.SpaceSm),
+                modifier = Modifier
+                    .focusProperties { canFocus = false }
+                    .padding(NovaPanelMetrics.SpaceSm),
                 horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -331,7 +344,18 @@ class KeyBoardController(
 
     private fun showControlButtons(show: Boolean) {
         if (!show) clearAllSplit.disarm(restoreFocus = false)
+        val heldFocus = editControls.hasFocus()
         editControls.visibility = if (show) View.VISIBLE else View.GONE
+        // The editor never takes focus; if anything ever handed it some, the stream takes it back.
+        if (heldFocus) (context as? Game)?.restoreStreamInputAfterModalDismissal()
+    }
+
+    /**
+     * Takes an armed Clear All back. The Command Center calls this as it opens: a pair left armed
+     * under it, with its guard long open, would be one stray touch from clearing every key.
+     */
+    fun disarmEditControls() {
+        clearAllSplit.disarm(restoreFocus = false)
     }
 
     private fun showKeySelectionDialog() {
