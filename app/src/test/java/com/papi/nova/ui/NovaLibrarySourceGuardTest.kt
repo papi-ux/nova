@@ -471,8 +471,9 @@ class NovaLibrarySourceGuardTest {
             screen.contains("hero = model.hero")
         )
         assertTrue(
-            "hero should expose exactly one visually dominant game-launcher primary action through NovaActionButton",
-            hero.contains("NovaActionButton(") && hero.contains("text = hero.actionLabel")
+            "hero should expose exactly one visually dominant game-launcher primary action, drawn with the " +
+                "panel's button so it shares one height and one type with the End split stacked under it",
+            hero.contains("NovaPanelButton(") && hero.contains("text = hero.actionLabel")
         )
         assertEquals(
             "home hero should not grow a duplicate primary launch/resume button beside the mapped CTA",
@@ -556,9 +557,11 @@ class NovaLibrarySourceGuardTest {
                 source.contains("apiClient.loadCoverInto(this, targetGame)")
         )
         assertTrue(
-            "compact landscape hero should place artwork, title context, and a bounded launch CTA in that order",
+            "compact landscape hero should place artwork, title context, and a bounded launch CTA in that " +
+                "order; the CTA column is as wide as its labels, bounded by one split half and an armed pair",
             hero.indexOf("NovaLibraryHeroArtwork(") in 0 until hero.indexOf("Column(\n                // fill = false") &&
-                hero.contains("Modifier.width(if (compact) 132.dp else 168.dp)")
+                hero.contains(".width(IntrinsicSize.Max)") &&
+                hero.contains("max = NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap,")
         )
         assertFalse(
             "hero CTA column must not use unconstrained widthIn + fillMaxWidth because it gobbles the row and hides the title",

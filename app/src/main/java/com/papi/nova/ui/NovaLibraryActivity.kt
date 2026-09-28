@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -148,6 +149,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaPanelButton
+import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
@@ -2063,17 +2066,27 @@ class NovaLibraryActivity : NovaActivity() {
                 }
             }
             Column(
-                // Armed, End takes the words' room too, so its pair and the consequence under it
-                // have the width two halves need.
-                modifier = if (endArmed) Modifier.weight(1f) else Modifier.width(if (compact) 132.dp else 168.dp),
+                // As wide as its buttons' labels, from one split half up to an armed pair's two, so
+                // the words beside it keep the rest of the row. Armed, End takes the words' room
+                // too, so its pair and the consequence under it have the width two halves need.
+                modifier = if (endArmed) {
+                    Modifier.weight(1f)
+                } else {
+                    Modifier
+                        .widthIn(
+                            min = NovaPanelMetrics.SplitHalfMinWidth,
+                            max = NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap,
+                        )
+                        .width(IntrinsicSize.Max)
+                },
                 verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)
             ) {
-                if (!endArmed) NovaActionButton(
+                // The panel's button, as the End split's halves are, so the two stacked buttons
+                // share one height and one type.
+                if (!endArmed) NovaPanelButton(
                     text = hero.actionLabel,
                     onClick = onPrimaryAction,
                     modifier = Modifier.fillMaxWidth(),
-                    minHeight = if (compact) 28.dp else 48.dp,
-                    fontSize = if (compact) 9.sp else 14.sp
                 )
                 if (hero.secondaryActionLabel != null && onSecondaryAction != null) {
                     NovaSplitConfirm(
