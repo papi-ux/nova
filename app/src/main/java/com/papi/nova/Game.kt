@@ -4697,6 +4697,13 @@ else
  // Returns true if the event was consumed
     // NB: View is only present if called from a view callback
      fun handleMotionEvent(view:View?, event:MotionEvent?):Boolean {
+// Android can dispatch controller motion while onCreate is still setting up input,
+// or after a refused launch has called finish(). Nothing may reach a partial session.
+if (event == null || isFinishing || isDestroyed || !::prefConfig.isInitialized ||
+    controllerHandler == null || conn == null || inputCaptureProvider == null || streamContainer == null)
+{
+return false
+}
 view?.display?.displayId?.let(::recordQuickMenuInteraction)
  // Pass through mouse/touch/joystick input if we're not grabbing
         if (!grabbedInput)
