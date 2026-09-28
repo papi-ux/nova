@@ -64,6 +64,10 @@ class ControllerHandler(
 
     private val inputDeviceContexts = SparseArray<InputDeviceContext>()
     private val usbDeviceContexts = SparseArray<UsbDeviceContext>()
+    // Every Mouse Mode controller drives the same host pointer. Keep each
+    // physical context's contribution until it releases or leaves Mouse Mode.
+    private val mouseButtonOwners = mutableMapOf<GenericControllerContext, Int>()
+    private var mouseButtonMask = 0
 
     private val stickDeadzone: Double
     private val defaultContext = InputDeviceContext()
@@ -174,6 +178,7 @@ class ControllerHandler(
             usbDeviceContexts.valueAt(i).destroy()
         }
 
+        defaultContext.destroy()
         deviceVibrator.cancel()
     }
 
@@ -866,7 +871,30 @@ class ControllerHandler(
         }
     }
 
+    @Synchronized
+    private fun updateMouseButtons(context: GenericControllerContext, flags: Int) {
+        val buttons = if (context.mouseEmulationActive && !context.destroyed && !stopped) {
+            flags and (ControllerPacket.A_FLAG or ControllerPacket.B_FLAG)
+        } else {
+            0
+        }
+        if (buttons == (mouseButtonOwners[context] ?: 0)) return
+        if (buttons == 0) mouseButtonOwners.remove(context) else mouseButtonOwners[context] = buttons
+        val next = mouseButtonOwners.values.fold(0) { combined, value -> combined or value }
+        val changed = next xor mouseButtonMask
+        mouseButtonMask = next
+        if (changed and ControllerPacket.A_FLAG != 0) {
+            if (next and ControllerPacket.A_FLAG != 0) conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_LEFT)
+            else conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_LEFT)
+        }
+        if (changed and ControllerPacket.B_FLAG != 0) {
+            if (next and ControllerPacket.B_FLAG != 0) conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_RIGHT)
+            else conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_RIGHT)
+        }
+    }
+
     private fun sendControllerInputPacket(originalContext: GenericControllerContext) {
+        if (stopped || originalContext.destroyed) return
         assignControllerNumberIfNeeded(originalContext)
 
         val controllerNumber = originalContext.controllerNumber
@@ -936,8 +964,6 @@ class ControllerHandler(
 
         if (originalContext.mouseEmulationActive) {
             val changedMask = inputMap xor originalContext.mouseEmulationLastInputMap
-            val aDown = (inputMap and ControllerPacket.A_FLAG) != 0
-            val bDown = (inputMap and ControllerPacket.B_FLAG) != 0
             val xDown = (inputMap and ControllerPacket.X_FLAG) != 0
             val yDown = (inputMap and ControllerPacket.Y_FLAG) != 0
 
@@ -952,20 +978,9 @@ class ControllerHandler(
                     originalContext.mouseEmulationPixelMultiplier = 1
                 }
             }
-            if ((changedMask and ControllerPacket.A_FLAG) != 0) {
-                if (aDown) {
-                    conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_LEFT)
-                } else {
-                    conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_LEFT)
-                }
-            }
-            if ((changedMask and ControllerPacket.B_FLAG) != 0) {
-                if (bDown) {
-                    conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_RIGHT)
-                } else {
-                    conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_RIGHT)
-                }
-            }
+            // Use this source's buttons, not the merged player-slot state: a
+            // second HID context must not claim a click held by the first.
+            updateMouseButtons(originalContext, originalContext.inputMap)
             if ((changedMask and ControllerPacket.UP_FLAG) != 0 &&
                 (inputMap and ControllerPacket.UP_FLAG) != 0
             ) {
@@ -2561,10 +2576,17 @@ class ControllerHandler(
         }
 
         private fun setMouseEmulationActive(active: Boolean, announce: Boolean) {
+            if (active && (destroyed || stopped)) return
+            val changed = active != mouseEmulationActive
+            mouseEmulationActive = active
+            if (changed) {
+                updateMouseButtons(this, 0)
+                mouseEmulationLastInputMap = 0
+                mouseEmulationXDown = false
+            }
             mainThreadHandler.removeCallbacks(mouseEmulationRunnable)
             leftMouseMotion.reset()
             rightMouseMotion.reset()
-            mouseEmulationActive = active
             if (announce) {
                 NovaSnackbar.show(
                     activityContext,
@@ -2585,6 +2607,9 @@ class ControllerHandler(
 
         open fun destroy() {
             destroyed = true
+            updateMouseButtons(this, 0)
+            mouseEmulationLastInputMap = 0
+            mouseEmulationXDown = false
             buttonReleaseScheduler.cancelOwner(this)
             mouseEmulationActive = false
             leftMouseMotion.reset()

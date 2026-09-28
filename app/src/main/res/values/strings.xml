@@ -771,6 +771,8 @@
     <string name="applist_connect_msg">Connecting to PC…</string>
     <string name="applist_menu_resume">Resume Stream</string>
     <string name="applist_menu_watch">Watch Stream</string>
+    <string name="applist_menu_in_use">In Use</string>
+    <string name="applist_nothing_to_watch">Nobody is streaming this game, so there is nothing to watch.</string>
     <string name="applist_menu_watch_active">Watch Active Stream</string>
     <string name="applist_menu_watch_active_name">Active Stream</string>
     <string name="applist_menu_start_vdisplay">Start with Virtual Display</string>
