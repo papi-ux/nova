@@ -139,6 +139,19 @@ class NovaSettingsPaneComposeTest {
     }
 
     @Test
+    fun theRailsRowsAreThePanesRows() {
+        show()
+        val results = mutableListOf<TextLayoutResult>()
+        rule.onNode(hasText("Input") and hasAnyAncestor(hasTestTag("nova-settings-category-input")), useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        assertEquals("a category reads at the pane rows' title size", 14.sp, results.first().layoutInput.style.fontSize)
+        val input = category("input").getBoundsInRoot()
+        val empty = category("empty").getBoundsInRoot()
+        assertTrue("a category is at least a compact row tall", (input.bottom - input.top) >= 44.dp)
+        assertEquals("categories sit the pane's compact row gap apart", 4f, (empty.top - input.bottom).value, 0.5f)
+    }
+
+    @Test
     fun settingsOpensOnTheRailAndBrowsingItNeverPullsFocusIntoThePane() {
         val keys = show()
         category("stream").assertIsFocused()

@@ -79,8 +79,7 @@ class NovaSettingsSourceGuardTest {
                 settings.contains("fun categoryRailWidthDp(): Int = 196") &&
                 settings.contains("fun wideColumnSpacingDp(): Int = 14") &&
                 settings.contains("fun headerToQuickStripSpacingDp(): Int = 6") &&
-                settings.contains("fun quickStripToContentSpacingDp(): Int = 6") &&
-                settings.contains("fun categoryRailSpacingDp(): Int = 6")
+                settings.contains("fun quickStripToContentSpacingDp(): Int = 6")
         )
         assertTrue(
             "wide Settings should give browsing rows more room by narrowing the category rail and spacing",
@@ -103,10 +102,22 @@ class NovaSettingsSourceGuardTest {
             "no settings text is cut to one line with an ellipsis",
             settings.contains("TextOverflow.Ellipsis") || settings.contains("maxLines = 1")
         )
+        // The rail's rows were 44dp at 15sp, 6dp apart, beside 52dp pane rows at 16sp; they are the
+        // pane's rows now, so the rail keeps the pane's compact gap rather than one of its own.
         assertTrue(
-            "the category rail keeps its compact spacing and pads its ends so no category is cut at rest",
-            categoryRail.contains("Arrangement.spacedBy(NovaSettingsMetrics.categoryRailSpacingDp().dp)") &&
+            "the category rail keeps the pane's compact row gap and pads its ends so no category is cut at rest",
+            categoryRail.contains("Arrangement.spacedBy(NovaPanelMetrics.RowGap)") &&
                 categoryRail.contains("contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm)")
+        )
+        val categoryRow = settings.section(
+            "private fun NovaCategoryRow(",
+            "@Composable\nprivate fun NovaPageScope.NovaSettingsRowsPage("
+        )
+        assertTrue(
+            "a rail category is a pane row: the row tile, a row's least height and the row title type",
+            categoryRow.contains(".heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))") &&
+                categoryRow.contains(".novaFocusRing(shape, rest = novaRowRest)") &&
+                categoryRow.contains("style = novaPanelType.rowTitle")
         )
     }
 

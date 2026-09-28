@@ -76,6 +76,7 @@ import com.papi.nova.ui.NovaMenuPreferences
 import com.papi.nova.ui.NovaStreamHudContent
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.LocalNovaComposeColors
+import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionSurface
@@ -180,7 +181,6 @@ private object NovaSettingsMetrics {
     fun headerMinHeightDp(): Int = 52
     fun headerToQuickStripSpacingDp(): Int = 6
     fun quickStripToContentSpacingDp(): Int = 6
-    fun categoryRailSpacingDp(): Int = 6
     fun quickPillMaxWidthDp(): Int = 280
     fun searchClearMinHeightDp(): Int = 32
 }
@@ -731,7 +731,8 @@ private fun NovaSettingsCategoryRail(
     LazyColumn(
         state = focus.railState,
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(NovaSettingsMetrics.categoryRailSpacingDp().dp),
+        // The pane's own row gap, so the rail and the rows beside it read as one stack of tiles.
+        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
         contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm)
     ) {
         itemsIndexed(state.categories, key = { _, category -> category.key }) { _, category ->
@@ -773,6 +774,8 @@ private fun NovaSettingsCategoryChips(
 /**
  * One category of the rail. The category the pane shows is marked the way a current value is
  * (R9): a SemiBold, accent label and selected semantics. Fills and rings only ever mean focus.
+ * It is a row like the pane's rows beside it: the row tile, a row's least height and the row
+ * title type, so the rail no longer reads a size smaller than the pane.
  */
 @Composable
 private fun NovaCategoryRow(
@@ -787,7 +790,7 @@ private fun NovaCategoryRow(
         modifier = modifier
             .testTag("nova-settings-category-${category.key}")
             .fillMaxWidth()
-            .heightIn(min = NovaPanelMetrics.ButtonMinHeight)
+            .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)
             .semantics { this.selected = selected }
@@ -797,7 +800,7 @@ private fun NovaCategoryRow(
     ) {
         Text(
             text = category.title,
-            style = novaPanelType.value,
+            style = novaPanelType.rowTitle,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             color = if (selected) colors.accent else colors.textPrimary,
         )
