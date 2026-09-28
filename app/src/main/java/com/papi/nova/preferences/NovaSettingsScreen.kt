@@ -1370,7 +1370,8 @@ private fun validationMessage(key: String): String {
     return when (key) {
         PreferenceConfiguration.CUSTOM_RESOLUTION_PREF_STRING -> "Enter a resolution like 1920x1080."
         PreferenceConfiguration.CUSTOM_REFRESH_RATE_PREF_STRING -> "Enter a refresh rate from 1 to 240."
-        PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING -> "Enter a bitrate from 1 to 300 Mbps."
+        PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING ->
+            "Enter a bitrate from 1 to ${PreferenceConfiguration.MAX_BITRATE_KBPS / 1000} Mbps."
         else -> "Enter a valid value before saving."
     }
 }
