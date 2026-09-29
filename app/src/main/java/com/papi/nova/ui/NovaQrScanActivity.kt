@@ -19,7 +19,8 @@ import com.papi.nova.ui.compose.novaComposeColors
 
 /**
  * Nova-themed QR code scanner activity: the camera fills the screen, and what to do stands on a
- * panel attached to the bottom edge, in the theme's panel colour with the drawer's corners on top.
+ * panel attached to the bottom edge, in the theme's panel colour with the drawer's corners on top,
+ * with Close under it. B also leaves.
  */
 class NovaQrScanActivity : NovaActivity() {
 
@@ -33,6 +34,9 @@ class NovaQrScanActivity : NovaActivity() {
         // The camera fills the screen under the bars, where nothing it shows needs to be read; the
         // panel meets the bottom edge and pads its own text clear of the bars and any cutout.
         attachPanelToBottomEdge(findViewById(R.id.qr_panel))
+
+        // Closing hands back no code, which the Hosts screen reads as the scan being left.
+        findViewById<View>(R.id.qr_close).setOnClickListener { finish() }
 
         barcodeView = findViewById(R.id.zxing_barcode_scanner)
         capture = CaptureManager(this, barcodeView)

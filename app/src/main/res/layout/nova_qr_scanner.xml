@@ -42,6 +42,17 @@
             android:textColor="?android:attr/textColorSecondary"
             android:fontFamily="sans-serif"
             android:gravity="center" />
+
+        <!-- Close, for touch: B already leaves, and a phone with no controller had no way out
+             but the system Back. -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/qr_close"
+            style="@style/NovaTonalPillButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginTop="16dp"
+            android:focusable="true"
+            android:text="@string/nova_panel_close" />
     </LinearLayout>
 
 </FrameLayout>

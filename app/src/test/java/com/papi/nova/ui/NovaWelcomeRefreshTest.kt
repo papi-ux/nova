@@ -50,7 +50,8 @@ class NovaWelcomeRefreshTest {
     fun welcomeCopyStaysScopedToVerifiedFlows() {
         val portrait = readFile("src/main/res/layout/activity_nova_welcome.xml")
         val landscape = readFile("src/main/res/layout-land/activity_nova_welcome.xml")
-        val copy = portrait + landscape
+        // The words live in resources now (audit C27), so the copy checked is what the layouts name.
+        val copy = welcomeCopy(portrait + landscape)
 
         assertTrue("welcome should mention Polaris", copy.contains("Polaris"))
         assertTrue("welcome should mention Moonlight compatibility", copy.contains("Moonlight-compatible") || copy.contains("Moonlight pairing"))
@@ -74,6 +75,32 @@ class NovaWelcomeRefreshTest {
         assertTrue("manual add action should use the existing manual add screen", welcomeSource.contains("AddComputerManually::class.java"))
         assertTrue("QR action should be explicit", welcomeSource.contains("EXTRA_WELCOME_ACTION") && welcomeSource.contains("ACTION_SCAN_QR"))
         assertTrue("PcView should handle the welcome QR action through the wired scanner", pcViewSource.contains("handleWelcomeAction") && pcViewSource.contains("launchQrScanner()"))
+    }
+
+    @Test
+    fun welcomeWordsLiveInResourcesInPlainWords() {
+        // Eleven hardcoded English strings, "standard Moonlight pairing" and "performance HUDs" among them.
+        val layouts = listOf(
+            "src/main/res/layout/activity_nova_welcome.xml",
+            "src/main/res/layout-land/activity_nova_welcome.xml",
+            "src/main/res/layout/nova_welcome_actions.xml",
+            "src/main/res/layout-h420dp/nova_welcome_actions.xml",
+        )
+        for (layout in layouts) {
+            assertFalse("$layout names every word from resources", Regex("android:text=\"[^@]").containsMatchIn(readFile(layout)))
+        }
+        val copy = welcomeCopy(layouts.joinToString("\n") { readFile(it) })
+        assertFalse(copy.contains("standard Moonlight pairing"))
+        assertFalse(copy.contains("HUD"))
+    }
+
+    /** The values of the welcome strings the layouts name. */
+    private fun welcomeCopy(layouts: String): String {
+        val strings = readFile("src/main/res/values/strings_ui_hosts.xml")
+        return Regex("@string/(nova_welcome_[a-z_]+)").findAll(layouts).map { it.groupValues[1] }.distinct()
+            .joinToString("\n") { name ->
+                Regex("<string name=\"$name\">(.*?)</string>").find(strings)?.groupValues?.get(1) ?: error("missing string $name")
+            }
     }
 
     private fun buttonBlock(xml: String, id: String): String {

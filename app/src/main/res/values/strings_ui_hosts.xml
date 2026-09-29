@@ -43,6 +43,21 @@
     <string name="hosts_qr_title">Scan Pairing Code</string>
     <string name="hosts_qr_hint">Point the camera at the QR code on your Polaris host.</string>
 
+    <!-- Welcome, shown once on first launch. The numbered labels are set in capitals. -->
+    <string name="nova_welcome_title">Welcome to Nova</string>
+    <string name="nova_welcome_subtitle">Your PC games across Android TVs, handhelds, tablets, and phones.</string>
+    <string name="nova_welcome_step_find">01  Find your host</string>
+    <string name="nova_welcome_step_find_body">Nova finds hosts on your network. You can also add one by its address.</string>
+    <string name="nova_welcome_step_pair">02  Pair with confidence</string>
+    <string name="nova_welcome_step_pair_body">Pair with a PIN on any Moonlight-compatible host, or scan a Polaris pairing QR.</string>
+    <!-- The same card on a device with no camera, where there is nothing to scan with. -->
+    <string name="nova_welcome_step_pair_body_no_camera">Pair with a PIN on Polaris or any Moonlight-compatible host.</string>
+    <string name="nova_welcome_step_play">03  Made for every screen</string>
+    <string name="nova_welcome_step_play_body">Use a controller, a TV remote or touch. A stream overlay shows how the stream is doing.</string>
+    <string name="nova_welcome_discover">Discover Hosts</string>
+    <string name="nova_welcome_add_manually">Add Manually</string>
+    <string name="nova_welcome_scan_qr">Scan QR Code</string>
+
     <!-- Shortcut and .art file launch errors. %1$s is "Provided App is not valid" or the reason. -->
     <string name="hosts_art_invalid_uri">Nova cannot open a .art file from that location.</string>
     <string name="hosts_art_read_error">Nova could not read the .art file: %1$s</string>
