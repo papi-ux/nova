@@ -198,6 +198,8 @@ data class NovaQuickMenuUiState(
             apiAvailable: Boolean,
             hostStateUnavailable: Boolean = false,
             liveTuningPending: Boolean = false,
+            /** Why the last Live Tuning switch did not take, shown as its caption for a while. */
+            liveTuningResult: String? = null,
             adaptiveSupported: Boolean,
             aiSupported: Boolean,
             adaptiveEnabled: Boolean,
@@ -211,6 +213,8 @@ data class NovaQuickMenuUiState(
             currentGameName: String?,
             currentGameUuid: String?,
             profilePreference: String,
+            /** The Launch Preset was just saved, which its caption says for a while. */
+            launchPresetSaved: Boolean = false,
             hudShowing: Boolean,
             /** The HUD has not been dragged from its own corner, the top start. */
             hudAtItsCorner: Boolean = false,
@@ -318,6 +322,10 @@ data class NovaQuickMenuUiState(
                 profileTitle = context.getString(R.string.nova_quick_menu_profile_preference),
                 profileCaption = when {
                     currentGame == null -> context.getString(R.string.nova_quick_menu_profile_preference_checking)
+                    launchPresetSaved -> context.getString(
+                        R.string.nova_quick_menu_profile_preference_saved,
+                        compactGameName(currentGame)
+                    )
                     else -> context.getString(
                         R.string.nova_quick_menu_profile_preference_next_launch,
                         compactGameName(currentGame)
@@ -500,6 +508,7 @@ data class NovaQuickMenuUiState(
                     status = status,
                     enabledNow = autoQuality.enabled,
                     pending = liveTuningPending,
+                    result = liveTuningResult,
                     hostStateUnavailable = hostStateUnavailable,
                     canAdjustHostTuning = canAdjustHostTuning,
                     adaptiveSupported = adaptiveSupported,
@@ -819,6 +828,7 @@ data class NovaQuickMenuUiState(
             status: PolarisSessionStatus?,
             enabledNow: Boolean,
             pending: Boolean,
+            result: String?,
             hostStateUnavailable: Boolean,
             canAdjustHostTuning: Boolean,
             adaptiveSupported: Boolean,
@@ -835,6 +845,8 @@ data class NovaQuickMenuUiState(
             val caption = when {
                 pending -> context.getString(R.string.nova_cc_live_tuning_saving)
                 hostStateUnavailable -> context.getString(R.string.nova_cc_live_tuning_reconnecting)
+                // The last switch did not take: said here, where it was asked for, not in a snackbar.
+                result != null -> result
                 fixedForSpace -> context.getString(R.string.nova_cc_live_tuning_space)
                 else -> liveTuningCaption(context, status)
             }

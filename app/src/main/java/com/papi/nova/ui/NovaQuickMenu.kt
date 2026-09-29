@@ -133,6 +133,11 @@ class NovaQuickMenu(
         var diagnosticsCopied = false
         var hostStateUnavailable = false
         var liveTuningPending = false
+        // Results said in their rows' own captions for a moment, where snackbars had floated.
+        var liveTuningResult: String? = null
+        var liveTuningResults = 0
+        var launchPresetSaved = false
+        var launchPresetSaves = 0
         lateinit var scheduleDoctorVerification: (DoctorActionReceipt?) -> Unit
 
         fun menuValidationIsCurrent(): Boolean =
@@ -447,6 +452,7 @@ class NovaQuickMenu(
                 spaceSession = game.isSpaceSession(),
                 hostStateUnavailable = hostStateUnavailable,
                 liveTuningPending = liveTuningPending,
+                liveTuningResult = liveTuningResult,
                 adaptiveSupported = adaptiveSupported,
                 aiSupported = aiSupported,
                 adaptiveEnabled = adaptiveEnabled,
@@ -459,6 +465,7 @@ class NovaQuickMenu(
                 currentGameName = gameName,
                 currentGameUuid = currentGameUuid(),
                 profilePreference = currentProfilePreference(gameName),
+                launchPresetSaved = launchPresetSaved,
                 hudShowing = game.isNovaHudShowing(),
                 hudAtItsCorner = game.isNovaHudAtItsCorner,
                 hudMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal")),
@@ -878,6 +885,7 @@ class NovaQuickMenu(
                 if (apiClient != null && observed?.canAdjustHostTuning == true && !hostStateUnavailable && !liveTuningPending) {
                     val desired = !(observed.liveTuning?.enabled ?: adaptiveEnabled)
                     liveTuningPending = true
+                    liveTuningResult = null
                     refreshState()
                     game.launchRuntimeIo("NovaLiveTuningSave") {
                         val success = apiClient.setLiveTuningEnabled(desired, observed)
@@ -886,7 +894,18 @@ class NovaQuickMenu(
                             if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
                             liveTuningPending = false
                             hostStateUnavailable = !publishCurrentSessionStatus()
-                            if (!success) NovaSnackbar.showError(game, game.getString(R.string.nova_cc_live_tuning_unconfirmed), anchor = menu.anchor)
+                            if (!success) {
+                                // Said in the row's own caption, where the switch was asked for.
+                                // Counted, so an earlier failure's timer never cuts a later one short.
+                                liveTuningResult = game.getString(R.string.nova_cc_live_tuning_unconfirmed)
+                                val shown = ++liveTuningResults
+                                game.window.decorView.postDelayed({
+                                    if (liveTuningResults == shown) {
+                                        liveTuningResult = null
+                                        refreshState()
+                                    }
+                                }, PROFILE_CLEAR_RESULT_SHOWN_MS)
+                            }
                             refreshState()
                         }
                     }
@@ -971,11 +990,16 @@ class NovaQuickMenu(
                     val gameName = currentProfileGameName() ?: return@haptic
                     val gameUuid = currentGameUuid() ?: return@haptic
                     AutoQualityProfilePreferences.save(game, gameUuid, gameName, preference)
-                    NovaSnackbar.showSuccess(
-                        game,
-                        game.getString(R.string.nova_quick_menu_profile_preference_saved),
-                        anchor = menu.anchor
-                    )
+                    // Said in the row's own caption, where the preset was picked; the last step
+                    // of a held Left or Right is the one whose caption stays for the moment.
+                    launchPresetSaved = true
+                    val save = ++launchPresetSaves
+                    game.window.decorView.postDelayed({
+                        if (launchPresetSaves == save) {
+                            launchPresetSaved = false
+                            refreshState()
+                        }
+                    }, PROFILE_CLEAR_RESULT_SHOWN_MS)
                     refreshState()
                 }
             },

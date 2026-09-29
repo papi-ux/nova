@@ -1071,7 +1071,7 @@
     <string name="nova_quick_menu_profile_preference">Launch Preset</string>
     <string name="nova_quick_menu_profile_preference_checking">Waiting for running game</string>
     <string name="nova_quick_menu_profile_preference_next_launch">Applies next launch for %1$s</string>
-    <string name="nova_quick_menu_profile_preference_saved">Launch preset saved for next launch</string>
+    <string name="nova_quick_menu_profile_preference_saved">Saved. Applies next launch for %1$s</string>
     <string name="nova_quick_menu_sync_status">Sync Status</string>
     <string name="nova_quick_menu_sync_caption_default">Nova and Polaris profile match</string>
     <string name="nova_quick_menu_advanced_tuning">Advanced</string>

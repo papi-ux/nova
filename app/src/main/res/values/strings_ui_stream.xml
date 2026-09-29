@@ -18,8 +18,8 @@
     <string name="nova_cc_doctor_source">Source: %1$s</string>
     <!-- Where an AI explanation came from, before the host's source mode. -->
     <string name="nova_cc_doctor_ai_only">AI explanation only</string>
-    <!-- Command Center: Live Tuning could not be switched or confirmed on the host. -->
-    <string name="nova_cc_live_tuning_unconfirmed">Settings changed or could not be confirmed. Review Live Tuning and try again.</string>
+    <!-- Command Center: Live Tuning's caption when the host did not confirm a switch. -->
+    <string name="nova_cc_live_tuning_unconfirmed">The host did not confirm the change. Try again.</string>
     <!-- Command Center: Alt + F4 splits in place; the confirming half and the line under the pair. -->
     <string name="nova_cc_close_app">Close App</string>
     <string name="nova_cc_alt_f4_consequence">Sends Alt + F4, which closes the focused window on the host, usually the game.</string>

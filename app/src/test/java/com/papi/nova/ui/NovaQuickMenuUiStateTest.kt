@@ -1153,6 +1153,21 @@ class NovaQuickMenuUiStateTest {
         assertTrue(state.liveTuningAction.enabled)
     }
 
+    /**
+     * Review finding 5: a Live Tuning save the host did not confirm floated an error snackbar, and
+     * a Launch Preset pick floated "Launch preset saved for next launch". Each is its row's caption.
+     */
+    @Test
+    fun liveTuningAndLaunchPresetSayTheirResultsOnTheirRows() {
+        val failed = quickState(status = status(), liveTuningResult = "The host did not confirm the change. Try again.")
+        assertEquals("The host did not confirm the change. Try again.", failed.liveTuningAction.caption)
+        val again = quickState(status = status(), liveTuningPending = true, liveTuningResult = "The host did not confirm the change. Try again.")
+        assertEquals("a new save says Saving", "Saving…", again.liveTuningAction.caption)
+
+        assertEquals("Applies next launch for Portal", quickState(status = status()).stability.profileCaption)
+        assertEquals("Saved. Applies next launch for Portal", quickState(status = status(), launchPresetSaved = true).stability.profileCaption)
+    }
+
     @Test
     fun aSpaceSaysItsVerdictOnceAndCallsItsBitrateFixed() {
         // What Polaris sends for a Space (nvhttp.cpp profile_session_status): a health summary,
@@ -1208,6 +1223,8 @@ class NovaQuickMenuUiStateTest {
         status: PolarisSessionStatus?,
         apiAvailable: Boolean = true,
         liveTuningPending: Boolean = false,
+        liveTuningResult: String? = null,
+        launchPresetSaved: Boolean = false,
         adaptiveSupported: Boolean = true,
         aiSupported: Boolean = true,
         adaptiveEnabled: Boolean = false,
@@ -1229,6 +1246,8 @@ class NovaQuickMenuUiStateTest {
         status = status,
         apiAvailable = apiAvailable,
         liveTuningPending = liveTuningPending,
+        liveTuningResult = liveTuningResult,
+        launchPresetSaved = launchPresetSaved,
         adaptiveSupported = adaptiveSupported,
         aiSupported = aiSupported,
         adaptiveEnabled = adaptiveEnabled,
