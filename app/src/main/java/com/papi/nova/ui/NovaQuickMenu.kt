@@ -18,7 +18,6 @@ import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.KeyboardTranslator
 import com.papi.nova.preferences.PreferenceConfiguration
-import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaMenuItem
 import com.papi.nova.ui.panel.NovaOption
@@ -46,6 +45,8 @@ class NovaQuickMenu(
 ) : Game.GameMenuCallbacks {
     /** The Command Center that is open, or was open last. */
     private var session: MenuSession? = null
+    /** Where the root page's focus and scroll were when it last closed, for the next opening. */
+    private val rootPlace = NovaQuickMenuPlace()
     private val doctorActionLock = Any()
     private var doctorReceipt: DoctorActionReceipt? = null
     private var doctorReceiptScopeId: String? = null
@@ -54,6 +55,8 @@ class NovaQuickMenu(
     private val doctorMenuRefreshRegistry = DoctorMenuRefreshRegistry()
     private val doctorActionPendingRegistry = DoctorActionPendingRegistry()
     private var doctorVerificationRunnable: Runnable? = null
+    /** The stream's runtime, where the Command Center's work runs. */
+    private val runtime = NovaCommandCenterRuntime.of(game)
 
     /**
      * One opening of the Command Center: the controller that opened it, for More Controls, and
@@ -113,9 +116,19 @@ class NovaQuickMenu(
         val apiClient = game.novaApiClient ?: getServerAddress()?.let {
             PolarisApiClient(game.applicationContext, it, getHttpsPort())
         }
+        // This opening's hold on the host's status, where every status read lands: the status
+        // the client has now, the last reading the host sent, whether the newest read failed, and
+        // whether the host is Polaris at all, known when the Command Center opens.
+        val host = NovaCommandCenterHostStatus(
+            api = apiClient,
+            registry = doctorMenuRefreshRegistry,
+            generation = menuValidationGeneration,
+            polarisServer = game::novaIsPolarisServer,
+            runtime = runtime,
+        )
         val prefs = PreferenceManager.getDefaultSharedPreferences(game)
 
-        var sessionStatus: PolarisSessionStatus? = null
+        val sessionStatus by host::status
         var capabilities: PolarisCapabilities? = null
         var adaptiveSupported = false
         var aiSupported = false
@@ -127,8 +140,9 @@ class NovaQuickMenu(
         var profileClearInProgress = false
         var profileClearResult: String? = null
         var diagnosticsCopied = false
-        var hostStateUnavailable = false
-        var liveTuningPending = false
+        // Results said in their rows' own captions for a moment, where snackbars had floated.
+        var launchPresetSaved = false
+        var launchPresetSaves = 0
         lateinit var scheduleDoctorVerification: (DoctorActionReceipt?) -> Unit
 
         fun menuValidationIsCurrent(): Boolean =
@@ -190,18 +204,15 @@ class NovaQuickMenu(
             }
         }
 
+        // What the page derives from each status the host sends.
+        host.derive = {
+            syncSessionDerivedState()
+            syncDoctorReceiptScope()
+        }
+
         // All menu/receipt publication runs on Main. Async completions resolve
         // the current store there, so an earlier GET cannot replay old state.
-        fun publishCurrentSessionStatus(): Boolean {
-            return doctorMenuRefreshRegistry.runIfCurrent(menuValidationGeneration) {
-                apiClient?.withCurrentSessionStatus { current ->
-                    sessionStatus = current
-                    syncSessionDerivedState()
-                    syncDoctorReceiptScope()
-                    current != null
-                } ?: false
-            } ?: false
-        }
+        fun publishCurrentSessionStatus(): Boolean = host.publish()
 
         suspend fun acceptRefreshedSessionStatus(@Suppress("UNUSED_PARAMETER") refreshed: PolarisSessionStatus?): Boolean {
             var accepted = false
@@ -439,10 +450,13 @@ class NovaQuickMenu(
                 context = game,
                 quickKeys = quickKeys,
                 status = sessionStatus,
+                polarisHost = host.polaris,
+                lastStatus = host.last,
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
-                hostStateUnavailable = hostStateUnavailable,
-                liveTuningPending = liveTuningPending,
+                hostStateUnavailable = host.unavailable,
+                liveTuningPending = host.liveTuning?.pending == true,
+                liveTuningUnconfirmed = host.liveTuning?.unconfirmed,
                 adaptiveSupported = adaptiveSupported,
                 aiSupported = aiSupported,
                 adaptiveEnabled = adaptiveEnabled,
@@ -455,7 +469,9 @@ class NovaQuickMenu(
                 currentGameName = gameName,
                 currentGameUuid = currentGameUuid(),
                 profilePreference = currentProfilePreference(gameName),
+                launchPresetSaved = launchPresetSaved,
                 hudShowing = game.isNovaHudShowing(),
+                hudLeftPx = game.novaHudLeftPx,
                 hudMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal")),
                 hudOpacityPercent = pendingHudOpacity ?: NovaHudPreferences.readOpacityPercent(prefs),
                 menuOpacityPercent = pendingMenuOpacity ?: NovaMenuPreferences.readOpacityPercent(prefs),
@@ -483,15 +499,8 @@ class NovaQuickMenu(
         // A flow, not one state read at the top: each part of the page collects the slice it
         // shows, so a status refresh recomposes only what changed.
         val uiState = MutableStateFlow(buildState())
-        fun refreshState() {
-            if (apiClient != null) apiClient.withCurrentSessionStatus { current ->
-                sessionStatus = current
-                hostStateUnavailable = current == null
-                syncSessionDerivedState()
-                syncDoctorReceiptScope()
-                uiState.value = buildState()
-            } else uiState.value = buildState()
-        }
+        host.redraw = { uiState.value = buildState() }
+        fun refreshState() = host.refresh()
 
         fun sendQuickKey(actionId: NovaQuickMenuActionId) {
             val quickKeys = when (actionId) {
@@ -868,25 +877,9 @@ class NovaQuickMenu(
                     }
                 }
             },
-            onLiveTuning = {
-                val observed = sessionStatus
-                if (apiClient != null && observed?.canAdjustHostTuning == true && !hostStateUnavailable && !liveTuningPending) {
-                    val desired = !(observed.liveTuning?.enabled ?: adaptiveEnabled)
-                    liveTuningPending = true
-                    refreshState()
-                    game.launchRuntimeIo("NovaLiveTuningSave") {
-                        val success = apiClient.setLiveTuningEnabled(desired, observed)
-                        apiClient.getSessionStatus()
-                        game.runOnMainIfRuntimeActive {
-                            if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
-                            liveTuningPending = false
-                            hostStateUnavailable = !publishCurrentSessionStatus()
-                            if (!success) NovaSnackbar.showError(game, game.getString(R.string.nova_cc_live_tuning_unconfirmed), anchor = menu.anchor)
-                            refreshState()
-                        }
-                    }
-                }
-            },
+            // The state the split offered, not a flip of whatever the host says now; the result
+            // is said in the row's own caption (NovaLiveTuningSave).
+            onLiveTuning = host::switchLiveTuning,
             onToggleAdvanced = {
                 haptic {
                     advancedTuningVisible = !advancedTuningVisible
@@ -966,11 +959,16 @@ class NovaQuickMenu(
                     val gameName = currentProfileGameName() ?: return@haptic
                     val gameUuid = currentGameUuid() ?: return@haptic
                     AutoQualityProfilePreferences.save(game, gameUuid, gameName, preference)
-                    NovaSnackbar.showSuccess(
-                        game,
-                        game.getString(R.string.nova_quick_menu_profile_preference_saved),
-                        anchor = menu.anchor
-                    )
+                    // Said in the row's own caption, where the preset was picked; the last step
+                    // of a held Left or Right is the one whose caption stays for the moment.
+                    launchPresetSaved = true
+                    val save = ++launchPresetSaves
+                    game.window.decorView.postDelayed({
+                        if (launchPresetSaves == save) {
+                            launchPresetSaved = false
+                            refreshState()
+                        }
+                    }, PROFILE_CLEAR_RESULT_SHOWN_MS)
                     refreshState()
                 }
             },
@@ -1009,6 +1007,7 @@ class NovaQuickMenu(
                     refreshState()
                 }
             },
+            onHudPreview = { previewing -> game.setNovaHudPreviewing(previewing) },
             onDoctorUndo = {
                 haptic {
                     DoctorActionReceiptStore.visibleReceipt(
@@ -1103,7 +1102,7 @@ class NovaQuickMenu(
                         }
                         NovaQuickMenuActionId.MORE_KEYS -> {
                             // The key list itself, pushed in this panel; B comes back here.
-                            surfaces.panel.push(keysPage(menu))
+                            surfaces.panel.push(keysPage(menu, besideTheRoot = true))
                         }
                         NovaQuickMenuActionId.MORE_CONTROLS -> {
                             // The legacy Quick Menu's extras, pushed in this panel.
@@ -1115,7 +1114,7 @@ class NovaQuickMenu(
             }
         )
 
-        val root: NovaPage = if (keysAsRoot) keysPage(menu) else CommandCenterPage.Root(uiState.value.title)
+        val root: NovaPage = if (keysAsRoot) keysPage(menu, besideTheRoot = false) else CommandCenterPage.Root(uiState.value.title)
         surfaces.open(root, NovaEdge.Start) { page ->
             // Every page lends its scope, for closing and then waiting on the stream's focus, and
             // a view in the panel window, where snackbars about the menu belong.
@@ -1125,8 +1124,9 @@ class NovaQuickMenu(
                 menu.anchorRef = WeakReference(view)
             }
             when (page) {
-                is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks)
+                is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace)
                 is CommandCenterPage.Listing -> CommandCenterListingPage(page)
+                is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                 else -> Unit
             }
         }
@@ -1140,7 +1140,7 @@ class NovaQuickMenu(
                 apiClient.sessionStatusUpdates.collect {
                     game.runOnMainIfRuntimeActive {
                         if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
-                        hostStateUnavailable = !publishCurrentSessionStatus()
+                        publishCurrentSessionStatus()
                         refreshState()
                     }
                 }
@@ -1220,8 +1220,11 @@ class NovaQuickMenu(
         decor.postDelayed(runnable, SETTING_WRITE_DEBOUNCE_MS)
     }
 
-    /** Mouse Mode as a Choice page: it opens on the current mode, and one A applies and pops. */
-    private fun mouseModePage(onChosen: () -> Unit): NovaCommonPage.Choice<Int> = NovaMouseModeChoices.page(
+    /**
+     * Mouse Mode at the Command Center's width: it opens on the current mode, one A applies a mode
+     * and pops, and the local cursor switches in its own row after the modes.
+     */
+    private fun mouseModePage(onChosen: () -> Unit): CommandCenterPage.MouseMode = NovaMouseModeChoices.page(
         title = game.getString(R.string.nova_cc_mouse_mode),
         options = game.mouseModeChoices(),
         current = game.currentMouseModeChoice,
@@ -1229,14 +1232,27 @@ class NovaQuickMenu(
             game.chooseMouseMode(choice)
             onChosen()
         },
+        localCursor = NovaLocalCursorRow(
+            label = game.getString(R.string.nova_cc_local_cursor),
+            caption = game.getString(R.string.nova_cc_local_cursor_caption),
+            shown = game.isLocalCursorShown,
+            onChange = { shown ->
+                if (shown != game.isLocalCursorShown) game.chooseMouseMode(NovaMouseModeChoices.LocalCursor)
+                onChosen()
+            },
+        ),
     )
 
-    /** The Keys page: the default special keys and the imported custom ones. */
-    private fun keysPage(menu: MenuSession): CommandCenterPage.Keys {
+    /**
+     * The Keys page: the default special keys and the imported custom ones. Pushed from the
+     * Command Center, [besideTheRoot], it leaves out the keys the root already offers, so each key
+     * shows once; as the companion deck's own page it is the whole list.
+     */
+    private fun keysPage(menu: MenuSession, besideTheRoot: Boolean): CommandCenterPage.Keys {
         val defaults = if (PreferenceConfiguration.readPreferences(game).disableDefaultExtraKeys) {
             emptyList()
         } else {
-            NovaCommandCenterKeys.defaults(game)
+            NovaCommandCenterKeys.defaults(game).filterNot { besideTheRoot && it.key in NovaCommandCenterKeys.OnTheRoot }
         }
         val custom = NovaCommandCenterKeys.custom(game) { error ->
             LimeLog.warning("Nova: Custom keys could not be read: ${error.message}")
@@ -1346,7 +1362,7 @@ class NovaQuickMenu(
         )
         val touch = CommandCenterSection(
             game.getString(R.string.nova_cc_touch_section),
-            listOf(
+            listOfNotNull(
                 NovaMenuItem.Action(
                     key = "android-keyboard",
                     label = game.getString(R.string.nova_cc_android_keyboard),
@@ -1356,8 +1372,13 @@ class NovaQuickMenu(
                 switch("zoom", R.string.nova_cc_zoom, game.isZoomModeEnabled) {
                     if (it != game.isZoomModeEnabled) game.toggleZoomMode()
                 },
-                switch("floating-button", R.string.nova_cc_floating_button, game.isFloatingButtonVisible) {
-                    if (it != game.isFloatingButtonVisible) game.toggleFloatingButtonVisibility()
+                // For touch players only: without a touchscreen, or on a TV, there is nothing to press.
+                if (NovaTouchMenuButton.available(game)) {
+                    switch("floating-button", R.string.nova_cc_floating_button, game.isFloatingButtonVisible) {
+                        if (it != game.isFloatingButtonVisible) game.toggleFloatingButtonVisibility()
+                    }
+                } else {
+                    null
                 },
                 switch("special-keys-layout", R.string.nova_cc_special_keys_layout, game.isKeyboardControllerShown) {
                     if (it != game.isKeyboardControllerShown) game.toggleKeyboardController()
@@ -1427,5 +1448,26 @@ class NovaQuickMenu(
         private const val PROFILE_CLEAR_RESULT_SHOWN_MS = 4_000L
         private const val HUD_OPACITY_WRITE = "hud-opacity"
         private const val MENU_OPACITY_WRITE = "menu-opacity"
+    }
+}
+
+/**
+ * Where the Command Center's work runs: off the main thread, back on it while the stream stands,
+ * and on it after a delay. The stream's own runtime in the app; a test's own in a test.
+ */
+internal interface NovaCommandCenterRuntime {
+    fun launchIo(name: String, block: suspend () -> Unit)
+    suspend fun onMain(block: () -> Unit)
+    fun postDelayed(delayMs: Long, block: () -> Unit)
+
+    companion object {
+        /** [game]'s own: its runtime tasks, its main thread while it runs, and its window. */
+        fun of(game: Game): NovaCommandCenterRuntime = object : NovaCommandCenterRuntime {
+            override fun launchIo(name: String, block: suspend () -> Unit) = game.launchRuntimeIo(name) { block() }
+            override suspend fun onMain(block: () -> Unit) = game.runOnMainIfRuntimeActive(block)
+            override fun postDelayed(delayMs: Long, block: () -> Unit) {
+                game.window.decorView.postDelayed(block, delayMs)
+            }
+        }
     }
 }

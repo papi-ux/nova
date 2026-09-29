@@ -18,6 +18,7 @@ import com.papi.nova.ui.panel.NovaMenuItem
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPageStackHost
 import com.papi.nova.ui.panel.NovaPanelState
+import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.NovaTestKeys
 import com.papi.nova.ui.panel.advance
 import com.papi.nova.ui.panel.frames
@@ -52,11 +53,17 @@ class NovaCommandCenterPagesComposeTest {
     private val serverCommandRuns = mutableListOf<Int>()
     private val switches = mutableListOf<Boolean>()
     private val quickKeys = mutableListOf<NovaQuickMenuActionId>()
+    private val liveTuningRequests = mutableListOf<Boolean>()
+    private val localCursor = mutableListOf<Boolean>()
+    private val hudPreviews = mutableListOf<Boolean>()
+    private lateinit var uiState: MutableStateFlow<NovaQuickMenuUiState>
 
     private val callbacks = NovaQuickMenuCallbacks(
         onDismiss = { dismissed++ },
         onEndStream = { ended++ },
         onQuickKey = { quickKeys += it },
+        onLiveTuning = { liveTuningRequests += it },
+        onHudPreview = { hudPreviews += it },
         onControlAction = { id ->
             if (id == NovaQuickMenuActionId.MOUSE_MODE) {
                 panel.push(
@@ -66,10 +73,15 @@ class NovaCommandCenterPagesComposeTest {
                             modeNames = listOf("Direct", "Relative", "Track pad (Natural)", "Track pad (Gaming)", "Disabled"),
                             onExternalDisplay = false,
                             externalModes = emptySet(),
-                            localCursorLabel = "Toggle local cursor",
                         ),
                         current = 3,
                         onChoose = { chosenModes += it },
+                        localCursor = NovaLocalCursorRow(
+                            label = "Local Cursor",
+                            caption = "Needs a physical mouse.",
+                            shown = false,
+                            onChange = { localCursor += it },
+                        ),
                     ),
                 )
             }
@@ -130,15 +142,20 @@ class NovaCommandCenterPagesComposeTest {
         ),
     )
 
-    private fun open(): NovaTestKeys {
-        val state = MutableStateFlow(NovaQuickMenuUiState.preview(rule.activity))
+    private fun open(
+        place: NovaQuickMenuPlace? = null,
+        adjust: (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { it },
+    ): NovaTestKeys {
+        val state = MutableStateFlow(adjust(NovaQuickMenuUiState.preview(rule.activity)))
+        uiState = state
         panel.open(CommandCenterPage.Root("Command Center"))
         val keys = rule.setPanelContent {
             Box(Modifier.fillMaxSize()) {
                 NovaPageStackHost(state = panel, containFocus = false) { page ->
                     when (page) {
-                        is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = callbacks)
+                        is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = callbacks, place = place)
                         is CommandCenterPage.Listing -> CommandCenterListingPage(page)
+                        is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                         else -> Unit
                     }
                 }
@@ -223,6 +240,245 @@ class NovaCommandCenterPagesComposeTest {
         assertEquals(1, ended)
     }
 
+    /**
+     * M11: Live Tuning rewrites polaris.conf for every client of the host. One A used to switch it;
+     * now it splits in its row as End Session does, says what it changes, and only A, Right, A
+     * after the guard switches it.
+     */
+    @Test
+    fun liveTuningIsAHostSettingSoItSplitsBeforeItChanges() {
+        val keys = open { state ->
+            state.copy(
+                liveTuningAction = NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.LIVE_TUNING,
+                    label = "Live Tuning",
+                    caption = "Steady.",
+                    chip = NovaQuickMenuChip("On", NovaQuickMenuTone.ACTIVE),
+                    enabled = true,
+                ),
+                sync = state.sync.copy(chip = NovaQuickMenuChip("Synced", NovaQuickMenuTone.ACTIVE)),
+            )
+        }
+        rule.mainClock.autoAdvance = false
+        focus("Live Tuning")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+
+        assertEquals("one A never rewrites the host's setting", emptyList<Boolean>(), liveTuningRequests)
+        rule.onNodeWithText("Stay").assertIsFocused()
+        rule.onNodeWithText("Turn Off").assertExists()
+        rule.onNodeWithText("Changes Polaris for every device.").assertExists()
+
+        keys.press(NovaTestKeys.RIGHT)
+        rule.advance(450)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+        assertEquals("A, Right, A after the guard switches it off, once", listOf(false), liveTuningRequests)
+    }
+
+    /**
+     * Review finding 7: armed on Turn Off, a change from another device turned the offer to Turn On
+     * and the confirm flipped whatever the host said then. The confirm asks for what it offered.
+     */
+    @Test
+    fun liveTuningConfirmsTheStateItOfferedWhenItArmed() {
+        fun liveTuning(on: Boolean): (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { state ->
+            state.copy(
+                liveTuningAction = NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.LIVE_TUNING,
+                    label = "Live Tuning",
+                    caption = "Steady.",
+                    chip = if (on) NovaQuickMenuChip("On", NovaQuickMenuTone.ACTIVE) else NovaQuickMenuChip("Off", NovaQuickMenuTone.INACTIVE),
+                    enabled = true,
+                ),
+                sync = state.sync.copy(chip = NovaQuickMenuChip("Synced", NovaQuickMenuTone.ACTIVE)),
+            )
+        }
+        val keys = open(adjust = liveTuning(on = true))
+        rule.mainClock.autoAdvance = false
+        focus("Live Tuning")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        rule.onNodeWithText("Turn Off").assertExists()
+
+        uiState.value = liveTuning(on = false)(uiState.value)
+        rule.frames(4)
+        keys.press(NovaTestKeys.RIGHT)
+        rule.advance(450)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+        assertEquals("Turn Off asks for Off, whatever the host said since", listOf(false), liveTuningRequests)
+    }
+
+    private fun liveTuningShowing(on: Boolean): (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { state ->
+        state.copy(
+            liveTuningAction = NovaQuickMenuAction(
+                id = NovaQuickMenuActionId.LIVE_TUNING,
+                label = "Live Tuning",
+                caption = "Steady.",
+                chip = if (on) NovaQuickMenuChip("On", NovaQuickMenuTone.ACTIVE) else NovaQuickMenuChip("Off", NovaQuickMenuTone.INACTIVE),
+                enabled = true,
+            ),
+            sync = state.sync.copy(chip = NovaQuickMenuChip("Synced", NovaQuickMenuTone.ACTIVE)),
+        )
+    }
+
+    /** A arms Live Tuning's split; the frames let it grow in. */
+    private fun armLiveTuning(keys: NovaTestKeys) {
+        focus("Live Tuning")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+    }
+
+    /** Right, then A once the guard has passed. */
+    private fun confirmArmed(keys: NovaTestKeys) {
+        keys.press(NovaTestKeys.RIGHT)
+        rule.advance(450)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+    }
+
+    /**
+     * Review finding 7, the other direction: every Live Tuning test armed at On. Armed at Off it
+     * offers Turn On and asks for On, and a host that turns it on meanwhile does not turn the
+     * offer, or the ask, around.
+     */
+    @Test
+    fun liveTuningArmedAtOffOffersTurnOnAndAsksForOnWhateverTheHostDoesNext() {
+        val keys = open(adjust = liveTuningShowing(on = false))
+        rule.mainClock.autoAdvance = false
+        armLiveTuning(keys)
+        rule.onNodeWithText("Turn On").assertExists()
+        rule.onNodeWithText("Turn Off").assertDoesNotExist()
+
+        uiState.value = liveTuningShowing(on = true)(uiState.value)
+        rule.frames(4)
+        rule.onNodeWithText("Turn On").assertExists()
+        confirmArmed(keys)
+        assertEquals("Turn On asks for On, whatever the host said since", listOf(true), liveTuningRequests)
+    }
+
+    /**
+     * Review finding 7: the offer is taken from the row each time the split arms, and held while
+     * it stays armed. Held for the whole page instead, a second arm after the host changed at rest
+     * would offer the same switch again.
+     */
+    @Test
+    fun liveTuningOffersFromWhatItShowsEachTimeItArms() {
+        val keys = open(adjust = liveTuningShowing(on = true))
+        rule.mainClock.autoAdvance = false
+        armLiveTuning(keys)
+        rule.onNodeWithText("Turn Off").assertExists()
+        keys.back()
+        rule.frames(16)
+
+        uiState.value = liveTuningShowing(on = false)(uiState.value)
+        rule.frames(4)
+        armLiveTuning(keys)
+        rule.onNodeWithText("Turn On").assertExists()
+        rule.onNodeWithText("Turn Off").assertDoesNotExist()
+        confirmArmed(keys)
+        assertEquals(listOf(true), liveTuningRequests)
+    }
+
+    /**
+     * In-game #4 with XR2: the panel dims the HUD, so a HUD Mode change could not be seen. While
+     * a row that changes the HUD has focus the HUD shows at full strength. Whether the row's
+     * caption names a HUD under the panel depends on the frame the panel is drawn in, so that half
+     * is NovaCommandCenterHudCaptionComposeTest's, over the stream and on a companion display.
+     */
+    @Test
+    fun theHudShowsAtFullStrengthWhileItsRowsHaveFocus() {
+        val keys = open { state ->
+            state.copy(
+                hudMode = state.hudMode.copy(enabled = true, hudLeftPx = 27.675f),
+                hudOpacity = state.hudOpacity.copy(enabled = true, hudLeftPx = 27.675f),
+            )
+        }
+        focus("HUD Mode")
+        assertEquals("focus on HUD Mode shows the HUD", listOf(true), hudPreviews)
+        keys.press(NovaTestKeys.DOWN)
+        rule.frames(4)
+        assertEquals("and moving on dims it again", listOf(true, false), hudPreviews)
+    }
+
+    /**
+     * In-game #17 and N26: ESC, Meta and Alt + Enter showed under the strip and again in the Quick
+     * Keys grid. The grid holds the keys the pinned strip lacks, so each key shows once.
+     */
+    @Test
+    fun eachQuickKeyShowsOnceOnTheRoot() {
+        open()
+        listOf(
+            com.papi.nova.R.string.game_menu_send_keys_esc,
+            com.papi.nova.R.string.nova_quick_menu_key_meta,
+            com.papi.nova.R.string.game_menu_send_keys_alt_enter,
+            com.papi.nova.R.string.game_menu_send_keys_f11,
+        ).forEach { key ->
+            val label = rule.activity.getString(key)
+            rule.onAllNodesWithText(label).assertCountEquals(1)
+        }
+    }
+
+    @Test
+    fun theKeysMoreKeysLeavesOutAreTheRootsOwn() {
+        val defaults = NovaCommandCenterKeys.defaults(rule.activity).map { it.key }
+        assertTrue("every key the root offers is a real default key", defaults.containsAll(NovaCommandCenterKeys.OnTheRoot))
+        assertEquals(
+            "one for each key on the root, pinned or in the grid",
+            NovaQuickMenuUiState.quickKeyActions(rule.activity).size,
+            NovaCommandCenterKeys.OnTheRoot.size,
+        )
+    }
+
+    /**
+     * N26: the Doctor card's chip said what A does; it says only a state, and the action is a line.
+     * A reading the strip warns about, so the line is what A does alone, with no "Nothing to fix".
+     */
+    @Test
+    fun theDoctorCardSaysWhatItDoesInALineNotInItsChip() {
+        open { state ->
+            state.copy(
+                diagnosis = state.diagnosis.copy(
+                    likelyCause = "Streaming telemetry looks ready",
+                    available = true,
+                    visible = true,
+                    capability = NovaQuickMenuDoctorCapability.MANUAL,
+                    actionExecutable = false,
+                    informational = false,
+                ),
+            )
+        }
+        rule.onNodeWithText("Copies the details").assertExists()
+        rule.onNodeWithText("Copy details").assertDoesNotExist()
+    }
+
+    /**
+     * In-game #16: every opening put focus back on Close with the list at the top, so trying HUD
+     * modes meant seven Downs after each look. It comes back to the row that had focus now, except
+     * a button whose one A acts, which reopens on Close.
+     */
+    @Test
+    fun reopeningComesBackToTheRowThatHadFocus() {
+        val place = NovaQuickMenuPlace()
+        open(place = place)
+        focus("Keyboard")
+        panel.close()
+        rule.frames(16)
+        panel.open(CommandCenterPage.Root("Command Center"))
+        rule.waitForIdle()
+        rule.frames(4)
+        rule.onNodeWithText("Keyboard").assertIsFocused()
+
+        focus("Disconnect")
+        panel.close()
+        rule.frames(16)
+        panel.open(CommandCenterPage.Root("Command Center"))
+        rule.waitForIdle()
+        rule.frames(4)
+        rule.onNodeWithText("Close").assertIsFocused()
+    }
+
     @Test
     fun mouseModeIsAChoicePageOnTheCurrentModeAndReturnsToItsRow() {
         val keys = open()
@@ -240,6 +496,42 @@ class NovaCommandCenterPagesComposeTest {
         assertEquals(listOf(4), chosenModes)
         assertEquals(1, panel.depth)
         rule.onNodeWithText("Mouse").assertIsFocused()
+    }
+
+    /**
+     * N27 (rest) and XR1: Mouse Mode was a plain Choice page, which narrowed the panel, and the
+     * local cursor toggle sat in the list of modes. It keeps the Command Center's width now, and
+     * the cursor is a switch in its own row after the modes that changes in place.
+     */
+    @Test
+    fun mouseModeKeepsTheCommandCenterWidthAndTheLocalCursorIsARowOfItsOwn() {
+        val keys = open()
+        focus("Mouse")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+
+        assertEquals("the page keeps the root's width", NovaPanelWidth.Wide, panel.top?.width)
+        rule.onNodeWithText("Track pad (Gaming)").assertIsFocused()
+        keys.press(NovaTestKeys.DOWN)
+        keys.press(NovaTestKeys.DOWN)
+        rule.onNodeWithText("Local Cursor").assertIsFocused()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.frames(4)
+
+        assertEquals("Right turns the cursor on in its row", listOf(true), localCursor)
+        assertTrue("the cursor is no mode", chosenModes.isEmpty())
+        assertEquals("a setting keeps the page open", 2, panel.depth)
+    }
+
+    @Test
+    fun mouseModePageIsAsWideAsTheCommandCenter() {
+        val page = NovaMouseModeChoices.page(
+            title = "Mouse Mode",
+            options = listOf(NovaOption(0, "Direct"), NovaOption(4, "Disabled")),
+            current = 0,
+            onChoose = {},
+        )
+        assertEquals("a pushed page narrowed the panel (XR1)", NovaPanelWidth.Wide, page.width)
     }
 
     @Test
@@ -295,10 +587,9 @@ class NovaCommandCenterPagesComposeTest {
             modeNames = listOf("Direct", "Relative", "Track pad (Natural)", "Track pad (Gaming)", "Disabled"),
             onExternalDisplay = true,
             externalModes = setOf("Track pad (Natural)", "Track pad (Gaming)", "Disabled"),
-            localCursorLabel = "Toggle local cursor",
         )
-        assertEquals(listOf(2, 3, 4, NovaMouseModeChoices.LocalCursor), options.map { it.value })
-        assertEquals("Toggle local cursor", options.last().label)
+        // Modes only: the local cursor is a row of its own after them, never a mode among them.
+        assertEquals(listOf(2, 3, 4), options.map { it.value })
     }
 
     @Test
@@ -350,6 +641,7 @@ class NovaCommandCenterPagesComposeTest {
         rule.onNodeWithText("Stay").assertIsFocused()
         rule.onNodeWithText(rule.activity.getString(com.papi.nova.R.string.nova_cc_alt_f4_consequence)).assertExists()
         // Armed, the pair takes its row: the keys beside Alt + F4 step aside, the rows around it stay.
+        rule.onAllNodesWithText(rule.activity.getString(com.papi.nova.R.string.game_menu_send_keys_f11)).assertCountEquals(0)
         rule.onAllNodesWithText(esc).assertCountEquals(1)
         keys.press(NovaTestKeys.RIGHT)
         rule.advance(450)

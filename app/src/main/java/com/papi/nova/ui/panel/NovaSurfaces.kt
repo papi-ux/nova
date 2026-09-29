@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -379,8 +380,36 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
 val Activity.novaSurfaces: NovaSurfaces get() = NovaSurfaces.of(this)
 
 /**
+ * What [surfaces]' window draws: [NovaSurfacesLayer] with the scrim and the floor its placement
+ * asks for. In the stream's own window every panel keeps the solid floor, whoever opened it: the
+ * Command Center and its pages, a notice, the keys editor's Add Keys, the confirm a Space's
+ * Disconnect leads to (in-game #12). On a screen or a companion display a panel keeps the glass
+ * Menu Opacity chose. [onActiveSurfaceChange] is [NovaSurfacesLayer]'s.
+ */
+@Composable
+internal fun NovaSurfacesWindowContent(
+    surfaces: NovaSurfaces,
+    onActiveSurfaceChange: (panelCovered: Boolean) -> Unit = {},
+) {
+    val states by surfaces.states.collectAsState()
+    NovaSurfacesLayer(
+        panel = surfaces.panel,
+        states = states,
+        scrim = surfaces.placement.scrim,
+        overStream = surfaces.placement.overStream,
+        pageContent = surfaces.pageContent,
+        onIdle = surfaces::onWindowIdle,
+        hints = surfaces.pageHints,
+        onShoulder = surfaces.pageShoulder,
+        isPosted = { key -> surfaces.states.value.any { it.key == key } },
+        onActiveSurfaceChange = onActiveSurfaceChange,
+    )
+}
+
+/**
  * The window's content: the panel frame with its page stack, and the state pages above it.
  * [onIdle] runs once the panel's exit motion has landed and no state page is showing or pending.
+ * [overStream] gives the panel the stream's solid floor ([NovaPanelFrame]).
  *
  * One surface is active at a time. A state page owns the window's input from the moment it is
  * posted, before a Busy page's 300ms delay, until the last one has gone: the panel under it is
@@ -395,6 +424,7 @@ internal fun NovaSurfacesLayer(
     pageContent: NovaPageContent,
     onIdle: () -> Unit,
     modifier: Modifier = Modifier,
+    overStream: Boolean = false,
     hints: List<NovaControllerHint> = emptyList(),
     onShoulder: ((NovaShoulder) -> Unit)? = null,
     isPosted: (String) -> Boolean = { key -> states.any { it.key == key } },
@@ -422,6 +452,7 @@ internal fun NovaSurfacesLayer(
                     onDismissRequest = panel::close,
                     onClosed = { framePresent = false },
                     scrim = scrim,
+                    overStream = overStream,
                     // Nothing on a covered panel can be reached or acted on by accessibility.
                     modifier = if (covered) Modifier.clearAndSetSemantics { } else Modifier,
                 ) {

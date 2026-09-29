@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.papi.nova.R
 import com.papi.nova.binding.input.KeyboardTranslator
-import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaMenuItem
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
@@ -66,6 +65,21 @@ sealed interface CommandCenterPage : NovaPage {
         override val key: String get() = MoreControlsKey
     }
 
+    /**
+     * Mouse Mode: every mode the display allows, opening on the current one, where one A picks a
+     * mode and pops back to its row; then [localCursor], a setting of its own in its own row. It
+     * was a plain Choice page, which narrowed the panel and listed the cursor toggle as a mode.
+     */
+    class MouseMode(
+        override val title: String,
+        val modes: List<NovaOption<Int>>,
+        val current: Int,
+        val onChoose: (Int) -> Unit,
+        val localCursor: NovaLocalCursorRow? = null,
+    ) : CommandCenterPage {
+        override val key: String get() = MouseModeKey
+    }
+
     companion object {
         const val RootKey = "command-center"
         const val KeysKey = "command-center-keys"
@@ -74,6 +88,14 @@ sealed interface CommandCenterPage : NovaPage {
         const val MouseModeKey = "command-center-mouse-mode"
     }
 }
+
+/** The Mouse Mode page's local cursor row: a switch that changes in place and keeps the page open. */
+class NovaLocalCursorRow(
+    val label: String,
+    val caption: String,
+    val shown: Boolean,
+    val onChange: (Boolean) -> Unit,
+)
 
 /** A labelled group of rows on a [CommandCenterPage.Listing]; a null title draws no label. */
 data class CommandCenterSection(val title: String?, val items: List<NovaMenuItem>)
@@ -179,33 +201,94 @@ private fun <T> CommandCenterValueRow(item: NovaMenuItem.Value<T>, modifier: Mod
 }
 
 /**
- * Mouse Mode as a Choice page: every mode by its original index, then the local cursor toggle.
- * On an external display only the touchpad modes and Disabled make sense, and they keep their
- * indexes, so a list position is never mistaken for a mode.
+ * The Mouse Mode page's modes, each by its original index. On an external display only the
+ * touchpad modes and Disabled make sense, and they keep their indexes, so a list position is never
+ * mistaken for a mode. The local cursor is not a mode: it is a row of its own after them.
  */
 object NovaMouseModeChoices {
-    /** The choice that toggles the local cursor instead of picking a mode. */
+    /** What [com.papi.nova.Game.chooseMouseMode] takes to toggle the local cursor instead of picking a mode. */
     const val LocalCursor: Int = -1
 
     fun options(
         modeNames: List<String>,
         onExternalDisplay: Boolean,
         externalModes: Set<String>,
-        localCursorLabel: String,
     ): List<NovaOption<Int>> =
         modeNames.mapIndexedNotNull { index, label ->
             NovaOption(index, label).takeIf { !onExternalDisplay || label in externalModes }
-        } + NovaOption(LocalCursor, localCursorLabel)
+        }
 
-    /** The page: it opens on [current], and one A applies a choice and pops back to the row. */
-    fun page(title: String, options: List<NovaOption<Int>>, current: Int, onChoose: (Int) -> Unit) =
-        NovaCommonPage.Choice(
-            key = CommandCenterPage.MouseModeKey,
-            title = title,
-            options = options,
-            current = current,
-            onChoose = onChoose,
-        )
+    /** The page: it opens on [current], one A applies a mode and pops back to the row. */
+    fun page(
+        title: String,
+        options: List<NovaOption<Int>>,
+        current: Int,
+        onChoose: (Int) -> Unit,
+        localCursor: NovaLocalCursorRow? = null,
+    ) = CommandCenterPage.MouseMode(
+        title = title,
+        modes = options,
+        current = current,
+        onChoose = onChoose,
+        localCursor = localCursor,
+    )
+}
+
+/**
+ * Draws [CommandCenterPage.MouseMode] at the Command Center's width: the modes, the current one
+ * checked and focused when the page opens, then the local cursor switch in its own row.
+ */
+@Composable
+internal fun NovaPageScope.CommandCenterMouseModePage(page: CommandCenterPage.MouseMode) {
+    val currentIndex = page.modes.indexOfFirst { it.value == page.current }
+    // Opens on the current mode, as a Choice page does; a mode that is gone opens on the first.
+    if (currentIndex >= 0) novaInitialFocusAt(currentIndex, currentIndex)
+    LazyColumn(
+        state = listState,
+        contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm),
+        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
+        modifier = Modifier.fillMaxWidth().novaScrollEdgeFade(listState),
+    ) {
+        page.modes.forEachIndexed { index, option ->
+            item(key = "mode-${option.value}") {
+                val initial = index == currentIndex || (currentIndex < 0 && index == 0)
+                NovaRow(
+                    title = option.label,
+                    caption = option.caption,
+                    disabledReason = option.disabledReason,
+                    trailing = if (index == currentIndex) NovaRowTrailing.Current else NovaRowTrailing.None,
+                    onClick = {
+                        if (isTop) {
+                            panel.pop()
+                            page.onChoose(option.value)
+                        }
+                    },
+                    modifier = Modifier
+                        .then(if (initial) Modifier.novaInitialFocus() else Modifier)
+                        .novaRestorableFocus(index, index),
+                )
+            }
+        }
+        page.localCursor?.let { row ->
+            item(key = "local-cursor") {
+                var shown by remember(row.shown) { mutableStateOf(row.shown) }
+                NovaValueRow(
+                    title = row.label,
+                    caption = row.caption,
+                    options = listOf(
+                        NovaOption(false, stringResource(R.string.nova_cc_off)),
+                        NovaOption(true, stringResource(R.string.nova_cc_on)),
+                    ),
+                    current = shown,
+                    onChange = {
+                        shown = it
+                        row.onChange(it)
+                    },
+                    modifier = Modifier.novaRestorableFocus("local-cursor", page.modes.size),
+                )
+            }
+        }
+    }
 }
 
 /** Where the special keys and the imported custom shortcuts are stored. */
@@ -225,6 +308,12 @@ class NovaCommandCenterKey(val key: String, val label: String, val codes: ShortA
 object NovaCommandCenterKeys {
     /** Alt + F4, which closes the host's focused window, usually the game; the Keys page splits it (R3). */
     const val CLOSE_APP_KEY: String = "alt-f4"
+
+    /**
+     * The default keys the Command Center's root already offers, pinned under the session strip or
+     * in its Quick Keys grid. More Keys pushed from the root leaves them out, so each key shows once.
+     */
+    val OnTheRoot: Set<String> = setOf("esc", "win", "alt-enter", CLOSE_APP_KEY, "f11", "insert", "ctrl-v", "ctrl-1", "ctrl-2")
 
     fun defaults(context: Context): List<NovaCommandCenterKey> = listOf(
         key(context, "esc", R.string.game_menu_send_keys_esc, KeyboardTranslator.VK_ESCAPE),

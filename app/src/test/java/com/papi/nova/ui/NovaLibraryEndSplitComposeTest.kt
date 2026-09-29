@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.requestFocus
 import androidx.test.core.app.ApplicationProvider
@@ -66,13 +67,13 @@ class NovaLibraryEndSplitComposeTest {
     @Test
     fun oneAArmsWithStayFocusedWhileTheOtherActionsStepAside() {
         val keys = stage()
-        rule.onNodeWithContentDescription("End Session").requestFocus()
+        rule.onNodeWithText("End Session").requestFocus()
         rule.mainClock.autoAdvance = false
 
         keys.press(NovaTestKeys.A)
         rule.advance(50)
 
-        rule.onNodeWithContentDescription("Stay").assertIsFocused()
+        rule.onNodeWithText("Stay").assertIsFocused()
         rule.onNodeWithContentDescription("Resume Stream").assertDoesNotExist()
 
         keys.press(NovaTestKeys.A)
@@ -81,17 +82,17 @@ class NovaLibraryEndSplitComposeTest {
 
         assertEquals("A on Stay disarms; nothing ends", 0, ends)
         rule.onNodeWithContentDescription("Resume Stream").assertExists()
-        rule.onNodeWithContentDescription("Stay").assertDoesNotExist()
+        rule.onNodeWithText("Stay").assertDoesNotExist()
     }
 
     @Test
     fun endIgnoresTheGuardWindowThenEndsOnceWithoutAskingAgain() {
         val keys = stage()
-        rule.onNodeWithContentDescription("End Session").requestFocus()
+        rule.onNodeWithText("End Session").requestFocus()
         rule.mainClock.autoAdvance = false
         keys.press(NovaTestKeys.A)
         rule.advance(50)
-        rule.onNodeWithContentDescription("Stay").assertIsFocused()
+        rule.onNodeWithText("Stay").assertIsFocused()
 
         keys.press(NovaTestKeys.RIGHT)
         keys.press(NovaTestKeys.A)
@@ -109,9 +110,9 @@ class NovaLibraryEndSplitComposeTest {
     fun aTapArmsItToo() {
         stage()
 
-        rule.onNodeWithContentDescription("End Session").performClick()
+        rule.onNodeWithText("End Session").performClick()
 
-        rule.onNodeWithContentDescription("Stay").assertExists()
+        rule.onNodeWithText("Stay").assertExists()
         rule.onNodeWithContentDescription("Resume Stream").assertDoesNotExist()
         assertEquals(0, ends)
     }

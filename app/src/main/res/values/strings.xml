@@ -523,6 +523,7 @@
     <string name="nova_library_launch_dongle">Headless Dongle</string>
     <string name="nova_library_launch_desktop_display">Mirror Desktop</string>
     <string name="nova_library_launch_desktop_takeover">Desktop Takeover</string>
+    <!-- windowed_stream, by the name Polaris gives it, so it never shares headless_stream's. -->
     <string name="nova_library_launch_gpu_native_test">Private Stream (GPU-native)</string>
     <string name="nova_library_play">Launch Recommended</string>
     <string name="nova_library_play_mode">Launch %1$s</string>
@@ -751,8 +752,8 @@
     <string name="delete_pc_host_unreachable">%1$s could not be reached, so it still lists this device as paired.</string>
     <string name="delete_pc_host_refused">%1$s would not forget this device. Remove it on that host.</string>
     <string name="delete_pc_host_unsupported">%1$s cannot be asked to forget a device, so it still lists this one.</string>
-    <string name="slow_connection_msg">Slow connection to PC\nReduce your bitrate</string>
-    <string name="poor_connection_msg">Poor connection to PC</string>
+    <string name="slow_connection_msg">Slow connection to host\nReduce your bitrate</string>
+    <string name="poor_connection_msg">Poor connection to host</string>
     <string name="perf_overlay_streamdetails">Video stream: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Decoder: %1$s</string>
     <string name="perf_overlay_incomingfps">Incoming frame rate from network: %1$.2f FPS</string>
@@ -1047,9 +1048,9 @@
     <string name="nova_quick_menu_host_controls_unavailable_caption">host controls unavailable</string>
     <string name="nova_quick_menu_session_ending_caption">session ending</string>
     <string name="nova_quick_menu_mode_unknown">Checking stream mode</string>
-    <string name="nova_quick_menu_mode_source_auto">Auto choice</string>
-    <string name="nova_quick_menu_mode_source_explicit">Explicit choice</string>
-    <string name="nova_quick_menu_mode_role_owner">Owner</string>
+    <string name="nova_quick_menu_mode_source_auto">Mode picked automatically</string>
+    <string name="nova_quick_menu_mode_source_explicit">Mode you picked</string>
+    <string name="nova_quick_menu_mode_role_owner">Your session</string>
     <string name="nova_quick_menu_command_center_title">Command Center</string>
     <string name="nova_quick_menu_command_center_subtitle">Stream health, tuning, and session controls</string>
     <string name="nova_quick_menu_headless_subtitle">Session controls for Private Stream</string>
@@ -1064,15 +1065,15 @@
     <string name="nova_quick_menu_health_hdr_headless_downgrade">HDR requested, but Private Stream is 10-bit SDR.</string>
     <string name="nova_quick_menu_health_attention">Session needs attention.</string>
     <string name="nova_quick_menu_health_steady">Session looks steady.</string>
-    <string name="nova_quick_menu_ai_auto_quality">Launch preset</string>
+    <string name="nova_quick_menu_ai_auto_quality">Launch Preset</string>
     <string name="nova_quick_menu_stream_card">Stream</string>
     <string name="nova_quick_menu_auto_quality_caption_default">Watching stream quality</string>
     <string name="nova_quick_menu_ai_caption_default">balancing FPS, bitrate, and smoothness</string>
     <string name="nova_quick_menu_target_checking">Waiting for stream target</string>
-    <string name="nova_quick_menu_profile_preference">Launch preset</string>
+    <string name="nova_quick_menu_profile_preference">Launch Preset</string>
     <string name="nova_quick_menu_profile_preference_checking">Waiting for running game</string>
     <string name="nova_quick_menu_profile_preference_next_launch">Applies next launch for %1$s</string>
-    <string name="nova_quick_menu_profile_preference_saved">Launch preset saved for next launch</string>
+    <string name="nova_quick_menu_profile_preference_saved">Saved. Applies next launch for %1$s</string>
     <string name="nova_quick_menu_sync_status">Sync Status</string>
     <string name="nova_quick_menu_sync_caption_default">Nova and Polaris profile match</string>
     <string name="nova_quick_menu_advanced_tuning">Advanced</string>
@@ -1097,18 +1098,19 @@
     <string name="nova_quick_menu_hud_mode_performance">Performance</string>
     <string name="nova_quick_menu_hud_mode_debug">Debug</string>
     <string name="nova_quick_menu_menu_opacity">Menu Opacity</string>
-    <string name="nova_quick_menu_menu_opacity_caption">Adjust Nova menus, drawers, options, and session glass without dimming text or focus cues.</string>
+    <string name="nova_quick_menu_menu_opacity_caption">How much of the screen shows through Nova\'s menus. Over a stream this panel stays solid.</string>
     <string name="nova_quick_menu_hud_opacity">HUD Opacity</string>
-    <string name="nova_quick_menu_hud_opacity_caption">Adjust Nova HUD glass without dimming telemetry text.</string>
+    <string name="nova_quick_menu_hud_opacity_caption">How much of the game shows behind the HUD\'s numbers.</string>
     <string name="nova_quick_menu_hud_opacity_disabled_caption">Enable Nova HUD first to change glass opacity.</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
     <string name="nova_quick_menu_perf_stats_caption">Legacy Moonlight stats text. Replaces Nova HUD while it is on.</string>
     <string name="nova_quick_menu_diagnose_stream">Diagnose This Stream</string>
-    <string name="nova_quick_menu_doctor_capability_auto_fix">Auto Fix</string>
-    <string name="nova_quick_menu_doctor_capability_run_trial">Run a trial</string>
-    <string name="nova_quick_menu_doctor_capability_recheck">Recheck</string>
+    <!-- What pressing the Doctor card does, on its own line: the chip says only a state. -->
+    <string name="nova_quick_menu_doctor_capability_auto_fix">Applies one safe fix, then checks it</string>
+    <string name="nova_quick_menu_doctor_capability_run_trial">Runs a short trial</string>
+    <string name="nova_quick_menu_doctor_capability_recheck">Checks again</string>
     <!-- A Doctor card with nothing to run: A copies its details. -->
-    <string name="nova_quick_menu_doctor_capability_manual">Copy details</string>
+    <string name="nova_quick_menu_doctor_capability_manual">Copies the details</string>
     <string name="nova_quick_menu_doctor_copied">Copied</string>
     <string name="nova_quick_menu_doctor_ai_explanation">AI explanation (informational): %1$s</string>
     <string name="nova_quick_menu_doctor_stable">Doctor verified the network is stable. Bitrate was left unchanged.</string>
@@ -1237,6 +1239,7 @@
     <string name="nova_session_mode_headless">Private Stream</string>
     <string name="nova_session_mode_virtual_display">Host Virtual Display</string>
     <string name="nova_session_mode_host_display">Mirror Desktop</string>
+    <string name="nova_session_mode_desktop_takeover">Desktop Takeover</string>
     <string name="nova_session_mode_watch_format">Watching · %1$s</string>
     <string name="nova_mangohud_warning_big_picture">Avoid on Steam Big Picture on this host.</string>
     <string name="nova_mangohud_warning_steam">Risky on Steam and Proton on this host.</string>
@@ -1289,8 +1292,8 @@
     <string name="title_virtual_trackpad_settings">Virtual Trackpad Settings</string>
     <string name="title_quit_dialog">Back Menu</string>
     <string name="summary_quit_dialog">When enabled, clicking the physical back button on the streaming interface will show related options!\nSoft keyboard, performance information, touch mode switching, send special keys</string>
-    <string name="title_floating_button">Floating Button</string>
-    <string name="summary_floating_button">Enable floating button</string>
+    <string name="title_floating_button">Touch Menu Button</string>
+    <string name="summary_floating_button">A button you can drag anywhere on the stream. A tap opens the Command Center.</string>
     <string name="dialog_custom_resolution">Set the resolution and exit the settings page to take effect!</string>
     <string name="summary_custom_resolution">Add a custom resolution, separated by x, strange resolutions may not work.\nFor example: 1920x1080\nIf it is a non-native resolution, it may not fill the notch area by default. If the aspect ratio is the same, you can manually set to stretch the screen to fill the full screen</string>
     <string name="title_custom_resolution">Custom Resolution</string>

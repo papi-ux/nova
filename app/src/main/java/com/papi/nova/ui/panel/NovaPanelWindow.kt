@@ -15,8 +15,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowCompat
 import com.papi.nova.Game
@@ -54,6 +52,13 @@ internal val NovaWindowPlacement.hostView: View
 
 internal val NovaWindowPlacement.scrim: NovaScrim
     get() = if (this is NovaWindowPlacement.Screen) NovaScrim.Screen else NovaScrim.Stream
+
+/**
+ * Whether the window lies over the stream's video, which nothing blurs, so every panel in it keeps
+ * the solid floor. A companion display shares the light scrim but not the stream.
+ */
+internal val NovaWindowPlacement.overStream: Boolean
+    get() = this is NovaWindowPlacement.Stream
 
 /** Whether a window may be shown now; a finishing activity or a hidden deck has no room for one. */
 internal val NovaWindowPlacement.canShow: Boolean
@@ -110,20 +115,9 @@ internal class NovaPanelWindow(
                         LocalNovaHostView provides placement.hostView,
                         LocalNovaPrepareKeyboard provides prepareKeyboard(),
                     ) {
-                        val states by surfaces.states.collectAsState()
-                        NovaSurfacesLayer(
-                            panel = surfaces.panel,
-                            states = states,
-                            scrim = placement.scrim,
-                            pageContent = surfaces.pageContent,
-                            onIdle = surfaces::onWindowIdle,
-                            hints = surfaces.pageHints,
-                            onShoulder = surfaces.pageShoulder,
-                            isPosted = { key -> surfaces.states.value.any { it.key == key } },
-                            // A press that began on one surface, the panel or a state page, never
-                            // finishes on the other.
-                            onActiveSurfaceChange = { forgetPresses() },
-                        )
+                        // A press that began on one surface, the panel or a state page, never
+                        // finishes on the other.
+                        NovaSurfacesWindowContent(surfaces, onActiveSurfaceChange = { forgetPresses() })
                     }
                 }
             }

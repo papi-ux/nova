@@ -40,6 +40,11 @@ object NovaSettingsAvailability {
             keys += touchOnlyKeys
         }
 
+        // The touch menu button is for touch players, and a TV never needs it.
+        if (!com.papi.nova.ui.NovaTouchMenuButton.available(context)) {
+            keys += com.papi.nova.ui.NovaTouchMenuButton.SETTING_KEY
+        }
+
         if (
             Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
             pm.hasSystemFeature("com.nvidia.feature.shield")

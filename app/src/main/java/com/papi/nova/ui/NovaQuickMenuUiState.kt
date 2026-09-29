@@ -58,7 +58,12 @@ data class NovaQuickMenuAction(
     val chip: NovaQuickMenuChip? = null,
     val enabled: Boolean = true,
     val visible: Boolean = true,
-    val destructive: Boolean = false
+    val destructive: Boolean = false,
+    /**
+     * The caption is a result a screen reader should hear as it arrives, such as a switch the
+     * host did not confirm: the row announces it politely.
+     */
+    val announce: Boolean = false
 )
 
 data class NovaQuickMenuPreferenceOption(
@@ -70,7 +75,6 @@ data class NovaQuickMenuPreferenceOption(
 
 data class NovaQuickMenuStabilityState(
     val title: String,
-    val caption: String,
     val targetSummary: String,
     val chip: NovaQuickMenuChip,
     val enabled: Boolean,
@@ -89,7 +93,9 @@ data class NovaQuickMenuStabilityState(
 data class NovaQuickMenuHudOpacityState(
     val percent: Int,
     val presets: List<Int>,
-    val enabled: Boolean
+    val enabled: Boolean,
+    /** Where the HUD's left edge sits across the stream window, in pixels; NaN when unknown. */
+    val hudLeftPx: Float = Float.NaN
 ) {
     val percentLabel: String = "$percent%"
 }
@@ -105,7 +111,9 @@ data class NovaQuickMenuMenuOpacityState(
 data class NovaQuickMenuHudModeState(
     val options: List<NovaQuickMenuPreferenceOption>,
     val selected: NovaHudMode,
-    val enabled: Boolean
+    val enabled: Boolean,
+    /** Where the HUD's left edge sits across the stream window, in pixels; NaN when unknown. */
+    val hudLeftPx: Float = Float.NaN
 )
 
 enum class NovaQuickMenuDoctorCapability {
@@ -132,10 +140,22 @@ data class NovaQuickMenuDiagnosisState(
     val undoSupported: Boolean,
     val aiExplanation: String,
     val informationalSource: String,
-    // False when the card would only say again what the session strip already says.
+    /** Drawn for a Polaris host, as known when the Command Center opened, and never for another. */
     val visible: Boolean = true,
     /** Set for a moment after A copied the details, so the chip can say so in place. */
-    val copied: Boolean = false
+    val copied: Boolean = false,
+    /**
+     * Nothing to run while the session strip does not warn, or the last reading kept a few seconds
+     * old: the card keeps its one place under the strip and reads quieter (N28).
+     */
+    val informational: Boolean = false,
+    /** The last reading, kept a few seconds old while a status read fails. */
+    val stale: Boolean = false,
+    /**
+     * What the session strip says while it warns about a reading with nothing to run, for the card
+     * to say too where "Nothing to fix" would contradict the strip; blank otherwise.
+     */
+    val stripVerdict: String = "",
 )
 
 data class NovaQuickMenuUiState(
@@ -149,14 +169,14 @@ data class NovaQuickMenuUiState(
     val disconnectAction: NovaQuickMenuAction,
     val endAction: NovaQuickMenuAction,
     val stability: NovaQuickMenuStabilityState,
-    val liveTuningAction: NovaQuickMenuAction = NovaQuickMenuAction(NovaQuickMenuActionId.LIVE_TUNING, "Live Tuning", enabled = false),
+    val liveTuningAction: NovaQuickMenuAction = NovaQuickMenuAction(NovaQuickMenuActionId.LIVE_TUNING, "", enabled = false),
     val sync: NovaQuickMenuAction,
     val advancedToggle: NovaQuickMenuAction,
     val advancedExpanded: Boolean,
     val advancedRows: List<NovaQuickMenuAction>,
     val quickKeys: List<NovaQuickMenuAction>,
-    // The grid's own top three, repeated under the session strip so a handheld reaches
-    // Esc without scrolling. Same instances, so both rows fire the same key.
+    // Esc, Meta and Alt + Enter, under the session strip so a handheld reaches Esc without
+    // scrolling. Same instances as [quickKeys], which stays the whole keyboard.
     val pinnedQuickKeys: List<NovaQuickMenuAction> = emptyList(),
     val diagnosis: NovaQuickMenuDiagnosisState,
     val diagnosisAction: NovaQuickMenuAction,
@@ -169,6 +189,13 @@ data class NovaQuickMenuUiState(
     val controlRows: List<NovaQuickMenuAction>,
     val sessionRows: List<NovaQuickMenuAction>
 ) {
+    /**
+     * The Quick Keys grid: the keys the pinned strip lacks, so each key shows once (N26). Derived
+     * here rather than a constructor default, which a copy with other keys or other pinned keys
+     * kept from the state it was copied from.
+     */
+    val gridQuickKeys: List<NovaQuickMenuAction> = quickKeys.filterNot { key -> pinnedQuickKeys.any { it.id == key.id } }
+
     companion object {
         private val autoFixActionIds = setOf(
             "lower_bitrate",
@@ -182,6 +209,11 @@ data class NovaQuickMenuUiState(
             apiAvailable: Boolean,
             hostStateUnavailable: Boolean = false,
             liveTuningPending: Boolean = false,
+            /**
+             * What the last Live Tuning switch asked for when the host did not confirm it, while
+             * its row says so; null otherwise.
+             */
+            liveTuningUnconfirmed: Boolean? = null,
             adaptiveSupported: Boolean,
             aiSupported: Boolean,
             adaptiveEnabled: Boolean,
@@ -195,7 +227,14 @@ data class NovaQuickMenuUiState(
             currentGameName: String?,
             currentGameUuid: String?,
             profilePreference: String,
+            /** The Launch Preset was just saved, which its caption says for a while. */
+            launchPresetSaved: Boolean = false,
             hudShowing: Boolean,
+            /**
+             * Where the HUD's left edge sits across the stream window, in pixels, for its rows to
+             * say whether the panel covers it; NaN when unknown.
+             */
+            hudLeftPx: Float = Float.NaN,
             hudMode: NovaHudMode = NovaHudMode.MINIMAL,
             hudOpacityPercent: Int = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
             menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
@@ -212,6 +251,16 @@ data class NovaQuickMenuUiState(
             fallbackTargetFps: Double,
             doctorReceipt: DoctorActionReceipt? = null,
             spaceSession: Boolean = false,
+            /**
+             * Whether the host is Polaris, as known when the Command Center opened. Another host
+             * has no Doctor, and its card is not drawn for the whole opening.
+             */
+            polarisHost: Boolean = true,
+            /**
+             * The last status the host sent while this opening stood. The Doctor card keeps its
+             * reading, a few seconds old, while a status read fails.
+             */
+            lastStatus: PolarisSessionStatus? = null,
             // Static per locale. The host builds it once per open and hands it back in, so
             // a refresh after every tap does not rebuild nine identical rows from resources.
             quickKeys: List<NovaQuickMenuAction> = quickKeyActions(context)
@@ -288,10 +337,16 @@ data class NovaQuickMenuUiState(
                 )
             }
 
-            val diagnosis = diagnosisState(context, status, healthSummary)
+            val diagnosis = diagnosisState(
+                context = context,
+                status = status,
+                lastStatus = lastStatus,
+                healthSummary = healthSummary,
+                stripWarns = healthTone == NovaQuickMenuTone.WARNING,
+                polarisHost = polarisHost,
+            )
             val stability = NovaQuickMenuStabilityState(
                 title = context.getString(R.string.nova_quick_menu_stream_card),
-                caption = if (hostStateUnavailable) context.getString(R.string.nova_quick_menu_host_state_unavailable) else "",
                 targetSummary = streamPolicy.targetSummary.takeIf { it.isNotBlank() }
                     ?: context.getString(R.string.nova_quick_menu_target_checking),
                 chip = if (viewerSession) chip(context.getString(R.string.nova_quick_menu_owner), NovaQuickMenuTone.MUTED) else
@@ -300,6 +355,10 @@ data class NovaQuickMenuUiState(
                 profileTitle = context.getString(R.string.nova_quick_menu_profile_preference),
                 profileCaption = when {
                     currentGame == null -> context.getString(R.string.nova_quick_menu_profile_preference_checking)
+                    launchPresetSaved -> context.getString(
+                        R.string.nova_quick_menu_profile_preference_saved,
+                        compactGameName(currentGame)
+                    )
                     else -> context.getString(
                         R.string.nova_quick_menu_profile_preference_next_launch,
                         compactGameName(currentGame)
@@ -313,11 +372,12 @@ data class NovaQuickMenuUiState(
                 id = NovaQuickMenuActionId.ADVANCED_TUNING,
                 label = context.getString(R.string.nova_quick_menu_advanced_tuning),
                 caption = context.getString(R.string.nova_quick_menu_advanced_caption),
+                // Its state, as the Keyboard row says its own: Show and Hide named what A would do.
                 chip = chip(
                     if (advancedExpanded) {
-                        context.getString(R.string.nova_quick_menu_hide)
+                        context.getString(R.string.nova_cc_shown)
                     } else {
-                        context.getString(R.string.nova_quick_menu_show)
+                        context.getString(R.string.nova_quick_menu_hidden)
                     },
                     if (advancedExpanded) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE
                 )
@@ -349,7 +409,8 @@ data class NovaQuickMenuUiState(
             val hudOpacity = NovaQuickMenuHudOpacityState(
                 percent = NovaHudPreferences.coerceOpacityPercent(hudOpacityPercent),
                 presets = NovaHudPreferences.OPACITY_PRESETS,
-                enabled = hudShowing
+                enabled = hudShowing,
+                hudLeftPx = hudLeftPx
             )
             val menuOpacity = NovaQuickMenuMenuOpacityState(
                 percent = NovaMenuPreferences.coerceOpacityPercent(menuOpacityPercent),
@@ -367,7 +428,8 @@ data class NovaQuickMenuUiState(
                     )
                 },
                 selected = hudMode,
-                enabled = hudShowing
+                enabled = hudShowing,
+                hudLeftPx = hudLeftPx
             )
             val doctorReceiptAction = doctorReceiptAction(
                 context = context,
@@ -395,7 +457,6 @@ data class NovaQuickMenuUiState(
                     id = NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS,
                     label = context.getString(R.string.nova_quick_menu_copy_hud_diagnostics),
                     caption = context.getString(R.string.nova_quick_menu_copy_hud_diagnostics_caption),
-                    chip = chip(context.getString(R.string.nova_quick_menu_safe), NovaQuickMenuTone.INFO),
                     enabled = true
                 )
             )
@@ -428,8 +489,9 @@ data class NovaQuickMenuUiState(
                         nobodyYet = context.getString(R.string.nova_quick_menu_players_nobody),
                         onePlayer = context.getString(R.string.nova_quick_menu_players_one_player),
                     ),
+                    // A chip says a state, never an action: Reassign is what the row does.
                     chip = if (multiController) {
-                        chip(context.getString(R.string.nova_quick_menu_players_reassign), NovaQuickMenuTone.INFO)
+                        null
                     } else {
                         chip(context.getString(R.string.nova_quick_menu_players_one_chip), NovaQuickMenuTone.INACTIVE)
                     },
@@ -439,7 +501,7 @@ data class NovaQuickMenuUiState(
                     id = NovaQuickMenuActionId.KEYBOARD,
                     label = context.getString(R.string.nova_quick_menu_keyboard),
                     chip = chip(
-                        if (keyboardVisible) "Shown" else context.getString(R.string.nova_quick_menu_hidden),
+                        if (keyboardVisible) context.getString(R.string.nova_cc_shown) else context.getString(R.string.nova_quick_menu_hidden),
                         if (keyboardVisible) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE
                     ),
                     enabled = ownerInputAllowed
@@ -449,11 +511,13 @@ data class NovaQuickMenuUiState(
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.PASTE_CLIPBOARD,
                     label = context.getString(R.string.nova_quick_menu_paste_clipboard),
+                    caption = context.getString(R.string.nova_cc_paste_caption),
                     enabled = ownerInputAllowed
                 ),
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.ROTATE_SCREEN,
                     label = context.getString(R.string.nova_quick_menu_rotate_screen),
+                    caption = context.getString(R.string.nova_cc_rotate_caption),
                     enabled = true,
                     visible = !isOnExternalDisplay
                 ),
@@ -471,19 +535,16 @@ data class NovaQuickMenuUiState(
                 )
             )
 
-            // A Space streams at the bitrate it started with and says so; that is not an unknown.
-            val fixedForSpace = status?.liveTuningUnavailable == true && status.liveTuning == null
             return NovaQuickMenuUiState(
-                liveTuningAction = NovaQuickMenuAction(
-                    NovaQuickMenuActionId.LIVE_TUNING, "Live Tuning",
-                    caption = if (liveTuningPending) "Saving…" else if (hostStateUnavailable) "Reconnecting, state not confirmed" else
-                        if (fixedForSpace) "${autoQuality.detail}." else "${autoQuality.label}. Host setting. ${autoQuality.detail}",
-                    chip = NovaQuickMenuChip(if (hostStateUnavailable || status == null) "Unknown" else if (fixedForSpace) "Fixed" else if (status.liveTuningPresent && status.liveTuning == null) "Unknown" else if (autoQuality.enabled) "On" else "Off", if (autoQuality.enabled) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE),
-                    // The row stays enabled while a save is pending: the caption already says
-                    // Saving, onLiveTuning ignores a second press, and disabling the row under a
-                    // controller cursor drops focus mid-press.
-                    enabled = !hostStateUnavailable && canAdjustHostTuning &&
-                        (status?.liveTuning != null || (status?.liveTuningPresent != true && adaptiveSupported))
+                liveTuningAction = liveTuningAction(
+                    context = context,
+                    status = status,
+                    enabledNow = autoQuality.enabled,
+                    pending = liveTuningPending,
+                    unconfirmed = liveTuningUnconfirmed,
+                    hostStateUnavailable = hostStateUnavailable,
+                    canAdjustHostTuning = canAdjustHostTuning,
+                    adaptiveSupported = adaptiveSupported,
                 ),
                 title = context.getString(R.string.nova_quick_menu_command_center_title),
                 subtitle = subtitle,
@@ -657,24 +718,42 @@ data class NovaQuickMenuUiState(
             )
         }
 
+        /**
+         * The Doctor card for a Polaris host, in its one place under the strip from the first frame
+         * to close, so nothing below it moves (review finding 1). Before the host's first reading it
+         * says it is checking, disabled but focusable, and why A does nothing yet. A failed status
+         * read keeps the last reading, a few seconds old, rather than going back to checking. A
+         * Space's verdict is a reading like any other. Another host has no card at all.
+         */
         private fun diagnosisState(
             context: Context,
             status: PolarisSessionStatus?,
+            lastStatus: PolarisSessionStatus?,
             healthSummary: String,
+            stripWarns: Boolean,
+            polarisHost: Boolean,
         ): NovaQuickMenuDiagnosisState {
-            val doctor = status?.doctor
+            fun hasReading(candidate: PolarisSessionStatus?): Boolean = candidate != null && (
+                candidate.doctor.available || candidate.doctor.likelyCause.isNotBlank() ||
+                    candidate.doctor.primaryIssue.isNotBlank()
+                )
+            val stale = status == null && hasReading(lastStatus)
+            val reading = if (stale) lastStatus else status?.takeIf { hasReading(it) }
+            val doctor = reading?.doctor
             val informationalAiExplanation = doctor?.aiExplanation
                 ?.takeIf { it.available && it.informational }
             val actionId = doctor?.actionId.orEmpty()
-            val available = status != null &&
-                (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true)
-            val actionEnvelopeExecutable = doctor?.canExecuteAction == true
+            val available = reading != null
+            // The action is judged against the status that carried the reading. A reading kept
+            // through a failed read is a few seconds old and runs nothing, whatever that status
+            // allowed: A copies its details.
+            val actionEnvelopeExecutable = !stale && doctor?.canExecuteAction == true
             val readOnlyRecheck = actionId in setOf("recheck_network", "recheck_pacing")
             val actionExecutable = actionEnvelopeExecutable && if (readOnlyRecheck) {
-                status?.authorityContractValid == true &&
-                    status.ownedByClient && !status.isViewer
+                reading?.authorityContractValid == true &&
+                    reading.ownedByClient && !reading.isViewer
             } else {
-                status?.canAdjustHostTuning == true
+                reading?.canAdjustHostTuning == true
             }
             val capability = if (!actionExecutable) {
                 NovaQuickMenuDoctorCapability.MANUAL
@@ -689,30 +768,41 @@ data class NovaQuickMenuUiState(
                     else -> NovaQuickMenuDoctorCapability.MANUAL
                 }
             }
-            val likelyCause = doctor?.likelyCause?.takeIf { it.isNotBlank() }
-                ?: "Connect to Polaris for HOST / NET / CLIENT diagnostics."
+            // Before the first reading the card says it is checking, as the strip does.
+            val likelyCause = if (available) {
+                doctor?.likelyCause.orEmpty()
+            } else {
+                context.getString(R.string.nova_quick_menu_health_checking)
+            }
             val evidence = doctor?.evidence ?: emptyList()
             // The host's first-try line usually opens by restating the finding, which is
             // already the card's title. Keep only the advice that follows it.
             val tryFirst = doctor?.firstTry.orEmpty().withoutLeadingSentence(likelyCause)
+            // A reading with nothing Nova can run informs and reads quieter while the strip does
+            // not warn, and so does one a few seconds old. While the strip warns, the card says what
+            // the strip says; "Nothing to fix" under a warning contradicted it (N28).
+            val informational = available && (stale || (!actionExecutable && !stripWarns))
+            val stripVerdict = if (available && !stale && !actionExecutable && stripWarns) {
+                healthSummary.trim().trimEnd('.')
+            } else {
+                ""
+            }
             return NovaQuickMenuDiagnosisState(
                 classification = doctor?.classification?.takeIf { it.isNotBlank() } ?: "UNKNOWN",
                 likelyCause = likelyCause,
                 evidence = evidence,
-                evidenceHighlight = doctorEvidenceHighlight(status),
+                evidenceHighlight = doctorEvidenceHighlight(reading),
                 tryFirst = tryFirst,
                 confidence = doctor?.confidence.orEmpty(),
                 available = available,
-                // With no Doctor reading the host's health summary is the only sentence there is,
-                // and a Space sends exactly that. The strip already shows it, so the card goes.
-                // A reading with evidence, a first try or an action keeps its card even when its
-                // cause says what the strip says.
-                visible = likelyCause.trimEnd('.') != healthSummary.trimEnd('.') ||
-                    evidence.isNotEmpty() || tryFirst.isNotBlank() || actionId.isNotBlank(),
+                visible = polarisHost,
                 actionId = actionId,
                 actionLabel = doctor?.actionLabel.orEmpty(),
                 actionExecutable = actionExecutable,
                 capability = capability,
+                informational = informational,
+                stale = stale,
+                stripVerdict = stripVerdict,
                 targetBitrateKbps = doctor?.targetBitrateKbps ?: 0,
                 verificationDelaySeconds = doctor?.verificationDelaySeconds ?: 0,
                 undoSupported = doctor?.undoSupported == true,
@@ -782,6 +872,105 @@ data class NovaQuickMenuUiState(
             )
         }
 
+        /**
+         * Live Tuning's row, every word from resources: its state on the chip, what it is doing and
+         * the bitrate it applied under the title. It is a host setting; the row splits in place
+         * before it changes, and the line under the split says so.
+         */
+        private fun liveTuningAction(
+            context: Context,
+            status: PolarisSessionStatus?,
+            enabledNow: Boolean,
+            pending: Boolean,
+            unconfirmed: Boolean?,
+            hostStateUnavailable: Boolean,
+            canAdjustHostTuning: Boolean,
+            adaptiveSupported: Boolean,
+        ): NovaQuickMenuAction {
+            // A Space streams at the bitrate it started with and says so; that is not an unknown.
+            val fixedForSpace = status?.liveTuningUnavailable == true && status.liveTuning == null
+            val unknown = hostStateUnavailable || status == null ||
+                (!fixedForSpace && status.liveTuningPresent && status.liveTuning == null)
+            val chipLabel = when {
+                unknown -> R.string.nova_cc_live_tuning_unknown
+                fixedForSpace -> R.string.nova_cc_live_tuning_fixed
+                enabledNow -> R.string.nova_quick_menu_on
+                else -> R.string.nova_quick_menu_off
+            }
+            // A switch the host did not confirm is said here, where it was asked for, not in a
+            // snackbar: the state the host reports now, which the chip shows, and nothing that asks
+            // the player to try again, which from the chip's state would undo what they asked for.
+            // The host may have applied it and lost its answer; then there is nothing to say.
+            val result = unconfirmed?.let { asked ->
+                when {
+                    unknown -> context.getString(R.string.nova_cc_live_tuning_unconfirmed)
+                    enabledNow != asked -> context.getString(
+                        if (enabledNow) R.string.nova_cc_live_tuning_kept_on else R.string.nova_cc_live_tuning_kept_off,
+                    )
+                    else -> null
+                }
+            }?.takeIf { !pending }
+            val caption = when {
+                pending -> context.getString(R.string.nova_cc_live_tuning_saving)
+                // Ahead of Reconnecting: a status refresh that failed too must not hide the failure.
+                result != null -> result
+                hostStateUnavailable -> context.getString(R.string.nova_cc_live_tuning_reconnecting)
+                fixedForSpace -> context.getString(R.string.nova_cc_live_tuning_space)
+                else -> liveTuningCaption(context, status)
+            }
+            return NovaQuickMenuAction(
+                id = NovaQuickMenuActionId.LIVE_TUNING,
+                label = context.getString(R.string.nova_cc_live_tuning),
+                caption = caption,
+                chip = chip(
+                    context.getString(chipLabel),
+                    if (enabledNow) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE,
+                ),
+                announce = result != null,
+                // The row stays enabled while a save is pending, and while its result shows even
+                // when the host's state could not be read: the caption says so, onLiveTuning asks
+                // nothing of a host it cannot read, and disabling the row under a controller cursor
+                // drops focus off it mid-press or as the result arrives.
+                enabled = result != null || (
+                    !hostStateUnavailable && canAdjustHostTuning &&
+                        (status?.liveTuning != null || (status?.liveTuningPresent != true && adaptiveSupported))
+                    ),
+            )
+        }
+
+        /** What Live Tuning is doing, as AutoQualityUiState reads the host, in the player's words. */
+        private fun liveTuningCaption(context: Context, status: PolarisSessionStatus?): String {
+            val live = status?.liveTuning
+            if (status == null || (status.liveTuningPresent && live == null)) {
+                return context.getString(R.string.nova_cc_live_tuning_waiting_host)
+            }
+            val enabled = live?.enabled ?: (status.tuning.adaptiveBitrateEnabled || status.adaptiveBitrateEnabled)
+            if (!enabled) return context.getString(R.string.nova_cc_live_tuning_off_caption)
+            // Older hosts expose preference and target only. Never claim encoder acknowledgement.
+            if (live == null) return context.getString(R.string.nova_cc_live_tuning_on_unconfirmed)
+            val state = context.getString(
+                when (live.state) {
+                    "waiting" -> R.string.nova_cc_live_tuning_waiting_stream
+                    "unavailable" -> R.string.nova_cc_live_tuning_unavailable
+                    "applying" -> R.string.nova_cc_live_tuning_applying
+                    "measuring" -> R.string.nova_cc_live_tuning_measuring
+                    "adjusting" -> R.string.nova_cc_live_tuning_adjusting
+                    else -> R.string.nova_cc_live_tuning_steady
+                }
+            )
+            return when {
+                live.state == "unavailable" && live.reason.isNotBlank() ->
+                    context.getString(R.string.nova_cc_live_tuning_state_reason, state, live.reason.replace('_', ' '))
+                live.state != "unavailable" && live.appliedBitrateKbps > 0 -> context.getString(
+                    R.string.nova_cc_live_tuning_state_figures,
+                    state,
+                    StreamPolicyUiState.formatMbps(live.appliedBitrateKbps),
+                    StreamPolicyUiState.formatMbps(live.qualityLimitKbps),
+                )
+                else -> context.getString(R.string.nova_cc_live_tuning_state, state)
+            }
+        }
+
         private fun syncAction(
             context: Context,
             status: PolarisSessionStatus?,
@@ -809,6 +998,7 @@ data class NovaQuickMenuUiState(
             }
             val sync = status?.syncStatus
             val presentationStatus = status?.clientPresentation?.status.orEmpty().lowercase()
+            val liveTuning = context.getString(R.string.nova_cc_live_tuning)
             val label = when {
                 status == null -> "Checking"
                 sync?.isManualOverride == true -> "Manual"
@@ -817,14 +1007,14 @@ data class NovaQuickMenuUiState(
                 sync?.isApplying == true -> "Applying"
                 presentationStatus == "blocked" -> "Blocked"
                 presentationStatus == "pending" -> "Pending"
-                policy.adaptiveTargetBitrateKbps > 0 -> "Live Tuning"
+                policy.adaptiveTargetBitrateKbps > 0 -> liveTuning
                 sync?.isSynced == true -> "Synced"
                 status.isClientPresentationSynced -> "Synced"
                 status.isStreaming -> "Live"
                 else -> "Ready"
             }
             val tone = when (label) {
-                "Synced", "Live Tuning", "Live" -> NovaQuickMenuTone.ACTIVE
+                "Synced", liveTuning, "Live" -> NovaQuickMenuTone.ACTIVE
                 "Pending", "Blocked", "Relaunch", "Attention", "Applying", "Manual" -> NovaQuickMenuTone.WARNING
                 "Ready" -> NovaQuickMenuTone.INACTIVE
                 else -> NovaQuickMenuTone.MUTED
@@ -832,6 +1022,13 @@ data class NovaQuickMenuUiState(
             val syncState = sync?.state.orEmpty().lowercase()
             val caption = when {
                 status == null -> "checking host and client settings"
+                policy.hasAdaptiveCap -> context.getString(
+                    R.string.nova_cc_live_tuning_sync_capped,
+                    policy.adaptiveTargetLabel,
+                    policy.qualityLimitLabel,
+                )
+                policy.adaptiveTargetBitrateKbps > 0 && policy.adaptiveEnabled ->
+                    context.getString(R.string.nova_cc_live_tuning_sync_target, policy.adaptiveTargetLabel)
                 policy.adaptiveTargetBitrateKbps > 0 -> policy.statusCaption
                 sync?.message?.isNotBlank() == true -> sync.message
                 syncState == "manual_override" -> "manual client tuning is active"
@@ -954,7 +1151,7 @@ data class NovaQuickMenuUiState(
             if (status == null) {
                 return context.getString(R.string.nova_quick_menu_mode_unknown)
             }
-            val base = listOf(status.sessionModeLabel, status.encoderSelectionLabel)
+            val base = listOf(sessionModeName(context, status), status.encoderSelectionLabel)
                 .filter { it.isNotBlank() }
                 .joinToString(" · ")
             return if (status.isViewer) {
@@ -963,6 +1160,27 @@ data class NovaQuickMenuUiState(
                 base
             }
         }
+
+        /**
+         * The session pill's mode: the host's own name for it, as the library's picker, the game
+         * page and Settings show it, so a mode reads the same wherever Nova names it. Polaris names
+         * windowed_stream "Private Stream (GPU-native)" and headless_stream "Private Stream". A
+         * host that sends no name gets Nova's, from resources, by the names the library uses.
+         */
+        private fun sessionModeName(context: Context, status: PolarisSessionStatus): String =
+            status.displayMode.label.trim().ifBlank {
+                when (status.sessionMode) {
+                    PolarisSessionStatus.SessionMode.PRIVATE_STREAM -> context.getString(R.string.nova_session_mode_headless)
+                    PolarisSessionStatus.SessionMode.PRIVATE_STREAM_GPU_NATIVE -> context.getString(R.string.nova_library_launch_gpu_native_test)
+                    PolarisSessionStatus.SessionMode.MIRROR_DESKTOP -> context.getString(R.string.nova_session_mode_host_display)
+                    PolarisSessionStatus.SessionMode.DESKTOP_TAKEOVER -> context.getString(R.string.nova_session_mode_desktop_takeover)
+                    PolarisSessionStatus.SessionMode.HOST_VIRTUAL_DISPLAY -> context.getString(R.string.nova_session_mode_virtual_display)
+                    PolarisSessionStatus.SessionMode.GAMESCOPE_STREAM -> context.getString(R.string.nova_library_launch_gamescope)
+                    PolarisSessionStatus.SessionMode.HEADLESS_DONGLE -> context.getString(R.string.nova_library_launch_dongle)
+                    // Only a label Nova has no name for reads as the host's; there is none here.
+                    PolarisSessionStatus.SessionMode.HOST_LABEL -> ""
+                }
+            }
 
         private fun resolveSessionDetail(context: Context, status: PolarisSessionStatus?): String {
             if (status == null) {
@@ -979,7 +1197,16 @@ data class NovaQuickMenuUiState(
             } else {
                 ""
             }
-            return listOf(status.capturePathLabel, source, role)
+            // Plain words for the capture path: GPU capture when frames stay on the GPU, GPU encoding
+            // when only the encoder is on it, CPU capture otherwise, and nothing when the host
+            // reports no capture path.
+            val capture = when {
+                status.isGpuNativeCapture -> context.getString(R.string.nova_cc_capture_gpu)
+                status.capturePathLabel.isBlank() -> ""
+                status.isGpuPath && !status.capturePathLabel.contains("SHM") -> context.getString(R.string.nova_cc_capture_gpu_encoder)
+                else -> context.getString(R.string.nova_cc_capture_cpu)
+            }
+            return listOf(capture, source, role)
                 .filter { it.isNotBlank() }
                 .joinToString(" · ")
         }

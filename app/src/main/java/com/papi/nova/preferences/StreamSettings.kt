@@ -739,6 +739,15 @@ class StreamSettings : NovaActivity() {
                 }
             }
 
+            // The touch menu button is for touch players, and a TV never needs it (N27): the rule the
+            // stream, More Controls and the Compose Settings screen follow holds here too.
+            if (!com.papi.nova.ui.NovaTouchMenuButton.available(activity)) {
+                removeIfExists(
+                    findPreference<PreferenceCategory>("category_overlays"),
+                    com.papi.nova.ui.NovaTouchMenuButton.SETTING_KEY,
+                )
+            }
+
             val inputCategory = findPreference<PreferenceCategory>("category_input")
 
             if (

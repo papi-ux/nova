@@ -15,6 +15,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -56,6 +57,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -82,7 +84,7 @@ class NovaSplitConfirmState {
     var armed: Boolean by mutableStateOf(false)
         private set
 
-    /** Open once the guard after arming has passed; until then the destructive half ignores activation. */
+    /** Open once the guard after arming has passed; until then the action's half ignores activation. */
     internal var guardOpen: Boolean by mutableStateOf(false)
 
     /** Counts arms, so each one restarts the guard. */
@@ -125,21 +127,34 @@ fun rememberNovaSplitConfirmState(): NovaSplitConfirmState = remember { NovaSpli
 enum class NovaSplitShape { Button, Row, Tile }
 
 /**
- * A destructive action that confirms in its own slot.
+ * How a split confirm reads. [Destructive] is for what cannot be taken back, such as End Session,
+ * Clear Game Profile or Alt + F4: red words, icon and hairline at rest, and a red confirm.
+ * [Neutral] is for a setting that only needs a second look, such as Live Tuning, which changes the
+ * host for every device: at rest it is drawn as the rows around it, and it confirms in the accent.
+ */
+enum class NovaSplitTone { Destructive, Neutral }
+
+/**
+ * An action that confirms in its own slot: a destructive one, or, with [tone] [NovaSplitTone.Neutral],
+ * a setting that only needs a second look.
  *
- * A (on release) or a tap arms it: the button splits into Stay (neutral, focused) and
- * [confirmLabel] (destructive fill, with [icon]) over 160ms, with [consequence] announced
+ * A (on release) or a tap arms it: the button splits into Stay (focused) and
+ * [confirmLabel] (with [icon]) over 160ms, with [consequence] announced
  * underneath and brought into view once it has grown in, so a split that is the last row of a
  * scrolling page never arms with its warning below the edge. B, focus leaving both halves, a
- * touch outside the pair, or the page changing cancels. The destructive half ignores activation
+ * touch outside the pair, or the page changing cancels. The action's half ignores activation
  * for 400ms after arming, so a single A, a held A, mashed A presses or a double tap never
  * confirm; A, Right, A does.
  *
  * At rest a [NovaSplitShape.Row] is a row among rows: the row tile, its icon and label at the
- * start in the row title type, with the destructive text, and its icon and hairline in the
- * destructive fill. Every split carries its [icon] at rest and armed, the close mark unless it
- * names another, so a destructive action reads as one before it is pressed. A split that sits in a row
- * of buttons is a [NovaSplitShape.Button], as tall as they are with their 8dp corners; with
+ * start in the row title type. A destructive one has the destructive text, and its icon and
+ * hairline in the destructive fill; a neutral one is drawn exactly as the rows around it. Every
+ * split carries its [icon] at rest and armed, the close mark unless it names another, so a
+ * destructive action reads as one before it is pressed. Armed, a destructive split's confirm is
+ * red and Stay beside it is a control like any other; a neutral split's halves both rest as
+ * tiles, the confirm's label in the accent, and the half with focus fills in the accent inside
+ * the one accent ring ([NovaActionSurface]). A split that sits in a row of buttons is a
+ * [NovaSplitShape.Button], as tall as they are with their 8dp corners; with
  * [fillSlot] it spans the slot it is given, as a button sharing its row by weight does, and so
  * does its armed pair. Otherwise a button keeps its own width at rest, and armed its pair grows
  * into the room beside it until each half holds its label on one line with its icon, each at
@@ -168,8 +183,25 @@ fun NovaSplitConfirm(
     buttonStyle: NovaSplitButtonStyle? = null,
     /** A [NovaSplitShape.Row]'s caption at rest, under its label, as the rows around it carry theirs. */
     caption: String? = null,
+    /**
+     * A [NovaSplitShape.Row]'s state at rest, at the row's end where the rows around it show theirs,
+     * such as a host setting's On or Off.
+     */
+    trailing: (@Composable () -> Unit)? = null,
+    tone: NovaSplitTone = NovaSplitTone.Destructive,
+    /**
+     * What [trailing] shows, for a screen reader, which hears it as the row's state and not again
+     * from [trailing]'s own words: Live Tuning's On was said twice.
+     */
+    stateDescription: String? = null,
+    /**
+     * [caption] holds a result a screen reader should hear as it arrives, such as a switch the
+     * host did not confirm: it is a polite live region while this is true.
+     */
+    announceCaption: Boolean = false,
 ) {
     val confirm by rememberUpdatedState(onConfirm)
+    val destructive = tone == NovaSplitTone.Destructive
     val mark = icon ?: R.drawable.ic_close
     val isTop = LocalNovaPageIsTop.current
     val isTopNow by rememberUpdatedState(isTop)
@@ -250,7 +282,7 @@ fun NovaSplitConfirm(
                 SplitHalf(
                     text = label,
                     icon = mark,
-                    destructive = true,
+                    destructive = destructive,
                     filled = false,
                     enabled = enabled,
                     minHeight = minHeight,
@@ -262,6 +294,9 @@ fun NovaSplitConfirm(
                     // A row at rest reads as the rows around it: the tile, its label at the start.
                     row = shape == NovaSplitShape.Row,
                     caption = caption?.takeIf { shape == NovaSplitShape.Row && it.isNotBlank() },
+                    announceCaption = announceCaption,
+                    trailing = trailing?.takeIf { shape == NovaSplitShape.Row },
+                    stateDescription = stateDescription?.takeIf { shape == NovaSplitShape.Row },
                     buttonStyle = buttonStyle,
                     modifier = Modifier
                         .then(if (fills) Modifier.fillMaxWidth() else Modifier.onSizeChanged { slotWidth = it.width })
@@ -289,6 +324,9 @@ fun NovaSplitConfirm(
                             enabled = true,
                             minHeight = minHeight,
                             rowCorner = false,
+                            // A neutral split's halves both rest as tiles and the one with focus
+                            // fills; a destructive split's Stay is a control like any other.
+                            accentUnderFocus = !destructive,
                             modifier = Modifier
                                 .focusRequester(state.stayRequester)
                                 // Stood over the action, Stay still hands Right to it, so A,
@@ -302,11 +340,12 @@ fun NovaSplitConfirm(
                         SplitHalf(
                             text = confirmLabel,
                             icon = mark,
-                            destructive = true,
+                            destructive = destructive,
                             filled = true,
                             enabled = true,
                             minHeight = minHeight,
                             rowCorner = false,
+                            accentUnderFocus = !destructive,
                             modifier = Modifier
                                 .focusRequester(state.actionRequester)
                                 .focusProperties { if (pair.stacked) left = state.stayRequester },
@@ -353,7 +392,11 @@ private fun SplitHalf(
     tile: Boolean = false,
     row: Boolean = false,
     caption: String? = null,
+    announceCaption: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
+    stateDescription: String? = null,
     buttonStyle: NovaSplitButtonStyle? = null,
+    accentUnderFocus: Boolean = false,
     onClick: () -> Unit,
 ) {
     NovaActionSurface(
@@ -362,7 +405,13 @@ private fun SplitHalf(
         enabled = enabled,
         primary = filled,
         destructive = destructive,
-        contentDescription = text,
+        // A destructive confirm half is red at rest, as any primary destructive is; the halves of
+        // an armed neutral split rest as tiles and fill in the accent only under focus.
+        accentUnderFocus = accentUnderFocus,
+        // No description of its own: a screen reader hears the label and caption Texts inside. On
+        // a node that merges its children a description is read as well as them, so the label,
+        // and a result in the caption, were said twice.
+        stateDescription = stateDescription,
         minHeight = minHeight,
         cornerRadius = if (rowCorner) NovaRadius.row else NovaRadius.hero,
         contentAlignment = if (row) Alignment.CenterStart else Alignment.Center,
@@ -373,8 +422,9 @@ private fun SplitHalf(
             else -> PaddingValues(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm)
         },
     ) { contentColor, _ ->
-        // At rest the icon takes the fill's red, as the hairline does; the label keeps the
-        // destructive text colour, which is the ordinary text colour where red would not read.
+        // At rest a destructive icon takes the fill's red, as the hairline does; the label keeps the
+        // destructive text colour, which is the ordinary text colour where red would not read. A
+        // neutral split's icon is its label's colour, as a row's is.
         val colors = LocalNovaComposeColors.current
         val iconTint = if (destructive && !filled && enabled) colors.destructiveFill else contentColor
         if (tile) {
@@ -409,14 +459,24 @@ private fun SplitHalf(
                         modifier = Modifier.size(NovaPanelMetrics.IconSize),
                     )
                 }
+                val label = if (trailing != null) Modifier.weight(1f) else Modifier
                 if (caption == null) {
-                    Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
+                    Text(text = text, style = novaPanelType.rowTitle, color = contentColor, modifier = label)
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
+                    Column(modifier = label, verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
                         Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
-                        Text(text = caption, style = novaPanelType.caption, color = colors.textSecondary, maxLines = 2)
+                        // Every line of it: a result such as "The host did not answer, so the change is
+                        // not confirmed." was cut at two lines at a large font scale.
+                        Text(
+                            text = caption,
+                            style = novaPanelType.caption,
+                            color = colors.textSecondary,
+                            modifier = if (announceCaption) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
+                        )
                     }
                 }
+                // Said once, as the row's state, where the state describes the slot.
+                trailing?.let { slot -> if (stateDescription != null) Box(Modifier.clearAndSetSemantics { }) { slot() } else slot() }
             }
         } else {
             val style = buttonStyle?.text ?: novaPanelType.value

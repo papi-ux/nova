@@ -17,7 +17,11 @@ import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import com.papi.nova.ui.compose.LocalNovaComposeColors
+import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaComposeColors
+import com.papi.nova.ui.compose.NovaLibrarySurfaces
+import com.papi.nova.ui.compose.NovaSurfaceLook
+import com.papi.nova.ui.compose.NovaSurfaceLookKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Rule
@@ -29,8 +33,11 @@ import org.robolectric.annotation.Config
 /**
  * A primary rests as a tile with its label in the accent, and takes the accent fill, and the
  * on-accent label, only while it has focus: Resume, Close and Save rested as solid accent and read
- * as a second focus beside the real one (R9). A full-screen state page's recovery action is the one
- * thing on its page and keeps its fill, and so does an armed destructive half.
+ * as a second focus beside the real one (R9). Such a primary rings in its label colour, where the
+ * accent ring would vanish on its fill. A full-screen state page's recovery action is the one
+ * thing on its page and keeps its fill, and so does an armed split's confirm half in either tone
+ * (NovaSplitConfirmToneComposeTest); a surface filled at rest takes the accent ring every control
+ * has, with its fill stood off the ring (in-game #14, review finding 4).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -39,6 +46,7 @@ class NovaPanelButtonLookComposeTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     private lateinit var colors: NovaComposeColors
+    private lateinit var surfaces: NovaLibrarySurfaces
 
     private fun labelColour(text: String): Color {
         val results = mutableListOf<TextLayoutResult>()
@@ -63,12 +71,18 @@ class NovaPanelButtonLookComposeTest {
         rule.onNodeWithText("Save").requestFocus()
         rule.waitForIdle()
         assertEquals("under focus it wears the fill's label", colors.onAccent, labelColour("Save"))
+        assertEquals(
+            "and its fill, ringed in the label colour",
+            NovaSurfaceLook(colors.accent, colors.onAccent, false),
+            rule.onNodeWithText("Save").fetchSemanticsNode().config[NovaSurfaceLookKey],
+        )
     }
 
     @Test
     fun aStatePagesRecoveryKeepsItsFillWhileAnotherActionHasFocus() {
         rule.setPanelContent {
             colors = LocalNovaComposeColors.current
+            surfaces = LocalNovaLibrarySurfaces.current
             NovaStateScreen(
                 NovaStatePage.Problem(
                     key = "lost",
@@ -85,6 +99,14 @@ class NovaPanelButtonLookComposeTest {
         rule.waitForIdle()
         assertEquals("the recovery keeps its fill at rest", colors.onAccent, labelColour("Reconnect"))
         assertEquals("the other actions rest as tiles", colors.textPrimary, labelColour("Close"))
+
+        rule.onNodeWithText("Reconnect").requestFocus()
+        rule.waitForIdle()
+        assertEquals(
+            "under focus it keeps its fill and takes the accent ring every control has, stood off the fill",
+            NovaSurfaceLook(colors.accent, surfaces.focusRing, true),
+            rule.onNodeWithText("Reconnect").fetchSemanticsNode().config[NovaSurfaceLookKey],
+        )
     }
 
     @Test

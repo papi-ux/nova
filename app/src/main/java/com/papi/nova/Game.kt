@@ -439,7 +439,7 @@ return keyBoardLayoutController != null && keyBoardLayoutController!!.shown
  val isKeyboardControllerShown:Boolean
 get() = keyBoardController?.shown == true
 
- /** Whether the floating Command Center button is showing. */
+ /** Whether the touch menu button, which opens the Command Center, is showing. */
  val isFloatingButtonVisible:Boolean
 get() = floatingMenuButton?.getVisibility() == View.VISIBLE
 
@@ -827,12 +827,10 @@ if (prefConfig!!.fullScreen)
  // Full-screen
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
- // If we're going to use immersive mode, we want to have
-            // the entire screen
-            getWindow().getDecorView().setSystemUiVisibility(
-(View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN))
+// Immersive from the first frame, not only laid out for it: with the layout flags alone the
+// navigation bar's gesture handle was drawn over the stream until hideSystemUi ran, a second
+// after the connection started (in-game #19). The same flags hideSystemUi keeps setting.
+hideSystemUi.run()
 }
 
 getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
@@ -5831,7 +5829,12 @@ if (prefConfig!!.disableWarnings)
 return
 }
 
-if (connectionStatus == MoonBridge.CONN_STATUS_POOR)
+if (connectionStatus == MoonBridge.CONN_STATUS_POOR && com.papi.nova.ui.NovaLegacyConnectionWarning.suppressed(lastPolarisSessionStatus))
+{
+// Live Tuning owns the bitrate, or Doctor reads the stream: the legacy advice contradicted them.
+requestedNotificationOverlayVisibility = View.GONE
+}
+else if (connectionStatus == MoonBridge.CONN_STATUS_POOR)
 {
 if (configuredStreamBitrateKbps > 5000)
 {
@@ -6390,8 +6393,8 @@ applyMouseMode(savedMouseModeIndex)
 }
 }
 /**
- * The mouse modes this display allows, with their original indexes as values, then the local
- * cursor toggle as -1. On an external display only the touchpad modes and Disabled make sense.
+ * The mouse modes this display allows, with their original indexes as values. On an external
+ * display only the touchpad modes and Disabled make sense. The local cursor is a row of its own.
  */
 fun mouseModeChoices():List<NovaOption<Int>> = NovaMouseModeChoices.options(
 modeNames = getResources().getStringArray(R.array.mouse_mode_names).toList(),
@@ -6401,8 +6404,11 @@ getString(R.string.mouse_mode_track_pad_natural),
 getString(R.string.mouse_mode_track_pad_gaming),
 getString(R.string.mouse_mode_disabled)
 ),
-localCursorLabel = getString(R.string.toggle_local_mouse_cursor),
 )
+
+/** Whether the local mouse cursor is drawn on this device, for the Mouse Mode page's switch. */
+val isLocalCursorShown:Boolean
+get() = cursorVisible
 
 /** The mouse mode in use, as the value [mouseModeChoices] marks current. */
 val currentMouseModeChoice:Int
@@ -6537,7 +6543,7 @@ block()
 private fun currentNovaCapabilities():com.papi.nova.api.PolarisCapabilities? =
 com.papi.nova.manager.FeatureFlagManager.capabilitiesForScope(novaFeatureScope)
 
-private fun novaIsPolarisServer():Boolean = currentNovaCapabilities() != null
+internal fun novaIsPolarisServer():Boolean = currentNovaCapabilities() != null
 
 private fun novaHasCursorVisibilityControl():Boolean =
 currentNovaCapabilities()?.features?.cursorVisibilityControl == true
@@ -7082,6 +7088,8 @@ hud = com.papi.nova.ui.NovaStreamHud(this@Game) {
 showGameMenu(null)
 }
 novaHud = hud
+// A HUD turned on from the Command Center starts as dim as the panel keeps the one it replaces (XR2).
+applyNovaHudCovered()
 hud!!.show()
 syncPerfTextWanted()
 configureNovaHud(hud!!)
@@ -7100,9 +7108,46 @@ hud.applySessionStatus(lastPolarisSessionStatus)
 schedulePolarisLiveSessionStatusRefresh(true)
 }
 
-/** Hides the HUD while a panel over the stream covers it, and brings it back after. */
+/**
+ * Dims the HUD while a panel over the stream covers it, and brings it back after. Kept here, not
+ * only in the HUD, so a HUD made while the panel is open is dimmed as well (XR2).
+ */
 fun setNovaHudCovered(covered:Boolean) {
-novaHud?.setCovered(covered)
+novaHudCovered = covered
+// A panel that closes takes its focused rows with it.
+if (!covered) novaHudPreviewing = false
+applyNovaHudCovered()
+}
+
+private var novaHudCovered:Boolean = false
+
+/**
+ * While a Command Center row that changes the HUD has focus (HUD Mode, HUD Opacity), the HUD shows
+ * at full strength, so the change can be seen as it is made (in-game #4).
+ */
+fun setNovaHudPreviewing(previewing:Boolean) {
+novaHudPreviewing = previewing
+applyNovaHudCovered()
+}
+
+private var novaHudPreviewing:Boolean = false
+
+private fun applyNovaHudCovered() {
+novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)
+}
+
+/**
+ * Where the HUD's left edge sits across the stream window, in pixels, for the Command Center's HUD
+ * rows to compare with the part of the stream the panel covers: the position the HUD stored, on a
+ * drag or a mode change, or its own corner when it never stored one.
+ */
+val novaHudLeftPx:Float
+get() {
+val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+return com.papi.nova.ui.NovaCommandCenterHudCorner.leftPx(
+storedX = prefs.getFloat(com.papi.nova.ui.NovaCommandCenterHudCorner.PREF_HUD_X, Float.NaN),
+density = resources.displayMetrics.density,
+television = UiHelper.isTvDevice(this))
 }
 
 override fun cycleNovaHudFromController() {
@@ -7440,7 +7485,8 @@ externalDisplayControlPresentation?.hideGameMenu()
 }
 
 private fun updateFloatingButtonVisibility(show:Boolean) {
-floatingMenuButton!!.setVisibility(if (show) View.VISIBLE else View.GONE)
+// The touch menu button is for touch players: never shown without a touchscreen or on a TV.
+floatingMenuButton!!.setVisibility(if (show && com.papi.nova.ui.NovaTouchMenuButton.available(this)) View.VISIBLE else View.GONE)
 }
  fun toggleFloatingButtonVisibility() {
 if (floatingMenuButton != null)

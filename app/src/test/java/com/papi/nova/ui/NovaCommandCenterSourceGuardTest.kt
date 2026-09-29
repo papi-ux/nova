@@ -89,7 +89,8 @@ class NovaCommandCenterSourceGuardTest {
             content.contains("diagnosis.aiExplanation") &&
                 content.contains("nova_quick_menu_doctor_ai_explanation") &&
                 content.contains("diagnosis.informationalSource") &&
-                content.contains("supportingLine = supportingLine") &&
+                content.contains("listOfNotNull(detail.takeIf { it.isNotBlank() }, aiSupportingLine, sourceSupportingLine)") &&
+                content.contains("caption = details,") &&
                 content.contains("text = supportingLine") &&
                 content.contains("listOfNotNull(action.label, action.chip?.label, supportingLine")
         )
@@ -138,7 +139,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         val closeButton = quickMenuContent.section(
             "private fun NovaQuickMenuCloseButton(",
-            "@Composable\nprivate fun NovaQuickMenuDiagnosisCard("
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuDiagnosisCard("
         )
 
         // The smoke test of 2026-09-29 found the page opening on the strip, which acts on nothing:
@@ -150,7 +151,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "Command Center should open on Close, the header's safe action, while asynchronous Doctor data is loading; the page host focuses it one frame after the page opens",
-            header.contains("NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaInitialFocus().novaRestorableFocus(\"header-close\"))") &&
+            header.contains("NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaInitialFocus().then(novaPlaceFocus(\"header-close\")))") &&
                 content.contains("NovaQuickMenuSessionStrip(ui, Modifier)") &&
                 sessionStrip.contains("modifier: Modifier")
         )
@@ -470,7 +471,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         val closeButton = content.section(
             "private fun NovaQuickMenuCloseButton(",
-            "@Composable\nprivate fun NovaQuickMenuDiagnosisCard("
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuDiagnosisCard("
         )
 
         val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier)")
@@ -504,6 +505,11 @@ class NovaCommandCenterSourceGuardTest {
         assertTrue(
             "sync and Advanced stay at the end",
             syncCard in 0 until advancedToggleCard
+        )
+        assertTrue(
+            "the Doctor card has one place, under the strip, whatever the reading says: a reading that only informs reads quieter there instead of moving (review finding 1, N28)",
+            body.split("NovaQuickMenuDiagnosisCard(").size == 2 &&
+                body.contains("if (showDiagnosis) NovaQuickMenuDiagnosisCard(ui, callbacks)")
         )
         assertTrue(
             "the host safe profile is observational history and lives inside the expanded Advanced section, not in the first paint",
@@ -926,6 +932,108 @@ class NovaCommandCenterSourceGuardTest {
             "the deck's Back takes an armed End back before it does anything else",
             back.indexOf("endSessionSplit.disarm()") in 0 until back.indexOf("isNovaKeyboardVisible")
         )
+    }
+
+    /**
+     * C30, the Command Center half: Live Tuning's row was built from English in Kotlin, its title,
+     * its chip and its caption, "Host setting." included. Every word now comes from resources.
+     */
+    @Test
+    fun liveTuningWordsInTheCommandCenterComeFromResources() {
+        val state = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuUiState.kt")
+        listOf("\"Live Tuning\"", "\"Saving…\"", "Host setting", "\"Reconnecting, state not confirmed\"", "\"Unknown\"", "\"Fixed\"")
+            .forEach { literal ->
+                assertFalse("NovaQuickMenuUiState must not write $literal in Kotlin", state.contains(literal))
+            }
+        assertFalse(
+            "the row's caption is its own, not AutoQualityUiState's English label and detail",
+            state.contains("autoQuality.label") || state.contains("autoQuality.detail"),
+        )
+    }
+
+    /** N27: the touch menu button, and its More Controls row, are for touch players only. */
+    @Test
+    fun theTouchMenuButtonAndItsRowWaitForATouchscreen() {
+        val menu = readNovaQuickMenu()
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val touch = menu.section("val touch = CommandCenterSection(", "val controller =")
+        val gate = touch.indexOf("if (NovaTouchMenuButton.available(game)) {")
+        assertTrue(
+            "More Controls offers the button's switch only where a touch player can use the button",
+            gate >= 0 && gate < touch.indexOf("R.string.nova_cc_floating_button"),
+        )
+        val visibility = game.section("private fun updateFloatingButtonVisibility(", "fun toggleFloatingButtonVisibility()")
+        assertTrue(
+            "the stream never shows the button without a touchscreen or on a TV, whatever the setting says",
+            visibility.contains("NovaTouchMenuButton.available(this)"),
+        )
+    }
+
+    /**
+     * XR2: the Command Center dimmed only a HUD that already existed. Choosing a HUD mode with the
+     * HUD off builds a new one, which started at full strength under the open panel.
+     */
+    @Test
+    fun aHudMadeWhileThePanelIsOpenStartsDimmed() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val covered = game.section("fun setNovaHudCovered(covered:Boolean) {", "override fun cycleNovaHudFromController()")
+        assertTrue(
+            "Game keeps the covered state, so it outlives the HUD it was first given to",
+            covered.contains("novaHudCovered = covered") && covered.contains("novaHud?.setCovered(novaHudCovered"),
+        )
+        val show = game.section("fun showNovaHud():com.papi.nova.ui.NovaStreamHud {", "private fun configureNovaHud(")
+        val made = show.indexOf("novaHud = hud")
+        val applied = show.indexOf("applyNovaHudCovered()")
+        val shown = show.indexOf("hud!!.show()")
+        assertTrue(
+            "a new HUD takes the covered state before it shows, so it never flashes at full strength",
+            made in 0 until applied && applied in 0 until shown,
+        )
+    }
+
+    /** In-game #4: Game shows the HUD undimmed while a HUD row previews it, and a closing panel ends that. */
+    @Test
+    fun aPreviewingHudRowOutranksTheDimmingPanel() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        assertTrue(
+            "covered and previewing are one rule: dimmed only while covered and nothing previews it",
+            game.contains("novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)"),
+        )
+        val covered = game.section("fun setNovaHudCovered(covered:Boolean) {", "private var novaHudCovered")
+        assertTrue("a closing panel takes its focused rows with it", covered.contains("if (!covered) novaHudPreviewing = false"))
+        assertTrue(readNovaQuickMenu().contains("onHudPreview = { previewing -> game.setNovaHudPreviewing(previewing) }"))
+    }
+
+    /**
+     * N26: the opacity values sat mid row, an arrow's width in from where every other value ends,
+     * and the Stream card's Launch Preset row sat a second inset deeper than every other row.
+     */
+    @Test
+    fun opacityShowsItsPresetsInTheRowAndLaunchPresetKeepsTheRowInset() {
+        val content = readNovaQuickMenuContent()
+        val menuOpacity = content.section(
+            "private fun NovaPageScope.NovaQuickMenuMenuOpacityControl(",
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuHudOpacityControl(",
+        )
+        val hudOpacity = content.section("private fun NovaPageScope.NovaQuickMenuHudOpacityControl(", "// Four layouts in one row")
+        assertTrue(
+            "both opacity rows show every preset in the row with the current one checked, as HUD Mode does",
+            menuOpacity.contains("style = NovaValueStyle.Segmented") && hudOpacity.contains("style = NovaValueStyle.Segmented"),
+        )
+        val stream = content.section("private fun NovaPageScope.NovaQuickMenuStabilityCard(", "private fun NovaQuickMenuStaticCard(")
+        assertTrue(
+            "the Stream card insets its text as a row does and leaves its nested row its own inset",
+            stream.contains("NovaQuickMenuStaticCard(contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceMd))"),
+        )
+    }
+
+    /** N26: More Keys pushed from the root leaves out the keys the root offers, so each key shows once. */
+    @Test
+    fun moreKeysBesideTheRootLeavesOutTheRootsKeys() {
+        val menu = readNovaQuickMenu()
+        assertTrue(menu.contains("surfaces.panel.push(keysPage(menu, besideTheRoot = true))"))
+        assertTrue(menu.contains("filterNot { besideTheRoot && it.key in NovaCommandCenterKeys.OnTheRoot }"))
+        assertTrue("the companion deck's own Keys page stays the whole list", menu.contains("keysPage(menu, besideTheRoot = false)"))
     }
 
     @Test

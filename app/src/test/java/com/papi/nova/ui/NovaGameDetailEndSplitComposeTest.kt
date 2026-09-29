@@ -6,8 +6,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.requestFocus
@@ -115,11 +116,13 @@ class NovaGameDetailEndSplitComposeTest {
         // Let Resume take first focus as the page opens, then walk to End.
         rule.mainClock.advanceTimeBy(NOVA_FIRST_FOCUS_SETTLE_MS * 2)
         rule.waitForIdle()
-        rule.onNodeWithContentDescription(endLabel()).requestFocus()
+        half(endLabel()).requestFocus()
         rule.mainClock.autoAdvance = false
         return keys
     }
 
+    // A split half by its label: a Text measuring the pair's labels says it too, and only the half is clickable.
+    private fun half(label: String) = rule.onNode(hasText(label) and hasClickAction())
     private fun endLabel() = context.getString(R.string.nova_game_detail_end_session)
     private fun stay() = context.getString(R.string.nova_panel_stay)
     private fun resume() = context.getString(R.string.nova_game_detail_resume)
@@ -127,7 +130,7 @@ class NovaGameDetailEndSplitComposeTest {
     private fun arm(keys: NovaTestKeys) {
         keys.press(NovaTestKeys.A)
         rule.advance(ARM_SETTLE_MS)
-        rule.onNodeWithContentDescription(stay()).assertIsFocused()
+        half(stay()).assertIsFocused()
     }
 
     @Test
@@ -149,9 +152,9 @@ class NovaGameDetailEndSplitComposeTest {
 
         assertEquals(0, ends)
         assertEquals(0, resumes)
-        rule.onNodeWithContentDescription(stay()).assertDoesNotExist()
+        half(stay()).assertDoesNotExist()
         rule.onNodeWithText(resume()).assertExists()
-        rule.onNodeWithContentDescription(endLabel()).assertIsFocused()
+        half(endLabel()).assertIsFocused()
     }
 
     @Test
@@ -178,13 +181,13 @@ class NovaGameDetailEndSplitComposeTest {
         keys.press(NovaTestKeys.A)
         // The first frame after arming, before any key: the pair has just split.
         rule.advance(16)
-        rule.onNodeWithContentDescription(stay()).assertIsFocused()
+        half(stay()).assertIsFocused()
         rule.advance(ARM_SETTLE_MS + NovaPanelMetrics.SplitMillis)
-        rule.onNodeWithContentDescription(stay()).assertIsFocused()
+        half(stay()).assertIsFocused()
         val end = context.getString(R.string.game_dialog_action_end_session)
-        rule.onNodeWithContentDescription(end).assertIsNotFocused()
-        val stayHalf = rule.onNodeWithContentDescription(stay()).getUnclippedBoundsInRoot()
-        val endHalf = rule.onNodeWithContentDescription(end).getUnclippedBoundsInRoot()
+        half(end).assertIsNotFocused()
+        val stayHalf = half(stay()).getUnclippedBoundsInRoot()
+        val endHalf = half(end).getUnclippedBoundsInRoot()
         assertEquals("Stay first, End beside it on the same line", stayHalf.top.value, endHalf.top.value, 0.5f)
         assertTrue(endHalf.left > stayHalf.right)
         assertEquals(0, ends)
@@ -193,9 +196,9 @@ class NovaGameDetailEndSplitComposeTest {
     @Test
     fun aTapArmsItToo() {
         page()
-        rule.onNodeWithContentDescription(endLabel()).performClick()
+        half(endLabel()).performClick()
         rule.advance(ARM_SETTLE_MS)
-        rule.onNodeWithContentDescription(stay()).assertExists()
+        half(stay()).assertExists()
         assertEquals(0, ends)
     }
 

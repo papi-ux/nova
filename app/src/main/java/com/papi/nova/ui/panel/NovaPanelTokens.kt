@@ -21,15 +21,19 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.SemanticsModifierNode
 import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.invalidateSemantics
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
@@ -43,6 +47,8 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaFormFactor
 import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
+import com.papi.nova.ui.compose.NovaSurfaceLook
+import com.papi.nova.ui.compose.novaSurfaceLook
 import kotlinx.coroutines.launch
 
 /**
@@ -139,6 +145,12 @@ object NovaPanelMetrics {
     val TvSafeVertical: Dp = 27.dp
 
     val FocusRingWidth: Dp = 3.dp
+    /**
+     * The gap between the focus ring and a fill that stands inside it: a surface filled at rest,
+     * such as an armed split's confirm, keeps its fill under focus, and the accent ring reads on
+     * the accent fill only with the panel showing between them.
+     */
+    val FocusRingGap: Dp = 2.dp
     /**
      * How far a scrolling list's edge fades while more lies past it. Half a compact row: the
      * focused row keeps a whole row of context between it and the edge, so the fade only ever
@@ -425,7 +437,10 @@ fun Modifier.novaFocusRing(
  *
  * It follows the focus of whatever focus target comes after it in the chain, so it goes before
  * `focusable()` or [novaClickable]. At rest it draws [restFill] and an optional hairline.
- * Unspecified colours come from the theme: `focusRing` and `selectedControl`.
+ * Unspecified colours come from the theme: `focusRing` and `selectedControl`. With
+ * [ringStandsOff], the fill steps in from the ring under focus by the ring and
+ * [NovaPanelMetrics.FocusRingGap], so the accent ring reads on an accent fill. It publishes what it
+ * shows once focus has settled ([NovaSurfaceLook]), for a check to read from what draws it.
  */
 fun Modifier.novaFocusRing(
     shape: Shape,
@@ -434,7 +449,8 @@ fun Modifier.novaFocusRing(
     restFill: Color = Color.Transparent,
     restBorder: Color = Color.Transparent,
     restBorderWidth: Dp = 0.dp,
-): Modifier = this then NovaFocusRingElement(shape, ring, focusedFill, restFill, restBorder, restBorderWidth) then
+    ringStandsOff: Boolean = false,
+): Modifier = this then NovaFocusRingElement(shape, ring, focusedFill, restFill, restBorder, restBorderWidth, ringStandsOff) then
     // Everything with the focus look is a row of whatever list it is in, for the list to rest on.
     Modifier.novaTrackedRow()
 
@@ -445,11 +461,12 @@ private data class NovaFocusRingElement(
     val restFill: Color,
     val restBorder: Color,
     val restBorderWidth: Dp,
+    val ringStandsOff: Boolean,
 ) : ModifierNodeElement<NovaFocusRingNode>() {
-    override fun create() = NovaFocusRingNode(shape, ring, focusedFill, restFill, restBorder, restBorderWidth)
+    override fun create() = NovaFocusRingNode(shape, ring, focusedFill, restFill, restBorder, restBorderWidth, ringStandsOff)
 
     override fun update(node: NovaFocusRingNode) {
-        node.update(shape, ring, focusedFill, restFill, restBorder, restBorderWidth)
+        node.update(shape, ring, focusedFill, restFill, restBorder, restBorderWidth, ringStandsOff)
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -469,14 +486,15 @@ private class NovaFocusRingNode(
     private var restFill: Color,
     private var restBorder: Color,
     private var restBorderWidth: Dp,
-) : Modifier.Node(), DrawModifierNode, FocusEventModifierNode, CompositionLocalConsumerModifierNode {
+    private var ringStandsOff: Boolean,
+) : Modifier.Node(), DrawModifierNode, FocusEventModifierNode, CompositionLocalConsumerModifierNode, SemanticsModifierNode {
     private val progress = Animatable(0f)
     private var focused = false
     private var cachedSize = Size.Unspecified
     private var cachedOutline: Outline? = null
     private var cachedPath: Path? = null
 
-    fun update(shape: Shape, ring: Color, focusedFill: Color, restFill: Color, restBorder: Color, restBorderWidth: Dp) {
+    fun update(shape: Shape, ring: Color, focusedFill: Color, restFill: Color, restBorder: Color, restBorderWidth: Dp, ringStandsOff: Boolean) {
         if (shape != this.shape) {
             this.shape = shape
             cachedOutline = null
@@ -486,16 +504,28 @@ private class NovaFocusRingNode(
         this.restFill = restFill
         this.restBorder = restBorder
         this.restBorderWidth = restBorderWidth
+        this.ringStandsOff = ringStandsOff
         invalidateDraw()
+        invalidateSemantics()
     }
 
     override fun onFocusEvent(focusState: FocusState) {
         val now = focusState.hasFocus
         if (now == focused) return
         focused = now
+        invalidateSemantics()
         coroutineScope.launch {
             progress.animateTo(if (now) 1f else 0f, tween(NovaPanelMetrics.FocusMillis))
         }
+    }
+
+    override fun SemanticsPropertyReceiver.applySemantics() {
+        val surfaces = currentValueOf(LocalNovaLibrarySurfaces)
+        novaSurfaceLook = NovaSurfaceLook(
+            fill = if (focused) focusedFill.takeOrElse { surfaces.selectedControl } else restFill,
+            ring = if (focused) ring.takeOrElse { surfaces.focusRing } else Color.Unspecified,
+            ringStandsOff = focused && ringStandsOff,
+        )
     }
 
     override fun ContentDrawScope.draw() {
@@ -509,7 +539,17 @@ private class NovaFocusRingNode(
         }
         val outline = cachedOutline!!
         val fill = lerp(restFill, focusedFill.takeOrElse { surfaces.selectedControl }, amount)
-        if (fill.alpha > 0f) drawOutline(outline, fill)
+        // A fill that stands off the ring steps in from the edge as focus arrives, leaving the
+        // ring and a gap of the panel around it.
+        val inset = if (ringStandsOff) ((NovaPanelMetrics.FocusRingWidth + NovaPanelMetrics.FocusRingGap) * amount).toPx() else 0f
+        if (fill.alpha > 0f) {
+            if (inset > 0f && size.width > inset * 2f && size.height > inset * 2f) {
+                val inner = shape.createOutline(Size(size.width - inset * 2f, size.height - inset * 2f), layoutDirection, this)
+                translate(inset, inset) { drawOutline(inner, fill) }
+            } else {
+                drawOutline(outline, fill)
+            }
+        }
         drawContent()
         val width = lerp(restBorderWidth, NovaPanelMetrics.FocusRingWidth, amount).toPx()
         val color = lerp(restBorder, ring.takeOrElse { surfaces.focusRing }, amount)

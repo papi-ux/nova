@@ -24,8 +24,8 @@ import org.junit.runner.RunWith
 
 /**
  * The stream sheets' controller cases on what replaced them: Mouse Mode as the Command Center's
- * Choice page, and End Session as the split in the Command Center's header, both in a panel
- * window. Keys are injected, so they reach the window's key gate the way a pad's do.
+ * own page at its width, and End Session as the split in the Command Center's header, both in a
+ * panel window. Keys are injected, so they reach the window's key gate the way a pad's do.
  *
  * The window here has Screen placement: Stream placement needs a Game with a live stream. Its key
  * gate, focus and page stack are the same window's; what Stream placement adds is handing input
@@ -112,10 +112,16 @@ class NovaStreamSheetsInstrumentationTest {
                     modeNames = listOf("Direct", "Relative", "Track pad (Natural)", GAMING, DISABLED),
                     onExternalDisplay = true,
                     externalModes = setOf("Track pad (Natural)", GAMING, DISABLED),
-                    localCursorLabel = "Toggle local cursor",
                 ),
                 current = 3,
                 onChoose = { appliedMode.set(it) },
+                // The local cursor is a row of its own after the modes, never one more mode.
+                localCursor = NovaLocalCursorRow(
+                    label = "Local Cursor",
+                    caption = "Draws the pointer on this device. Needs a physical mouse.",
+                    shown = false,
+                    onChange = {},
+                ),
             ),
         )
     }
@@ -130,6 +136,7 @@ class NovaStreamSheetsInstrumentationTest {
                 when (page) {
                     is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = built)
                     is CommandCenterPage.Listing -> CommandCenterListingPage(page)
+                    is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                     else -> Unit
                 }
             }

@@ -212,6 +212,8 @@ internal class NovaVisualStage(val rule: NovaVisualRule) {
                 panel = panel,
                 states = emptyList(),
                 scrim = NovaScrim.Stream,
+                // The stream's own window, whose panels keep the solid floor.
+                overStream = true,
                 pageContent = content,
                 onIdle = {},
                 hints = hints,
@@ -227,7 +229,7 @@ internal class NovaVisualStage(val rule: NovaVisualRule) {
         onShoulder: ((NovaShoulder) -> Unit)? = null,
         content: NovaPageContent = {},
     ) {
-        rule.runOnUiThread { surfaces.open(root, edge, NovaFocusReturn.None, hints, onShoulder, content) }
+        rule.runOnUiThread { surfaces.open(root, edge, NovaFocusReturn.None, hints, onShoulder, content = content) }
         windowShown()
     }
 
