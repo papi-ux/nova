@@ -205,7 +205,7 @@
     <string name="nova_library_server_context_fallback">From your Polaris server</string>
     <string name="nova_library_switch_server">Switch</string>
     <string name="nova_library_manage">Manage</string>
-    <string name="nova_library_manage_failed">Cannot open server management page.</string>
+    <string name="nova_library_manage_failed">No app on this device can open the host\'s management page.</string>
     <string name="nova_library_browse_label">Library</string>
     <string name="nova_library_collection_label">Collection</string>
     <string name="nova_library_search_hint">Search this library</string>
@@ -293,7 +293,8 @@
     <string name="nova_system_menu_help_diagnostics_hint">Troubleshooting steps for network, input, and stream issues.</string>
     <string name="nova_system_menu_about">About Nova</string>
     <string name="nova_system_menu_about_hint">Version and client identity.</string>
-    <string name="nova_system_menu_about_toast">%1$s</string>
+    <!-- The About Nova page's line, pushed over System. -->
+    <string name="nova_system_menu_about_version">Version %1$s</string>
     <string name="nova_system_menu_matrix">Matrix</string>
     <string name="nova_system_menu_matrix_hint">Join the papi-ux Matrix community.</string>
     <string name="nova_system_menu_sponsor">Sponsor</string>
@@ -546,9 +547,9 @@
     <string name="nova_library_pin_shortcut">Pin to Home Screen</string>
     <string name="nova_library_pin_shortcut_pending">Waiting for launcher</string>
     <string name="nova_library_pin_shortcut_pinned">Pinned to Home Screen</string>
-    <string name="nova_library_pin_shortcut_success">Shortcut request sent - your launcher may ask you to place it</string>
-    <string name="nova_library_pin_shortcut_unsupported">Your launcher doesn\'t support pinned shortcuts</string>
-    <string name="nova_library_pin_shortcut_failed">Couldn\'t create the shortcut</string>
+    <!-- Said for a few seconds in the pin button's own label, which widens to hold it. -->
+    <string name="nova_library_pin_shortcut_unsupported">This launcher cannot pin</string>
+    <string name="nova_library_pin_shortcut_failed">Could not pin it</string>
     <string name="nova_library_launch_options_title">Launch Options</string>
     <string name="nova_library_launch_recommended_format">%1$s · Recommended</string>
     <string name="nova_library_no_launch_modes">No launch modes are available for this game.</string>
@@ -768,7 +769,7 @@
     </string>
 
     <string name="email_recipient"></string>
-    <string name="email_subject">Nova - Performance Log</string>
+    <string name="email_subject">Nova Performance Log</string>
     <string name="email_chooser_title">Share performance log...</string>
     <string name="toast_no_email_clients">No compatible share apps installed.</string>
     <string name="toast_no_logs">There is no performance data stored yet.</string>

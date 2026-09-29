@@ -7,10 +7,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.requestFocus
@@ -83,6 +87,21 @@ class NovaLibraryHeroEndComposeTest {
         Row(Modifier.fillMaxWidth().height(STRIP_HEIGHT)) {
             NovaLibraryStripContinue(
                 hero = hero,
+                apiClient = PolarisApiClient(context, ""),
+                fit = NovaTopBarFit(continueTitleLines = 2),
+                onPrimaryAction = { resumes++ },
+                onSecondaryAction = { ends++ },
+            )
+        }
+    }
+
+    /** The strip over a hero the test changes, as the library does when the host answers an End. */
+    private var liveHero by mutableStateOf(hero)
+
+    private fun liveStrip(): NovaTestKeys = rule.setPanelContent {
+        Row(Modifier.fillMaxWidth().height(STRIP_HEIGHT)) {
+            NovaLibraryStripContinue(
+                hero = liveHero,
                 apiClient = PolarisApiClient(context, ""),
                 fit = NovaTopBarFit(continueTitleLines = 2),
                 onPrimaryAction = { resumes++ },
@@ -219,6 +238,63 @@ class NovaLibraryHeroEndComposeTest {
     }
 
     @Test
+    fun aRefusedEndPutsResumeBackWithTryAgainAndSaysSo() {
+        val keys = liveStrip()
+        armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
+        rule.advance(NovaPanelMetrics.SplitGuardMillis)
+        keys.press(NovaTestKeys.RIGHT)
+        keys.press(NovaTestKeys.A)
+        rule.advance(ARM_SETTLE_MS)
+        assertEquals(1, ends)
+        rule.onNodeWithText(context.getString(R.string.nova_library_ending_session)).assertExists()
+
+        // The host refuses: the library hands the strip a failed status for this session.
+        liveHero = refused(liveHero)
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+
+        rule.onNodeWithText(context.getString(R.string.nova_library_ending_session)).assertDoesNotExist()
+        rule.onNodeWithTag(NOVA_LIBRARY_END_FAILED_TAG).assertExists()
+        rule.onNodeWithContentDescription("Resume Stream").assertExists()
+        // Focus goes back to End's slot, now Try Again, so the next A retries from a visible ring.
+        rule.onNodeWithContentDescription(tryAgain()).assertIsFocused()
+    }
+
+    @Test
+    fun tryAgainAfterARefusalEndsAgainThroughItsSplit() {
+        liveHero = refused(hero)
+        val keys = liveStrip()
+        armFrom({ rule.onNodeWithContentDescription(tryAgain()).requestFocus() }, keys)
+        rule.advance(NovaPanelMetrics.SplitGuardMillis)
+        keys.press(NovaTestKeys.RIGHT)
+        keys.press(NovaTestKeys.A)
+        rule.advance(ARM_SETTLE_MS)
+
+        assertEquals("Try Again ends once, after its own split", 1, ends)
+        liveHero = liveHero.copy(endStatus = NovaLibraryEndStatus.Ending(GAME_ID), eyebrow = hero.eyebrow)
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+        rule.onNodeWithText(context.getString(R.string.nova_library_ending_session)).assertExists()
+        rule.onNodeWithTag(NOVA_LIBRARY_END_FAILED_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun anEndAskedForFromTheGamePageShowsEndingOnTheStrip() {
+        liveHero = hero.copy(endStatus = NovaLibraryEndStatus.Ending(GAME_ID))
+        liveStrip()
+        rule.onNodeWithText(context.getString(R.string.nova_library_ending_session)).assertExists()
+        rule.onNodeWithContentDescription("End Session").assertDoesNotExist()
+    }
+
+    private fun tryAgain() = context.getString(R.string.nova_panel_try_again)
+
+    private fun refused(from: NovaLibraryHeroState): NovaLibraryHeroState = from.copy(
+        endStatus = NovaLibraryEndStatus.Failed(GAME_ID, context.getString(R.string.nova_library_end_failed)),
+        eyebrow = context.getString(R.string.nova_library_end_failed),
+        secondaryActionLabel = tryAgain(),
+    )
+
+    @Test
     fun aTapArmsTheStripsEndToo() {
         strip()
         rule.onNodeWithContentDescription("End Session").performClick()
@@ -227,6 +303,7 @@ class NovaLibraryHeroEndComposeTest {
     }
 
     private companion object {
+        const val GAME_ID = 7
         val STRIP_HEIGHT = 60.dp
         const val ARM_SETTLE_MS = 50L
         const val MASH_GAP_MS = 60L

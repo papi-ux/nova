@@ -450,7 +450,9 @@ internal object NovaVisualFixtures {
         polarisSyncPage = polarisSync,
         onManageServer = {},
         onHelp = {},
-        onAbout = {},
+        aboutPage = {
+            NovaCommonPage.Notice(key = "about", title = "About Nova", message = "Version 1.4.14", closeLabel = "Close")
+        },
         onMatrix = {},
         onSponsor = {},
     )

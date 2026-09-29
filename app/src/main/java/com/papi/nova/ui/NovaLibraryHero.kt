@@ -194,12 +194,21 @@ internal fun NovaLibraryHeroCard(
                     // Every line wraps rather than ending in an ellipsis, and the card grows to hold
                     // it (R13): a title cut short names nothing.
                     if (!endArmed) {
+                        val endFailed = hero.endStatus is NovaLibraryEndStatus.Failed
+                        // A refused End is said where the eyebrow was, as a sentence, and announced.
                         Text(
-                            text = hero.eyebrow.uppercase(),
-                            color = colors.accent,
+                            text = if (endFailed) hero.eyebrow else hero.eyebrow.uppercase(),
+                            color = if (endFailed) colors.warning else colors.accent,
                             fontSize = if (compact) 9.sp else 12.sp,
                             lineHeight = if (compact) 11.sp else 14.sp,
                             fontWeight = FontWeight.Bold,
+                            modifier = if (endFailed) {
+                                Modifier
+                                    .semantics { liveRegion = LiveRegionMode.Polite }
+                                    .testTag(NOVA_LIBRARY_END_FAILED_TAG)
+                            } else {
+                                Modifier
+                            },
                         )
                         Text(
                             text = hero.title,
@@ -500,8 +509,16 @@ internal fun RowScope.NovaLibraryStripContinue(
     val endSplit = rememberNovaSplitConfirmState()
     val endArmed = endSplit.armed && onSecondaryAction != null
     // Confirmed: the strip says Ending at once instead of offering Resume and End again for the
-    // ten seconds the host takes to answer.
-    var ending by remember(hero.game?.id, hero.secondaryActionLabel) { mutableStateOf(false) }
+    // ten seconds the host takes to answer. The host's answer ends that: a refusal puts Resume back
+    // with Try Again in End's slot and the refusal in the eyebrow's line, and the split hands focus
+    // back to Try Again as it does after any End. Kept only until then, so a failed End never
+    // leaves the strip on Ending with neither action (XR3).
+    val endFailed = hero.endStatus is NovaLibraryEndStatus.Failed
+    var confirmed by remember(hero.game?.id) { mutableStateOf(false) }
+    LaunchedEffect(hero.endStatus, confirmed) {
+        if (confirmed && endFailed) confirmed = false
+    }
+    val ending = !endFailed && (confirmed || hero.endStatus is NovaLibraryEndStatus.Ending)
     Row(
         modifier = Modifier
             .weight(1f)
@@ -554,6 +571,16 @@ internal fun RowScope.NovaLibraryStripContinue(
                     color = colors.textSecondary,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
+            } else if (endFailed && fit.showContinueEyebrow) {
+                // The refusal, in the eyebrow's line the fit measured it for, and announced.
+                Text(
+                    text = hero.eyebrow,
+                    style = NovaChromeType.label(fontSize = 8.sp),
+                    color = colors.warning,
+                    modifier = Modifier
+                        .semantics { liveRegion = LiveRegionMode.Polite }
+                        .testTag(NOVA_LIBRARY_END_FAILED_TAG),
+                )
             } else if (fit.showContinueEyebrow) {
                 Text(
                     text = hero.eyebrow.uppercase(),
@@ -596,7 +623,7 @@ internal fun RowScope.NovaLibraryStripContinue(
                 label = secondaryLabel,
                 confirmLabel = stringResource(R.string.game_dialog_action_end_session),
                 onConfirm = {
-                    ending = true
+                    confirmed = true
                     onSecondaryAction()
                 },
                 state = endSplit,
@@ -625,6 +652,9 @@ internal val NOVA_LIBRARY_STRIP_BUTTON_ICON = 14.dp
 
 /** The home hero, for a test to find it. */
 internal const val NOVA_LIBRARY_HERO_TAG = "nova-library-hero"
+
+/** The line that says an End from the library was refused, for a test to find it. */
+internal const val NOVA_LIBRARY_END_FAILED_TAG = "nova-library-end-failed"
 
 /** The narrowest the hero's words may be beside its actions before the actions go under them. */
 internal val NOVA_LIBRARY_HERO_WORDS_MIN = 200.dp

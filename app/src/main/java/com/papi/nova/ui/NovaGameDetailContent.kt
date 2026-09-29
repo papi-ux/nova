@@ -150,6 +150,8 @@ internal fun NovaGameDetailContent(
     shortcutPinState: GameShortcutPinState,
     shortcutPinRequestPending: Boolean,
     onPinShortcut: () -> Unit,
+    /** What pinning just came to, said in the pin button's label. */
+    shortcutPinResult: String? = null,
     artworkState: NovaArtworkStudioState,
     onRefreshArtwork: () -> Unit,
     onSearchArtwork: (String) -> Unit,
@@ -243,6 +245,7 @@ internal fun NovaGameDetailContent(
             shortcutPinState = shortcutPinState,
             shortcutPinRequestPending = shortcutPinRequestPending,
             onPinShortcut = onPinShortcut,
+            shortcutPinResult = shortcutPinResult,
             onDestination = onDestination,
             activeSession = activeSession,
             onResumeSession = onResumeSession,

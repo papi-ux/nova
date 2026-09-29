@@ -1177,6 +1177,41 @@ class NovaLibraryUiStateTest {
         assertEquals("Alan Wake 2", stageDisplayTitle("Alan Wake 2", largeText = true))
     }
 
+    @Test
+    fun aRefusedEndPutsItsLineInTheEyebrowAndTryAgainOnEnd() {
+        val games = listOf(game("active", "Active Game"))
+        val session = NovaLibraryActiveSessionUiState(24, "active", "Active Game", "Retroid Pocket", true, 0, false, false, 1920, 1080, 60f)
+        val model = NovaLibraryUiStateMapper.build(games, "", NovaLibraryFilterState(), activeSession = session)
+
+        val ending = NovaLibraryUiStateMapper.withEndStatus(model, session, NovaLibraryEndStatus.Ending(24), "Try Again")
+        assertEquals(NovaLibraryEndStatus.Ending(24), ending.hero.endStatus)
+        assertEquals("End Session", ending.hero.secondaryActionLabel)
+        assertEquals(model.hero.eyebrow, ending.hero.eyebrow)
+
+        val refused = NovaLibraryUiStateMapper.withEndStatus(
+            model, session, NovaLibraryEndStatus.Failed(24, "Could not end the session"), "Try Again",
+        )
+        assertEquals("Could not end the session", refused.hero.eyebrow)
+        assertEquals("Try Again", refused.hero.secondaryActionLabel)
+        assertEquals("the End still ends the session", NovaLibraryHeroSecondaryAction.END_SESSION, refused.hero.secondaryAction)
+        assertEquals("Resume stays", model.hero.actionLabel, refused.hero.actionLabel)
+    }
+
+    @Test
+    fun anEndStatusForAnotherSessionOrNoneChangesNothing() {
+        val games = listOf(game("active", "Active Game"))
+        val session = NovaLibraryActiveSessionUiState(24, "active", "Active Game", "Retroid Pocket", true, 0, false, false, 1920, 1080, 60f)
+        val model = NovaLibraryUiStateMapper.build(games, "", NovaLibraryFilterState(), activeSession = session)
+        val stale = NovaLibraryEndStatus.Failed(99, "Could not end the session")
+        assertEquals(model, NovaLibraryUiStateMapper.withEndStatus(model, session, stale, "Try Again"))
+        assertEquals(model, NovaLibraryUiStateMapper.withEndStatus(model, null, NovaLibraryEndStatus.Ending(24), "Try Again"))
+        assertEquals(model, NovaLibraryUiStateMapper.withEndStatus(model, session, null, "Try Again"))
+        // A watch-only session has no End to refuse.
+        val watching = session.copy(ownedByClient = false)
+        val watchModel = NovaLibraryUiStateMapper.build(games, "", NovaLibraryFilterState(), activeSession = watching)
+        assertEquals(watchModel, NovaLibraryUiStateMapper.withEndStatus(watchModel, watching, NovaLibraryEndStatus.Ending(24), "Try Again"))
+    }
+
     private fun game(
         id: String,
         name: String,

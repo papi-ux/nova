@@ -287,7 +287,7 @@
     Bitte prüfe sie vor dem Teilen, wenn du diese Informationen nicht offenlegen möchtest.\n\n
     Issue-Tracker: https://github.com/papi-ux/nova/issues\n\n</string>
     <string name="email_recipient"></string>
-    <string name="email_subject">Nova - Performance Log</string>
+    <string name="email_subject">Nova Performance Log</string>
     <string name="email_chooser_title">Performance Log teilen...</string>
     <string name="toast_no_email_clients">Keine kompatiblen Apps zum Teilen installiert.</string>
     <string name="toast_no_logs">Es sind noch keine Leistungsdaten gespeichert.</string>

@@ -174,6 +174,8 @@ internal fun NovaGameDetailOverview(
     /** Clear Game Profile's label: its name, the work in progress, or the result in place. */
     resetProfileLabel: String? = null,
     resetProfileWorking: Boolean = false,
+    /** What pinning to the home screen just came to, in the pin button's own label. */
+    shortcutPinResult: String? = null,
     /** Artwork's button, where focus goes back when the studio it opened closes (R7). */
     artworkFocusRequester: FocusRequester? = null,
     /**
@@ -357,6 +359,7 @@ internal fun NovaGameDetailOverview(
                 onResumeSession = onResumeSession,
                 onEndSession = onEndSession,
                 endSplit = endSplit,
+                shortcutPinResult = shortcutPinResult,
                 resetSplit = resetSplit,
                 artworkFocusRequester = artworkFocusRequester,
                 modifier = Modifier.padding(top = 16.dp),
@@ -589,6 +592,8 @@ private fun NovaGameDetailActions(
     onResumeSession: () -> Unit,
     onEndSession: () -> Unit,
     endSplit: NovaSplitConfirmState,
+    /** What pinning just came to, said in the pin button's own label for a moment. */
+    shortcutPinResult: String? = null,
     resetSplit: NovaSplitConfirmState,
     artworkFocusRequester: FocusRequester?,
     modifier: Modifier = Modifier,
@@ -687,6 +692,7 @@ private fun NovaGameDetailActions(
     val supportsHostCustomization = uiState.game.space == null
     val pinVisible = supportsHostCustomization && shortcutPinState != GameShortcutPinState.UNSUPPORTED
     val pinLabel = when {
+        shortcutPinResult != null -> shortcutPinResult
         shortcutPinRequestPending -> stringResource(R.string.nova_library_pin_shortcut_pending)
         shortcutPinState == GameShortcutPinState.PINNED ->
             stringResource(R.string.nova_library_pin_shortcut_pinned)
@@ -703,7 +709,8 @@ private fun NovaGameDetailActions(
             } else {
                 R.drawable.ic_nova_pin
             },
-            iconOnly = true,
+            // A result is said in the button's own words for a moment, in place: it was a Toast.
+            iconOnly = shortcutPinResult == null,
             modifier = actionModifier.testTag("nova-game-detail-pin-shortcut"),
         )
     }

@@ -88,8 +88,9 @@ class NovaGameDetailSourceGuardTest {
                 actions.contains("iconRes = R.drawable.ic_settings") &&
                 // Clear Game Profile is a split confirm now, and carries its mark as icon.
                 actions.contains("icon = R.drawable.ic_update") &&
+                // Pin rests as an icon; only a result it has just come to is said in its own words.
                 actions.substringAfter("val pinAction:").substringBefore("val artworkAction:")
-                    .contains("iconOnly = true") &&
+                    .contains("iconOnly = shortcutPinResult == null") &&
                 actions.substringAfter("val artworkAction:").substringBefore("val showEnd")
                     .contains("iconOnly = true") &&
                 actions.contains("onRetryHighFps") &&

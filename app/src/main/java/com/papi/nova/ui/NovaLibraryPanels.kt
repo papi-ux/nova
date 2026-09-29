@@ -1,7 +1,6 @@
 package com.papi.nova.ui
 
 import android.content.Context
-import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,6 +32,9 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
@@ -452,13 +454,22 @@ private fun ArtworkRetryAll(actions: NovaLibraryOptionsActions) {
     )
 }
 
-/** A statement inside a page: read, never a stop on the D-pad, inset like a row's text. */
+/**
+ * A statement inside a page: read, never a stop on the D-pad, inset like a row's text. [announce]
+ * makes it a polite live region, for a result that changes while the page is open.
+ */
 @Composable
-internal fun NovaPanelStatusText(caption: String, title: String? = null, captionColor: androidx.compose.ui.graphics.Color? = null) {
+internal fun NovaPanelStatusText(
+    caption: String,
+    title: String? = null,
+    captionColor: androidx.compose.ui.graphics.Color? = null,
+    announce: Boolean = false,
+) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
     Column(
         modifier = Modifier
+            .then(if (announce) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier)
             .fillMaxWidth()
             .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceXs),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs),
@@ -483,7 +494,8 @@ internal class NovaLibrarySystemActions(
     val polarisSyncPage: () -> NovaPage,
     val onManageServer: () -> Unit,
     val onHelp: () -> Unit,
-    val onAbout: () -> Unit,
+    /** About Nova, pushed in the panel: the version was a Toast that floated over the library. */
+    val aboutPage: () -> NovaPage,
     val onMatrix: () -> Unit,
     val onSponsor: () -> Unit,
 )
@@ -500,8 +512,10 @@ private class NovaLibrarySystemRow(
 /**
  * System: a header saying which host this is and whether Polaris answers, then its rows, two to a
  * line on a landscape handheld and one column elsewhere, in the same order either way. Rows that
- * leave the library close the panel first; Polaris Sync is a page of its own, pushed here. Focus
- * opens on the first row, never on the panel.
+ * leave the library close the panel first; Polaris Sync and About are pages of their own, pushed
+ * here. Every row goes somewhere, so every row carries the chevron: only Polaris Sync had one, and
+ * the rows that leave read as rows that do nothing. Focus opens on the first row, never on the
+ * panel.
  */
 @Composable
 internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, actions: NovaLibrarySystemActions) {
@@ -512,12 +526,14 @@ internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, action
             key = "switch-host",
             title = R.string.nova_system_menu_switch_host,
             caption = R.string.nova_system_menu_switch_host_hint,
+            opens = true,
             onClick = { leave(actions.onSwitchHost) },
         ),
         NovaLibrarySystemRow(
             key = "settings",
             title = R.string.nova_system_menu_settings,
             caption = R.string.nova_system_menu_settings_hint,
+            opens = true,
             onClick = { leave(actions.onSettings) },
         ),
         NovaLibrarySystemRow(
@@ -531,30 +547,35 @@ internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, action
             key = "manage",
             title = R.string.nova_system_menu_manage_server,
             caption = R.string.nova_system_menu_manage_server_hint,
+            opens = true,
             onClick = { leave(actions.onManageServer) },
         ),
         NovaLibrarySystemRow(
             key = "help",
             title = R.string.nova_system_menu_help_diagnostics,
             caption = R.string.nova_system_menu_help_diagnostics_hint,
+            opens = true,
             onClick = { leave(actions.onHelp) },
         ),
         NovaLibrarySystemRow(
             key = "about",
             title = R.string.nova_system_menu_about,
             caption = R.string.nova_system_menu_about_hint,
-            onClick = { leave(actions.onAbout) },
+            opens = true,
+            onClick = { if (isTop) panel.push(actions.aboutPage()) },
         ),
         NovaLibrarySystemRow(
             key = "matrix",
             title = R.string.nova_system_menu_matrix,
             caption = R.string.nova_system_menu_matrix_hint,
+            opens = true,
             onClick = { leave(actions.onMatrix) },
         ),
         NovaLibrarySystemRow(
             key = "sponsor",
             title = R.string.nova_system_menu_sponsor,
             caption = R.string.nova_system_menu_sponsor_hint,
+            opens = true,
             onClick = { leave(actions.onSponsor) },
         ),
     )
@@ -673,6 +694,13 @@ internal class NovaPolarisSyncController(
     var engine: NovaPolarisSyncEngine? by mutableStateOf(null)
         private set
 
+    /**
+     * The engine's last result, said on the page under its status line: every Polaris Sync result
+     * was a Toast that floated over the panel and was gone before it could be read (X2).
+     */
+    var notice: NovaPolarisSyncNotice? by mutableStateOf(null)
+        private set
+
     val isOpen: Boolean get() = engine != null
 
     /** Starts the engine, from [initialSettings] while the host is asked again. Opening twice keeps the first. */
@@ -684,14 +712,15 @@ internal class NovaPolarisSyncController(
             serverUuid = serverUuid,
             scope = scope,
             onSettingsChanged = onSettingsChanged,
-            onMessage = { messageRes, _ -> Toast.makeText(context, messageRes, Toast.LENGTH_SHORT).show() },
-            onTextMessage = { message, _ -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() },
+            onMessage = { messageRes, isError -> notice = NovaPolarisSyncNotice(context.getString(messageRes), isError) },
+            onTextMessage = { message, isError -> notice = NovaPolarisSyncNotice(message, isError) },
         ).also { it.start(initialSettings) }
     }
 
     fun close() {
         engine?.close()
         engine = null
+        notice = null
     }
 
     /**
@@ -707,6 +736,9 @@ internal class NovaPolarisSyncController(
         }
     }
 }
+
+/** A Polaris Sync result as its page says it: the words, and whether it went wrong. */
+internal data class NovaPolarisSyncNotice(val message: String, val isError: Boolean)
 
 /** Polaris Sync's host rows, plan and status, as its page and its Profile page both read them. */
 internal class NovaPolarisSyncModel(
@@ -803,6 +835,14 @@ internal fun NovaPageScope.NovaPolarisSyncPage(
             caption = "$serverName · $statusLabel",
             captionColor = if (uiState.status == NovaPolarisSyncStatus.SYNCED) colors.accent else colors.textSecondary,
         )
+        // The last result, in place under the status and announced, until the next one replaces it.
+        controller.notice?.let { notice ->
+            NovaPanelStatusText(
+                caption = notice.message,
+                captionColor = if (notice.isError) colors.warning else colors.textSecondary,
+                announce = true,
+            )
+        }
         NovaPlaySetupBody(
             card = {
                 NovaPlaySetupPlanCard(
@@ -812,7 +852,7 @@ internal fun NovaPageScope.NovaPolarisSyncPage(
                     // The plan opens whole on its own page, and focus comes back here (R7).
                     onOpen = { if (isTop) panel.push(PlaySetupPage.Plan(readTitle, model.plan)) },
                     // The page opens on this read-only summary: it opened on Screen To Add, where
-                    // one stray Left or Right changed the host's config for every device.
+                    // one stray Left or Right changed the display the host keeps for this device.
                     modifier = Modifier.novaInitialFocus().novaRestorableFocus("plan"),
                 )
             },

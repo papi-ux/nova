@@ -15,7 +15,6 @@ import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageView
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -150,6 +149,9 @@ class NovaGameDetailActivity : NovaActivity() {
     private var shortcutGameAppId: Int? = null
     private var shortcutPinState by mutableStateOf(GameShortcutPinState.UNSUPPORTED)
     private var shortcutPinRequestPending by mutableStateOf(false)
+    /** What the last pin came to, in the pin button's own label for a moment: it was a Toast. */
+    private var shortcutPinResult by mutableStateOf<Int?>(null)
+    private var shortcutPinResultJob: Job? = null
 
     /**
      * The sheet took these as constructor lambdas. Keeping the names and the nullable
@@ -357,6 +359,16 @@ class NovaGameDetailActivity : NovaActivity() {
         }
         if (shortcutPinState != GameShortcutPinState.AVAILABLE) {
             shortcutPinRequestPending = false
+        }
+    }
+
+    /** Says [messageRes] in the pin button's own label for a few seconds, then its name again. */
+    private fun showShortcutPinResult(messageRes: Int) {
+        shortcutPinResultJob?.cancel()
+        shortcutPinResult = messageRes
+        shortcutPinResultJob = lifecycleScope.launch {
+            delay(RESET_RESULT_SHOWN_MS)
+            shortcutPinResult = null
         }
     }
 
@@ -2186,14 +2198,11 @@ class NovaGameDetailActivity : NovaActivity() {
                     },
                     shortcutPinState = shortcutPinState,
                     shortcutPinRequestPending = shortcutPinRequestPending,
+                    shortcutPinResult = shortcutPinResult?.let { getString(it) },
                     onPinShortcut = pinShortcut@ {
                         val hostUuid = serverUuid
                         if (hostUuid.isNullOrEmpty()) {
-                            Toast.makeText(
-                                this@NovaGameDetailActivity,
-                                R.string.nova_library_pin_shortcut_failed,
-                                Toast.LENGTH_SHORT,
-                            ).show()
+                            showShortcutPinResult(R.string.nova_library_pin_shortcut_failed)
                         } else {
                             if (pinShortcutJob?.isActive == true) return@pinShortcut
                             val pinnedGame = currentGame
@@ -2211,17 +2220,13 @@ class NovaGameDetailActivity : NovaActivity() {
                                         hdrSupported = pinnedGame.hdrSupported,
                                         iconBits = iconBits,
                                     )
-                                    val messageRes = if (pinned) {
+                                    // The button says what happened: Waiting for launcher, then Pinned,
+                                    // or that this launcher cannot pin. Nothing floats.
+                                    if (pinned) {
                                         awaitShortcutPinConfirmation()
-                                        R.string.nova_library_pin_shortcut_success
                                     } else {
-                                        R.string.nova_library_pin_shortcut_unsupported
+                                        showShortcutPinResult(R.string.nova_library_pin_shortcut_unsupported)
                                     }
-                                    Toast.makeText(
-                                        this@NovaGameDetailActivity,
-                                        messageRes,
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
                                 } finally {
                                     pinShortcutJob = null
                                 }

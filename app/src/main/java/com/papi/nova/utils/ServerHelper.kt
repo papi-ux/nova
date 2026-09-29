@@ -637,53 +637,11 @@ object ServerHelper {
         }
 
         Thread {
-            var message: String? = null
-            var failed = false
-            try {
-                val serverInfo = httpConn.getServerInfo(true)
-                val owned = httpConn.getCurrentGameOwned(serverInfo)
-                val sessionToken = httpConn.getCurrentGameSessionToken(serverInfo)
-
-                if (owned == false) {
-                    throw HostHttpResponseException(599, "")
-                }
-
-                val quitSucceeded = httpConn.quitApp(sessionToken)
-                failed = !quitSucceeded
-                message = if (quitSucceeded) {
-                    parent.resources.getString(R.string.applist_quit_success) + " " + appName
-                } else {
-                    parent.resources.getString(R.string.applist_quit_fail) + " " + appName
-                }
-            } catch (e: HostHttpResponseException) {
-                failed = true
-                message = if (e.getErrorCode() == 599) {
-                    "This session wasn't started by this device," +
-                        " so it cannot be quit. End streaming on the original " +
-                        "device or the PC itself. (Error code: " + e.getErrorCode() + ")"
-                } else {
-                    e.message
-                }
-            } catch (_: UnknownHostException) {
-                failed = true
-                message = parent.resources.getString(R.string.error_unknown_host)
-            } catch (_: FileNotFoundException) {
-                failed = true
-                message = parent.resources.getString(R.string.error_404)
-            } catch (e: XmlPullParserException) {
-                failed = true
-                message = e.message
-                e.printStackTrace()
-            } catch (e: IOException) {
-                failed = true
-                message = e.message
-                e.printStackTrace()
-            } finally {
-                if (failed) {
-                    onFail?.run()
-                } else {
-                    onComplete?.run()
-                }
+            val (failed, message) = quitOnHost(parent, httpConn, appName)
+            if (failed) {
+                onFail?.run()
+            } else {
+                onComplete?.run()
             }
 
             val toastMessage = message
@@ -691,6 +649,71 @@ object ServerHelper {
                 Toast.makeText(parent, toastMessage, Toast.LENGTH_LONG).show()
             }
         }.start()
+    }
+
+    /**
+     * Quits the running app as the doQuit above does, but floats nothing: [onResult] runs on the
+     * main thread with null once the host has quit it, or with the host's reason, possibly blank,
+     * when it did not, for the caller to say in place. The library strip says it where End was
+     * pressed, with Try Again.
+     */
+    fun doQuit(
+        parent: Activity,
+        httpConn: NvHTTP,
+        appName: String,
+        onResult: (failure: String?) -> Unit,
+    ) {
+        Thread {
+            val (failed, message) = quitOnHost(parent, httpConn, appName)
+            parent.runOnUiThread { onResult(if (failed) message.orEmpty() else null) }
+        }.start()
+    }
+
+    /** Asks the host to quit, on the calling thread: whether it failed, and what to say about it. */
+    private fun quitOnHost(parent: Activity, httpConn: NvHTTP, appName: String): Pair<Boolean, String?> {
+        var message: String? = null
+        var failed = false
+        try {
+            val serverInfo = httpConn.getServerInfo(true)
+            val owned = httpConn.getCurrentGameOwned(serverInfo)
+            val sessionToken = httpConn.getCurrentGameSessionToken(serverInfo)
+
+            if (owned == false) {
+                throw HostHttpResponseException(599, "")
+            }
+
+            val quitSucceeded = httpConn.quitApp(sessionToken)
+            failed = !quitSucceeded
+            message = if (quitSucceeded) {
+                parent.resources.getString(R.string.applist_quit_success) + " " + appName
+            } else {
+                parent.resources.getString(R.string.applist_quit_fail) + " " + appName
+            }
+        } catch (e: HostHttpResponseException) {
+            failed = true
+            message = if (e.getErrorCode() == 599) {
+                "This session wasn't started by this device," +
+                    " so it cannot be quit. End streaming on the original " +
+                    "device or the PC itself. (Error code: " + e.getErrorCode() + ")"
+            } else {
+                e.message
+            }
+        } catch (_: UnknownHostException) {
+            failed = true
+            message = parent.resources.getString(R.string.error_unknown_host)
+        } catch (_: FileNotFoundException) {
+            failed = true
+            message = parent.resources.getString(R.string.error_404)
+        } catch (e: XmlPullParserException) {
+            failed = true
+            message = e.message
+            e.printStackTrace()
+        } catch (e: IOException) {
+            failed = true
+            message = e.message
+            e.printStackTrace()
+        }
+        return failed to message
     }
 
     @JvmStatic

@@ -15,9 +15,12 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.papi.nova.R
 import com.papi.nova.ui.panel.LocalNovaPanelDensity
+import com.papi.nova.ui.panel.NovaChevronOpensTag
 import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageStackHost
@@ -99,7 +102,7 @@ class NovaLibraryPanelsComposeTest {
         polarisSyncPage = { TestLibraryPage("polaris") },
         onManageServer = {},
         onHelp = {},
-        onAbout = {},
+        aboutPage = { TestLibraryPage("about") },
         onMatrix = {},
         onSponsor = {},
     )
@@ -238,6 +241,39 @@ class NovaLibraryPanelsComposeTest {
 
         assertEquals("polaris", state.top?.key)
         assertTrue("Polaris Sync is a page of the panel, not a screen of its own", opened.isEmpty())
+    }
+
+    @Test
+    fun everySystemRowCarriesTheChevronAndAboutIsReadInThePanel() {
+        state.open(system, system.edge)
+        val keys = host()
+        val titles = listOf(
+            R.string.nova_system_menu_switch_host,
+            R.string.nova_system_menu_settings,
+            R.string.nova_system_menu_polaris_sync,
+            R.string.nova_system_menu_manage_server,
+            R.string.nova_system_menu_help_diagnostics,
+            R.string.nova_system_menu_about,
+            R.string.nova_system_menu_matrix,
+            R.string.nova_system_menu_sponsor,
+        ).map { rule.activity.getString(it) }
+        // The list composes the rows in view; each of them carries the chevron. Only Polaris Sync
+        // had one, and the rows that leave the panel looked like rows that do nothing.
+        fun rowsInView() = titles.count { rule.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty() }
+        fun chevrons() = rule.onAllNodesWithTag(NovaChevronOpensTag, useUnmergedTree = true).fetchSemanticsNodes().size
+        assertTrue(rowsInView() >= 3)
+        assertEquals(rowsInView(), chevrons())
+
+        repeat(5) { keys.press(NovaTestKeys.DOWN) }
+        rule.onNodeWithText("About Nova").assertIsFocused()
+        assertEquals(rowsInView(), chevrons())
+        keys.press(NovaTestKeys.CENTER)
+
+        assertEquals("About is a page pushed over System, not a Toast after the panel closes", "about", state.top?.key)
+        assertEquals(0, closeRequests)
+        keys.back()
+        assertEquals(system.key, state.top?.key)
+        rule.onNodeWithText("About Nova").assertIsFocused()
     }
 
     @Test

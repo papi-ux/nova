@@ -165,8 +165,23 @@ data class NovaLibraryHeroState(
     val artworkFallbackTitle: String,
     val artworkFallbackSubtitle: String,
     val secondaryActionLabel: String? = null,
-    val secondaryAction: NovaLibraryHeroSecondaryAction? = null
+    val secondaryAction: NovaLibraryHeroSecondaryAction? = null,
+    /** Where an End asked for from the library stands, while the session is still on screen. */
+    val endStatus: NovaLibraryEndStatus? = null,
 )
+
+/**
+ * An End the library asked the host for, for the session of [gameId]: still on the wire, or
+ * refused with [line] to show in place of the eyebrow. A refused End offers Try Again in End's
+ * slot; nothing floats, and the strip never stays on "Ending session" once the host has answered.
+ */
+sealed interface NovaLibraryEndStatus {
+    val gameId: Int
+
+    data class Ending(override val gameId: Int) : NovaLibraryEndStatus
+
+    data class Failed(override val gameId: Int, val line: String) : NovaLibraryEndStatus
+}
 
 data class NovaLibraryUiModel(
     val allGames: List<PolarisGame>,
@@ -459,6 +474,37 @@ object NovaLibraryUiStateMapper {
             emptyState = emptyState,
             resultCount = filtered.size
         ).let { focusSpace(it, focusedGameId) }
+    }
+
+    /**
+     * The session hero with [status] applied, when it is about [session]'s game: Ending while the
+     * host is asked, and after a refusal the refusal as the eyebrow and [tryAgainLabel] on End, so
+     * the strip, the home hero and the stage all say what happened where it happened. Anything
+     * else, or a status about a session that has gone, leaves [model] as it is.
+     */
+    fun withEndStatus(
+        model: NovaLibraryUiModel,
+        session: NovaLibraryActiveSessionUiState?,
+        status: NovaLibraryEndStatus?,
+        tryAgainLabel: String,
+    ): NovaLibraryUiModel {
+        val hero = model.hero
+        if (status == null || session == null || status.gameId != session.gameId) return model
+        if (hero.reason != NovaLibraryHeroReason.ACTIVE_SESSION ||
+            hero.secondaryAction != NovaLibraryHeroSecondaryAction.END_SESSION
+        ) {
+            return model
+        }
+        return model.copy(
+            hero = when (status) {
+                is NovaLibraryEndStatus.Ending -> hero.copy(endStatus = status)
+                is NovaLibraryEndStatus.Failed -> hero.copy(
+                    endStatus = status,
+                    eyebrow = status.line,
+                    secondaryActionLabel = tryAgainLabel,
+                )
+            },
+        )
     }
 
     /** Focus changes only the banner; filtering and sorting keep their cached model. */

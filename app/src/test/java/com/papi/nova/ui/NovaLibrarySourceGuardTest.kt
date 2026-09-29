@@ -312,7 +312,7 @@ class NovaLibrarySourceGuardTest {
                 systemPage.contains("panel.push(actions.polarisSyncPage())") &&
                 systemPage.contains("leave(actions.onManageServer)") &&
                 systemPage.contains("leave(actions.onHelp)") &&
-                systemPage.contains("leave(actions.onAbout)") &&
+                systemPage.contains("panel.push(actions.aboutPage())") &&
                 systemPage.contains("NovaRow(")
         )
         assertFalse(
@@ -335,7 +335,7 @@ class NovaLibrarySourceGuardTest {
                 strings.contains("name=\"nova_system_menu_manage_server\">Manage Server") &&
                 strings.contains("name=\"nova_system_menu_help_diagnostics\">Help and Diagnostics") &&
                 strings.contains("name=\"nova_system_menu_about\">About Nova") &&
-                strings.contains("name=\"nova_system_menu_about_toast\">%1\$s")
+                strings.contains("name=\"nova_system_menu_about_version\">Version %1\$s")
         )
     }
 

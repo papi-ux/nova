@@ -141,7 +141,8 @@ class NovaLibraryActivitySourceTest {
         assertTrue(systemMenu.contains("panel.push(actions.polarisSyncPage())"))
         assertTrue(systemMenu.contains("onClick = { leave(actions.onManageServer) }"))
         assertTrue(systemMenu.contains("onClick = { leave(actions.onHelp) }"))
-        assertTrue(systemMenu.contains("onClick = { leave(actions.onAbout) }"))
+        // About is read in place, on a page pushed over System, not in a Toast after it closes.
+        assertTrue(systemMenu.contains("onClick = { if (isTop) panel.push(actions.aboutPage()) }"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_matrix"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_matrix_hint"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_sponsor"))

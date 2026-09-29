@@ -10,7 +10,6 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.widget.ImageView
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -196,6 +195,8 @@ class NovaLibraryActivity : NovaActivity() {
     private var launchErrorMessage by mutableStateOf<String?>(null)
     private var clientSettings by mutableStateOf<PolarisClientSettings?>(null)
     private var activeSession by mutableStateOf<NovaLibraryActiveSessionUiState?>(null)
+    /** An End asked for from the library, until the host answers or the session goes (XR3). */
+    private var endStatus by mutableStateOf<NovaLibraryEndStatus?>(null)
     private var optionsState by mutableStateOf(NovaLibraryOptionsState())
 
     /** Polaris Sync's engine, running while its page is on the System panel's stack. */
@@ -287,6 +288,11 @@ class NovaLibraryActivity : NovaActivity() {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
                 NovaComposeTheme {
+                    // An End's status belongs to the session it was asked for: once that session
+                    // has gone, or another has taken its place, the status goes with it.
+                    LaunchedEffect(activeSession?.gameId) {
+                        if (endStatus != null && endStatus?.gameId != activeSession?.gameId) endStatus = null
+                    }
                     val model = rememberNovaLibraryUiModel(allGames, searchQuery, filterState, activeSession, optionsState)
                     NovaLibraryScreen(
                         serverName = streamPcName,
@@ -1288,6 +1294,8 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     private fun resumeActiveSession(session: NovaLibraryActiveSessionUiState) {
+        // Resuming answers a refused End: the strip should not still say it on the way back.
+        endStatus = null
         val uniqueId = streamUniqueId
         val pcUuid = streamPcUuid
         val serverCert = streamServerCert
@@ -1335,15 +1343,19 @@ class NovaLibraryActivity : NovaActivity() {
     /**
      * Ends the running session on the host. Every End that reaches this, in the library and in
      * game detail, has already been confirmed in its own slot by a split, so this asks nothing more.
+     * What happens is said where End was pressed, never in a Toast: Ending while the host is
+     * asked, and a refusal with Try Again, so the strip never stays on Ending (XR3).
      */
     private fun endActiveSession(session: NovaLibraryActiveSessionUiState) {
         val uniqueId = streamUniqueId
         val serverCert = streamServerCert
+        val refused = getString(R.string.nova_library_end_failed)
         if (uniqueId.isNullOrBlank() || serverCert == null) {
-            Toast.makeText(this, R.string.nova_library_end_missing_details, Toast.LENGTH_SHORT).show()
+            endStatus = NovaLibraryEndStatus.Failed(session.gameId, refused)
             LimeLog.warning("Nova: Cannot end session from library; missing uniqueId or server cert")
             return
         }
+        endStatus = NovaLibraryEndStatus.Ending(session.gameId)
 
         val gameName = session.gameName.ifBlank { getString(R.string.applist_menu_watch_active_name) }
         val httpConn = NvHTTP(
@@ -1353,24 +1365,21 @@ class NovaLibraryActivity : NovaActivity() {
             PolarisApiClient.decodeCertificate(serverCert),
             PlatformBinding.getCryptoProvider(this)
         )
-        ServerHelper.doQuit(
-            this,
-            httpConn,
-            gameName,
-            {
-                runOnUiThread {
-                    val generation = beginActiveSessionRefresh()
-                    activeSession = null
-                    scheduleActiveSessionFollowUpRefreshes(
-                        clearOnly = true,
-                        generation = generation,
-                    )
-                }
-            },
-            {
-                runOnUiThread { refreshActiveSession(scheduleFollowUps = true) }
+        ServerHelper.doQuit(this, httpConn, gameName) { failure ->
+            if (failure == null) {
+                val generation = beginActiveSessionRefresh()
+                activeSession = null
+                endStatus = null
+                scheduleActiveSessionFollowUpRefreshes(
+                    clearOnly = true,
+                    generation = generation,
+                )
+            } else {
+                LimeLog.warning("Nova: The host did not end the session: $failure")
+                endStatus = NovaLibraryEndStatus.Failed(session.gameId, refused)
+                refreshActiveSession(scheduleFollowUps = true)
             }
-        )
+        }
     }
 
     private fun openServerManagement() {
@@ -1390,7 +1399,15 @@ class NovaLibraryActivity : NovaActivity() {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(managementUrl)))
         } catch (e: Exception) {
             LimeLog.warning("Nova: Failed to open server management: ${e.message}")
-            Toast.makeText(this, R.string.nova_library_manage_failed, Toast.LENGTH_LONG).show()
+            // On a Notice in the edge panel, where it can be read: a Toast floated and was gone.
+            novaSurfaces.present(
+                NovaCommonPage.Notice(
+                    key = MANAGE_FAILED_NOTICE_KEY,
+                    title = getString(R.string.nova_system_menu_manage_server),
+                    message = getString(R.string.nova_library_manage_failed),
+                    closeLabel = getString(R.string.nova_panel_close),
+                ),
+            )
         }
     }
 
@@ -1443,13 +1460,13 @@ class NovaLibraryActivity : NovaActivity() {
         HelpLauncher.launchTroubleshooting(this)
     }
 
-    private fun showAboutNova() {
-        Toast.makeText(
-            this,
-            getString(R.string.nova_system_menu_about_toast, NovaAppVersion.current()),
-            Toast.LENGTH_LONG
-        ).show()
-    }
+    /** About Nova, pushed over System: its version, read in place, and B back to System. */
+    private fun aboutNovaPage(): NovaPage = NovaCommonPage.Notice(
+        key = ABOUT_NOTICE_KEY,
+        title = getString(R.string.nova_system_menu_about),
+        message = getString(R.string.nova_system_menu_about_version, NovaAppVersion.current()),
+        closeLabel = getString(R.string.nova_panel_close),
+    )
 
     private fun openSponsor() {
         HelpLauncher.launchSponsor(this)
@@ -1512,8 +1529,14 @@ class NovaLibraryActivity : NovaActivity() {
                 activeSession = activeSession,
             )
         }
-        return remember(model, lastFocusedGameId) {
-            NovaLibraryUiStateMapper.focusSpace(model, lastFocusedGameId)
+        val tryAgain = stringResource(R.string.nova_panel_try_again)
+        return remember(model, lastFocusedGameId, endStatus, tryAgain) {
+            NovaLibraryUiStateMapper.withEndStatus(
+                NovaLibraryUiStateMapper.focusSpace(model, lastFocusedGameId),
+                activeSession,
+                endStatus,
+                tryAgain,
+            )
         }
     }
 
@@ -2378,9 +2401,11 @@ class NovaLibraryActivity : NovaActivity() {
                             sessionTitle = model.hero.title.takeIf {
                                 model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION
                             },
-                            sessionSupportingLine = model.hero.supportingLine.takeIf {
-                                model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION
-                            },
+                            // A refused End says so where the session's line was, beside Try Again.
+                            sessionSupportingLine = (
+                                (model.hero.endStatus as? NovaLibraryEndStatus.Failed)?.line
+                                    ?: model.hero.supportingLine
+                                ).takeIf { model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION },
                             sessionActionLabel = if (
                                 model.hero.primaryAction == NovaLibraryHeroPrimaryAction.RESUME ||
                                 model.hero.primaryAction == NovaLibraryHeroPrimaryAction.WATCH
@@ -2859,7 +2884,7 @@ class NovaLibraryActivity : NovaActivity() {
             polarisSyncPage = ::polarisSyncPage,
             onManageServer = ::openServerManagement,
             onHelp = ::openHelpDiagnostics,
-            onAbout = ::showAboutNova,
+            aboutPage = ::aboutNovaPage,
             onMatrix = ::openMatrixCommunity,
             onSponsor = ::openSponsor,
         )
@@ -2990,6 +3015,8 @@ class NovaLibraryActivity : NovaActivity() {
         const val EXTRA_SERVER_CERT = "server_cert"
         const val EXTRA_SPACES_AVAILABLE = "spaces_available"
         private const val CONTROLLER_HINT_IDLE_REVEAL_MS = 4_000L
+        private const val ABOUT_NOTICE_KEY = "nova-library-about"
+        private const val MANAGE_FAILED_NOTICE_KEY = "nova-library-manage-failed"
         private const val SPACES_POLL_OPEN_MS = 5_000L
         private const val SPACES_POLL_CLOSED_MS = 15_000L
         private const val SPACES_POLL_SLOW_MS = 30_000L

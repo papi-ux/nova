@@ -2,8 +2,9 @@
 <!-- Strings for the library and game detail panels (migration group 3): Library Options, System,
      Polaris Sync, Play Setup and the End splits. -->
 <resources>
-    <!-- End Session, from the library or game detail, when this device lacks what the host needs to end it. -->
-    <string name="nova_library_end_missing_details">Missing Polaris session details for End</string>
+    <!-- Where End Session was pressed in the library, in the eyebrow's line beside Try Again, when
+         the host did not end the session or this device lacks what the host needs to end it. -->
+    <string name="nova_library_end_failed">Could not end the session</string>
     <!-- Beside an armed End Session in the library's top strip, which has no room for a longer line. -->
     <string name="nova_library_end_strip_consequence">Unsaved progress on the host is lost.</string>
     <!-- The library strip right after End Session is confirmed, until the host answers. -->
