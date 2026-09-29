@@ -50,6 +50,7 @@ import com.papi.nova.ui.panel.NovaPanelFrame
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.panel.NovaPanelWidth
+import com.papi.nova.ui.panel.NovaRow
 import com.papi.nova.ui.panel.NovaScrim
 import com.papi.nova.ui.panel.NovaSectionLabel
 import com.papi.nova.ui.panel.novaFocusHint
@@ -199,6 +200,11 @@ internal fun NovaPlaySetupPanel(
  * it last held in the scope flipped to, else the row in the same place, else the last. It had gone
  * to the plan card, and flipping back landed on another row. Focus on the plan card stays there,
  * and a flip while no row holds focus moves nothing.
+ *
+ * With [onSwitchScope], the last row is "Edit for Every Game", or "Edit for This Game" on the Every
+ * Game side, so a remote with only arrows, Center and Back can switch scope too (C01): the pill is
+ * not a stop on the d-pad and a remote has no Y. It sits under every setting, never between a value
+ * and its Left and Right, and keeps focus across the switch it makes, so a second press comes back.
  */
 @Composable
 internal fun NovaPageScope.NovaPlaySetupRootPage(
@@ -208,6 +214,8 @@ internal fun NovaPageScope.NovaPlaySetupRootPage(
     /** "Set for this game" in This Game; null in Every Game. */
     setHereNote: String?,
     card: @Composable () -> Unit,
+    /** Switches to the other scope; null draws no switch row, as for a Space game. */
+    onSwitchScope: (() -> Unit)? = null,
 ) {
     // The scope the rows were last settled for. It trails [scope] only between a flip's
     // composition and its effect, while the swap's own focus events come in: those are not the
@@ -219,10 +227,12 @@ internal fun NovaPageScope.NovaPlaySetupRootPage(
     val lastRow = remember { mutableStateMapOf<NovaPlaySetupScope, NovaPlaySetupRow>() }
     val requesters = remember { mutableMapOf<NovaPlaySetupRow, FocusRequester>() }
     val latestRows by rememberUpdatedState(rows)
+    // The switch row keeps focus across the switch it made: it stays where it was, renamed.
+    var switchHasFocus by remember { mutableStateOf(false) }
     fun requester(row: NovaPlaySetupRow) = requesters.getOrPut(row) { FocusRequester() }
     LaunchedEffect(scope) {
         if (settled == scope) return@LaunchedEffect
-        val follow = rowsHaveFocus
+        val follow = rowsHaveFocus && !switchHasFocus
         val fromIndex = focusedIndex
         settled = scope
         if (!follow) return@LaunchedEffect
@@ -260,8 +270,28 @@ internal fun NovaPageScope.NovaPlaySetupRootPage(
                     },
             )
         }
+        if (onSwitchScope != null) {
+            val everyGame = scope == NovaPlaySetupScope.EVERY_GAME
+            NovaRow(
+                title = stringResource(
+                    if (everyGame) R.string.nova_play_setup_edit_this_game else R.string.nova_play_setup_edit_every_game,
+                ),
+                caption = stringResource(
+                    if (everyGame) R.string.nova_play_setup_edit_this_game_caption else R.string.nova_play_setup_every_game_caption,
+                ),
+                onClick = { if (isTop) onSwitchScope() },
+                modifier = Modifier
+                    .novaRestorableFocus(NOVA_PLAY_SETUP_SWITCH_KEY)
+                    .onFocusChanged { switchHasFocus = it.hasFocus }
+                    .testTag(NOVA_PLAY_SETUP_SWITCH_TAG),
+            )
+        }
     }
 }
+
+/** The switch row at the foot of Play Setup's root, for focus to be restored to and a test to find. */
+private const val NOVA_PLAY_SETUP_SWITCH_KEY = "switch-scope"
+internal const val NOVA_PLAY_SETUP_SWITCH_TAG = "nova-play-setup-switch-scope"
 
 /** Frames a flip of Play Setup's scope waits for its row to take focus. */
 private const val NOVA_PLAY_SETUP_SCOPE_FOCUS_FRAMES = 10

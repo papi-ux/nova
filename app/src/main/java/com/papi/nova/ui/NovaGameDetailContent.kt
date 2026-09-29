@@ -494,6 +494,21 @@ internal fun NovaGameDetailContent(
                         rows = if (everyGame) hostPlaySetupRows else novaPlaySetupRootRows(playSetupRows),
                         onAdvance = onAdvancePlaySetupRow,
                         setHereNote = setHereNote.takeUnless { everyGame },
+                        // The pill's switch as a last row a remote can reach (C01); a Space game
+                        // has one subject only.
+                        onSwitchScope = if (uiState.game.space == null) {
+                            {
+                                onPlaySetupScopeSelected(
+                                    if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
+                                        NovaPlaySetupScope.THIS_GAME
+                                    } else {
+                                        NovaPlaySetupScope.EVERY_GAME
+                                    },
+                                )
+                            }
+                        } else {
+                            null
+                        },
                         card = {
                             NovaPlaySetupPlanCard(
                                 title = planTitle,

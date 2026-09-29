@@ -56,6 +56,11 @@
 
     <!-- The hint bar's label for Y, which flips Play Setup between this game and every game. -->
     <string name="nova_play_setup_panel_scope_hint">This or Every Game</string>
+    <!-- The last row of Play Setup, for a remote with no Y: shows the rows every game inherits. -->
+    <string name="nova_play_setup_edit_every_game">Edit for Every Game</string>
+    <!-- The same row on the Every Game side: back to this game's own rows. -->
+    <string name="nova_play_setup_edit_this_game">Edit for This Game</string>
+    <string name="nova_play_setup_edit_this_game_caption">Choices for this game alone, over the host defaults</string>
     <!-- Leads a Play Setup row's caption while its value was chosen for this game, not by the host. -->
     <string name="nova_play_setup_set_for_game">Set for this game</string>
 </resources>
