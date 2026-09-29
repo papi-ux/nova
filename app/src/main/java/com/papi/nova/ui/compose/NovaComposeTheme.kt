@@ -63,6 +63,11 @@ data class NovaComposeColors(
     val positive: Color = textPrimary,
     val destructiveFill: Color = destructive,
     val onDestructiveFill: Color = onDestructive,
+    /**
+     * The accent for words on a tile or the panel, such as a primary button's label at rest:
+     * the accent, lifted toward the text colour where it would read under 4.5:1.
+     */
+    val accentText: Color = accent,
 )
 
 /** Handhelds, phones and tablets share one scale; a television reads from further away. */
@@ -100,6 +105,7 @@ fun novaComposeColors(context: Context): NovaComposeColors {
         positive = Color(NovaThemeManager.getPositiveColor(context)),
         destructiveFill = destructiveFill,
         onDestructiveFill = readableOn(destructiveFill),
+        accentText = Color(NovaThemeManager.getAccentTextColor(context)),
     )
 }
 

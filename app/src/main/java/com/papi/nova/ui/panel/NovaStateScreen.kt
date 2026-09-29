@@ -338,6 +338,9 @@ private fun StateAction(
         onClick = { if (guard()) act.run(action) },
         primary = primary,
         destructive = action.destructive,
+        // The page's recovery is the one thing on it, so it keeps its fill at rest; everywhere
+        // else a primary fills only under focus.
+        fillAtRest = primary,
         modifier = modifier.fillMaxWidth(),
     )
 }

@@ -22,7 +22,9 @@ import com.papi.nova.ui.compose.NovaRadius
 /**
  * A button on a panel page or a state page: the shared action surface, with its label in the
  * panel's value type, centred and wrapping onto more lines rather than cut at any size or font
- * scale. An [icon] leads the label, as the destructive half of a split carries its own.
+ * scale. An [icon] leads the label, as the destructive half of a split carries its own. A [primary]
+ * rests as a tile with its label in the accent and fills under focus; [fillAtRest] keeps the fill
+ * for a state page's recovery action.
  */
 @Composable
 internal fun NovaPanelButton(
@@ -32,12 +34,14 @@ internal fun NovaPanelButton(
     primary: Boolean = false,
     destructive: Boolean = false,
     @DrawableRes icon: Int? = null,
+    fillAtRest: Boolean = false,
 ) {
     NovaActionSurface(
         onClick = onClick,
         modifier = modifier,
         primary = primary,
         destructive = destructive,
+        fillAtRest = fillAtRest,
         contentDescription = text,
         minHeight = NovaPanelMetrics.ButtonMinHeight,
         cornerRadius = NovaRadius.hero,

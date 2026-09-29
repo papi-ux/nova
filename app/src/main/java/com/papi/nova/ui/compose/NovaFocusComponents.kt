@@ -210,7 +210,12 @@ fun NovaActionButton(
  * surface holds focus, so an affordance like a chevron can follow the ring.
  *
  * Focus has one look everywhere: a fill plus a 3dp ring inside the shape, with no scale and no
- * halo ([novaFocusRing]). The ring contrasts with the fill it sits on: `onAccent` on a primary,
+ * halo ([novaFocusRing]). A [primary] takes the accent fill under focus. At rest it is a tile like
+ * any other, with its label and icon in the accent, so only focus is loud (R9): Resume, Close and
+ * Save rested as solid accent beside the focused button and read as a second focus. A primary
+ * destructive, the armed half of a split confirm, keeps its fill at rest, and so does a
+ * full-screen state page's recovery action, which passes [fillAtRest] because it is the one thing
+ * on the page. The ring contrasts with the fill it sits on: `onAccent` on a primary,
  * `onDestructiveFill` on a primary destructive (the armed half of a split confirm), whose fill is
  * the destructive fill, a red on every theme, never the text colour the destructive text falls
  * back to. A destructive action at rest has destructive text and a hairline in the destructive
@@ -241,6 +246,7 @@ fun NovaActionSurface(
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
     contentAlignment: Alignment = Alignment.Center,
     restFill: Color = Color.Unspecified,
+    fillAtRest: Boolean = false,
     content: @Composable BoxScope.(contentColor: Color, focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -252,23 +258,28 @@ fun NovaActionSurface(
     val shape = RoundedCornerShape(cornerRadius)
     val fill = if (destructive) colors.destructiveFill else colors.accent
     val onFill = if (destructive) colors.onDestructiveFill else colors.onAccent
-    val filled = primary && enabled
+    // A primary fills under focus; only a destructive one or [fillAtRest] is filled at rest too.
+    val fills = primary && enabled
+    val filledAtRest = fills && (destructive || fillAtRest)
+    val filled = filledAtRest || (fills && focused)
+    val pressedFill = fill.copy(alpha = fill.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
     val restContainer = when {
-        pressed && filled -> fill.copy(alpha = fill.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
+        pressed && filledAtRest -> pressedFill
         pressed && enabled -> surfaces.selectedControl.copy(alpha = surfaces.selectedControl.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
-        filled -> fill
+        filledAtRest -> fill
         else -> restFill.takeOrElse { surfaces.control }
     }
-    // A filled surface keeps its fill under focus; everything else takes the focused control fill.
-    val focusedContainer = if (filled) restContainer else surfaces.selectedControl
+    // A primary takes its fill under focus; everything else takes the focused control fill.
+    val focusedContainer = if (fills) (if (pressed) pressedFill else fill) else surfaces.selectedControl
     val contentColor = when {
         filled -> onFill
+        fills -> colors.accentText
         destructive && enabled -> colors.destructive
         enabled -> colors.textPrimary
         else -> colors.textMuted
     }
     val restBorder = when {
-        filled -> Color.Transparent
+        filledAtRest -> Color.Transparent
         // The fill's red, never the text fallback: a hairline in the text colour is a second ring.
         destructive && enabled -> colors.destructiveFill
         else -> surfaces.tileBorder
@@ -282,11 +293,11 @@ fun NovaActionSurface(
             .clip(shape)
             .novaFocusRing(
                 shape = shape,
-                ring = if (filled) onFill else surfaces.focusRing,
+                ring = if (fills) onFill else surfaces.focusRing,
                 focusedFill = focusedContainer.copy(alpha = focusedContainer.alpha * alpha),
                 restFill = restContainer.copy(alpha = restContainer.alpha * alpha),
                 restBorder = restBorder,
-                restBorderWidth = if (filled) 0.dp else NovaPanelMetrics.Hairline,
+                restBorderWidth = if (filledAtRest) 0.dp else NovaPanelMetrics.Hairline,
             )
             .semantics {
                 contentDescription?.let { this.contentDescription = it }

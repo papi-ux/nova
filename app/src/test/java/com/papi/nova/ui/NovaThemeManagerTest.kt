@@ -305,6 +305,38 @@ class NovaThemeManagerTest {
 
     @Test
     @Config(sdk = [33], qualifiers = "night")
+    fun everyThemesAccentLabelReadsOnItsTiles() {
+        listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+            NovaThemeManager.THEME_MATERIAL_YOU,
+        ).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val label = NovaThemeManager.getAccentTextColor(context)
+            NovaThemeManager.fillSurfaces(context).forEach { surface ->
+                assertTrue("$theme accent label reads at 4.5:1", ColorUtils.calculateContrast(label, ColorUtils.setAlphaComponent(surface, 255)) >= 4.5)
+            }
+        }
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_POLARIS)
+        val aurora = NovaThemeManager.getAccentTextColor(context)
+        assertNotEquals("Polaris Aurora's label stays an accent, lifted, not the text colour", NovaThemeManager.getTextPrimaryColor(context), aurora)
+        assertTrue("still violet", Color.blue(aurora) > Color.green(aurora) && Color.blue(aurora) > Color.red(aurora))
+    }
+
+    @Test
+    fun anAccentThatAlreadyReadsIsKept() {
+        val dark = listOf(Color.rgb(20, 20, 30))
+        assertEquals(Color.rgb(250, 200, 120), NovaThemeManager.readableAccentFor(Color.rgb(250, 200, 120), Color.WHITE, dark))
+        val lifted = NovaThemeManager.readableAccentFor(Color.rgb(60, 50, 160), Color.WHITE, dark)
+        assertNotEquals(Color.rgb(60, 50, 160), lifted)
+        assertTrue(ColorUtils.calculateContrast(lifted, dark.first()) >= 4.5)
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
     fun polarisKeepsItsRedFillWhileRedTextFallsBack() {
         NovaThemeManager.setTheme(context, NovaThemeManager.THEME_POLARIS)
         assertEquals(

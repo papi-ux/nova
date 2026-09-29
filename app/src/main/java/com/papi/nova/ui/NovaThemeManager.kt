@@ -280,6 +280,26 @@ object NovaThemeManager {
         surfaces = fillSurfaces(context),
     )
 
+    /**
+     * Returns the accent for words, such as a primary button's label at rest on its tile: the
+     * theme's accent where it reads at 4.5:1 on the panel and a tile, each over the window, and
+     * otherwise the accent mixed toward the text colour in tenths until it does. Polaris Aurora's
+     * accent is 3.4:1 on its card, enough for an icon and a ring but not for a label.
+     */
+    fun getAccentTextColor(context: Context): Int =
+        readableAccentFor(getAccentColor(context), getTextPrimaryColor(context), fillSurfaces(context))
+
+    /** [accent], or the first tenth of the way toward [text] that reads at 4.5:1 on every one of [surfaces]. */
+    internal fun readableAccentFor(accent: Int, text: Int, surfaces: List<Int>): Int {
+        for (step in 0..10) {
+            val candidate = ColorUtils.setAlphaComponent(ColorUtils.blendARGB(accent, text, step / 10f), 255)
+            if (surfaces.all { ColorUtils.calculateContrast(candidate, ColorUtils.setAlphaComponent(it, 255)) >= 4.5 }) {
+                return candidate
+            }
+        }
+        return text
+    }
+
     /** What a destructive fill sits on: the panel and a tile, each over the window. */
     internal fun fillSurfaces(context: Context): List<Int> {
         val window = getWindowBackgroundColor(context)

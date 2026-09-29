@@ -73,7 +73,8 @@ sealed interface NovaRowTrailing {
  * The row is one focus stop with the one focus look, and acts on release through [novaClickable].
  * At rest it is the one row tile ([novaRowRest]), [emphasis] or not: fills only mean focus (R9), and
  * an accent row at rest read as a second focused row beside the real one. An [emphasis] row, a
- * menu's primary action, takes the accent fill when it has focus, and at rest its icon is accent.
+ * menu's primary action, takes the accent fill when it has focus, and at rest its title and icon
+ * are accent, as a primary button's are.
  * A row with a [disabledReason] stays focusable, shows the reason
  * as its caption and swallows A. Titles and captions wrap rather than ellipsize, and a
  * [NovaRowTrailing.Value] too long to sit beside the title goes under it.
@@ -133,6 +134,7 @@ internal fun NovaRowLayout(
     val onFill = filled && focused
     val ink = when {
         onFill -> colors.onAccent
+        filled -> colors.accentText
         enabled -> colors.textPrimary
         else -> colors.textMuted
     }
