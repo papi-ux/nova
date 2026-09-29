@@ -130,6 +130,14 @@ internal class NovaPanelWindow(
         }
         setContentView(content)
         val window = window ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // A window-filling view that holds focus with no Compose node inside it drew Android's
+            // default focus highlight, a flat grey veil over the panel and everything behind it
+            // (Clear Filters, a tapped Command Center row then the D-pad). Focus is drawn by the
+            // rows' own ring, never by the platform.
+            content.defaultFocusHighlightEnabled = false
+            window.decorView.defaultFocusHighlightEnabled = false
+        }
         window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         window.setDimAmount(0f)

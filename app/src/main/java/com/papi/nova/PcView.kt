@@ -108,6 +108,8 @@ import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.NovaStatePage
+import com.papi.nova.ui.panel.NovaProblemBack
+import android.content.pm.PackageManager
 import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.ui.panel.novaSurfaces
 import com.google.android.material.snackbar.Snackbar
@@ -230,6 +232,34 @@ internal fun novaOtpPairingWaitPage(context: Context, key: String, onClose: () -
         cancel = NovaAction(context.getString(R.string.nova_panel_close), run = onClose),
     )
 
+/**
+ * Scan Pair with no camera to scan with, or with camera access refused: a state page that says
+ * so and offers the way that needs no camera. zxing's scanner had opened on a black void.
+ */
+internal fun novaScanPairCameraPage(
+    context: Context,
+    key: String,
+    denied: Boolean,
+    retry: () -> Unit,
+    addServer: () -> Unit,
+    takeDown: () -> Unit,
+): NovaStatePage.Problem {
+    fun leaving(label: Int, run: () -> Unit) = NovaAction(context.getString(label)) {
+        takeDown()
+        run()
+    }
+    val add = leaving(R.string.pcview_quick_add_server, addServer)
+    val back = leaving(R.string.nova_panel_back) {}
+    return NovaStatePage.Problem(
+        key = key,
+        title = context.getString(if (denied) R.string.nova_scan_pair_camera_denied_title else R.string.nova_scan_pair_no_camera_title),
+        message = context.getString(if (denied) R.string.nova_scan_pair_camera_denied_message else R.string.nova_scan_pair_no_camera_message),
+        primary = if (denied) leaving(R.string.nova_scan_pair_try_again, retry) else add,
+        back = NovaProblemBack.Continue(back),
+        secondary = if (denied) listOf(add, back) else listOf(back),
+    )
+}
+
 internal fun dashboardSetupActionHeight(collapsed: Boolean, compactHeight: Int): Int =
     if (collapsed) compactHeight else LinearLayout.LayoutParams.WRAP_CONTENT
 
@@ -245,6 +275,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private var inForeground = false
     private var completeOnCreateCalled = false
     private var autoNavigated = false
+    /** Set before a theme recreate, so the new activity puts focus back on Theme. */
+    private var returnFocusToTheme = false
     private var automaticUpdatePromptShown = false
     private var pendingPairingAddress: ComputerDetails.AddressTuple? = null
     private var pendingPairingPin: String? = null
@@ -445,6 +477,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             result.contents?.let { handleQrScanResult(it) }
         }
 
+    // Asked here, before the scanner opens, so a refusal gets a page that says so.
+    private val cameraPermissionLauncher: ActivityResultLauncher<String> =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) startQrScanner() else showScanPairCameraPage(denied = true)
+        }
+
     private val serviceConnection =
         object : ServiceConnection {
             override fun onServiceConnected(className: ComponentName, binder: IBinder) {
@@ -561,6 +599,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             startActivity(Intent(this@PcView, AddComputerManually::class.java))
         }
         scanPairAction?.setOnClickListener { launchQrScanner() }
+        // A device with no camera has nothing to scan with, so it is not offered.
+        scanPairAction?.visibility = if (hasCamera()) scanPairAction?.visibility ?: View.VISIBLE else View.GONE
         bindHostPowerAction(startPolarisAction)
         updateAction?.setOnClickListener { checkNovaUpdateFromDashboard() }
         themeAction?.setOnClickListener { v ->
@@ -583,6 +623,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             startActivity(Intent(this@PcView, AddComputerManually::class.java))
         }
         emptyScanPair?.setOnClickListener { launchQrScanner() }
+        if (!hasCamera()) emptyScanPair?.visibility = View.GONE
         profilesButton?.setOnClickListener {
             startActivity(Intent(this@PcView, ProfilesActivity::class.java))
         }
@@ -791,12 +832,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
 
         val focused = card.hasFocus()
-        card.setCardBackgroundColor(
-            if (active) ColorUtils.blendARGB(surface, accent, 0.16f) else ColorUtils.blendARGB(surface, textMuted, 0.05f),
-        )
-        updateModeSegmentStroke(card, active || focused, accent, divider)
+        // The current segment is marked by its accent dot and a SemiBold label (R9); only focus
+        // gets the ring. Servers rested in a 2dp accent outline and read as focused.
+        card.setCardBackgroundColor(ColorUtils.blendARGB(surface, textMuted, 0.05f))
+        updateModeSegmentStroke(card, focused, accent, divider)
         card.setOnFocusChangeListener { _, hasFocus ->
-            updateModeSegmentStroke(card, active || hasFocus, accent, divider)
+            updateModeSegmentStroke(card, hasFocus, accent, divider)
         }
 
         val layout = card.getChildAt(0) as? LinearLayout ?: return
@@ -810,13 +851,19 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                         if (active) textPrimary else textMuted
                     },
                 )
+                if (index != 0) {
+                    child.typeface = android.graphics.Typeface.create(
+                        "sans-serif-medium",
+                        if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL,
+                    )
+                }
             }
         }
     }
 
     private fun updateModeSegmentStroke(card: MaterialCardView, highlighted: Boolean, accent: Int, divider: Int) {
         card.strokeColor = if (highlighted) accent else divider
-        card.strokeWidth = UiHelper.dpToPx(this, if (highlighted) 2f else 1f).toInt()
+        card.strokeWidth = UiHelper.dpToPx(this, if (highlighted) 3f else 1f).toInt()
     }
 
     private fun tintChipRow(ids: IntArray, color: Int) {
@@ -986,11 +1033,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             return
         }
         NovaThemeManager.setTheme(this, theme)
-        Toast.makeText(
-            this,
-            getString(R.string.nova_theme_switched_to, NovaThemeManager.getThemeLabel(this, theme)),
-            Toast.LENGTH_SHORT,
-        ).show()
+        // The new theme is its own confirmation; a floating Toast broke R6. The recreate keeps
+        // whether the library was already opened, so it does not throw the player into it (the
+        // RP6) or at an offline host (the Shield), and focus comes back to Theme.
+        returnFocusToTheme = true
         recreate()
         NovaThemeManager.applyFadeTransition(this)
     }
@@ -1040,7 +1086,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             }
             filter.setOnKeyListener { view, keyCode, event ->
                 if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                    scheduleServerRowFocus(view)
+                    val emptyAction = findViewById<View>(R.id.emptyRefresh)
+                    if (noPcFoundLayout?.visibility == View.VISIBLE && emptyAction?.isShown == true) {
+                        emptyAction.requestFocus()
+                    } else {
+                        scheduleServerRowFocus(view)
+                    }
                     return@setOnKeyListener true
                 }
                 false
@@ -1299,6 +1350,16 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         val emptyTitle = findViewById<TextView>(R.id.pcViewEmptyTitle)
         val emptyHint = findViewById<TextView>(R.id.pcViewEmptyHint)
         val computers = viewModel.computersLiveData.value
+        // The spinner is for a search in progress only. A filter with nothing in it is an answer,
+        // and the spinner had turned forever under "Needs Pairing".
+        findViewById<View>(R.id.pcs_loading)?.visibility =
+            if ((computers == null || computers.isEmpty()) && runningPolling) View.VISIBLE else View.GONE
+        // Down from the filter chips reaches the empty state's first action, not the grey box
+        // around the chips.
+        val emptyShowing = computers.isNullOrEmpty() || pcGridAdapter.itemCount == 0
+        for (filterId in SERVER_FILTER_IDS) {
+            setNextFocusDown(filterId, if (emptyShowing) R.id.emptyRefresh else View.NO_ID)
+        }
 
         if (computers == null || computers.isEmpty()) {
             noPcFoundLayout?.visibility = View.VISIBLE
@@ -1458,6 +1519,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         NovaThemeManager.applyTheme(this)
         appliedTheme = NovaThemeManager.getTheme(this)
         super.onCreate(savedInstanceState)
+        // A recreate (a theme applied, a configuration change) is the same visit: the library was
+        // opened once already, or the player chose to stay here.
+        autoNavigated = savedInstanceState?.getBoolean(STATE_AUTO_NAVIGATED, false) ?: false
+        val focusTheme = savedInstanceState?.getBoolean(STATE_FOCUS_THEME, false) ?: false
 
         UiHelper.setLocale(this)
         inForeground = true
@@ -1486,6 +1551,15 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         } else {
             clearPendingPairing()
         }
+        if (focusTheme) {
+            window.decorView.post { findViewById<View>(R.id.actionTheme)?.requestFocus() }
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_AUTO_NAVIGATED, autoNavigated)
+        outState.putBoolean(STATE_FOCUS_THEME, returnFocusToTheme)
     }
 
     private fun completeOnCreate() {
@@ -1924,7 +1998,35 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         ServerHelper.doStart(this, runningApp, computer, binder, false)
     }
 
+    private fun hasCamera(): Boolean = packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+
     private fun launchQrScanner() {
+        if (!hasCamera()) {
+            showScanPairCameraPage(denied = false)
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+            return
+        }
+        startQrScanner()
+    }
+
+    private fun showScanPairCameraPage(denied: Boolean) {
+        val surfaces = novaSurfaces
+        surfaces.show(
+            novaScanPairCameraPage(
+                context = this,
+                key = SCAN_PAIR_CAMERA_PAGE,
+                denied = denied,
+                retry = { launchQrScanner() },
+                addServer = { startActivity(Intent(this, AddComputerManually::class.java)) },
+                takeDown = { surfaces.dismiss(SCAN_PAIR_CAMERA_PAGE) },
+            ),
+        )
+    }
+
+    private fun startQrScanner() {
         val options = ScanOptions()
         options.setDesiredBarcodeFormats(ScanOptions.QR_CODE)
         options.setPrompt(getString(R.string.pcview_menu_scan_qr))
@@ -3079,6 +3181,15 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, error ->
                 LimeLog.warning("Nova: Server removal task failed (${error.javaClass.simpleName})")
             },
+        )
+        private const val SCAN_PAIR_CAMERA_PAGE = "scan-pair-camera"
+        private const val STATE_AUTO_NAVIGATED = "nova.pcview.autoNavigated"
+        private const val STATE_FOCUS_THEME = "nova.pcview.focusTheme"
+        private val SERVER_FILTER_IDS = intArrayOf(
+            R.id.filterAllServers,
+            R.id.filterOnlineServers,
+            R.id.filterStreamingServers,
+            R.id.filterNeedsPairingServers,
         )
         private const val FILTER_ALL = 0
         private const val FILTER_ONLINE = 1

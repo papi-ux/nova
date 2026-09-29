@@ -105,6 +105,30 @@ class NovaValueRowComposeTest {
     }
 
     @Test
+    fun aFlipsASwitchBothWays() {
+        // On the RP6, A turned HDR on and then did nothing: only Left turned it off.
+        var on by mutableStateOf(false)
+        val keys = rule.setPanelContent {
+            NovaValueRow(
+                title = "HDR",
+                options = listOf(NovaOption(false, "Off"), NovaOption(true, "On")),
+                current = on,
+                onChange = { on = it },
+                modifier = Modifier.testTag("switch"),
+            )
+        }
+        rule.onNodeWithTag("switch").requestFocus()
+        rule.waitForIdle()
+        keys.press(NovaTestKeys.A)
+        assertEquals(true, on)
+        keys.press(NovaTestKeys.A)
+        assertEquals(false, on)
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(true, on)
+        rule.onNodeWithTag("switch").assertIsFocused()
+    }
+
+    @Test
     fun theStateDescriptionIsTheCurrentLabel() {
         val (keys, _) = valueRow(ordered = false)
         rule.onNodeWithTag("row").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "M"))

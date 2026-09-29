@@ -1,6 +1,7 @@
 package com.papi.nova.ui.panel
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
@@ -54,6 +55,34 @@ object NovaViewBridge {
         }
     }
 
+    /**
+     * A View primary button, as NovaActionSurface draws a Compose primary: a tile with a hairline
+     * at rest, and the accent fill while what it stands for is about to be pressed, which a host
+     * card marks by selecting it while the card holds focus. A host card's Open Library and Wake
+     * were flat accent whether or not the card had focus, so nothing showed what A would press.
+     */
+    fun primaryButton(context: Context, radius: Dp = NovaRadius.hero): Drawable {
+        val surfaces = surfaces(context)
+        val corner = radiusPx(context, radius)
+        val hairline = strokePx(context, NovaPanelMetrics.Hairline)
+        val accent = Color(NovaThemeManager.getAccentColor(context))
+        return StateListDrawable().apply {
+            addState(SELECTED, rounded(corner, accent))
+            addState(FOCUSED, rounded(corner, accent))
+            addState(ANY, rounded(corner, surfaces.tile).apply { setStroke(hairline, surfaces.tileBorder.toArgb()) })
+            fadeLikeCompose()
+        }
+    }
+
+    /** The label colours for [primaryButton]: the readable accent at rest, onAccent on the fill. */
+    fun primaryButtonText(context: Context): ColorStateList {
+        val onAccent = NovaThemeManager.getOnAccentColor(context)
+        return ColorStateList(
+            arrayOf(SELECTED, FOCUSED, ANY),
+            intArrayOf(onAccent, onAccent, NovaThemeManager.getAccentTextColor(context)),
+        )
+    }
+
     /** Fades between states over the same 150ms as the Compose focus look. */
     private fun StateListDrawable.fadeLikeCompose() {
         setEnterFadeDuration(NovaPanelMetrics.FocusMillis)
@@ -76,6 +105,7 @@ object NovaViewBridge {
         radiusPx(context, width).toInt().coerceAtLeast(1)
 
     private val FOCUSED = intArrayOf(android.R.attr.state_focused)
+    private val SELECTED = intArrayOf(android.R.attr.state_selected)
     private val ANY = intArrayOf()
 }
 

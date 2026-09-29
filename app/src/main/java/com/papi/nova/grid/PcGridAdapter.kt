@@ -370,7 +370,9 @@ class PcGridAdapter(
                 setPrimaryActionReady(primaryAction, true)
                 setStatusHint(statusHint, R.string.pcview_card_hint_wake)
             } else {
-                primaryAction?.setText(R.string.pcview_card_action_refreshing)
+                // Nothing to wake it with, so no action at all: it said Refreshing forever, a
+                // disabled button that read as one more thing to press.
+                primaryAction?.visibility = View.GONE
                 setStatusHint(statusHint, R.string.pcview_card_hint_offline_no_wake)
             }
         } else {
@@ -385,7 +387,8 @@ class PcGridAdapter(
         }
         primaryAction?.let {
             it.contentDescription = it.text
-            it.isSelected = false
+            // Filled while the card holds focus: that is what A on the card presses.
+            it.isSelected = it.isActivated && parentView.isFocused
         }
 
         prgView.visibility = if (obj.details.state == ComputerDetails.State.UNKNOWN) View.VISIBLE else View.INVISIBLE
@@ -414,7 +417,7 @@ class PcGridAdapter(
 
     override fun onItemFocusChanged(parentView: View, hasFocus: Boolean) {
         val primaryAction = getPcHolder(parentView).primaryAction
-        primaryAction?.isSelected = false
+        primaryAction?.isSelected = hasFocus && primaryAction?.isActivated == true
     }
 
     /**
@@ -472,25 +475,20 @@ class PcGridAdapter(
 
     private fun setPrimaryActionReady(primaryAction: TextView?, ready: Boolean) {
         primaryAction ?: return
+        primaryAction.visibility = View.VISIBLE
         primaryAction.isActivated = ready
         primaryAction.isSelected = false
-        // The one filled control on the card: what a press on the card does. The fill is built
-        // here and not in the chip's XML because the accent is the theme manager's to say, and
-        // under Material You it is not the colour the theme attribute holds. Filled, its ink is
-        // the accent's own; until it is ready it is the same quiet outline as any other chip.
+        // What a press on the card does, drawn as every primary is: a tile with its label in the
+        // accent at rest, and the accent fill while the card holds focus. It was filled at rest,
+        // as loud as focus, so the ring never said which card A would act on. Until it is ready
+        // it is the same quiet tile as any other chip.
         if (ready) {
-            primaryAction.background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                // The corner nova_chip_default gives Manage, so the filled pill beside it is the same shape.
-                cornerRadius = context.resources.getDimension(R.dimen.nova_radius_hero)
-                setColor(NovaThemeManager.getAccentColor(context))
-            }
+            primaryAction.background = NovaViewBridge.primaryButton(context)
+            primaryAction.setTextColor(NovaViewBridge.primaryButtonText(context))
         } else {
             primaryAction.setBackgroundResource(R.drawable.nova_chip_default)
+            primaryAction.setTextColor(NovaThemeManager.getTextMutedColor(context))
         }
-        primaryAction.setTextColor(
-            if (ready) NovaThemeManager.getOnAccentColor(context) else NovaThemeManager.getTextMutedColor(context),
-        )
     }
 
     private fun formatAddressSuffix(address: String?): String =
@@ -577,10 +575,9 @@ class PcGridAdapter(
         val background = GradientDrawable(fromLeadingEdge, intArrayOf(leading, cardColor, cardColor))
         background.shape = GradientDrawable.RECTANGLE
         background.cornerRadius = corner
-        background.setStroke(
-            density.toInt().coerceAtLeast(1),
-            if (online) ColorUtils.blendARGB(NovaThemeManager.getDividerColor(context), accent, 0.35f) else NovaThemeManager.getDividerColor(context),
-        )
+        // The hairline is the divider on every card: an accent outline on the online one read as
+        // focus beside the real ring (R9). Online still shows in the wash and the well.
+        background.setStroke(density.toInt().coerceAtLeast(1), NovaThemeManager.getDividerColor(context))
         card.background = background
         // The one focus look (spec section 2): the 3dp ring drawn inside the card's corner, in the
         // Compose components' colours. The row holds focus and pads the card; a FrameLayout draws

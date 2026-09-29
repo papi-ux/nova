@@ -81,7 +81,10 @@ class NovaLibraryPanelsComposeTest {
         sourcesPage = { TestLibraryPage("sources") },
         morePage = { TestLibraryPage("more") },
         sortPage = { TestLibraryPage("sort") },
-        onClearFilters = {},
+        onClearFilters = {
+            narrowed = null
+            filter = NovaLibraryPrimaryFilter.ALL
+        },
         onLayoutMode = {},
         onPosterTitles = {},
         onRefresh = {},
@@ -123,6 +126,24 @@ class NovaLibraryPanelsComposeTest {
                 else -> NovaRow(title = "Page ${page.key}", onClick = {}, modifier = Modifier.novaInitialFocus())
             }
         }
+    }
+
+    @Test
+    fun clearFiltersHandsFocusToTheFilterRowAsItsOwnRowGoes() {
+        // On the RP6 the row left with focus still on it: a grey veil and no ring until B.
+        filter = NovaLibraryPrimaryFilter.SOURCES
+        narrowed = "Steam"
+        state.open(options, options.edge)
+        val keys = host()
+        val clear = rule.activity.getString(R.string.nova_library_filter_clear_all)
+        repeat(3) { keys.press(NovaTestKeys.DOWN) }
+        rule.onNode(hasText(clear)).assertIsFocused()
+
+        keys.press(NovaTestKeys.A)
+        rule.waitForIdle()
+
+        rule.onNode(hasText(clear)).assertDoesNotExist()
+        rule.onNode(hasText("Filter")).assertIsFocused()
     }
 
     @Test

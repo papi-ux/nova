@@ -160,7 +160,15 @@ fun <T> NovaValueRow(
         role = if (isSwitch) Role.Switch else null,
         onPrevious = { step(-1, wrap = !ordered) },
         onNext = { step(1, wrap = !ordered) },
-        onActivate = { step(1, wrap = true) },
+        // A on a switch flips it, as its hint says: stepping forward only ever turned it on, so
+        // HDR and every other switch could be turned off with Left alone.
+        onActivate = {
+            if (isSwitch) {
+                step(if (options.getOrNull(latestIndex)?.value == true) -1 else 1, wrap = false)
+            } else {
+                step(1, wrap = true)
+            }
+        },
         hint = if (isSwitch) NovaFocusHint.Toggle else NovaFocusHint.Next,
         modifier = modifier,
     ) { available, focused ->

@@ -19,6 +19,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -204,6 +206,9 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
         NovaOption(false, stringResource(R.string.nova_library_options_poster_titles_hide)),
     )
     val push: (() -> NovaPage) -> Unit = { build -> if (isTop) panel.push(build()) }
+    // Clear removes its own row, and focus went with it: a grey veil over the panel and no ring,
+    // with the D-pad dead until B. It hands focus to the Filter row first.
+    val filterFocus = remember { FocusRequester() }
 
     LazyColumn(
         state = listState,
@@ -223,7 +228,10 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
                 current = ui.filter,
                 onChange = actions.onFilter,
                 caption = ui.filterCaption,
-                modifier = Modifier.novaInitialFocus().novaRestorableFocus("filter", filterIndex),
+                modifier = Modifier
+                    .focusRequester(filterFocus)
+                    .novaInitialFocus()
+                    .novaRestorableFocus("filter", filterIndex),
             )
         }
         val sourcesIndex = position++
@@ -250,7 +258,12 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
                 NovaRow(
                     title = stringResource(R.string.nova_library_filter_clear_all),
                     caption = stringResource(R.string.nova_library_panel_clear_caption),
-                    onClick = { if (isTop) actions.onClearFilters() },
+                    onClick = {
+                        if (isTop) {
+                            runCatching { filterFocus.requestFocus() }
+                            actions.onClearFilters()
+                        }
+                    },
                     modifier = Modifier.novaRestorableFocus("clear", clearIndex),
                 )
             }
