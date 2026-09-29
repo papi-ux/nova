@@ -114,6 +114,23 @@ class ProfilesManager private constructor() {
         saveIfPossible()
     }
 
+    /**
+     * Puts [profile] in place of the preset with its id, or adds it, and keeps it only if the file
+     * saves. A failed save puts back what was there and returns false, so the list never shows a
+     * preset the file does not have. Listeners hear only a change that was kept.
+     */
+    fun commit(context: Context, profile: SettingsProfile): Boolean {
+        val id = profile.getUuid()
+        val previous = profiles[id]
+        profiles[id] = profile
+        if (!save(context)) {
+            if (previous != null) profiles[id] = previous else profiles.remove(id)
+            return false
+        }
+        notifyListeners()
+        return true
+    }
+
     fun delete(uuid: UUID?) {
         profiles.remove(uuid)
         if (uuid == activeProfileId) {

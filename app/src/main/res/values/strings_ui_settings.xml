@@ -45,7 +45,18 @@
     <string name="nova_profiles_edit">Edit preset</string>
     <string name="nova_profiles_use">Use this preset</string>
     <string name="nova_profiles_stop_using">Stop using this preset</string>
+    <!-- The preset editor: Back with changes Save has not kept, and a save that failed. -->
+    <string name="profile_editor_unsaved_title">Unsaved Changes</string>
+    <string name="profile_editor_unsaved_hint">This preset has changes that are not saved yet.</string>
+    <string name="profile_editor_keep_editing">Keep Editing</string>
+    <string name="profile_editor_discard">Discard Changes</string>
+    <string name="profile_editor_discard_confirm">Discard</string>
+    <string name="profile_editor_discard_consequence">The changes are lost. The saved preset stays as it was.</string>
+    <string name="profile_editor_save_failed_title">Preset Not Saved</string>
+    <string name="profile_editor_save_failed_message">Nova could not save this preset. Your changes are still here.</string>
+    <string name="profile_editor_not_found_message">This preset is no longer on this device. It may have been deleted.</string>
     <!-- A row only the Legacy screen can show: which setting that screen is showing, and the way back. -->
+    <string name="nova_settings_profile_legacy_fallback">%1$s is on the Legacy screen. Back returns to the preset.</string>
     <string name="nova_settings_legacy_fallback">%1$s is on the Legacy screen. Back returns to Settings.</string>
 
     <!-- Updates and support -->

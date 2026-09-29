@@ -9,8 +9,10 @@ import java.io.File
 import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
@@ -97,6 +99,28 @@ class ProfilesManagerTest {
         val fresh = ProfilesManager.getInstance()
         fresh.load(context)
         assertNull(fresh.getActive())
+    }
+
+    // A preset save that failed still changed the list: the editor put the edit into the manager,
+    // then saved, and the preset list showed what the file did not have.
+    @Test
+    fun commitKeepsAPresetOnlyOnceTheFileHasSaved() {
+        val kept = SettingsProfile(UUID.randomUUID(), "Kept", 1L, 1L, mapOf("frame_pacing" to "latency"))
+        assertTrue(manager.commit(context, kept))
+        assertEquals("Kept", ProfilesManager.getInstance().also { it.load(context) }.getProfiles().single().getName())
+
+        // A file where the directory should be: nothing can be written.
+        deleteRecursively(profilesDir)
+        profilesDir.writeText("blocked")
+        val renamed = SettingsProfile(kept.getUuid(), "Renamed", 1L, 2L, mapOf("frame_pacing" to "balanced"))
+        val added = SettingsProfile(UUID.randomUUID(), "Added", 3L, 3L, null)
+
+        assertFalse(manager.commit(context, renamed))
+        assertFalse(manager.commit(context, added))
+        val profiles = manager.getProfiles()
+        assertEquals("the new preset is not in the list", 1, profiles.size)
+        assertEquals("the preset keeps its old name", "Kept", profiles.single().getName())
+        assertEquals("and its old values", "latency", profiles.single().getOptions()!!["frame_pacing"])
     }
 
     private fun deleteRecursively(file: File?) {

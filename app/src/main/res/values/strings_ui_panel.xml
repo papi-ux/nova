@@ -6,6 +6,7 @@
     <string name="nova_panel_close">Close</string>
     <string name="nova_panel_cancel">Cancel</string>
     <string name="nova_panel_save">Save</string>
+    <string name="nova_panel_try_again">Try Again</string>
     <string name="nova_panel_back">Back</string>
     <string name="nova_panel_select">Select</string>
     <string name="nova_panel_details">Details</string>
