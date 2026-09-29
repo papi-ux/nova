@@ -206,4 +206,11 @@ class NovaStreamTierRoundTwoTest {
         assertEquals(120,pinned.fps)
     }
 
+    @Test fun savingAnUnchangedJsonProfileDoesNotTreatNumberRepresentationAsAnEdit() {
+        val profile=SettingsProfile(UUID.randomUUID(),"Stored",0,0,mapOf("list_resolution" to "1920x1080",
+            "list_fps" to "60","seekbar_bitrate_kbps" to 20000.0,NovaSettingsMigration.TIER to "max"))
+        profile.setOptions(profile.getOptions()!! + ("seekbar_bitrate_kbps" to 20000))
+        assertEquals("max",profile.getOptions()!![NovaSettingsMigration.TIER])
+    }
+
 }

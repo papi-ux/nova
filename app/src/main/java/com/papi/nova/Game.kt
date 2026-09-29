@@ -1189,7 +1189,7 @@ if (needsGeneratedTier && (com.papi.nova.preferences.NovaTierRuntime.snapshot()?
             if (launchPolicyGateGeneration.get() == gateGeneration && intent === gateIntent) {
                 launchPolicyGatePending.set(false)
                 if (prepared.tiers.inputsHash == "failed") {
-                    Toast.makeText(this, getString(R.string.nova_tier_unavailable,
+                    Toast.makeText(this@Game, getString(R.string.nova_tier_unavailable,
                         prepared.tiers.recommended.limits.first().message), Toast.LENGTH_LONG).show()
                     finish()
                     return@runOnMainIfRuntimeActive
