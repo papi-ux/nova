@@ -69,7 +69,7 @@ class NovaManualBitrateCapabilityTest {
             assertEquals(listOf(minOf(450000,maximum ?: 300000)),requests)
         }
     }
-    @Test fun optimizationUsesItsObservedCeilingEvenIfAnotherProbeClearsTheCache() {
+    @Test fun optimizationReadsTheObservedCeilingOnceInsteadOfReadingTheMutableCacheAgain() {
         val real=PolarisApiClient(ApplicationProvider.getApplicationContext(),"127.0.0.1",47984)
         val sent=mutableListOf<Int>()
         val http=OkHttpClient.Builder().addInterceptor { chain ->

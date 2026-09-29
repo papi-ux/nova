@@ -27,6 +27,9 @@ class NovaLaunchLockTest {
         assertTrue(continuation>0 && continuation<refusal && refusal<decoder && decoder<gate)
         assertTrue(game.substring(gate).contains("completeTierPreparation(prepared, tierSnapshotAtRead?.tiers, continueLaunch)"))
         assertTrue(game.substring(gate).contains("continueLaunch()"))
+        val finalCadence = game.indexOf("configuredStreamFrameRateFps = chosenFrameRate")
+        assertTrue(game.indexOf("refreshLaunchSurfaceFrameRate()", finalCadence) > finalCadence)
+        assertTrue(game.indexOf("refreshLaunchSurfaceFrameRate()", finalCadence) < game.indexOf(".setBitrate(configuredStreamBitrateKbps)"))
         assertTrue(game.contains("if (plan == null || !plan.available)"))
         assertTrue(game.contains("NovaTierRuntime.snapshot()?.tiers != tierSnapshotAtRead?.tiers"))
     }

@@ -60,4 +60,59 @@ class GameTierContinuationTest {
         game.completeTierPreparation(prepared,prepared.tiers) { launches++ }
         assertEquals(0,launches); Mockito.verify(game).recreate()
     }
+    @Test fun continuedConfigurationRevotesAnAlreadyCreatedSurface() {
+        val game=game()
+        game.prefConfig=PreferenceConfiguration().apply {
+            fps=60f; framePacing=PreferenceConfiguration.FRAME_PACING_BALANCED
+        }
+        val holder=Mockito.mock(android.view.SurfaceHolder::class.java)
+        val surface=Mockito.mock(android.view.Surface::class.java)
+        Mockito.`when`(holder.surface).thenReturn(surface)
+        Mockito.`when`(surface.isValid).thenReturn(true)
+        game.surfaceCreated(holder)
+        Mockito.verify(surface).setFrameRate(60f,android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+            android.view.Surface.CHANGE_FRAME_RATE_ALWAYS)
+        val view=Mockito.mock(android.view.SurfaceView::class.java)
+        Mockito.`when`(view.holder).thenReturn(holder)
+        val container=Mockito.mock(com.papi.nova.ui.StreamContainer::class.java)
+        Mockito.`when`(container.getSurfaceView()).thenReturn(view)
+        org.robolectric.util.ReflectionHelpers.setField(game,"streamContainer",container)
+        org.robolectric.util.ReflectionHelpers.setField(game,"configuredStreamFrameRateFps",60f)
+        org.robolectric.util.ReflectionHelpers.setField(game,"desiredRefreshRate",120f)
+        game.refreshLaunchSurfaceFrameRate()
+        Mockito.verify(surface).setFrameRate(120f,android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+            android.view.Surface.CHANGE_FRAME_RATE_ALWAYS)
+        // The host can also settle on a different cadence after the first surface vote.
+        org.robolectric.util.ReflectionHelpers.setField(game,"configuredStreamFrameRateFps",90f)
+        org.robolectric.util.ReflectionHelpers.setField(game,"desiredRefreshRate",90f)
+        game.refreshLaunchSurfaceFrameRate()
+        Mockito.verify(surface).setFrameRate(90f,android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+            android.view.Surface.CHANGE_FRAME_RATE_ALWAYS)
+    }
+    @Test fun configuredBitrateIsClampedAfterTheSavedRequestAndHostOverride() {
+        for ((maximum,resolved,expected) in listOf(Triple(300000,500000,300000),
+            Triple(500000,400000,400000),Triple(200000,400000,200000))) {
+            val game=game()
+            game.prefConfig=PreferenceConfiguration().apply { bitrate=450000;meteredBitrate=12000 }
+            org.robolectric.util.ReflectionHelpers.setField(game,"launchManualBitrateMaximumKbps",maximum)
+            game.configureLaunchBitrate(false,null)
+            assertEquals(minOf(450000,maximum),org.robolectric.util.ReflectionHelpers.getField<Int>(game,"configuredStreamBitrateKbps"))
+            val fields=org.json.JSONObject()
+            for ((key,value) in listOf("display_mode" to "1920x1080x60", "display_width" to 1920,
+                "display_height" to 1080, "target_fps" to 60, "target_bitrate_kbps" to resolved, "hdr" to false)) {
+                fields.put(key,org.json.JSONObject().put("value",value).put("source","client_launch_request")
+                    .put("reason_code","requested").put("locked",true).put("normalized",false))
+            }
+            val payload=org.json.JSONObject().put("source","deterministic_preset_v1")
+                .put("resolved_profile",org.json.JSONObject().put("policy_version",1).put("fields",fields))
+            assertTrue("Exercise an accepted host override, not the saved fallback",
+                com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(payload))
+            game.configureLaunchBitrate(false,payload)
+            assertEquals(expected,org.robolectric.util.ReflectionHelpers.getField<Int>(game,"configuredStreamBitrateKbps"))
+            game.configureLaunchBitrate(true,null)
+            assertEquals(12000,org.robolectric.util.ReflectionHelpers.getField<Int>(game,"configuredStreamBitrateKbps"))
+            assertEquals(450000,game.prefConfig.bitrate)
+        }
+    }
+
 }

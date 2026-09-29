@@ -1274,6 +1274,9 @@ class StreamSettings : NovaActivity() {
             }
         }
 
+        /** Distinguish a real capability correction from XML default writes during inflation. */
+        protected open fun onStreamPreferenceCorrected(key: String) {}
+
         private fun removeEntryFromListAndSetValue(
             resolutionPrefString: String,
             entryToRemove: String,
@@ -1286,6 +1289,7 @@ class StreamSettings : NovaActivity() {
                     val prefs = getPrefs()
                     setValue(resolutionPrefString, nextDefault)
                     resetBitrateToDefault(prefs, null, null)
+                    onStreamPreferenceCorrected(resolutionPrefString)
                 }
             )
         }

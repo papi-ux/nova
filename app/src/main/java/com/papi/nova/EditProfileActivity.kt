@@ -331,6 +331,10 @@ class EditProfileActivity : NovaActivity() {
             return super.onCreateView(inflater, container, savedInstanceState, true)
         }
 
+        private val correctedStreamKeys = mutableSetOf<String>()
+
+        override fun onStreamPreferenceCorrected(key: String) { correctedStreamKeys += key }
+
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             val activity = requireActivity() as EditProfileActivity
             val memPrefs = activity.getInMemoryPrefs()
@@ -339,9 +343,17 @@ class EditProfileActivity : NovaActivity() {
             // AndroidX persists XML defaults during inflation when a data store is installed.
             // A saved setup must retain only its actual overrides until the player edits it.
             val overrides = memPrefs.all.filterValues { it != null }.mapValues { it.value!! }
+            correctedStreamKeys.clear()
             super.onCreatePreferences(savedInstanceState, rootKey)
+            val migration = com.papi.nova.preferences.NovaSettingsMigration
+            // Keep deliberate panel corrections to existing overrides, including the Auto
+            // bitrate recalculation. Default-only writes must not pin inherited dimensions.
+            val corrections = if (correctedStreamKeys.any { it in overrides }) memPrefs.all.filterKeys {
+                (it in correctedStreamKeys && it in overrides) ||
+                    it in setOf(PreferenceConfiguration.BITRATE_PREF_STRING, migration.AUTO, migration.CUSTOM_AUTO)
+            } else emptyMap()
             memPrefs.edit().clear().apply()
-            com.papi.nova.preferences.NovaSettingsMigration.writeDifference(memPrefs, overrides)
+            migration.writeDifference(memPrefs, overrides + corrections)
 
             findPreference<Preference>("nova_ui_font_scale_percent")?.isVisible = false
             findPreference<Preference>("option_reset_osc_preference")?.isVisible = false

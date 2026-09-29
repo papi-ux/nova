@@ -1182,6 +1182,8 @@ val needsGeneratedTier = com.papi.nova.manager.NovaTierLaunchPolicy.needsGenerat
 // A no-change refresh can resume initialization without recreating the activity.
 val continueLaunch = fun() {
 
+isMetered = connMgr!!.isActiveNetworkMetered()
+
 if (needsGeneratedTier) {
     val plan = com.papi.nova.preferences.NovaStreamSettings.generatedPlan(tierPreferences)
     if (plan == null || !plan.available) {
@@ -1647,18 +1649,7 @@ if (!exactMediaCadence && prefConfig!!.framePacingWarpFactor > 0)
 chosenFrameRate *= prefConfig!!.framePacingWarpFactor
 }
 
-configuredStreamBitrateKbps = (if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate)
-    .coerceAtMost(launchManualBitrateMaximumKbps)
-var autoSafeBitrateKbps:Int = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
-configuredStreamBitrateKbps,
-launchOptimization
-)
-if (autoSafeBitrateKbps > 0 && autoSafeBitrateKbps != configuredStreamBitrateKbps)
-{
-LimeLog.info(("Nova: Auto Safe launch bitrate " + configuredStreamBitrateKbps +
-" -> " + autoSafeBitrateKbps + " kbps"))
-configuredStreamBitrateKbps = autoSafeBitrateKbps.coerceAtMost(launchManualBitrateMaximumKbps)
-}
+configureLaunchBitrate(isMetered, launchOptimization)
 var autoSafeResolution:com.papi.nova.manager.StreamSyncManager.StreamResolution? = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeResolution(
 displayWidth,
 displayHeight,
@@ -1682,6 +1673,7 @@ launchRefreshRate = autoSafeTargetFps
 chosenFrameRate = autoSafeTargetFps
 }
 configuredStreamFrameRateFps = chosenFrameRate
+refreshLaunchSurfaceFrameRate()
 configuredHudTargetFps = launchRefreshRate
 configuredStreamHdr = willStreamHdr
         // PyroWave's bitrate advice. Said rather than silently corrected, because the bitrate is the
@@ -2053,25 +2045,50 @@ if (needsGeneratedTier && (com.papi.nova.preferences.NovaTierRuntime.snapshot()?
 continueLaunch()
 }
 
+/** Apply the host ceiling after both the saved request and the authenticated host override. */
+internal fun configureLaunchBitrate(isMetered: Boolean, launchOptimization: JSONObject?) {
+configuredStreamBitrateKbps = (if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate)
+    .coerceAtMost(launchManualBitrateMaximumKbps)
+var autoSafeBitrateKbps:Int = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
+configuredStreamBitrateKbps,
+launchOptimization
+)
+if (autoSafeBitrateKbps > 0 && autoSafeBitrateKbps != configuredStreamBitrateKbps)
+{
+LimeLog.info(("Nova: Auto Safe launch bitrate " + configuredStreamBitrateKbps +
+" -> " + autoSafeBitrateKbps + " kbps"))
+configuredStreamBitrateKbps = autoSafeBitrateKbps.coerceAtMost(launchManualBitrateMaximumKbps)
+}
+}
+
 /** The generation and intent fence is checked by the IO caller before entering this boundary. */
 internal fun completeTierPreparation(
     prepared: com.papi.nova.preferences.NovaTierRuntime.Snapshot,
     tiersAtRead: com.papi.nova.preferences.NovaStreamTiers?,
     continueLaunch: () -> Unit,
 ) {
-                if (prepared.tiers.inputsHash == "failed") {
-                    Toast.makeText(this, getString(R.string.nova_tier_unavailable,
-                        prepared.tiers.recommended.limits.first().message), Toast.LENGTH_LONG).show()
-                    finish()
-                    return
-                }
-                if (prepared.tiers == tiersAtRead) {
-                    // The callback only dirtied the cache. Finish this activity's launch once.
-                    continueLaunch()
-                } else {
-                    launchPolicyHandoffRecreation = true
-                    recreate()
-                }
+    if (prepared.tiers.inputsHash == "failed") {
+        Toast.makeText(this, getString(R.string.nova_tier_unavailable,
+            prepared.tiers.recommended.limits.firstOrNull()?.message ?: getString(R.string.nova_tier_no_decoder)),
+            Toast.LENGTH_LONG).show()
+        finish()
+        return
+    }
+    val current = com.papi.nova.preferences.NovaTierRuntime.snapshot()
+    if (!com.papi.nova.preferences.NovaTierRuntime.isPrepared() || current?.tiers != prepared.tiers ||
+        prepared.tiers != tiersAtRead) {
+        launchPolicyHandoffRecreation = true
+        recreate()
+        return
+    }
+    try {
+        // The callback only dirtied the cache. Finish this activity's launch once.
+        continueLaunch()
+    } catch (failure: Exception) {
+        LimeLog.severe("Nova: Continued launch initialization failed: ${failure.message}")
+        Toast.makeText(this, R.string.nova_launch_retry, Toast.LENGTH_LONG).show()
+        finish()
+    }
 }
 
 @SuppressLint("ClickableViewAccessibility")
@@ -6122,9 +6139,18 @@ updatePipAutoEnter()
 }
 }
 override fun surfaceCreated(holder:SurfaceHolder) {
-var desiredFrameRate:Float
-
 surfaceCreated = true
+applySurfaceFrameRateHint(holder)
+}
+
+internal fun refreshLaunchSurfaceFrameRate() {
+if (surfaceCreated) {
+    streamContainer?.getSurfaceView()?.holder?.takeIf { it.surface.isValid }?.let(::applySurfaceFrameRateHint)
+}
+}
+
+private fun applySurfaceFrameRateHint(holder:SurfaceHolder) {
+var desiredFrameRate:Float
 
  // Android will pick the lowest matching refresh rate for a given frame rate value, so we want
         // to report the true FPS value if refresh rate reduction is enabled. We also report the true

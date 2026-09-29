@@ -49,6 +49,11 @@ class NovaStreamTierRoundFiveTest {
         assertTrue(at("fail").canExecuteAction)
         for (state in listOf("watch","pass","stale","unknown")) assertFalse(at(state).networkPressureConfirmed)
         assertFalse(at("fail","control_channel").networkPressureConfirmed)
+        // Polaris exposes expired media reports as unknown/unavailable/null evidence,
+        // not a literal "stale" status on the packet_loss row.
+        val expired=doctor(20000).copy(evidenceItems=listOf(EvidenceItem("packet_loss","unknown","unavailable",null)))
+        assertFalse(expired.networkPressureConfirmed)
+        assertFalse(expired.canExecuteAction)
     }
     @Test fun sourceDetailUsesOnlyTheSourceNamedByTheLine() {
         fun field(v:Any,s:String)=JSONObject().put("value",v).put("source",s)

@@ -126,6 +126,7 @@ class PyroWaveDecoderRenderer(
          * 35 cm is about H 5), and the farther away, the less detail an eye can find to miss. So the
          * farthest distance the model does cover is the nearest answer it has, and for those screens it
          * errs toward asking for more than they need.
+         * A large tablet held nearer than H 2.87 can need more than this assumption asks for.
          *
          * [television] is the UI mode, the same check the system bars make. [onExternalDisplay] is
          * Game's isOnExternalDisplay, set once from the display the stream's window is on: true when
@@ -134,6 +135,8 @@ class PyroWaveDecoderRenderer(
          * built in panel from a monitor, so a dual screen handheld such as the AYN Thor that streams onto
          * a panel other than its default one is advised for H 2.0. That asks for more than the panel
          * needs, not less.
+         * A mirrored phone still uses the default display's assumption: these signals do not
+         * distinguish mirroring from watching the phone's own panel.
          */
         fun viewingHeightFactor(television: Boolean, onExternalDisplay: Boolean): Int =
             if (television || onExternalDisplay) {

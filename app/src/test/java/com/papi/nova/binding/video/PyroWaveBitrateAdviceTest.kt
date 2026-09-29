@@ -15,7 +15,7 @@ import org.junit.Test
 import java.io.File
 import kotlin.math.floor
 
-/** Calibrated launch advice checked against upstream encoder fixtures and request units. */
+/** Upstream encoder fixtures cover the model; literal request anchors separately cover unit conversion. */
 class PyroWaveBitrateAdviceTest {
 
     private val ownScreen = PyroWaveRateModel.HEIGHT_FACTOR_2_87
@@ -91,12 +91,25 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun theFiguresAPlayerIsTold() {
-        assertEquals(109, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, ownScreen)) // 179.492
-        assertEquals(106, PyroWaveDecoderRenderer.advisedMbps(1280, 720, 60, true, ownScreen)) // 137.513
-        assertEquals(114, PyroWaveDecoderRenderer.advisedMbps(1280, 800, 60, true, ownScreen)) // 143.176
-        assertEquals(298, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, acrossTheRoom)) // 266.7449
-        assertEquals(350, PyroWaveDecoderRenderer.advisedMbps(3840, 2160, 60, true, acrossTheRoom)) // 313.803
-        assertEquals(101, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, false, ownScreen)) // 153.572
+        assertEquals(109, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, ownScreen))
+        assertEquals(106, PyroWaveDecoderRenderer.advisedMbps(1280, 720, 60, true, ownScreen))
+        assertEquals(114, PyroWaveDecoderRenderer.advisedMbps(1280, 800, 60, true, ownScreen))
+        assertEquals(298, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, acrossTheRoom))
+        assertEquals(350, PyroWaveDecoderRenderer.advisedMbps(3840, 2160, 60, true, acrossTheRoom))
+        assertEquals(101, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, false, ownScreen))
+    }
+
+    @Test
+    fun requestBoundaryAnchorsAreIndependentOfTheProductionGrossUpHelper() {
+        // Fixed request-unit examples from the approved Polaris calibration contract.
+        for ((width,height,fps,distance,expected) in listOf(
+            listOf(1920,1080,60,ownScreen,108012),
+            listOf(1920,1080,120,ownScreen,214898),
+            listOf(1920,1080,60,acrossTheRoom,297507),
+            listOf(1920,1080,120,acrossTheRoom,593890),
+            listOf(3840,2160,120,ownScreen,327675))) {
+            assertEquals(expected,PyroWaveDecoderRenderer.recommendedKbps(width,height,fps,true,distance))
+        }
     }
 
     @Test
@@ -469,8 +482,7 @@ class PyroWaveBitrateAdviceTest {
         val call = onlyIndexOf("PyroWaveDecoderRenderer.bitrateAdvice(")
         for (settled in listOf(
             "if (workerLaunch != null) supportedVideoFormats = MoonBridge.VIDEO_FORMAT_H264",
-            "configuredStreamBitrateKbps = (if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate)",
-            "configuredStreamBitrateKbps = autoSafeBitrateKbps",
+            "configureLaunchBitrate(isMetered, launchOptimization)",
             "displayHeight = autoSafeResolution!!.height",
             "configuredStreamFrameRateFps = chosenFrameRate",
         )) {
