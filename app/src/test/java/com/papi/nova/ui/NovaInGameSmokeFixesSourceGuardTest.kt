@@ -9,6 +9,18 @@ class NovaInGameSmokeFixesSourceGuardTest {
     private fun read(path: String) = File("src/main/java/com/papi/nova/$path").readText()
 
     /**
+     * In-game #9: "Slow connection to PC / Reduce your bitrate" showed over the game while Live
+     * Tuning was lowering the bitrate itself and Doctor said not to lower quality.
+     */
+    @Test
+    fun theLegacyConnectionWarningGivesWayToLiveTuningAndDoctor() {
+        val update = read("Game.kt").substringAfter("override fun connectionStatusUpdate(").substringBefore("override fun connectionStarted()")
+        val quiet = update.indexOf("NovaLegacyConnectionWarning.suppressed(lastPolarisSessionStatus)")
+        val slow = update.indexOf("R.string.slow_connection_msg")
+        assertTrue("the host's own reading is asked first, and the warning is only set without it", quiet in 0 until slow)
+    }
+
+    /**
      * In-game #19: the stream only laid itself out for immersive mode in onCreate, and the bars
      * were hidden a second after the connection started, so the gesture handle sat over the first
      * frames.

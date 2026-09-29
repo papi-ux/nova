@@ -5809,7 +5809,12 @@ if (prefConfig!!.disableWarnings)
 return
 }
 
-if (connectionStatus == MoonBridge.CONN_STATUS_POOR)
+if (connectionStatus == MoonBridge.CONN_STATUS_POOR && com.papi.nova.ui.NovaLegacyConnectionWarning.suppressed(lastPolarisSessionStatus))
+{
+// Live Tuning owns the bitrate, or Doctor reads the stream: the legacy advice contradicted them.
+requestedNotificationOverlayVisibility = View.GONE
+}
+else if (connectionStatus == MoonBridge.CONN_STATUS_POOR)
 {
 if (configuredStreamBitrateKbps > 5000)
 {
