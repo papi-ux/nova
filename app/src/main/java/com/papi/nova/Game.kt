@@ -1419,8 +1419,8 @@ if (launchPolicyTokenInvalid)
 {
 // The one-shot handoff token was stale or already spent, which says nothing about the host.
 LimeLog.severe("Nova: Refusing launch because the one-shot launch policy handoff was not valid")
-Toast.makeText(this, R.string.nova_launch_retry, Toast.LENGTH_LONG).show()
-finish()
+// The launch issue page with Try Again and Back, not a Toast floated as the screen closed.
+showNovaLaunchIssueSheet(getString(R.string.nova_launch_retry))
 return
 }
 val workerLaunch = com.papi.nova.manager.WorkerLaunchContract.parse(launchOptimization)
@@ -1435,8 +1435,9 @@ com.papi.nova.manager.LaunchTopologyEnvelope.resolvedSelection(launchOptimizatio
 if (launchResolvedProfileTrusted && expectedLaunchTopology.isBlank())
 {
 LimeLog.severe("Nova: Refusing launch because the deterministic topology assertion is missing")
-Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
-finish()
+// The host answered as a current Polaris and left the display topology unsettled, so "Update
+// Polaris" named the one cause it was not. It says what happened, on the launch issue page.
+showNovaLaunchIssueSheet(getString(R.string.nova_launch_profile_not_settled))
 return
 }
 launchInitializationCommitted = true

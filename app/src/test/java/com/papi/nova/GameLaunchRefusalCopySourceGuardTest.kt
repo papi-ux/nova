@@ -27,6 +27,20 @@ class GameLaunchRefusalCopySourceGuardTest {
         assertTrue(sheet.contains("novaProgressOverlay?.dismiss()"))
     }
 
+    // Two refusals made before the stream starts still floated a Toast and closed (audit X1): a
+    // stale launch handoff, and a trusted profile with no display topology, which also said
+    // "Update Polaris" to a host that was current.
+    @Test
+    fun aRefusalBeforeTheStreamIsTheLaunchIssuePageNotAToast() {
+        val handoff = game.substringAfter("if (launchPolicyTokenInvalid)").substringBefore("return\n")
+        assertTrue(handoff.contains("showNovaLaunchIssueSheet(getString(R.string.nova_launch_retry))"))
+        assertFalse(handoff.contains("Toast.makeText"))
+        val topology = game.substringAfter("if (launchResolvedProfileTrusted && expectedLaunchTopology.isBlank())").substringBefore("return\n")
+        assertTrue(topology.contains("showNovaLaunchIssueSheet(getString(R.string.nova_launch_profile_not_settled))"))
+        assertFalse(topology.contains("Toast.makeText"))
+        assertFalse(topology.contains("nova_launch_deterministic_host_required"))
+    }
+
     @Test
     fun aPolicyRefusalIsAStatePageNotAToast() {
         val gate = game.substringAfter("if (launchDecision.policyBlocked)").substringBefore("return@launchRuntimeIo")
