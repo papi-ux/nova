@@ -1174,8 +1174,9 @@ return
 // A cold shortcut can arrive before the application worker finishes the metadata probe.
 // Reuse the existing lifecycle-bound launch handoff instead of probing in readPreferences.
 val tierPreferences = ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
-val needsGeneratedTier = !watchOnlyRequested && com.papi.nova.preferences.NovaStreamSettings.selected(tierPreferences.all) !=
-    com.papi.nova.preferences.NovaTier.CUSTOM
+val needsGeneratedTier = com.papi.nova.manager.NovaTierLaunchPolicy.needsGeneratedTier(
+    com.papi.nova.preferences.NovaStreamSettings.selected(tierPreferences.all), watchOnlyRequested,
+    resumeExistingRequested, com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID ?: appId.toString()))
 if (needsGeneratedTier && (!com.papi.nova.preferences.NovaTierRuntime.isPrepared() ||
         com.papi.nova.preferences.NovaTierRuntime.snapshot() !== tierSnapshotAtRead)) {
     val gateIntent = intent
@@ -1347,7 +1348,7 @@ bitrateLocked = isMetered,
 requestedWidth = displayWidth,
 requestedHeight = displayHeight,
 requestedFps = optimizationRequestedFps,
-displayLocked = watchOnlyRequested && watchStreamWidth > 0 && watchStreamHeight > 0,
+displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.sessionModeLocked(watchOnlyRequested, resumeExistingRequested, watchStreamWidth, watchStreamHeight),
 displayModeExplicit = displayModeExplicit,
 resumeExistingOnly = resumeExistingRequested,
 requestedHdr = willStreamHdr
@@ -1379,7 +1380,7 @@ isMetered,
 displayWidth,
 displayHeight,
 optimizationRequestedFps,
-watchOnlyRequested && watchStreamWidth > 0 && watchStreamHeight > 0,
+com.papi.nova.manager.NovaTierLaunchPolicy.sessionModeLocked(watchOnlyRequested, resumeExistingRequested, watchStreamWidth, watchStreamHeight),
 topologyLocked = displayModeExplicit,
 requestedHdr = willStreamHdr,
 requestedProfilePreference = launchProfilePreference
