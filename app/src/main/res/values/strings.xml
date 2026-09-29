@@ -1579,7 +1579,6 @@
     <string name="failed_to_initiate_file_export">Failed to initiate file export: %s</string>
     <string name="file_export_failed_no_location_selected">File export failed: No location selected.</string>
     <string name="file_export_failed_no_content_to_write">File export failed: No content to write.</string>
-    <string name="file_exported_successfully">File exported successfully.</string>
     <string name="failed_to_open_file_for_writing">Failed to open file for writing.</string>
     <string name="error_writing_file">Error writing file: %s</string>
     <string name="unexpected_error_during_file_export">An unexpected error occurred during file export.</string>

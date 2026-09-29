@@ -692,7 +692,6 @@
 	<string name="failed_to_initiate_file_export">無法啟動匯出：%s</string>
 	<string name="file_export_failed_no_location_selected">匯出失敗：未選取位置。</string>
 	<string name="file_export_failed_no_content_to_write">匯出失敗：沒有可寫入的內容。</string>
-	<string name="file_exported_successfully">檔案匯出成功。</string>
 	<string name="failed_to_open_file_for_writing">開啟檔案寫入失敗。</string>
 	<string name="error_writing_file">寫入檔案錯誤：%s</string>
 	<string name="unexpected_error_during_file_export">匯出期間發生未預期的錯誤。</string>

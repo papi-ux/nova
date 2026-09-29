@@ -566,7 +566,6 @@
     <string name="failed_to_initiate_file_export">Не удалось начать экспорт файла: %s</string>
     <string name="file_export_failed_no_location_selected">Экспорт не выполнен: не выбрана папка.</string>
     <string name="file_export_failed_no_content_to_write">Экспорт не выполнен: нет содержимого для записи.</string>
-    <string name="file_exported_successfully">Файл успешно экспортирован.</string>
     <string name="failed_to_open_file_for_writing">Не удалось открыть файл для записи.</string>
     <string name="error_writing_file">Ошибка записи файла: %s</string>
     <string name="unexpected_error_during_file_export">При экспорте произошла непредвиденная ошибка.</string>

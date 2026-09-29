@@ -602,7 +602,6 @@
     <string name="failed_to_initiate_file_export">无法初始化文件导出：%s</string>
     <string name="file_export_failed_no_location_selected">文件导出失败：未选择位置。</string>
     <string name="file_export_failed_no_content_to_write">文件导出失败：没有内容可写。</string>
-    <string name="file_exported_successfully">文件导出成功。</string>
     <string name="failed_to_open_file_for_writing">无法打开文件进行写入。</string>
     <string name="error_writing_file">写入文件时出错：%s</string>
     <string name="unexpected_error_during_file_export">文件导出期间发生意外错误。</string>
