@@ -425,6 +425,20 @@ class StreamSettings : NovaActivity() {
     }
 
     open class SettingsFragment() : PreferenceFragmentCompat() {
+        private val streamTierWriter = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            NovaStreamSettings.classicWrite(prefs, key)
+        }
+
+        override fun onStart() {
+            super.onStart()
+            getPrefs().registerOnSharedPreferenceChangeListener(streamTierWriter)
+        }
+
+        override fun onStop() {
+            getPrefs().unregisterOnSharedPreferenceChangeListener(streamTierWriter)
+            super.onStop()
+        }
+
         private var nativeResolutionStartIndex = Int.MAX_VALUE
         private var nativeFramerateShown = false
         private var prevPrefConfig: PreferenceConfiguration? = null

@@ -737,7 +737,7 @@ class ShortcutTrampoline : NovaActivity() {
                 height = preferences.height,
                 fps = preferences.fps,
                 bitrateKbps = requestedBitrateKbps,
-                bitrateLocked = metered,
+                bitrateLocked = com.papi.nova.manager.NovaTierLaunchPolicy.bitrateLocked(codec, isWorkerProfile, metered),
                 hdr = preferences.enableHdr,
                 clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
                     ServerHelper.getActiveDisplay(this, preferences)

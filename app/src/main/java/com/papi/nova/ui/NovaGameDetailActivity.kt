@@ -921,7 +921,7 @@ class NovaGameDetailActivity : NovaActivity() {
                             height = spaceRequest?.height ?: launchPrefs.height,
                             fps = spaceRequest?.fps ?: launchPrefs.fps,
                             bitrateKbps = if (metered) launchPrefs.meteredBitrate else launchPrefs.bitrate,
-                            bitrateLocked = metered,
+                            bitrateLocked = com.papi.nova.manager.NovaTierLaunchPolicy.bitrateLocked(effectiveCodec(), spaceGame != null, metered),
                             hdr = launchPrefs.enableHdr,
                             clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
                                 ServerHelper.getActiveDisplay(this@NovaGameDetailActivity, launchPrefs)

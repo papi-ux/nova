@@ -1017,6 +1017,20 @@ class MediaCodecDecoderRenderer(
         return 0
     }
 
+    private fun notifyDecoderCrash(exception: Exception) {
+        val codec = when {
+            videoFormat and MoonBridge.VIDEO_FORMAT_MASK_AV1 != 0 -> com.papi.nova.preferences.NovaCodecChoice.AV1
+            videoFormat and MoonBridge.VIDEO_FORMAT_MASK_H265 != 0 -> com.papi.nova.preferences.NovaCodecChoice.HEVC
+            else -> com.papi.nova.preferences.NovaCodecChoice.AVC
+        }
+        if (initialWidth > 0 && initialHeight > 0 && refreshRate > 0) {
+            com.papi.nova.preferences.NovaCapabilityProbe.recordCrashCandidate(context,
+                com.papi.nova.preferences.NovaFailedDecodePoint(codec,
+                    com.papi.nova.preferences.NovaSize(initialWidth, initialHeight), refreshRate))
+        }
+        crashListener.notifyCrash(exception)
+    }
+
     override fun setup(format: Int, width: Int, height: Int, redrawRate: Int): Int {
         resetRollingPerfStatsForNewStream("stream setup")
         loggedSpsPatches.clear()
@@ -1114,7 +1128,7 @@ class MediaCodecDecoderRenderer(
                     } catch (e: IllegalStateException) {
                         if (!reportedCrash) {
                             reportedCrash = true
-                            crashListener.notifyCrash(e)
+                            notifyDecoderCrash(e)
                         }
                         throw RendererException(this, e)
                     }
@@ -1207,7 +1221,7 @@ class MediaCodecDecoderRenderer(
                 if (SystemClock.uptimeMillis() - initialExceptionTimestamp >= EXCEPTION_REPORT_DELAY_MS) {
                     if (!reportedCrash) {
                         reportedCrash = true
-                        crashListener.notifyCrash(initialException!!)
+                        notifyDecoderCrash(initialException!!)
                     }
                     throw initialException!!
                 }
@@ -1548,7 +1562,7 @@ class MediaCodecDecoderRenderer(
                 val decoderHungException = DecoderHungException(deltaMs)
                 if (!reportedCrash) {
                     reportedCrash = true
-                    crashListener.notifyCrash(decoderHungException)
+                    notifyDecoderCrash(decoderHungException)
                 }
                 throw RendererException(this, decoderHungException)
             }
@@ -1989,7 +2003,7 @@ class MediaCodecDecoderRenderer(
             )
             if (!reportedCrash) {
                 reportedCrash = true
-                crashListener.notifyCrash(exception)
+                notifyDecoderCrash(exception)
             }
             throw RendererException(this, exception)
         }

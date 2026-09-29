@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nova_tier_saver">Saver</string>
+    <string name="nova_tier_recommended">Recommended</string>
+    <string name="nova_tier_max">Max</string>
+    <string name="nova_tier_custom">Custom</string>
+    <string name="nova_tier_use_recommended">Use recommended</string>
+    <string name="nova_tier_auto_bitrate">Auto · %1$s Mbps</string>
+    <string name="nova_tier_received_bitrate">Received · %1$s Mbps</string>
+    <string name="nova_tier_received_unavailable">Received bitrate unavailable</string>
+</resources>

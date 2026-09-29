@@ -2737,6 +2737,7 @@ launchProfilePreference,
 launchOptimizationJson.orEmpty(),
 streamMode,
 encoderBackend,
+prefConfig.videoFormat?.name.orEmpty(),
 mirrorDesktop.toString(),
 vDisplay.toString(),
 bitrateLocked.toString(),
@@ -2907,9 +2908,11 @@ val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(
 width = requestedWidth,
 height = requestedHeight,
 fps = requestedFps,
-displayLocked = displayLocked,
+displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(displayLocked,
+    com.papi.nova.manager.WorkerLaunchContract.isProfileApp(safeAppIdentity)),
 bitrateKbps = if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate,
-bitrateLocked = bitrateLocked
+bitrateLocked = com.papi.nova.manager.NovaTierLaunchPolicy.bitrateLocked(prefConfig.videoFormat,
+    com.papi.nova.manager.WorkerLaunchContract.isProfileApp(safeAppIdentity), bitrateLocked)
 )
 val requestedTopology = requestedLaunchTopology()
 val exactTopologyLocked = topologyLocked || mirrorDesktop ||
@@ -2926,7 +2929,7 @@ try
 val preflight = JSONObject(launchOptimizationJson!!)
 if (com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(preflight))
 {
-val clientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
+val clientMaximumFps = getMaxSupportedRefreshRate(ServerHelper.getActiveDisplay(this, prefConfig))
 val containsNovaLaunchOverride = preflight.optString("normalization_reason", "") ==
 NovaLaunchStreamOverride.NORMALIZATION_REASON
 val preflightTopologyHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
@@ -2947,7 +2950,7 @@ callerRequest.bitrateKbps,
 requestedWidth,
 requestedHeight,
 requestedFps,
-displayLocked,
+callerRequest.displayLocked,
 preference.equals("high_fps", ignoreCase = true),
 requestedTopology,
 exactTopologyLocked,
@@ -3030,7 +3033,7 @@ displayLocked = resolverRequest.displayLocked,
 bitrateKbps = resolverRequest.bitrateKbps,
 bitrateLocked = resolverRequest.bitrateLocked,
 hdr = requestedHdr,
-clientMaxFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay()),
+clientMaxFps = getMaxSupportedRefreshRate(ServerHelper.getActiveDisplay(this, prefConfig)),
 launchBounded = true,
 encoderBackend = encoderBackend)
 }
@@ -3050,7 +3053,7 @@ if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimizat
 {
 return blocked(com.papi.nova.manager.LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC)
 }
-val currentClientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
+val currentClientMaximumFps = getMaxSupportedRefreshRate(ServerHelper.getActiveDisplay(this, prefConfig))
 val envelopeViolation = launchEnvelopeViolation(
 optimizationResult,
 requestedHdr,

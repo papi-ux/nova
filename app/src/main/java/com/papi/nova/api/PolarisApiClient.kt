@@ -1202,13 +1202,20 @@ class PolarisApiClient @JvmOverloads constructor(
                     doctorV2ShadowEnabled = features?.optBoolean("doctor_v2_shadow_enabled") ?: false,
                     doctorTrials = features?.optBoolean("doctor_trials_v1") ?: false,
                     doctorTrialsEnabled = features?.optBoolean("doctor_trials_enabled") ?: false,
-                    hostSleep = features?.optBoolean("host_sleep_v1") ?: false
+                    hostSleep = features?.optBoolean("host_sleep_v1") ?: false,
+                    pyrowaveAdviceV1 = strictBoolean(features, "pyrowave_advice_v1")
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
                     compositor = capture?.optString("compositor", "") ?: "",
                     maxResolution = capture?.optString("max_resolution", "") ?: "",
                     maxFps = capture?.optInt("max_fps", 0) ?: 0,
+                    pyrowaveUnavailable = capture?.optJSONObject("pyrowave_unavailable")?.let { unavailable ->
+                        val reason = unavailable.opt("reason") as? String
+                        val message = unavailable.opt("message") as? String
+                        if (reason.isNullOrBlank() || message.isNullOrBlank()) null else
+                            PolarisCapabilities.PyrowaveUnavailable(reason.take(128), message.take(512))
+                    },
                     codecs = capture?.optJSONArray("codecs")?.let { arr ->
                         (0 until arr.length()).map { arr.getString(it) }
                     } ?: emptyList()
@@ -1816,6 +1823,7 @@ class PolarisApiClient @JvmOverloads constructor(
             val sessionGeneration = strictOptionalNonNegativeLong(json, "session_generation")
 
             return PolarisSessionStatus(
+                pyrowaveBitrate = PolarisPyrowaveAdvice.parse(json.optJSONObject("pyrowave_bitrate")),
                 state = json.optString("state", "unknown"),
                 streamingActive = json.optBoolean("streaming_active", false),
                 shutdownRequested = json.optBoolean("shutdown_requested", false),
@@ -3217,14 +3225,34 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
+    fun getPyrowaveAdvice(width: Int, height: Int, fps: Int, chroma444: Boolean,
+        capabilities: PolarisCapabilities): PolarisPyrowaveAdvice? {
+        if (!capabilities.features.pyrowaveAdviceV1 || width !in 1..16384 ||
+            height !in 1..16384 || fps !in 1..1000) return null
+        return try {
+            val chroma = if (chroma444) "444" else "420"
+            val request = Request.Builder().url("$baseUrl/pyrowave/advice?width=$width&height=$height&fps=$fps&chroma=$chroma").build()
+            executeWithTransientRetry(request).use { response ->
+                if (response.code == 200) PolarisPyrowaveAdvice.parse(JSONObject(response.body?.string().orEmpty())) else null
+            }
+        } catch (_: Exception) { null }
+    }
+
     /**
      * Set the stream bitrate mid-session without reconnecting.
      */
-    fun setBitrate(bitrateKbps: Int): Boolean {
+    fun setBitrate(bitrateKbps: Int): Boolean = setBitrate(bitrateKbps, null)
+
+    /** An observed identity pins a Command Center operation to the stream it was opened for. */
+    fun setBitrate(bitrateKbps: Int, observed: PolarisSessionStatus?, acknowledged: ((Int) -> Unit)? = null): Boolean {
+        if (bitrateKbps !in 1000..300000) return false
         return try {
             val status = getSessionStatus()?.takeIf {
                 it.canAdjustHostTuning && it.appSessionId.isNotBlank() && it.sessionGeneration > 0L
             } ?: return false
+            if (observed != null && (status.appSessionId != observed.appSessionId ||
+                    status.sessionGeneration != observed.sessionGeneration || !status.streamingActive ||
+                    status.shutdownRequested || status.isViewer)) return false
             val body = org.json.JSONObject().apply {
                 put("bitrate_kbps", bitrateKbps)
                 put("app_session_id", status.appSessionId)
@@ -3237,8 +3265,14 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            executeWithTransientRetry(request).use { response ->
-                response.code == 200
+            executeNonRetryable(request).use { response ->
+                if (response.code != 200) return false
+                val receipt = JSONObject(response.body?.string().orEmpty())
+                val actual = receipt.opt("bitrate_kbps") as? Number ?: return false
+                if (receipt.opt("status") != true || actual.toDouble() % 1.0 != 0.0 ||
+                    actual.toDouble() !in 1000.0..300000.0) return false
+                acknowledged?.invoke(actual.toInt())
+                true
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Bitrate change failed: ${errorMessage(e)}")

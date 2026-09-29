@@ -59,11 +59,33 @@ class NovaSettingsViewModel(
     private var values: Map<String, NovaSettingValue> = emptyMap()
     private var overrideKeys: Set<String> = emptySet()
     private var resettableKeys: Set<String> = emptySet()
+    private var tierInputs: NovaTierInputs? = null
 
     private val mutableUiState = MutableStateFlow(
         NovaSettingsUiStateFactory.build(definitions, values, selectedCategoryKey, searchQuery)
     )
     val uiState: StateFlow<NovaSettingsUiState> = mutableUiState.asStateFlow()
+    private val mutableTiers = MutableStateFlow<NovaStreamTiers?>(null)
+    val streamTiers: StateFlow<NovaStreamTiers?> = mutableTiers.asStateFlow()
+    val pictureTier: NovaTier get() = NovaStreamSettings.selected(rawValues())
+    val bitrateText: String get() {
+        val plan = mutableTiers.value?.plan(pictureTier) ?: NovaStreamSettings.custom(rawValues())
+        return plan?.let { NovaBitrateAdvice.text(it.bitrateKbps,
+            pictureTier != NovaTier.CUSTOM || rawValues()[NovaSettingsMigration.AUTO] != false) }.orEmpty()
+    }
+
+    fun selectPictureTier(tier: NovaTier) = setValue(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)),
+        NovaSettingValue.StringValue(tier.name.lowercase()))
+
+    fun useRecommended() = selectPictureTier(NovaTier.RECOMMENDED)
+
+    private fun rawValues(): Map<String, Any?> = values.mapValues { (_, value) -> when (value) {
+        is NovaSettingValue.StringValue -> value.value
+        is NovaSettingValue.IntValue -> value.value
+        is NovaSettingValue.BooleanValue -> value.value
+        is NovaSettingValue.StringSetValue -> value.value
+    } }
+
 
     init {
         refresh()
@@ -91,9 +113,13 @@ class NovaSettingsViewModel(
     ) {
         viewModelScope.launch {
             try {
-                store.set(definition, value)
-                values = values + (definition.key to value)
-                applyPresetIfNeeded(definition, value)
+                if (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO) {
+                    persistStreamEdit(definition, value)
+                } else {
+                    store.set(definition, value)
+                    values = values + (definition.key to value)
+                    applyPresetIfNeeded(definition, value)
+                }
                 loadStoreState()
                 emit()
             } finally {
@@ -129,6 +155,47 @@ class NovaSettingsViewModel(
         values = store.snapshot(definitions)
         overrideKeys = store.overrideKeys(definitions)
         resettableKeys = store.resettableKeys(definitions)
+        store.deviceTierInputs()?.let { inputs ->
+            tierInputs = inputs
+            val storedKeys = store.storedStreamKeys()
+            val customValues = rawValues().filterKeys { storedKeys == null || it !in NovaSettingsMigration.STREAM_KEYS || it in storedKeys }
+            mutableTiers.value = NovaStreamTiers.forDevice(inputs, NovaStreamSettings.custom(customValues))
+        }
+    }
+
+    private suspend fun persistStreamEdit(definition: NovaSettingDefinition, value: NovaSettingValue) {
+        val updates = mutableMapOf<String, NovaSettingValue>()
+        if (pictureTier != NovaTier.CUSTOM) mutableTiers.value?.plan(pictureTier)?.let { plan ->
+            updates["list_resolution"] = NovaSettingValue.StringValue("${plan.width}x${plan.height}")
+            updates["list_fps"] = NovaSettingValue.StringValue(plan.fps.toString())
+            updates["video_format"] = NovaSettingValue.StringValue("auto")
+            updates["seekbar_bitrate_kbps"] = NovaSettingValue.IntValue(plan.bitrateKbps)
+        }
+        updates[definition.key] = value
+        updates[NovaSettingsMigration.TIER] = NovaSettingValue.StringValue("custom")
+        val automatic = when (definition.key) {
+            "seekbar_bitrate_kbps" -> false
+            NovaSettingsMigration.AUTO -> (value as? NovaSettingValue.BooleanValue)?.value == true
+            else -> pictureTier != NovaTier.CUSTOM || rawValues()[NovaSettingsMigration.AUTO] != false
+        }
+        updates[NovaSettingsMigration.AUTO] = NovaSettingValue.BooleanValue(automatic)
+        val remove = mutableSetOf<String>()
+        if (pictureTier != NovaTier.CUSTOM) remove += setOf("edit_diy_w_h", "custom_refresh_rate")
+        if (definition.key == "list_resolution") remove += "edit_diy_w_h"
+        if (definition.key == "list_fps") remove += "custom_refresh_rate"
+        remove -= definition.key
+        val previous = values
+        values = (values - remove) + updates
+        if (automatic) NovaStreamSettings.custom(rawValues())?.let { plan ->
+            val advice = NovaBitrateAdvice.recommend(plan.width, plan.height, plan.fps, plan.codec, tierInputs?.distance ?: NovaDistance.HAND)
+            updates["seekbar_bitrate_kbps"] = NovaSettingValue.IntValue(advice.kbps)
+        }
+        values = previous
+        val resolved = updates.map { (key, update) ->
+            (definitions.find(key) ?: resetDefinitions.find(key) ?: NovaStreamSettings.definition(key)
+                ?: error("Missing stream definition $key")) to update
+        }
+        store.updateAtomically(resolved, remove)
     }
 
     private suspend fun applyPresetIfNeeded(
@@ -143,6 +210,10 @@ class NovaSettingsViewModel(
             val presetDefinition = definitions.find(key) ?: continue
             store.set(presetDefinition, settingValue)
         }
+        store.updateAtomically(listOf(
+            requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)) to NovaSettingValue.StringValue("custom"),
+            requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.AUTO)) to NovaSettingValue.BooleanValue(false)
+        ))
         values = values + updates
     }
 

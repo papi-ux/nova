@@ -42,6 +42,7 @@ class ProfilesManager private constructor() {
             if (!file.exists()) {
                 return true
             }
+            var migrated = false
             try {
                 FileReader(file).use { reader ->
                     val type = object : TypeToken<ProfilesData>() {}.type
@@ -49,11 +50,13 @@ class ProfilesManager private constructor() {
                     if (data?.profiles != null) {
                         profiles.clear()
                         for (profile in data.profiles.orEmpty()) {
+                            migrated = profile.migrateStreamOptions() || migrated
                             profiles[profile.getUuid()] = profile
                         }
                         activeProfileId = data.activeProfileId
                     }
                 }
+                if (migrated && !save(safeContext)) return false
             } catch (e: IOException) {
                 LimeLog.warning("ArtemisProfile: Failed to load profiles from file:$e")
                 e.printStackTrace()

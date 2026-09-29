@@ -46,7 +46,8 @@ data class PolarisSessionStatus(
     val health: HealthStatus = HealthStatus(),
     val doctor: DoctorStatus = DoctorStatus(),
     val recovery: RecoveryReceipt = RecoveryReceipt(),
-    val recoveryRecords: List<RecoveryReceipt> = emptyList()
+    val recoveryRecords: List<RecoveryReceipt> = emptyList(),
+    val pyrowaveBitrate: PolarisPyrowaveAdvice? = null
 ) {
     data class RecoveryReceipt(
         val status: Boolean = true,

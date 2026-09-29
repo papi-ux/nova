@@ -29,7 +29,8 @@ data class PolarisCapabilities(
         val doctorV2ShadowEnabled: Boolean = false,
         val doctorTrials: Boolean = false,
         val doctorTrialsEnabled: Boolean = false,
-        val hostSleep: Boolean = false
+        val hostSleep: Boolean = false,
+        val pyrowaveAdviceV1: Boolean = false
     ) {
         constructor(
             aiOptimizer: Boolean,
@@ -77,11 +78,14 @@ data class PolarisCapabilities(
         val lastSleepAt: Long = 0L
     )
 
+    data class PyrowaveUnavailable(val reason: String, val message: String)
+
     data class CaptureInfo(
         val backend: String = "",
         val compositor: String = "",
         val maxResolution: String = "",
         val maxFps: Int = 0,
-        val codecs: List<String> = emptyList()
+        val codecs: List<String> = emptyList(),
+        val pyrowaveUnavailable: PyrowaveUnavailable? = null
     )
 }
