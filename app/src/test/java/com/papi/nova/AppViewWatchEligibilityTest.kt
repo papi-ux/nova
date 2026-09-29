@@ -4,6 +4,7 @@ import android.os.Looper
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.compose.ui.platform.ComposeView
 import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.computers.ComputerManagerListener
 import com.papi.nova.grid.AppGridAdapter
@@ -40,9 +41,10 @@ class AppViewWatchEligibilityTest {
         init {
             activity.setTheme(R.style.AppTheme)
             for (viewId in listOf(R.id.recently_played_name, R.id.recently_played_kicker,
-                R.id.recently_played_meta, R.id.recently_played_action, R.id.recently_played_end_session)) {
+                R.id.recently_played_meta, R.id.recently_played_action)) {
                 card.addView(TextView(activity).apply { id = viewId })
             }
+            card.addView(ComposeView(activity).apply { id = R.id.recently_played_end_session })
             activity.setContentView(card)
             val adapter = mock(AppGridAdapter::class.java)
             `when`(adapter.itemCount).thenReturn(1)

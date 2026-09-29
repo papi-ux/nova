@@ -47,6 +47,7 @@ class NovaHostMenuTest {
         override fun sleep() { ran += "sleep" }
         override fun appList() { ran += "app_list" }
         override fun testNetwork() { ran += "test_network" }
+        override fun editWakeAddress() { ran += "wake_address" }
         override fun delete() { ran += "delete" }
     }
 
@@ -64,9 +65,17 @@ class NovaHostMenuTest {
     private fun List<NovaMenuItem>.keys() = map { it.key }
 
     @Test
+    fun wakeAddressEditingKeepsTheHostPanelOpenForItsForm() {
+        val row = menu(host()).first { it.key == "wake_address" } as NovaMenuItem.Action
+        assertFalse(row.closesPanel)
+        row.onClick()
+        assertEquals(listOf("wake_address"), ran)
+    }
+
+    @Test
     fun anOfflineHostOffersWakingItFirst() {
         val items = menu(host { state = ComputerDetails.State.OFFLINE })
-        assertEquals(listOf("wake", "send_wol", "test_network", "details", "delete"), items.keys())
+        assertEquals(listOf("wake", "send_wol", "test_network", "wake_address", "details", "delete"), items.keys())
         assertTrue((items[0] as NovaMenuItem.Action).emphasis)
         assertEquals(context.getString(R.string.pcview_menu_start_polaris), (items[0] as NovaMenuItem.Action).label)
     }
@@ -74,7 +83,7 @@ class NovaHostMenuTest {
     @Test
     fun anOfflineHostThatWantsPairingCanOnlyBeSentAWakePacket() {
         val items = menu(host { state = ComputerDetails.State.OFFLINE }, needsPairing = true)
-        assertEquals(listOf("send_wol", "test_network", "details", "delete"), items.keys())
+        assertEquals(listOf("send_wol", "test_network", "wake_address", "details", "delete"), items.keys())
         assertTrue("the wake packet is the primary when it is all there is", (items[0] as NovaMenuItem.Action).emphasis)
     }
 
@@ -84,7 +93,7 @@ class NovaHostMenuTest {
         // offered, where its pairing code comes from: the console's page says Nova cannot check the
         // host before it opens anything (N6).
         val items = menu(host { pairState = PairingManager.PairState.NOT_PAIRED }, needsPairing = true)
-        assertEquals(listOf("pair", "pair_otp", "scan_qr", "server_config", "test_network", "details", "delete"), items.keys())
+        assertEquals(listOf("pair", "pair_otp", "scan_qr", "server_config", "test_network", "wake_address", "details", "delete"), items.keys())
         assertTrue(items.first { it.key == "server_config" } is NovaMenuItem.Opens)
         val otp = items[1] as NovaMenuItem.Opens
         assertTrue("OTP pairing pushes its form in the host panel", otp.page() is NovaCommonPage.Form)
@@ -99,7 +108,7 @@ class NovaHostMenuTest {
     @Test
     fun anIdleHostWithALibraryLeadsWithTheLibrary() {
         val items = menu(host())
-        assertEquals(listOf("open_library", "app_list", "server_config", "test_network", "details", "delete"), items.keys())
+        assertEquals(listOf("open_library", "app_list", "server_config", "test_network", "wake_address", "details", "delete"), items.keys())
         assertTrue((items[0] as NovaMenuItem.Action).emphasis)
     }
 
@@ -118,7 +127,7 @@ class NovaHostMenuTest {
                 libraryState = ComputerDetails.LibraryState.UNAVAILABLE
             },
         )
-        assertEquals(listOf("resume", "end_session", "app_list", "server_config", "test_network", "details", "delete"), items.keys())
+        assertEquals(listOf("resume", "end_session", "app_list", "server_config", "test_network", "wake_address", "details", "delete"), items.keys())
         val end = items[1] as NovaMenuItem.Destructive
         assertEquals(context.getString(R.string.game_dialog_action_end_session), end.confirmLabel)
         assertEquals("ending a session stays on Stay", null, end.stayLabel)

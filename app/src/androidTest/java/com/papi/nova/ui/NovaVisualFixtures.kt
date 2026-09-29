@@ -212,6 +212,7 @@ internal object NovaVisualFixtures {
         override fun endSession() = Unit
         override fun sleep() = Unit
         override fun appList() = Unit
+        override fun editWakeAddress() {}
         override fun testNetwork() = Unit
         override fun delete() = Unit
     }

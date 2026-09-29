@@ -161,7 +161,7 @@ internal interface NovaHostMenuActions {
     fun sleep()
     fun appList()
     fun testNetwork()
-    fun editWakeAddress() {}
+    fun editWakeAddress()
     fun delete()
 }
 
