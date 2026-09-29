@@ -691,7 +691,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "Debug keeps the network's facts: loss in the current window graded so zero is the only green, round-trip jitter, and the session's lost-frame count",
-            debugHud.contains("HudFact(\"FRAME LOSS\\nLAST 1s\", state.packetLossLabel, state.packetLossTone)") &&
+            debugHud.contains("HudFact(\"FRAME LOSS\\nLATEST WINDOW\", state.packetLossLabel, state.packetLossTone)") &&
                 debugHud.contains("HudFact(\"JITTER\", state.jitterLabel)") &&
                 debugHud.contains("HudFact(\"MISSING\", state.framesLostLabel)")
         )
@@ -918,7 +918,10 @@ class NovaCommandCenterSourceGuardTest {
         val endStream = menu.section("onEndStream = {", "onStability = {")
         assertTrue(
             "the Command Center's End Session is confirmed by the header's split, so it ends without a second confirm",
-            endStream.contains("game.endSession()") && !endStream.contains("game.quit()")
+            endStream.contains("sessionEnd::perform") &&
+                menu.contains("NovaCommandCenterEndSession(") &&
+                menu.contains("end = game::endSession") &&
+                !endStream.contains("game.quit()")
         )
         val deckEnd = controller.section("NovaCompanionCommandActionId.END_SESSION -> {", "handler.post(::renderCommandDeck)")
         assertTrue(

@@ -763,6 +763,7 @@ internal fun NovaLibraryStage(
     onSecondaryAction: (() -> Unit)? = null,
     /** Why the host refused an End, said under the hero's title until the End status clears (XR3). */
     endRefusal: String? = null,
+    endPending: Boolean = false,
     onGameFocused: (PolarisGame) -> Unit,
     onOpenDetail: (PolarisGame) -> Unit,
     artworkLoader: (ImageView, PolarisGame, String) -> Unit = { view, game, artworkKind ->
@@ -805,6 +806,7 @@ internal fun NovaLibraryStage(
                 onSessionAction = onSessionAction,
                 onSecondaryAction = onSecondaryAction,
                 endRefusal = endRefusal,
+                endPending = endPending,
             )
         } else if (sessionTitle != null && sessionActionLabel != null && onSessionAction != null) {
             NovaLibraryStageSessionHero(
@@ -818,6 +820,7 @@ internal fun NovaLibraryStage(
                 onAction = onSessionAction,
                 onSecondaryAction = onSecondaryAction,
                 endRefusal = endRefusal,
+                endPending = endPending,
             )
         }
 
@@ -876,6 +879,7 @@ private fun NovaLibraryStageSessionHero(
     onAction: () -> Unit,
     onSecondaryAction: (() -> Unit)?,
     endRefusal: String? = null,
+    endPending: Boolean = false,
 ) {
     val surfaces = LocalNovaLibrarySurfaces.current
     Box(
@@ -919,15 +923,17 @@ private fun NovaLibraryStageSessionHero(
                 resume = resumeFocus,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = handoff.group) {
-                if (!endSplit.armed) NovaStageHeroAction(
-                    label = actionLabel,
-                    emphasized = true,
-                    testTag = "nova-stage-session-action",
-                    onClick = onAction,
-                    modifier = Modifier.focusRequester(resumeFocus),
-                )
-                if (secondaryActionLabel != null && onSecondaryAction != null) {
-                    NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction, modifier = handoff.end)
+                if (endPending) NovaLibraryEndingNotice() else {
+                    if (!endSplit.armed) NovaStageHeroAction(
+                        label = actionLabel,
+                        emphasized = true,
+                        testTag = "nova-stage-session-action",
+                        onClick = onAction,
+                        modifier = Modifier.focusRequester(resumeFocus),
+                    )
+                    if (secondaryActionLabel != null && onSecondaryAction != null) {
+                        NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction, modifier = handoff.end)
+                    }
                 }
             }
         }
@@ -986,6 +992,7 @@ private fun NovaLibraryStageHero(
     onSessionAction: (() -> Unit)? = null,
     onSecondaryAction: (() -> Unit)? = null,
     endRefusal: String? = null,
+    endPending: Boolean = false,
 ) {
     val heroColors = LocalNovaComposeColors.current
     val hasIcon = game.iconArtwork != null
@@ -1074,24 +1081,26 @@ private fun NovaLibraryStageHero(
                 modifier = Modifier.padding(top = if (compact) 4.dp else 10.dp).then(handoff.group),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (!endArmed) NovaStageHeroAction(
-                    label = primaryActionLabel,
-                    emphasized = true,
-                    testTag = "nova-stage-primary-action",
-                    onClick = onPrimaryAction,
-                    modifier = if (hasSessionAction) Modifier else Modifier.focusRequester(resumeFocus),
-                )
-                if (sessionActionLabel != null && onSessionAction != null && !endArmed) {
-                    NovaStageHeroAction(
-                        label = sessionActionLabel,
-                        emphasized = false,
-                        testTag = "nova-stage-session-action",
-                        onClick = onSessionAction,
-                        modifier = Modifier.focusRequester(resumeFocus),
+                if (endPending) NovaLibraryEndingNotice() else {
+                    if (!endArmed) NovaStageHeroAction(
+                        label = primaryActionLabel,
+                        emphasized = true,
+                        testTag = "nova-stage-primary-action",
+                        onClick = onPrimaryAction,
+                        modifier = if (hasSessionAction) Modifier else Modifier.focusRequester(resumeFocus),
                     )
-                }
-                if (secondaryActionLabel != null && onSecondaryAction != null) {
-                    NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction, modifier = handoff.end)
+                    if (sessionActionLabel != null && onSessionAction != null && !endArmed) {
+                        NovaStageHeroAction(
+                            label = sessionActionLabel,
+                            emphasized = false,
+                            testTag = "nova-stage-session-action",
+                            onClick = onSessionAction,
+                            modifier = Modifier.focusRequester(resumeFocus),
+                        )
+                    }
+                    if (secondaryActionLabel != null && onSecondaryAction != null) {
+                        NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction, modifier = handoff.end)
+                    }
                 }
             }
         }

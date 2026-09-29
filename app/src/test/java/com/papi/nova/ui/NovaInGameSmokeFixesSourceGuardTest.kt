@@ -52,7 +52,7 @@ class NovaInGameSmokeFixesSourceGuardTest {
     fun theHudCaptionComparesTheStoredPositionWithTheCorner() {
         val left = read("Game.kt").substringAfter("val novaHudLeftPx:Float").substringBefore("override fun cycleNovaHudFromController()")
         assertTrue("the stored position, or the corner", left.contains("NovaCommandCenterHudCorner.leftPx("))
-        assertTrue("read with the HUD's own key", left.contains("prefs.getFloat(com.papi.nova.ui.NovaCommandCenterHudCorner.PREF_HUD_X, Float.NaN)"))
+        assertTrue("read from the laid-out HUD", left.contains("measuredX = novaHud?.leftPx ?: Float.NaN"))
         assertTrue("and handed to the rows", read("ui/NovaQuickMenu.kt").contains("hudLeftPx = game.novaHudLeftPx"))
     }
 

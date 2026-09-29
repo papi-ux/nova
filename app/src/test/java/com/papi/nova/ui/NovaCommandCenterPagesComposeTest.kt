@@ -399,7 +399,14 @@ class NovaCommandCenterPagesComposeTest {
         assertEquals("focus on HUD Mode shows the HUD", listOf(true), hudPreviews)
         keys.press(NovaTestKeys.DOWN)
         rule.frames(4)
-        assertEquals("and moving on dims it again", listOf(true, false), hudPreviews)
+        rule.onNodeWithText(rule.activity.getString(com.papi.nova.R.string.nova_cc_hud_position)).assertIsFocused()
+        assertTrue("the position row still previews the HUD", hudPreviews.last())
+        keys.press(NovaTestKeys.DOWN)
+        rule.frames(4)
+        rule.onNodeWithText(rule.activity.getString(com.papi.nova.R.string.nova_cc_hud_position_reset)).assertIsFocused()
+        assertTrue("Reset still previews the HUD", hudPreviews.last())
+        focus("Close")
+        assertFalse("leaving the HUD controls dims it again", hudPreviews.last())
     }
 
     /**

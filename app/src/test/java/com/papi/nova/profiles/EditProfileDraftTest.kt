@@ -36,6 +36,7 @@ import org.robolectric.Shadows
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowToast
+import java.time.Duration
 
 /**
  * The preset editor keeps its draft (audit C05, C06, M13). Back dropped every edit with finish(), a
@@ -49,6 +50,7 @@ class EditProfileDraftTest {
     private lateinit var context: Context
     private lateinit var pm: ProfilesManager
     private lateinit var profilesDir: File
+    private val editors = mutableListOf<ActivityController<EditProfileActivity>>()
 
     @Before
     fun setUp() {
@@ -63,6 +65,8 @@ class EditProfileDraftTest {
 
     @After
     fun tearDown() {
+        editors.asReversed().forEach { if (!it.get().isDestroyed) it.pause().stop().destroy() }
+        idle()
         profilesDir.deleteRecursively()
         NovaSettingsFeatureFlags.setComposeSettingsEnabled(context, true)
     }
@@ -73,10 +77,10 @@ class EditProfileDraftTest {
     private fun editorFor(profile: SettingsProfile?): ActivityController<EditProfileActivity> {
         val intent = Intent(context, EditProfileActivity::class.java)
         profile?.let { intent.putExtra("profileUuid", it.getUuid().toString()) }
-        return Robolectric.buildActivity(EditProfileActivity::class.java, intent)
+        return Robolectric.buildActivity(EditProfileActivity::class.java, intent).also(editors::add)
     }
 
-    private fun idle() = Shadows.shadowOf(Looper.getMainLooper()).idle()
+    private fun idle() = Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
 
     private fun EditProfileActivity.edit(key: String, value: String) =
         getInMemoryPrefs().edit().putString(key, value).apply()
@@ -101,6 +105,37 @@ class EditProfileDraftTest {
         idle()
         editor.back()
         assertTrue(editor.isFinishing)
+    }
+
+    @Test
+    fun diskNumbersReadAtStoredPrecisionAndRepresentationChangesDoNotBecomeEdits() {
+        val original = SettingsProfile(UUID.randomUUID(), "Numeric", 1L, 1L,
+            mapOf("frame_pacing" to "latency", "seekbar_bitrate_kbps" to 20000,
+                "saved_timeout" to 12000L, "saved_fraction" to 0.1f))
+        pm.add(original)
+        assertTrue(pm.load(context)) // Gson reloads every number as a Double.
+        val editor = editorFor(pm.getProfiles().single()).setup().get()
+        idle()
+        val prefs = editor.getInMemoryPrefs()
+        assertEquals(0.1f, prefs.getFloat("saved_fraction", 1f), 0f)
+        prefs.edit().putInt("seekbar_bitrate_kbps", 20000)
+            .putLong("saved_timeout", 12000L).putFloat("saved_fraction", 0.1f).apply()
+        editor.back()
+        assertTrue("only the numeric representation changed", editor.isFinishing)
+    }
+
+    @Test
+    fun aDifferentNumberStillAsksBeforeLeavingTheDraft() {
+        val original = SettingsProfile(UUID.randomUUID(), "Numeric", 1L, 1L,
+            mapOf("frame_pacing" to "latency", "seekbar_bitrate_kbps" to 20000))
+        pm.add(original)
+        assertTrue(pm.load(context))
+        val editor = editorFor(pm.getProfiles().single()).setup().get()
+        idle()
+        editor.getInMemoryPrefs().edit().putInt("seekbar_bitrate_kbps", 25000).apply()
+        editor.back()
+        assertFalse(editor.isFinishing)
+        assertEquals("profile-unsaved", (editor.panelTop() as NovaCommonPage.Menu).key)
     }
 
     @Test

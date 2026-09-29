@@ -545,6 +545,9 @@ class PcGridAdapter(
         holder.badges?.visibility = if (badges.polaris || badges.spaces) View.VISIBLE else View.GONE
     }
 
+    // FrameLayout.setForeground exists on API 21; the emitted call targets FrameLayout. Lint
+    // resolves the newer inherited SDK declaration to View.setForeground (API 23).
+    @android.annotation.SuppressLint("NewApi")
     private fun applyCardTheme(
         parentView: View,
         imgView: ImageView,

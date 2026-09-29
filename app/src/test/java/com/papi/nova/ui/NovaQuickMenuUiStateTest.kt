@@ -35,12 +35,25 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Leave", state.endAction.label)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.MOUSE_MODE }.enabled)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.KEYBOARD }.enabled)
+        assertTrue("pinned and grid quick keys cannot send viewer input", state.quickKeys.none { it.enabled })
+        assertTrue(state.pinnedQuickKeys.none { it.enabled })
         assertEquals(
             listOf(NovaQuickMenuActionId.CLEAR_GAME_PROFILE, NovaQuickMenuActionId.MANGOHUD),
             state.advancedRows.map { it.id }
         )
         assertEquals("Owner", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.MUTED, state.stability.chip.tone)
+    }
+
+    @Test
+    fun losingQuitAuthorityNeverEnablesEndAndRecoveryRequiresAnAllowedReading() {
+        val denied = status(ownedByClient = false, controls = PolarisSessionStatus.ControlsStatus(hostTuningAllowed = false, quitAllowed = false))
+        assertFalse("the fixture independently denies End", denied.canQuit)
+        assertFalse(quickState(status = denied).endAction.enabled)
+        val unavailable = quickState(status = null, lastStatus = denied, hostStateUnavailable = true)
+        assertFalse("a failed read grants no End authority", unavailable.endAction.enabled)
+        assertTrue("safe local disconnect remains available", unavailable.disconnectAction.enabled)
+        assertTrue(quickState(status = status()).endAction.enabled)
     }
 
     @Test
@@ -152,6 +165,31 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Frame pacing", state.healthSummary)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
         assertFalse(state.healthSummary.contains("Stable", ignoreCase = true))
+    }
+
+    @Test
+    fun failedPollKeepsTheLastHdrDetailMarkedAsOld() {
+        val last = status(health = PolarisSessionStatus.HealthStatus(
+            grade = "watch", primaryIssue = "hdr_downgraded", issues = listOf("hdr_downgraded")
+        ))
+        val fresh = quickState(last)
+        val failed = quickState(null, lastStatus = last, hostStateUnavailable = true)
+        assertTrue(fresh.healthDetail.isNotBlank())
+        assertTrue(failed.healthDetail.contains(fresh.healthDetail))
+        assertTrue(failed.healthDetail.startsWith("Last confirmed:"))
+        assertEquals("", quickState(status(), lastStatus = last).healthDetail)
+    }
+
+    @Test
+    fun failedPollKeepsTheRecoveryReceiptVisibleButCannotUndoIt() {
+        val receipt = DoctorActionReceipt(
+            scopeId = "scope", runId = "recovery-run-a", state = "applied", message = "Bitrate lowered.",
+            undoAvailable = true, undoActionId = "undo_recovery_profile_next_launch"
+        )
+        val failed = quickState(null, lastStatus = status(), hostStateUnavailable = true, doctorReceipt = receipt)
+        assertTrue(failed.doctorReceiptAction.visible)
+        assertFalse(failed.doctorReceiptAction.enabled)
+        assertTrue(failed.doctorReceiptAction.caption.startsWith("Last confirmed:"))
     }
 
     @Test

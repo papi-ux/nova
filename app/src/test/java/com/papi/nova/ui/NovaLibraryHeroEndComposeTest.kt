@@ -240,7 +240,7 @@ class NovaLibraryHeroEndComposeTest {
     @Test
     fun aRefusedEndPutsResumeBackWithTryAgainAndSaysSo() {
         val keys = liveStrip()
-        armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
+        armFrom({ rule.onNodeWithText("End Session").requestFocus() }, keys)
         rule.advance(NovaPanelMetrics.SplitGuardMillis)
         keys.press(NovaTestKeys.RIGHT)
         keys.press(NovaTestKeys.A)
@@ -257,14 +257,14 @@ class NovaLibraryHeroEndComposeTest {
         rule.onNodeWithTag(NOVA_LIBRARY_END_FAILED_TAG).assertExists()
         rule.onNodeWithContentDescription("Resume Stream").assertExists()
         // Focus goes back to End's slot, now Try Again, so the next A retries from a visible ring.
-        rule.onNodeWithContentDescription(tryAgain()).assertIsFocused()
+        rule.onNodeWithText(tryAgain()).assertIsFocused()
     }
 
     @Test
     fun tryAgainAfterARefusalEndsAgainThroughItsSplit() {
         liveHero = refused(hero)
         val keys = liveStrip()
-        armFrom({ rule.onNodeWithContentDescription(tryAgain()).requestFocus() }, keys)
+        armFrom({ rule.onNodeWithText(tryAgain()).requestFocus() }, keys)
         rule.advance(NovaPanelMetrics.SplitGuardMillis)
         keys.press(NovaTestKeys.RIGHT)
         keys.press(NovaTestKeys.A)
@@ -283,7 +283,7 @@ class NovaLibraryHeroEndComposeTest {
         liveHero = hero.copy(endStatus = NovaLibraryEndStatus.Ending(GAME_ID))
         liveStrip()
         rule.onNodeWithText(context.getString(R.string.nova_library_ending_session)).assertExists()
-        rule.onNodeWithContentDescription("End Session").assertDoesNotExist()
+        rule.onNodeWithText("End Session").assertDoesNotExist()
     }
 
     private fun tryAgain() = context.getString(R.string.nova_panel_try_again)

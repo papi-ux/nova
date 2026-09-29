@@ -4192,12 +4192,19 @@ conn!!.sendUtf8Text(event!!.getCharacters())
 return true
 }
 
+internal fun canSendCommandKeys(): Boolean {
+val current = novaApiClient?.sessionStatusUpdates?.value ?: lastPolarisSessionStatus
+return !watchOnlyRequested && current?.isViewer != true && !isFinishing && !isDestroyed
+}
+
  fun sendKeys(keys:ShortArray?) {
+if (!canSendCommandKeys() || keys == null) return
+val keyConnection = conn ?: return
 	var modifier:ByteArray = byteArrayOf(0.toByte())
 
 for (key:Short in keys!!)
 {
-	conn!!.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], 0.toByte())
+	keyConnection.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], 0.toByte())
 
  // Apply the modifier of the pressed key, e.g. CTRL first issues a CTRL event (without
             // modifier) and then sends the following keys with the CTRL modifier applied
@@ -4211,7 +4218,7 @@ var key:Short = keys!![pos]
  // Remove the keys modifier before releasing the key
                 modifier[0] = (modifier[0].toInt() and KeyboardTranslator.getModifier(key).toInt().inv()).toByte()
 
-	conn!!.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], 0.toByte())
+	keyConnection.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], 0.toByte())
 } }), SENT_KEY_UP_DELAY_MS)
 }
 
@@ -5713,7 +5720,7 @@ space = spaceSession,
 refusal = if (spaceSession) conn?.lastHostRefusal else null,
 retry = if (spaceSession) {
 {
-NovaSpaceRetrySignal.mark(this@Game, this@Game.getIntent().getStringExtra(EXTRA_PC_UUID), host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST))
+NovaSpaceRetrySignal.mark(this@Game, this@Game.getIntent().getStringExtra(EXTRA_PC_UUID), host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST), appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())
 finish()
 }
 } else {
@@ -7136,16 +7143,26 @@ private fun applyNovaHudCovered() {
 novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)
 }
 
+val novaHudPositionCorner:com.papi.nova.ui.NovaHudCorner?
+get() = novaHud?.positionCorner
+
+fun setNovaHudPosition(corner:com.papi.nova.ui.NovaHudCorner) {
+novaHud?.setPosition(corner)
+}
+
+fun resetNovaHudPosition() {
+novaHud?.resetPosition()
+}
+
 /**
  * Where the HUD's left edge sits across the stream window, in pixels, for the Command Center's HUD
- * rows to compare with the part of the stream the panel covers: the position the HUD stored, on a
- * drag or a mode change, or its own corner when it never stored one.
+ * rows to compare with the part of the stream the panel covers. Ask the laid-out HUD, since its
+ * saved position is relative to its safe surface and changes with layout and display size.
  */
 val novaHudLeftPx:Float
 get() {
-val prefs = PreferenceManager.getDefaultSharedPreferences(this)
 return com.papi.nova.ui.NovaCommandCenterHudCorner.leftPx(
-storedX = prefs.getFloat(com.papi.nova.ui.NovaCommandCenterHudCorner.PREF_HUD_X, Float.NaN),
+measuredX = novaHud?.leftPx ?: Float.NaN,
 density = resources.displayMetrics.density,
 television = UiHelper.isTvDevice(this))
 }

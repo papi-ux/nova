@@ -104,6 +104,8 @@ data class NovaQuickMenuCallbacks(
     val onHudModeSelect: (NovaHudMode) -> Unit = {},
     /** True while a row that changes the HUD has focus, so the HUD shows at full strength. */
     val onHudPreview: (Boolean) -> Unit = {},
+    val onHudPositionSelect: (NovaHudCorner) -> Unit = {},
+    val onHudPositionReset: () -> Unit = {},
     val onDoctorUndo: () -> Unit = {},
     val onHudOpacityChange: (Int) -> Unit = {},
     val onMenuOpacityChange: (Int) -> Unit = {},
@@ -628,7 +630,11 @@ private fun NovaPageScope.NovaQuickMenuInfoCard(
     callbacks: NovaQuickMenuCallbacks,
 ) {
     val action by ui.slice(select)
-    NovaQuickMenuCard(action = action, callbacks = callbacks, modifier = novaPlaceFocus(action.id))
+    NovaQuickMenuCard(
+        action = action, callbacks = callbacks, modifier = novaPlaceFocus(action.id),
+        fixedLines = action.id == NovaQuickMenuActionId.DOCTOR_UNDO,
+        focusableWhenDisabled = action.id == NovaQuickMenuActionId.DOCTOR_UNDO,
+    )
 }
 
 @Composable
@@ -787,7 +793,48 @@ private fun NovaPageScope.NovaQuickMenuOverlayRows(
                 callbacks,
                 novaPlaceFocus("hud-mode").onFocusChanged { hudPreview.update("hud-mode", it.hasFocus) },
             )
+            NovaQuickMenuHudPositionControl(ui, callbacks, hudPreview)
         }
+    }
+}
+
+/** Corner choices and Reset stay in the Command Center and work with a remote's arrows and OK. */
+@Composable
+private fun NovaPageScope.NovaQuickMenuHudPositionControl(
+    ui: State<NovaQuickMenuUiState>,
+    callbacks: NovaQuickMenuCallbacks,
+    hudPreview: NovaHudPreviewFocus,
+) {
+    val corner by ui.slice { it.hudPositionCorner }
+    val enabled by ui.slice { it.hudMode.enabled }
+    val options = listOf(
+        NovaOption<NovaHudCorner?>(NovaHudCorner.TOP_LEFT, stringResource(R.string.nova_cc_hud_top_left)),
+        NovaOption<NovaHudCorner?>(NovaHudCorner.TOP_RIGHT, stringResource(R.string.nova_cc_hud_top_right)),
+        NovaOption<NovaHudCorner?>(NovaHudCorner.BOTTOM_LEFT, stringResource(R.string.nova_cc_hud_bottom_left)),
+        NovaOption<NovaHudCorner?>(NovaHudCorner.BOTTOM_RIGHT, stringResource(R.string.nova_cc_hud_bottom_right)),
+    ).let { corners ->
+        if (corner == null) listOf(NovaOption<NovaHudCorner?>(null, stringResource(R.string.nova_cc_hud_dragged), disabledReason = "")) + corners
+        else corners
+    }
+    NovaValueRow(
+        title = stringResource(R.string.nova_cc_hud_position),
+        options = options,
+        current = corner,
+        onChange = { it?.let(callbacks.onHudPositionSelect) },
+        enabled = enabled,
+        style = NovaValueStyle.Segmented,
+        modifier = novaPlaceFocus("hud-position").testTag("nova-cc-hud-position")
+            .onFocusChanged { hudPreview.update("hud-position", it.hasFocus) },
+    )
+    val reset = stringResource(R.string.nova_cc_hud_position_reset)
+    NovaQuickMenuClickableSurface(
+        enabled = enabled,
+        onClick = callbacks.onHudPositionReset,
+        modifier = novaPlaceFocus("hud-position-reset").fillMaxWidth().testTag("nova-cc-hud-position-reset")
+            .onFocusChanged { hudPreview.update("hud-position-reset", it.hasFocus) },
+        contentDescription = reset,
+    ) {
+        Text(reset, style = novaPanelType.rowTitle, color = LocalNovaComposeColors.current.textPrimary)
     }
 }
 

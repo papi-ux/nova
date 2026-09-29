@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import android.content.Context
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
@@ -102,7 +103,7 @@ class NovaGameDetailPrimaryLookComposeTest {
                 logoPresentationKey = "",
                 logoLoader = {},
                 logoContentDescription = "",
-                playFocusRequester = FocusRequester(),
+                playFocusRequester = remember { FocusRequester() },
                 onPrimaryLaunch = {},
                 onRetryHighFps = {},
                 onResetProfile = {},
@@ -142,7 +143,7 @@ class NovaGameDetailPrimaryLookComposeTest {
         rule.onNodeWithTag("nova-game-detail-primary").assertIsFocused()
         assertEquals(colors.onAccent, labelColour(resume))
 
-        rule.onNodeWithContentDescription(context.getString(R.string.nova_game_detail_end_session)).requestFocus()
+        rule.onNodeWithText(context.getString(R.string.nova_game_detail_end_session)).requestFocus()
         rule.waitForIdle()
         assertEquals(colors.accentText, labelColour(resume))
     }

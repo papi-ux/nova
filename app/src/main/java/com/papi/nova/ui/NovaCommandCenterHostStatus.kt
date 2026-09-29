@@ -39,6 +39,9 @@ internal class NovaCommandCenterHostStatus(
     /** Brings what the page derives from [status] up to date, after every read. */
     var derive: () -> Unit = {}
 
+    /** Resume unscheduled receipt work after its scope has been derived from a fresh reading. */
+    var afterCurrentReading: () -> Unit = {}
+
     /** Hands the page a state built from what this holds. */
     var redraw: () -> Unit = {}
 
@@ -87,6 +90,18 @@ internal class NovaCommandCenterHostStatus(
         if (current != null) last = current
         unavailable = current == null
         derive()
+        if (current != null) afterCurrentReading()
         return current != null
+    }
+}
+
+/** A regular host poll must not postpone a due timer or overlap an owned Doctor request. */
+internal class NovaDoctorVerificationResume(
+    private val scheduled: () -> Boolean,
+    private val pending: () -> Boolean,
+    private val schedule: () -> Unit,
+) {
+    fun resumeIfIdle() {
+        if (!scheduled() && !pending()) schedule()
     }
 }

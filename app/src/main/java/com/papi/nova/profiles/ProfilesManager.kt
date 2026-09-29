@@ -9,7 +9,7 @@ import com.google.gson.reflect.TypeToken
 import com.papi.nova.LimeLog
 import java.io.File
 import java.io.FileReader
-import java.io.FileWriter
+import java.io.FileOutputStream
 import java.io.IOException
 import java.util.UUID
 
@@ -18,6 +18,7 @@ class ProfilesManager private constructor() {
     private var activeProfileId: UUID? = null
     private val listeners: MutableList<ProfileChangeListener> = ArrayList()
     private var appContext: Context? = null
+    internal var openProfileWriter: (File) -> FileOutputStream = { FileOutputStream(it) }
 
     fun load(context: Context?): Boolean {
         LimeLog.info("ArtemisProfile: Loading profile...")
@@ -80,12 +81,10 @@ class ProfilesManager private constructor() {
             }
             val file = File(dir, PROFILES_FILE)
             try {
-                FileWriter(file).use { writer ->
-                    val data = ProfilesData()
-                    data.profiles = ArrayList(profiles.values)
-                    data.activeProfileId = activeProfileId
-                    Gson().toJson(data, writer)
-                }
+                val data = ProfilesData()
+                data.profiles = ArrayList(profiles.values)
+                data.activeProfileId = activeProfileId
+                NovaProfileFile.write(file, Gson().toJson(data), openProfileWriter)
             } catch (e: IOException) {
                 LimeLog.warning("ArtemisProfile: Failed to save profiles to file:$e")
                 e.printStackTrace()

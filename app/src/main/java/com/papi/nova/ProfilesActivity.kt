@@ -3,6 +3,7 @@ package com.papi.nova
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.FrameLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -37,7 +38,7 @@ class ProfilesActivity : NovaActivity(), ProfilesManager.ProfileChangeListener {
         }
         // The + showed no focus, so a controller could reach it without seeing it. It takes the one
         // focus ring, and no shadow, like every other control.
-        fab.foreground = com.papi.nova.ui.panel.NovaViewBridge.focusRing(this, com.papi.nova.ui.compose.NovaRadius.pill)
+        configureFabFocus(findViewById(R.id.addProfileFocusFrame))
         fab.compatElevation = 0f
         addProfileFab = fab
 
@@ -50,6 +51,14 @@ class ProfilesActivity : NovaActivity(), ProfilesManager.ProfileChangeListener {
     override fun onDestroy() {
         super.onDestroy()
         ProfilesManager.getInstance().removeListener(this)
+    }
+
+    // FrameLayout.setForeground is available on Android 5; View.setForeground is Android 6.
+    // The wrapper inherits the child's focused state and keeps the ring on every supported SDK.
+    @android.annotation.SuppressLint("NewApi")
+    private fun configureFabFocus(frame: FrameLayout) {
+        frame.setAddStatesFromChildren(true)
+        frame.foreground = com.papi.nova.ui.panel.NovaViewBridge.focusRing(this, com.papi.nova.ui.compose.NovaRadius.pill)
     }
 
     override fun onProfilesChanged() {

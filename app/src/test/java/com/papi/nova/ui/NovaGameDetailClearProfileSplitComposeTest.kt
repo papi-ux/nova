@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import android.content.Context
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
@@ -79,7 +80,7 @@ class NovaGameDetailClearProfileSplitComposeTest {
                 logoPresentationKey = "",
                 logoLoader = {},
                 logoContentDescription = "",
-                playFocusRequester = FocusRequester(),
+                playFocusRequester = remember { FocusRequester() },
                 onPrimaryLaunch = {},
                 onRetryHighFps = {},
                 onResetProfile = { clears++ },

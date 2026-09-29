@@ -167,6 +167,28 @@ class NovaCommandCenterDoctorCardComposeTest {
         rule.waitForIdle()
     }
 
+    @Test
+    fun aReceiptKeepsItsFocusAndHeightWhenAReadFails() {
+        val initial = build(healthy).copy(doctorReceiptAction = NovaQuickMenuAction(
+            NovaQuickMenuActionId.DOCTOR_UNDO, "Undo Doctor", caption = "Bitrate lowered.",
+            chip = NovaQuickMenuChip("Verified", NovaQuickMenuTone.ACTIVE)
+        ))
+        var undos = 0
+        val keys = open(initial, NovaQuickMenuCallbacks(onDoctorUndo = { undos++ }))
+        rule.onNodeWithText("Undo Doctor").requestFocus()
+        val before = place(rule.onNodeWithText("Undo Doctor"))
+        show(initial.copy(doctorReceiptAction = initial.doctorReceiptAction.copy(
+            label = "Doctor receipt", enabled = false,
+            caption = "Last confirmed: Bitrate lowered. Waiting for the host."
+        )))
+        val receipt = rule.onNodeWithText("Doctor receipt")
+        receipt.assertIsFocused()
+        receipt.assertIsNotEnabled()
+        assertSamePlace("receipt through a failed read", before, place(receipt))
+        keys.press(NovaTestKeys.A)
+        assertEquals(0, undos)
+    }
+
     private fun string(id: Int, vararg args: Any) = rule.activity.getString(id, *args)
 
     /** The Doctor card, by its finding: the strip can say the same words, and it is not clickable. */

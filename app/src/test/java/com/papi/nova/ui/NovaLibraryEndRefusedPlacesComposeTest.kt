@@ -117,7 +117,7 @@ class NovaLibraryEndRefusedPlacesComposeTest {
         val hero = hero(NovaLibraryEndStatus.Failed(24, line, canRetry = false))
         strip(hero)
         assertWholeInside(NOVA_LIBRARY_END_FAILED_TAG, line, "nova-library-landscape-toolbar")
-        rule.onNodeWithContentDescription("End Session").assertDoesNotExist()
+        rule.onNodeWithText("End Session").assertDoesNotExist()
         rule.onNodeWithContentDescription(hero.actionLabel, substring = true).assertIsDisplayed()
     }
 
@@ -126,7 +126,7 @@ class NovaLibraryEndRefusedPlacesComposeTest {
         val line = "The current session belongs to another client"
         strip(hero(NovaLibraryEndStatus.Failed(24, line, canRetry = true)))
         assertWholeInside(NOVA_LIBRARY_END_FAILED_TAG, line, "nova-library-landscape-toolbar")
-        rule.onNodeWithContentDescription(context.getString(R.string.nova_panel_try_again)).assertIsDisplayed()
+        rule.onNodeWithText(context.getString(R.string.nova_panel_try_again)).assertIsDisplayed()
     }
 
     /** The strip card alone, with the fit the strip measured: where the title gives way or not. */

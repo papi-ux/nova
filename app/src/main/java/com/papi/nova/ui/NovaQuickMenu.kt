@@ -51,6 +51,8 @@ class NovaQuickMenu(
     private var doctorReceipt: DoctorActionReceipt? = null
     private var doctorReceiptScopeId: String? = null
     private var doctorReceiptValidatedScopeId: String? = null
+    /** A reading validated during this opening may stay visible while a later poll fails. */
+    private var doctorReceiptDisplayScopeId: String? = null
     private var doctorActionGeneration: Long = 0L
     private val doctorMenuRefreshRegistry = DoctorMenuRefreshRegistry()
     private val doctorActionPendingRegistry = DoctorActionPendingRegistry()
@@ -83,6 +85,7 @@ class NovaQuickMenu(
         val menuValidationGeneration = doctorMenuRefreshRegistry.open()
         synchronized(doctorActionLock) {
             doctorReceiptValidatedScopeId = null
+            doctorReceiptDisplayScopeId = null
             doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
             doctorVerificationRunnable = null
         }
@@ -160,6 +163,12 @@ class NovaQuickMenu(
 
         fun syncDoctorReceiptScope() {
             val status = sessionStatus
+            if (status == null) {
+                // A failed read grants no authority, but does not end the last observed session.
+                // Keep its receipt in place; action and verification paths still require validation.
+                synchronized(doctorActionLock) { doctorReceiptValidatedScopeId = null }
+                return
+            }
             val currentAppUuid = status?.gameUuid.orEmpty().ifBlank { getRunningGameUuid().orEmpty() }
             val authoritativeRecovery = status?.recoveryRecords
                 ?.firstOrNull { it.appUuid.equals(currentAppUuid, ignoreCase = true) && it.runId.isNotBlank() }
@@ -201,6 +210,7 @@ class NovaQuickMenu(
                     nowEpochMs = System.currentTimeMillis()
                 )
                 doctorReceiptValidatedScopeId = nextScope
+                doctorReceiptDisplayScopeId = nextScope
             }
         }
 
@@ -472,6 +482,7 @@ class NovaQuickMenu(
                 launchPresetSaved = launchPresetSaved,
                 hudShowing = game.isNovaHudShowing(),
                 hudLeftPx = game.novaHudLeftPx,
+                hudPositionCorner = game.novaHudPositionCorner,
                 hudMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal")),
                 hudOpacityPercent = pendingHudOpacity ?: NovaHudPreferences.readOpacityPercent(prefs),
                 menuOpacityPercent = pendingMenuOpacity ?: NovaMenuPreferences.readOpacityPercent(prefs),
@@ -489,7 +500,7 @@ class NovaQuickMenu(
                 doctorReceipt = DoctorActionReceiptStore.visibleReceipt(
                     receipt = doctorReceipt,
                     activeScopeId = doctorReceiptScopeId,
-                    validatedScopeId = doctorReceiptValidatedScopeId
+                    validatedScopeId = doctorReceiptDisplayScopeId
                 )
             ).let { state ->
                 if (diagnosticsCopied) state.copy(diagnosis = state.diagnosis.copy(copied = true)) else state
@@ -503,6 +514,7 @@ class NovaQuickMenu(
         fun refreshState() = host.refresh()
 
         fun sendQuickKey(actionId: NovaQuickMenuActionId) {
+            if (!game.canSendCommandKeys()) return
             val quickKeys = when (actionId) {
                 NovaQuickMenuActionId.QUICK_ESC -> keys(KeyboardTranslator.VK_ESCAPE)
                 NovaQuickMenuActionId.QUICK_ALT_ENTER -> keys(KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_RETURN)
@@ -712,6 +724,12 @@ class NovaQuickMenu(
             game.window.decorView.postDelayed(runnable, delayMs)
         }
 
+        host.afterCurrentReading = NovaDoctorVerificationResume(
+            scheduled = { doctorVerificationRunnable != null },
+            pending = doctorActionPendingRegistry::isPending,
+            schedule = { scheduleDoctorVerification(currentDoctorReceipt()) },
+        )::resumeIfIdle
+
         doctorMenuRefreshRegistry.attach(menuValidationGeneration) {
             if (menuValidationIsCurrent() && menuShowing()) {
                 scheduleDoctorVerification(currentDoctorReceipt())
@@ -818,6 +836,18 @@ class NovaQuickMenu(
             executeConfirmedDoctorAction(doctor, client)
         }
 
+        val sessionEnd = NovaCommandCenterEndSession(
+            polaris = { host.polaris },
+            status = { sessionStatus },
+            space = game::isSpaceSession,
+            standing = { menuValidationIsCurrent() && menuShowing() },
+            close = ::dismiss,
+            end = game::endSession,
+            disconnect = game::disconnect,
+            unavailable = { NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_host_session_unavailable), anchor = menu.anchor) },
+            ending = { NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_shutdown_already_running), anchor = menu.anchor) },
+        )
+
         val callbacks = NovaQuickMenuCallbacks(
             onDismiss = { dismiss() },
             onDisconnect = {
@@ -826,32 +856,7 @@ class NovaQuickMenu(
                     game.disconnect()
                 }
             },
-            onEndStream = {
-                haptic {
-                    if (game.isSpaceSession()) {
-                        // Leave Space, confirmed by the split; the Space itself keeps its games.
-                        dismiss()
-                        game.endSession()
-                        return@haptic
-                    }
-                    if (sessionStatus?.isViewer != true && sessionStatus?.isShuttingDown == true) {
-                        NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_shutdown_already_running), anchor = menu.anchor)
-                        return@haptic
-                    }
-                    if (sessionStatus?.isViewer != true && sessionStatus?.canQuit == false) {
-                        NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_host_session_unavailable), anchor = menu.anchor)
-                        return@haptic
-                    }
-                    dismiss()
-                    // The header's split already asked: End was armed, then pressed after its
-                    // guard. A viewer's Leave is a plain disconnect, which ends nothing.
-                    if (sessionStatus?.isViewer == true) {
-                        game.disconnect()
-                    } else {
-                        game.endSession()
-                    }
-                }
-            },
+            onEndStream = { haptic(sessionEnd::perform) },
             onStability = {
                 haptic {
                     // This shortcut shares the same evidence-gated Doctor
@@ -1008,6 +1013,18 @@ class NovaQuickMenu(
                 }
             },
             onHudPreview = { previewing -> game.setNovaHudPreviewing(previewing) },
+            onHudPositionSelect = { corner ->
+                haptic {
+                    game.setNovaHudPosition(corner)
+                    refreshState()
+                }
+            },
+            onHudPositionReset = {
+                haptic {
+                    game.resetNovaHudPosition()
+                    refreshState()
+                }
+            },
             onDoctorUndo = {
                 haptic {
                     DoctorActionReceiptStore.visibleReceipt(
@@ -1398,8 +1415,9 @@ class NovaQuickMenu(
     }
 
     private fun sendKeysWithFocus(keys: ShortArray) {
+        if (!game.canSendCommandKeys()) return
         game.window.decorView.postDelayed({
-            if (!game.isFinishing) {
+            if (game.canSendCommandKeys()) {
                 game.sendKeys(keys)
             }
         }, KEY_UP_DELAY)

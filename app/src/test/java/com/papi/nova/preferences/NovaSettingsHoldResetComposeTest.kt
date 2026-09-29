@@ -268,6 +268,11 @@ class NovaSettingsHoldResetComposeTest {
         assertFalse("on Use Preset Default: ${hints()}", hints().contains("Hold"))
 
         keys.press(NovaTestKeys.LEFT)
+        rule.frames(4)
+        button("Keep").assertIsFocused()
+        button("Use Preset Default").assertExists()
+        assertTrue("Left between the halves writes nothing", writes.isEmpty())
+        assertTrue("Left between the halves resets nothing", resets.isEmpty())
         keys.press(NovaTestKeys.CENTER)
         rule.frames(8)
         row("checkbox_enable_hdr").assertIsFocused()
@@ -308,6 +313,31 @@ class NovaSettingsHoldResetComposeTest {
         button("Use Preset Default").assertExists()
         assertTrue(resets.isEmpty())
         assertTrue(writes.isEmpty())
+    }
+
+    @Test
+    fun aHoldReleasedBeforeKeepTakesFocusCannotToggleTheHiddenRow() {
+        val keys = show()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.waitForIdle()
+        row("checkbox_enable_hdr").assertIsFocused()
+        rule.mainClock.autoAdvance = false
+        keys.down(NovaTestKeys.CENTER)
+        rule.mainClock.advanceTimeBy(400)
+        rule.waitForIdle()
+        var frames = 0
+        while (runCatching { button("Keep").assertExists() }.isFailure && frames++ < 40) {
+            rule.mainClock.advanceTimeByFrame()
+            rule.waitForIdle()
+        }
+        button("Keep").assertExists()
+        // The split exists, but its frame-delayed focus handoff has not run yet.
+        row("checkbox_enable_hdr").assertIsFocused()
+        keys.up(NovaTestKeys.CENTER)
+        rule.frames(8)
+        assertTrue("the release must not toggle HDR: $writes", writes.isEmpty())
+        assertTrue(resets.isEmpty())
+        button("Keep").assertIsFocused()
     }
 
     private companion object {

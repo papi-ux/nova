@@ -324,26 +324,40 @@ private fun NovaLibraryHeroActions(
         modifier = modifier.then(handoff.group),
         verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)
     ) {
-        // The panel's button, as the End split's halves are, so the two stacked buttons
-        // share one height and one type.
-        if (!endArmed) NovaPanelButton(
-            text = hero.actionLabel,
-            onClick = onPrimaryAction,
-            modifier = Modifier.fillMaxWidth().focusRequester(resumeFocus),
-        )
-        if (hero.secondaryActionLabel != null && onSecondaryAction != null) {
-            NovaSplitConfirm(
-                label = hero.secondaryActionLabel,
-                confirmLabel = stringResource(R.string.game_dialog_action_end_session),
-                onConfirm = onSecondaryAction,
-                consequence = stringResource(R.string.nova_panel_end_session_message),
-                state = endSplit,
-                // As wide as Resume above it, so the pair reads as one column of buttons.
-                fillSlot = true,
-                modifier = Modifier.fillMaxWidth().then(handoff.end).testTag("nova-library-hero-end"),
+        if (hero.endStatus is NovaLibraryEndStatus.Ending) {
+            NovaLibraryEndingNotice()
+        } else {
+            // The panel's button, as the End split's halves are, so the two stacked buttons
+            // share one height and one type.
+            if (!endArmed) NovaPanelButton(
+                text = hero.actionLabel,
+                onClick = onPrimaryAction,
+                modifier = Modifier.fillMaxWidth().focusRequester(resumeFocus),
             )
+            if (hero.secondaryActionLabel != null && onSecondaryAction != null) {
+                NovaSplitConfirm(
+                    label = hero.secondaryActionLabel,
+                    confirmLabel = stringResource(R.string.game_dialog_action_end_session),
+                    onConfirm = onSecondaryAction,
+                    consequence = stringResource(R.string.nova_panel_end_session_message),
+                    state = endSplit,
+                    // As wide as Resume above it, so the pair reads as one column of buttons.
+                    fillSlot = true,
+                    modifier = Modifier.fillMaxWidth().then(handoff.end).testTag("nova-library-hero-end"),
+                )
+            }
         }
     }
+}
+
+@Composable
+internal fun NovaLibraryEndingNotice() {
+    Text(
+        text = stringResource(R.string.nova_library_ending_session),
+        style = novaPanelType.caption,
+        color = LocalNovaComposeColors.current.textSecondary,
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+    )
 }
 
 /** What [rememberNovaEndFocusHandoff] marks: the actions' [group], and [end], End's own slot. */

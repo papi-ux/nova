@@ -145,6 +145,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import com.papi.nova.ui.panel.NovaAction
 import com.papi.nova.ui.panel.NovaPanelButton
@@ -207,6 +208,7 @@ class NovaLibraryActivity : NovaActivity() {
     private var spaceFocusEpoch by mutableStateOf(0)
     private var spaceOpenPending by mutableStateOf(false)
     private var spaceOpenJob: Job? = null
+    private var spaceRetryJob: Job? = null
     private var spaceOpenEpoch = 0
     private var spacesSnapshot by mutableStateOf<PolarisSpaces?>(null)
     private var spacesChecked by mutableStateOf(false)
@@ -422,7 +424,7 @@ class NovaLibraryActivity : NovaActivity() {
         super.onResume()
         spaceFocusEpoch++
         startSpacesPolling()
-        if (NovaSpaceRetrySignal.consume(this, streamPcUuid, streamHost)) retrySpaceOpenWhenChecked()
+        NovaSpaceRetrySignal.consumeTarget(this, streamPcUuid, streamHost)?.let(::retrySpaceOpenWhenChecked)
         if (recreateForThemeChangeIfNeeded()) return
         startLibraryPolling()
         revealControllerHints(NovaControllerHintChromeEvent.EXPLICIT_REVEAL)
@@ -442,6 +444,8 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     private fun cancelPendingSpaceOpen() {
+        spaceRetryJob?.cancel()
+        spaceRetryJob = null
         // Retire the user's open action even if its blocking HTTP call completes
         // after returning to Library or choosing another Space.
         spaceOpenEpoch++
@@ -638,11 +642,25 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     /** A failed Space stream asked to try again: open the Space once the check after returning lands. */
-    private fun retrySpaceOpenWhenChecked() {
-        lifecycleScope.launch {
+    private fun retrySpaceOpenWhenChecked(identity: String) {
+        spaceRetryJob?.cancel()
+        val epoch = spaceOpenEpoch
+        spaceRetryJob = lifecycleScope.launch {
+            // onResume runs before Lifecycle publishes RESUMED. A ready catalog must
+            // wait for that publication rather than discard its retry at the guard below.
+            lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(6)
-            while (!spacesChecked && System.nanoTime() < deadline) delay(200)
-            NovaSpaceUiState.singleSpace(allGames)?.let { openSpace(it) }
+            while ((!spacesChecked || isInitialLoading || isRefreshing) && System.nanoTime() < deadline) delay(200)
+            if (epoch != spaceOpenEpoch || isFinishing || isDestroyed ||
+                !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return@launch
+            val target = NovaSpaceUiState.retryTarget(allGames, identity)
+            when {
+                !spacesChecked || isInitialLoading || isRefreshing -> launchErrorMessage = getString(R.string.nova_space_check_timed_out)
+                target == null -> launchErrorMessage = getString(R.string.nova_space_retry_target_missing)
+                choosingSpace || spaceOpenPending || spacesSnapshot?.let { !spaceOpenable(it) } == true ->
+                    launchErrorMessage = getString(R.string.nova_space_status_changed)
+                else -> openSpace(target)
+            }
         }
     }
 
@@ -1309,6 +1327,7 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     private fun resumeActiveSession(session: NovaLibraryActiveSessionUiState) {
+        if (endStatus is NovaLibraryEndStatus.Ending) return
         // Resuming answers a refused End: the strip should not still say it on the way back.
         endStatus = null
         val uniqueId = streamUniqueId
@@ -1363,6 +1382,7 @@ class NovaLibraryActivity : NovaActivity() {
      * or one this device no longer holds the details of, says so and offers none.
      */
     private fun endActiveSession(session: NovaLibraryActiveSessionUiState) {
+        if (endStatus is NovaLibraryEndStatus.Ending) return
         val uniqueId = streamUniqueId
         val serverCert = streamServerCert
         if (uniqueId.isNullOrBlank() || serverCert == null) {
@@ -1374,7 +1394,8 @@ class NovaLibraryActivity : NovaActivity() {
             LimeLog.warning("Nova: Cannot end session from library; missing uniqueId or server cert")
             return
         }
-        endStatus = NovaLibraryEndStatus.Ending(session.gameId)
+        val pending = NovaLibraryEndStatus.Ending(session.gameId)
+        endStatus = pending
 
         val gameName = session.gameName.ifBlank { getString(R.string.applist_menu_watch_active_name) }
         val httpConn = NvHTTP(
@@ -1385,6 +1406,8 @@ class NovaLibraryActivity : NovaActivity() {
             PlatformBinding.getCryptoProvider(this)
         )
         ServerHelper.doQuit(this, httpConn, gameName) { refusal ->
+            // A replaced session or newer result owns the card; this response cannot overwrite it.
+            if (endStatus !== pending || activeSession?.gameId != session.gameId) return@doQuit
             // A refusal of a game still closing gets its Try Again after a moment (NovaLibraryEnd).
             if (end.answer(lifecycleScope, session.gameId, refusal, getString(R.string.nova_library_end_failed)) == null) {
                 val generation = beginActiveSessionRefresh()
@@ -2277,24 +2300,13 @@ class NovaLibraryActivity : NovaActivity() {
         // no longer reads two ways depending on which screen asked. When the session
         // in flight runs something else, both are said, with the arrow the sync
         // mapper always computed and nothing ever rendered.
-        val desired = compactModeName(settings.desired.streamDisplayMode)
-            ?: settings.desiredModeLabel.ifBlank { null }
-        val effective = compactModeName(settings.effective.streamDisplayMode)
-            ?: settings.effectiveModeLabel.ifBlank { null }
+        val desired = settings.desiredModeLabel.ifBlank { null }
+        val effective = settings.effectiveModeLabel.ifBlank { null }
         return when {
             desired == null -> effective
             effective == null || effective == desired -> desired
             else -> "$desired → $effective"
         }
-    }
-
-    private fun compactModeName(mode: String?): String? = when (mode.orEmpty()) {
-        PolarisClientSettings.MODE_HEADLESS_STREAM, "headless" -> "Headless"
-        PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY, "virtual_display" -> "Virtual"
-        PolarisClientSettings.MODE_DESKTOP_DISPLAY -> "Desktop"
-        PolarisClientSettings.MODE_DESKTOP_TAKEOVER -> "Takeover"
-        PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "GPU-native"
-        else -> null
     }
 
     @Composable
@@ -2500,6 +2512,7 @@ class NovaLibraryActivity : NovaActivity() {
                                 .takeIf { model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION },
                             // A refused End says why under the hero's title, whole (XR3).
                             endRefusal = (model.hero.endStatus as? NovaLibraryEndStatus.Failed)?.line,
+                            endPending = model.hero.endStatus is NovaLibraryEndStatus.Ending,
                             sessionActionLabel = if (
                                 model.hero.primaryAction == NovaLibraryHeroPrimaryAction.RESUME ||
                                 model.hero.primaryAction == NovaLibraryHeroPrimaryAction.WATCH

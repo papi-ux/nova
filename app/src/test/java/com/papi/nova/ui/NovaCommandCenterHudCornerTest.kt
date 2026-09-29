@@ -23,15 +23,14 @@ class NovaCommandCenterHudCornerTest {
         assertEquals("a television's title-safe 48dp", 48f * 2f, NovaCommandCenterHudCorner.leftPx(Float.NaN, 2f, television = true), 0.001f)
     }
 
-    /** The margin and the stored key are the HUD's own, read from its file, which this pass does not edit. */
+    /** Margin remains shared; the caller reads the actual HUD instead of a retired pixel preference. */
     @Test
     fun theCornerAndTheKeyAreTheHudsOwn() {
         val hud = File("src/main/java/com/papi/nova/ui/NovaStreamHud.kt").readText()
         val margin = Regex("""HUD_SAFE_MARGIN_DP = ([0-9.]+)f""").find(hud)?.groupValues?.get(1)?.toFloat()
         assertEquals(NovaCommandCenterHudCorner.MARGIN_DP, margin)
         assertTrue("and a television's is the title-safe margin", hud.contains("NovaPanelMetrics.TvSafeHorizontal.value"))
-        val key = Regex("""PREF_HUD_X = "([^"]+)"""").find(hud)?.groupValues?.get(1)
-        assertEquals("the key the HUD stores its left edge in", NovaCommandCenterHudCorner.PREF_HUD_X, key)
-        assertTrue("stored as x, the view's left edge", hud.contains(".putFloat(PREF_HUD_X, x)"))
+        val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        assertTrue("the measured HUD, including its safe surface", game.contains("measuredX = novaHud?.leftPx ?: Float.NaN"))
     }
 }

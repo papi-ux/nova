@@ -240,7 +240,7 @@ class NovaLibraryEndRefusedTest {
                 )
             }
         }
-        rule.onNodeWithContentDescription("End Session").requestFocus()
+        rule.onNodeWithText("End Session").requestFocus()
         rule.mainClock.autoAdvance = false
         keys.press(NovaTestKeys.A)
         rule.advance(50)
@@ -261,8 +261,8 @@ class NovaLibraryEndRefusedTest {
         rule.waitForIdle()
 
         rule.onNodeWithTag(NOVA_LIBRARY_END_FAILED_TAG).assertExists()
-        rule.onNodeWithContentDescription(context.getString(R.string.nova_panel_try_again)).assertDoesNotExist()
-        rule.onNodeWithContentDescription("End Session").assertDoesNotExist()
+        rule.onNodeWithText(context.getString(R.string.nova_panel_try_again)).assertDoesNotExist()
+        rule.onNodeWithText("End Session").assertDoesNotExist()
         rule.onNodeWithContentDescription("Resume Stream").assertIsFocused()
     }
 

@@ -218,6 +218,9 @@ class NovaHostConsolePageComposeTest {
             client.onPageFinished(web, "$console/#/")
             shadowOf(web).pushEntryToHistory("$console/#/apps")
             client.doUpdateVisitedHistory(web, "$console/#/apps", false)
+            // A prior gesture must not turn a redirect after B into a player navigation.
+            web.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER))
+            web.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER))
         }
         keys.back()
         assertEquals("B steps back one of the console's pages", 1, shadowOf(web).goBackInvocations)

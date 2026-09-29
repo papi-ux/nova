@@ -188,6 +188,22 @@ class NovaHudAuditRegressionTest {
         }
         assertEquals("Tuning: On", state().autopilotHudLabel)
     }
+    @Test fun anInvalidFreshPolicyCannotReuseThePreviousPositiveBitrate() {
+        start()
+        hud.setTargetBitrateKbps(20000)
+        hud.applySessionStatus(PolarisSessionStatus("streaming", streamingActive = true,
+            encoder = PolarisSessionStatus.EncoderStatus(bitrateKbps = 20000)))
+        assertNotEquals("--", state().bitrateLabel)
+        hud.applySessionStatus(PolarisSessionStatus("streaming", streamingActive = true,
+            liveTuningPresent = true, liveTuning = null))
+        assertEquals("--", state().bitrateLabel)
+        // Ordinary media callbacks must not resurrect the retired bitrate either.
+        hud.update(81.0, "HEVC", 20000, 3840, 2160, 4.0)
+        assertEquals("--", state().bitrateLabel)
+        hud.applySessionStatus(PolarisSessionStatus("streaming", streamingActive = true,
+            encoder = PolarisSessionStatus.EncoderStatus(bitrateKbps = 25000)))
+        assertNotEquals("--", state().bitrateLabel)
+    }
     @Test fun staleReadingsRecoverOnTheNextFreshSample() {
         start(); shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
         assertEquals("--", state().fpsLabel)
@@ -212,6 +228,25 @@ class NovaHudAuditRegressionTest {
         val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
         assertFalse(prefs.contains("nova_polaris_hud_x"))
         assertEquals(0f, prefs.getFloat("nova_polaris_hud_position_x_fraction", -1f), 0f)
+    }
+    @Test fun commandCenterReadsTheLaidOutHudAfterCornerChangesAndResize() {
+        val game = Robolectric.buildActivity(com.papi.nova.Game::class.java).get()
+        com.papi.nova.Game::class.java.getDeclaredField("novaHud").apply {
+            isAccessible = true
+            set(game, hud)
+        }
+        hud.show()
+        root.layout(0, 0, 1000, 600)
+        view().layout(0, 0, 100, 100)
+        game.setNovaHudPosition(NovaHudCorner.BOTTOM_RIGHT)
+        assertEquals(888f, game.novaHudLeftPx, 0.1f)
+        assertEquals(NovaHudCorner.BOTTOM_RIGHT, game.novaHudPositionCorner)
+        root.layout(0, 0, 1600, 900)
+        view().layout(0, 0, 100, 100)
+        game.setNovaHudPosition(NovaHudCorner.TOP_RIGHT)
+        assertEquals(1488f, game.novaHudLeftPx, 0.1f)
+        game.resetNovaHudPosition()
+        assertEquals(12f, game.novaHudLeftPx, 0.1f)
     }
     @Test fun resolvedPresetBindingOverridesNoMutablePreference() {
         start(); hud.setLaunchPresetLabel("Quality")

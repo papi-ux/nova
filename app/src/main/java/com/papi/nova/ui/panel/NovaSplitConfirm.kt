@@ -48,6 +48,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -314,6 +319,15 @@ fun NovaSplitConfirm(
                         .onFocusChanged {
                             pairFocused = it.hasFocus
                             state.pairHasFocus = it.hasFocus
+                        }
+                        .onKeyEvent {
+                            // Keep these keys inside the confirmation before a containing
+                            // Settings pane can use Left to return to its category rail.
+                            if (it.type != KeyEventType.KeyDown) false else when (it.key) {
+                                Key.DirectionLeft -> { state.stayRequester.requestFocus(); true }
+                                Key.DirectionRight -> { state.actionRequester.requestFocus(); true }
+                                else -> false
+                            }
                         },
                     stay = {
                         SplitHalf(

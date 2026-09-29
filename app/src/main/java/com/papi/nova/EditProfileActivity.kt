@@ -265,7 +265,18 @@ class EditProfileActivity : NovaActivity() {
         val saved = persistableOptions(currentProfile?.getOptions().orEmpty())
         val edited = persistableOptions(draftPrefs.all)
         val renamed = draft.name?.let { it != currentProfile?.getName() } ?: false
-        return edited != saved || renamed
+        return edited.keys != saved.keys || edited.any { (key, value) ->
+            val old = saved[key]
+            when {
+                value is Number && old is Number -> {
+                    // SharedPreferences stores fractional values as Float; JSON reads
+                    // numbers as Double. Compare at the precision of the stored value.
+                    if (value is Float || old is Float) value.toFloat() != old.toFloat()
+                    else java.math.BigDecimal(value.toString()).compareTo(java.math.BigDecimal(old.toString())) != 0
+                }
+                else -> value != old
+            }
+        } || renamed
     }
 
     /** Save, Discard or Keep Editing, in the right edge panel. B keeps editing. */
@@ -602,7 +613,7 @@ class EditProfileActivity : NovaActivity() {
 
         override fun getFloat(key: String?, defValue: Float): Float {
             val value = values[key]
-            return if (value is Float) value else defValue
+            return if (value is Number) value.toFloat() else defValue
         }
 
         override fun getBoolean(key: String?, defValue: Boolean): Boolean {

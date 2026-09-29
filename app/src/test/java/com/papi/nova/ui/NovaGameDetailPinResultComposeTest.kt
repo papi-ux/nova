@@ -2,6 +2,7 @@ package com.papi.nova.ui
 
 import android.content.Context
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -58,7 +59,7 @@ class NovaGameDetailPinResultComposeTest {
                 logoPresentationKey = "",
                 logoLoader = {},
                 logoContentDescription = "",
-                playFocusRequester = FocusRequester(),
+                playFocusRequester = remember { FocusRequester() },
                 onPrimaryLaunch = {},
                 onRetryHighFps = {},
                 onResetProfile = {},

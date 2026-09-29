@@ -13,7 +13,10 @@ import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager.PairState
 import com.papi.nova.ui.NovaHostConsoleLink
 import com.papi.nova.ui.NovaHostConsolePage
+import com.papi.nova.ui.panel.novaSurfaces
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.BeforeClass
 import org.junit.Test
@@ -90,10 +93,13 @@ class PcViewHostConsoleLinkTest {
         val page = hosts.hostConsolePageFor(host(PairState.NOT_PAIRED)) as NovaHostConsolePage
         assertEquals("the console names the host by its own id", HOST, page.hostUuid)
         val link = "art://10.0.0.232:47989?pin=1234&passphrase=abcd&name=pc-papi"
+        hosts.novaSurfaces.panel.open(page)
+        assertTrue(hosts.novaSurfaces.panel.isOpen)
 
         val said = page.onLink!!(NovaHostConsoleLink.of(link, page.hostUuid)!!)
 
         assertNull("followed, nothing said in the console", said)
+        assertFalse("the host panel closes before pairing", hosts.novaSurfaces.panel.isOpen)
         // Where a scanned code goes: the host is found by the address the code names, and the
         // pairing waits for it with the code's PIN and passphrase.
         val deadline = System.nanoTime() + 2_000_000_000L
@@ -123,10 +129,13 @@ class PcViewHostConsoleLinkTest {
         val hosts = open()
         val page = hosts.hostConsolePageFor(host(PairState.PAIRED)) as NovaHostConsolePage
         val link = "art://launch?host_uuid=$HOST&host_name=pc-papi&app_uuid=$CONTROL&app_name=Control"
+        hosts.novaSurfaces.panel.open(page)
+        assertTrue(hosts.novaSurfaces.panel.isOpen)
 
         val said = page.onLink!!(NovaHostConsoleLink.of(link, page.hostUuid)!!)
 
         assertNull(said)
+        assertFalse("the host panel closes before launch", hosts.novaSurfaces.panel.isOpen)
         val started = Shadows.shadowOf(hosts).nextStartedActivity
         assertEquals(ComponentName(context, ShortcutTrampoline::class.java), started.component)
         assertEquals(HOST, started.getStringExtra(AppView.UUID_EXTRA))

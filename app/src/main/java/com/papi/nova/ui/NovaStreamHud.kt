@@ -419,7 +419,7 @@ class NovaStreamHud(
                 if (bitrateKbps > 0) bitrateKbps else lastBitrateKbps,
                 targetFps
             )
-            val displayBitrate = streamPolicy.effectiveBitrateKbps.takeIf { it > 0 } ?: bitrateKbps
+            val displayBitrate = streamPolicy.effectiveBitrateKbps
             if (displayBitrate > 0) {
                 currentBitrateKbps = displayBitrate
                 sessionStats.recordBitrate(displayBitrate)
@@ -495,10 +495,9 @@ class NovaStreamHud(
         val now = SystemClock.elapsedRealtime()
         val mediaFresh = lastMediaAtMs?.let { now - it in 0..MEDIA_MAX_AGE_MS } == true
         val hostFresh = lastHostAtMs?.let { now - it in 0..HOST_MAX_AGE_MS } == true
+        // StreamPolicy owns legacy fallbacks and deliberately returns zero when a
+        // present current policy is invalid. Do not replace that with an old rate.
         val displayBitrate = streamPolicy.effectiveBitrateKbps
-            .takeIf { it > 0 }
-            ?: currentBitrateKbps.takeIf { it > 0 }
-            ?: lastBitrateKbps
         hudState.value = NovaHudUiState.from(
             mode = currentMode,
             fps = lastFps,
@@ -586,6 +585,19 @@ class NovaStreamHud(
         return Rect(leftInset + hudMarginPx(true).toInt(), topInset + hudMarginPx(false).toInt(),
             rightInset + hudMarginPx(true).toInt(), bottomInset + hudMarginPx(false).toInt())
     }
+
+    /** Actual laid-out position, including the current surface size, safe insets and saved fractions. */
+    val leftPx: Float
+        get() = hudView?.takeIf { it.width > 0 }?.x ?: Float.NaN
+
+    /** Null means the player dragged the HUD between the named corners. */
+    val positionCorner: NovaHudCorner?
+        get() {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
+            val x = prefs.getFloat(PREF_HUD_X_FRACTION, Float.NaN)
+            val y = prefs.getFloat(PREF_HUD_Y_FRACTION, Float.NaN)
+            return NovaHudCorner.entries.firstOrNull { it.x == x && it.y == y }
+        }
 
     /** Controller/Command Center callers can move the HUD without touch dragging. */
     fun setPosition(corner: NovaHudCorner) {

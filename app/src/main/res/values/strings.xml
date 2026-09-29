@@ -260,7 +260,8 @@
     <string name="nova_library_options_layout_title">Layout</string>
     <string name="nova_library_options_layout_stage">Stage</string>
     <string name="nova_library_options_layout_stage_hint">One game large, with its artwork and actions, over a row of the rest.</string>
-    <string name="nova_library_options_layout_grid">Grid</string>
+    <string name="nova_library_options_layout_grid">Regular</string>
+    <string name="nova_space_retry_target_missing">This Space title is no longer available. Choose a title from the library.</string>
     <string name="nova_library_options_layout_grid_hint">Posters in a grid, several rows at a time.</string>
     <string name="nova_library_options_layout_compact">Compact</string>
     <string name="nova_library_options_layout_compact_hint">Smaller posters, so more fit on screen.</string>

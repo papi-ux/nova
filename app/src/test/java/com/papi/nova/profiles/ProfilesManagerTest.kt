@@ -6,9 +6,12 @@ import com.papi.nova.TestLogSuppressor
 import com.papi.nova.shadows.ShadowGameManager
 import com.papi.nova.shadows.ShadowMoonBridge
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -84,6 +87,46 @@ class ProfilesManagerTest {
 
         manager.delete(p.getUuid())
         assertEquals(0, manager.getProfiles().size)
+    }
+
+    @Test fun aPartialOrCloseFailurePreservesTheOldFileAndActiveSelection() {
+        val first = SettingsProfile(UUID.randomUUID(), "First", 1L, 1L, mapOf("frame_pacing" to "latency"))
+        val second = SettingsProfile(UUID.randomUUID(), "Second", 1L, 1L, null)
+        manager.add(first)
+        manager.add(second)
+        manager.setActive(first.getUuid())
+        val file = File(profilesDir, "profiles.json")
+        val before = file.readBytes()
+        for (closeFailure in listOf(false, true)) {
+            manager.openProfileWriter = { path -> object : FileOutputStream(path) {
+                override fun write(bytes: ByteArray) = write(bytes, 0, bytes.size)
+                override fun write(bytes: ByteArray, off: Int, len: Int) {
+                    if (closeFailure) super.write(bytes, off, len) else {
+                        super.write(bytes, off, minOf(len, 7))
+                        throw IOException("injected partial write")
+                    }
+                }
+                override fun close() {
+                    super.close()
+                    if (closeFailure) throw IOException("injected close failure")
+                }
+            } }
+            val edited = SettingsProfile(first.getUuid(), "Edited", 1L, 2L, mapOf("frame_pacing" to "balanced"))
+            assertFalse(manager.commit(context, edited))
+            assertArrayEquals("failed replacement keeps the prior bytes", before, file.readBytes())
+            assertEquals("First", manager.getActive()!!.getName())
+            ProfilesManager.instance = null
+            val cold = ProfilesManager.getInstance()
+            assertTrue(cold.load(context))
+            assertEquals(setOf("First", "Second"), cold.getProfiles().map { it.getName() }.toSet())
+            assertEquals(first.getUuid(), cold.getActive()!!.getUuid())
+        }
+        manager.openProfileWriter = { FileOutputStream(it) }
+        assertTrue(manager.commit(context, SettingsProfile(first.getUuid(), "Edited", 1L, 2L, null)))
+        ProfilesManager.instance = null
+        val cold = ProfilesManager.getInstance()
+        assertTrue(cold.load(context))
+        assertEquals("Edited", cold.getActive()!!.getName())
     }
 
     @Test

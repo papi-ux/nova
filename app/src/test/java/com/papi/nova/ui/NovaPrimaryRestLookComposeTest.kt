@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -133,7 +134,7 @@ class NovaPrimaryRestLookComposeTest {
                 logoPresentationKey = "",
                 logoLoader = {},
                 logoContentDescription = "",
-                playFocusRequester = FocusRequester(),
+                playFocusRequester = remember { FocusRequester() },
                 onPrimaryLaunch = {},
                 onRetryHighFps = {},
                 onResetProfile = {},

@@ -187,7 +187,8 @@ data class NovaQuickMenuUiState(
     val hudMode: NovaQuickMenuHudModeState,
     val overlayRows: List<NovaQuickMenuAction>,
     val controlRows: List<NovaQuickMenuAction>,
-    val sessionRows: List<NovaQuickMenuAction>
+    val sessionRows: List<NovaQuickMenuAction>,
+    val hudPositionCorner: NovaHudCorner? = null
 ) {
     /**
      * The Quick Keys grid: the keys the pinned strip lacks, so each key shows once (N26). Derived
@@ -235,6 +236,7 @@ data class NovaQuickMenuUiState(
              * say whether the panel covers it; NaN when unknown.
              */
             hudLeftPx: Float = Float.NaN,
+            hudPositionCorner: NovaHudCorner? = null,
             hudMode: NovaHudMode = NovaHudMode.MINIMAL,
             hudOpacityPercent: Int = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
             menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
@@ -269,7 +271,8 @@ data class NovaQuickMenuUiState(
             val canAdjustHostTuning = status?.canAdjustHostTuning == true
             val shutdownInProgress = status?.isShuttingDown == true ||
                 status?.controls?.shutdownInProgress == true
-            val ownerInputAllowed = !viewerSession
+            val ownerInputAllowed = (status ?: lastStatus)?.isViewer != true
+            val allowedQuickKeys = if (ownerInputAllowed) quickKeys else quickKeys.map { it.copy(enabled = false) }
             val streamPolicy = StreamPolicyUiState.from(status, fallbackBitrateKbps, fallbackTargetFps)
             val autoQuality = AutoQualityUiState.from(status, fallbackTargetFps)
             val currentGame = currentGameName?.takeIf { it.isNotBlank() }
@@ -279,7 +282,11 @@ data class NovaQuickMenuUiState(
             val mangoRisk = status?.game.equals("Steam Big Picture", ignoreCase = true)
 
             val hdrDowngradeSummary = status?.hdrDowngradeSummary(context)
-            val healthDetail = status?.hdrDowngradeDetail(context).orEmpty()
+            val healthDetail = if (status == null) {
+                lastStatus?.hdrDowngradeDetail(context)?.takeIf { it.isNotBlank() }?.let {
+                    context.getString(R.string.nova_cc_last_confirmed, it)
+                }.orEmpty()
+            } else status.hdrDowngradeDetail(context).orEmpty()
             val healthSummary = when {
                 hostStateUnavailable -> context.getString(R.string.nova_quick_menu_host_state_unavailable)
                 status == null -> context.getString(R.string.nova_quick_menu_health_checking)
@@ -434,7 +441,8 @@ data class NovaQuickMenuUiState(
             val doctorReceiptAction = doctorReceiptAction(
                 context = context,
                 receipt = doctorReceipt,
-                canAdjustHostTuning = canAdjustHostTuning
+                canAdjustHostTuning = canAdjustHostTuning,
+                readingAvailable = status != null && !hostStateUnavailable
             )
 
             // Doctor's verdict is a card of its own, so the Overlays panel holds overlays only.
@@ -573,7 +581,7 @@ data class NovaQuickMenuUiState(
                         viewerSession -> ""
                         else -> context.getString(R.string.nova_cc_end_session_consequence)
                     },
-                    enabled = spaceSession || viewerSession || status?.canQuit != false,
+                    enabled = NovaCommandCenterEndSession.enabled(polarisHost, status, spaceSession),
                     // A viewer's Leave ends nothing on the host, so it needs no confirm.
                     destructive = !viewerSession || spaceSession
                 ),
@@ -584,8 +592,8 @@ data class NovaQuickMenuUiState(
                 // AI may explain evidence, but it no longer owns a mutable
                 // launch-policy control. Presets live in the card above.
                 advancedRows = listOf(clearRow, mangoRow),
-                quickKeys = quickKeys,
-                pinnedQuickKeys = pinnedQuickKeys(quickKeys),
+                quickKeys = allowedQuickKeys,
+                pinnedQuickKeys = pinnedQuickKeys(allowedQuickKeys),
                 diagnosis = diagnosis,
                 diagnosisAction = diagnoseAction(context, status, diagnosis),
                 doctorReceiptAction = doctorReceiptAction,
@@ -595,7 +603,8 @@ data class NovaQuickMenuUiState(
                 hudMode = hudModeState,
                 overlayRows = overlays,
                 controlRows = controls,
-                sessionRows = sessionRows
+                sessionRows = sessionRows,
+                hudPositionCorner = hudPositionCorner
             )
         }
 
@@ -657,7 +666,8 @@ data class NovaQuickMenuUiState(
         private fun doctorReceiptAction(
             context: Context,
             receipt: DoctorActionReceipt?,
-            canAdjustHostTuning: Boolean
+            canAdjustHostTuning: Boolean,
+            readingAvailable: Boolean
         ): NovaQuickMenuAction {
             if (receipt == null) {
                 return NovaQuickMenuAction(
@@ -668,7 +678,7 @@ data class NovaQuickMenuUiState(
                 )
             }
             val watching = !receipt.isTerminal
-            val canUndo = (canAdjustHostTuning || receipt.runId.startsWith("recovery-run-")) &&
+            val canUndo = readingAvailable && (canAdjustHostTuning || receipt.runId.startsWith("recovery-run-")) &&
                 receipt.undoAvailable &&
                 receipt.runId.isNotBlank() &&
                 receipt.undoActionId.isNotBlank()
@@ -711,7 +721,7 @@ data class NovaQuickMenuUiState(
                 } else {
                     context.getString(R.string.nova_quick_menu_doctor_receipt_title)
                 },
-                caption = caption,
+                caption = if (readingAvailable) caption else context.getString(R.string.nova_cc_last_confirmed, caption),
                 chip = chip,
                 enabled = canUndo,
                 visible = true

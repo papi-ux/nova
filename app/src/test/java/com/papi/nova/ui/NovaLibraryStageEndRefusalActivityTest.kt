@@ -7,6 +7,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
@@ -14,6 +15,7 @@ import com.papi.nova.TestLogSuppressor
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
 import org.junit.BeforeClass
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -89,6 +91,50 @@ class NovaLibraryStageEndRefusalActivityTest {
             rule.waitForIdle()
 
             rule.onNodeWithTag(NOVA_STAGE_END_REFUSED_TAG, useUnmergedTree = true).assertTextEquals(line)
+        } finally {
+            controller.pause().stop().destroy()
+            PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit()
+        }
+    }
+
+    @Test fun pendingEndOwnsTheStageHero() = pendingEndOwnsActions(listOf(game))
+    @Test fun pendingEndOwnsTheSessionOnlyStageHero() = pendingEndOwnsActions(emptyList())
+    @Test @Config(qualifiers = "w412dp-h915dp-port")
+    fun pendingEndOwnsThePortraitHero() = pendingEndOwnsActions(listOf(game))
+
+    private fun pendingEndOwnsActions(games: List<PolarisGame>) {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putString("nova_library_layout_mode", NovaLibraryLayoutMode.STAGE.name).commit()
+        val intent = Intent(context, NovaLibraryActivity::class.java)
+            .putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
+            .putExtra(NovaLibraryActivity.EXTRA_HTTPS_PORT, 9)
+            .putExtra(NovaLibraryActivity.EXTRA_HTTP_PORT, 9)
+        val controller = Robolectric.buildActivity(NovaLibraryActivity::class.java, intent).create()
+        val activity = controller.get()
+        try {
+            NovaLibraryActivity::class.java.getDeclaredField("apiClient").apply {
+                isAccessible = true; set(activity, mock(PolarisApiClient::class.java))
+            }
+            controller.start().resume().visible()
+            idle()
+            state<Boolean>(activity, "isInitialLoading").value = false
+            state<String?>(activity, "loadErrorMessage").value = null
+            state<List<PolarisGame>>(activity, "allGames").value = games
+            state<NovaLibraryActiveSessionUiState?>(activity, "activeSession").value = session
+            val end = NovaLibraryActivity::class.java.getDeclaredField("end").run {
+                isAccessible = true; get(activity) as NovaLibraryEnd
+            }
+            end.status = NovaLibraryEndStatus.Ending(session.gameId)
+            rule.waitForIdle()
+            rule.onNodeWithText(context.getString(R.string.nova_library_ending_session)).assertExists()
+            rule.onNodeWithText(context.getString(R.string.game_dialog_action_end_session)).assertDoesNotExist()
+            rule.onNodeWithText(context.getString(R.string.applist_menu_resume)).assertDoesNotExist()
+            // A second surface cannot submit End or Resume while the first request is out.
+            for (name in listOf("endActiveSession", "resumeActiveSession")) {
+                NovaLibraryActivity::class.java.getDeclaredMethod(name, NovaLibraryActiveSessionUiState::class.java)
+                    .apply { isAccessible = true }.invoke(activity, session)
+                assertTrue("$name must leave the pending request alone", end.status is NovaLibraryEndStatus.Ending)
+            }
         } finally {
             controller.pause().stop().destroy()
             PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit()

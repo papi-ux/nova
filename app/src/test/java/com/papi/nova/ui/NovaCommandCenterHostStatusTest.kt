@@ -87,6 +87,40 @@ class NovaCommandCenterHostStatusTest {
     }
 
     @Test
+    fun recoveredReadResumesWorkAfterDerivingItsScopeWithoutPostponingAnExistingTimer() {
+        val host = host()
+        var scheduled = false
+        var pending = false
+        var requests = 0
+        var scoped = false
+        host.derive = { scoped = host.status != null }
+        host.afterCurrentReading = NovaDoctorVerificationResume(
+            scheduled = { scheduled }, pending = { pending },
+            schedule = {
+                assertTrue("the recovered status has already derived the receipt scope", scoped)
+                requests++
+                scheduled = true
+            },
+        )::resumeIfIdle
+        store = null
+        host.publish()
+        assertEquals("failed reads schedule nothing", 0, requests)
+        store = reading
+        host.publish()
+        assertEquals(1, requests)
+        repeat(5) { host.publish() }
+        assertEquals("one-second polls keep the original timer", 1, requests)
+        scheduled = false
+        pending = true
+        host.publish()
+        assertEquals("an owned verification is not duplicated", 1, requests)
+        pending = false
+        registry.close(generation)
+        host.publish()
+        assertEquals("closing fences any new scheduling", 1, requests)
+    }
+
+    @Test
     fun aReadLandsOnlyWhileTheOpeningStands() {
         val host = host()
         store = reading

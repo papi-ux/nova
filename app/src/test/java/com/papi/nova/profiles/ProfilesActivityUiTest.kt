@@ -5,6 +5,7 @@ import android.content.Intent
 import android.view.View
 import androidx.core.view.ViewCompat
 import android.widget.ImageButton
+import android.widget.FrameLayout
 import androidx.preference.Preference
 import androidx.compose.ui.platform.ComposeView
 import androidx.recyclerview.widget.RecyclerView
@@ -58,6 +59,26 @@ class ProfilesActivityUiTest {
         val next = Shadows.shadowOf(activity).nextStartedActivity
         assertNotNull("FAB should launch EditProfileActivity", next)
         assertEquals(EditProfileActivity::class.java.name, next.component!!.className)
+    }
+
+    @Test
+    // Robolectric 4.16 no longer supplies Android21/22. The wrapper uses FrameLayout's
+    // API21 foreground contract; run the focus behavior on its oldest supplied SDK too.
+    @Config(sdk = [23, 33])
+    fun focusedFabUsesCompatibilityWrapperWithoutLosingChildFocus() {
+        val controller = Robolectric.buildActivity(ProfilesActivity::class.java).setup()
+        try {
+            val fab = controller.get().findViewById<ImageButton>(R.id.addProfileFab)
+            assertTrue("foreground belongs to the API21-compatible wrapper", fab.parent is FrameLayout)
+            val frame = fab.parent as FrameLayout
+            assertNotNull(frame.foreground)
+            assertTrue(fab.requestFocus())
+            frame.refreshDrawableState()
+            assertTrue("child focus reaches the visible ring", frame.drawableState.contains(android.R.attr.state_focused))
+            assertTrue(frame.foreground.isStateful)
+        } finally {
+            controller.destroy()
+        }
     }
 
     @Test

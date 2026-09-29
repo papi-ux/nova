@@ -99,7 +99,7 @@ class NovaLibrarySourceGuardTest {
                 activity.contains("updateLibraryFilterState(NovaLibraryFilterState())")
         )
         assertTrue(
-            "Stage, Grid, Compact, and poster-title visibility should be wired into production rendering",
+            "Stage, Regular, Compact, and poster-title visibility should be wired into production rendering",
             activity.contains("val layoutMode = model.optionsState.layoutMode") &&
                 activity.contains("layoutMode == NovaLibraryLayoutMode.STAGE") &&
                 activity.contains("NovaLibraryStage(") &&
@@ -115,7 +115,7 @@ class NovaLibrarySourceGuardTest {
                 strings.contains("name=\"nova_library_options_sort_name_desc\">Name Z-A") &&
                 strings.contains("name=\"nova_library_options_sort_source\">Source") &&
                 strings.contains("name=\"nova_library_options_layout_stage\">Stage") &&
-                strings.contains("name=\"nova_library_options_layout_grid\">Grid") &&
+                strings.contains("name=\"nova_library_options_layout_grid\">Regular") &&
                 strings.contains("name=\"nova_library_options_layout_compact\">Compact") &&
                 strings.contains("name=\"nova_library_options_poster_titles_title\">Poster Titles") &&
                 strings.contains("name=\"nova_library_options_poster_titles_hide\">Plain Artwork")

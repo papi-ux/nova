@@ -380,7 +380,8 @@ class NovaLaunchSourceGuardTest {
         assertTrue(
             "Command Center End should defer the local End marker to Game's confirmed end: the header's split confirms, then Game ends the session",
             !quickMenu.contains("NovaSessionEndSignal.mark(") &&
-                quickMenu.contains("game.endSession()")
+                quickMenu.contains("end = game::endSession") &&
+                quickMenu.contains("onEndStream = { haptic(sessionEnd::perform) }")
         )
         assertTrue(
             "Library resume should consume the local End marker before polling can re-add a paused session",

@@ -24,6 +24,14 @@
     <string name="nova_cc_doctor_checking_why">Nothing to copy until the host answers</string>
     <!-- The Doctor card's last reading, kept while a status read fails, before what pressing it does. -->
     <string name="nova_cc_doctor_stale">A few seconds old · %1$s</string>
+    <string name="nova_cc_last_confirmed">Last confirmed: %1$s</string>
+    <string name="nova_cc_hud_position">HUD position</string>
+    <string name="nova_cc_hud_position_reset">Reset HUD position</string>
+    <string name="nova_cc_hud_top_left">Top left</string>
+    <string name="nova_cc_hud_top_right">Top right</string>
+    <string name="nova_cc_hud_bottom_left">Bottom left</string>
+    <string name="nova_cc_hud_bottom_right">Bottom right</string>
+    <string name="nova_cc_hud_dragged">Custom</string>
     <!-- A Doctor reading with nothing to run while the session strip warns: the strip's words, then
          what pressing the card does. -->
     <string name="nova_cc_doctor_strip_says">%1$s · %2$s</string>
