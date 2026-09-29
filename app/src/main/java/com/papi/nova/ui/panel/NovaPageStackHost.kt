@@ -609,7 +609,9 @@ private fun NovaPageHeader(
         }
         return
     }
-    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+    // 8dp under the title, so the first tile does not sit flush against it; the compact header's
+    // 40dp line keeps that room inside itself.
+    Row(modifier = modifier.fillMaxWidth().padding(bottom = NovaPanelMetrics.SpaceSm), verticalAlignment = Alignment.Top) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
             if (parentTitle == null) {
                 Text(text = title, style = type.panelTitle, color = colors.textPrimary)
