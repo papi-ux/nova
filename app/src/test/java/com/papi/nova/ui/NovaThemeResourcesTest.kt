@@ -754,8 +754,10 @@ class NovaThemeResourcesTest {
         val appView = File("src/main/res/layout/activity_app_view.xml").readText()
         val profilesButton = appView.substringAfter("android:id=\"@+id/profilesButton\"")
             .substringBefore("/>")
-        assertTrue(profilesButton.contains("app:backgroundTint=\"?attr/colorAccent\""))
-        assertTrue(profilesButton.contains("app:iconTint=\"?attr/colorOnPrimary\""))
+        // The preset button moved from a floating button over the tiles into the header (audit
+        // M16), and it still takes its colours from the theme, through the tonal pill style.
+        assertTrue(profilesButton.contains("style=\"@style/NovaTonalPillButton\""))
+        assertFalse(profilesButton.contains("@color/nova_"))
 
         val profiles = File("src/main/res/layout/activity_profiles.xml").readText()
         val addProfileFab = profiles.substringAfter("android:id=\"@+id/addProfileFab\"")

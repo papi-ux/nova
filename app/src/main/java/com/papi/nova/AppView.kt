@@ -24,7 +24,6 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.computers.ComputerManagerListener
@@ -565,8 +564,9 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
 
             detailView?.text = getString(R.string.applist_error_detail_format, message)
             detailView?.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
-            retryButton?.requestFocus()
+            // Shown first: a view inside a card that is still gone cannot take focus.
             errorCard.visibility = View.VISIBLE
+            retryButton?.requestFocus()
         }
     }
 
@@ -619,14 +619,13 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
         inForeground = true
         startComputerUpdates()
 
-        val profilesButton = findViewById<ExtendedFloatingActionButton>(R.id.profilesButton) ?: return
+        // The header's preset button names the preset in use, or offers to choose one.
+        val profilesButton = findViewById<TextView>(R.id.profilesButton) ?: return
         val activeProfileName = ProfilesManager.getInstance().getActiveName()
-        profilesButton.contentDescription = getString(R.string.profile_manager_choose_profile)
-        if (activeProfileName.isEmpty()) {
-            profilesButton.shrink()
+        profilesButton.text = if (activeProfileName.isEmpty()) {
+            getString(R.string.profile_manager_choose_profile)
         } else {
-            profilesButton.text = getString(R.string.profile_manager_preset_name, activeProfileName)
-            profilesButton.extend()
+            getString(R.string.profile_manager_preset_name, activeProfileName)
         }
     }
 
