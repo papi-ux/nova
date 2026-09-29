@@ -110,12 +110,15 @@ class ProfilesManager private constructor() {
 
     /** Publish an editor draft only after its own snapshot saved without being superseded. */
     fun commit(context: Context, profile: SettingsProfile): Boolean {
-        val snapshot = snapshotForPersistence(profile)
+        // The editor still owns its mutable draft while IO runs. Capture a detached
+        // publication object, so later unsaved edits cannot become this write's receipt.
+        val captured = Gson().fromJson(Gson().toJson(profile), SettingsProfile::class.java)
+        val snapshot = snapshotForPersistence(captured)
         if (persistSnapshot(context, snapshot) != SaveResult.SAVED) return false
         val committed = synchronized(snapshotLock) {
             if (snapshot.second != persistenceRevision.get()) false
             else {
-                profiles[profile.getUuid()] = profile
+                profiles[captured.getUuid()] = captured
                 true
             }
         }
