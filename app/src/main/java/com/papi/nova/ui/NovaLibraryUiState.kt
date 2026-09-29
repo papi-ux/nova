@@ -2,6 +2,9 @@ package com.papi.nova.ui
 
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.api.PolarisSessionStatus
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -220,6 +223,39 @@ internal suspend fun novaLibraryOfferRetryAfterWait(
 ) {
     kotlinx.coroutines.delay(waitMillis)
     if (current() === refused) set(refused.copy(canRetry = true))
+}
+
+/**
+ * The library's End (XR3): where it stands for the session it was asked for, [status], which the
+ * strip and the Stage read, and what the host's answer does to it. The library keeps one.
+ */
+@androidx.compose.runtime.Stable
+internal class NovaLibraryEnd {
+    var status: NovaLibraryEndStatus? by androidx.compose.runtime.mutableStateOf(null)
+
+    /**
+     * The host answered End for [gameId]: it ended, with no [refusal], and the status goes; or it
+     * refused, and the status says so in the host's words, or [fallback] when it gave none. A game
+     * the host found still closing offers Try Again after a moment, on [scope], if the library still
+     * shows that refusal then. Returns the refusal shown, or null when the host ended it.
+     */
+    fun answer(
+        scope: kotlinx.coroutines.CoroutineScope,
+        gameId: Int,
+        refusal: com.papi.nova.utils.ServerHelper.QuitRefusal?,
+        fallback: String,
+    ): NovaLibraryEndStatus.Failed? {
+        if (refusal == null) {
+            status = null
+            return null
+        }
+        val refused = novaLibraryEndRefused(gameId, refusal, fallback)
+        status = refused
+        if (refusal.stillClosing) {
+            scope.launch { novaLibraryOfferRetryAfterWait(refused, current = { status }, set = { status = it }) }
+        }
+        return refused
+    }
 }
 
 data class NovaLibraryUiModel(

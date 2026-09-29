@@ -127,6 +127,35 @@ class NovaLibraryEndRefusedTest {
         assertTrue(replaced is NovaLibraryEndStatus.Ending)
     }
 
+    // The library's End as the library answers the host: a game still closing gets Try Again after
+    // the wait, from what the library shows then, and an End the host took clears the status.
+    @Test
+    fun theLibrarysEndOffersTryAgainOnceAGameStillClosingHasHadItsWait() {
+        val fallback = context.getString(R.string.nova_library_end_failed)
+        val closing = ServerHelper.QuitRefusal("The host is still closing this game.", stillClosing = true)
+        val end = NovaLibraryEnd()
+        val replaced = NovaLibraryEnd()
+        runBlocking {
+            val refused = end.answer(this, 24, closing, fallback)
+            assertEquals("the refusal shown is the one returned", refused, end.status)
+            assertFalse("not at once", (end.status as NovaLibraryEndStatus.Failed).canRetry)
+            replaced.answer(this, 24, closing, fallback)
+            // Another End asked meanwhile takes the refusal's place.
+            replaced.status = NovaLibraryEndStatus.Ending(24)
+        }
+        assertTrue("after the wait, Try Again", (end.status as NovaLibraryEndStatus.Failed).canRetry)
+        assertEquals("The host is still closing this game.", (end.status as NovaLibraryEndStatus.Failed).line)
+        assertTrue("a refusal no longer shown is left alone", replaced.status is NovaLibraryEndStatus.Ending)
+
+        val busy = NovaLibraryEnd()
+        runBlocking { busy.answer(this, 24, ServerHelper.QuitRefusal("The host is busy"), fallback) }
+        assertTrue("a refusal asking again can fix offers it at once", (busy.status as NovaLibraryEndStatus.Failed).canRetry)
+
+        val ended = NovaLibraryEnd().apply { status = NovaLibraryEndStatus.Ending(24) }
+        runBlocking { assertNull("the host took it", ended.answer(this, 24, null, fallback)) }
+        assertNull(ended.status)
+    }
+
     @Test
     fun aHostThatRefusesInItsOwnWordsIsQuotedWithoutAnErrorCode() {
         // The host's cancel answered with its own status_message, as Polaris does for a stale token.

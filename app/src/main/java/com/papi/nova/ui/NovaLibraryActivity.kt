@@ -198,7 +198,8 @@ class NovaLibraryActivity : NovaActivity() {
     /** Whether the last key came from a remote, so the hint bar names a remote's keys (C04). */
     private var lastInputRemote by mutableStateOf(false)
     /** An End asked for from the library, until the host answers or the session goes (XR3). */
-    private var endStatus by mutableStateOf<NovaLibraryEndStatus?>(null)
+    private val end = NovaLibraryEnd()
+    private var endStatus: NovaLibraryEndStatus? by end::status
     private var optionsState by mutableStateOf(NovaLibraryOptionsState())
 
     /** Polaris Sync's engine, running while its page is on the System panel's stack. */
@@ -1384,24 +1385,16 @@ class NovaLibraryActivity : NovaActivity() {
             PlatformBinding.getCryptoProvider(this)
         )
         ServerHelper.doQuit(this, httpConn, gameName) { refusal ->
-            if (refusal == null) {
+            // A refusal of a game still closing gets its Try Again after a moment (NovaLibraryEnd).
+            if (end.answer(lifecycleScope, session.gameId, refusal, getString(R.string.nova_library_end_failed)) == null) {
                 val generation = beginActiveSessionRefresh()
                 activeSession = null
-                endStatus = null
                 scheduleActiveSessionFollowUpRefreshes(
                     clearOnly = true,
                     generation = generation,
                 )
             } else {
-                LimeLog.warning("Nova: The host did not end the session: ${refusal.reason}")
-                val refused = novaLibraryEndRefused(session.gameId, refusal, getString(R.string.nova_library_end_failed))
-                endStatus = refused
-                // The host took the End and the game is still closing: Try Again after a moment.
-                if (refusal.stillClosing) {
-                    lifecycleScope.launch {
-                        novaLibraryOfferRetryAfterWait(refused, current = { endStatus }, set = { endStatus = it })
-                    }
-                }
+                LimeLog.warning("Nova: The host did not end the session: ${refusal?.reason}")
                 refreshActiveSession(scheduleFollowUps = true)
             }
         }

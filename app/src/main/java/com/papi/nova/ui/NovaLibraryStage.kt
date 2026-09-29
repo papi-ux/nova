@@ -80,8 +80,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -409,9 +411,30 @@ private const val NOVA_TOP_BAR_BUTTON_PADDING = 24f
 private const val NOVA_TOP_BAR_SLACK = 6f
 
 /**
+ * What the strip's fit asks of its words, in pixels: how wide one line of [text] is, how tall, and
+ * how many lines it takes at [maxWidthPx]. The strip measures with its own text measurer; a test
+ * gives it a device's glyph widths, which Robolectric does not have.
+ */
+internal interface NovaTopBarTextMeasure {
+    fun width(text: String, style: TextStyle): Int
+    fun height(text: String, style: TextStyle): Int
+    fun lines(text: String, style: TextStyle, maxWidthPx: Int): Int
+}
+
+private class NovaTopBarTextMeasurer(private val measurer: TextMeasurer) : NovaTopBarTextMeasure {
+    override fun width(text: String, style: TextStyle): Int =
+        measurer.measure(text, style, softWrap = false, maxLines = 1).size.width
+
+    override fun height(text: String, style: TextStyle): Int =
+        measurer.measure(text, style, softWrap = false, maxLines = 1).size.height
+
+    override fun lines(text: String, style: TextStyle, maxWidthPx: Int): Int =
+        measurer.measure(text, style, constraints = Constraints(maxWidth = maxWidthPx)).lineCount
+}
+
+/**
  * Measure the strip's parts at the current font scale, with the same styles the composables draw
- * them in, and decide what the row leaves out. Everything the fit needs is text; the rest is the
- * padding, avatar and gaps those composables use.
+ * them in, and decide what the row leaves out ([novaLibraryTopBarMeasuredFit]).
  */
 @Composable
 private fun rememberNovaLibraryTopBarFit(
@@ -434,127 +457,161 @@ private fun rememberNovaLibraryTopBarFit(
         available, largeText, hostLabel, hostStatus, environment, continueCard,
         density, base, buttonStyle, optionsLabel, systemLabel, splitStyle,
     ) {
-        if (available == Dp.Infinity || available <= 0.dp) return@remember NovaTopBarFit()
-        with(density) {
-            fun width(text: String, style: TextStyle): Float =
-                if (text.isEmpty()) 0f else measurer.measure(text, style, softWrap = false, maxLines = 1).size.width.toDp().value
-            fun button(text: String, size: TextUnit): Float =
-                width(text, buttonStyle.merge(TextStyle(fontSize = size, fontWeight = FontWeight.SemiBold))) + NOVA_TOP_BAR_BUTTON_PADDING
-            val small = base.merge(TextStyle(fontSize = 10.sp, lineHeight = 12.sp))
-            val iconScale = fontScale.coerceIn(1f, 1.6f)
-            // The card's words, whole: the eyebrow on one line and the title on the lines the
-            // strip's height leaves it, with the eyebrow or without it.
-            val eyebrowStyle = NovaChromeType.label(fontSize = 8.sp)
-            val titleStyle = base.merge(TextStyle(fontSize = 14.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold))
-            val stripInside = (NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText) - 2 * NOVA_TOP_BAR_VERTICAL_PADDING).dp.toPx()
-            val titleLine = titleStyle.lineHeight.toPx()
-            val eyebrowHeight = continueCard?.eyebrow?.takeIf { it.isNotBlank() }
-                ?.let { measurer.measure(it.uppercase(), eyebrowStyle, softWrap = false, maxLines = 1).size.height.toFloat() }
-                ?: 0f
-            val titleLinesUnderEyebrow = novaTopBarTitleLines(stripInside - eyebrowHeight - NOVA_TOP_BAR_WORDS_GAP.dp.toPx(), titleLine)
-            val titleLinesAlone = novaTopBarTitleLines(stripInside, titleLine).coerceAtLeast(1)
-            // A refused End's reason, in the eyebrow's type: the lines it has above one title line,
-            // and the lines it has alone once the title gives way (XR3).
-            val refusal = continueCard?.refusal == true
-            val eyebrowLine = measurer.measure("Ag", eyebrowStyle, softWrap = false, maxLines = 1).size.height.toFloat()
-            val refusalLinesOverTitle = novaTopBarRefusalLines(stripInside - titleLine - NOVA_TOP_BAR_WORDS_GAP.dp.toPx(), eyebrowLine)
-            val refusalLinesAlone = novaTopBarRefusalLines(stripInside, eyebrowLine).coerceAtLeast(1)
-            // The narrowest width at which [text] takes no more than [lines] lines, never narrower
-            // than its longest word, which would be broken in two.
-            fun wordsWidth(text: String, style: TextStyle, lines: Int): Float {
-                val single = width(text, style)
-                if (lines <= 1 || single == 0f) return single
-                var narrow = text.split(' ').maxOf { width(it, style) }
-                var wide = single
-                repeat(NOVA_TOP_BAR_TITLE_SEARCH_STEPS) {
-                    val middle = (narrow + wide) / 2f
-                    val laid = measurer.measure(
-                        text,
-                        style,
-                        constraints = Constraints(maxWidth = middle.dp.roundToPx().coerceAtLeast(1)),
-                    )
-                    if (laid.lineCount <= lines) wide = middle else narrow = middle
-                }
-                return wide
+        novaLibraryTopBarMeasuredFit(
+            measure = NovaTopBarTextMeasurer(measurer),
+            density = density,
+            available = available,
+            largeText = largeText,
+            hostLabel = hostLabel,
+            hostStatus = hostStatus,
+            environment = environment,
+            continueCard = continueCard,
+            base = base,
+            buttonStyle = buttonStyle,
+            splitStyle = splitStyle,
+            optionsLabel = optionsLabel,
+            systemLabel = systemLabel,
+        )
+    }
+}
+
+/**
+ * The strip's fit from its words as [measure] measures them at [density]: what the row leaves
+ * out, and the lines the continue card's words have. Everything the fit needs is text; the rest is
+ * the padding, avatar and gaps the strip's composables use. A refused End's reason is the one set
+ * of words the fit never leaves out, and it keeps the lines the strip has room for (XR3).
+ */
+internal fun novaLibraryTopBarMeasuredFit(
+    measure: NovaTopBarTextMeasure,
+    density: Density,
+    available: Dp,
+    largeText: Boolean,
+    hostLabel: String,
+    hostStatus: String?,
+    environment: NovaEnvironmentStrings?,
+    continueCard: NovaTopBarContinue?,
+    base: TextStyle,
+    buttonStyle: TextStyle,
+    splitStyle: TextStyle,
+    optionsLabel: String,
+    systemLabel: String,
+): NovaTopBarFit {
+    if (available == Dp.Infinity || available <= 0.dp) return NovaTopBarFit()
+    return with(density) {
+        fun width(text: String, style: TextStyle): Float =
+            if (text.isEmpty()) 0f else measure.width(text, style).toDp().value
+        fun button(text: String, size: TextUnit): Float =
+            width(text, buttonStyle.merge(TextStyle(fontSize = size, fontWeight = FontWeight.SemiBold))) + NOVA_TOP_BAR_BUTTON_PADDING
+        val small = base.merge(TextStyle(fontSize = 10.sp, lineHeight = 12.sp))
+        val iconScale = fontScale.coerceIn(1f, 1.6f)
+        // The card's words, whole: the eyebrow on one line and the title on the lines the
+        // strip's height leaves it, with the eyebrow or without it.
+        val eyebrowStyle = NovaChromeType.label(fontSize = 8.sp)
+        val titleStyle = base.merge(TextStyle(fontSize = 14.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold))
+        val stripInside = (NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText) - 2 * NOVA_TOP_BAR_VERTICAL_PADDING).dp.toPx()
+        val titleLine = titleStyle.lineHeight.toPx()
+        val eyebrowHeight = continueCard?.eyebrow?.takeIf { it.isNotBlank() }
+            ?.let { measure.height(it.uppercase(), eyebrowStyle).toFloat() }
+            ?: 0f
+        val titleLinesUnderEyebrow = novaTopBarTitleLines(stripInside - eyebrowHeight - NOVA_TOP_BAR_WORDS_GAP.dp.toPx(), titleLine)
+        val titleLinesAlone = novaTopBarTitleLines(stripInside, titleLine).coerceAtLeast(1)
+        // A refused End's reason, in the eyebrow's type: the lines it has above one title line,
+        // and the lines it has alone once the title gives way (XR3).
+        val refusal = continueCard?.refusal == true
+        val eyebrowLine = measure.height("Ag", eyebrowStyle).toFloat()
+        val refusalLinesOverTitle = novaTopBarRefusalLines(stripInside - titleLine - NOVA_TOP_BAR_WORDS_GAP.dp.toPx(), eyebrowLine)
+        val refusalLinesAlone = novaTopBarRefusalLines(stripInside, eyebrowLine).coerceAtLeast(1)
+        // The narrowest width at which [text] takes no more than [lines] lines, never narrower
+        // than its longest word, which would be broken in two.
+        fun wordsWidth(text: String, style: TextStyle, lines: Int): Float {
+            val single = width(text, style)
+            if (lines <= 1 || single == 0f) return single
+            var narrow = text.split(' ').maxOf { width(it, style) }
+            var wide = single
+            repeat(NOVA_TOP_BAR_TITLE_SEARCH_STEPS) {
+                val middle = (narrow + wide) / 2f
+                val laid = measure.lines(text, style, maxWidthPx = middle.dp.roundToPx().coerceAtLeast(1))
+                if (laid <= lines) wide = middle else narrow = middle
             }
-            fun titleWidth(title: String, lines: Int): Float = wordsWidth(title, titleStyle, lines)
-            val fit = novaLibraryTopBarFit(
-                NovaTopBarWidths(
-                    available = available.value,
-                    gap = NOVA_TOP_BAR_GAP.value,
-                    slack = NOVA_TOP_BAR_SLACK,
-                    hostName = width(hostLabel, base.merge(TextStyle(fontSize = 11.sp, lineHeight = 13.sp))),
-                    hostStatus = hostStatus?.let { width(it, small) } ?: 0f,
-                    identityCap = NOVA_TOP_BAR_IDENTITY_CAP,
-                    identityFloor = NOVA_TOP_BAR_IDENTITY_FLOOR,
-                    space = environment?.let { env ->
-                        // NovaEnvironmentBar, compact: 8 + 10 dp surface padding, a 28 dp avatar
-                        // scaled with text, 8 dp gaps and the 20 sp chevron it always draws.
-                        val chevron = width("›", base.merge(TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold))) + 8f
-                        NovaTopBarSpaceWidths(
-                            chrome = 18f + 28f * iconScale + chevron,
-                            columnGap = 8f,
-                            caption = width(env.caption, small),
-                            name = width(env.name, base.merge(TextStyle(fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold))),
-                            status = env.status?.let { width(it, base.merge(TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Medium))) + 16f } ?: 0f,
-                            statusDot = 8f,
-                            statusGap = 6f,
-                            cap = 280f * fontScale.coerceAtLeast(1f),
-                        )
-                    },
-                    continueCard = continueCard?.let { card ->
-                        // NovaLibraryStripContinue: 4 dp start padding, a square cover as tall
-                        // as the strip's inside, 7 dp gaps, and actions at least 88 and 72 dp wide.
-                        // Where no title line fits under the eyebrow, the words need more than any
-                        // strip has, so the eyebrow is always the first to go.
-                        val text = when {
-                            // The reason over one title line, or, failing that, alone on every line.
-                            card.refusal && refusalLinesOverTitle > 0 ->
-                                maxOf(wordsWidth(card.eyebrow, eyebrowStyle, refusalLinesOverTitle), titleWidth(card.title, 1))
-                            card.refusal -> available.value * 2
-                            titleLinesUnderEyebrow > 0 ->
-                                maxOf(width(card.eyebrow.uppercase(), eyebrowStyle), titleWidth(card.title, titleLinesUnderEyebrow))
-                            else -> available.value * 2
-                        }
-                        NovaTopBarContinueWidths(
-                            padding = 4f,
-                            cover = if (card.hasCover) {
-                                NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText) - 2 * NOVA_TOP_BAR_VERTICAL_PADDING
-                            } else {
-                                0f
-                            },
-                            textMin = text + NOVA_TOP_BAR_WORDS_ROOM,
-                            titleMin = if (card.refusal) {
-                                wordsWidth(card.eyebrow, eyebrowStyle, refusalLinesAlone)
-                            } else {
-                                titleWidth(card.title, titleLinesAlone)
-                            } + NOVA_TOP_BAR_WORDS_ROOM,
-                            keepsText = card.refusal,
-                            gap = 7f,
-                            primary = maxOf(88f, button(card.actionLabel, 10.sp)),
-                            secondary = card.secondaryActionLabel?.let {
-                                width(it, splitStyle) + NOVA_TOP_BAR_BUTTON_PADDING +
-                                    NOVA_LIBRARY_STRIP_BUTTON_ICON.value + NovaPanelMetrics.SpaceXs.value
-                            } ?: 0f,
-                        )
-                    },
-                    options = button(optionsLabel, 11.sp),
-                    system = button(systemLabel, 10.sp),
-                ),
-            )
-            fit.copy(
-                continueTitleLines = when {
-                    refusal -> 1
-                    fit.showContinueEyebrow -> titleLinesUnderEyebrow.coerceAtLeast(1)
-                    else -> titleLinesAlone
-                },
-                continueEyebrowLines = when {
-                    !refusal -> 1
-                    fit.showContinueEyebrow -> refusalLinesOverTitle.coerceAtLeast(1)
-                    else -> refusalLinesAlone
-                },
-            )
+            return wide
         }
+        fun titleWidth(title: String, lines: Int): Float = wordsWidth(title, titleStyle, lines)
+        val fit = novaLibraryTopBarFit(
+            NovaTopBarWidths(
+                available = available.value,
+                gap = NOVA_TOP_BAR_GAP.value,
+                slack = NOVA_TOP_BAR_SLACK,
+                hostName = width(hostLabel, base.merge(TextStyle(fontSize = 11.sp, lineHeight = 13.sp))),
+                hostStatus = hostStatus?.let { width(it, small) } ?: 0f,
+                identityCap = NOVA_TOP_BAR_IDENTITY_CAP,
+                identityFloor = NOVA_TOP_BAR_IDENTITY_FLOOR,
+                space = environment?.let { env ->
+                    // NovaEnvironmentBar, compact: 8 + 10 dp surface padding, a 28 dp avatar
+                    // scaled with text, 8 dp gaps and the 20 sp chevron it always draws.
+                    val chevron = width("›", base.merge(TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold))) + 8f
+                    NovaTopBarSpaceWidths(
+                        chrome = 18f + 28f * iconScale + chevron,
+                        columnGap = 8f,
+                        caption = width(env.caption, small),
+                        name = width(env.name, base.merge(TextStyle(fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold))),
+                        status = env.status?.let { width(it, base.merge(TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Medium))) + 16f } ?: 0f,
+                        statusDot = 8f,
+                        statusGap = 6f,
+                        cap = 280f * fontScale.coerceAtLeast(1f),
+                    )
+                },
+                continueCard = continueCard?.let { card ->
+                    // NovaLibraryStripContinue: 4 dp start padding, a square cover as tall
+                    // as the strip's inside, 7 dp gaps, and actions at least 88 and 72 dp wide.
+                    // Where no title line fits under the eyebrow, the words need more than any
+                    // strip has, so the eyebrow is always the first to go.
+                    val text = when {
+                        // The reason over one title line, or, failing that, alone on every line.
+                        card.refusal && refusalLinesOverTitle > 0 ->
+                            maxOf(wordsWidth(card.eyebrow, eyebrowStyle, refusalLinesOverTitle), titleWidth(card.title, 1))
+                        card.refusal -> available.value * 2
+                        titleLinesUnderEyebrow > 0 ->
+                            maxOf(width(card.eyebrow.uppercase(), eyebrowStyle), titleWidth(card.title, titleLinesUnderEyebrow))
+                        else -> available.value * 2
+                    }
+                    NovaTopBarContinueWidths(
+                        padding = 4f,
+                        cover = if (card.hasCover) {
+                            NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText) - 2 * NOVA_TOP_BAR_VERTICAL_PADDING
+                        } else {
+                            0f
+                        },
+                        textMin = text + NOVA_TOP_BAR_WORDS_ROOM,
+                        titleMin = if (card.refusal) {
+                            wordsWidth(card.eyebrow, eyebrowStyle, refusalLinesAlone)
+                        } else {
+                            titleWidth(card.title, titleLinesAlone)
+                        } + NOVA_TOP_BAR_WORDS_ROOM,
+                        keepsText = card.refusal,
+                        gap = 7f,
+                        primary = maxOf(88f, button(card.actionLabel, 10.sp)),
+                        secondary = card.secondaryActionLabel?.let {
+                            width(it, splitStyle) + NOVA_TOP_BAR_BUTTON_PADDING +
+                                NOVA_LIBRARY_STRIP_BUTTON_ICON.value + NovaPanelMetrics.SpaceXs.value
+                        } ?: 0f,
+                    )
+                },
+                options = button(optionsLabel, 11.sp),
+                system = button(systemLabel, 10.sp),
+            ),
+        )
+        fit.copy(
+            continueTitleLines = when {
+                refusal -> 1
+                fit.showContinueEyebrow -> titleLinesUnderEyebrow.coerceAtLeast(1)
+                else -> titleLinesAlone
+            },
+            continueEyebrowLines = when {
+                !refusal -> 1
+                fit.showContinueEyebrow -> refusalLinesOverTitle.coerceAtLeast(1)
+                else -> refusalLinesAlone
+            },
+        )
     }
 }
 
