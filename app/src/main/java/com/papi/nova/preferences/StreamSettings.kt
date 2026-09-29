@@ -582,19 +582,23 @@ class StreamSettings : NovaActivity() {
 
         private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?) {
             // A saved setup is sparse: inherit untouched fields without pinning them.
-            val base = context?.let { PreferenceConfiguration.readPreferences(it,
-                PreferenceManager.getDefaultSharedPreferences(it)) }
+            val base = context?.let { PreferenceManager.getDefaultSharedPreferences(it) }
             val activeRes = res ?: prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING,
-                base?.let { "${it.width}x${it.height}" }) ?: PreferenceConfiguration.DEFAULT_RESOLUTION
+                base?.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, null)) ?: PreferenceConfiguration.DEFAULT_RESOLUTION
             val activeFps = fps ?: prefs.getString(PreferenceConfiguration.FPS_PREF_STRING,
-                base?.fps?.toString()) ?: PreferenceConfiguration.DEFAULT_FPS
+                base?.getString(PreferenceConfiguration.FPS_PREF_STRING, null)) ?: PreferenceConfiguration.DEFAULT_FPS
+            val size = activeRes.split("x").map { it.toInt() }
+            val codec = NovaCodecChoice.fromPreference(prefs.getString("video_format",
+                base?.getString("video_format", "auto")))
+            val advice = NovaBitrateAdvice.recommend(size[0], size[1], Math.round(activeFps.toFloat()), codec,
+                NovaTierRuntime.snapshot()?.inputs?.distance ?: NovaDistance.HAND)
             prefs.edit().apply {
                 res?.let { putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, it) }
                 fps?.let { putString(PreferenceConfiguration.FPS_PREF_STRING, it) }
                 putBoolean(NovaSettingsMigration.AUTO, true)
                 putBoolean(NovaSettingsMigration.CUSTOM_AUTO, true)
                 putInt(PreferenceConfiguration.BITRATE_PREF_STRING,
-                    PreferenceConfiguration.getDefaultBitrate(activeRes, activeFps))
+                    advice.kbps)
             }.apply()
         }
 

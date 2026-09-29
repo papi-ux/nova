@@ -21,6 +21,7 @@ class NovaTierApplicationStartupTest {
     @Test fun realApplicationSeedsRecommendedBeforeOtherDefaultsAndPreparesOnWorker()=runBlocking {
         val context=ApplicationProvider.getApplicationContext<Context>()
         assertTrue(context is NovaApplication)
+        assertSame("This Application must start the runtime itself",context,NovaTierRuntime.initializedApplication)
         val prefs=PreferenceManager.getDefaultSharedPreferences(context)
         assertEquals("recommended",prefs.getString(NovaSettingsMigration.TIER,null))
         assertFalse(prefs.getBoolean(NovaSettingsMigration.CUSTOM_EXISTS,true))

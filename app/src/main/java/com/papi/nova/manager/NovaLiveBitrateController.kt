@@ -111,7 +111,7 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
 
     fun observe(status:PolarisSessionStatus?,receivedKbps:Int?=null,tableRecommendedKbps:Int?=null,hostMaximumKbps:Int?=null)=synchronized(observationLock) {
         val valid=status?.takeIf(::same)
-        if(valid==null) { mutableState.update { NovaLiveBitrateState(busy=it.busy) };return@synchronized }
+        if(valid==null) { mutableState.update { NovaLiveBitrateState(busy=it.busy, maximumKbps=manualMaximum) };return@synchronized }
         val live=valid.liveTuning
         if(live!=null && live.hostInstance==lastHost && live.sequence<lastSequence) return@synchronized
         if((live!=null && lastHost.isNotEmpty() && live.hostInstance!=lastHost) ||

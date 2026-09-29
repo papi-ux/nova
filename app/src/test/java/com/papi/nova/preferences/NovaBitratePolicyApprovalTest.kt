@@ -47,6 +47,7 @@ class NovaBitratePolicyApprovalTest {
             assertEquals(214898, advice.kbps)
             assertTrue(advice.kbps in 200000..230000)
         }
+        assertEquals(297507, NovaBitrateAdvice.recommend(1920,1080,60,NovaCodecChoice.PYROWAVE,NovaDistance.ROOM).kbps)
         assertEquals(300000, NovaBitrateAdvice.recommend(1920,1080,120,NovaCodecChoice.PYROWAVE,NovaDistance.ROOM).kbps)
     }
 
@@ -61,7 +62,7 @@ class NovaBitratePolicyApprovalTest {
         for (codec in listOf(NovaCodecChoice.AVC,NovaCodecChoice.HEVC,NovaCodecChoice.PYROWAVE)) {
             val input = NovaTierInputs(size,listOf(60,120),NovaDistance.HAND,
                 NovaDeviceCapabilities(listOf(NovaCodecCapability(codec,"fixture",listOf(NovaDecodePoint(size,120))))),
-                codec=codec,pyrowave=NovaPyrowaveSupport(available=true))
+                codec=codec,host=NovaHostTierLimits(manualBitrateMaxKbps=500000),pyrowave=NovaPyrowaveSupport(available=true))
             for ((pin,expected) in listOf(350000 to 350000,500000 to 500000,600000 to 500000)) {
                 assertEquals(codec.name,expected,NovaStreamTiers.resolve(input,NovaTier.RECOMMENDED,
                     pins=NovaStreamPins(bitrateKbps=pin)).bitrateKbps)

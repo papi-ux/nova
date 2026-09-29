@@ -215,8 +215,15 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             }
             val (size,fps,codec)=selected
             val sizeTop=displayTop(input,size)
-            if(sizeTop<top) limits+=NovaLimit("panel_fps","This screen displays ${size.label} at up to $sizeTop Hz")
-            if(size!=requested || fps<min(top,sizeTop)) limits+=NovaLimit("decoder_limit","This device decodes ${size.label} at $fps fps")
+            if(sizeTop<top && limits.none { it.code=="panel_fps" }) limits+=NovaLimit("panel_fps","This screen displays ${size.label} at up to $sizeTop Hz")
+            val screenSkippedLarger = size!=requested && sizes.any { larger ->
+                larger.pixels>size.pixels && displayTop(input,larger)<min(top,60) &&
+                    choices.any { supports(input,it,larger,min(top,60),choice) }
+            }
+            if(screenSkippedLarger && limits.none { it.code=="panel_fps" })
+                limits+=NovaLimit("panel_fps","This screen displays larger sizes below ${min(top,60)} Hz")
+            if((size!=requested && !screenSkippedLarger) || fps<min(top,sizeTop))
+                limits+=NovaLimit("decoder_limit","This device decodes ${size.label} at $fps fps")
             if(input.capabilities.failed.isNotEmpty()) {
                 val withoutFailure=constrain(input.copy(capabilities=input.capabilities.copy(failed=emptyList())),requested,requestedFps,choice,bitratePin,fixedSize,fixedFps)
                 if(withoutFailure.size!=size || withoutFailure.fps!=fps || withoutFailure.codec!=codec) {
@@ -262,6 +269,8 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
                 return NovaLimit("decoder_limit",if(thirty) "4K: this decoder tops out at 30 fps" else
                     "4K: this device decodes up to ${max.width}×${max.height}")
             }
+            if(displayTop(input,FOUR_K)<fourKFps)
+                return NovaLimit("panel_fps","4K: this screen tops out at ${displayTop(input,FOUR_K)} Hz")
             if(selected==NovaCodecChoice.AVC) return NovaLimit("codec","4K at 60 fps needs HEVC · H.264 is chosen")
             input.host?.mirroredDesktop?.takeIf { !FOUR_K.fits(it) }?.let {
                 return NovaLimit("host_desktop","4K: the host's desktop is ${it.width}×${it.height}")

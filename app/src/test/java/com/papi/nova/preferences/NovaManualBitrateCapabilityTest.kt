@@ -47,6 +47,36 @@ class NovaManualBitrateCapabilityTest {
                 com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateWarning(request,1920,1080,fps,advice))
         }
     }
+    @Test fun realOptimizationRequestUsesOnlyThisApiHostsCeiling() {
+        for (maximum in listOf(null,200000,500000)) {
+            val api=PolarisApiClient(ApplicationProvider.getApplicationContext(),"127.0.0.1",47984)
+            val requests=mutableListOf<Int>()
+            val http=OkHttpClient.Builder().addInterceptor { chain ->
+                val request=chain.request()
+                val body=if(request.url.encodedPath.endsWith("/capabilities")) {
+                    val features=JSONObject();maximum?.let { features.put("manual_bitrate_max_kbps",it) }
+                    JSONObject().put("features",features)
+                } else {
+                    assertTrue(request.url.encodedPath.endsWith("/optimize"))
+                    requests+=request.url.queryParameter("bitrate_kbps")!!.toInt()
+                    JSONObject()
+                }
+                Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture")
+                    .body(ResponseBody.create(null,body.toString())).build()
+            }.build()
+            PolarisApiClient::class.java.getDeclaredField("client").apply { isAccessible=true }.set(api,http)
+            assertNotNull(api.getOptimization("fixture","game",bitrateKbps=450000,bitrateLocked=true))
+            assertEquals(listOf(minOf(450000,maximum ?: 300000)),requests)
+        }
+    }
+    @Test fun oneShotLaunchHandoffRetainsTheHostCeilingWithItsDecision() {
+        val decision=NovaLaunchPolicyGateStore.Decision(null,"auto",true,500000)
+        val token=NovaLaunchPolicyGateStore.issue("host-one",decision)
+        assertEquals(500000,NovaLaunchPolicyGateStore.consume(token,"host-one")!!.manualBitrateMaximumKbps)
+        assertNull(NovaLaunchPolicyGateStore.consume(token,"host-one"))
+        val other=NovaLaunchPolicyGateStore.issue("host-one",decision)
+        assertNull(NovaLaunchPolicyGateStore.consume(other,"host-two"))
+    }
     private class Live(val capabilities:PolarisCapabilities) {
         val audio=1536;val fec=20
         val units=capabilities.features.bitrateUnitsV1

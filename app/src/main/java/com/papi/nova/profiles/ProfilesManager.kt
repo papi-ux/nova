@@ -18,6 +18,7 @@ class ProfilesManager private constructor() {
     private var activeProfileId: UUID? = null
     private val listeners: MutableList<ProfileChangeListener> = ArrayList()
     private var appContext: Context? = null
+    private val snapshotLock = Any()
     private val persistenceLock=Any()
     private val persistenceRevision=java.util.concurrent.atomic.AtomicLong()
     private val persistenceExecutor=java.util.concurrent.Executors.newSingleThreadExecutor { task ->
@@ -76,41 +77,31 @@ class ProfilesManager private constructor() {
         return true
     }
 
-    fun save(context: Context?): Boolean = synchronized(persistenceLock) {
-        persistenceRevision.incrementAndGet()
-        saveNow(context)
+    private fun snapshotForPersistence(): Pair<String, Long> = synchronized(snapshotLock) {
+        val data=ProfilesData().apply {
+            profiles=ArrayList(this@ProfilesManager.profiles.values)
+            activeProfileId=this@ProfilesManager.activeProfileId
+        }
+        Gson().toJson(data) to persistenceRevision.incrementAndGet()
     }
 
-    private fun saveNow(context: Context?): Boolean {
-        if (context == null) {
-            return false
-        }
-
+    private fun persistSnapshot(context: Context, snapshot: Pair<String, Long>): Boolean = synchronized(persistenceLock) {
+        val (json, revision) = snapshot
+        if (revision != persistenceRevision.get()) return@synchronized true
         try {
-            val dir = File(context.filesDir, PROFILES_DIR)
-            if (!dir.exists() && !dir.mkdirs()) {
-                return false
-            }
-            val file = File(dir, PROFILES_FILE)
-            try {
-                FileWriter(file).use { writer ->
-                    val data = ProfilesData()
-                    data.profiles = ArrayList(profiles.values)
-                    data.activeProfileId = activeProfileId
-                    Gson().toJson(data, writer)
-                }
-            } catch (e: IOException) {
-                LimeLog.warning("ArtemisProfile: Failed to save profiles to file:$e")
-                e.printStackTrace()
-                return false
-            }
-        } catch (e: Exception) {
-            LimeLog.warning("ArtemisProfile: Failed to save profiles:$e")
-            e.printStackTrace()
-            return false
+            val dir=File(context.filesDir,PROFILES_DIR)
+            check(dir.exists() || dir.mkdirs())
+            File(dir,PROFILES_FILE).writeText(json)
+            true
+        } catch(error:Exception) {
+            LimeLog.warning("Nova: Could not save profiles: ${error.message}")
+            false
         }
+    }
 
-        return true
+    fun save(context: Context?): Boolean {
+        if (context == null) return false
+        return persistSnapshot(context, snapshotForPersistence())
     }
 
     fun getProfiles(): MutableList<SettingsProfile> = ArrayList(profiles.values)
@@ -132,20 +123,10 @@ class ProfilesManager private constructor() {
         profiles[profile.getUuid()]=profile
         notifyListeners()
         val context=appContext ?: return
-        val (json,revision)=synchronized(persistenceLock) {
-            val data=ProfilesData().apply { profiles=ArrayList(this@ProfilesManager.profiles.values);activeProfileId=this@ProfilesManager.activeProfileId }
-            Gson().toJson(data) to persistenceRevision.incrementAndGet()
-        }
-        persistenceExecutor.execute {
-            synchronized(persistenceLock) {
-                if(revision!=persistenceRevision.get()) return@synchronized
-                try {
-                    val dir=File(context.filesDir,PROFILES_DIR)
-                    check(dir.exists() || dir.mkdirs())
-                    File(dir,PROFILES_FILE).writeText(json)
-                } catch(error:Exception) { LimeLog.warning("Nova: Could not save stream tier selection: ${error.message}") }
-            }
-        }
+        // The snapshot lock is never held by disk IO. Revision checks under the IO lock
+        // serialize writers and prevent an older queued snapshot from replacing a newer one.
+        val snapshot=snapshotForPersistence()
+        persistenceExecutor.execute { persistSnapshot(context, snapshot) }
     }
 
     internal fun awaitDeferredWritesForTest() = persistenceExecutor.submit {}.get(5,java.util.concurrent.TimeUnit.SECONDS)

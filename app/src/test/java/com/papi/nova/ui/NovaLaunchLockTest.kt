@@ -23,7 +23,10 @@ class NovaLaunchLockTest {
         val gate=game.indexOf("NovaTierRuntime.prepare(applicationContext)")
         val refusal=game.indexOf("R.string.nova_tier_unavailable")
         val decoder=game.indexOf("MediaCodecHelper.initialize(this")
-        assertTrue(gate>0 && gate<refusal && refusal<decoder)
+        val continuation=game.indexOf("val continueLaunch = fun()")
+        assertTrue(continuation>0 && continuation<refusal && refusal<decoder && decoder<gate)
+        assertTrue(game.substring(gate).contains("if (prepared.tiers == tierSnapshotAtRead?.tiers)"))
+        assertTrue(game.substring(gate).contains("continueLaunch()"))
         assertTrue(game.contains("if (plan == null || !plan.available)"))
         assertTrue(game.contains("NovaTierRuntime.snapshot()?.tiers != tierSnapshotAtRead?.tiers"))
     }

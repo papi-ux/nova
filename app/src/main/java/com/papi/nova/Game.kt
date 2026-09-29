@@ -180,6 +180,7 @@ private val doctorTelemetry:NovaHudSessionStats = NovaHudSessionStats()
  var configuredHudTargetFps:Float = 0f
 private var configuredStreamFrameRateFps:Float = 0f
 private var configuredDisplayRefreshRateHz:Float = 0f
+private var launchManualBitrateMaximumKbps = com.papi.nova.preferences.NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS
 private var configuredStreamBitrateKbps:Int = 0
 private var configuredStreamHdr:Boolean = false
 @Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
@@ -1177,30 +1178,8 @@ val tierPreferences = ProfilesManager.getInstance().getOverlayingSharedPreferenc
 val needsGeneratedTier = com.papi.nova.manager.NovaTierLaunchPolicy.needsGeneratedTier(
     com.papi.nova.preferences.NovaStreamSettings.selected(tierPreferences.all), watchOnlyRequested,
     resumeExistingRequested, com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID ?: appId.toString()))
-if (needsGeneratedTier && (com.papi.nova.preferences.NovaTierRuntime.snapshot()?.tiers?.inputsHash == "failed" ||
-        !com.papi.nova.preferences.NovaTierRuntime.isPrepared() ||
-        com.papi.nova.preferences.NovaTierRuntime.snapshot()?.tiers != tierSnapshotAtRead?.tiers)) {
-    val gateIntent = intent
-    val gateGeneration = launchPolicyGateGeneration.incrementAndGet()
-    launchPolicyGatePending.set(true)
-    launchRuntimeIo("NovaLaunchPolicyGate") {
-        val prepared = com.papi.nova.preferences.NovaTierRuntime.prepare(applicationContext)
-        runOnMainIfRuntimeActive {
-            if (launchPolicyGateGeneration.get() == gateGeneration && intent === gateIntent) {
-                launchPolicyGatePending.set(false)
-                if (prepared.tiers.inputsHash == "failed") {
-                    Toast.makeText(this@Game, getString(R.string.nova_tier_unavailable,
-                        prepared.tiers.recommended.limits.first().message), Toast.LENGTH_LONG).show()
-                    finish()
-                    return@runOnMainIfRuntimeActive
-                }
-                launchPolicyHandoffRecreation = true
-                recreate()
-            }
-        }
-    }
-    return
-}
+// A no-change refresh can resume initialization without recreating the activity.
+val continueLaunch = fun() {
 
 if (needsGeneratedTier) {
     val plan = com.papi.nova.preferences.NovaStreamSettings.generatedPlan(tierPreferences)
@@ -1427,7 +1406,8 @@ launchPolicyFingerprint,
 com.papi.nova.manager.NovaLaunchPolicyGateStore.Decision(
 optimizationJson = launchDecision.optimization?.toString(),
 profilePreference = launchDecision.profilePreference,
-resolvedProfileTrusted = launchDecision.resolvedProfileTrusted
+resolvedProfileTrusted = launchDecision.resolvedProfileTrusted,
+manualBitrateMaximumKbps = launchManualBitrateMaximumKbps
 )
 )
 runOnMainIfRuntimeActive {
@@ -1449,6 +1429,7 @@ com.papi.nova.manager.NovaLaunchPolicyGateStore.consume(nextToken, launchPolicyF
 }
 return
 }
+launchManualBitrateMaximumKbps = policyDecision.manualBitrateMaximumKbps
 launchProfilePreference = policyDecision.profilePreference
 launchPolicyGatePending.set(false)
 launchResolvedProfileTrusted = policyDecision.resolvedProfileTrusted
@@ -1665,7 +1646,8 @@ if (!exactMediaCadence && prefConfig!!.framePacingWarpFactor > 0)
 chosenFrameRate *= prefConfig!!.framePacingWarpFactor
 }
 
-configuredStreamBitrateKbps = if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate
+configuredStreamBitrateKbps = (if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate)
+    .coerceAtMost(launchManualBitrateMaximumKbps)
 var autoSafeBitrateKbps:Int = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
 configuredStreamBitrateKbps,
 launchOptimization
@@ -1674,7 +1656,7 @@ if (autoSafeBitrateKbps > 0 && autoSafeBitrateKbps != configuredStreamBitrateKbp
 {
 LimeLog.info(("Nova: Auto Safe launch bitrate " + configuredStreamBitrateKbps +
 " -> " + autoSafeBitrateKbps + " kbps"))
-configuredStreamBitrateKbps = autoSafeBitrateKbps
+configuredStreamBitrateKbps = autoSafeBitrateKbps.coerceAtMost(launchManualBitrateMaximumKbps)
 }
 var autoSafeResolution:com.papi.nova.manager.StreamSyncManager.StreamResolution? = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeResolution(
 displayWidth,
@@ -1715,12 +1697,12 @@ configuredStreamHdr = willStreamHdr
         // an H.264 stream gets no PyroWave advice at all. The host can still lower the frame rate when
         // it negotiates, which can only make this ask for more than the stream needs, not less.
         //
-        // What it asks for is the codec author's model at 35 dB. The chroma is the one the offer settles
+        // The calibrated model targets 31 dB on handhelds and 35 dB across the room. The chroma is the one the offer settles
         // on, because the host and client have not negotiated yet: the player chose PyroWave, the offer
         // carries 4:4:4, and a host that serves PyroWave takes it. The distance is H 2.0 for a television
         // or a stream on an external display and H 2.87 for the device's own screen.
         // PyroWaveDecoderRenderer.adviceChroma444 and viewingHeightFactor say why, and bitrateAdvice
-        // says where the figure outruns the 300 Mbps the slider reaches.
+        // quotes request units and respects this host's advertised manual limit.
         if ((supportedVideoFormats and MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0)
         {
             val pyroWaveFps = Math.round(chosenFrameRate)
@@ -1745,6 +1727,7 @@ configuredStreamHdr = willStreamHdr
             // setting can still go higher. bitrateWarning says why.
             val pyroWaveWarning = com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateWarning(
                 configuredStreamBitrateKbps, displayWidth, displayHeight, pyroWaveFps, pyroWaveAdvice,
+                maximumKbps = launchManualBitrateMaximumKbps,
             )
             if (pyroWaveWarning != null)
             {
@@ -2043,7 +2026,39 @@ catch (ignored:Throwable) {}
 }
 }
 catch (ignored:Throwable) {}
+}
 
+if (needsGeneratedTier && (com.papi.nova.preferences.NovaTierRuntime.snapshot()?.tiers?.inputsHash == "failed" ||
+        !com.papi.nova.preferences.NovaTierRuntime.isPrepared() ||
+        com.papi.nova.preferences.NovaTierRuntime.snapshot()?.tiers != tierSnapshotAtRead?.tiers)) {
+    val gateIntent = intent
+    val gateGeneration = launchPolicyGateGeneration.incrementAndGet()
+    launchPolicyGatePending.set(true)
+    launchRuntimeIo("NovaLaunchPolicyGate") {
+        val prepared = com.papi.nova.preferences.NovaTierRuntime.prepare(applicationContext)
+        runOnMainIfRuntimeActive {
+            if (launchPolicyGateGeneration.get() == gateGeneration && intent === gateIntent) {
+                launchPolicyGatePending.set(false)
+                if (prepared.tiers.inputsHash == "failed") {
+                    Toast.makeText(this@Game, getString(R.string.nova_tier_unavailable,
+                        prepared.tiers.recommended.limits.first().message), Toast.LENGTH_LONG).show()
+                    finish()
+                    return@runOnMainIfRuntimeActive
+                }
+                if (prepared.tiers == tierSnapshotAtRead?.tiers) {
+                    // The callback only dirtied the cache. Finish this activity's launch once.
+                    continueLaunch()
+                } else {
+                    launchPolicyHandoffRecreation = true
+                    recreate()
+                }
+            }
+        }
+    }
+    return
+}
+
+continueLaunch()
 }
 
 @SuppressLint("ClickableViewAccessibility")
@@ -2946,13 +2961,40 @@ resolvedProfileTrusted = false,
 policyMessage = message,
 policyReason = reason
 )
+if (novaApiClient == null)
+{
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
+}
+
+launchManualBitrateMaximumKbps = com.papi.nova.preferences.NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS
+val hostKind = try
+{
+novaApiClient!!.identifyLaunchHost()
+}
+catch (e:Exception)
+{
+LimeLog.severe("Nova: Launch identity failed closed: " + e.message)
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
+}
+if (hostKind == com.papi.nova.api.PolarisLaunchHostKind.NON_POLARIS)
+{
+LimeLog.info("Nova: Stock host confirmed; launching with local settings and no resolvedProfile marker")
+return LaunchOptimizationDecision(null, false, preference, false)
+}
+if (hostKind != com.papi.nova.api.PolarisLaunchHostKind.CURRENT_POLARIS)
+{
+LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch authority")
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_TOO_OLD)
+}
+launchManualBitrateMaximumKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
+novaApiClient!!.getLaunchCapabilities()?.features?.manualBitrateMaxKbps)
 val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(
 width = requestedWidth,
 height = requestedHeight,
 fps = requestedFps,
 displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(displayLocked,
     com.papi.nova.manager.WorkerLaunchContract.isProfileApp(safeAppIdentity)),
-bitrateKbps = if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate,
+bitrateKbps = (if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate).coerceAtMost(launchManualBitrateMaximumKbps),
 bitrateLocked = com.papi.nova.manager.NovaTierLaunchPolicy.bitrateLocked(prefConfig.videoFormat,
     com.papi.nova.manager.WorkerLaunchContract.isProfileApp(safeAppIdentity), bitrateLocked)
 )
@@ -3035,30 +3077,6 @@ catch (e:Exception) {
 LimeLog.warning("Nova: Rejecting malformed preflight optimization payload")
 return blocked(com.papi.nova.manager.LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC)
 }
-}
-if (novaApiClient == null)
-{
-return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
-}
-
-val hostKind = try
-{
-novaApiClient!!.identifyLaunchHost()
-}
-catch (e:Exception)
-{
-LimeLog.severe("Nova: Launch identity failed closed: " + e.message)
-return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
-}
-if (hostKind == com.papi.nova.api.PolarisLaunchHostKind.NON_POLARIS)
-{
-LimeLog.info("Nova: Stock host confirmed; launching with local settings and no resolvedProfile marker")
-return LaunchOptimizationDecision(null, false, preference, false)
-}
-if (hostKind != com.papi.nova.api.PolarisLaunchHostKind.CURRENT_POLARIS)
-{
-LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch authority")
-return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_TOO_OLD)
 }
 val resolverRequest = preflightSelection.resolverRequest ?: callerRequest
 val optimizationResult = try {

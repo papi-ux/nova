@@ -336,7 +336,12 @@ class EditProfileActivity : NovaActivity() {
             val memPrefs = activity.getInMemoryPrefs()
             preferenceManager.preferenceDataStore = InMemoryPreferenceDataStore(memPrefs)
 
+            // AndroidX persists XML defaults during inflation when a data store is installed.
+            // A saved setup must retain only its actual overrides until the player edits it.
+            val overrides = memPrefs.all.filterValues { it != null }.mapValues { it.value!! }
             super.onCreatePreferences(savedInstanceState, rootKey)
+            memPrefs.edit().clear().apply()
+            com.papi.nova.preferences.NovaSettingsMigration.writeDifference(memPrefs, overrides)
 
             findPreference<Preference>("nova_ui_font_scale_percent")?.isVisible = false
             findPreference<Preference>("option_reset_osc_preference")?.isVisible = false

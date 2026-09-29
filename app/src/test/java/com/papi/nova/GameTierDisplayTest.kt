@@ -86,7 +86,7 @@ class GameTierDisplayTest {
             val features=JSONObject();maximum?.let { features.put("manual_bitrate_max_kbps",it) }
             game.novaApiClient=Mockito.mock(PolarisApiClient::class.java) { invocation -> when(invocation.method.name) {
                 "identifyLaunchHost" -> PolarisLaunchHostKind.CURRENT_POLARIS
-                "getCapabilities" -> PolarisApiClient.parseCapabilitiesResponse(JSONObject().put("features",features))
+                "getLaunchCapabilities" -> PolarisApiClient.parseCapabilitiesResponse(JSONObject().put("features",features))
                 "getOptimization" -> { calls+=invocation.arguments[11] as Int;payload }
                 else -> Mockito.RETURNS_DEFAULTS.answer(invocation)
             } }

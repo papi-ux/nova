@@ -644,7 +644,7 @@ class PreferenceConfiguration {
                         }, NovaTierRuntime.snapshot()?.inputs?.distance ?: NovaDistance.HAND).kbps)
             }
             if (bitrateKbps > 0) {
-                editor.putInt(BITRATE_PREF_STRING, bitrateKbps)
+                editor.putInt(BITRATE_PREF_STRING, bitrateKbps.coerceAtMost(NovaBitrateAdvice.MANUAL_MAX_KBPS))
                 editor.putBoolean(NovaSettingsMigration.AUTO, false).putBoolean(NovaSettingsMigration.CUSTOM_AUTO, false)
             }
             editor.apply()

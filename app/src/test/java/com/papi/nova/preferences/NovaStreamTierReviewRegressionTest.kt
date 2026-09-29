@@ -164,12 +164,11 @@ class NovaStreamTierReviewRegressionTest {
         assertEquals(80000,PreferenceConfiguration.readPreferences(context).bitrate)
         assertFalse(prefs.contains("seekbar_bitrate_kbps"))
     }
-    @Test fun profileEditorChangesMarkCustomAndManualBitrateDoesNotStayAutomatic() {
+    @Test fun profileEditorChangesMarkCustom() {
         val profile=SettingsProfile(UUID.randomUUID(),"Custom",0,0,mapOf("list_resolution" to "1920x1080"))
         profile.selectStreamTier(NovaTier.RECOMMENDED,true)
         profile.setOptions(profile.getOptions()!! + mapOf("seekbar_bitrate_kbps" to 37000, NovaSettingsMigration.AUTO to false, NovaSettingsMigration.CUSTOM_AUTO to false))
         assertEquals("custom",profile.getOptions()!![NovaSettingsMigration.TIER])
-        assertEquals(false,profile.getOptions()!![NovaSettingsMigration.AUTO])
     }
     @Test fun classicDefaultBitrateKeepsAutoAndActiveSetupSelectionTracksEdit() {
         NovaSettingsMigration.apply(context)

@@ -38,11 +38,19 @@ data class NovaStreamSourceLine(val source:NovaStreamSource,val text:String,val 
             if("client_refresh_cap" in reasons && fps!=null) limits += "client_refresh_cap" to "this screen caps it at $fps fps"
             if(stability) limits += "stability_preset_selected" to "Stability preset"
             val width=value("display_width")?.toInt();val height=value("display_height")?.toInt()
+            val detailSource=when(source) {
+                NovaStreamSource.HOST_SAVED_COPY -> "paired_client"
+                NovaStreamSource.HOST_POLICY -> "device_profile_v1"
+                else -> null
+            }
+            fun attributed(name:String)=detailSource!=null && field(name)?.optString("source")==detailSource &&
+                field(name)?.optString("reason_code")!="stability_preset_selected"
             val savedDetail=when {
-                !saved || request==null -> ""
-                width!=null && height!=null && (width!=request.width || height!=request.height) -> "${width}×$height"
-                fps!=null && abs(fps-request.fps)>0.5 -> "$fps fps"
-                bitrate!=null && bitrate!=request.bitrateKbps -> NovaBitrateAdvice.text(bitrate,false)
+                request==null -> ""
+                attributed("display_width") && attributed("display_height") && width!=null && height!=null &&
+                    (width!=request.width || height!=request.height) -> "${width}×$height"
+                attributed("target_fps") && fps!=null && abs(fps-request.fps)>0.5 -> "$fps fps"
+                attributed("target_bitrate_kbps") && bitrate!=null && bitrate!=request.bitrateKbps -> NovaBitrateAdvice.text(bitrate,false)
                 else -> ""
             }
             val detail=limits.firstOrNull()?.second ?: savedDetail

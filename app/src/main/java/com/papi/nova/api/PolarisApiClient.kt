@@ -2332,15 +2332,33 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
+    @Volatile private var latestCapabilities: PolarisCapabilities? = null
+
     fun getCapabilities(): PolarisCapabilities? {
+        latestCapabilities = null
         return try {
             val request = Request.Builder().url("$baseUrl/capabilities").build()
             executeGetWithRetry(request).use { response ->
                 if (response.code != 200) return null
-                parseCapabilitiesResponse(JSONObject(response.body?.string() ?: return null))
+                parseCapabilitiesResponse(JSONObject(response.body?.string() ?: return null)).also { latestCapabilities = it }
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Capabilities probe failed: ${errorMessage(e)}")
+            null
+        }
+    }
+
+    /** Launch callers run on IO and share the bounded identity probe's host-local result. */
+    fun getLaunchCapabilities(): PolarisCapabilities? {
+        latestCapabilities?.let { return it }
+        return try {
+            executeLaunchPolicyGet(Request.Builder().url("$baseUrl/capabilities").build()).use { response ->
+                if (response.code != 200) return null
+                parseCapabilitiesResponse(JSONObject(response.body?.string() ?: return null))
+                    .also { latestCapabilities = it }
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Launch capabilities unavailable: ${errorMessage(e)}")
             null
         }
     }
@@ -2358,6 +2376,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * fail closed.
      */
     fun identifyLaunchHost(): PolarisLaunchHostKind {
+        latestCapabilities = null
         val state = readServerStateForIdentity()
         return when (launchHostFamilyFromServerState(state)) {
             PolarisServerFamily.UNKNOWN -> PolarisLaunchHostKind.UNKNOWN
@@ -2427,7 +2446,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 if (response.code != 200) return PolarisLaunchHostKind.UNKNOWN
                 val body = response.body?.string() ?: return PolarisLaunchHostKind.UNKNOWN
                 val capabilities = runCatching {
-                    parseCapabilitiesResponse(JSONObject(body))
+                    parseCapabilitiesResponse(JSONObject(body)).also { latestCapabilities = it }
                 }.getOrNull() ?: return PolarisLaunchHostKind.UNKNOWN
                 // The serverinfo state said Polaris; a capabilities document that
                 // does not agree is contradictory, so fail closed rather than
@@ -3521,6 +3540,9 @@ class PolarisApiClient @JvmOverloads constructor(
         encoderBackend: String = ""
     ): org.json.JSONObject? {
         return try {
+            // This API object belongs to one paired host. Shortcut and game-page preflights
+            // may arrive before any feature probe; never borrow another host's ceiling.
+            if (latestCapabilities == null) getLaunchCapabilities()
             val url = "$baseUrl${buildOptimizationPath(
                 device = device,
                 game = game,
@@ -3533,7 +3555,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 height = height,
                 fps = fps,
                 displayLocked = displayLocked,
-                bitrateKbps = bitrateKbps,
+                bitrateKbps = bitrateKbps.coerceAtMost(com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
+                    latestCapabilities?.features?.manualBitrateMaxKbps)),
                 bitrateLocked = bitrateLocked,
                 hdr = hdr,
                 clientMaxFps = clientMaxFps,

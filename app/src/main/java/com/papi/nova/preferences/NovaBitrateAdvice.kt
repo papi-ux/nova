@@ -11,11 +11,14 @@ object NovaBitrateAdvice {
     const val LEGACY_MANUAL_MAX_KBPS = 300000
     /** Hosts must explicitly advertise a larger manual range; malformed metadata is legacy. */
     fun manualMaximum(advertisedKbps: Int?): Int =
-        advertisedKbps?.takeIf { it in 1000..MANUAL_MAX_KBPS } ?: LEGACY_MANUAL_MAX_KBPS
+        advertisedKbps?.takeIf { it >= 1000 }?.coerceAtMost(MANUAL_MAX_KBPS) ?: LEGACY_MANUAL_MAX_KBPS
     const val AUTOMATIC_MAX_KBPS = 300000
     /** Mirrors Polaris pyrowave_advice::k_far_target_db and k_target_db (#218). */
     const val HANDHELD_PYROWAVE_TARGET_DB = 31
     const val ROOM_PYROWAVE_TARGET_DB = 35
+
+    fun pyrowaveTargetDb(heightFactor: Int): Int =
+        if (heightFactor == PyroWaveRateModel.HEIGHT_FACTOR_2_87) HANDHELD_PYROWAVE_TARGET_DB else ROOM_PYROWAVE_TARGET_DB
 
     fun table(width: Int, height: Int, fps: Int): Int {
         require(width > 0 && height > 0 && fps in 1..1000)
@@ -64,7 +67,7 @@ object NovaBitrateAdvice {
     fun pyrowaveEncoderKbps(width: Int, height: Int, fps: Int, distance: NovaDistance,
         chroma444: Boolean = true): Int {
         require(width > 0 && height > 0 && fps in 1..1000)
-        val target = if (distance == NovaDistance.ROOM) ROOM_PYROWAVE_TARGET_DB else HANDHELD_PYROWAVE_TARGET_DB
+        val target = pyrowaveTargetDb(if (distance == NovaDistance.ROOM) PyroWaveRateModel.HEIGHT_FACTOR_2_00 else PyroWaveRateModel.HEIGHT_FACTOR_2_87)
         val factor = if (distance == NovaDistance.ROOM) PyroWaveRateModel.HEIGHT_FACTOR_2_00 else PyroWaveRateModel.HEIGHT_FACTOR_2_87
         fun estimate(w: Int, h: Int) = PyroWaveRateModel.estimate(target, w, h, factor, chroma444, fps.toDouble()).mbps
         val pixels = width.toLong() * height

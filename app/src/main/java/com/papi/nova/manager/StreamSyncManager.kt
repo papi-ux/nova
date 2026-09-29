@@ -354,7 +354,7 @@ class StreamSyncManager private constructor() {
                 fps.isFinite() && fps in 15.0..240.0 &&
                 modeWidth == width && modeHeight == height && modeFps.isFinite() &&
                 kotlin.math.abs(modeFps - fps) <= 0.001 &&
-                bitrateKbps.isFinite() && bitrateKbps in 1000.0..300000.0 &&
+                bitrateKbps.isFinite() && bitrateKbps in 1000.0..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS.toDouble() &&
                 bitrateKbps == kotlin.math.floor(bitrateKbps)
         }
 

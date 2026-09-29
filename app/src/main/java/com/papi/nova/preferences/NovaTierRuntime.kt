@@ -119,8 +119,12 @@ object NovaTierRuntime {
         }
     }
 
+    @Volatile internal var initializedApplication: Context? = null
+        private set
+
     fun initialize(context: Context) {
         val app = context.applicationContext
+        initializedApplication = app
         scope.launch {
             runCatching { synchronized(this@NovaTierRuntime) {
                 if (!registered) {
@@ -153,6 +157,7 @@ object NovaTierRuntime {
     }
 
     internal fun installForTest(inputs: NovaTierInputs?) = synchronized(stateLock) {
+        initializedApplication=null
         epoch++
         revision++
         lastSignature=null

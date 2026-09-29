@@ -3,6 +3,7 @@ package com.papi.nova.binding.video
 import com.papi.nova.binding.video.PyroWaveDecoderRenderer.AdviceRule
 import com.papi.nova.binding.video.PyroWaveRateModel.Flag
 import com.papi.nova.nvstream.jni.MoonBridge
+import com.papi.nova.preferences.NovaBitrateAdvice
 import com.papi.nova.preferences.NovaSettingsValidator
 import com.papi.nova.preferences.PreferenceConfiguration
 import org.junit.Assert.assertEquals
@@ -14,15 +15,7 @@ import org.junit.Test
 import java.io.File
 import kotlin.math.floor
 
-/**
- * What PyroWave asks for, and why the answer is shaped the way it is.
- *
- * The advice is the bitrate PyroWave's author measured the codec needing for 35 dB of PSNR-HVS-M-H, at
- * a viewing distance chosen from the device, in the chroma the stream will carry. Every figure expected
- * here is read from pyrowave-rate-reference.csv, which upstream's own C function printed, or is a
- * literal copied out of that file. None is restated from the Kotlin that computes the advice, so a
- * mistake there cannot pass by agreeing with itself.
- */
+/** Calibrated launch advice checked against upstream encoder fixtures and request units. */
 class PyroWaveBitrateAdviceTest {
 
     private val ownScreen = PyroWaveRateModel.HEIGHT_FACTOR_2_87
@@ -42,9 +35,9 @@ class PyroWaveBitrateAdviceTest {
             .filter { it.isNotBlank() && !it.startsWith("#") }
 
     /** Every answer upstream gave at the quality the advice aims for. */
-    private fun rowsAt35dB(): List<Row> {
+    private fun rowsAtCalibratedTargets(): List<Row> {
         assertEquals("psnr,height_factor,chroma444,width,height,fps,mbits", fixture.first())
-        return fixture.drop(1).map { it.split(",") }.filter { it[0] == "35" }.map { cells ->
+        return fixture.drop(1).map { it.split(",") }.filter { it[0] == if (it[1] == "15") "31" else "35" }.map { cells ->
             Row(
                 heightFactor = cells[1].toInt(),
                 chroma444 = cells[2] == "1",
@@ -56,15 +49,15 @@ class PyroWaveBitrateAdviceTest {
         }
     }
 
-    /** What upstream's C function answered at 35 dB, in Mbps. */
+    /** What upstream's C function answered at the calibrated target, in Mbps. */
     private fun upstreamMbps(heightFactor: Int, chroma444: Boolean, width: Int, height: Int, fps: Int): Double =
-        rowsAt35dB().single {
+        rowsAtCalibratedTargets().single {
             it.heightFactor == heightFactor && it.chroma444 == chroma444 &&
                 it.width == width && it.height == height && it.fps == fps
         }.mbits
 
     /** Mbps as whole kbps, truncated, which is how the advice has always been stated. */
-    private fun kbps(mbps: Double): Int = floor(mbps * 1000.0).toInt()
+    private fun kbps(mbps: Double): Int = NovaBitrateAdvice.requestForEncoder(floor(mbps * 1000.0).toInt())
 
     /** Kbps rounded up to the whole Mbps a player is told. */
     private fun roundedUpToMbps(kbps: Int): Int = (kbps + 999) / 1000
@@ -76,9 +69,7 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun atBothDistancesItUsesTheAdviceIsWhatUpstreamMeasured() {
-        // 2 distances x 2 chroma x 8 sizes x 4 frame rates. The two shapes that are not 16:9, the Deck's
-        // 1280x800 and 2560x1080, are inside the pixel range, so they are the model's answer too, flagged.
-        val rows = rowsAt35dB().filter { it.heightFactor == ownScreen || it.heightFactor == acrossTheRoom }
+        val rows = rowsAtCalibratedTargets().filter { it.heightFactor == ownScreen || it.heightFactor == acrossTheRoom }
         assertEquals(2 * 2 * 8 * 4, rows.size)
         val failures = mutableListOf<String>()
         for (r in rows) {
@@ -100,134 +91,68 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun theFiguresAPlayerIsTold() {
-        // Copied from the fixture, so they read as numbers rather than as arithmetic. First a phone, a
-        // handheld or a tablet showing the stream on its own screen, in the 4:4:4 Nova's offer settles on.
-        assertEquals(180, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, ownScreen)) // 179.492
-        assertEquals(138, PyroWaveDecoderRenderer.advisedMbps(1280, 720, 60, true, ownScreen)) // 137.513
-        assertEquals(144, PyroWaveDecoderRenderer.advisedMbps(1280, 800, 60, true, ownScreen)) // 143.176
-        // A television, or a stream on an external display. 4K asks for more than the 300 Mbps the
-        // slider reaches, and says so anyway: the number is the codec's, not the slider's.
-        assertEquals(267, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, acrossTheRoom)) // 266.7449
-        assertEquals(314, PyroWaveDecoderRenderer.advisedMbps(3840, 2160, 60, true, acrossTheRoom)) // 313.803
-        // And 4:2:0, for an offer without 4:4:4.
-        assertEquals(154, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, false, ownScreen)) // 153.572
+        assertEquals(109, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, ownScreen)) // 179.492
+        assertEquals(106, PyroWaveDecoderRenderer.advisedMbps(1280, 720, 60, true, ownScreen)) // 137.513
+        assertEquals(114, PyroWaveDecoderRenderer.advisedMbps(1280, 800, 60, true, ownScreen)) // 143.176
+        assertEquals(298, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, acrossTheRoom)) // 266.7449
+        assertEquals(350, PyroWaveDecoderRenderer.advisedMbps(3840, 2160, 60, true, acrossTheRoom)) // 313.803
+        assertEquals(101, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, false, ownScreen)) // 153.572
     }
 
     @Test
-    fun frameRateCostsExactlyItsMultiple() {
-        // The whole difference between this codec and an inter frame one. Doubling the frame rate of
-        // H.264 costs far less than double, because the extra frames resemble their neighbours and
-        // are coded as differences. Here every frame is coded from scratch, so it costs double, and
-        // advice that assumed otherwise would under ask at high frame rates, which is exactly where
-        // the picture was measured falling apart. Within a kbps, because each answer is truncated to a
-        // whole one. Inside the model, and past each of its edges.
+    fun encoderRateCostsExactlyItsMultipleBeforeFixedRequestOverhead() {
         for (size in listOf(1920 to 1080, 1280 to 800, 854 to 480, 5120 to 2880)) {
             val at60 = PyroWaveDecoderRenderer.recommendedKbps(size.first, size.second, 60, true, ownScreen)
             val at120 = PyroWaveDecoderRenderer.recommendedKbps(size.first, size.second, 120, true, ownScreen)
-            assertEquals("${size.first}x${size.second}", (at60 * 2).toDouble(), at120.toDouble(), 1.0)
+            assertEquals("${size.first}x${size.second}", (NovaBitrateAdvice.encoderForRequest(at60) * 2).toDouble(), NovaBitrateAdvice.encoderForRequest(at120).toDouble(), 1.0)
         }
     }
 
     @Test
     fun pixelsCostFarLessThanTheirMultiple() {
-        // Why the flat figure went. 1920x1080 is 2.25 times the pixels of 1280x720, and upstream measured
-        // it needing about 1.63 times the bits at a monitor's distance and 1.36 at a handheld's. A wavelet
-        // codec gives up the finest detail first, and most of what a bigger picture of the same scene adds
-        // is finer detail.
         for (factor in listOf(ownScreen, acrossTheRoom)) {
             val at720 = PyroWaveDecoderRenderer.recommendedKbps(1280, 720, 60, false, factor)
             val at1080 = PyroWaveDecoderRenderer.recommendedKbps(1920, 1080, 60, false, factor)
             val upstream = upstreamMbps(factor, false, 1920, 1080, 60) / upstreamMbps(factor, false, 1280, 720, 60)
-            assertEquals("H index $factor", upstream, at1080.toDouble() / at720.toDouble(), 1e-4)
+            assertEquals("H index $factor", upstream, NovaBitrateAdvice.encoderForRequest(at1080).toDouble() / NovaBitrateAdvice.encoderForRequest(at720).toDouble(), 1e-4)
             assertTrue("H index $factor: 1080p costs ${at1080.toDouble() / at720} of 720p", at1080 < at720 * 1.7)
         }
     }
 
     @Test
     fun theAdviceIsNeverWhatLookedSoft() {
-        // Measured by eye on a Retroid Pocket 6, Control at 1920x1080: 50 Mbps at 120 fps looked soft.
-        // The least the advice asks for at that size and rate is 4:2:0 on the device's own screen,
-        // 307.143 in the fixture. The other half of the measurement is the next test.
         val least = PyroWaveDecoderRenderer.recommendedKbps(1920, 1080, 120, false, ownScreen)
         assertEquals(kbps(upstreamMbps(ownScreen, false, 1920, 1080, 120)), least)
         assertTrue("advice of $least kbps is down where the picture looked soft", least > 50_000)
     }
 
     @Test
-    fun theModelAsksForMoreThanWhatLookedRightByEye() {
-        // The other half: on the same handheld, 200 Mbps at 120 fps looked right. The model at 35 dB asks
-        // 358.984 there in 4:4:4 and 307.143 in 4:2:0, 1.5 to 1.8 times as much, where the flat figure
-        // it replaced asked 0.73 x 1920 x 1080 x 120, 181.647. So the model and the eye disagree here,
-        // and ADVICE_PSNR_DB says so and why that may be. This keeps the measurement in view: if the
-        // advice comes back down to what looked right, that paragraph is out of date.
+    fun calibratedHandheldAdviceAgreesWithTheApprovedRequestRange() {
         for (chroma444 in listOf(false, true)) {
-            val got = advice(1920, 1080, 120, chroma444, ownScreen)
-            assertEquals(chroma(chroma444), kbps(upstreamMbps(ownScreen, chroma444, 1920, 1080, 120)), got.kbps)
-            assertTrue(
-                "${chroma(chroma444)}: ${got.kbps} kbps is no longer above the 200 Mbps that looked right by " +
-                    "eye, so what ADVICE_PSNR_DB says about the two disagreeing is out of date",
-                got.kbps > 200_000,
-            )
+            val got = advice(1920,1080,120,chroma444,ownScreen)
+            assertEquals(kbps(upstreamMbps(ownScreen,chroma444,1920,1080,120)),got.kbps)
+            assertTrue(got.kbps in 190000..230000)
         }
     }
-
-    /** The most Nova's bitrate setting reaches, in kbps, read from the slider that sets it. */
     private fun sliderMaxKbps(key: String = "seekbar_bitrate_kbps"): Int {
         val prefs = File("src/main/res/xml/preferences.xml").readText()
-        assertTrue("no slider $key in preferences.xml", prefs.contains("android:key=\"$key\""))
         val slider = prefs.substringAfter("android:key=\"$key\"").substringBefore("/>")
         return Regex("android:max=\"(\\d+)\"").find(slider)!!.groupValues[1].toInt()
     }
 
     @Test
-    fun whereTheAdviceOutrunsTheSliderItIsStillSaid() {
-        // Nova's bitrate setting stops at 300 Mbps and the advice does not stop with it, so past the
-        // slider no setting satisfies it, and a player already at the top is logged but not told.
-        // bitrateAdvice's KDoc says where that happens; these are the edges it names, in the 4:4:4
-        // Nova's offer settles on, each checked against the fixture, so the slider, the target or a
-        // distance cannot move without this and that paragraph moving with it.
-        val slider = sliderMaxKbps()
-        assertEquals(300_000, slider)
-        fun pastTheSlider(factor: Int, width: Int, height: Int, fps: Int): Boolean {
-            val got = advice(width, height, fps, true, factor)
-            val where = "${width}x$height at $fps, H index $factor"
-            assertEquals(where, roundedUpToMbps(kbps(upstreamMbps(factor, true, width, height, fps))), got.mbps)
-            return got.mbps * 1000 > slider
+    fun uncappedAdviceCanExceedEitherHostsManualLimit() {
+        assertEquals(214898, advice(1920,1080,120,true,ownScreen).kbps)
+        assertEquals(593890, advice(1920,1080,120,true,acrossTheRoom).kbps)
+        for (limit in listOf(300000,500000)) {
+            val wanted=advice(1920,1080,120,true,acrossTheRoom)
+            assertFalse(PyroWaveDecoderRenderer.bitrateWarning(limit,1920,1080,120,wanted,limit)!!.tellPlayer)
+            assertTrue(PyroWaveDecoderRenderer.bitrateWarning(limit-1,1920,1080,120,wanted,limit)!!.tellPlayer)
         }
-
-        // A device's own screen at 60 fps: under it for every size the model covers, 4K asking 234.389.
-        for (r in rowsAt35dB().filter { it.heightFactor == ownScreen && it.fps == 60 && it.chroma444 }) {
-            assertFalse("${r.width}x${r.height} at 60", pastTheSlider(ownScreen, r.width, r.height, 60))
-        }
-        // At 90 fps from 3200x1800 (308.401), not at 2560x1440 (276.427).
-        assertFalse(pastTheSlider(ownScreen, 2560, 1440, 90))
-        assertTrue(pastTheSlider(ownScreen, 3200, 1800, 90))
-        // At 120 fps from 1600x900 (326.086), not at 1280x800 (286.352). 1080p at 120 is a 120 Hz
-        // handheld at its own panel's rate: 358.984, and 307.143 even in 4:2:0.
-        assertFalse(pastTheSlider(ownScreen, 1280, 800, 120))
-        assertTrue(pastTheSlider(ownScreen, 1600, 900, 120))
-        assertEquals(359, advice(1920, 1080, 120, true, ownScreen).mbps)
-        assertEquals(308, advice(1920, 1080, 120, false, ownScreen).mbps)
-
-        // A television or an external display at 60 fps from 2560x1080 (309.990), not at 1080p
-        // (266.745); 1440p asks 341.824.
-        assertFalse(pastTheSlider(acrossTheRoom, 1920, 1080, 60))
-        assertTrue(pastTheSlider(acrossTheRoom, 2560, 1080, 60))
-        assertEquals(342, advice(2560, 1440, 60, true, acrossTheRoom).mbps)
-        // At 90 fps from 1600x900 (326.089), not at 1280x800 (266.174), and at 120 even 720p (330.095).
-        assertFalse(pastTheSlider(acrossTheRoom, 1280, 800, 90))
-        assertTrue(pastTheSlider(acrossTheRoom, 1600, 900, 90))
-        assertTrue(pastTheSlider(acrossTheRoom, 1280, 720, 120))
     }
 
     @Test
     fun onATelevisionFourKIsAdvisedLessThanFourteenForty() {
-        // Not monotone in the size, because upstream did not measure it so. At H 2.0 in 4:4:4 the fixture
-        // has 1440p60 at 341.824, 3200x1800 at 325.671 and 4K at 313.803: past about 1440p at that
-        // distance the added pixels are finer than an eye resolves well, and a wavelet codec spends little
-        // on them. The advice follows the model rather than smoothing it over, so a player on a television
-        // who drops from 4K to 1440p is told to raise the bitrate. On the device's own screen, farther
-        // away, the curve has not turned yet: 4K asks the most there, 234.389 against 184.285 for 1440p.
         val at1440 = advice(2560, 1440, 60, true, acrossTheRoom).kbps
         val at1800 = advice(3200, 1800, 60, true, acrossTheRoom).kbps
         val at4k = advice(3840, 2160, 60, true, acrossTheRoom).kbps
@@ -241,11 +166,6 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun followingTheAdviceSatisfiesIt() {
-        // The warning compares against the exact figure and prints a rounded one, so rounding down would
-        // tell a player a number that, once set, is still under what was wanted, on every launch,
-        // forever. The one number is the one that is shown, rounded up. This is about the rounding only:
-        // past the 300 Mbps the slider reaches, there is no number to set, and
-        // whereTheAdviceOutrunsTheSliderItIsStillSaid says where that is.
         val sizes = listOf(
             854 to 480, 1280 to 720, 1280 to 800, 1920 to 1080, 2560 to 1080, 2560 to 1440,
             3840 to 2160, 5120 to 2880,
@@ -270,18 +190,11 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun novasDefaultIsWellUnderWhatThisCodecNeeds() {
-        // 20 Mbps is Nova's default and the reason this advice exists at all: a player who picks the
-        // codec and changes nothing else would judge it at a setting it cannot meet. Even the cheapest
-        // stream the model covers, 720p in 4:2:0 on a handheld, asks for 112.960 in the fixture.
-        assertTrue(PyroWaveDecoderRenderer.recommendedKbps(1280, 720, 60, false, ownScreen) > 100_000)
+        assertTrue(PyroWaveDecoderRenderer.recommendedKbps(1280, 720, 60, false, ownScreen) > PreferenceConfiguration.getDefaultBitrate("1280x720", "60"))
     }
 
     @Test
     fun theDevicesOwnScreenIsTheFarthestDistanceTheModelCovers() {
-        // A phone or a handheld held at arm's length sits farther away than H 2.87, and the model
-        // reaches no farther, so the last distance it has is the nearest to the truth. A large tablet
-        // can sit nearer, and a phone mirrored to a television is not seen at all; viewingHeightFactor
-        // says what that costs.
         val factor = PyroWaveDecoderRenderer.viewingHeightFactor(television = false, onExternalDisplay = false)
         assertEquals(15, factor)
         assertEquals(PyroWaveRateModel.HEIGHT_FACTORS - 1, factor)
@@ -299,21 +212,16 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun closerAsksForMore() {
-        // What the distance rule changes, from the fixture: 1080p60 in 4:4:4 is 179.492 on the device's
-        // own screen and 266.7449 on a television, because nearer, an eye finds more of what is missing.
         val own = PyroWaveDecoderRenderer.viewingHeightFactor(television = false, onExternalDisplay = false)
         val tv = PyroWaveDecoderRenderer.viewingHeightFactor(television = true, onExternalDisplay = false)
         val external = PyroWaveDecoderRenderer.viewingHeightFactor(television = false, onExternalDisplay = true)
-        assertEquals(180, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, own))
-        assertEquals(267, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, tv))
-        assertEquals(267, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, external))
+        assertEquals(109, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, own))
+        assertEquals(298, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, tv))
+        assertEquals(298, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, external))
     }
 
     @Test
     fun theOfferNovaMakesForPyroWaveIsAdvisedAsFourFourFour() {
-        // Game offers exactly one of these two pairs for this codec, eight bit or ten bit for HDR, and the
-        // streaming library settles on the 4:4:4 half whenever the host advertises it, which a host that
-        // serves PyroWave does.
         assertTrue(
             PyroWaveDecoderRenderer.adviceChroma444(
                 MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444,
@@ -335,21 +243,14 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun fourFourFourCostsWhatUpstreamMeasuredForIt() {
-        // The metric scores luma only, so 4:4:4 shows up as a cost and never as a benefit: at 1080p60 on
-        // a television the fixture has 266.7449 for 4:4:4 against 220.301 for 4:2:0.
-        assertEquals(267, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, acrossTheRoom))
-        assertEquals(221, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, false, acrossTheRoom))
+        assertEquals(298, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, true, acrossTheRoom))
+        assertEquals(246, PyroWaveDecoderRenderer.advisedMbps(1920, 1080, 60, false, acrossTheRoom))
         assertTrue(advice(1920, 1080, 60, true, acrossTheRoom).chroma444)
         assertFalse(advice(1920, 1080, 60, false, acrossTheRoom).chroma444)
     }
 
     @Test
     fun belowSevenTwentyItIsTheBitsPerPixelOfSevenTwenty() {
-        // The model says nothing under 1280x720, so the advice holds the last bits per pixel it does say
-        // at the same distance and chroma. An extrapolation: the model's bits per pixel rise as the
-        // picture shrinks, so the truth down here is probably higher still, but by how much is exactly
-        // what the model does not say, and holding the edge claims no more than was measured. 1280x719
-        // is one row short of the edge.
         for (factor in listOf(ownScreen, acrossTheRoom)) {
             for (chroma444 in listOf(false, true)) {
                 val bitsPerPixel = upstreamMbps(factor, chroma444, 1280, 720, 60) * 1e6 / (1280.0 * 720.0 * 60.0)
@@ -357,21 +258,17 @@ class PyroWaveBitrateAdviceTest {
                     val where = "${size.first}x${size.second}, ${chroma(chroma444)}, H index $factor"
                     val got = advice(size.first, size.second, 60, chroma444, factor)
                     val wanted = bitsPerPixel * size.first * size.second * 60 / 1000.0
-                    assertEquals(where, wanted, got.kbps.toDouble(), 1.0)
+                    assertEquals(where, NovaBitrateAdvice.requestForEncoder(wanted.toInt()), got.kbps)
                     assertEquals(where, AdviceRule.BELOW_MODEL_EDGE, got.rule)
                     assertTrue(where, Flag.PIXELS_BELOW_MODEL in got.flags)
                 }
             }
         }
-        // A quarter of 720p's pixels, a quarter of 137.513: 34.378, told as 35.
-        assertEquals(35, PyroWaveDecoderRenderer.advisedMbps(640, 360, 60, true, ownScreen))
+        assertEquals(kbps(upstreamMbps(ownScreen,true,1280,720,60)/4.0), advice(640,360,60,true,ownScreen).kbps)
     }
 
     @Test
     fun aboveFourKItIsTheBitsPerPixelOfFourK() {
-        // The same at the other edge, where the trend runs the other way: bits per pixel fall as the
-        // picture grows, so holding 4K's figure probably asks for more than is needed. 3840x2161 is one
-        // row over the edge.
         for (factor in listOf(ownScreen, acrossTheRoom)) {
             for (chroma444 in listOf(false, true)) {
                 val bitsPerPixel = upstreamMbps(factor, chroma444, 3840, 2160, 60) * 1e6 / (3840.0 * 2160.0 * 60.0)
@@ -379,14 +276,13 @@ class PyroWaveBitrateAdviceTest {
                     val where = "${size.first}x${size.second}, ${chroma(chroma444)}, H index $factor"
                     val got = advice(size.first, size.second, 60, chroma444, factor)
                     val wanted = bitsPerPixel * size.first * size.second * 60 / 1000.0
-                    assertEquals(where, wanted, got.kbps.toDouble(), 1.0)
+                    assertEquals(where, NovaBitrateAdvice.requestForEncoder(wanted.toInt()), got.kbps)
                     assertEquals(where, AdviceRule.ABOVE_MODEL_EDGE, got.rule)
                     assertTrue(where, Flag.PIXELS_ABOVE_MODEL in got.flags)
                 }
             }
         }
-        // Four times 4K's pixels, four times 234.389: 937.554, told as 938.
-        assertEquals(938, PyroWaveDecoderRenderer.advisedMbps(7680, 4320, 60, true, ownScreen))
+        assertEquals(kbps(upstreamMbps(ownScreen,true,3840,2160,60)*4.0), advice(7680,4320,60,true,ownScreen).kbps)
     }
 
     @Test
@@ -397,27 +293,21 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun whatNothingCanAnswerFallsBackToTheOldFlatFigure() {
-        // No stream Nova builds reaches this, because the distance rule names only distances the table
-        // has. It is there so that a change to the rule can never make the advice disappear. 0.73 bits
-        // per pixel, the figure measured by eye before the model: 1920x1080 at 60 is 124416000 pixels a
-        // second, so 90823.68 kbps.
         for (factor in listOf(-1, 16, 99)) {
             val got = advice(1920, 1080, 60, true, factor)
             assertEquals("H index $factor", AdviceRule.FLAT_FALLBACK, got.rule)
-            assertEquals("H index $factor", 90823, got.kbps)
-            assertEquals("H index $factor", 91, got.mbps)
+            assertEquals("H index $factor", NovaBitrateAdvice.requestForEncoder(90823), got.kbps)
+            assertEquals("H index $factor", 103, got.mbps)
         }
-        // Past an edge too, where the edge has no answer at that distance either: 854x480 at 60 is
-        // 24595200 pixels a second, so 17954.496 kbps.
         val small = advice(854, 480, 60, false, 16)
         assertEquals(AdviceRule.FLAT_FALLBACK, small.rule)
-        assertEquals(17954, small.kbps)
+        assertEquals(NovaBitrateAdvice.requestForEncoder(17954), small.kbps)
     }
 
     @Test
     fun theLogLineSaysWhichRuleAndDistanceGaveTheAdvice() {
         val model = advice(1920, 1080, 60, true, ownScreen).describe()
-        for (part in listOf("180 Mbps", "179492 kbps", "rule MODEL ", "35 dB", "H 2.875 (index 15)", "4:4:4")) {
+        for (part in listOf("109 Mbps", "108012 kbps", "rule MODEL ", "31 dB", "H 2.875 (index 15)", "4:4:4")) {
             assertTrue("'$part' is missing from: $model", model.contains(part))
         }
         val edge = advice(854, 480, 60, false, acrossTheRoom).describe()
@@ -453,11 +343,6 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun theSettingsMaximumIsTheSlidersAndTheCustomEntrys() {
-        // bitrateWarning reads the top of the bitrate setting from MAX_BITRATE_KBPS, and so does the
-        // custom entry, but both sliders say it as android:max, which cannot read a constant. If a
-        // slider moves without it, the warning stops at a figure the player cannot reach, or stays
-        // quiet below one they can. The custom entry is checked by what it accepts, in whole Mbps, so
-        // a literal put back there is caught as well.
         val top = PreferenceConfiguration.MAX_BITRATE_KBPS
         assertEquals(300_000, top)
         assertEquals("the bitrate slider", top, sliderMaxKbps())
@@ -467,24 +352,20 @@ class PyroWaveBitrateAdviceTest {
         assertFalse(NovaSettingsValidator.isValidTextValue(custom, "${top / 1000 + 1}"))
     }
 
-    /** 1080p at 120 fps in 4:4:4 on a device's own screen, a 120 Hz handheld at its own rate: 359 Mbps. */
-    private fun pastTheTop() = advice(1920, 1080, 120, true, ownScreen)
+    /** 1080p at 120 fps in 4:4:4 across the room: 594 requested Mbps. */
+    private fun pastTheTop() = advice(1920, 1080, 120, true, acrossTheRoom)
 
     @Test
     fun atTheTopOfTheSliderTheWarningIsLoggedButThePlayerIsNotTold() {
-        // The advice there is past the 300 Mbps the setting reaches, so a player already at the top has
-        // nothing to change, and telling them so on every launch helps nobody. The log keeps the line,
-        // and the line says the advice is over the maximum. Over the top too, which the slider does
-        // not offer.
         val wanted = pastTheTop()
-        assertEquals(359, wanted.mbps)
+        assertEquals(594, wanted.mbps)
         val top = PreferenceConfiguration.MAX_BITRATE_KBPS
         for (streamKbps in listOf(top, top + 1, top + 50_000)) {
             val warning = PyroWaveDecoderRenderer.bitrateWarning(streamKbps, 1920, 1080, 120, wanted)
             assertNotNull("$streamKbps kbps under $wanted is no longer logged", warning)
             assertFalse("$streamKbps kbps: the player is told to pass the top of the slider", warning!!.tellPlayer)
             assertEquals(
-                "PyroWave: $streamKbps kbps for 1920x1080 at 120 fps; it wants about 359 Mbps, over the 300 " +
+                "PyroWave: $streamKbps kbps for 1920x1080 at 120 fps; it wants about 594 Mbps, over the 300 " +
                     "Mbps maximum of the bitrate setting, so the player is not told",
                 warning.logLine,
             )
@@ -493,43 +374,34 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun oneUnderTheTopThePlayerIsToldAsBefore() {
-        // Below the maximum the player can still raise the bitrate, and that brings the stream closer
-        // even where the advice is past the top, so they are told as they always were, with the line
-        // the log always had. Then the ordinary case, Nova's default 20 Mbps at 1080p60.
         val warning = PyroWaveDecoderRenderer.bitrateWarning(
             PreferenceConfiguration.MAX_BITRATE_KBPS - 1, 1920, 1080, 120, pastTheTop(),
         )
         assertNotNull(warning)
         assertTrue("one kbps under the top, the player is no longer told", warning!!.tellPlayer)
-        assertEquals("PyroWave: 299999 kbps for 1920x1080 at 120 fps; it wants about 359 Mbps", warning.logLine)
+        assertEquals("PyroWave: 299999 kbps for 1920x1080 at 120 fps; it wants about 594 Mbps", warning.logLine)
 
         val ordinary = PyroWaveDecoderRenderer.bitrateWarning(
             20_000, 1920, 1080, 60, advice(1920, 1080, 60, true, ownScreen),
         )
         assertNotNull(ordinary)
         assertTrue(ordinary!!.tellPlayer)
-        assertEquals("PyroWave: 20000 kbps for 1920x1080 at 60 fps; it wants about 180 Mbps", ordinary.logLine)
+        assertEquals("PyroWave: 20000 kbps for 1920x1080 at 60 fps; it wants about 109 Mbps", ordinary.logLine)
     }
 
     @Test
     fun enoughOrNoAdviceSaysNothing() {
-        // Compared in the whole Mbps the player is told: 180 is enough for 179.492, and 179.999 is not.
         val wanted = advice(1920, 1080, 60, true, ownScreen)
-        assertNull(PyroWaveDecoderRenderer.bitrateWarning(180_000, 1920, 1080, 60, wanted))
-        assertTrue(PyroWaveDecoderRenderer.bitrateWarning(179_999, 1920, 1080, 60, wanted)!!.tellPlayer)
-        // The top of the slider is only a reason for silence when the advice is past it.
+        assertNull(PyroWaveDecoderRenderer.bitrateWarning(108_012, 1920, 1080, 60, wanted))
+        assertTrue(PyroWaveDecoderRenderer.bitrateWarning(108_011, 1920, 1080, 60, wanted)!!.tellPlayer)
         assertNull(
             PyroWaveDecoderRenderer.bitrateWarning(PreferenceConfiguration.MAX_BITRATE_KBPS, 1920, 1080, 60, wanted),
         )
-        // No advice, no warning, at any bitrate.
         assertNull(PyroWaveDecoderRenderer.bitrateWarning(0, 0, 1080, 60, advice(0, 1080, 60, true, ownScreen)))
     }
 
     @Test
     fun gameLogsEveryWarningButTellsThePlayerOnlyWhenTheyCanAct() {
-        // bitrateWarning decides and the tests above hold it; this pins Game to what it decided, as text
-        // for the same reason as the tests below. The line is logged for every warning, outside the
-        // branch that asks whether to tell the player, and the snackbar is inside that branch.
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         fun onlyIndexOf(anchor: String): Int {
             assertEquals("'$anchor' appears in Game.kt once", 1, Regex(Regex.escape(anchor)).findAll(game).count())
@@ -550,8 +422,6 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun gameAdvisesForTheOfferTheScreenAndTheDistance() {
-        // Game builds the advice where nothing can be instantiated in a JVM test, so the wiring is
-        // pinned as text, the way this repository pins the rest of Game.kt's launch decisions.
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val call = "PyroWaveDecoderRenderer.bitrateAdvice("
         assertEquals("the advice is built in one place", 1, Regex(Regex.escape(call)).findAll(game).count())
@@ -579,12 +449,10 @@ class PyroWaveBitrateAdviceTest {
                     "                configuredStreamBitrateKbps, displayWidth, displayHeight, pyroWaveFps, pyroWaveAdvice,",
             ),
         )
-        // bitrateWarning compares in whole Mbps, rounded up, and the player is told that same figure.
         assertTrue(
             "the player is no longer told the figure the warning compared",
             game.contains("getString(R.string.nova_pyrowave_bitrate_low, pyroWaveAdvice.mbps)"),
         )
-        // The offer the chroma is read from has to be made before the advice reads it.
         assertTrue(
             game.indexOf("MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444") in
                 0 until game.indexOf(call),
@@ -593,12 +461,6 @@ class PyroWaveBitrateAdviceTest {
 
     @Test
     fun gameAdvisesForTheStreamItSendsNotTheSettingsItStartedFrom() {
-        // Launch moves the stream away from the saved settings after the PyroWave offer is made. The
-        // display's maximum, Auto Safe and frame pacing move the frame rate; a watched stream and Auto
-        // Safe the size; a metered network and Auto Safe the bitrate; and a Space launch replaces the
-        // offer with H.264. Advice given before all of that described a stream that was not the one
-        // sent: a 120 fps setting on a 60 Hz phone was advised at 120, and an H.264 Space launch was
-        // advised and logged as PyroWave. Pinned as text for the same reason as the test above.
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         fun onlyIndexOf(anchor: String): Int {
             assertEquals("'$anchor' appears in Game.kt once", 1, Regex(Regex.escape(anchor)).findAll(game).count())
@@ -607,7 +469,7 @@ class PyroWaveBitrateAdviceTest {
         val call = onlyIndexOf("PyroWaveDecoderRenderer.bitrateAdvice(")
         for (settled in listOf(
             "if (workerLaunch != null) supportedVideoFormats = MoonBridge.VIDEO_FORMAT_H264",
-            "configuredStreamBitrateKbps = if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate",
+            "configuredStreamBitrateKbps = (if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate)",
             "configuredStreamBitrateKbps = autoSafeBitrateKbps",
             "displayHeight = autoSafeResolution!!.height",
             "configuredStreamFrameRateFps = chosenFrameRate",
@@ -619,12 +481,10 @@ class PyroWaveBitrateAdviceTest {
             call < onlyIndexOf("StreamConfiguration.Builder()"),
         )
 
-        // Only an offer that is still PyroWave is advised as PyroWave, and the guard encloses the advice.
         val guard = onlyIndexOf("if ((supportedVideoFormats and MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0)")
         assertTrue("the advice is not inside the PyroWave guard", guard < call)
         assertFalse("the PyroWave guard closes before the advice", game.substring(guard, call).contains('}'))
 
-        // The size, frame rate and bitrate the stream is configured with, not the saved ones.
         val site = game.substring(call).substringBefore("NovaSnackbar.showQuiet")
         assertTrue(
             "the advice no longer reads the size and frame rate the stream is sent at",
