@@ -297,18 +297,26 @@ internal const val NOVA_PLAY_SETUP_SWITCH_TAG = "nova-play-setup-switch-scope"
 private const val NOVA_PLAY_SETUP_SCOPE_FOCUS_FRAMES = 10
 
 /**
+ * The place or mode under the cursor on Where It Runs, for the plan card to preview: its [label],
+ * and its [line], what choosing it would run, in its own words.
+ */
+internal data class NovaPlayInPreview(val label: String, val line: String)
+
+/**
  * Where It Runs: where the game opens, when the host has Spaces, then one row per mode, banded
  * private first and host display second, the current one carrying the check and taking focus when
  * the page opens. One A picks and pops; a mode the host will not take stays a stop so its reason
  * can be read. [card] is the plan card, pinned above the list where the root had it. Like the
- * card on an option page it previews the choice under the cursor: it is given the name of the
- * focused place or mode when that is not the current one and can be chosen, and null otherwise,
- * so the card says "If you choose" here as it does on every other page (N19).
+ * card on an option page it previews the choice under the cursor: it is given the focused place or
+ * mode when that is not the current one and can be chosen, and null otherwise, so the card says
+ * "If you choose" here as it does on every other page (N19), with that choice's own line. It had
+ * kept the current plan's line under the new title, which could say something the chosen mode
+ * would not run.
  */
 @Composable
 internal fun NovaPageScope.NovaPlayInPage(
     page: PlaySetupPage.PlayIn,
-    card: (@Composable (preview: String?) -> Unit)? = null,
+    card: (@Composable (preview: NovaPlayInPreview?) -> Unit)? = null,
 ) {
     val state = page.picker()
     val places = page.places()
@@ -319,9 +327,12 @@ internal fun NovaPageScope.NovaPlayInPage(
         Modifier.onFocusChanged { if (it.hasFocus) focusedKey = key else if (focusedKey == key) focusedKey = null }
     }
     val preview = focusedKey?.let { key ->
-        state?.choices?.firstOrNull { it.id == key && !it.current && it.enabled }?.label
-            ?: places?.options?.firstOrNull { "place:${it.label}" == key && !it.current && it.enabled }?.label
-            ?: modes.firstOrNull { "mode:${it.label}" == key && !it.current && it.enabled }?.label
+        state?.choices?.firstOrNull { it.id == key && !it.current && it.enabled }
+            ?.let { NovaPlayInPreview(it.label, it.detail) }
+            ?: places?.options?.firstOrNull { "place:${it.label}" == key && !it.current && it.enabled }
+                ?.let { NovaPlayInPreview(it.label, it.consequence) }
+            ?: modes.firstOrNull { "mode:${it.label}" == key && !it.current && it.enabled }
+                ?.let { NovaPlayInPreview(it.label, it.consequence) }
     }
     val placesTitle = stringResource(R.string.nova_space_where_it_opens)
     val list: @Composable () -> Unit = {

@@ -86,8 +86,25 @@ data class NovaGameDetailOptimizationState(
     val preflightFailed: Boolean = false,
     /** Why it failed, in the host's words where it gave some, for the status line to say. */
     val preflightMessage: String? = null,
-    val aiRecommendedMode: String = ""
+    val aiRecommendedMode: String = "",
+    /**
+     * The plan on screen when a recheck began, shown dimmed until the host answers: with no plan
+     * at all the page said "Profile / 120 FPS" and Launch lost its preset (in-game smoke #18).
+     */
+    val lastPlan: NovaLaunchProfileSummary? = null,
 )
+
+/** A recheck is in flight and the plan on screen is the last one, kept until the host answers. */
+internal val NovaGameDetailOptimizationState.showsLastPlan: Boolean
+    get() = preflightInFlight && rawOptimization == null && lastPlan != null && profileSummary === lastPlan
+
+/** The state to show while a recheck is in flight: the settled plan, else the last one kept. */
+internal fun NovaGameDetailOptimizationState.withLastPlanWhileChecking(): NovaGameDetailOptimizationState =
+    if (profileSummary == null && preflightInFlight && rawOptimization == null && lastPlan != null) {
+        copy(profileSummary = lastPlan)
+    } else {
+        this
+    }
 
 internal enum class NovaLaunchPreflightGate {
     READY,
@@ -137,6 +154,11 @@ internal fun NovaGameDetailContent(
     hostPlaySetupPlan: NovaPlaySetupPlan?,
     /** The host scope's last result, said under its plan until the next one; null says nothing. */
     hostPlaySetupNotice: NovaPolarisSyncNotice? = null,
+    /**
+     * What PyroWave asks for past the bitrate setting for this launch's plan, in Mbps, or 0: the
+     * verdict the codec preview reads, so What Will Happen and the status line say it too (#10).
+     */
+    playSetupBitrateShortfallMbps: Int = 0,
     /** Play Setup's page stack; open while the panel is. Where It Runs is pushed onto it. */
     playSetupPanel: NovaPanelState,
     playLabel: String,
@@ -222,6 +244,9 @@ internal fun NovaGameDetailContent(
         }
     }
 
+    // This launch's plan held back by the bitrate setting, said where the plan is read (#10).
+    val bitrateLimit = if (playSetupBitrateShortfallMbps > 0) stringResource(R.string.nova_play_setup_limited_by_bitrate) else ""
+
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         // Where Play Setup's panel covers the page, the page's chrome is not drawn at all: at 16% it
         // still read through the panel's tiles and the room under them. Beside the panel it stays
@@ -231,6 +256,7 @@ internal fun NovaGameDetailContent(
         NovaGameDetailOverview(
             uiState = uiState,
             apiClient = apiClient,
+            planLimit = bitrateLimit,
             playLabel = playLabel,
             lastPlayedText = lastPlayedText,
             sourceLabel = sourceLabel,
@@ -411,8 +437,25 @@ internal fun NovaGameDetailContent(
             } else {
                 plan
             }
+        }.let { plan ->
+            // The verdict the codec preview gave, stated first among the facts behind the plan.
+            if (bitrateLimit.isBlank()) {
+                plan
+            } else {
+                plan.copy(
+                    facts = listOf(
+                        NovaPlaySetupFact(
+                            key = stringResource(R.string.nova_play_setup_fact_limited_by),
+                            value = stringResource(R.string.nova_play_setup_limit_bitrate),
+                            detail = stringResource(R.string.nova_play_setup_resolution_pyrowave_need, playSetupBitrateShortfallMbps),
+                            tone = NovaPlaySetupTone.WARN,
+                        ),
+                    ) + plan.facts,
+                )
+            }
         }
         val shownPlan = hostPlaySetupPlan?.takeIf { everyGame } ?: gamePlan
+        val planLimit = if (everyGame) "" else bitrateLimit
         val planTitle = stringResource(
             if (everyGame) R.string.nova_play_setup_host_read_title else R.string.nova_play_setup_what_will_happen,
         )
@@ -425,6 +468,8 @@ internal fun NovaGameDetailContent(
         }
         val planLine = novaPlaySetupPlanSummary(shownPlan).orEmpty()
         val baseLine = shownPlan.lines.firstOrNull().orEmpty()
+        // This game's last plan, kept while the host rechecks it, reads dimmed (#18).
+        val checking = !everyGame && optimizationState.showsLastPlan
         // The card a page pins where the root had it: the plan, or, while an option other than the
         // current one has focus, what choosing it would do.
         val pinnedCard: @Composable (NovaPlaySetupOption?) -> Unit = { focused ->
@@ -438,7 +483,7 @@ internal fun NovaGameDetailContent(
                     limit = preview.limit,
                 )
             } else {
-                NovaPlaySetupPlanCard(title = planTitle, value = planValue, line = planLine)
+                NovaPlaySetupPlanCard(title = planTitle, value = planValue, line = planLine, limit = planLimit, checking = checking)
             }
         }
         NovaPlaySetupPanel(
@@ -467,12 +512,14 @@ internal fun NovaGameDetailContent(
                     page,
                     card = { choice ->
                         // A place or mode other than the current one, under the cursor: the card
-                        // says what choosing it would run, as an option page's card does.
+                        // says what choosing it would run, in that choice's own line, as an option
+                        // page's card builds its line for the option. The plan's numbers are the
+                        // current mode's, which the focused one may not run.
                         if (choice != null) {
                             NovaPlaySetupPlanCard(
-                                title = stringResource(R.string.nova_play_setup_if_you_choose, choice),
-                                value = choice,
-                                line = planLine,
+                                title = stringResource(R.string.nova_play_setup_if_you_choose, choice.label),
+                                value = choice.label,
+                                line = choice.line,
                             )
                         } else {
                             pinnedCard(null)
@@ -516,6 +563,8 @@ internal fun NovaGameDetailContent(
                                 line = planLine,
                                 // The plan opens whole on its own page, and focus comes back here (R7).
                                 onOpen = { if (isTop) playSetupPanel.push(PlaySetupPage.Plan(planTitle, shownPlan)) },
+                                limit = planLimit,
+                                checking = checking,
                                 modifier = Modifier.novaRestorableFocus("plan"),
                             )
                             // Every Game's last result, in place under its plan and announced, as

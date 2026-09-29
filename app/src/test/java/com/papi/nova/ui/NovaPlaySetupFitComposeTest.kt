@@ -94,8 +94,12 @@ class NovaPlaySetupFitComposeTest {
         assertTrue("and never under the card", last.top >= after.bottom)
     }
 
+    /**
+     * The limit is said beside the mode, not in its place: the codec preview's "Limited by bitrate"
+     * had taken the place of the mode, and it and What Will Happen read as two plans (#10).
+     */
     @Test
-    fun aPreviewSaysWhatWouldHoldTheChoiceBackInPlaceOfTheMode() {
+    fun aPreviewSaysWhatWouldHoldTheChoiceBackBesideTheMode() {
         rule.setPanelContent {
             NovaPlaySetupPlanCard(
                 title = "If you choose 2x",
@@ -109,7 +113,7 @@ class NovaPlaySetupFitComposeTest {
             )
         }
         rule.onNodeWithText("Limited by bitrate", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("Private Stream", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithText("Private Stream", useUnmergedTree = true).assertExists()
         rule.onNodeWithText("3840×2160 at 120 FPS · 200 Mbps · PyroWave · SDR", useUnmergedTree = true).assertExists()
     }
 

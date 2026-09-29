@@ -149,6 +149,8 @@ private const val NOVA_GAME_DETAIL_FIRST_FOCUS_ATTEMPTS = 30
 internal fun NovaGameDetailOverview(
     uiState: NovaGameDetailUiState,
     apiClient: PolarisApiClient,
+    /** What would hold this launch back, as Play Setup's plan says it; blank when nothing would. */
+    planLimit: String = "",
     playLabel: String,
     lastPlayedText: String?,
     sourceLabel: String,
@@ -357,6 +359,7 @@ internal fun NovaGameDetailOverview(
             if (game.space == null) NovaGameDetailStatusLine(
                 uiState = uiState,
                 optimizationState = optimizationState,
+                planLimit = planLimit,
                 maxLines = if (portrait) 3 else 2,
                 revealing = primaryFocused,
                 modifier = Modifier.padding(top = 11.dp),
@@ -554,6 +557,7 @@ private fun NovaGameDetailTitle(
 private fun NovaGameDetailStatusLine(
     uiState: NovaGameDetailUiState,
     optimizationState: NovaGameDetailOptimizationState,
+    planLimit: String,
     maxLines: Int,
     revealing: Boolean,
     modifier: Modifier = Modifier,
@@ -563,9 +567,12 @@ private fun NovaGameDetailStatusLine(
     // A host check that failed says why here, where what Launch will do is read, with the lamp
     // warning: the reason floated in a snackbar and was gone before it could be read (X2).
     val failure = optimizationState.preflightMessage?.takeIf { optimizationState.preflightFailed && it.isNotBlank() }
-    val limited = failure != null || optimizationState.reviewRequired ||
+    val limited = failure != null || optimizationState.reviewRequired || planLimit.isNotBlank() ||
         summary?.noticeTone == NovaLaunchProfileNoticeTone.WARNING
+    // The last plan, kept while the host rechecks it, reads dimmed until the answer comes (#18).
+    val checking = optimizationState.showsLastPlan
     val lamp = when {
+        checking -> colors.textMuted
         limited -> colors.warning
         summary == null -> colors.textMuted
         else -> colors.accent
@@ -595,7 +602,7 @@ private fun NovaGameDetailStatusLine(
         // rest shows while Launch holds the cursor.
         BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
             val widthPx = constraints.maxWidth
-            val line = novaInstrumentCase(failure ?: novaGameDetailStatusText(uiState, summary))
+            val line = novaInstrumentCase(failure ?: novaGameDetailStatusText(uiState, summary, planLimit))
             // Whole parts to a line, and a line never ends in a dot (N22).
             val packed = remember(line, widthPx, style) {
                 novaPackAtDots(novaDottedParts(line), NOVA_GAME_DETAIL_STATUS_SEPARATOR) { candidate ->
@@ -615,7 +622,7 @@ private fun NovaGameDetailStatusLine(
                 // to Launch plays it again.
                 passes = 2,
                 maxLines = maxLines,
-                color = colors.textPrimary,
+                color = if (checking) colors.textMuted else colors.textPrimary,
                 fontSize = 11.sp,
                 lineHeight = NOVA_GAME_DETAIL_STATUS_LINE,
                 // Measurements, so the digits line up rather than dance. Space Grotesk's
@@ -1268,6 +1275,8 @@ private fun novaGameDetailIdentityLine(
 private fun novaGameDetailStatusText(
     uiState: NovaGameDetailUiState,
     summary: NovaLaunchProfileSummary?,
+    /** What Play Setup's plan says would hold the launch back, said here too (#10). */
+    planLimit: String = "",
 ): String {
     return listOf(
         // A Host Virtual launch adds a screen to the desk, which is worth saying before Play.
@@ -1282,7 +1291,8 @@ private fun novaGameDetailStatusText(
         // them added a word and no meaning.
         summary?.selectedLine?.let(::novaPlaySetupValue),
         // "Resolved: ..." followed by "Resolved for this launch" said the same thing twice.
-        summary?.limitingLine?.takeIf { it.isNotBlank() }
+        planLimit.takeIf { it.isNotBlank() }
+            ?: summary?.limitingLine?.takeIf { it.isNotBlank() }
             ?: summary?.freshnessLine?.takeIf { summary.selectedLine.isNullOrBlank() },
     ).filter { !it.isNullOrBlank() }.joinToString("  ·  ")
 }

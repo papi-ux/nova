@@ -82,6 +82,9 @@ internal fun buildNovaLaunchProfileSummary(
     clientCodecLabel: String? = null,
 ): NovaLaunchProfileSummary? {
     if (optimization == null) return null
+    // A choice made here composed onto no host plan, as while the plan is rechecked, is no plan:
+    // it read "Profile / 120 FPS" and dropped Launch's preset (in-game smoke #18).
+    if (optimization.optString("source", "") == NovaLaunchStreamOverride.UNVERIFIED_SOURCE) return null
     val pinnedFps = if (clientFpsPinned && clientAskedFps > 0.0) clientAskedFps else 0.0
     if (optimization.optString("source", "").equals("deterministic_preset_v1", ignoreCase = true)) {
         return buildDeterministicLaunchPresetSummary(optimization, pinnedFps, clientAskedFps, clientAskedHdr, clientCodecLabel)

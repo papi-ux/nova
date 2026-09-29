@@ -155,7 +155,8 @@ internal fun NovaPlaySetupBody(
  * At the root it is a page row: it takes focus (Up from the first setting row) and A opens the
  * plan whole on its page ([onOpen]). On a page it is not a stop, and it previews the option under
  * the cursor: its title says which ("If you choose 2x"), [accentPart] marks what that choice
- * changes in the line, and [limit] says in the warning colour what would hold it back.
+ * changes in the line, and [limit] says under the line, in the warning colour and beside the mode
+ * rather than in its place, what would hold it back.
  */
 @Composable
 internal fun NovaPlaySetupPlanCard(
@@ -166,6 +167,8 @@ internal fun NovaPlaySetupPlanCard(
     accentPart: String = "",
     limit: String = "",
     onOpen: (() -> Unit)? = null,
+    /** The plan is the last one, kept while the host rechecks it: its value and line read dimmed. */
+    checking: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
@@ -206,15 +209,15 @@ internal fun NovaPlaySetupPlanCard(
                 contents = listOf(
                     { Text(text = title, style = type.rowTitle, color = colors.textPrimary) },
                     {
-                        if (limit.isNotBlank()) {
-                            NovaPlaySetupMarkedText(
-                                text = AnnotatedString(limit),
+                        // The mode stays whatever holds the launch back: the limit took its place,
+                        // and the preview and What Will Happen read as two plans (#10).
+                        if (value.isNotBlank()) {
+                            Text(
+                                text = value,
                                 style = valueStyle,
-                                color = colors.warning,
-                                marked = true,
+                                color = if (checking) colors.textMuted else colors.textSecondary,
+                                textAlign = TextAlign.End,
                             )
-                        } else if (value.isNotBlank()) {
-                            Text(text = value, style = valueStyle, color = colors.textSecondary, textAlign = TextAlign.End)
                         }
                     },
                 ),
@@ -238,7 +241,16 @@ internal fun NovaPlaySetupPlanCard(
                 }
             }
             // The whole line, wrapping, where a long one needs a second (R13).
-            Text(text = marked, style = type.caption, color = colors.textSecondary)
+            Text(text = marked, style = type.caption, color = if (checking) colors.textMuted else colors.textSecondary)
+        }
+        if (limit.isNotBlank()) {
+            // What would hold the launch back, after the numbers it holds back, with its mark.
+            NovaPlaySetupMarkedText(
+                text = AnnotatedString(limit),
+                style = type.caption,
+                color = colors.warning,
+                marked = true,
+            )
         }
     }
 }
@@ -974,6 +986,25 @@ internal data class NovaPlaySetupFact(
 )
 
 internal enum class NovaPlaySetupTone { PLAIN, GOOD, WARN }
+
+/**
+ * What PyroWave at [size] asks for past the bitrate setting, in Mbps, or 0 when nothing holds it
+ * back: only for [pyroWave], only past this device's own [devicePixels], where its need grows with
+ * the picture, and only when [need] is over [bitrateKbps]. Play Setup's codec preview, its
+ * Resolution page and its plan all read this one verdict, so they cannot disagree about a plan
+ * (in-game smoke #10).
+ */
+internal fun novaPyroWaveShortfallMbps(
+    pyroWave: Boolean,
+    size: Pair<Int, Int>?,
+    devicePixels: Long,
+    bitrateKbps: Int,
+    need: (width: Int, height: Int) -> Int,
+): Int {
+    if (!pyroWave || size == null || size.first.toLong() * size.second <= devicePixels) return 0
+    val mbps = need(size.first, size.second)
+    return if (mbps > 0 && mbps * 1000L > bitrateKbps) mbps else 0
+}
 
 /** Which part of the plan's line an option changes, for the plan card's preview. */
 internal enum class NovaPlaySetupPreviewPart { SIZE, CODEC }

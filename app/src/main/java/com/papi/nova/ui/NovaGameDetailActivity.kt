@@ -631,6 +631,34 @@ class NovaGameDetailActivity : NovaActivity() {
             )
         }
 
+        /**
+         * What the page shows of the launch: the state with its summary composed from the plan and
+         * the choices made here, as attemptLaunch() will send them.
+         */
+        fun launchPreview(): NovaGameDetailOptimizationState {
+            val launchPreferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            return optimizationState.withLaunchProfileSummary(
+                launchOptimization(),
+                clientAskedFps = (effectiveFpsPin(chosenFps, profilePreference, launchPreferences.fps)
+                    ?: launchPreferences.fps.toInt()).toDouble(),
+                clientAskedHdr = launchPreferences.enableHdr,
+                spaceName = launchSpaceName(),
+                clientCodecLabel = if (spaceGame == null &&
+                    (chosenCodec != null || effectiveCodec() != PreferenceConfiguration.FormatOption.AUTO)) {
+                    NovaVideoCodecOverrides.label(effectiveCodec())
+                } else null,
+            )
+        }
+
+        /**
+         * In flight, with nothing settled: a launch waits for the host. The plan on screen is kept to
+         * show, dimmed, until the host answers, so a recheck never reads as a half plan (#18).
+         */
+        fun recheckState() = NovaGameDetailOptimizationState(
+            preflightInFlight = true,
+            lastPlan = launchPreview().profileSummary ?: optimizationState.lastPlan,
+        )
+
         fun spaceConstraint() = if (spaceGame != null) NovaSpaceUiState.constrainedRequest(
             chosenResolution, chosenFps,
             com.papi.nova.manager.WorkerLaunchContract.parse(optimizationState.rawOptimization),
@@ -928,7 +956,7 @@ class NovaGameDetailActivity : NovaActivity() {
             // settled answer of "nothing to guard" -- for as long as the round-trip took.
             preflightJob?.cancel()
             val requestGeneration = preflightRequestFence.begin()
-            optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
+            optimizationState = recheckState()
             preflightJob = lifecycleScope.launch {
                 var launchCanReplay = false
                 val nextOptimizationState = try {
@@ -1019,7 +1047,7 @@ class NovaGameDetailActivity : NovaActivity() {
          * same rule as the preflight guard, applied to a gap this introduces.
          */
         fun settleThen(work: suspend () -> Unit) {
-            optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
+            optimizationState = recheckState()
             preflightRequestFence.invalidate()
             preflightJob?.cancel()
             preflightJob = null
@@ -1257,7 +1285,7 @@ class NovaGameDetailActivity : NovaActivity() {
 
             // A Steam change supersedes any pending read-only settle, whose eventual
             // optimizer request is recreated after this host mutation confirms.
-            optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
+            optimizationState = recheckState()
             preflightRequestFence.invalidate()
             preflightJob?.cancel()
             preflightJob = null
@@ -1411,6 +1439,49 @@ class NovaGameDetailActivity : NovaActivity() {
                 ),
             )
 
+        /**
+         * The rate a launch will run at: a Frame Rate choice, else Tuning's pin, else the rate the
+         * host's plan resolved. Resolution's advice, Frame Rate's value and the plan all read it.
+         */
+        fun launchFps(preferences: PreferenceConfiguration): Int {
+            val fpsPin = if (spaceGame == null) NovaLaunchStreamOverride.highFpsPin(profilePreference, preferences.fps) else null
+            return chosenFps ?: fpsPin ?: NovaLaunchStreamOverride.automaticFps(
+                optimizationState.rawOptimization,
+                preferences.fps.toInt(),
+            )
+        }
+
+        /** The size a launch will ask for: a Resolution choice, else this device's saved size. */
+        fun launchSize(preferences: PreferenceConfiguration): Pair<Int, Int> =
+            chosenResolution?.let { NovaDisplayResolutionPlanner.resolutionSize(it.targetMode) }
+                ?: (preferences.width to preferences.height)
+
+        /**
+         * What would hold [format] back at [size]: PyroWave past this device's own size asks for
+         * more than the bitrate setting, in Mbps; 0 when nothing would. The one verdict the codec
+         * preview, the Resolution page and the plan read, so they cannot disagree about one plan:
+         * the preview had warned of the bitrate while What Will Happen, for the same plan, did not
+         * (in-game smoke #10).
+         */
+        fun bitrateShortfallMbps(
+            format: PreferenceConfiguration.FormatOption?,
+            size: Pair<Int, Int>?,
+            preferences: PreferenceConfiguration,
+        ): Int = novaPyroWaveShortfallMbps(
+            pyroWave = format == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE,
+            size = size,
+            devicePixels = preferences.width.toLong() * preferences.height,
+            bitrateKbps = preferences.bitrate,
+            need = { width, height -> pyroWaveNeedMbps(width, height, launchFps(preferences)) },
+        )
+
+        /** What PyroWave asks for past the bitrate setting for this launch's plan, in Mbps, or 0. */
+        fun planShortfallMbps(): Int {
+            if (spaceGame != null || com.papi.nova.manager.WorkerLaunchContract.isProfileApp(currentGame.id)) return 0
+            val preferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            return bitrateShortfallMbps(effectiveCodec(), launchSize(preferences), preferences)
+        }
+
         fun buildPlaySetupRows(): List<NovaPlaySetupRowState> {
             val rows = mutableListOf<NovaPlaySetupRowState>()
             val currentPlace = currentGame.space?.name ?: getString(R.string.nova_space_desktop)
@@ -1482,24 +1553,10 @@ class NovaGameDetailActivity : NovaActivity() {
 
             val planner = resolutionPlanner(currentGame)
             // The rate a launch will use, which Resolution's advice and Frame Rate's value both read.
-            val effectiveFps = chosenFps ?: fpsPin ?: NovaLaunchStreamOverride.automaticFps(
-                optimizationState.rawOptimization,
-                preferences.fps.toInt(),
-            )
+            val effectiveFps = launchFps(preferences)
             val codec = effectiveCodec()
             val decode = decodeLimit(codec)
-            val devicePixels = preferences.width.toLong() * preferences.height
             val limitedBy = getString(R.string.nova_play_setup_limited_by_bitrate)
-            // PyroWave's need grows with the picture: past this device's own size, a size says what the
-            // codec's rate model asks for when the bitrate setting is under it.
-            fun pyroWaveNeed(size: Pair<Int, Int>?): Int =
-                if (codec == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE && size != null &&
-                    size.first.toLong() * size.second > devicePixels
-                ) {
-                    pyroWaveNeedMbps(size.first, size.second, effectiveFps)
-                } else {
-                    0
-                }
             if (planner.available && planner.visibleChoices.isNotEmpty()) {
                 val chosen = chosenResolution
                 val recommended = planner.visibleChoices.firstOrNull { it.recommended }
@@ -1535,8 +1592,10 @@ class NovaGameDetailActivity : NovaActivity() {
                         val decodes = size?.let { decode.decodes(it.first, it.second) }
                         val matchesScreen = choice.recommended && size != null &&
                             (maxOf(size.first, size.second) to minOf(size.first, size.second)) == screenSize
-                        val need = pyroWaveNeed(size)
-                        val limited = need > 0 && need * 1000L > preferences.bitrate
+                        // PyroWave's need grows with the picture: past this device's own size, a size says
+                        // what the codec's rate model asks for when the bitrate setting is under it.
+                        val need = bitrateShortfallMbps(codec, size, preferences)
+                        val limited = need > 0
                         NovaPlaySetupOption(
                             label = NovaDisplayResolutionPlanner.displayTitle(choice.title),
                             value = sizeLabel,
@@ -1623,23 +1682,18 @@ class NovaGameDetailActivity : NovaActivity() {
 
             val profileApp = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(currentGame.id)
             if (spaceGame == null && !profileApp && !serverUuid.isNullOrBlank()) {
-                // The size the launch will ask for, which PyroWave's advice is judged at.
-                val launchSize = chosenResolution?.let { NovaDisplayResolutionPlanner.resolutionSize(it.targetMode) }
-                    ?: (preferences.width to preferences.height)
+                // The size the launch will ask for, which PyroWave's advice is judged at, by the same
+                // verdict the plan reads (#10).
+                val askedSize = launchSize(preferences)
                 rows += novaPlaySetupCodecRow(
                     this@NovaGameDetailActivity,
                     chosenCodec,
                     preferences.videoFormat,
                     preview = { format ->
-                        val need = if (format == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
-                            pyroWaveNeedMbps(launchSize.first, launchSize.second, effectiveFps)
-                        } else {
-                            0
-                        }
                         NovaPlaySetupPreview(
                             part = NovaPlaySetupPreviewPart.CODEC,
                             changed = NovaVideoCodecOverrides.label(format),
-                            limit = if (need > 0 && need * 1000L > preferences.bitrate) limitedBy else "",
+                            limit = if (bitrateShortfallMbps(format, askedSize, preferences) > 0) limitedBy else "",
                         )
                     },
                     onSelect = ::chooseVideoCodec,
@@ -2004,18 +2058,8 @@ class NovaGameDetailActivity : NovaActivity() {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                 setContent {
             NovaComposeTheme {
-                val launchPreferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
-                val launchPreview = optimizationState.withLaunchProfileSummary(
-                    launchOptimization(),
-                    clientAskedFps = (effectiveFpsPin(chosenFps, profilePreference, launchPreferences.fps)
-                        ?: launchPreferences.fps.toInt()).toDouble(),
-                    clientAskedHdr = launchPreferences.enableHdr,
-                    spaceName = launchSpaceName(),
-                    clientCodecLabel = if (spaceGame == null &&
-                        (chosenCodec != null || effectiveCodec() != PreferenceConfiguration.FormatOption.AUTO)) {
-                        NovaVideoCodecOverrides.label(effectiveCodec())
-                    } else null,
-                )
+                // While the plan is rechecked, the last one stands in, dimmed, with Launch's preset.
+                val launchPreview = launchPreview().withLastPlanWhileChecking()
                 if (spaceGame != null && com.papi.nova.manager.WorkerLaunchContract.isLegacyProfileApp(currentGame.id)) {
                     // The contract is parsed once per change, not on every recomposition.
                     val constraint = remember(optimizationState.rawOptimization, chosenResolution, chosenFps) { spaceConstraint() }
@@ -2106,6 +2150,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         null
                     },
                     hostPlaySetupNotice = hostSyncNotice.takeIf { playSetupScope == NovaPlaySetupScope.EVERY_GAME },
+                    playSetupBitrateShortfallMbps = planShortfallMbps(),
                     playSetupPanel = playSetupPanel,
                     playLabel = if (environmentChanging) {
                         getString(R.string.nova_space_changing)

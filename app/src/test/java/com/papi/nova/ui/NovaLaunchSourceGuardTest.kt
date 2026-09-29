@@ -136,7 +136,8 @@ class NovaLaunchSourceGuardTest {
                 "RAW blob, because a resolution pick or fps pin makes the composed blob non-null while " +
                 "the guard's answer is still on the wire",
             detail.contains("val preflightInFlight: Boolean = false") &&
-                detail.contains("NovaGameDetailOptimizationState(preflightInFlight = true)") &&
+                // In flight with no plan settled: the last plan rides along only to be shown (#18).
+                detail.contains("fun recheckState() = NovaGameDetailOptimizationState(\n            preflightInFlight = true,\n            lastPlan = ") &&
                 detail.contains("when (optimizationState.launchPreflightGate())") &&
                 detail.contains("NovaLaunchPreflightGate.WAIT ->") &&
                 detail.contains("if (launchCanReplay)")
@@ -147,7 +148,7 @@ class NovaLaunchSourceGuardTest {
                 !detail.contains("fun launchSelected(") &&
                 // A settle that fires late must not let a launch through on the previous
                 // value, so it marks in flight now and the launch flushes it early.
-                detail.contains("optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)") &&
+                detail.contains("optimizationState = recheckState()") &&
                 detail.contains("preflightRequestFence.invalidate()") &&
                 detail.contains("settleJob?.cancel()") &&
                 detail.contains("flushSettled()")

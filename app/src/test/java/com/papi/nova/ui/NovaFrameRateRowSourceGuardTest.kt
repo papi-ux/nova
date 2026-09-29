@@ -20,7 +20,11 @@ class NovaFrameRateRowSourceGuardTest {
 
         val preview = source.lastIndexOf("val effectiveFps =", frameRateRow)
         assertTrue(preview >= 0)
-        val previewBody = source.substring(preview, frameRateRow)
+        // The row reads the one rate the plan's PyroWave verdict reads too (#10), from launchFps().
+        assertTrue(source.substring(preview, frameRateRow).contains("val effectiveFps = launchFps(preferences)"))
+        val cadence = source.indexOf("fun launchFps(preferences: PreferenceConfiguration): Int {")
+        assertTrue("The rate a launch will run at must be one function.", cadence in 0 until preview)
+        val previewBody = source.substring(cadence, source.indexOf("fun launchSize(", cadence))
         assertTrue(
             "Auto FPS must come from NovaLaunchStreamOverride.automaticFps(), the same " +
                 "authority compose() uses for an unpinned launch.",

@@ -81,7 +81,7 @@ class NovaPlaySetupPagesComposeTest {
     )
 
     /** What the pinned card on Where It Runs was last asked to preview. */
-    private var previewed: String? = "unset"
+    private var previewed: NovaPlayInPreview? = NovaPlayInPreview("unset", "")
 
     private fun host(picker: NovaPlaySetupModePickerState, withCard: Boolean = false): NovaTestKeys {
         state.open(PlaySetupPage.Root("Play Setup"), NovaEdge.End)
@@ -141,7 +141,8 @@ class NovaPlaySetupPagesComposeTest {
         keys.press(NovaTestKeys.UP)
         keys.press(NovaTestKeys.UP)
         rule.onNode(hasText("Headless")).assertIsFocused()
-        assertEquals("Headless", previewed)
+        // Its own line, what choosing it would run, not the current mode's plan under its name.
+        assertEquals(NovaPlayInPreview("Headless", "Headless, in full."), previewed)
 
         keys.press(NovaTestKeys.DOWN)
         rule.onNode(hasText("GPU Native")).assertIsFocused()
