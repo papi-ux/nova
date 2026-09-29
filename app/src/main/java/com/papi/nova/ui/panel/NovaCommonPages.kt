@@ -488,7 +488,9 @@ private fun NovaSliderTrack(value: Int, range: IntRange, step: Int, label: Strin
                 .fillMaxWidth()
                 .heightIn(min = NovaPanelMetrics.SliderTrackHeight)
                 .clip(RoundedCornerShape(NovaRadius.pill))
-                .novaTrackFill(fraction, surfaces.control, colors.accent),
+                // The whole track shows under the fill, in the divider's colour: the control fill
+                // vanished on the panel and left the fill with no track.
+                .novaTrackFill(fraction, colors.divider, colors.accent),
         )
     }
 }
