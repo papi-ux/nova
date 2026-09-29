@@ -2,6 +2,7 @@ package com.papi.nova.ui.panel
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.hardware.input.InputManager
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.View
@@ -93,12 +94,29 @@ object NovaRemoteInput {
     fun isRemote(event: KeyEvent): Boolean = isRemote(event.device?.sources ?: event.source)
 
     /**
-     * Whether a screen names a remote's keys before any key is pressed: on a television, whose
-     * remote is what it is browsed with, the hint bar had named A, X and L1/R1 until the first
-     * press of the D-pad (C04).
+     * Whether a screen names a remote's keys before any key is pressed, from the input the player
+     * has rather than the kind of device (C04): a gamepad connected, or built in as on a handheld,
+     * is what they hold, so its keys come first; without one a television is browsed with its
+     * remote. After that the last key always decides. On a Shield played with a controller the
+     * hint bar had named OK and Back, with no X or L1/R1, until the first press.
      */
     fun startsOnRemote(context: Context): Boolean =
-        context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+        !hasGamepad(context) && context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+
+    /** Whether a real gamepad is connected: one with a gamepad's or a joystick's sources, not virtual. */
+    fun hasGamepad(context: Context): Boolean {
+        val input = context.applicationContext.getSystemService(Context.INPUT_SERVICE) as? InputManager ?: return false
+        return input.inputDeviceIds.any { id ->
+            val device = input.getInputDevice(id) ?: return@any false
+            !device.isVirtual && isGamepad(device.sources)
+        }
+    }
+
+    /** Whether [sources] are a controller's: a gamepad's or a joystick's, the keys [isRemote] is not. */
+    fun isGamepad(sources: Int): Boolean {
+        fun has(source: Int) = sources and source == source
+        return has(InputDevice.SOURCE_GAMEPAD) || has(InputDevice.SOURCE_JOYSTICK)
+    }
 }
 
 /** Remembers which key started a press, so only that key's release can finish it. */
