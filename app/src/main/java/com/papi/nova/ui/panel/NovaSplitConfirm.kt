@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +34,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -55,6 +59,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
@@ -63,6 +68,7 @@ import com.papi.nova.ui.compose.NovaActionSurface
 import com.papi.nova.ui.compose.NovaRadius
 import java.lang.ref.WeakReference
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Whether a split confirm is armed. Hoisted, so a crowded parent can make room while it is (the
@@ -120,9 +126,11 @@ enum class NovaSplitShape { Button, Row, Tile }
  *
  * A (on release) or a tap arms it: the button splits into Stay (neutral, focused) and
  * [confirmLabel] (destructive fill, with [icon]) over 160ms, with [consequence] announced
- * underneath. B, focus leaving both halves, a touch outside the pair, or the page changing
- * cancels. The destructive half ignores activation for 400ms after arming, so a single A, a held
- * A, mashed A presses or a double tap never confirm; A, Right, A does.
+ * underneath and brought into view once it has grown in, so a split that is the last row of a
+ * scrolling page never arms with its warning below the edge. B, focus leaving both halves, a
+ * touch outside the pair, or the page changing cancels. The destructive half ignores activation
+ * for 400ms after arming, so a single A, a held A, mashed A presses or a double tap never
+ * confirm; A, Right, A does.
  *
  * At rest a [NovaSplitShape.Row] is a row among rows: the row tile, its icon and label at the
  * start in the row title type, with the destructive text and hairline. A split that sits in a row
@@ -131,6 +139,7 @@ enum class NovaSplitShape { Button, Row, Tile }
  * does its armed pair. Otherwise a button keeps its own width and its pair widens only as far as
  * two 96dp halves need.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NovaSplitConfirm(
     label: String,
@@ -154,6 +163,8 @@ fun NovaSplitConfirm(
     val pairBounds = remember(state) { BoundsHolder() }
     // The button's own width, which an armed Button shape keeps when it can.
     var slotWidth by remember(state) { mutableIntStateOf(0) }
+    val pairAndLine = remember(state) { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
 
     NovaBackHandler(active = state.armed) { state.disarm() }
     LaunchedEffect(isTop) { if (!isTop) state.disarm(restoreFocus = false) }
@@ -169,6 +180,19 @@ fun NovaSplitConfirm(
             withFrameNanos { }
             if (isTopNow) state.buttonRequester.requestFocus()
             state.refocus = false
+        }
+    }
+    // Stay taking focus brings the pair into view; the line under it grows in after, and on the
+    // last row of a scrolling page it grew below the edge (Delete PC on the RP6). Once it has
+    // grown, the pair and its line come into view together.
+    LaunchedEffect(state.armed, state.arms) {
+        if (state.armed && consequence != null) {
+            delay(NovaPanelMetrics.SplitMillis.toLong())
+            withFrameNanos { }
+            // Asked from the split's own scope, not this effect's: a disarm that cancels the effect
+            // in the frame it asks would leave the list a request it can never finish, which the
+            // list fails on when it next scrolls. A request asked here only ends with the split.
+            scope.launch { if (state.armed) pairAndLine.bringIntoView() }
         }
     }
     // Read at recomposition, so focus moving from one half to the other never reads as leaving.
@@ -196,7 +220,8 @@ fun NovaSplitConfirm(
         NovaSplitShape.Tile -> NovaPanelMetrics.TileMinHeight
     }
     val motion = tween<Float>(NovaPanelMetrics.SplitMillis)
-    Column(modifier = modifier) {
+    val grow = tween<IntSize>(NovaPanelMetrics.SplitMillis)
+    Column(modifier = modifier.bringIntoViewRequester(pairAndLine)) {
         AnimatedContent(
             targetState = state.armed,
             transitionSpec = {
@@ -273,8 +298,9 @@ fun NovaSplitConfirm(
         }
         AnimatedVisibility(
             visible = state.armed && consequence != null,
-            enter = fadeIn(motion) + expandVertically(),
-            exit = fadeOut(motion) + shrinkVertically(),
+            // On the split's own 160ms, so the line has its full height when it is brought into view.
+            enter = fadeIn(motion) + expandVertically(grow),
+            exit = fadeOut(motion) + shrinkVertically(grow),
         ) {
             Text(
                 text = consequence.orEmpty(),

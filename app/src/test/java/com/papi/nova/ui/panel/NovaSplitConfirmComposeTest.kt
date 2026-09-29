@@ -4,9 +4,14 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -184,6 +189,41 @@ class NovaSplitConfirmComposeTest {
         val end = rule.onNodeWithText("End").getUnclippedBoundsInRoot()
         assertEquals("armed, the pair spans its own slot", rest.left.value, stay.left.value, 0.5f)
         assertEquals(rest.right.value, end.right.value, 0.5f)
+    }
+
+    @Test
+    fun armingTheLastRowOfAScrollingPageBringsItsConsequenceIntoView() {
+        val keys = rule.setPanelContent {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.height(210.dp).testTag("list"),
+            ) {
+                items(3) { index -> Box(Modifier.fillMaxWidth().requiredHeight(44.dp).testTag("row-$index").focusable()) }
+                item {
+                    NovaSplitConfirm(
+                        label = "Delete PC",
+                        confirmLabel = "Delete",
+                        onConfirm = {},
+                        consequence = "The host is forgotten on this device.",
+                        shape = NovaSplitShape.Row,
+                        state = state,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+        rule.onNodeWithText("Delete PC").requestFocus()
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        keys.press(NovaTestKeys.CENTER)
+        rule.advance(NovaPanelMetrics.SplitMillis.toLong() + 100)
+        frames(16)
+
+        assertTrue(state.armed)
+        val list = rule.onNodeWithTag("list").getUnclippedBoundsInRoot()
+        val line = rule.onNodeWithText("The host is forgotten on this device.").getUnclippedBoundsInRoot()
+        assertTrue("armed, its warning is on screen: ${line.bottom} in ${list.bottom}", line.bottom <= list.bottom + 0.5.dp)
+        rule.onNodeWithText("Stay").assertIsFocused()
     }
 
     @Test
