@@ -41,15 +41,18 @@ class SettingsProfile(
     fun setOptions(options: Map<String, Any>?) {
         val old = this.options.orEmpty()
         val migration = com.papi.nova.preferences.NovaSettingsMigration
-        val changed = migration.STREAM_KEYS.any { old[it] != options?.get(it) }
+        // Gson stores numbers as doubles; preference editors write integers. A type-only
+        // representation change is not a player edit and must not select Custom.
+        fun sameValue(a: Any?, b: Any?) = if(a is Number && b is Number) a.toDouble()==b.toDouble() else a==b
+        val changed = migration.STREAM_KEYS.any { !sameValue(old[it],options?.get(it)) }
         val explicitTier = options?.get(migration.TIER)?.let { it != old[migration.TIER] } == true
         val updated = if (changed && options != null && !explicitTier) options + mapOf(
             migration.TIER to "custom", migration.CUSTOM_EXISTS to true) else options
         this.options = updated?.let { values ->
-            val bitrateChanged = old["seekbar_bitrate_kbps"] != values["seekbar_bitrate_kbps"]
+            val bitrateChanged = !sameValue(old["seekbar_bitrate_kbps"],values["seekbar_bitrate_kbps"])
             val raw = runCatching { com.papi.nova.preferences.PreferenceConfiguration.getDefaultBitrate(
                 values["list_resolution"] as? String ?: "1920x1080", values["list_fps"] as? String ?: "60") }.getOrNull()
-            val bitrate = values["seekbar_bitrate_kbps"] as? Int
+            val bitrate = (values["seekbar_bitrate_kbps"] as? Number)?.toInt()
             val pointChanged = listOf("list_resolution","list_fps","video_format").any { old[it] != values[it] }
             val automatic = values[migration.CUSTOM_AUTO] == true &&
                 (old[migration.CUSTOM_AUTO] != true || pointChanged || bitrate == raw ||
