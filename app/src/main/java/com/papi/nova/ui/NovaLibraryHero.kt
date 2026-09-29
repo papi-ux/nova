@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +62,7 @@ import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaFocusMotion
 import com.papi.nova.ui.panel.NovaPanelButton
 import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.NovaSplitButtonStyle
 import com.papi.nova.ui.panel.NovaSplitConfirm
 import com.papi.nova.ui.panel.NovaSplitConfirmState
 import com.papi.nova.ui.panel.novaPanelType
@@ -313,6 +315,8 @@ private fun NovaLibraryHeroActions(
                 onConfirm = onSecondaryAction,
                 consequence = stringResource(R.string.nova_panel_end_session_message),
                 state = endSplit,
+                // As wide as Resume above it, so the pair reads as one column of buttons.
+                fillSlot = true,
                 modifier = Modifier.fillMaxWidth().testTag("nova-library-hero-end"),
             )
         }
@@ -568,7 +572,7 @@ internal fun RowScope.NovaLibraryStripContinue(
             primary = true,
             // Without the title on screen the action still says what it continues.
             contentDescription = if (fit.showContinueText) hero.actionLabel else "${hero.actionLabel}, ${hero.title}",
-            minHeight = 30.dp,
+            minHeight = NOVA_LIBRARY_STRIP_BUTTON_HEIGHT,
             fontSize = 10.sp,
         )
         val secondaryLabel = hero.secondaryActionLabel
@@ -578,11 +582,28 @@ internal fun RowScope.NovaLibraryStripContinue(
                 confirmLabel = stringResource(R.string.game_dialog_action_end_session),
                 onConfirm = onSecondaryAction,
                 state = endSplit,
+                // Resume's type and height, so the strip holds one size of button, not two.
+                buttonStyle = novaLibraryStripButtonStyle(),
                 modifier = Modifier.testTag("nova-library-showcase-end"),
             )
         }
     }
 }
+
+/**
+ * The strip's buttons: Resume's 10sp label in the button face, 30dp tall, with its padding. End
+ * Session takes the same, with a 14dp mark, so the strip holds one size of button.
+ */
+@Composable
+internal fun novaLibraryStripButtonStyle(): NovaSplitButtonStyle = NovaSplitButtonStyle(
+    text = MaterialTheme.typography.labelLarge.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+    minHeight = NOVA_LIBRARY_STRIP_BUTTON_HEIGHT,
+    padding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+    iconSize = NOVA_LIBRARY_STRIP_BUTTON_ICON,
+)
+
+internal val NOVA_LIBRARY_STRIP_BUTTON_HEIGHT = 30.dp
+internal val NOVA_LIBRARY_STRIP_BUTTON_ICON = 14.dp
 
 /** The home hero, for a test to find it. */
 internal const val NOVA_LIBRARY_HERO_TAG = "nova-library-hero"

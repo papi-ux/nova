@@ -139,7 +139,9 @@ enum class NovaSplitShape { Button, Row, Tile }
  * of buttons is a [NovaSplitShape.Button], as tall as they are with their 8dp corners; with
  * [fillSlot] it spans the slot it is given, as a button sharing its row by weight does, and so
  * does its armed pair. Otherwise a button keeps its own width and its pair widens only as far as
- * two 96dp halves need.
+ * two 96dp halves need. A button among buttons that are not the panel's, such as the library
+ * strip's Resume, takes their type and height through [buttonStyle], so the row has one button
+ * size rather than two.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -155,6 +157,7 @@ fun NovaSplitConfirm(
     enabled: Boolean = true,
     state: NovaSplitConfirmState = rememberNovaSplitConfirmState(),
     fillSlot: Boolean = false,
+    buttonStyle: NovaSplitButtonStyle? = null,
 ) {
     val confirm by rememberUpdatedState(onConfirm)
     val mark = icon ?: R.drawable.ic_close
@@ -218,7 +221,7 @@ fun NovaSplitConfirm(
     // A row or a tile always spans its slot; a button only when asked to.
     val fills = shape != NovaSplitShape.Button || fillSlot
     val minHeight = when (shape) {
-        NovaSplitShape.Button -> NovaPanelMetrics.ButtonMinHeight
+        NovaSplitShape.Button -> buttonStyle?.minHeight ?: NovaPanelMetrics.ButtonMinHeight
         NovaSplitShape.Row -> NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current)
         NovaSplitShape.Tile -> NovaPanelMetrics.TileMinHeight
     }
@@ -248,6 +251,7 @@ fun NovaSplitConfirm(
                     tile = shape == NovaSplitShape.Tile,
                     // A row at rest reads as the rows around it: the tile, its label at the start.
                     row = shape == NovaSplitShape.Row,
+                    buttonStyle = buttonStyle,
                     modifier = Modifier
                         .then(if (fills) Modifier.fillMaxWidth() else Modifier.onSizeChanged { slotWidth = it.width })
                         .focusRequester(state.buttonRequester),
@@ -278,6 +282,7 @@ fun NovaSplitConfirm(
                         modifier = Modifier
                             .weight(1f)
                             .focusRequester(state.stayRequester),
+                        buttonStyle = buttonStyle,
                         onClick = { state.disarm() },
                     )
                     SplitHalf(
@@ -289,6 +294,7 @@ fun NovaSplitConfirm(
                         minHeight = minHeight,
                         rowCorner = false,
                         modifier = Modifier.weight(1f),
+                        buttonStyle = buttonStyle,
                         onClick = {
                             if (state.guardOpen) {
                                 state.disarm()
@@ -329,6 +335,7 @@ private fun SplitHalf(
     modifier: Modifier,
     tile: Boolean = false,
     row: Boolean = false,
+    buttonStyle: NovaSplitButtonStyle? = null,
     onClick: () -> Unit,
 ) {
     NovaActionSurface(
@@ -342,10 +349,10 @@ private fun SplitHalf(
         cornerRadius = if (rowCorner) NovaRadius.row else NovaRadius.hero,
         contentAlignment = if (row) Alignment.CenterStart else Alignment.Center,
         restFill = if (row) novaRowRest.fill else Color.Unspecified,
-        contentPadding = if (tile) {
-            PaddingValues(horizontal = TileSidePadding, vertical = NovaPanelMetrics.SpaceSm)
-        } else {
-            PaddingValues(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm)
+        contentPadding = when {
+            tile -> PaddingValues(horizontal = TileSidePadding, vertical = NovaPanelMetrics.SpaceSm)
+            buttonStyle != null -> buttonStyle.padding
+            else -> PaddingValues(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm)
         },
     ) { contentColor, _ ->
         // At rest the icon takes the fill's red, as the hairline does; the label keeps the
@@ -387,23 +394,40 @@ private fun SplitHalf(
                 Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
             }
         } else {
+            val style = buttonStyle?.text ?: novaPanelType.value
+            val iconSize = buttonStyle?.iconSize ?: NovaPanelMetrics.IconSize
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(
+                    if (buttonStyle != null) NovaPanelMetrics.SpaceXs else NovaPanelMetrics.SpaceSm,
+                    Alignment.CenterHorizontally,
+                ),
             ) {
                 icon?.let {
                     Icon(
                         painter = painterResource(it),
                         contentDescription = null,
-                        tint = contentColor,
-                        modifier = Modifier.size(NovaPanelMetrics.IconSize),
+                        tint = iconTint,
+                        modifier = Modifier.size(iconSize),
                     )
                 }
-                Text(text = text, style = novaPanelType.value, color = contentColor, textAlign = TextAlign.Center)
+                Text(text = text, style = style, color = contentColor, textAlign = TextAlign.Center)
             }
         }
     }
 }
+
+/**
+ * The type, height, padding and icon size of the buttons a [NovaSplitShape.Button] split stands
+ * among, where they are not the panel's own, such as the library strip's small Resume.
+ */
+@androidx.compose.runtime.Immutable
+class NovaSplitButtonStyle(
+    val text: androidx.compose.ui.text.TextStyle,
+    val minHeight: Dp,
+    val padding: PaddingValues,
+    val iconSize: Dp,
+)
 
 /** A resting tile's icon and side padding: the deck's View tiles' 28dp icon and 6dp inset. */
 private val TileIconSize = 28.dp

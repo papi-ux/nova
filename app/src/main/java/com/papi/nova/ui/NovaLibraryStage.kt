@@ -308,11 +308,22 @@ internal fun NovaLibraryLandscapeShowcaseStripContent(
     val environment = environments?.let {
         rememberNovaEnvironmentStrings(it, environmentStatusKnown, environmentChanging)
     }
+    // A host name too long for its place drops its domain before anything else gives way:
+    // "living-room-gaming-pc", not "living-room-gaming-pc.papi..." (R13).
+    val hostMeasurer = rememberTextMeasurer()
+    val hostDensity = LocalDensity.current
+    val hostStyle = LocalTextStyle.current.merge(TextStyle(fontSize = 11.sp, lineHeight = 13.sp))
+    val shownHost = remember(hostLabel, hostStyle, hostDensity) {
+        val full = with(hostDensity) {
+            hostMeasurer.measure(hostLabel, hostStyle, softWrap = false, maxLines = 1).size.width.toDp().value
+        }
+        if (full > NOVA_TOP_BAR_IDENTITY_CAP) novaShortHostLabel(hostLabel) else hostLabel
+    }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val fit = rememberNovaLibraryTopBarFit(
             available = maxWidth - NOVA_TOP_BAR_HORIZONTAL_PADDING * 2,
             largeText = largeText,
-            hostLabel = hostLabel,
+            hostLabel = shownHost,
             hostStatus = hostStatus,
             environment = environment,
             continueCard = if (continueSlot != null) continueCard else null,
@@ -337,7 +348,7 @@ internal fun NovaLibraryLandscapeShowcaseStripContent(
                 horizontalArrangement = Arrangement.spacedBy(NOVA_TOP_BAR_GAP),
             ) {
                 NovaLibraryToolbarIdentity(
-                    hostLabel = hostLabel,
+                    hostLabel = shownHost,
                     cinematic = true,
                     modifier = Modifier.widthIn(max = minOf(NOVA_TOP_BAR_IDENTITY_CAP, fit.identityMax).dp),
                     statusContent = {
@@ -419,8 +430,8 @@ private fun rememberNovaLibraryTopBarFit(
     val buttonStyle = MaterialTheme.typography.labelLarge
     val optionsLabel = stringResource(R.string.nova_controller_hint_options)
     val systemLabel = stringResource(R.string.nova_system_menu_title)
-    // End Session is a split confirm, whose button draws its label in the panel value type.
-    val splitStyle = novaPanelType.value
+    // End Session is a split confirm in the strip's own button style, with its mark.
+    val splitStyle = novaLibraryStripButtonStyle().text
     return remember(
         available, largeText, hostLabel, hostStatus, environment, continueCard,
         density, base, buttonStyle, optionsLabel, systemLabel, splitStyle,
@@ -508,7 +519,8 @@ private fun rememberNovaLibraryTopBarFit(
                             gap = 7f,
                             primary = maxOf(88f, button(card.actionLabel, 10.sp)),
                             secondary = card.secondaryActionLabel?.let {
-                                width(it, splitStyle) + NovaPanelMetrics.SpaceMd.value * 2
+                                width(it, splitStyle) + NOVA_TOP_BAR_BUTTON_PADDING +
+                                    NOVA_LIBRARY_STRIP_BUTTON_ICON.value + NovaPanelMetrics.SpaceXs.value
                             } ?: 0f,
                         )
                     },

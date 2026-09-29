@@ -33,6 +33,19 @@ package com.papi.nova.ui
  * left, so a residual mismatch squeezes the host side, never the menus.
  */
 
+/**
+ * [label] without its domain, for a place too narrow for the whole name: "living-room-gaming-pc"
+ * for "living-room-gaming-pc.papi.miami". An address, or a name with no domain, stays whole.
+ */
+internal fun novaShortHostLabel(label: String): String {
+    val trimmed = label.trim()
+    if (NOVA_HOST_ADDRESS.matches(trimmed)) return trimmed
+    val first = trimmed.substringBefore('.')
+    return if (first.isNotEmpty() && first != trimmed && first.any { it.isLetter() }) first else trimmed
+}
+
+private val NOVA_HOST_ADDRESS = Regex("""^[0-9.]+$|^\[?[0-9a-fA-F:]+]?$""")
+
 /** Below this the Space name reads as a stray letter, so it goes instead of ellipsizing further. */
 internal const val NOVA_TOP_BAR_NAME_MIN = 24f
 
