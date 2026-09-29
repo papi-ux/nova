@@ -181,7 +181,7 @@ class NovaPlaySetupRowsComposeTest {
 
         assertEquals(listOf(NovaPlaySetupRow.WHERE_IT_RUNS), advanced)
         assertEquals("the page makes the choice, not the row", emptyList<String>(), picked)
-        rule.onNodeWithText(com.papi.nova.ui.panel.OpensGlyph, useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag(com.papi.nova.ui.panel.NovaChevronOpensTag, useUnmergedTree = true).assertExists()
     }
 
     @Test

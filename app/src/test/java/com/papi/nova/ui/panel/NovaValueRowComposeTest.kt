@@ -194,7 +194,7 @@ class NovaValueRowComposeTest {
         }
         rule.onNodeWithTag("row").requestFocus()
         rule.waitForIdle()
-        fun arrows() = listOf(BackGlyph, OpensGlyph).map { rule.onNodeWithText(it, useUnmergedTree = true).getUnclippedBoundsInRoot() }
+        fun arrows() = listOf(NovaChevronBackTag, NovaChevronOpensTag).map { rule.onNodeWithTag(it, useUnmergedTree = true).getUnclippedBoundsInRoot() }
         val before = arrows()
         repeat(3) {
             keys.press(NovaTestKeys.RIGHT)
@@ -212,7 +212,7 @@ class NovaValueRowComposeTest {
                 }
             }
         }
-        rule.onNodeWithText(BackGlyph, useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag(NovaChevronBackTag, useUnmergedTree = true).assertExists()
         rule.onNodeWithTag("narrow").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "M"))
     }
 

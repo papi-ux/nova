@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
@@ -201,7 +202,7 @@ internal fun NovaRowLayout(
                 modifier = Modifier.weight(1f),
                 measurePolicy = RowValueMeasurePolicy,
             )
-            Text(text = OpensGlyph, style = type.value, color = quietInk)
+            NovaChevron(back = false, tint = quietInk)
         } else {
             Box(modifier = Modifier.weight(1f)) { titleBlock() }
             when (checked) {
@@ -277,7 +278,7 @@ private fun NovaRowTrailingMark(trailing: NovaRowTrailing, color: Color) {
     when (trailing) {
         NovaRowTrailing.None -> Unit
         NovaRowTrailing.Current -> NovaCurrentMark()
-        NovaRowTrailing.Opens -> Text(text = OpensGlyph, style = type.value, color = color)
+        NovaRowTrailing.Opens -> NovaChevron(back = false, tint = color)
         // Laid out with the title by NovaTitleAndValueMeasurePolicy.
         is NovaRowTrailing.Value -> Unit
     }
@@ -318,3 +319,25 @@ private fun NovaCheckGlyph(modifier: Modifier = Modifier) {
 
 /** Test tag of every [NovaCurrentMark], so a test can find where current is marked. */
 const val NovaCurrentMarkTag = "nova-current-mark"
+
+/**
+ * The one chevron: `›` for a row that opens a page, and with [back] `‹` for a page's way back or a
+ * value's previous step. It is drawn, 18dp in the trailing slot's size, so it never grows with the
+ * font scale past its slot or sits below the text beside it; the text characters did both.
+ */
+@Composable
+fun NovaChevron(back: Boolean, tint: Color, modifier: Modifier = Modifier) {
+    Icon(
+        painter = painterResource(R.drawable.ic_nova_chevron),
+        contentDescription = null,
+        tint = tint,
+        modifier = modifier
+            .size(NovaPanelMetrics.CurrentMarkSize)
+            .then(if (back) Modifier.graphicsLayer { scaleX = -1f } else Modifier)
+            .testTag(if (back) NovaChevronBackTag else NovaChevronOpensTag),
+    )
+}
+
+/** Test tags of [NovaChevron], by direction. */
+const val NovaChevronBackTag = "nova-chevron-back"
+const val NovaChevronOpensTag = "nova-chevron-opens"

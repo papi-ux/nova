@@ -76,6 +76,7 @@ import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaConfirm
 import com.papi.nova.ui.compose.novaFocusTick
 import com.papi.nova.ui.panel.BackGlyph
+import com.papi.nova.ui.panel.NovaChevron
 import com.papi.nova.ui.panel.NovaCurrentMark
 import com.papi.nova.ui.panel.OpensGlyph
 import com.papi.nova.ui.panel.NovaPanelMetrics
@@ -614,16 +615,17 @@ private fun NovaPlaySetupSlot(content: @Composable () -> Unit) {
     }
 }
 
+/** A tile's chevron, [glyph] naming its direction: the 18dp drawing, not the character. */
 @Composable
 private fun NovaPlaySetupChevron(glyph: String, color: Color, onTap: (() -> Unit)? = null) {
     val tap by rememberUpdatedState(onTap)
-    Text(
-        text = glyph,
-        style = novaPanelType.value,
-        color = color,
+    val back = glyph == BackGlyph
+    NovaChevron(
+        back = back,
+        tint = color,
         modifier = if (onTap != null) {
             Modifier
-                .padding(end = if (glyph == BackGlyph) NovaPanelMetrics.SpaceSm else 0.dp)
+                .padding(end = if (back) NovaPanelMetrics.SpaceXs else 0.dp)
                 .pointerInput(glyph) { detectTapGestures(onTap = { tap?.invoke() }) }
         } else {
             Modifier

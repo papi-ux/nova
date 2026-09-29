@@ -294,7 +294,7 @@ class NovaSettingsPaneComposeTest {
 
         keys.press(NovaTestKeys.CENTER)
         settle()
-        rule.onNodeWithText("‹ Bitrate").assertExists()
+        rule.onNode(androidx.compose.ui.test.hasTestTag(com.papi.nova.ui.panel.NovaPageBackTag) and androidx.compose.ui.test.hasText("Bitrate")).assertExists()
         keys.back()
         settle()
         row(PreferenceConfiguration.BITRATE_PREF_STRING).assertIsFocused()

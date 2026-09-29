@@ -55,7 +55,7 @@ import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaConfirm
 import com.papi.nova.ui.compose.novaFocusTick
 import com.papi.nova.ui.panel.NovaOption
-import com.papi.nova.ui.panel.OpensGlyph
+import com.papi.nova.ui.panel.NovaChevron
 import com.papi.nova.ui.panel.NovaPageScope
 import com.papi.nova.ui.panel.NovaPanelButton
 import com.papi.nova.ui.panel.NovaNestedRows
@@ -716,7 +716,7 @@ private fun NovaQuickMenuRow(
                     chip = action.chip,
                 )
             }
-            if (opens) Text(text = OpensGlyph, style = type.value, color = colors.textSecondary)
+            if (opens) NovaChevron(back = false, tint = colors.textSecondary)
         }
     }
 }

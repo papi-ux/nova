@@ -454,7 +454,7 @@ private fun NovaCyclerControl(
     val next by rememberUpdatedState(onNext)
     val valueTap by rememberUpdatedState(onValueTap)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        NovaArrow(BackGlyph) { previous() }
+        NovaArrow(back = true) { previous() }
         Text(
             text = label,
             style = type.value,
@@ -465,12 +465,13 @@ private fun NovaCyclerControl(
                 .widthIn(min = widest)
                 .pointerInput(Unit) { detectTapGestures(onTap = { valueTap?.invoke() }) },
         )
-        NovaArrow(OpensGlyph) { next() }
+        NovaArrow(back = false) { next() }
     }
 }
 
+/** A cycler's arrow: a 48dp target around the 18dp chevron, which keeps its size at every font scale. */
 @Composable
-private fun NovaArrow(glyph: String, onTap: () -> Unit) {
+private fun NovaArrow(back: Boolean, onTap: () -> Unit) {
     val tap by rememberUpdatedState(onTap)
     Box(
         modifier = Modifier
@@ -478,7 +479,7 @@ private fun NovaArrow(glyph: String, onTap: () -> Unit) {
             .pointerInput(Unit) { detectTapGestures(onTap = { tap() }) },
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = glyph, style = novaPanelType.value, color = LocalNovaComposeColors.current.textSecondary)
+        NovaChevron(back = back, tint = LocalNovaComposeColors.current.textSecondary)
     }
 }
 

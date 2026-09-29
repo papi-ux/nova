@@ -190,7 +190,7 @@ class NovaSurfacesAnswerComposeTest {
     fun theHeaderStays() {
         draw()
         val asked = ask(underRoot = true)
-        rule.onNodeWithText("$BackGlyph End this Nova session?").performClick()
+        rule.onNode(androidx.compose.ui.test.hasTestTag(com.papi.nova.ui.panel.NovaPageBackTag) and androidx.compose.ui.test.hasText("End this Nova session?")).performClick()
         assertStayedOnce(asked, "the header")
         assertEquals("the header popped one page", "root", surfaces.panel.top?.key)
     }

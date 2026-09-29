@@ -513,7 +513,7 @@ internal fun NovaSteamChoiceRow(
             NovaCurrentMark()
         }
         if (actionable) {
-            Text(text = "›", style = type.value, color = colors.textMuted)
+            com.papi.nova.ui.panel.NovaChevron(back = false, tint = colors.textMuted)
         }
     }
 }

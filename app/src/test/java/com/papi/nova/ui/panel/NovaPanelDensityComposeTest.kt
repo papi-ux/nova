@@ -108,9 +108,9 @@ class NovaPanelDensityComposeTest {
         rule.runOnIdle { state.push(TestPage("pushed", "Pushed")) }
         rule.waitForIdle()
 
-        rule.onNodeWithText("$BackGlyph Pushed").assertExists()
+        rule.onNode(androidx.compose.ui.test.hasTestTag(com.papi.nova.ui.panel.NovaPageBackTag) and androidx.compose.ui.test.hasText("Pushed")).assertExists()
         assertDp("the one line header is as tall as the root's, so nothing moves", rootTop, top("row-pushed"))
-        val back = rule.onNodeWithText("$BackGlyph Pushed").getUnclippedBoundsInRoot()
+        val back = rule.onNode(androidx.compose.ui.test.hasTestTag(com.papi.nova.ui.panel.NovaPageBackTag) and androidx.compose.ui.test.hasText("Pushed")).getUnclippedBoundsInRoot()
         assertTrue(
             "the back target keeps the compact header's height",
             back.bottom - back.top >= NovaPanelMetrics.HeaderHeightCompact - 0.5.dp,

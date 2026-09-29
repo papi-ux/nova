@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -62,6 +63,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -454,6 +456,7 @@ private fun NovaPageHeader(
     val oneLine = LocalNovaPanelDensity.current == NovaPanelDensity.Compact
     // The touch B, though never a focus stop.
     val backTarget = Modifier
+        .testTag(NovaPageBackTag)
         .pointerInput(Unit) { detectTapGestures(onTap = { back() }) }
         .semantics(mergeDescendants = true) {
             role = Role.Button
@@ -471,22 +474,9 @@ private fun NovaPageHeader(
                 if (parentTitle == null) {
                     Text(text = title, style = type.panelTitle, color = colors.textPrimary)
                 } else {
-                    // The ‹ stands in the 12dp gutter, so the title starts on the text line of the
+                    // The ‹ hangs into the 12dp gutter, so the title starts on the text line of the
                     // rows under it, as the mockup draws it.
-                    val measurer = rememberTextMeasurer()
-                    val density = LocalDensity.current
-                    val lead = remember(type.pageTitle, density) {
-                        with(density) { measurer.measure("$BackGlyph ", type.pageTitle).size.width.toDp() }
-                    }
-                    Box(
-                        contentAlignment = Alignment.CenterStart,
-                        modifier = Modifier
-                            .padding(start = (NovaPanelMetrics.SpaceMd - lead).coerceAtLeast(0.dp))
-                            .heightIn(min = NovaPanelMetrics.HeaderHeightCompact)
-                            .then(backTarget),
-                    ) {
-                        Text(text = "$BackGlyph $title", style = type.pageTitle, color = colors.textPrimary)
-                    }
+                    NovaPageBack(title = title, modifier = Modifier.heightIn(min = NovaPanelMetrics.HeaderHeightCompact).then(backTarget))
                 }
             }
             end?.let {
@@ -504,12 +494,7 @@ private fun NovaPageHeader(
             }
             Text(text = parentTitle, style = type.caption, color = colors.textSecondary)
             // A full touch target for the touch B.
-            Box(
-                contentAlignment = Alignment.CenterStart,
-                modifier = Modifier.heightIn(min = NovaPanelMetrics.ArrowTarget).then(backTarget),
-            ) {
-                Text(text = "$BackGlyph $title", style = type.pageTitle, color = colors.textPrimary)
-            }
+            NovaPageBack(title = title, modifier = Modifier.heightIn(min = NovaPanelMetrics.ArrowTarget).then(backTarget))
         }
         end?.let {
             Spacer(Modifier.width(NovaPanelMetrics.SpaceSm))
@@ -517,6 +502,28 @@ private fun NovaPageHeader(
         }
     }
 }
+
+/**
+ * A pushed page's title after its accent `‹`, which hangs [NovaPageBackHang] into the gutter so the
+ * title starts on the rows' text line.
+ */
+@Composable
+private fun NovaPageBack(title: String, modifier: Modifier) {
+    val colors = LocalNovaComposeColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.offset(x = -NovaPageBackHang),
+    ) {
+        NovaChevron(back = true, tint = colors.accent)
+        Text(text = title, style = novaPanelType.pageTitle, color = colors.textPrimary)
+    }
+}
+
+/** How far a page's `‹` stands out into the gutter: its 18dp less the 12dp gutter. */
+private val NovaPageBackHang = NovaPanelMetrics.CurrentMarkSize - NovaPanelMetrics.SpaceMd
+
+/** A pushed page's header back target: its `‹` and its title, for a test to find it. */
+internal const val NovaPageBackTag = "nova-page-back"
 
 internal const val BackGlyph = "‹"
 internal const val OpensGlyph = "›"

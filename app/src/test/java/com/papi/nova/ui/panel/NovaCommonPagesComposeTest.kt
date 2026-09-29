@@ -205,9 +205,9 @@ class NovaCommonPagesComposeTest {
         )
         host()
 
-        val header = rule.onNodeWithText("$BackGlyph Quit").getUnclippedBoundsInRoot()
+        val header = rule.onNode(androidx.compose.ui.test.hasTestTag(com.papi.nova.ui.panel.NovaPageBackTag) and androidx.compose.ui.test.hasText("Quit")).getUnclippedBoundsInRoot()
         assertTrue("the header is a full touch target", header.bottom - header.top >= NovaPanelMetrics.ArrowTarget)
-        rule.onNodeWithText("$BackGlyph Quit").performClick()
+        rule.onNode(androidx.compose.ui.test.hasTestTag(com.papi.nova.ui.panel.NovaPageBackTag) and androidx.compose.ui.test.hasText("Quit")).performClick()
 
         assertEquals(1, state.depth)
         assertEquals("tapping the header is the touch B, and B on a confirm is Stay", 1, stayed)
