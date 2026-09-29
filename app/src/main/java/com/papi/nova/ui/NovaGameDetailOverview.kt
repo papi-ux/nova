@@ -593,34 +593,34 @@ private fun NovaGameDetailStatusLine(
         // the edge. It takes the lines it needs, breaking only at a dot, and past that the
         // rest shows while Launch holds the cursor.
         BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
-        val widthPx = constraints.maxWidth
-        val line = novaInstrumentCase(novaGameDetailStatusText(uiState, summary))
-        // Whole parts to a line, and a line never ends in a dot (N22).
-        val packed = remember(line, widthPx, style) {
-            novaPackAtDots(novaDottedParts(line), NOVA_GAME_DETAIL_STATUS_SEPARATOR) { candidate ->
-                measurer.measure(
-                    candidate,
-                    style.merge(TextStyle(fontSize = 11.sp, lineHeight = NOVA_GAME_DETAIL_STATUS_LINE)),
-                    // One unwrapped line: its width is what the candidate needs.
-                    softWrap = false,
-                ).size.width <= widthPx
+            val widthPx = constraints.maxWidth
+            val line = novaInstrumentCase(novaGameDetailStatusText(uiState, summary))
+            // Whole parts to a line, and a line never ends in a dot (N22).
+            val packed = remember(line, widthPx, style) {
+                novaPackAtDots(novaDottedParts(line), NOVA_GAME_DETAIL_STATUS_SEPARATOR) { candidate ->
+                    measurer.measure(
+                        candidate,
+                        style.merge(TextStyle(fontSize = 11.sp, lineHeight = NOVA_GAME_DETAIL_STATUS_LINE)),
+                        // One unwrapped line: its width is what the candidate needs.
+                        softWrap = false,
+                    ).size.width <= widthPx
+                }
             }
-        }
-        NovaRevealingText(
-            text = packed,
-            highlighted = revealing,
-            // Launch holds the cursor from the moment the page opens and may hold it for as
-            // long as the page is left open, so the line plays twice and rests. Coming back
-            // to Launch plays it again.
-            passes = 2,
-            maxLines = maxLines,
-            color = colors.textPrimary,
-            fontSize = 11.sp,
-            lineHeight = NOVA_GAME_DETAIL_STATUS_LINE,
-            // Measurements, so the digits line up rather than dance. Space Grotesk's
-            // digits are proportional by default, so this is load-bearing here.
-            style = style,
-        )
+            NovaRevealingText(
+                text = packed,
+                highlighted = revealing,
+                // Launch holds the cursor from the moment the page opens and may hold it for as
+                // long as the page is left open, so the line plays twice and rests. Coming back
+                // to Launch plays it again.
+                passes = 2,
+                maxLines = maxLines,
+                color = colors.textPrimary,
+                fontSize = 11.sp,
+                lineHeight = NOVA_GAME_DETAIL_STATUS_LINE,
+                // Measurements, so the digits line up rather than dance. Space Grotesk's
+                // digits are proportional by default, so this is load-bearing here.
+                style = style,
+            )
         }
     }
 }
