@@ -544,11 +544,23 @@ object NovaThemeManager {
                     com.google.android.material.R.attr.colorOnPrimary,
                     ContextCompat.getColor(context, R.color.nova_bg_window)
                 )
+            // A theme that names no label colour for its accent gets black or white, whichever
+            // reads on the accent. The ice it fell back to read at 2.5:1 on Nova's violet.
             else -> resolveThemeColor(
                 context,
                 com.google.android.material.R.attr.colorOnPrimary,
-                ContextCompat.getColor(context, R.color.nova_ice),
+                readableOn(getAccentColor(context)),
             )
+        }
+    }
+
+    /** Black or white, whichever contrasts more with the opaque [background]. */
+    internal fun readableOn(background: Int): Int {
+        val opaque = ColorUtils.setAlphaComponent(background, 255)
+        return if (ColorUtils.calculateContrast(Color.BLACK, opaque) >= ColorUtils.calculateContrast(Color.WHITE, opaque)) {
+            Color.BLACK
+        } else {
+            Color.WHITE
         }
     }
 }
