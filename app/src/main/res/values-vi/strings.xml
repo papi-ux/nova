@@ -42,7 +42,6 @@
     <string name="nettest_text_blocked">Kết nối mạng hiện tại của thiết bị của bạn đang chặn Nova. Phát trực tuyến qua Internet có thể không hoạt động khi kết nối với mạng này.</string>
 
     <!-- Pair messages -->
-    <string name="pairing">Đang ghép nối…</string>
     <string name="pair_pc_confirm_title">Ghép nối PC</string>
     <string name="pair_pc_confirm_message">Bạn có thực sự muốn ghép nối với %s không? Vui lòng không ghép nối với bất kỳ máy tính nào không quen thuộc.</string>
     <string name="pair_pc_offline">Máy tính đang ngoại tuyến</string>

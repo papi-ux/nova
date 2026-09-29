@@ -20,7 +20,6 @@
     <string name="pair_incorrect_pin">Yanlış PIN</string>
     <string name="pair_pairing_title">Eşleştiriliyor</string>
     <string name="pair_pc_offline">Bilgisayar çevrimdışı</string>
-    <string name="pairing">Eşleştiriliyor…</string>
     <string name="nettest_title_waiting">Ağ Bağlantısı Test Ediliyor</string>
     <string name="pcview_menu_details">Ayrıntıları Görüntüle</string>
     <string name="pcview_menu_test_network">Ağ Bağlantısını Test Et</string>

@@ -156,7 +156,6 @@
     <string name="wol_no_mac">Nem lehet felébreszteni a számítógépet, mert nincs tárolt MAC-cím</string>
     <string name="wol_pc_online">A számítógép elérhető</string>
     <string name="pair_already_in_progress">A párosítás már folyamatban van</string>
-    <string name="pairing">Párosítás…</string>
     <string name="pair_pairing_title">Párosítás</string>
     <string name="pair_fail">Párosítás nem sikerült</string>
     <string name="pair_incorrect_pin">Hibás PIN</string>

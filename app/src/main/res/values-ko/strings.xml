@@ -13,7 +13,6 @@
     <string name="pcview_menu_send_wol">Wake-On-LAN request 보내기</string>
     <string name="pcview_menu_delete_pc">PC 삭제</string>
     <!-- Pair messages -->
-    <string name="pairing">페어링 중…</string>
     <string name="pair_pc_offline">컴퓨터가 오프라인입니다.</string>
     <string name="pair_pc_ingame">컴퓨터가 아직 게임을 실행중입니다. 페어링 전 게임을 종료하세요.</string>
     <string name="pair_pairing_title">페어링</string>

@@ -13,7 +13,6 @@
     <string name="pcview_menu_send_wol">Invia richiesta Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Rimuovi PC</string>
     <!-- Pair messages -->
-    <string name="pairing">Accoppiamento…</string>
     <string name="pair_pc_offline">Il PC è offline</string>
     <string name="pair_pc_ingame">PC con applicazione avviata. Devi chiudere l\'applicazione prima dell\'accoppiamento.</string>
     <string name="pair_pairing_title">Accoppiamento</string>

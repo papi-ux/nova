@@ -219,7 +219,6 @@
     <string name="nettest_text_waiting">Nova testuje połączenie sieciowe w celu ustalenia, czy wymagane porty są zablokowane.
 \n
 \nMoże to potrwać kilka sekund…</string>
-    <string name="pairing">Parowanie…</string>
     <string name="pair_pc_ingame">Komputer jest obecnie w trakcie gry. Przed sparowaniem należy zamknąć grę.</string>
     <string name="nettest_text_success">Wygląda na to, że sieć nie blokuje Nova. Jeśli nadal masz problemy z połączeniem, sprawdź ustawienia zapory sieciowej na swoim komputerze.
 \n

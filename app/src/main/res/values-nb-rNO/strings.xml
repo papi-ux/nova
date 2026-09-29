@@ -40,7 +40,6 @@
     <string name="pair_fail">Parring mislyktes</string>
     <string name="pair_pairing_title">Parring</string>
     <string name="pair_pc_ingame">Datamaskinen er for øyeblikket i et spill. Du må lukke spillet før parring.</string>
-    <string name="pairing">Parrer …</string>
     <string name="nettest_title_done">Nettverkstest fullført</string>
     <string name="title_seekbar_deadzone">Dødsonejustering for analogstikke</string>
     <string name="title_checkbox_xb1_driver">Driver for Xbox 360/One USB-spillkontroller</string>

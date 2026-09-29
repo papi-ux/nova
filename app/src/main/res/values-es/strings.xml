@@ -7,7 +7,6 @@
     <string name="pcview_menu_send_wol">Enviar petición Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Eliminar PC</string>
     <!-- Pair messages -->
-    <string name="pairing">Emparejando…</string>
     <string name="pair_pc_offline">El ordenador está apagado</string>
     <string name="pair_pc_ingame">El ordenador está actualmente en un juego. Debes cerrar el juego antes de emparejar.</string>
     <string name="pair_pairing_title">Emparejando</string>

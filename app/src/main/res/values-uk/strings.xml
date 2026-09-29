@@ -7,7 +7,6 @@
     <string name="pcview_menu_send_wol">Надіслати запит Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Видалити пристрій</string>
     <!-- Pair messages -->
-    <string name="pairing">Створення пари…</string>
     <string name="pair_pc_offline">Пристрій вимкнений або знаходиться поза мережею</string>
     <string name="pair_pc_ingame">Пристрій на даний момент знаходиться у грі. Ви повинні закрити гру перед створенням пари.</string>
     <string name="pair_pairing_title">Створення пари</string>

@@ -7,7 +7,6 @@
     <string name="pcview_menu_send_wol">Stuur Wake-On-LAN aanvraag</string>
     <string name="pcview_menu_delete_pc">Verwijder PC</string>
     <!-- Pair messages -->
-    <string name="pairing">Koppelen…</string>
     <string name="pair_pc_offline">Computer is onbereikbaar</string>
     <string name="pair_pc_ingame">Computer is op dit moment in een spel. Sluit het spel voordat je koppelt.</string>
     <string name="pair_pairing_title">Koppelen</string>

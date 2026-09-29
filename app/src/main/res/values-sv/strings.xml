@@ -23,7 +23,6 @@
 \n
 \nDetta kan ta några sekunder…</string>
     <string name="pair_pc_ingame">Datorn är för närvarande i ett spel. Du måste stänga spelet innan fogning.</string>
-    <string name="pairing">Fogar…</string>
     <string name="pair_pairing_title">Fogning</string>
     <string name="pair_incorrect_pin">Felaktig PIN-kod</string>
     <string name="pair_fail">Fogning misslyckad</string>

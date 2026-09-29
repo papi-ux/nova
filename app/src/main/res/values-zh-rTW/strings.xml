@@ -46,7 +46,6 @@
 	<string name="nettest_text_blocked">您目前的網路連線正在阻擋 Nova。在此網路下，透過網際網路串流可能無法正常運作。</string>
 
 	<!-- Pair messages -->
-	<string name="pairing">正在配對…</string>
 	<string name="pair_pc_confirm_title">配對電腦</string>
 	<string name="pair_pc_confirm_message">您確定要與 %s 配對嗎？請不要與不熟悉的電腦配對。</string>
 	<string name="pair_pc_offline">電腦已離線</string>

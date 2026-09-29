@@ -33,7 +33,6 @@
 \n</string>
     <string name="nettest_text_blocked">Die aktuelle Netzwerkverbindung deines Geräts blockiert Nova. Das Streaming über das Internet funktioniert möglicherweise nicht, während du mit diesem Netzwerk verbunden bist.</string>
     <!-- Pair messages -->
-    <string name="pairing">Koppeln…</string>
     <string name="pair_pc_offline">Host ist offline</string>
     <string name="pair_pc_ingame">Auf dem Host ist bereits eine App aktiv. Du musst die App vor dem koppeln beenden.</string>
     <string name="pair_pairing_title">Koppeln</string>

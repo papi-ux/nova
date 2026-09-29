@@ -15,7 +15,6 @@
     <string name="pcview_menu_details">Детайли</string>
     <string name="nettest_title_waiting">Тестване на мрежовата връзка</string>
     <string name="nettest_title_done">Тестът на мрежата е завършен</string>
-    <string name="pairing">Сдвояване…</string>
     <string name="pair_pc_offline">Компютърът е офлайн</string>
     <string name="pair_pc_ingame">Компютърът в момента е в игра. Трябва да затворите играта преди сдвояване.</string>
     <string name="pair_pairing_title">Сдвояване</string>

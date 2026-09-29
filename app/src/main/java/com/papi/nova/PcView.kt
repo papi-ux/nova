@@ -208,15 +208,36 @@ private const val NOVA_OTP_PASSPHRASE = "passphrase"
 
 /**
  * The pairing PIN, full screen while the host waits for it to be typed there. [onClose] hides the
- * page; pairing goes on until the host answers.
+ * page; pairing goes on until the host answers. [note], when there is one, says first why it came
+ * to a PIN, such as automatic pairing not finishing: that floated in a snackbar under the page.
  */
-internal fun novaPairingCodePage(context: Context, key: String, pin: String, onClose: () -> Unit): NovaStatePage.Code =
+internal fun novaPairingCodePage(
+    context: Context,
+    key: String,
+    pin: String,
+    note: String? = null,
+    onClose: () -> Unit,
+): NovaStatePage.Code =
     NovaStatePage.Code(
         key = key,
         title = context.getString(R.string.hosts_pairing_code_title),
         code = pin,
-        message = context.getString(R.string.hosts_pairing_code_message),
+        message = listOfNotNull(note, context.getString(R.string.hosts_pairing_code_message)).joinToString("\n\n"),
         close = NovaAction(context.getString(R.string.nova_panel_close), run = onClose),
+    )
+
+/**
+ * Pairing on its way before there is a PIN to show: Nova finding a scanned host, or asking a host
+ * to pair. A full screen Busy page in the pairing page's place, which the PIN or the OTP wait then
+ * takes over and which goes when pairing ends; its Close hides it while pairing goes on. "Connecting
+ * to" and "Pairing" floated as snackbars and were gone in two seconds (audit X2).
+ */
+internal fun novaPairingProgressPage(context: Context, key: String, message: String, onClose: () -> Unit): NovaStatePage.Busy =
+    NovaStatePage.Busy(
+        key = key,
+        title = context.getString(R.string.pair_pairing_title),
+        message = MutableStateFlow(message),
+        cancel = NovaAction(context.getString(R.string.nova_panel_close), run = onClose),
     )
 
 /**
@@ -468,6 +489,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             }
 
             if (details.pairState == PairState.PAIRED && hasPinnedServerCert(details)) {
+                // Already paired, so there is nothing to pair: the wait from the scan goes.
+                hidePairingPage()
                 clearPendingPairing()
                 return
             }
@@ -1465,7 +1488,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (::viewModel.isInitialized) viewModel.computersLiveData.value else null,
         )
         if (selected == null) {
-            NovaSnackbar.showError(this, getString(R.string.pcview_library_no_server))
+            showHostsNotice(getString(R.string.pcview_quick_library), getString(R.string.pcview_library_no_server))
             return
         }
         doNovaLibrary(selected.details)
@@ -1476,7 +1499,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (::viewModel.isInitialized) viewModel.computersLiveData.value else null,
         )
         if (selected == null) {
-            NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_no_server))
+            showHostsNotice(getString(R.string.pcview_quick_start_polaris), getString(R.string.pcview_polaris_start_no_server))
             return
         }
         startPolarisFromNova(selected.details)
@@ -1735,9 +1758,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
     }
 
+    /** The pill already says Retry where the check was asked for; a snackbar said it again (X2). */
     private fun showNovaUpdateDashboardError(error: Throwable) {
         LimeLog.warning("Nova dashboard: manual update check failed: ${error.message}")
-        NovaSnackbar.showError(this, getString(R.string.pcview_update_pill_retry_snackbar))
     }
 
     private fun maybeRunAutomaticNovaUpdateCheck() {
@@ -2106,7 +2129,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private fun handleQrScanResult(contents: String) {
         val uri = Uri.parse(contents)
         if (uri.scheme != "art") {
-            NovaSnackbar.showError(this, getString(R.string.nova_qr_invalid_code))
+            showHostsNotice(getString(R.string.hosts_qr_title), getString(R.string.nova_qr_invalid_code))
             return
         }
 
@@ -2116,13 +2139,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         val port = if (uri.port != -1) uri.port else NvHTTP.DEFAULT_HTTP_PORT
 
         if (pin == null || passphrase == null || host == null) {
-            NovaSnackbar.showError(this, getString(R.string.nova_qr_missing_pairing_data))
+            showHostsNotice(getString(R.string.hosts_qr_title), getString(R.string.nova_qr_missing_pairing_data))
             return
         }
 
         val binder = managerBinder
         if (binder == null) {
-            NovaSnackbar.showError(this, getString(R.string.error_manager_not_running))
+            showHostsNotice(getString(R.string.hosts_not_ready_title), getString(R.string.error_manager_not_running))
             return
         }
 
@@ -2130,15 +2153,24 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         pendingPairingPassphrase = passphrase
         pendingPairingAddress = ComputerDetails.AddressTuple(host, port)
 
-        NovaSnackbar.show(this, "Connecting to $host...")
+        showPairingProgress(getString(R.string.hosts_qr_connecting, host))
 
         Thread {
             val details = ComputerDetails()
             details.manualAddress = ComputerDetails.AddressTuple(host, port)
-            try {
+            val added = try {
                 binder.addComputerBlocking(details)
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
+                false
+            }
+            if (!added) {
+                // Nothing will come to pair with, so the wait goes and says why, where it stood.
+                hidePairingPage()
+                runOnUiThread {
+                    clearPendingPairing()
+                    showHostsNotice(getString(R.string.hosts_pairing_failed_title), getString(R.string.hosts_qr_unreachable, host))
+                }
             }
         }.start()
     }
@@ -2154,8 +2186,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             return
         }
 
-        NovaSnackbar.show(this, resources.getString(R.string.pairing))
+        showPairingProgress(getString(R.string.hosts_pairing_asking))
         Thread {
+            var pinNote: String? = null
             var message: String? = null
             var success = false
             var pairedComputer: ComputerDetails? = computer
@@ -2203,7 +2236,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                                 val launchedComputer = pairedComputer
                                 runOnUiThread {
                                     if (launchedComputer != null) {
-                                        NovaSnackbar.showSuccess(this@PcView, getString(R.string.nova_pairing_auto_success))
+                                        // The host's library or apps opening is the answer.
                                         openBestPlaySurface(launchedComputer)
                                     } else {
                                         showHostsNotice(getString(R.string.hosts_pairing_failed_title), getString(R.string.pair_fail))
@@ -2213,21 +2246,18 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                                 return@Thread
                             }
                             LimeLog.info("TOFU: Auto-pair failed, falling back to PIN pairing")
-                            runOnUiThread {
-                                NovaSnackbar.showError(this@PcView, getString(R.string.nova_pairing_auto_fallback_pin))
-                            }
+                            pinNote = getString(R.string.nova_pairing_auto_fallback_pin)
                             serverInfo = httpConn.getServerInfo(true)
                         } else {
-                            LimeLog.info("TOFU: Server does not advertise TofuEnabled — rebuild Polaris to enable")
-                            runOnUiThread {
-                                NovaSnackbar.showError(this@PcView, getString(R.string.nova_pairing_auto_unsupported))
-                            }
+                            LimeLog.info("TOFU: Server does not advertise TofuEnabled, rebuild Polaris to enable")
+                            pinNote = getString(R.string.nova_pairing_auto_unsupported)
                         }
                     }
 
                     val pinStr = otp ?: PairingManager.generatePinString()
                     if (passphrase == null) {
-                        showPairingCode(pinStr)
+                        // Why it came to a PIN is said on the PIN page, not in a snackbar under it.
+                        showPairingCode(pinStr, pinNote)
                     } else {
                         showOtpPairingWait()
                     }
@@ -2323,9 +2353,15 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
      * the page and pairing goes on; the page also goes when pairing ends, however it ends.
      * Any thread.
      */
-    private fun showPairingCode(pin: String) {
+    private fun showPairingCode(pin: String, note: String? = null) {
         val surfaces = novaSurfaces
-        surfaces.show(novaPairingCodePage(this, PAIRING_PAGE_KEY, pin) { surfaces.dismiss(PAIRING_PAGE_KEY) })
+        surfaces.show(novaPairingCodePage(this, PAIRING_PAGE_KEY, pin, note) { surfaces.dismiss(PAIRING_PAGE_KEY) })
+    }
+
+    /** Pairing on its way with no PIN to show yet, in the pairing page's place. Any thread. */
+    private fun showPairingProgress(message: String) {
+        val surfaces = novaSurfaces
+        surfaces.show(novaPairingProgressPage(this, PAIRING_PAGE_KEY, message) { surfaces.dismiss(PAIRING_PAGE_KEY) })
     }
 
     /**
@@ -2349,14 +2385,16 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         doPair(computer, pin, passphrase)
     }
 
+    /** Wake on LAN from the host menu; what came of it is a Notice, where it can be read (X2). */
     private fun doWakeOnLan(computer: ComputerDetails) {
+        val title = getString(R.string.pcview_quick_start_polaris)
         if (computer.state == ComputerDetails.State.ONLINE) {
-            NovaSnackbar.show(this, resources.getString(R.string.wol_pc_online))
+            showHostsNotice(title, getString(R.string.wol_pc_online))
             return
         }
 
         if (computer.macAddress == null) {
-            NovaSnackbar.showError(this, resources.getString(R.string.wol_no_mac))
+            showHostsNotice(title, getString(R.string.wol_no_mac))
             return
         }
 
@@ -2364,23 +2402,23 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             val message =
                 try {
                     WakeOnLanSender.sendWolPacket(computer)
-                    resources.getString(R.string.wol_waking_msg)
+                    getString(R.string.wol_waking_msg)
                 } catch (e: IOException) {
-                    resources.getString(R.string.wol_fail)
+                    getString(R.string.wol_fail)
                 }
 
-            runOnUiThread { NovaSnackbar.show(this, message) }
+            showHostsNotice(title, message)
         }.start()
     }
 
     private fun startPolarisFromNova(computer: ComputerDetails) {
         val binder = managerBinder
         if (binder == null) {
-            NovaSnackbar.showError(this, getString(R.string.error_manager_not_running))
+            showHostsNotice(getString(R.string.hosts_not_ready_title), getString(R.string.error_manager_not_running))
             return
         }
         if (needsPairing(computer)) {
-            NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_pair_first))
+            showHostsNotice(getString(R.string.pcview_quick_start_polaris), getString(R.string.pcview_polaris_start_pair_first))
             return
         }
         val uuid = computer.uuid
@@ -2912,30 +2950,28 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
     }
 
+    /**
+     * What Wake Host came to. Ready opens the library, which is the answer; anything else is said
+     * on a Notice, where it can be read: each floated as a snackbar and was gone in seconds (X2).
+     */
     private fun handlePolarisStartupResult(result: com.papi.nova.manager.PolarisStartupResult) {
-        when (result.status) {
+        val failure = when (result.status) {
             PolarisStartupStatus.READY -> {
                 val computer = updatePolarisStartupComputer(result.computer)
-                if (computer == null) {
-                    NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_failed))
+                if (computer != null) {
+                    doNovaLibrary(computer)
                     return
                 }
-                NovaSnackbar.show(this, getString(R.string.pcview_polaris_started))
-                doNovaLibrary(computer)
+                R.string.pcview_polaris_start_failed
             }
-            PolarisStartupStatus.NEEDS_PAIRING ->
-                NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_pair_first))
-            PolarisStartupStatus.MISSING_MAC ->
-                NovaSnackbar.showError(this, getString(R.string.wol_no_mac))
-            PolarisStartupStatus.WAKE_FAILED ->
-                NovaSnackbar.showError(this, getString(R.string.wol_fail))
-            PolarisStartupStatus.TIMEOUT ->
-                NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_timeout))
-            PolarisStartupStatus.POLARIS_UNAVAILABLE ->
-                NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_unavailable))
-            PolarisStartupStatus.POLARIS_NOT_RUNNING ->
-                NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_not_running))
+            PolarisStartupStatus.NEEDS_PAIRING -> R.string.pcview_polaris_start_pair_first
+            PolarisStartupStatus.MISSING_MAC -> R.string.wol_no_mac
+            PolarisStartupStatus.WAKE_FAILED -> R.string.wol_fail
+            PolarisStartupStatus.TIMEOUT -> R.string.pcview_polaris_start_timeout
+            PolarisStartupStatus.POLARIS_UNAVAILABLE -> R.string.pcview_polaris_start_unavailable
+            PolarisStartupStatus.POLARIS_NOT_RUNNING -> R.string.pcview_polaris_start_not_running
         }
+        showHostsNotice(getString(R.string.pcview_quick_start_polaris), getString(failure))
     }
 
     private fun updatePolarisStartupComputer(started: ComputerDetails?): ComputerDetails? {
@@ -2968,11 +3004,11 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
     private fun doAppList(computer: ComputerDetails, newlyPaired: Boolean, showHiddenGames: Boolean) {
         if (computer.state == ComputerDetails.State.OFFLINE) {
-            NovaSnackbar.showError(this, getString(R.string.error_pc_offline))
+            showHostsNotice(getString(R.string.hosts_offline_title), getString(R.string.hosts_offline_message))
             return
         }
         if (managerBinder == null) {
-            NovaSnackbar.showError(this, getString(R.string.error_manager_not_running))
+            showHostsNotice(getString(R.string.hosts_not_ready_title), getString(R.string.error_manager_not_running))
             return
         }
 
@@ -2988,12 +3024,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private fun doNovaLibrary(computer: ComputerDetails) {
         val activeAddress = computer.activeAddress
         if (computer.state == ComputerDetails.State.OFFLINE || activeAddress == null) {
-            NovaSnackbar.showError(this, getString(R.string.error_pc_offline))
+            showHostsNotice(getString(R.string.hosts_offline_title), getString(R.string.hosts_offline_message))
             return
         }
         val binder = managerBinder
         if (binder == null) {
-            NovaSnackbar.showError(this, getString(R.string.error_manager_not_running))
+            showHostsNotice(getString(R.string.hosts_not_ready_title), getString(R.string.error_manager_not_running))
             return
         }
 

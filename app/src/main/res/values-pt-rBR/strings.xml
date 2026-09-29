@@ -80,7 +80,6 @@
 \nAs seguintes portas de rede estão bloqueadas:
 \n</string>
     <string name="nettest_text_blocked">A conexão de rede atual do seu dispositivo está bloqueando o Nova. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
-    <string name="pairing">Pareando…</string>
     <string name="pair_pc_offline">Esse computador está indisponível</string>
     <string name="pair_pc_ingame">Esse computador está atualmente em um jogo. Você deve fechar o jogo antes de parear.</string>
     <string name="pair_pairing_title">Pareando</string>

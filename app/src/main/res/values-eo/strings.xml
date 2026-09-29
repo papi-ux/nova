@@ -28,7 +28,6 @@
     <string name="resolution_1080p">1080p</string>
     <string name="resolution_1440p">1440p</string>
     <string name="pcview_menu_app_list">Vidi ĉiujn programojn</string>
-    <string name="pairing">Parigante…</string>
     <string name="unpairing">Malparigante…</string>
     <string name="applist_connect_msg">Konektante al komputilo…</string>
     <string name="pcview_menu_unpair_pc">Malparigi</string>

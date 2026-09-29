@@ -48,7 +48,6 @@
     <string name="pcview_menu_open_management_page">打开服务端配置</string>
     <string name="pcview_error_no_management_url">无法打开服务端配置，找不到服务端地址。</string>
     <!-- Pair messages -->
-    <string name="pairing"> 配对中…… </string>
     <string name="pair_pc_confirm_title">与 PC 配对</string>
     <string name="pair_pc_confirm_message">确定要与 %s 配对吗？请不要轻易与任何不熟悉的电脑配对。</string>
     <string name="pair_pc_offline"> 电脑离线中 </string>

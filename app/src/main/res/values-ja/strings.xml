@@ -7,7 +7,6 @@
     <string name="pcview_menu_send_wol">Wake-On-LANリクエストを送信する</string>
     <string name="pcview_menu_delete_pc">コンピュータをリストから削除する</string>
     <!-- Pair messages -->
-    <string name="pairing">ペアリング中</string>
     <string name="pair_pc_offline">コンピュータはオフラインです</string>
     <string name="pair_pc_ingame">現在このコンピュータはゲームを実行中のため、ペアリングする前にゲームを閉じる必要があります</string>
     <string name="pair_pairing_title">ペアリング</string>

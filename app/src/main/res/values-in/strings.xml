@@ -71,7 +71,6 @@
     <string name="pcview_menu_test_network">Uji koneksi jaringan</string>
     <string name="pcview_menu_details">Lihat rincian</string>
     <string name="nettest_title_done">Uji jaringan selesai</string>
-    <string name="pairing">Memasang…</string>
     <string name="nettest_text_success">Jaringan Anda sepertinya tidak memblokir Nova. Jika Anda masih mengalami masalah menghubungkan, cek pengaturan firewall komputer Anda.
 \n
 \nJika anda mencoba stream lewat internet, install Nova Internet Hosting Tool pada komputer anda dan jalankan Internet Streaming Tester untuk mengecek koneksi Internet komputer Anda.</string>

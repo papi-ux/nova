@@ -201,7 +201,6 @@
     <string name="title_enable_perf_overlay">Mostrar status de performance durante a transmissão</string>
     <string name="nettest_title_done">Teste de Internet Completo</string>
     <string name="nettest_text_inconclusive">O teste de rede não pôde ser executado porque nenhum dos servidores de teste de conexão do Nova estava acessível. Verifique a sua conexão com a Internet ou tente novamente mais tarde.</string>
-    <string name="pairing">A parear…</string>
     <string name="pair_pc_offline">Esse computador está offline</string>
     <string name="pair_pc_ingame">Esse computador está atualmente num jogo. Deve fechar o jogo antes de parear.</string>
     <string name="pair_incorrect_pin">PIN incorreto</string>

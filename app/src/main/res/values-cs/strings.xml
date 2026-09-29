@@ -21,7 +21,6 @@
 \n
 \nTo může chvilku zabrat…</string>
     <string name="nettest_title_waiting">Testování připojení k síti</string>
-    <string name="pairing">Párování…</string>
     <string name="pair_pc_offline">Počítač je offline</string>
     <string name="unpairing">Rušení párování…</string>
     <string name="unpair_success">Párování úspěšně zrušeno</string>
