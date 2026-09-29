@@ -71,6 +71,10 @@ class LockScreenOverlayTest {
 
         assertEquals("a failed unlock can be asked for again", "Unlock host", lockPage(activity).primary.label)
         assertTrue(overlay.isShowing)
+        // The page says it failed in its own message, where Unlock was pressed: a Toast floated
+        // over the stream and was gone before it could be read (audit X2).
+        assertEquals(activity.getString(com.papi.nova.R.string.nova_lock_overlay_unlock_failed), lockPage(activity).message)
+        assertNull("nothing floats over the stream", org.robolectric.shadows.ShadowToast.getLatestToast())
     }
 
     @Test

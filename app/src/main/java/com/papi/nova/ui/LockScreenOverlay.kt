@@ -1,7 +1,6 @@
 package com.papi.nova.ui
 
 import android.app.Activity
-import android.widget.Toast
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.LimeLog
@@ -49,12 +48,16 @@ class LockScreenOverlay(
         }
     }
 
-    private fun page(unlocking: Boolean): NovaStatePage.Problem {
+    /**
+     * The page, with [failed] when the last unlock came to nothing: it says so in its own message,
+     * above Unlock, where the press was made. A Toast floated over the stream and was gone (X2).
+     */
+    private fun page(unlocking: Boolean, failed: Boolean = false): NovaStatePage.Problem {
         val notNow = NovaAction(activity.getString(R.string.nova_stream_lock_not_now)) { setAside() }
         return NovaStatePage.Problem(
             key = PAGE_KEY,
             title = activity.getString(R.string.nova_stream_lock_title),
-            message = activity.getString(R.string.nova_stream_lock_message),
+            message = activity.getString(if (failed) R.string.nova_lock_overlay_unlock_failed else R.string.nova_stream_lock_message),
             primary = NovaAction(
                 activity.getString(if (unlocking) R.string.nova_lock_overlay_unlocking else R.string.nova_lock_overlay_unlock),
             ) { requestUnlock() },
@@ -85,8 +88,7 @@ class LockScreenOverlay(
                     dismiss(cancelUnlock = false)
                 } else {
                     unlockInProgress = false
-                    NovaSurfaces.existing(activity)?.update(PAGE_KEY) { page(unlocking = false) }
-                    Toast.makeText(activity, R.string.nova_lock_overlay_unlock_failed, Toast.LENGTH_SHORT).show()
+                    NovaSurfaces.existing(activity)?.update(PAGE_KEY) { page(unlocking = false, failed = true) }
                 }
             }
         }
