@@ -595,6 +595,11 @@ class PreferenceConfiguration {
         }
 
         @JvmStatic
+        fun resetStreamingSettings(context: Context, onSaved: (Boolean) -> Unit) {
+            NovaStreamSettings.resetAfterDecoderCrash(context, onSaved)
+        }
+
+        @JvmStatic
         fun formatStreamingDisplayMode(width: Int, height: Int, fps: Float): String {
             return width.toString() + "x" + height + "x" + formatFpsValue(fps)
         }

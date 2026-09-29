@@ -701,6 +701,8 @@
     <string name="title_decoding_error">Video Decoder Crashed</string>
     <string name="message_decoding_error">Nova has crashed due to an incompatibility with this device\'s video decoder. Try adjusting the streaming settings if the crashes continue.</string>
     <string name="title_decoding_reset">Video Settings Reset</string>
+    <string name="title_decoding_reset_failed">Video settings could not be saved</string>
+    <string name="message_decoding_reset_failed">Nova switched to Recommended for now, but could not save your active setup. Try again to keep the safer settings for your next stream.</string>
     <string name="message_decoding_reset">Your device\'s video decoder continues to crash at your selected streaming settings. Your streaming settings have been reset to default.</string>
     <string name="error_usb_prohibited">USB access is prohibited by your device administrator. Check your Knox or MDM settings.</string>
     <string name="unable_to_pin_shortcut">Your current launcher does not allow for creating pinned shortcuts.</string>

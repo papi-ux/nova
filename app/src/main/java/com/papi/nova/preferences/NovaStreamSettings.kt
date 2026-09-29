@@ -44,12 +44,16 @@ object NovaStreamSettings {
             .apply() // The six Custom keys and their Auto state are deliberately retained.
     }
 
-    internal fun selectActiveSetupTier(tier: NovaTier, automatic: Boolean? = null) {
+    internal fun selectActiveSetupTier(tier: NovaTier, automatic: Boolean? = null, onSaved: ((Boolean) -> Unit)? = null) {
         val profiles = com.papi.nova.profiles.ProfilesManager.getInstance()
-        profiles.getActive()?.takeIf { it.getOptions()?.keys?.any { key -> key in NovaSettingsMigration.STREAM_KEYS } == true }?.let { active ->
+        val active = profiles.getActive()?.takeIf { it.getOptions()?.keys?.any { key -> key in NovaSettingsMigration.STREAM_KEYS } == true }
+        if (active == null) { onSaved?.invoke(true); return }
+        active.let {
             val before=active.getOptions()
             active.selectStreamTier(tier, automatic)
-            if(active.getOptions()!=before) profiles.updateDeferred(active)
+            if(active.getOptions()!=before || onSaved != null) profiles.updateDeferred(active) {
+                onSaved?.invoke(it == com.papi.nova.profiles.ProfilesManager.SaveResult.SAVED)
+            }
         }
     }
 
@@ -69,15 +73,15 @@ object NovaStreamSettings {
         if (prefs.getInt("seekbar_metered_bitrate_kbps", 0) == 0) config.meteredBitrate = config.bitrate / 4
     }
 
-    fun resetAfterDecoderCrash(context: Context) {
+    fun resetAfterDecoderCrash(context: Context, onSaved: ((Boolean) -> Unit)? = null) {
         NovaSettingsMigration.apply(context)
         NovaCapabilityProbe.recordResetFailure(context)
         NovaTierRuntime.invalidate(context)
-        selectActiveSetupTier(NovaTier.RECOMMENDED)
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         prefs.edit().putBoolean(NovaSettingsMigration.CUSTOM_AUTO,customAutomatic(prefs.all))
             .putString(NovaSettingsMigration.TIER, "recommended")
             .remove("checkbox_enable_hdr").remove("checkbox_unlock_fps").remove("checkbox_full_range").apply()
+        selectActiveSetupTier(NovaTier.RECOMMENDED, onSaved = onSaved)
     }
 
     fun writeManualBitrate(prefs: SharedPreferences, bitrateKbps: Int) {
