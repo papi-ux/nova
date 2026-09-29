@@ -1,6 +1,8 @@
 package com.papi.nova.preferences
 
 import android.content.res.Configuration
+import android.os.SystemClock
+import android.view.InputDevice
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
@@ -13,6 +15,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -207,6 +210,39 @@ class NovaSettingsPaneComposeTest {
             .substringAfter("private fun NovaSettingResetButton(").substringBefore("\n}\n")
         assertTrue("the target reaches past the button rather than sizing its row", source.contains("Modifier.novaTouchReach(reach, target)"))
         assertFalse("its 48dp is not layout height", source.contains(".heightIn(min = NovaSettingsMetrics.touchTargetMinDp().dp)"))
+    }
+
+    // The hint bar named X and L1/R1 to a TV remote, which has neither (audit C04). After a key from
+    // a remote it names OK and Back, as the Library does; a controller's key brings its keys back.
+    @Test
+    fun afterARemotesKeyTheHintBarNamesARemotesKeys() {
+        resettable = setOf("checkbox_enable_hdr")
+        val keys = show()
+        fun hints(): String = rule.onNode(hasContentDescription("Select", substring = true))
+            .fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
+        fun keyFrom(source: Int) {
+            val now = SystemClock.uptimeMillis()
+            rule.runOnUiThread {
+                keys.view.dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_UP, 0, 0, 99, 0, 0, source))
+                keys.view.dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_UP, 0, 0, 99, 0, 0, source))
+            }
+            settle()
+        }
+        val remote = rule.activity.getString(com.papi.nova.R.string.nova_controller_hint_remote_center)
+        val x = rule.activity.getString(com.papi.nova.R.string.nova_controller_hint_x)
+        val shoulders = rule.activity.getString(com.papi.nova.R.string.nova_controller_hint_lb_rb)
+
+        keyFrom(InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_DPAD)
+        assertTrue(hints(), hints().contains("$x ") && hints().contains(shoulders))
+
+        keyFrom(InputDevice.SOURCE_DPAD)
+        val onRemote = hints()
+        assertTrue(onRemote, onRemote.startsWith("$remote "))
+        assertFalse("a remote has no X: $onRemote", onRemote.contains("$x "))
+        assertFalse("nor shoulders: $onRemote", onRemote.contains(shoulders))
+
+        keyFrom(InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_DPAD)
+        assertTrue(hints(), hints().contains("$x ") && hints().contains(shoulders))
     }
 
     @Test

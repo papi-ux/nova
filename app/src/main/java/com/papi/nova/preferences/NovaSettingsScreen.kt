@@ -52,6 +52,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -101,6 +102,7 @@ import com.papi.nova.ui.panel.LocalNovaPanelDensity
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.panel.NovaPressLatch
+import com.papi.nova.ui.panel.NovaRemoteInput
 import com.papi.nova.ui.panel.NovaRow
 import com.papi.nova.ui.panel.NovaRowTrailing
 import com.papi.nova.ui.panel.NovaStepperRow
@@ -269,7 +271,10 @@ internal fun NovaSettingsContent(
     opener.onReset = onResetSetting
     opener.pyroWave = pyroWave
 
-    val hints = novaSettingsHints(wide = wide, canReset = state.resettableKeys.isNotEmpty())
+    // Whether the last key came from a remote, which has neither X nor shoulders: the hint bar then
+    // names its OK and Back, as the Library's does (C04).
+    var remoteKeys by remember { mutableStateOf(false) }
+    val hints = novaSettingsHints(wide = wide, canReset = state.resettableKeys.isNotEmpty(), remote = remoteKeys)
     val shoulderLatch = remember { NovaPressLatch() }
     fun stepCategory(delta: Int) {
         val current = latestState
@@ -304,6 +309,11 @@ internal fun NovaSettingsContent(
                 .fillMaxSize()
                 .background(colors.window)
                 .padding(horizontal = 20.dp, vertical = 12.dp)
+                .onPreviewKeyEvent { event ->
+                    val native = event.nativeKeyEvent
+                    if (NovaRemoteInput.tellsTheInput(native)) remoteKeys = NovaRemoteInput.isRemote(native)
+                    false
+                }
                 // L1 and R1 step categories from anywhere on the screen, on release.
                 .onKeyEvent { event ->
                     val delta = when (event.key) {
@@ -365,6 +375,7 @@ internal fun NovaSettingsContent(
                         if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
                     },
                     hints = hints,
+                    remoteKeys = remoteKeys,
                     onHintBarBlock = { hintBlock = it },
                 ) { page ->
                     when (page) {
@@ -426,15 +437,20 @@ private fun NovaPanelState.popToRoot() {
 /** The pane's root for this state: the selected category, or the search results. */
 private fun NovaSettingsUiState.paneKey(): String = if (isSearchActive()) SEARCH_PANE_KEY else selectedCategoryKey
 
-/** The hints beside A Select and B Back: L1/R1 through the categories, and X for a profile's reset. */
+/**
+ * The hints beside A Select and B Back: L1/R1 through the categories, and X for a profile's reset.
+ * A remote has neither, so after its key there are none: the rail and a setting's Use Preset
+ * Default row do those with the D-pad.
+ */
 @Composable
-private fun novaSettingsHints(wide: Boolean, canReset: Boolean): List<NovaControllerHint> {
+private fun novaSettingsHints(wide: Boolean, canReset: Boolean, remote: Boolean): List<NovaControllerHint> {
     val lbRb = stringResource(R.string.nova_controller_hint_lb_rb)
     val category = stringResource(R.string.nova_settings_hint_category)
     val x = stringResource(R.string.nova_controller_hint_x)
     val reset = stringResource(R.string.nova_settings_reset)
-    return remember(wide, canReset, lbRb, category, x, reset) {
+    return remember(wide, canReset, remote, lbRb, category, x, reset) {
         buildList {
+            if (remote) return@buildList
             if (wide) add(NovaControllerHint(lbRb, category))
             if (canReset) add(NovaControllerHint(x, reset))
         }

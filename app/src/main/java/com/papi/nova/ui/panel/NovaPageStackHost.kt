@@ -282,6 +282,8 @@ private class NovaFocusHintNode(private var hint: NovaFocusHint?) :
  * [hints]. The element with focus can change that through [novaFocusHint]: a value that changes in
  * place leads with `◂▸ Change` and says what A does there, and a stop only there to be read drops A.
  * [headerEnd] is drawn at the end of every page's header line, such as Play Setup's scope pill.
+ * With [remoteKeys], A and B are named as a TV remote's OK and Back, for a screen whose last key
+ * came from a remote.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -295,6 +297,7 @@ fun NovaPageStackHost(
     leadingHints: List<NovaControllerHint> = emptyList(),
     selectHint: NovaControllerHint? = null,
     headerEnd: (@Composable () -> Unit)? = null,
+    remoteKeys: Boolean = false,
     /** Hears the height of the hint bar with its margins, for a screen that lines up beside the pages. */
     onHintBarBlock: ((androidx.compose.ui.unit.Dp) -> Unit)? = null,
     content: NovaPageContent,
@@ -318,9 +321,9 @@ fun NovaPageStackHost(
     // or uncovered, its release does nothing here.
     LaunchedEffect(covered) { releaseLatch.clear() }
     val select = stringResource(R.string.nova_panel_select)
-    val back = stringResource(R.string.nova_panel_back)
-    val keyA = stringResource(R.string.nova_panel_key_a)
-    val keyB = stringResource(R.string.nova_panel_key_b)
+    val back = stringResource(if (remoteKeys) R.string.nova_controller_hint_remote_back_label else R.string.nova_panel_back)
+    val keyA = stringResource(if (remoteKeys) R.string.nova_controller_hint_remote_center else R.string.nova_panel_key_a)
+    val keyB = stringResource(if (remoteKeys) R.string.nova_controller_hint_remote_back else R.string.nova_panel_key_b)
     val change = NovaControllerHint(stringResource(R.string.nova_panel_key_left_right), stringResource(R.string.nova_panel_change))
     val aLabels = mapOf(
         NovaFocusHint.Next to stringResource(R.string.nova_panel_next),

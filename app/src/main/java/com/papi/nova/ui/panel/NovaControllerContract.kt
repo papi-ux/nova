@@ -65,6 +65,30 @@ object NovaRemoteInput {
         if (has(InputDevice.SOURCE_GAMEPAD) || has(InputDevice.SOURCE_JOYSTICK)) return false
         return has(InputDevice.SOURCE_DPAD) || has(InputDevice.SOURCE_KEYBOARD)
     }
+
+    /**
+     * Whether a key says what the player is holding: the D-pad and the keys that answer or go back,
+     * which a remote and a controller both have. A phone's volume keys come from a keyboard device
+     * too, and typing is not browsing, so neither turns a phone's hints into a remote's.
+     */
+    fun tellsTheInput(event: KeyEvent): Boolean =
+        event.action == KeyEvent.ACTION_DOWN &&
+            event.device?.isVirtual != true &&
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_CENTER,
+                KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_BACK,
+                KeyEvent.KEYCODE_BUTTON_A,
+                KeyEvent.KEYCODE_BUTTON_B -> true
+                else -> false
+            }
+
+    /** Whether [event], one that [tellsTheInput], came from a remote. */
+    fun isRemote(event: KeyEvent): Boolean = isRemote(event.device?.sources ?: event.source)
 }
 
 /** Remembers which key started a press, so only that key's release can finish it. */
