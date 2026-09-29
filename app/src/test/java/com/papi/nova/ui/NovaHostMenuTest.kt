@@ -16,6 +16,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.mockito.Mockito.mock
+import java.security.cert.X509Certificate
 
 /**
  * The host menu's rows for each state a host can be in (spec 9.1, group 2): which rows it offers,
@@ -27,6 +29,7 @@ import org.robolectric.annotation.Config
 class NovaHostMenuTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val ran = mutableListOf<String>()
+    private val console = NovaCommonPage.Notice(key = "host-console", title = "Host Console", message = "", closeLabel = "Close")
 
     private val actions = object : NovaHostMenuActions {
         override fun wake() { ran += "wake" }
@@ -35,7 +38,7 @@ class NovaHostMenuTest {
         override fun otpPairPage(): NovaPage =
             NovaCommonPage.Form(key = "pair_otp", title = "OTP Pair", fields = emptyList(), submitLabel = "Pair") { null }
         override fun scanQr() { ran += "scan_qr" }
-        override fun openServerConfig() { ran += "server_config" }
+        override fun hostConsolePage(): NovaPage = console
         override fun openLibrary() { ran += "open_library" }
         override fun checkLibrary() { ran += "checking_library" }
         override fun watch() { ran += "watch" }
@@ -77,8 +80,9 @@ class NovaHostMenuTest {
 
     @Test
     fun anUnpairedHostOffersPairingAndOtpPairingIsAFormPage() {
+        // A host never paired has no certificate to check its console by, so it has no console row (N6).
         val items = menu(host { pairState = PairingManager.PairState.NOT_PAIRED }, needsPairing = true)
-        assertEquals(listOf("pair", "pair_otp", "scan_qr", "server_config", "test_network", "details", "delete"), items.keys())
+        assertEquals(listOf("pair", "pair_otp", "scan_qr", "test_network", "details", "delete"), items.keys())
         val otp = items[1] as NovaMenuItem.Opens
         assertTrue("OTP pairing pushes its form in the host panel", otp.page() is NovaCommonPage.Form)
     }
@@ -142,6 +146,23 @@ class NovaHostMenuTest {
         assertEquals(R.drawable.ic_eye_closed, sleep.icon)
         sleep.onConfirm()
         assertEquals(listOf("sleep"), ran)
+    }
+
+    @Test
+    fun theHostConsoleIsAPageInThisPanel() {
+        // Go to Server Config sent a browser to the host's console, where it met a certificate
+        // error (N6). The console is a page pushed in this panel now, so B comes back here.
+        val row = menu(host()).first { it.key == "server_config" }
+        assertTrue("the host's console is pushed in this panel", row is NovaMenuItem.Opens)
+        row as NovaMenuItem.Opens
+        assertEquals(context.getString(R.string.pcview_menu_open_management_page), row.label)
+        assertEquals(context.getString(R.string.pcview_sheet_caption_server_config), row.caption)
+        assertTrue("the screen builds the page", row.page() === console)
+        assertTrue("pushing it runs nothing else", ran.isEmpty())
+
+        // Waiting on pairing: offered only while Nova still holds the certificate it paired with.
+        val repair = host { pairState = PairingManager.PairState.NOT_PAIRED; serverCert = mock(X509Certificate::class.java) }
+        assertTrue(menu(repair, needsPairing = true).first { it.key == "server_config" } is NovaMenuItem.Opens)
     }
 
     @Test

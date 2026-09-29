@@ -100,7 +100,7 @@ class NovaLibraryPanelsComposeTest {
         onSwitchHost = { opened += "switch" },
         onSettings = { opened += "settings" },
         polarisSyncPage = { TestLibraryPage("polaris") },
-        onManageServer = {},
+        hostConsolePage = { TestLibraryPage("host-console") },
         onHelp = {},
         aboutPage = { TestLibraryPage("about") },
         onMatrix = {},
@@ -289,11 +289,11 @@ class NovaLibraryPanelsComposeTest {
         assertEquals("Polaris Sync starts the next", switchHost.left.value, sync.left.value, 0.5f)
         assertTrue(sync.top > switchHost.bottom)
 
-        // Line by line: Right to Settings, Down to Manage Server under it, Left to Polaris Sync.
+        // Line by line: Right to Settings, Down to Host Console under it, Left to Polaris Sync.
         keys.press(NovaTestKeys.RIGHT)
         rule.onNodeWithText("Settings").assertIsFocused()
         keys.press(NovaTestKeys.DOWN)
-        rule.onNodeWithText("Manage Server").assertIsFocused()
+        rule.onNodeWithText("Host Console").assertIsFocused()
         keys.press(NovaTestKeys.LEFT)
         rule.onNodeWithText("Polaris Sync").assertIsFocused()
         keys.press(NovaTestKeys.CENTER)

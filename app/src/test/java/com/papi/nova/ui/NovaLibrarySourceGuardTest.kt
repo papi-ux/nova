@@ -310,7 +310,7 @@ class NovaLibrarySourceGuardTest {
                 systemPage.contains("leave(actions.onSwitchHost)") &&
                 systemPage.contains("leave(actions.onSettings)") &&
                 systemPage.contains("panel.push(actions.polarisSyncPage())") &&
-                systemPage.contains("leave(actions.onManageServer)") &&
+                systemPage.contains("panel.push(actions.hostConsolePage())") &&
                 systemPage.contains("leave(actions.onHelp)") &&
                 systemPage.contains("panel.push(actions.aboutPage())") &&
                 systemPage.contains("NovaRow(")
@@ -332,7 +332,7 @@ class NovaLibrarySourceGuardTest {
                 strings.contains("name=\"nova_system_menu_switch_host\">Switch Host") &&
                 strings.contains("name=\"nova_system_menu_settings\">Settings") &&
                 strings.contains("name=\"nova_system_menu_polaris_sync\">Polaris Sync") &&
-                strings.contains("name=\"nova_system_menu_manage_server\">Manage Server") &&
+                strings.contains("name=\"nova_system_menu_manage_server\">Host Console") &&
                 strings.contains("name=\"nova_system_menu_help_diagnostics\">Help and Diagnostics") &&
                 strings.contains("name=\"nova_system_menu_about\">About Nova") &&
                 strings.contains("name=\"nova_system_menu_about_version\">Version %1\$s")

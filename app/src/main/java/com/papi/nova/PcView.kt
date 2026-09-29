@@ -97,6 +97,8 @@ import com.papi.nova.ui.NovaServerGridLayoutManager
 import com.papi.nova.ui.NovaQrScanActivity
 import com.papi.nova.ui.NovaHostMenuActions
 import com.papi.nova.ui.novaHostMenuHeader
+import com.papi.nova.ui.NovaHostConsole
+import com.papi.nova.ui.NovaHostConsolePage
 import com.papi.nova.ui.novaHostMenuItems
 import com.papi.nova.ui.compose.NovaThemeSwatch
 import com.papi.nova.ui.panel.NovaAction
@@ -1989,7 +1991,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             override fun pair() = doPair(details, null, null)
             override fun otpPairPage(): NovaPage = buildOtpPairPage(details)
             override fun scanQr() = launchQrScanner()
-            override fun openServerConfig() = openServerConfigFor(computer)
+            override fun hostConsolePage(): NovaPage = hostConsolePageFor(computer)
             override fun openLibrary() = doNovaLibrary(details)
             override fun checkLibrary() = maybeProbeLibraryReadiness(computer)
             override fun resume() = resumeOrWatchRunningGame(details)
@@ -2027,7 +2029,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             header = novaHostMenuHeader(this, details),
             width = NovaPanelWidth.Grid,
         )
-        surfaces.open(menu, NovaEdge.End, currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None)
+        surfaces.open(menu, NovaEdge.End, currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None) { page ->
+            // The only page of its own the host menu pushes: the host's console (N6).
+            if (page is NovaHostConsolePage) NovaHostConsole(page)
+        }
         hostPanelWatch?.cancel()
         hostPanelWatch = lifecycleScope.launch {
             // Closed without an action: B, the scrim, Start or a drag.
@@ -2046,13 +2051,25 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         startComputerUpdates()
     }
 
-    private fun openServerConfigFor(computer: ComputerObject) {
+    /**
+     * The host's console, a page pushed in the host's menu (N6). A browser met the host's
+     * self-signed certificate and asked the player to click through its warning; the page trusts
+     * only the certificate Nova paired with. With no address to open, the page says so instead.
+     */
+    private fun hostConsolePageFor(computer: ComputerObject): NovaPage {
+        val title = getString(R.string.nova_host_console_title)
         val url = computer.guessManagementUrl()
-        if (url != null) {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        } else {
-            showHostsNotice(getString(R.string.pcview_menu_open_management_page), getString(R.string.pcview_error_no_management_url))
-        }
+            ?: return NovaCommonPage.Notice(
+                key = NovaHostConsolePage.KEY,
+                title = title,
+                message = getString(R.string.pcview_error_no_management_url),
+                closeLabel = getString(R.string.nova_panel_close),
+            )
+        return NovaHostConsolePage(
+            title = title,
+            url = url,
+            pinnedCertificate = runCatching { computer.details.serverCert?.encoded }.getOrNull(),
+        )
     }
 
     /**

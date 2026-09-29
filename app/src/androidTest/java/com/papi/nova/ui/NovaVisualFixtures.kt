@@ -199,7 +199,7 @@ internal object NovaVisualFixtures {
         override fun pair() = Unit
         override fun otpPairPage(): NovaPage = formPage()
         override fun scanQr() = Unit
-        override fun openServerConfig() = Unit
+        override fun hostConsolePage(): NovaPage = formPage()
         override fun openLibrary() = Unit
         override fun checkLibrary() = Unit
         override fun watch() = Unit
@@ -448,7 +448,9 @@ internal object NovaVisualFixtures {
         onSwitchHost = {},
         onSettings = {},
         polarisSyncPage = polarisSync,
-        onManageServer = {},
+        hostConsolePage = {
+            NovaCommonPage.Notice(key = "host-console", title = "Host Console", message = "", closeLabel = "Close")
+        },
         onHelp = {},
         aboutPage = {
             NovaCommonPage.Notice(key = "about", title = "About Nova", message = "Version 1.4.14", closeLabel = "Close")

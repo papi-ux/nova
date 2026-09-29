@@ -139,7 +139,8 @@ class NovaLibraryActivitySourceTest {
         assertTrue(systemMenu.contains("R.string.nova_system_menu_switch_host"))
         assertTrue(systemMenu.contains("onClick = { leave(actions.onSettings) }"))
         assertTrue(systemMenu.contains("panel.push(actions.polarisSyncPage())"))
-        assertTrue(systemMenu.contains("onClick = { leave(actions.onManageServer) }"))
+        // The host's console is a page pushed here, as Polaris Sync is, not a browser (N6).
+        assertTrue(systemMenu.contains("onClick = { if (isTop) panel.push(actions.hostConsolePage()) }"))
         assertTrue(systemMenu.contains("onClick = { leave(actions.onHelp) }"))
         // About is read in place, on a page pushed over System, not in a Toast after it closes.
         assertTrue(systemMenu.contains("onClick = { if (isTop) panel.push(actions.aboutPage()) }"))

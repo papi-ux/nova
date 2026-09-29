@@ -24,6 +24,11 @@
     <string name="hosts_qr_connecting">Finding %1$s on the network.</string>
     <string name="hosts_qr_unreachable">Nova could not reach %1$s. Check that the host is on and on this network, then scan again.</string>
     <string name="hosts_not_ready_title">Hosts Not Ready</string>
+    <string name="nova_host_console_title">Host Console</string>
+    <string name="nova_host_console_opening">Opening the host\'s console…</string>
+    <string name="nova_host_console_refused">The console answered with a certificate Nova did not pair with, so Nova will not open it. If the host was set up again, pair with it again.</string>
+    <string name="nova_host_console_unpaired">Nova has no certificate from pairing with this host, so it cannot check that this is its console. Pair with the host first.</string>
+    <string name="nova_host_console_failed">The host\'s console did not load. Check that the host is awake and on this network, then try again.</string>
 
     <!-- The App list's host went away while it was open: a Problem page whose Close goes back to Hosts. -->
     <string name="hosts_app_list_lost_title">Connection Lost</string>

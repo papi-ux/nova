@@ -4,7 +4,6 @@ import com.papi.nova.api.PolarisSpaces
 import kotlinx.coroutines.isActive
 import android.content.Intent
 import android.content.SharedPreferences
-import android.net.Uri
 import android.os.Bundle
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -151,6 +150,7 @@ import com.papi.nova.ui.panel.NovaAction
 import com.papi.nova.ui.panel.NovaPanelButton
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageScope
@@ -1406,23 +1406,29 @@ class NovaLibraryActivity : NovaActivity() {
         openServerManagementAt("/#/config#av")
     }
 
+    /**
+     * The host's console at [path], in the library's end panel: pushed on the panel when one is
+     * open, so B comes back to it, and opened on its own otherwise (N6). A browser met the host's
+     * self-signed certificate and asked the player to click through its warning; the page trusts
+     * only the certificate Nova paired with.
+     */
     private fun openServerManagementAt(path: String) {
-        val managementPort = if (streamHttpPort > 0) streamHttpPort + 1 else 47990
-        val managementUrl = "https://$streamHost:$managementPort$path"
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(managementUrl)))
-        } catch (e: Exception) {
-            LimeLog.warning("Nova: Failed to open server management: ${e.message}")
-            // On a Notice in the edge panel, where it can be read: a Toast floated and was gone.
-            novaSurfaces.present(
-                NovaCommonPage.Notice(
-                    key = MANAGE_FAILED_NOTICE_KEY,
-                    title = getString(R.string.nova_system_menu_manage_server),
-                    message = getString(R.string.nova_library_manage_failed),
-                    closeLabel = getString(R.string.nova_panel_close),
-                ),
-            )
+        val page = hostConsolePage(path)
+        val surfaces = novaSurfaces
+        if (surfaces.panel.isOpen) {
+            surfaces.panel.push(page)
+        } else {
+            surfaces.open(page, NovaEdge.End) { shown -> LibraryPanelPage(shown) }
         }
+    }
+
+    private fun hostConsolePage(path: String): NovaHostConsolePage {
+        val managementPort = if (streamHttpPort > 0) streamHttpPort + 1 else 47990
+        return NovaHostConsolePage(
+            title = getString(R.string.nova_host_console_title),
+            url = "https://$streamHost:$managementPort$path",
+            pinnedCertificate = streamServerCert,
+        )
     }
 
     private fun openSettings() {
@@ -2920,6 +2926,7 @@ class NovaLibraryActivity : NovaActivity() {
                     profilePage = ::polarisProfilePage,
                 )
             }
+            is NovaHostConsolePage -> NovaHostConsole(page)
             is PlaySetupPage.PlayIn -> NovaPlayInPage(page)
             is PlaySetupPage.Options -> NovaPlaySetupOptionsPage(page)
             is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)
@@ -2949,7 +2956,7 @@ class NovaLibraryActivity : NovaActivity() {
             onSwitchHost = ::finishWithTransition,
             onSettings = ::openSettings,
             polarisSyncPage = ::polarisSyncPage,
-            onManageServer = ::openServerManagement,
+            hostConsolePage = { hostConsolePage("") },
             onHelp = ::openHelpDiagnostics,
             aboutPage = ::aboutNovaPage,
             onMatrix = ::openMatrixCommunity,
@@ -3091,7 +3098,6 @@ class NovaLibraryActivity : NovaActivity() {
         const val EXTRA_SPACES_AVAILABLE = "spaces_available"
         private const val CONTROLLER_HINT_IDLE_REVEAL_MS = 4_000L
         private const val ABOUT_NOTICE_KEY = "nova-library-about"
-        private const val MANAGE_FAILED_NOTICE_KEY = "nova-library-manage-failed"
         private const val REFRESH_FAILED_NOTICE_KEY = "nova-library-refresh-failed"
         private const val SPACES_POLL_OPEN_MS = 5_000L
         private const val SPACES_POLL_CLOSED_MS = 15_000L

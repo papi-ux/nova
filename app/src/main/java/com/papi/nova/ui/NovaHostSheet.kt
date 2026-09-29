@@ -150,7 +150,9 @@ internal interface NovaHostMenuActions {
     fun pair()
     fun otpPairPage(): NovaPage
     fun scanQr()
-    fun openServerConfig()
+
+    /** The host's console, a page pushed in this panel (N6). */
+    fun hostConsolePage(): NovaPage
     fun openLibrary()
     fun checkLibrary()
     fun watch()
@@ -317,8 +319,10 @@ internal fun novaHostMenuItems(
         menu.manage(action("scan_qr", R.string.pcview_menu_scan_qr, R.string.pcview_sheet_caption_scan_qr, R.drawable.ic_qr_scan)) {
             actions.scanQr()
         }
-        if (!details.nvidiaServer) {
-            menu.manage(serverConfig) { actions.openServerConfig() }
+        // The console is trusted by the certificate Nova paired with, so a host Nova holds no
+        // certificate for has nothing to check it by, and it is not offered (N6).
+        if (!details.nvidiaServer && details.serverCert != null) {
+            menu.opens(serverConfig) { actions.hostConsolePage() }
         }
     } else {
         val libraryFirst = novaHostPlaySurface(
@@ -384,7 +388,7 @@ internal fun novaHostMenuItems(
             actions.appList()
         }
         if (!details.nvidiaServer) {
-            menu.manage(serverConfig) { actions.openServerConfig() }
+            menu.opens(serverConfig) { actions.hostConsolePage() }
         }
     }
 

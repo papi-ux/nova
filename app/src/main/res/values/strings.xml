@@ -110,7 +110,7 @@
     <string name="pcview_sheet_caption_pair_otp">Pair with a one time code from the host\'s console.</string>
     <string name="pcview_sheet_caption_scan_qr">Scan the pairing code on the host\'s console.</string>
     <string name="pcview_sheet_caption_app_list">The plain app list for Sunshine and Apollo.</string>
-    <string name="pcview_sheet_caption_server_config">Open the host\'s console in a browser.</string>
+    <string name="pcview_sheet_caption_server_config">Open the host\'s console here in Nova.</string>
     <string name="pcview_sheet_caption_test_network">Check whether this network blocks streaming.</string>
     <string name="pcview_sheet_caption_details">Addresses, pairing and what the host reports.</string>
     <string name="pcview_sheet_caption_delete">Remove this host and its pairing.</string>
@@ -197,14 +197,13 @@
     <string name="pcview_menu_test_network">Test Network Connection</string>
     <string name="pcview_menu_details">View Details</string>
     <string name="pcview_menu_eol">NVIDIA GameStream End-of-Service</string>
-    <string name="pcview_menu_open_management_page">Go to Server Config</string>
-    <string name="pcview_error_no_management_url">Cannot open server config page, cannot find server address.</string>
+    <string name="pcview_menu_open_management_page">Host Console</string>
+    <string name="pcview_error_no_management_url">Nova does not know this host\'s address, so it cannot open its console.</string>
     <string name="nova_library_title">Library</string>
     <string name="nova_library_server_context">From %1$s</string>
     <string name="nova_library_server_context_fallback">From your Polaris server</string>
     <string name="nova_library_switch_server">Switch</string>
     <string name="nova_library_manage">Manage</string>
-    <string name="nova_library_manage_failed">No app on this device can open the host\'s management page.</string>
     <string name="nova_library_browse_label">Library</string>
     <string name="nova_library_collection_label">Collection</string>
     <string name="nova_library_search_hint">Search this library</string>
@@ -286,8 +285,8 @@
     <string name="nova_system_menu_settings_hint">Streaming, input, video, and device defaults.</string>
     <string name="nova_system_menu_polaris_sync">Polaris Sync</string>
     <string name="nova_system_menu_polaris_sync_hint">Compare Nova\'s settings with the host\'s.</string>
-    <string name="nova_system_menu_manage_server">Manage Server</string>
-    <string name="nova_system_menu_manage_server_hint">Open this Polaris host\'s local management page.</string>
+    <string name="nova_system_menu_manage_server">Host Console</string>
+    <string name="nova_system_menu_manage_server_hint">Open this host\'s console here in Nova.</string>
     <string name="nova_system_menu_help_diagnostics">Help and Diagnostics</string>
     <!-- One line on the Shield's System panel: the longer caption wrapped and was cut at rest. -->
     <string name="nova_system_menu_help_diagnostics_hint">Help with network, input and stream problems.</string>

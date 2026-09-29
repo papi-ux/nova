@@ -498,7 +498,8 @@ internal class NovaLibrarySystemActions(
     val onSwitchHost: () -> Unit,
     val onSettings: () -> Unit,
     val polarisSyncPage: () -> NovaPage,
-    val onManageServer: () -> Unit,
+    /** The host's console, pushed here as Polaris Sync is (N6). */
+    val hostConsolePage: () -> NovaPage,
     val onHelp: () -> Unit,
     /** About Nova, pushed in the panel: the version was a Toast that floated over the library. */
     val aboutPage: () -> NovaPage,
@@ -518,10 +519,10 @@ private class NovaLibrarySystemRow(
 /**
  * System: a header saying which host this is and whether Polaris answers, then its rows, two to a
  * line on a landscape handheld and one column elsewhere, in the same order either way. Rows that
- * leave the library close the panel first; Polaris Sync and About are pages of their own, pushed
- * here. Every row goes somewhere, so every row carries the chevron: only Polaris Sync had one, and
- * the rows that leave read as rows that do nothing. Focus opens on the first row, never on the
- * panel.
+ * leave the library close the panel first; Polaris Sync, the host's console and About are pages
+ * of their own, pushed here. Every row goes somewhere, so every row carries the chevron: only
+ * Polaris Sync had one, and the rows that leave read as rows that do nothing. Focus opens on the
+ * first row, never on the panel.
  */
 @Composable
 internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, actions: NovaLibrarySystemActions) {
@@ -554,7 +555,7 @@ internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, action
             title = R.string.nova_system_menu_manage_server,
             caption = R.string.nova_system_menu_manage_server_hint,
             opens = true,
-            onClick = { leave(actions.onManageServer) },
+            onClick = { if (isTop) panel.push(actions.hostConsolePage()) },
         ),
         NovaLibrarySystemRow(
             key = "help",

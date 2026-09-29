@@ -63,7 +63,8 @@ class NovaHostsPanelComposeTest {
         override fun otpPairPage(): NovaPage =
             NovaCommonPage.Form(key = "pair_otp", title = "OTP Pair", fields = emptyList(), submitLabel = "Pair") { null }
         override fun scanQr() { ran += "scan_qr" }
-        override fun openServerConfig() { ran += "server_config" }
+        override fun hostConsolePage(): NovaPage =
+            NovaCommonPage.Notice(key = "host-console", title = "Host Console", message = "", closeLabel = "Close")
         override fun openLibrary() { ran += "open_library" }
         override fun checkLibrary() { ran += "checking_library" }
         override fun watch() { ran += "watch" }
