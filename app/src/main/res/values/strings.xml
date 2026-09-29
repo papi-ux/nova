@@ -702,7 +702,7 @@
 
     <!-- Errors -->
     <string name="error_pc_offline">Computer is offline</string>
-    <string name="error_manager_not_running">The ComputerManager service is not running. Please wait a few seconds or restart the app.</string>
+    <string name="error_manager_not_running">Nova is still starting its host list. Wait a few seconds, then try again.</string>
     <string name="error_unknown_host">Failed to resolve host</string>
     <string name="error_404">The host returned an HTTP 404 error. Make sure it runs a supported GPU. Remote desktop software can also cause this, so try restarting the host.</string>
     <string name="title_report_problem">Report a problem</string>

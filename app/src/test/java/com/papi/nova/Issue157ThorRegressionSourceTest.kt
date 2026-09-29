@@ -76,7 +76,8 @@ class Issue157ThorRegressionSourceTest {
         assertTrue(pcView.contains("appContext.bindService("))
         assertTrue(pcView.contains("Context.BIND_AUTO_CREATE"))
         assertTrue(pcView.contains("appContext.unbindService(removalConnection)"))
-        assertTrue(pcView.contains("Toast.makeText(appContext, failureMessage"))
+        // A failed removal still tells the player, on a page that stays until it is closed (audit X2).
+        assertTrue(pcView.contains("showHostsNotice(deleteTitle, failureMessage)"))
         val pcRemoval = pcView.substringAfter("private fun removeComputer(details: ComputerDetails)")
             .substringBefore("private fun checkAutoNavigation")
         val preferenceCleanupIndex = pcRemoval.indexOf("appContext.getSharedPreferences")

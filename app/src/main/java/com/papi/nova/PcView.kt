@@ -1,5 +1,7 @@
 package com.papi.nova
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.Service
@@ -31,7 +33,6 @@ import android.view.accessibility.AccessibilityManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.StringRes
 import androidx.compose.runtime.snapshotFlow
@@ -112,7 +113,6 @@ import com.papi.nova.ui.panel.NovaProblemBack
 import android.content.pm.PackageManager
 import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.ui.panel.novaSurfaces
-import com.google.android.material.snackbar.Snackbar
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaWelcomeActivity
@@ -307,8 +307,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private var dashboardUpdatePillStatus = DashboardUpdatePillStatus.CURRENT
     private var dashboardUpdatePillRelease: NovaUpdateRelease? = null
     private var dashboardRailCollapsed = false
+    /** Whether the rail's labels are off, which trails [dashboardRailCollapsed] while the rail widens. */
+    private var dashboardRailLabelsHidden = false
+    private var dashboardRailAnimator: ValueAnimator? = null
     private var hostPanelWatch: Job? = null
     private val dashboardRailButtonText = mutableMapOf<Int, CharSequence>()
+
+    /** Puts the caption under the top actions back in step with the focused action, as it is now. */
+    private var refreshTopActionCaption: () -> Unit = {}
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN && moveFocusWithinHostRow(event.keyCode)) {
@@ -882,8 +888,32 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         val targetWidth = resources.getDimensionPixelSize(
             if (collapsed) R.dimen.nova_dashboard_rail_collapsed_width else R.dimen.nova_dashboard_rail_width,
         )
-        animateDashboardRailWidth(rail, targetWidth, animate)
+        // Collapsing takes the labels off before the rail narrows, and expanding puts them back once
+        // it has its width: laid out in a rail still on its way, "Add Server" and "Scan Pair" wrapped
+        // to two lines and were cut for a frame.
+        if (collapsed) {
+            applyDashboardRailLabels(rail, collapsed = true)
+            animateDashboardRailWidth(rail, targetWidth, animate) {}
+        } else {
+            animateDashboardRailWidth(rail, targetWidth, animate) {
+                if (!dashboardRailCollapsed) applyDashboardRailLabels(rail, collapsed = false)
+            }
+        }
 
+        findViewById<MaterialButton>(R.id.dashboardRailToggle)?.let { toggle ->
+            toggle.contentDescription = getString(if (collapsed) R.string.pcview_rail_expand else R.string.pcview_rail_collapse)
+            toggle.setIconResource(if (collapsed) R.drawable.ic_menu else R.drawable.ic_menu_collapse)
+            toggle.gravity = Gravity.CENTER
+            toggle.iconPadding = 0
+            toggle.setPadding(0, 0, 0, 0)
+        }
+        // A keeps focus on the toggle, whose caption had kept naming what it did before the press.
+        refreshTopActionCaption()
+    }
+
+    /** The rail's labels, on or off: its tagged text, the mode and update rows, and the button labels. */
+    private fun applyDashboardRailLabels(rail: ViewGroup, collapsed: Boolean) {
+        dashboardRailLabelsHidden = collapsed
         setDashboardRailTaggedLabelsVisible(rail, !collapsed)
         val labelVisibility = if (collapsed) View.GONE else View.VISIBLE
         findViewById<View>(R.id.dashboardModeStatus)?.visibility = labelVisibility
@@ -908,30 +938,33 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             button.gravity = if (collapsed) Gravity.CENTER else Gravity.CENTER_VERTICAL
         }
         setDashboardRailSetupActionsCollapsed(collapsed)
-
-        findViewById<MaterialButton>(R.id.dashboardRailToggle)?.let { toggle ->
-            toggle.contentDescription = getString(if (collapsed) R.string.pcview_rail_expand else R.string.pcview_rail_collapse)
-            toggle.setIconResource(if (collapsed) R.drawable.ic_menu else R.drawable.ic_menu_collapse)
-            toggle.gravity = Gravity.CENTER
-            toggle.iconPadding = 0
-            toggle.setPadding(0, 0, 0, 0)
-        }
+        // A button that lost its label shows the caption now, and one that got it back hides it.
+        refreshTopActionCaption()
     }
 
-    private fun animateDashboardRailWidth(rail: ViewGroup, targetWidth: Int, animate: Boolean) {
+    /** Moves the rail to [targetWidth], then runs [onEnd]; a newer move cancels this one first. */
+    private fun animateDashboardRailWidth(rail: ViewGroup, targetWidth: Int, animate: Boolean, onEnd: () -> Unit) {
+        dashboardRailAnimator?.cancel()
         val startWidth = rail.width.takeIf { it > 0 } ?: rail.layoutParams.width
         if (!animate || startWidth <= 0 || startWidth == targetWidth) {
             rail.layoutParams = rail.layoutParams.apply { width = targetWidth }
             rail.requestLayout()
+            onEnd()
             return
         }
-        ValueAnimator.ofInt(startWidth, targetWidth).apply {
+        dashboardRailAnimator = ValueAnimator.ofInt(startWidth, targetWidth).apply {
             duration = DASHBOARD_RAIL_ANIMATION_MS
             interpolator = DecelerateInterpolator()
             addUpdateListener { animator ->
                 rail.layoutParams = rail.layoutParams.apply { width = animator.animatedValue as Int }
                 rail.requestLayout()
             }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (dashboardRailAnimator === animation) dashboardRailAnimator = null
+                    onEnd()
+                }
+            })
             start()
         }
     }
@@ -990,23 +1023,33 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
     private fun bindTopActionFocusLabel(label: TextView?, vararg actions: Pair<View?, Int>) {
         label ?: return
+        fun caption(view: View, hasFocus: Boolean, labelRes: Int) {
+            // Only a button that shows no label of its own gets the caption, and it says what
+            // the button does now: a collapsed rail's toggle said "Collapse rail", Sleep Host
+            // said Wake Host, and an expanded rail repeated the labels on its buttons.
+            val ownLabelShown = !(view as? TextView)?.text.isNullOrBlank()
+            if (hasFocus && !ownLabelShown) {
+                label.text = view.contentDescription?.takeIf { it.isNotBlank() }
+                    ?: dashboardRailButtonText[view.id]?.takeIf { it.isNotBlank() }
+                    ?: getString(labelRes)
+                label.visibility = View.VISIBLE
+            } else if (hasFocus || actions.none { it.first?.hasFocus() == true }) {
+                label.visibility = View.INVISIBLE
+            }
+        }
         for ((action, labelRes) in actions) {
             action?.setOnFocusChangeListener { view, hasFocus ->
-                // Only a button that shows no label of its own gets the caption, and it says what
-                // the button does now: a collapsed rail's toggle said "Collapse rail", Sleep Host
-                // said Wake Host, and an expanded rail repeated the labels on its buttons.
-                val ownLabelShown = !(view as? TextView)?.text.isNullOrBlank()
-                if (hasFocus && !ownLabelShown) {
-                    label.text = view.contentDescription?.takeIf { it.isNotBlank() }
-                        ?: dashboardRailButtonText[view.id]?.takeIf { it.isNotBlank() }
-                        ?: getString(labelRes)
-                    label.visibility = View.VISIBLE
-                } else if (hasFocus || actions.none { it.first?.hasFocus() == true }) {
-                    label.visibility = View.INVISIBLE
-                }
+                caption(view, hasFocus, labelRes)
                 if (view.id == R.id.actionNovaUpdate) {
                     updateDashboardUpdatePill()
                 }
+            }
+        }
+        // Focus that stays put while its button changes, as A on the rail toggle does, gets no
+        // focus change: the rail asks for the caption again instead.
+        refreshTopActionCaption = {
+            actions.firstOrNull { it.first?.hasFocus() == true }?.let { (view, labelRes) ->
+                if (view != null) caption(view, hasFocus = true, labelRes = labelRes)
             }
         }
     }
@@ -1755,7 +1798,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 // The one action beside Download and Later.
                 help = NovaAction(getString(R.string.nova_update_skip_version)) {
                     NovaUpdatePromptPreferences.skipRelease(prefs, release)
-                    Toast.makeText(this, R.string.nova_update_skipped_toast, Toast.LENGTH_SHORT).show()
+                    // The result on a page in the right edge panel, not a Toast.
+                    showHostsNotice(getString(R.string.nova_update_skip_version), getString(R.string.nova_update_skipped_toast))
                 },
                 closeLabel = getString(R.string.nova_update_later),
             ),
@@ -1983,8 +2027,17 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         if (url != null) {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } else {
-            Toast.makeText(this, R.string.pcview_error_no_management_url, Toast.LENGTH_SHORT).show()
+            showHostsNotice(getString(R.string.pcview_menu_open_management_page), getString(R.string.pcview_error_no_management_url))
         }
+    }
+
+    /**
+     * A result or a reason to read, on a Notice page in the right edge panel: the Toasts that stood
+     * in for these floated over the Hosts screen and were gone before they could be read. Any thread.
+     */
+    private fun showHostsNotice(title: String, message: String) {
+        if (isFinishing || isDestroyed) return
+        Dialog.displayDialog(this, title, message, false)
     }
 
     private fun createWatchTargetApp(details: ComputerDetails): NvApp =
@@ -1998,7 +2051,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private fun resumeOrWatchRunningGame(computer: ComputerDetails) {
         val binder = managerBinder
         if (binder == null) {
-            Toast.makeText(this, resources.getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show()
+            showHostsNotice(getString(R.string.hosts_not_ready_title), getString(R.string.error_manager_not_running))
             return
         }
 
@@ -2092,12 +2145,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
     private fun doPair(computer: ComputerDetails, otp: String?, passphrase: String?) {
         if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
-            Toast.makeText(this, resources.getString(R.string.pair_pc_offline), Toast.LENGTH_SHORT).show()
+            showHostsNotice(getString(R.string.hosts_pairing_failed_title), getString(R.string.pair_pc_offline))
             return
         }
         val binder = managerBinder
         if (binder == null) {
-            Toast.makeText(this, resources.getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show()
+            showHostsNotice(getString(R.string.hosts_pairing_failed_title), getString(R.string.error_manager_not_running))
             return
         }
 
@@ -2153,7 +2206,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                                         NovaSnackbar.showSuccess(this@PcView, getString(R.string.nova_pairing_auto_success))
                                         openBestPlaySurface(launchedComputer)
                                     } else {
-                                        Toast.makeText(this@PcView, R.string.pair_fail, Toast.LENGTH_LONG).show()
+                                        showHostsNotice(getString(R.string.hosts_pairing_failed_title), getString(R.string.pair_fail))
                                         startComputerUpdates()
                                     }
                                 }
@@ -2547,7 +2600,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         val text = getString(label)
         dashboardRailButtonText[R.id.actionStartPolaris] = text
         (button as? MaterialButton)?.let {
-            it.text = if (dashboardRailCollapsed) "" else text
+            it.text = if (dashboardRailLabelsHidden) "" else text
             it.setIconResource(icon)
         }
         button.contentDescription = text
@@ -2979,6 +3032,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
     private fun removeComputer(details: ComputerDetails) {
         val appContext = applicationContext
+        val deleteTitle = getString(R.string.pcview_menu_delete_pc)
         val failureMessage = getString(R.string.nova_server_remove_failed)
         val deletedShortcutReason = getString(R.string.scut_deleted_pc)
         val removalViewModel = if (::viewModel.isInitialized) viewModel else null
@@ -2990,7 +3044,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 val binder = service as? ComputerManagerService.ComputerManagerBinder
                 if (binder == null) {
                     runCatching { appContext.unbindService(removalConnection) }
-                    Toast.makeText(appContext, failureMessage, Toast.LENGTH_LONG).show()
+                    showHostsNotice(deleteTitle, failureMessage)
                     return
                 }
 
@@ -3007,8 +3061,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                         }.getOrDefault(false)
 
                         if (!removed) {
+                            // The host stays in the list, and the page says why. With the screen
+                            // gone there is nowhere to say it, and nothing floats over another app.
                             withContext(Dispatchers.Main.immediate) {
-                                Toast.makeText(appContext, failureMessage, Toast.LENGTH_LONG).show()
+                                showHostsNotice(deleteTitle, failureMessage)
                             }
                             return@launch
                         }
@@ -3036,12 +3092,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                             }
                             HostForget.stillListedMessage(forgotten)?.let { message ->
                                 val text = appContext.getString(message, details.name)
-                                // A toast is cut at two lines, and this is the only word the player gets about
-                                // the host. The snackbar wraps; the toast is for an activity that is gone.
+                                // This is the only word the player gets about the host, so it stays on
+                                // a page until it is closed; a Toast was cut at two lines and a snackbar
+                                // timed out. With the screen gone, the log keeps it.
                                 if (!isFinishing && !isDestroyed) {
-                                    NovaSnackbar.show(this@PcView, text, Snackbar.LENGTH_LONG)
+                                    showHostsNotice(deleteTitle, text)
                                 } else {
-                                    Toast.makeText(appContext, text, Toast.LENGTH_LONG).show()
+                                    LimeLog.info("Nova: $text")
                                 }
                             }
                         }
@@ -3062,7 +3119,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 Context.BIND_AUTO_CREATE,
             )
         ) {
-            Toast.makeText(appContext, failureMessage, Toast.LENGTH_LONG).show()
+            showHostsNotice(deleteTitle, failureMessage)
         }
     }
 

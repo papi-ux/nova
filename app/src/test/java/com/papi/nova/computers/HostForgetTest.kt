@@ -107,8 +107,9 @@ class HostForgetTest {
             removal.indexOf("HostForget.ask(details") in 0 until removal.indexOf("binder.removeComputer(details)"),
         )
         assertTrue(
-            "what the host said reaches the player in something that wraps; a toast is cut at two lines",
-            removal.contains("HostForget.stillListedMessage(forgotten)") && removal.contains("NovaSnackbar.show("),
+            "what the host said reaches the player in something that wraps and stays until it is closed; " +
+                "a toast is cut at two lines and a snackbar times out (audit X2)",
+            removal.contains("HostForget.stillListedMessage(forgotten)") && removal.contains("showHostsNotice(deleteTitle, text)"),
         )
     }
 }

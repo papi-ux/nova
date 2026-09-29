@@ -19,6 +19,7 @@
     <string name="hosts_pairing_code_title">Enter this PIN on the host</string>
     <string name="hosts_pairing_code_message">Type it on the host\'s pairing page, in its web UI. Closing this page keeps pairing going, and Nova says when the host answers.</string>
     <string name="hosts_pairing_failed_title">Pairing did not finish</string>
+    <string name="hosts_not_ready_title">Hosts Not Ready</string>
 
     <!-- OTP pairing, a form in the host panel. -->
     <string name="hosts_otp_pin">PIN</string>
