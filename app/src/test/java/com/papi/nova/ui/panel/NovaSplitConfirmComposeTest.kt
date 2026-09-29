@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -25,13 +26,17 @@ import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.abs
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -189,6 +194,156 @@ class NovaSplitConfirmComposeTest {
         val end = rule.onNodeWithText("End").getUnclippedBoundsInRoot()
         assertEquals("armed, the pair spans its own slot", rest.left.value, stay.left.value, 0.5f)
         assertEquals(rest.right.value, end.right.value, 0.5f)
+    }
+
+    /**
+     * Robolectric measures every character one pixel wide, so a word eight times as long stands in
+     * for a real one at a television's type: "End Session" there needs more than a 96dp half.
+     */
+    private fun wide(word: String) = word.repeat(8)
+
+    /** How [text] was laid out: the width it was given and the widths it needs. */
+    private fun layoutOf(text: String): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        rule.onNodeWithText(text, useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        return results.first()
+    }
+
+    /** [text] had the width to sit on one line. */
+    private fun assertOneLine(text: String) {
+        val paragraph = layoutOf(text).multiParagraph
+        assertTrue(
+            "\"$text\" needs ${paragraph.intrinsics.maxIntrinsicWidth}px for one line and was given ${paragraph.width}px",
+            paragraph.width >= paragraph.intrinsics.maxIntrinsicWidth,
+        )
+    }
+
+    /** [text] had at least the width of its longest word, so it can only break between words. */
+    private fun assertWholeWords(text: String) {
+        val paragraph = layoutOf(text).multiParagraph
+        assertTrue(
+            "\"$text\" needs ${paragraph.intrinsics.minIntrinsicWidth}px for its longest word and was given ${paragraph.width}px",
+            paragraph.width >= paragraph.intrinsics.minIntrinsicWidth,
+        )
+    }
+
+    private fun armInABox(width: Int, confirmLabel: String): NovaTestKeys {
+        val keys = rule.setPanelContent {
+            Box(Modifier.width(width.dp)) {
+                NovaSplitConfirm(
+                    label = "End session",
+                    confirmLabel = confirmLabel,
+                    onConfirm = { ended++ },
+                    state = state,
+                )
+            }
+        }
+        rule.onNodeWithText("End session").requestFocus()
+        rule.waitForIdle()
+        keys.press(NovaTestKeys.CENTER)
+        rule.waitForIdle()
+        return keys
+    }
+
+    @Test
+    fun anArmedButtonGrowsIntoTheRoomBesideItSoEachLabelStaysOnOneLine() {
+        // The game page's End Session on a television: a short button with the rest of its row free.
+        val end = "End ${wide("Session")}"
+        armInABox(width = 600, confirmLabel = end)
+
+        assertOneLine("Stay")
+        assertOneLine(end)
+        val stay = rule.onNodeWithText("Stay").getUnclippedBoundsInRoot()
+        val action = rule.onNodeWithText(end).getUnclippedBoundsInRoot()
+        assertEquals("side by side", stay.top.value, action.top.value, 0.5f)
+        assertTrue("Stay keeps a 96dp half: ${stay.width}", stay.width >= NovaPanelMetrics.SplitHalfMinWidth - 0.5.dp)
+        assertTrue("the pair stays inside its row: ${action.right}", action.right <= 600.dp + 0.5.dp)
+    }
+
+    @Test
+    fun aPairWithNoRoomToGrowBreaksItsLabelOnlyBetweenWords() {
+        val end = "${wide("Close")} ${wide("Session")}"
+        armInABox(width = 160, confirmLabel = end)
+
+        assertOneLine("Stay")
+        assertWholeWords(end)
+        val stay = rule.onNodeWithText("Stay").getUnclippedBoundsInRoot()
+        val action = rule.onNodeWithText(end).getUnclippedBoundsInRoot()
+        assertEquals("still side by side", stay.top.value, action.top.value, 0.5f)
+        assertTrue("inside the slot: ${action.right}", action.right <= 160.dp + 0.5.dp)
+    }
+
+    @Test
+    fun aButtonThatFillsANarrowSlotBreaksItsLabelOnlyBetweenWords() {
+        val end = "${wide("Close")} ${wide("Session")}"
+        rule.setPanelContent {
+            Row(Modifier.width(300.dp)) {
+                NovaPanelButton(text = "Close", onClick = {}, modifier = Modifier.weight(1f))
+                NovaSplitConfirm(
+                    label = "End session",
+                    confirmLabel = end,
+                    onConfirm = {},
+                    state = state,
+                    fillSlot = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        rule.onNodeWithText("End session").performClick()
+        rule.waitForIdle()
+
+        assertOneLine("Stay")
+        assertWholeWords(end)
+        val close = rule.onNodeWithText("Close").getUnclippedBoundsInRoot()
+        val stay = rule.onNodeWithText("Stay").getUnclippedBoundsInRoot()
+        val action = rule.onNodeWithText(end).getUnclippedBoundsInRoot()
+        assertTrue("the pair keeps to its own slot", stay.left >= close.right)
+        assertEquals(300f, action.right.value, 0.5f)
+    }
+
+    @Test
+    fun aPairTooNarrowForBothLongestWordsStacksStayOverTheAction() {
+        val end = "${wide("Close")} ${wide("Session")}"
+        armInABox(width = 130, confirmLabel = end)
+
+        assertOneLine("Stay")
+        assertWholeWords(end)
+        val stay = rule.onNodeWithText("Stay").getUnclippedBoundsInRoot()
+        val action = rule.onNodeWithText(end).getUnclippedBoundsInRoot()
+        assertTrue("Stay over the action", action.top >= stay.bottom)
+        assertEquals("each takes the slot's width", 130f, stay.width.value, 0.5f)
+        assertEquals(130f, action.width.value, 0.5f)
+        rule.onNodeWithText("Stay").assertIsFocused()
+    }
+
+    @Test
+    fun aStackedPairStillConfirmsWithARightPress() {
+        val end = "${wide("Close")} ${wide("Session")}"
+        val keys = armInABox(width = 130, confirmLabel = end)
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithText("Stay").assertIsFocused()
+
+        keys.press(NovaTestKeys.RIGHT)
+        rule.onNodeWithText(end).assertIsFocused()
+        keys.press(NovaTestKeys.LEFT)
+        rule.onNodeWithText("Stay").assertIsFocused()
+        keys.press(NovaTestKeys.DOWN)
+        rule.onNodeWithText(end).assertIsFocused()
+
+        rule.advance(NovaPanelMetrics.SplitGuardMillis)
+        frames()
+        keys.press(NovaTestKeys.CENTER)
+        frames()
+        assertEquals(1, ended)
+    }
+
+    @Test
+    fun theHalvesShareTheirRoomEvenlyWhenBothLabelsFitInHalf() {
+        assertArrayEquals(intArrayOf(97, 97), novaSplitHalfWidths(room = 194, stayLine = 40, actionLine = 90, stayWord = 40, actionWord = 50))
+        assertArrayEquals("the wider label takes what it needs", intArrayOf(64, 130), novaSplitHalfWidths(room = 194, stayLine = 40, actionLine = 130, stayWord = 40, actionWord = 70))
+        assertArrayEquals("past one line, the action breaks between words", intArrayOf(40, 110), novaSplitHalfWidths(room = 150, stayLine = 40, actionLine = 130, stayWord = 40, actionWord = 70))
+        assertArrayEquals("Stay gives way before a word is cut", intArrayOf(30, 70), novaSplitHalfWidths(room = 100, stayLine = 40, actionLine = 130, stayWord = 30, actionWord = 70))
+        assertNull("not even the longest words fit side by side", novaSplitHalfWidths(room = 90, stayLine = 40, actionLine = 130, stayWord = 30, actionWord = 70))
     }
 
     @Test

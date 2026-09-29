@@ -570,6 +570,9 @@ private fun NovaGameDetailActions(
             onConfirm = onEndSession,
             consequence = stringResource(R.string.nova_panel_end_session_message),
             state = endSplit,
+            // In the portrait column it is as wide as Resume above it, at rest and armed; in a row
+            // it keeps its own width and, armed, grows into the room the others leave.
+            fillSlot = stacked,
             modifier = actionModifier.testTag("nova-game-detail-end-session"),
         )
     }

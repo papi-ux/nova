@@ -41,13 +41,14 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ComposeView
@@ -58,6 +59,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -89,6 +91,7 @@ class NovaSplitConfirmState {
 
     internal val buttonRequester = FocusRequester()
     internal val stayRequester = FocusRequester()
+    internal val actionRequester = FocusRequester()
 
     /** Whether either half holds focus, so a disarm knows whether focus must go back to the button. */
     internal var pairHasFocus: Boolean = false
@@ -138,10 +141,15 @@ enum class NovaSplitShape { Button, Row, Tile }
  * names another, so a destructive action reads as one before it is pressed. A split that sits in a row
  * of buttons is a [NovaSplitShape.Button], as tall as they are with their 8dp corners; with
  * [fillSlot] it spans the slot it is given, as a button sharing its row by weight does, and so
- * does its armed pair. Otherwise a button keeps its own width and its pair widens only as far as
- * two 96dp halves need. A button among buttons that are not the panel's, such as the library
- * strip's Resume, takes their type and height through [buttonStyle], so the row has one button
- * size rather than two.
+ * does its armed pair. Otherwise a button keeps its own width at rest, and armed its pair grows
+ * into the room beside it until each half holds its label on one line with its icon, each at
+ * least 96dp: the game page's End Session on a television had split into two 96dp halves and
+ * broken its label as "End / Sessio / n". A label never breaks inside a word. A pair whose row
+ * has not the room for both labels on one line breaks the action's between words, and one too
+ * narrow for even the longest words side by side stands Stay over the action at the slot's
+ * width, where Right still reaches it. A button among buttons that are not the panel's, such as
+ * the library strip's Resume, takes their type and height through [buttonStyle], so the row has
+ * one button size rather than two.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -258,51 +266,57 @@ fun NovaSplitConfirm(
                     onClick = { state.arm() },
                 )
             } else {
-                Row(
+                val pair = remember(state) { SplitPairArrangement() }
+                SplitPair(
+                    fills = fills,
+                    slotPx = slotWidth,
+                    arrangement = pair,
                     modifier = Modifier
-                        // A button splits in its own slot and widens only as far as two 96dp
-                        // halves need; a row, a tile or a button that fills its slot splits
-                        // across the whole slot.
-                        .then(if (fills) Modifier.fillMaxWidth() else Modifier.splitPairWidth(slotWidth))
                         .onGloballyPositioned { pairBounds.bounds = it.boundsInWindow() }
                         .onFocusChanged {
                             pairFocused = it.hasFocus
                             state.pairHasFocus = it.hasFocus
                         },
-                    horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SplitGap),
-                ) {
-                    SplitHalf(
-                        text = stayLabel,
-                        icon = null,
-                        destructive = false,
-                        filled = false,
-                        enabled = true,
-                        minHeight = minHeight,
-                        rowCorner = false,
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(state.stayRequester),
-                        buttonStyle = buttonStyle,
-                        onClick = { state.disarm() },
-                    )
-                    SplitHalf(
-                        text = confirmLabel,
-                        icon = mark,
-                        destructive = true,
-                        filled = true,
-                        enabled = true,
-                        minHeight = minHeight,
-                        rowCorner = false,
-                        modifier = Modifier.weight(1f),
-                        buttonStyle = buttonStyle,
-                        onClick = {
-                            if (state.guardOpen) {
-                                state.disarm()
-                                confirm()
-                            }
-                        },
-                    )
-                }
+                    stay = {
+                        SplitHalf(
+                            text = stayLabel,
+                            icon = null,
+                            destructive = false,
+                            filled = false,
+                            enabled = true,
+                            minHeight = minHeight,
+                            rowCorner = false,
+                            modifier = Modifier
+                                .focusRequester(state.stayRequester)
+                                // Stood over the action, Stay still hands Right to it, so A,
+                                // Right, A confirms however narrow the slot.
+                                .focusProperties { if (pair.stacked) right = state.actionRequester },
+                            buttonStyle = buttonStyle,
+                            onClick = { state.disarm() },
+                        )
+                    },
+                    action = {
+                        SplitHalf(
+                            text = confirmLabel,
+                            icon = mark,
+                            destructive = true,
+                            filled = true,
+                            enabled = true,
+                            minHeight = minHeight,
+                            rowCorner = false,
+                            modifier = Modifier
+                                .focusRequester(state.actionRequester)
+                                .focusProperties { if (pair.stacked) left = state.stayRequester },
+                            buttonStyle = buttonStyle,
+                            onClick = {
+                                if (state.guardOpen) {
+                                    state.disarm()
+                                    confirm()
+                                }
+                            },
+                        )
+                    },
+                )
             }
         }
         AnimatedVisibility(
@@ -437,16 +451,96 @@ private class BoundsHolder {
     var bounds: Rect? = null
 }
 
+/** Whether the armed pair stood Stay over the action when it was last measured, for focus to follow. */
+private class SplitPairArrangement {
+    var stacked: Boolean by mutableStateOf(false)
+}
+
 /**
- * The armed pair's width for the Button shape: the button's own [slotPx], or two 96dp halves and
- * their gap when that is wider, and never wider than the slot allows, where it takes the row.
+ * The armed pair, Stay at the start and the action after it, [NovaPanelMetrics.SplitGap] apart.
+ *
+ * A Button keeps its own [slotPx] and grows past it until each half holds its label on one line
+ * with its icon and padding, each half at least [NovaPanelMetrics.SplitHalfMinWidth], never past
+ * the room its row gives it. A row, a tile or a button that [fills] its slot takes the whole slot.
+ * The halves then share the width as [novaSplitHalfWidths] says, or, where not even their longest
+ * words fit side by side, Stay stands over the action, both at the pair's width.
  */
-private fun Modifier.splitPairWidth(slotPx: Int): Modifier = layout { measurable, constraints ->
-    val minimum = (NovaPanelMetrics.SplitHalfMinWidth * 2 + NovaPanelMetrics.SplitGap).roundToPx()
-    val wanted = maxOf(slotPx, minimum)
-    val width = if (constraints.hasBoundedWidth) wanted.coerceAtMost(constraints.maxWidth) else wanted
-    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
-    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+@Composable
+private fun SplitPair(
+    fills: Boolean,
+    slotPx: Int,
+    arrangement: SplitPairArrangement,
+    modifier: Modifier,
+    stay: @Composable () -> Unit,
+    action: @Composable () -> Unit,
+) {
+    Layout(contents = listOf(stay, action), modifier = modifier) { (stays, actions), constraints ->
+        val stayHalf = stays.first()
+        val actionHalf = actions.first()
+        val gap = NovaPanelMetrics.SplitGap.roundToPx()
+        val least = NovaPanelMetrics.SplitHalfMinWidth.roundToPx()
+        val stayLine = stayHalf.maxIntrinsicWidth(Constraints.Infinity)
+        val actionLine = actionHalf.maxIntrinsicWidth(Constraints.Infinity)
+        val bounded = constraints.hasBoundedWidth
+        val wanted = if (fills && bounded) {
+            constraints.maxWidth
+        } else {
+            maxOf(slotPx, maxOf(stayLine, least) + gap + maxOf(actionLine, least))
+        }
+        val width = (if (bounded) wanted.coerceAtMost(constraints.maxWidth) else wanted)
+            .coerceAtLeast(constraints.minWidth)
+        val halves = novaSplitHalfWidths(
+            room = width - gap,
+            stayLine = stayLine,
+            actionLine = actionLine,
+            stayWord = stayHalf.minIntrinsicWidth(Constraints.Infinity),
+            actionWord = actionHalf.minIntrinsicWidth(Constraints.Infinity),
+        )
+        if (arrangement.stacked != (halves == null)) arrangement.stacked = halves == null
+        if (halves != null) {
+            val (stayWidth, actionWidth) = halves
+            val height = maxOf(stayHalf.minIntrinsicHeight(stayWidth), actionHalf.minIntrinsicHeight(actionWidth))
+            val stayPlaced = stayHalf.measure(Constraints.fixed(stayWidth, height))
+            val actionPlaced = actionHalf.measure(Constraints.fixed(actionWidth, height))
+            layout(width, height) {
+                stayPlaced.placeRelative(0, 0)
+                actionPlaced.placeRelative(stayWidth + gap, 0)
+            }
+        } else {
+            val full = Constraints(minWidth = width, maxWidth = width)
+            val top = stayHalf.measure(full)
+            val bottom = actionHalf.measure(full)
+            layout(width, top.height + gap + bottom.height) {
+                top.placeRelative(0, 0)
+                bottom.placeRelative(0, top.height + gap)
+            }
+        }
+    }
+}
+
+/**
+ * How an armed pair shares [room], its width less the gap, between Stay and the action, given
+ * each half's width with its label on one line ([stayLine], [actionLine]) and with its label broken
+ * at every space ([stayWord], [actionWord]).
+ *
+ * Where both labels fit on one line the halves are even, as long as each label fits its half;
+ * otherwise the wider label takes what it needs and the other half the rest. Where they do not,
+ * Stay keeps its line if it can and the action's label breaks between words, and failing that
+ * Stay's does too. Null when not even the longest words fit side by side: a label is never cut
+ * inside a word, so the pair stacks instead.
+ */
+internal fun novaSplitHalfWidths(room: Int, stayLine: Int, actionLine: Int, stayWord: Int, actionWord: Int): IntArray? {
+    if (stayLine + actionLine <= room) {
+        val half = room / 2
+        return when {
+            stayLine <= half && actionLine <= room - half -> intArrayOf(half, room - half)
+            actionLine > room - half -> intArrayOf(room - actionLine, actionLine)
+            else -> intArrayOf(stayLine, room - stayLine)
+        }
+    }
+    if (stayWord + actionWord > room) return null
+    val stay = minOf(stayLine, room - actionWord)
+    return intArrayOf(stay, room - stay)
 }
 
 /**

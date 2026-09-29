@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -21,6 +23,7 @@ import com.papi.nova.ui.panel.advance
 import com.papi.nova.ui.panel.setPanelContent
 import com.papi.nova.utils.GameShortcutPinState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -166,6 +169,25 @@ class NovaGameDetailEndSplitComposeTest {
 
         assertEquals(1, ends)
         assertEquals(0, resumes)
+    }
+
+    @Test
+    @Config(qualifiers = "w960dp-h540dp-television")
+    fun onATelevisionStayHoldsFocusRightAfterArmingAndBothLabelsSitOnOneLine() {
+        val keys = page()
+        keys.press(NovaTestKeys.A)
+        // The first frame after arming, before any key: the pair has just split.
+        rule.advance(16)
+        rule.onNodeWithContentDescription(stay()).assertIsFocused()
+        rule.advance(ARM_SETTLE_MS + NovaPanelMetrics.SplitMillis)
+        rule.onNodeWithContentDescription(stay()).assertIsFocused()
+        val end = context.getString(R.string.game_dialog_action_end_session)
+        rule.onNodeWithContentDescription(end).assertIsNotFocused()
+        val stayHalf = rule.onNodeWithContentDescription(stay()).getUnclippedBoundsInRoot()
+        val endHalf = rule.onNodeWithContentDescription(end).getUnclippedBoundsInRoot()
+        assertEquals("Stay first, End beside it on the same line", stayHalf.top.value, endHalf.top.value, 0.5f)
+        assertTrue(endHalf.left > stayHalf.right)
+        assertEquals(0, ends)
     }
 
     @Test
