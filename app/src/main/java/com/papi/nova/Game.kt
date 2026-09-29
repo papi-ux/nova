@@ -276,6 +276,8 @@ com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfil
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
 private var launchResolvedProfileTrusted:Boolean = false
+/** The preset this launch was resolved to, for the HUD's stream line; empty when it has none. */
+private var novaHudLaunchPresetLabel:String = ""
 private val launchPolicyGateGeneration = AtomicLong(0L)
 private val launchPolicyGatePending = AtomicBoolean(false)
 private var launchPolicyHandoffRecreation:Boolean = false
@@ -1445,6 +1447,7 @@ showNovaLaunchIssueSheet(getString(R.string.nova_launch_profile_not_settled))
 return
 }
 launchInitializationCommitted = true
+novaHudLaunchPresetLabel = com.papi.nova.ui.NovaLaunchPresetLabel.resolved(resources, launchOptimization, launchResolvedProfileTrusted)
 startNovaFeatureProbe()
 willStreamHdr = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeHdr(
 willStreamHdr,
@@ -7077,6 +7080,7 @@ return hud!!
 private fun configureNovaHud(hud:com.papi.nova.ui.NovaStreamHud) {
 hud.setTargetFps(configuredHudTargetFps.toDouble())
 hud.setTargetBitrateKbps(configuredStreamBitrateKbps)
+hud.setLaunchPresetLabel(novaHudLaunchPresetLabel)
 if (lastPolarisSessionStatus != null)
 {
 hud.applySessionStatus(lastPolarisSessionStatus)
