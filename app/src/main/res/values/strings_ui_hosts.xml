@@ -38,6 +38,10 @@
     <!-- The console asked whether to leave a page it has changes on. -->
     <string name="nova_host_console_leave_page">Leave this page of the console? Changes not saved on it are lost.</string>
     <string name="nova_host_console_failed">The host\'s console did not load. Check that the host is awake and on this network, then try again.</string>
+    <!-- A link the console opened that Nova cannot follow: for another client app, or a host or an app Nova does not know. -->
+    <string name="nova_host_console_link_elsewhere">This link is for another app, so Nova cannot open it.</string>
+    <!-- The console asked Nova to pair with a host it is already paired with. -->
+    <string name="nova_host_console_link_paired">Nova is already paired with this host, so there is nothing to pair.</string>
 
     <!-- The App list's host went away while it was open: a Problem page whose Close goes back to Hosts. -->
     <string name="hosts_app_list_lost_title">Connection Lost</string>

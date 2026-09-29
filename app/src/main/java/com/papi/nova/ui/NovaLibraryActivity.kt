@@ -1439,7 +1439,25 @@ class NovaLibraryActivity : NovaActivity() {
             title = getString(R.string.nova_host_console_title),
             url = "https://$streamHost:$managementPort$path",
             pinnedCertificate = streamServerCert,
+            hostUuid = streamPcUuid,
+            onLink = ::followHostConsoleLink,
         )
+    }
+
+    /**
+     * A link this host's console opened for a client app (N6), and what to say in the console
+     * instead, or null once it is followed. The library is a paired host's, so Pair Now has
+     * nothing to pair, as a scanned code for a paired host finds. A launch link starts the app
+     * through the launch any art:// launch link takes.
+     */
+    private fun followHostConsoleLink(link: NovaHostConsoleLink): String? = when (link) {
+        is NovaHostConsoleLink.Pair -> getString(R.string.nova_host_console_link_paired)
+        is NovaHostConsoleLink.Launch -> {
+            novaSurfaces.panel.close()
+            startActivity(link.intent(this))
+            null
+        }
+        NovaHostConsoleLink.Elsewhere -> getString(R.string.nova_host_console_link_elsewhere)
     }
 
     private fun openSettings() {

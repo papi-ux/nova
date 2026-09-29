@@ -1,6 +1,8 @@
 package com.papi.nova.ui
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
@@ -48,7 +50,11 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
+import com.papi.nova.AppView
+import com.papi.nova.Game
 import com.papi.nova.R
+import com.papi.nova.ShortcutTrampoline
+import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.panel.NovaBackHandler
 import com.papi.nova.ui.panel.NovaFocusHint
@@ -63,6 +69,7 @@ import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusHint
 import com.papi.nova.ui.panel.novaPanelType
 import java.security.MessageDigest
+import java.util.UUID
 
 /**
  * The host's console, Polaris's own settings, as a page in Nova's edge panel (N6).
@@ -83,6 +90,10 @@ import java.security.MessageDigest
  *
  * B steps back through the console's own pages, never into its login, and otherwise leaves this one
  * ([NovaHostConsoleHistory]).
+ *
+ * The console hands a client app its work as art:// links: pair with this host by a PIN, or launch
+ * one of its apps here. Nova follows the ones for it ([NovaHostConsoleLink]) through [onLink], and
+ * says in the console's place, as it asks the console's questions, that any other is for another app.
  */
 internal class NovaHostConsolePage(
     override val title: String,
@@ -90,6 +101,13 @@ internal class NovaHostConsolePage(
     val url: String,
     /** The DER of the certificate Nova paired with, or null when it has none, which trusts nothing. */
     val pinnedCertificate: ByteArray?,
+    /** The host's own id, which its launch links name it by; null when Nova does not know it. */
+    val hostUuid: String? = null,
+    /**
+     * Follows a pairing or launch link for this host, and returns what to say in the console's place
+     * instead, or null once it has acted. Without it every link is for another app.
+     */
+    val onLink: ((NovaHostConsoleLink) -> String?)? = null,
 ) : NovaPage {
     override val key: String get() = KEY
 
@@ -120,6 +138,81 @@ internal object NovaHostConsoleTrust {
     }
 
     private fun port(uri: Uri): Int = if (uri.port == -1) 443 else uri.port
+}
+
+/**
+ * A link the console opened for a client app to follow. Polaris's console hands a client its work
+ * as art:// addresses, the ones its pairing QR code and a desktop shortcut carry: its Pair Now
+ * after a new PIN, and Launch on this device. Nova blocked them all, so answering OK to either
+ * did nothing and said nothing (N6).
+ */
+internal sealed interface NovaHostConsoleLink {
+    /**
+     * Pair with the host at [host] and [port] by [pin] and [passphrase]:
+     * `art://host:port?pin=..&passphrase=..`, what the host's pairing QR code holds, so [address],
+     * the link itself, goes where a scanned code goes.
+     */
+    data class Pair(val address: String, val host: String, val port: Int, val pin: String, val passphrase: String) : NovaHostConsoleLink
+
+    /**
+     * Launch the app [appUuid], or [appId], on the host [hostUuid]:
+     * `art://launch?host_uuid=..&app_uuid=..`, the link a desktop shortcut carries, with the names.
+     */
+    data class Launch(
+        val hostUuid: String,
+        val hostName: String?,
+        val appUuid: String?,
+        val appId: String?,
+        val appName: String?,
+    ) : NovaHostConsoleLink {
+        /**
+         * The launch this link takes wherever it is opened: the shortcut trampoline, with the extras
+         * an art:// launch link opened from outside Nova gets, as AddComputerManually hands them.
+         */
+        fun intent(context: Context): Intent = Intent(context, ShortcutTrampoline::class.java)
+            .putExtra(AppView.UUID_EXTRA, hostUuid)
+            .putExtra(AppView.NAME_EXTRA, hostName)
+            .putExtra(Game.EXTRA_APP_UUID, appUuid)
+            .putExtra(Game.EXTRA_APP_NAME, appName)
+            .putExtra(Game.EXTRA_APP_ID, appId)
+    }
+
+    /** A link for another app, or for a host or an app Nova does not know: said, never followed. */
+    data object Elsewhere : NovaHostConsoleLink
+
+    companion object {
+        /** What [url] asks of a console for the host [hostUuid], or null when it is not an art:// link. */
+        fun of(url: String?, hostUuid: String?): NovaHostConsoleLink? {
+            if (url.isNullOrBlank()) return null
+            val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return null
+            if (!"art".equals(uri.scheme, ignoreCase = true)) return null
+            val host = uri.host
+            if (host.isNullOrBlank()) return Elsewhere
+            // A launch link names no port; an address to pair with carries the host's own.
+            if (host.equals("launch", ignoreCase = true) && uri.port == -1) return launch(uri, hostUuid)
+            val pin = uri.getQueryParameter("pin")
+            val passphrase = uri.getQueryParameter("passphrase")
+            if (pin.isNullOrBlank() || passphrase.isNullOrBlank()) return Elsewhere
+            val port = if (uri.port != -1) uri.port else NvHTTP.DEFAULT_HTTP_PORT
+            return Pair(address = url, host = host, port = port, pin = pin, passphrase = passphrase)
+        }
+
+        private fun launch(uri: Uri, hostUuid: String?): NovaHostConsoleLink {
+            // This host's apps only: another host's is not this console's to start.
+            val linkHost = uri.getQueryParameter("host_uuid")
+            if (hostUuid.isNullOrBlank() || linkHost.isNullOrBlank() || !linkHost.equals(hostUuid, ignoreCase = true)) return Elsewhere
+            val appUuid = uri.getQueryParameter("app_uuid")?.takeIf { runCatching { UUID.fromString(it) }.isSuccess }
+            val appId = uri.getQueryParameter("app_id")?.takeIf { it.toIntOrNull() != null }
+            if (appUuid == null && appId == null) return Elsewhere
+            return Launch(
+                hostUuid = linkHost,
+                hostName = uri.getQueryParameter("host_name"),
+                appUuid = appUuid,
+                appId = appId,
+                appName = uri.getQueryParameter("app_name"),
+            )
+        }
+    }
 }
 
 /**
@@ -246,7 +339,8 @@ internal enum class NovaHostConsoleState {
  * console's address is let through only for the certificate Nova paired with, or, on a visit to a
  * host Nova has not paired with ([visit]), the first one the console presented; a page is only
  * shown once the certificate it came with has been checked, and any address other than the
- * console's does not load. [certificateOf] reads the certificate a page came with.
+ * console's does not load. [certificateOf] reads the certificate a page came with. An art:// link
+ * never loads either: it goes to [onLink], which follows it or says it is for another app.
  */
 internal class NovaHostConsoleClient(
     private val page: NovaHostConsolePage,
@@ -255,6 +349,7 @@ internal class NovaHostConsoleClient(
     private val history: NovaHostConsoleHistory = NovaHostConsoleHistory(),
     private val visit: NovaHostConsoleVisitPin? = null,
     private val certificateOf: (WebView) -> SslCertificate? = { it.certificate },
+    private val onLink: (NovaHostConsoleLink) -> Unit = {},
 ) : WebViewClient() {
     private var stopped = false
 
@@ -289,11 +384,20 @@ internal class NovaHostConsoleClient(
     }
 
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-        !NovaHostConsoleTrust.isConsole(page.url, request.url.toString())
+        overrides(request.url?.toString())
 
     @Deprecated("Deprecated in Java")
-    override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean =
-        !NovaHostConsoleTrust.isConsole(page.url, url)
+    override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = overrides(url)
+
+    // A client link is followed or said, and never loads; anything else loads only on the console.
+    private fun overrides(url: String?): Boolean {
+        val link = NovaHostConsoleLink.of(url, page.hostUuid)
+        if (link != null) {
+            if (!stopped) onLink(link)
+            return true
+        }
+        return !NovaHostConsoleTrust.isConsole(page.url, url)
+    }
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
         if (stopped) return
@@ -349,14 +453,15 @@ internal class NovaHostConsoleClient(
  * with changes. A web view with no chrome client answers every one No, so the console's Unpair,
  * Delete and Launch did nothing, and the default dialogs float over the panel. It is asked in the
  * console's page instead, and answered once: [answer] with the player's answer, [dismiss] when the
- * page goes without one, which is Cancel, and OK for an alert, which has nothing else.
+ * page goes without one, which is Cancel, and OK for an alert, which has nothing else. A line Nova
+ * says in the console's place, such as a link it cannot follow, is an alert with no [result].
  */
 internal class NovaHostConsoleAsk(
     val kind: Kind,
     val message: String,
     /** A prompt's starting text. */
     val initial: String,
-    private val result: JsResult,
+    private val result: JsResult?,
 ) {
     enum class Kind { Alert, Confirm, Prompt }
 
@@ -367,6 +472,7 @@ internal class NovaHostConsoleAsk(
         if (answered) return
         answered = true
         when {
+            result == null -> Unit
             !ok -> result.cancel()
             result is JsPromptResult -> result.confirm(text)
             else -> result.confirm()
@@ -451,7 +557,18 @@ internal fun NovaPageScope.NovaHostConsole(
     val statusFocus = remember(page) { FocusRequester() }
     val live = state == NovaHostConsoleState.Loading || state == NovaHostConsoleState.Showing
     val leaveMessage = stringResource(R.string.nova_host_console_leave_page)
+    val elsewhere = stringResource(R.string.nova_host_console_link_elsewhere)
     val leave = { if (isTop && !panel.pop()) closeThen { } }
+    // A link the console opened: followed where Nova can, and otherwise said in the console's
+    // place, as its questions are, with OK back to the console.
+    val follow: (NovaHostConsoleLink) -> Unit = { link ->
+        val handler = page.onLink
+        val said = if (link is NovaHostConsoleLink.Elsewhere || handler == null) elsewhere else handler(link)
+        if (said != null) {
+            ask?.dismiss()
+            ask = NovaHostConsoleAsk(NovaHostConsoleAsk.Kind.Alert, said, "", null)
+        }
+    }
 
     // B goes back one of the console's own pages first; elsewhere the panel takes this page off.
     NovaBackHandler(active = state == NovaHostConsoleState.Showing && canGoBack && ask == null) {
@@ -492,6 +609,7 @@ internal fun NovaPageScope.NovaHostConsole(
                                 history = history,
                                 visit = visit,
                                 certificateOf = certificateOf,
+                                onLink = follow,
                             )
                             webChromeClient = NovaHostConsoleChromeClient(leaveMessage) { next ->
                                 ask?.dismiss()

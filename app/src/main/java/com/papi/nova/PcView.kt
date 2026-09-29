@@ -98,6 +98,7 @@ import com.papi.nova.ui.NovaQrScanActivity
 import com.papi.nova.ui.NovaHostMenuActions
 import com.papi.nova.ui.novaHostMenuHeader
 import com.papi.nova.ui.NovaHostConsole
+import com.papi.nova.ui.NovaHostConsoleLink
 import com.papi.nova.ui.NovaHostConsolePage
 import com.papi.nova.ui.novaHostMenuItems
 import com.papi.nova.ui.compose.NovaThemeSwatch
@@ -2058,8 +2059,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
      * The host's console, a page pushed in the host's menu (N6). A browser met the host's
      * self-signed certificate and asked the player to click through its warning; the page trusts
      * only the certificate Nova paired with. With no address to open, the page says so instead.
+     * The links it opens for a client app are followed here ([followHostConsoleLink]).
      */
-    private fun hostConsolePageFor(computer: ComputerObject): NovaPage {
+    internal fun hostConsolePageFor(computer: ComputerObject): NovaPage {
         val title = getString(R.string.nova_host_console_title)
         val url = computer.guessManagementUrl()
             ?: return NovaCommonPage.Notice(
@@ -2072,7 +2074,35 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             title = title,
             url = url,
             pinnedCertificate = runCatching { computer.details.serverCert?.encoded }.getOrNull(),
+            hostUuid = computer.details.uuid,
+            onLink = { link -> followHostConsoleLink(computer.details, link) },
         )
+    }
+
+    /**
+     * A link the console of [details] opened for a client app (N6), and what to say in the console
+     * instead, or null once it is followed. Pair Now's address pairs as the host's QR code does:
+     * the host's menu closes as it does for any pairing, and the address goes where a scanned code
+     * goes, so the PIN and passphrase the console made are the ones Nova pairs with. A host Nova is
+     * paired with already has nothing to pair, as a scanned code finds. A launch link starts the
+     * app through the launch any art:// launch link takes.
+     */
+    private fun followHostConsoleLink(details: ComputerDetails, link: NovaHostConsoleLink): String? = when (link) {
+        is NovaHostConsoleLink.Pair -> if (details.pairState == PairState.PAIRED && hasPinnedServerCert(details)) {
+            getString(R.string.nova_host_console_link_paired)
+        } else {
+            novaSurfaces.panel.close()
+            leaveHostPanel()
+            handleQrScanResult(link.address)
+            null
+        }
+        is NovaHostConsoleLink.Launch -> {
+            novaSurfaces.panel.close()
+            leaveHostPanel()
+            startActivity(link.intent(this))
+            null
+        }
+        NovaHostConsoleLink.Elsewhere -> getString(R.string.nova_host_console_link_elsewhere)
     }
 
     /**
