@@ -691,7 +691,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "Debug keeps the network's facts: loss in the current window graded so zero is the only green, round-trip jitter, and the session's lost-frame count",
-            debugHud.contains("HudFact(\"FRAME LOSS\", state.packetLossLabel, state.packetLossTone)") &&
+            debugHud.contains("HudFact(\"FRAME LOSS\\nLAST 1s\", state.packetLossLabel, state.packetLossTone)") &&
                 debugHud.contains("HudFact(\"JITTER\", state.jitterLabel)") &&
                 debugHud.contains("HudFact(\"MISSING\", state.framesLostLabel)")
         )
