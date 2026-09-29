@@ -10,6 +10,8 @@ import android.net.http.SslCertificate
 import android.net.http.SslError
 import android.os.Build
 import android.os.SystemClock
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.webkit.JsPromptResult
 import android.webkit.JsResult
@@ -58,6 +60,7 @@ import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.panel.NovaBackHandler
 import com.papi.nova.ui.panel.NovaFocusHint
+import com.papi.nova.ui.panel.NovaKeys
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageScope
 import com.papi.nova.ui.panel.NovaPanelButton
@@ -235,13 +238,17 @@ internal class NovaHostConsoleVisitPin {
  * before is another page: not the console's login, which a signed-in console sends straight on
  * again (Polaris's router pushes `/` after it), and not the page already on screen. From anywhere
  * else B leaves the console page, and so it does from a page B came straight back to, where the
- * page before had sent it on again.
+ * page before had sent it on again. Only the console sends it on: a page the player opens again
+ * after B, by a press or a touch ([gesture]), is where they asked to go, however soon.
  */
 internal class NovaHostConsoleHistory(private val now: () -> Long = SystemClock::uptimeMillis) {
     // The entry B stepped back from, when, and the one it landed on, until the page after that.
     private var backFrom: String? = null
     private var backAt = 0L
     private var landed: String? = null
+
+    // Whether the player pressed or touched the console since B: what opens next, they opened.
+    private var gestured = false
 
     // An entry B came straight back to: B leaves from it rather than bounce again.
     private var looped: String? = null
@@ -251,7 +258,13 @@ internal class NovaHostConsoleHistory(private val now: () -> Long = SystemClock:
         backFrom = view.url
         backAt = now()
         landed = null
+        gestured = false
         view.goBack()
+    }
+
+    /** The player pressed OK or A in the console, or touched it. */
+    fun gesture() {
+        gestured = true
     }
 
     /** The console's history changed and [url] is on screen. */
@@ -261,9 +274,9 @@ internal class NovaHostConsoleHistory(private val now: () -> Long = SystemClock:
             if (landed == null) {
                 landed = url
             } else {
-                // Sent straight on to where B was pressed, as a router's guard does at once: a loop.
-                // A page the player opens later is not one.
-                if (url == from && now() - backAt <= NOVA_HOST_CONSOLE_REDIRECT_MS) looped = from
+                // Sent straight on to where B was pressed, with no press or touch of the player's,
+                // as a router's guard does at once: a loop. A page the player opens is not one.
+                if (url == from && !gestured && now() - backAt <= NOVA_HOST_CONSOLE_REDIRECT_MS) looped = from
                 backFrom = null
                 landed = null
             }
@@ -508,6 +521,23 @@ internal class NovaHostConsoleChromeClient(
         ask(NovaHostConsoleAsk.Kind.Confirm, leaveMessage, null, result)
 }
 
+/**
+ * The console's view, which tells [history] when the player presses OK or A in it, or touches it:
+ * a page that opens after that is one they opened, not one the console sent them on to.
+ */
+@SuppressLint("ViewConstructor")
+private class NovaHostConsoleWebView(context: Context, private val history: NovaHostConsoleHistory) : WebView(context) {
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && NovaKeys.isActivation(event.keyCode)) history.gesture()
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) history.gesture()
+        return super.dispatchTouchEvent(event)
+    }
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Suppress("DEPRECATION")
 private fun WebView.configureForHostConsole() {
@@ -599,7 +629,7 @@ internal fun NovaPageScope.NovaHostConsole(
             key(attempt) {
                 AndroidView(
                     factory = { context ->
-                        WebView(context).apply {
+                        NovaHostConsoleWebView(context, history).apply {
                             configureForHostConsole()
                             visibility = View.INVISIBLE
                             webViewClient = NovaHostConsoleClient(

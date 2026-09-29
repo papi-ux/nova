@@ -3,6 +3,10 @@ package com.papi.nova.ui
 import android.net.Uri
 import android.net.http.SslCertificate
 import android.net.http.SslError
+import android.os.Looper
+import android.os.SystemClock
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JsPromptResult
@@ -18,6 +22,8 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextReplacement
 import com.papi.nova.R
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaPageStackHost
@@ -27,6 +33,7 @@ import com.papi.nova.ui.panel.setPanelContent
 import java.io.ByteArrayInputStream
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import java.time.Duration
 import java.util.Base64
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -338,6 +345,105 @@ class NovaHostConsolePageComposeTest {
         keys.back()
         rule.onNodeWithText(line).assertDoesNotExist()
         assertTrue("B answered it, one step", panel.top is NovaHostConsolePage)
+    }
+
+    // The verifier's false positive: B from Apps lands on Home, and the player opens Apps again
+    // 800 ms later. That was marked a loop, so the next B left the whole console instead of
+    // stepping back to Home. A page the player opens, by a press in the console, is not a loop.
+    @Test
+    fun aPageThePlayerOpensAgainSoonAfterBIsNotALoop() {
+        val keys = show(page(paired.encoded))
+        val web = webView()!!
+        val client = web.webViewClient
+        onUi {
+            shadowOf(web).pushEntryToHistory("$console/#/")
+            client.doUpdateVisitedHistory(web, "$console/#/", false)
+            client.onPageFinished(web, "$console/#/")
+            shadowOf(web).pushEntryToHistory("$console/#/apps")
+            client.doUpdateVisitedHistory(web, "$console/#/apps", false)
+        }
+        keys.back()
+        assertEquals(1, shadowOf(web).goBackInvocations)
+        onUi { client.doUpdateVisitedHistory(web, "$console/#/", false) }
+
+        // 800 ms later the player presses A on Apps in the console.
+        onUi { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800)) }
+        onUi {
+            web.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER))
+            web.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER))
+            shadowOf(web).pushEntryToHistory("$console/#/apps")
+            client.doUpdateVisitedHistory(web, "$console/#/apps", false)
+        }
+        keys.back()
+        assertEquals("B steps back to Home again", 2, shadowOf(web).goBackInvocations)
+        assertTrue("and the console stays", panel.top is NovaHostConsolePage)
+    }
+
+    // A touch is the player's too.
+    @Test
+    fun aPageThePlayerTouchesOpenIsNotALoopEither() {
+        val keys = show(page(paired.encoded))
+        val web = webView()!!
+        val client = web.webViewClient
+        onUi {
+            shadowOf(web).pushEntryToHistory("$console/#/")
+            client.doUpdateVisitedHistory(web, "$console/#/", false)
+            client.onPageFinished(web, "$console/#/")
+            shadowOf(web).pushEntryToHistory("$console/#/apps")
+            client.doUpdateVisitedHistory(web, "$console/#/apps", false)
+        }
+        keys.back()
+        onUi {
+            client.doUpdateVisitedHistory(web, "$console/#/", false)
+            val now = SystemClock.uptimeMillis()
+            web.dispatchTouchEvent(MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 20f, 20f, 0))
+            web.dispatchTouchEvent(MotionEvent.obtain(now, now, MotionEvent.ACTION_UP, 20f, 20f, 0))
+            shadowOf(web).pushEntryToHistory("$console/#/apps")
+            client.doUpdateVisitedHistory(web, "$console/#/apps", false)
+        }
+        keys.back()
+        assertEquals(2, shadowOf(web).goBackInvocations)
+        assertTrue(panel.top is NovaHostConsolePage)
+    }
+
+    // The page already on screen is not a step back: a history whose entry before is the same
+    // page, as a route pushed twice leaves, lets B leave rather than seem to do nothing.
+    @Test
+    fun theSamePageBehindIsNoStepBack() {
+        val keys = show(page(paired.encoded))
+        val web = webView()!!
+        val client = web.webViewClient
+        onUi {
+            shadowOf(web).pushEntryToHistory("$console/#/apps")
+            client.doUpdateVisitedHistory(web, "$console/#/apps", false)
+            client.onPageFinished(web, "$console/#/apps")
+            shadowOf(web).pushEntryToHistory("$console/#/apps/")
+            client.doUpdateVisitedHistory(web, "$console/#/apps/", false)
+        }
+        keys.back()
+        assertEquals(0, shadowOf(web).goBackInvocations)
+        assertFalse(panel.top is NovaHostConsolePage)
+    }
+
+    // A prompt's answer is what the player typed, and the console is hidden while any question
+    // stands in its place.
+    @Test
+    fun aPromptAnswersWhatWasTypedAndTheConsoleHidesUnderAQuestion() {
+        val keys = show(page(paired.encoded))
+        val web = webView()!!
+        shown(web)
+        assertEquals(View.VISIBLE, web.visibility)
+        val prompt = mock(JsPromptResult::class.java)
+        onUi { shadowOf(web).webChromeClient!!.onJsPrompt(web, console, "Name this client", "Retroid Pocket 6", prompt) }
+        assertEquals("hidden under the question", View.INVISIBLE, web.visibility)
+        // A opens the field, focused first, to type in.
+        keys.press(NovaTestKeys.CENTER)
+        rule.onNodeWithText("Retroid Pocket 6").performTextReplacement("Living Room TV")
+        rule.waitForIdle()
+        button("OK").performClick()
+        rule.waitForIdle()
+        verify(prompt).confirm("Living Room TV")
+        assertEquals("shown again once answered", View.VISIBLE, web.visibility)
     }
 
     private companion object {
