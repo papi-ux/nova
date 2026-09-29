@@ -133,7 +133,6 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("HDR requested, but Private Stream is 10-bit SDR.", state.healthSummary)
         assertEquals("Private Stream does not report HDR metadata. Polaris is sending 10-bit SDR; use an HDR-capable display path for true HDR.", state.healthDetail)
-        assertEquals("", state.stability.caption)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
     }
 
@@ -609,6 +608,64 @@ class NovaQuickMenuUiStateTest {
         assertFalse("a reading Nova can act on is not the quiet kind", state.diagnosis.informational)
     }
 
+    /**
+     * Review finding 1: a reading kept through a failed status read is a few seconds old, and A
+     * runs nothing on it; it copies the details. It never names the reading's own action as what
+     * A does, though the status that carried the reading let this device run it.
+     */
+    @Test
+    fun aKeptReadingNeverNamesItsRunnableActionAsWhatADoes() {
+        val runnable = status(
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                resultId = "doctor-v2-needs_action-network_jitter",
+                classification = "NET",
+                likelyCause = "Wi-Fi jitter is the likely bottleneck.",
+                evidence = listOf("3.4% packet loss"),
+                confidence = "high",
+                primaryIssue = "network_jitter",
+                actionId = "lower_bitrate",
+                actionLabel = "Auto Fix",
+                actionCapability = "auto_fix",
+                actionKind = "live_tuning",
+                actionEndpoint = "/api/doctor/action",
+                actionMethod = "POST",
+                actionPayloadId = "lower_bitrate",
+                actionSourceResultId = "doctor-v2-needs_action-network_jitter",
+                actionContractTyped = true,
+                targetBitrateKbps = 16000,
+                targetBitratePresent = true,
+                targetBitrateTyped = true,
+                verificationDelaySeconds = 8,
+                verificationMode = "live_telemetry",
+                verificationEndpoint = "/api/doctor/action",
+                undoSupported = true,
+                undoEndpoint = "/api/doctor/action",
+                requiresOwner = true,
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "packet_loss",
+                        status = "fail",
+                        source = "media_transport",
+                        value = 3.4
+                    )
+                ),
+                packetLossPct = 3.4,
+                latencyMs = 12.0
+            )
+        )
+        val fresh = quickState(status = runnable)
+        assertTrue("the fresh reading runs its action", fresh.diagnosis.actionExecutable)
+        assertEquals("Auto Fix", fresh.diagnosis.actionLabel)
+
+        val kept = quickState(status = null, lastStatus = runnable, hostStateUnavailable = true)
+        assertTrue(kept.diagnosis.stale)
+        assertEquals("the same reading", "Wi-Fi jitter is the likely bottleneck.", kept.diagnosis.likelyCause)
+        assertFalse("A runs nothing on a kept reading", kept.diagnosis.actionExecutable)
+        assertEquals("A copies its details", NovaQuickMenuDoctorCapability.MANUAL, kept.diagnosis.capability)
+    }
+
     @Test
     fun deterministicFallbackIsDisplayedAsAnInformationalSource() {
         val state = quickState(
@@ -960,10 +1017,9 @@ class NovaQuickMenuUiStateTest {
         assertEquals("", state.diagnosis.evidenceHighlight)
         assertEquals("Frame pacing telemetry needs attention.", state.diagnosis.likelyCause)
         assertEquals("Frame pacing", state.healthSummary)
-        // The strip and the Doctor card already carry the sentence; the Stream card keeps
-        // its chip and target line and drops the duplicate.
+        // The strip and the Doctor card already carry the sentence; the Stream card has its
+        // chip and target line and no caption of its own.
         assertEquals("Stream", state.stability.title)
-        assertEquals("", state.stability.caption)
         assertEquals("Launch Preset", state.stability.profileTitle)
     }
 
@@ -1388,10 +1444,12 @@ class NovaQuickMenuUiStateTest {
         menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
         fallbackTargetFps: Double = 60.0,
         doctorReceipt: DoctorActionReceipt? = null,
+        lastStatus: PolarisSessionStatus? = null,
         context: Context = this.context,
     ) = NovaQuickMenuUiState.from(
         context = context,
         status = status,
+        lastStatus = lastStatus,
         apiAvailable = apiAvailable,
         liveTuningPending = liveTuningPending,
         liveTuningUnconfirmed = liveTuningUnconfirmed,

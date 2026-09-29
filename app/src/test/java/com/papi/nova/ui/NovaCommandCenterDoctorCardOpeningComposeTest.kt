@@ -4,8 +4,10 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -32,11 +34,12 @@ import org.robolectric.annotation.Config
 
 /**
  * Review finding 1, across one opening, with real readings built through
- * [NovaQuickMenuUiState.from]. Any failed status read publishes no status, and the card went back
- * to its placeholder, or in a Space appeared at the top, and every row under it moved. A failed
- * read now keeps the last reading, a few seconds old, in the same place and with the same focus.
- * A host that is not Polaris, known when the Command Center opens, has no card for that whole
- * opening, even if a status arrives later.
+ * [NovaQuickMenuUiState.from] from what the Command Center hands it. Any failed status read
+ * publishes no status and says the host state is unavailable, and the card went back to its
+ * placeholder, or in a Space appeared at the top, and every row under it moved. A failed read now
+ * keeps the last reading, a few seconds old, in the same place and with the same focus, and
+ * nothing else on the page changes height. A host that is not Polaris, known when the Command
+ * Center opens, has no card for that whole opening, even if a status arrives later.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -63,19 +66,34 @@ class NovaCommandCenterDoctorCardOpeningComposeTest {
 
     private val jitter get() = reading("Network jitter is delaying frames", "network_jitter")
 
+    /** What Polaris sends for a Space: a health summary, no Doctor object (nvhttp.cpp profile_session_status). */
+    private val space get() = PolarisApiClient.parseSessionStatusResponse(
+        JSONObject(
+            """{"source":"worker_profile_v1","state":"streaming","streaming_active":true,
+            "owned_by_client":true,"client_role":"owner","viewer_count":0,"game":"papi - heroic",
+            "controls":{"host_tuning_allowed":false,"quit_allowed":true,"stop_allowed":true},
+            "display_mode":{"selection":"gamescope_stream","label":"papi - heroic"},
+            "encoder":{"codec":"h264","bitrate_kbps":0,"bitrate_ceiling_kbps":8000,"session_target_fps":120},
+            "health":{"grade":"unknown","summary":"Profile performance diagnostics are not available yet."},
+            "live_tuning":null}"""
+        )
+    )
+
     /**
      * What the Command Center hands the page: the status it has now, none after a failed read,
-     * the last one this opening got, and whether the host is Polaris.
+     * the last one this opening got, whether the newest read failed, as every failed read says,
+     * and whether the host is Polaris.
      */
     private fun build(
         status: PolarisSessionStatus?,
         last: PolarisSessionStatus? = null,
         polaris: Boolean = true,
+        failed: Boolean = false,
     ): NovaQuickMenuUiState = NovaQuickMenuUiState.from(
         context = rule.activity,
         status = status,
         apiAvailable = true,
-        hostStateUnavailable = status == null && last != null,
+        hostStateUnavailable = failed,
         polarisHost = polaris,
         lastStatus = last,
         adaptiveSupported = true,
@@ -131,6 +149,10 @@ class NovaCommandCenterDoctorCardOpeningComposeTest {
     private fun top(node: SemanticsNodeInteraction) = node.getUnclippedBoundsInRoot().top.value
     private fun height(node: SemanticsNodeInteraction) = node.getUnclippedBoundsInRoot().let { it.bottom.value - it.top.value }
 
+    /** Every node on the page, in order: where it starts and how tall it is. */
+    private fun layout(): List<Pair<Float, Int>> =
+        rule.onAllNodes(SemanticsMatcher("any node") { true }).fetchSemanticsNodes().map { it.positionInRoot.y to it.size.height }
+
     @Test
     fun aFailedStatusReadKeepsTheLastReadingAFewSecondsOld() {
         open(build(jitter))
@@ -141,7 +163,7 @@ class NovaCommandCenterDoctorCardOpeningComposeTest {
         val cardHeight = height(finding)
         val under = top(rule.onNodeWithText(streamCard))
 
-        show(build(status = null, last = jitter))
+        show(build(status = null, last = jitter, failed = true))
         val kept = card("Network jitter is delaying frames")
         kept.assertIsFocused()
         kept.assertIsEnabled()
@@ -149,9 +171,7 @@ class NovaCommandCenterDoctorCardOpeningComposeTest {
         rule.onNode(hasText(string(R.string.nova_quick_menu_health_checking)) and hasClickAction()).assertDoesNotExist()
         assertEquals("in the same place", cardTop, top(kept), 0.5f)
         assertEquals("at the same size", cardHeight, height(kept), 0.5f)
-        // The card is where it was and its size, so the card under it stays too. (That card
-        // then grows by its own "host state unavailable" line; that is the Stream card's, not
-        // the Doctor's.)
+        // The card is where it was and its size, so the card under it stays too.
         assertEquals("the card under it stays", under, top(rule.onNodeWithText(streamCard)), 0.5f)
 
         show(build(jitter))
@@ -169,9 +189,34 @@ class NovaCommandCenterDoctorCardOpeningComposeTest {
         val cardTop = top(checking)
 
         // The host did not answer: still checking, still focused, still where it was.
-        show(build(status = null, last = null))
+        show(build(status = null, last = null, failed = true))
         card(string(R.string.nova_quick_menu_health_checking)).assertIsFocused()
         assertEquals(cardTop, top(card(string(R.string.nova_quick_menu_health_checking))), 0.5f)
+    }
+
+    /**
+     * A failed poll, as the Command Center publishes one: no status, the last reading kept and the
+     * host state unavailable, which the strip says in its own line. The Stream card said it again
+     * in a line of its own that came and went with each failed poll, and moved every row under it;
+     * now nothing on the page changes height, after a reading or a Space's verdict.
+     */
+    @Test
+    fun aFailedPollMovesNothingOnThePage() {
+        open(build(jitter))
+        for (answer in listOf(jitter, space)) {
+            show(build(answer))
+            val answered = layout()
+
+            show(build(status = null, last = answer, failed = true))
+            // The strip says so; no line of the page says it again. (The Sync row's caption says
+            // its own state, in place of the one it had.)
+            rule.onAllNodes(hasText(string(R.string.nova_quick_menu_host_state_unavailable)) and !hasClickAction())
+                .assertCountEquals(1)
+            assertEquals("a failed poll during ${answer.game} moves nothing", answered, layout())
+
+            show(build(answer))
+            assertEquals("nor does the next answer", answered, layout())
+        }
     }
 
     @Test

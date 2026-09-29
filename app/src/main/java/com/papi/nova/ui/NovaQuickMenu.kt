@@ -122,13 +122,18 @@ class NovaQuickMenu(
         val apiClient = game.novaApiClient ?: getServerAddress()?.let {
             PolarisApiClient(game.applicationContext, it, getHttpsPort())
         }
-        // Known when the Command Center opens and kept for this opening: a host that is not
-        // Polaris has no Doctor, and its card is not drawn rather than waiting for a reading.
-        val polarisHost = apiClient != null &&
-            (game.novaIsPolarisServer() || apiClient.withCurrentSessionStatus { it != null })
+        // This opening's hold on the host's status, where every status read lands: the status
+        // the client has now, the last reading the host sent, whether the newest read failed, and
+        // whether the host is Polaris at all, known when the Command Center opens.
+        val host = NovaCommandCenterHostStatus(
+            api = apiClient,
+            registry = doctorMenuRefreshRegistry,
+            generation = menuValidationGeneration,
+            polarisServer = game::novaIsPolarisServer,
+        )
         val prefs = PreferenceManager.getDefaultSharedPreferences(game)
 
-        var sessionStatus: PolarisSessionStatus? = null
+        val sessionStatus by host::status
         var capabilities: PolarisCapabilities? = null
         var adaptiveSupported = false
         var aiSupported = false
@@ -140,10 +145,6 @@ class NovaQuickMenu(
         var profileClearInProgress = false
         var profileClearResult: String? = null
         var diagnosticsCopied = false
-        var hostStateUnavailable = false
-        // The last status the host sent while this opening stood: the Doctor card keeps its
-        // reading, a few seconds old, while a status read fails.
-        var lastStatus: PolarisSessionStatus? = null
         // Results said in their rows' own captions for a moment, where snackbars had floated.
         // Live Tuning's switch and its result, set once the page can be refreshed.
         var liveTuningSave: NovaLiveTuningSave? = null
@@ -210,19 +211,15 @@ class NovaQuickMenu(
             }
         }
 
+        // What the page derives from each status the host sends.
+        host.derive = {
+            syncSessionDerivedState()
+            syncDoctorReceiptScope()
+        }
+
         // All menu/receipt publication runs on Main. Async completions resolve
         // the current store there, so an earlier GET cannot replay old state.
-        fun publishCurrentSessionStatus(): Boolean {
-            return doctorMenuRefreshRegistry.runIfCurrent(menuValidationGeneration) {
-                apiClient?.withCurrentSessionStatus { current ->
-                    sessionStatus = current
-                    if (current != null) lastStatus = current
-                    syncSessionDerivedState()
-                    syncDoctorReceiptScope()
-                    current != null
-                } ?: false
-            } ?: false
-        }
+        fun publishCurrentSessionStatus(): Boolean = host.publish()
 
         suspend fun acceptRefreshedSessionStatus(@Suppress("UNUSED_PARAMETER") refreshed: PolarisSessionStatus?): Boolean {
             var accepted = false
@@ -460,11 +457,11 @@ class NovaQuickMenu(
                 context = game,
                 quickKeys = quickKeys,
                 status = sessionStatus,
-                polarisHost = polarisHost,
-                lastStatus = lastStatus,
+                polarisHost = host.polaris,
+                lastStatus = host.last,
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
-                hostStateUnavailable = hostStateUnavailable,
+                hostStateUnavailable = host.unavailable,
                 liveTuningPending = liveTuningSave?.pending == true,
                 liveTuningUnconfirmed = liveTuningSave?.unconfirmed,
                 adaptiveSupported = adaptiveSupported,
@@ -509,24 +506,15 @@ class NovaQuickMenu(
         // A flow, not one state read at the top: each part of the page collects the slice it
         // shows, so a status refresh recomposes only what changed.
         val uiState = MutableStateFlow(buildState())
-        fun refreshState() {
-            if (apiClient != null) apiClient.withCurrentSessionStatus { current ->
-                sessionStatus = current
-                if (current != null) lastStatus = current
-                hostStateUnavailable = current == null
-                syncSessionDerivedState()
-                syncDoctorReceiptScope()
-                uiState.value = buildState()
-            } else uiState.value = buildState()
-        }
+        host.redraw = { uiState.value = buildState() }
+        fun refreshState() = host.refresh()
 
         liveTuningSave = apiClient?.let { api ->
             liveTuningSave(
                 runtime = runtime,
                 api = api,
                 current = ::menuValidationIsCurrent,
-                publish = ::publishCurrentSessionStatus,
-                answered = { hostStateUnavailable = !it },
+                publish = { host.publish() },
                 changed = ::refreshState,
             )
         }
@@ -908,7 +896,7 @@ class NovaQuickMenu(
             },
             onLiveTuning = { enable ->
                 val observed = sessionStatus
-                if (observed?.canAdjustHostTuning == true && !hostStateUnavailable) {
+                if (observed?.canAdjustHostTuning == true && !host.unavailable) {
                     // The state the split offered, not a flip of whatever the host says now; the
                     // result is said in the row's own caption (NovaLiveTuningSave).
                     liveTuningSave?.request(enable, observed)
@@ -1174,7 +1162,7 @@ class NovaQuickMenu(
                 apiClient.sessionStatusUpdates.collect {
                     game.runOnMainIfRuntimeActive {
                         if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
-                        hostStateUnavailable = !publishCurrentSessionStatus()
+                        publishCurrentSessionStatus()
                         refreshState()
                     }
                 }
@@ -1486,16 +1474,15 @@ class NovaQuickMenu(
         /**
          * Live Tuning's switch as the Command Center wires it for one opening (review findings 5
          * and 7): the save asks [api] for exactly the state the split offered, the host's status
-         * is fetched again and [publish]ed to the page, which says whether the host answered for
-         * [answered] to hear, and a result leaves the row after its time. Work runs on [runtime]
-         * while [current] says this opening still stands; [changed] redraws the page.
+         * is fetched again and [publish]ed to the page, which records whether the host answered,
+         * and a result leaves the row after its time. Work runs on [runtime] while [current] says
+         * this opening still stands; [changed] redraws the page.
          */
         internal fun liveTuningSave(
             runtime: NovaCommandCenterRuntime,
             api: PolarisApiClient,
             current: () -> Boolean,
-            publish: () -> Boolean,
-            answered: (Boolean) -> Unit,
+            publish: () -> Unit,
             changed: () -> Unit,
         ): NovaLiveTuningSave = NovaLiveTuningSave(
             launch = { block -> runtime.launchIo("NovaLiveTuningSave") { block() } },
@@ -1503,7 +1490,7 @@ class NovaQuickMenu(
             later = { delayMs, block -> runtime.postDelayed(delayMs, block) },
             save = { enable, observed -> api.setLiveTuningEnabled(enable, observed) },
             fetch = { api.getSessionStatus() },
-            publish = { answered(publish()) },
+            publish = publish,
             changed = changed,
         )
     }

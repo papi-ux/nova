@@ -144,10 +144,12 @@ class NovaCommandCenterLiveTuningResultComposeTest {
         fallbackTargetFps = 60.0,
     )
 
-    /** What the Command Center does with a status read: hands it to the page, and says whether there was one. */
-    private fun publish(): Boolean = api.withCurrentSessionStatus { current ->
-        shown = current
-        current != null
+    /** What the Command Center does with a status read: hands it to the page, and records whether there was one. */
+    private fun publish() {
+        unavailable = !api.withCurrentSessionStatus { current ->
+            shown = current
+            current != null
+        }
     }
 
     private fun open(): NovaTestKeys {
@@ -158,7 +160,6 @@ class NovaCommandCenterLiveTuningResultComposeTest {
             api = api,
             current = { true },
             publish = ::publish,
-            answered = { unavailable = !it },
             changed = { state.value = build() },
         )
         state = MutableStateFlow(build())

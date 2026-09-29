@@ -581,9 +581,8 @@ private fun NovaPageScope.NovaQuickMenuStabilityCard(
                 chip = stability.chip,
             )
         }
-        if (stability.caption.isNotBlank()) {
-            Text(text = stability.caption, style = type.caption, color = colors.textPrimary, modifier = inset)
-        }
+        // No line of its own for a failed status read: the strip says it, and a line that came
+        // and went moved every row under this card (review finding 1).
         Text(text = stability.targetSummary, style = type.caption, color = colors.textSecondary, modifier = inset)
         if (options.isNotEmpty()) {
             NovaValueRow(

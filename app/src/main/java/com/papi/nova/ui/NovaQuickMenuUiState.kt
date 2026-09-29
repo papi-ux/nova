@@ -75,7 +75,6 @@ data class NovaQuickMenuPreferenceOption(
 
 data class NovaQuickMenuStabilityState(
     val title: String,
-    val caption: String,
     val targetSummary: String,
     val chip: NovaQuickMenuChip,
     val enabled: Boolean,
@@ -348,7 +347,6 @@ data class NovaQuickMenuUiState(
             )
             val stability = NovaQuickMenuStabilityState(
                 title = context.getString(R.string.nova_quick_menu_stream_card),
-                caption = if (hostStateUnavailable) context.getString(R.string.nova_quick_menu_host_state_unavailable) else "",
                 targetSummary = streamPolicy.targetSummary.takeIf { it.isNotBlank() }
                     ?: context.getString(R.string.nova_quick_menu_target_checking),
                 chip = if (viewerSession) chip(context.getString(R.string.nova_quick_menu_owner), NovaQuickMenuTone.MUTED) else
@@ -746,14 +744,16 @@ data class NovaQuickMenuUiState(
                 ?.takeIf { it.available && it.informational }
             val actionId = doctor?.actionId.orEmpty()
             val available = reading != null
-            // A reading a few seconds old runs nothing; A copies its details.
+            // The action is judged against the status that carried the reading. A reading kept
+            // through a failed read is a few seconds old and runs nothing, whatever that status
+            // allowed: A copies its details.
             val actionEnvelopeExecutable = !stale && doctor?.canExecuteAction == true
             val readOnlyRecheck = actionId in setOf("recheck_network", "recheck_pacing")
             val actionExecutable = actionEnvelopeExecutable && if (readOnlyRecheck) {
-                status?.authorityContractValid == true &&
-                    status.ownedByClient && !status.isViewer
+                reading?.authorityContractValid == true &&
+                    reading.ownedByClient && !reading.isViewer
             } else {
-                status?.canAdjustHostTuning == true
+                reading?.canAdjustHostTuning == true
             }
             val capability = if (!actionExecutable) {
                 NovaQuickMenuDoctorCapability.MANUAL
