@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -319,7 +320,8 @@ class NovaPanelType private constructor(
     val panelTitle = TextStyle(fontSize = panelTitleSize + bump, fontWeight = FontWeight.SemiBold)
     val pageTitle = TextStyle(fontSize = pageTitleSize + bump, fontWeight = FontWeight.SemiBold)
     val rowTitle = TextStyle(fontSize = rowTitleSize + bump, fontWeight = FontWeight.Medium)
-    val caption = TextStyle(fontSize = captionSize + bump)
+    /** Broken as a paragraph, so a caption's last line is not one word on its own. */
+    val caption = TextStyle(fontSize = captionSize + bump, lineBreak = LineBreak.Paragraph)
     val value = TextStyle(fontSize = valueSize + bump, fontWeight = FontWeight.SemiBold)
     val sectionLabel = NovaChromeType.label(fontSize = sectionLabelSize + bump)
     /** A controller hint's key, on its chip in the hint bar. */
