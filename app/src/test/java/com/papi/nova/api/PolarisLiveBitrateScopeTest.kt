@@ -99,4 +99,33 @@ class PolarisLiveBitrateScopeTest {
         assertNotNull(advice);assertEquals(150,advice!!.fecPercent)
         assertEquals(179464,com.papi.nova.preferences.NovaBitrateAdvice.encoderForRequest(181500,1536,150))
     }
+    @Test fun versionedUnitsEnableDeviceRecommendationWithActualSurroundAndFec() = kotlinx.coroutines.runBlocking {
+        for (codec in listOf("h264","hevc")) for ((audio,fec) in listOf(192 to 10,1536 to 20,2048 to 150)) {
+            var current=10000
+            var sequence=1
+            val posts=mutableListOf<Int>()
+            fun live() = status().put("encoder",JSONObject().put("codec",codec))
+                .put("live_tuning",JSONObject().put("supported",true).put("enabled",true)
+                    .put("requested_bitrate_kbps",current).put("sequence",sequence++)
+                    .put("host_instance","host").put("state_hash","a".repeat(64)))
+                .put("bitrate_units",JSONObject().put("version",1).put("formula","stream_bitrate_v1")
+                    .put("requested_kbps",30000).put("encoder_kbps",10000).put("live_encoder_kbps",current)
+                    .put("audio_kbps",audio).put("fec_percentage",fec))
+            val api=client { request -> if(request.method=="GET") reply(request,live().toString()) else {
+                val body=Buffer();request.body!!.writeTo(body)
+                current=JSONObject(body.readUtf8()).getInt("bitrate_kbps");posts+=current
+                reply(request,JSONObject().put("status",true).put("bitrate_kbps",current).toString())
+            } }
+            val caps=PolarisApiClient.parseCapabilitiesResponse(JSONObject().put("features",
+                JSONObject().put("bitrate_units_v1",true)))
+            val observed=PolarisApiClient.parseSessionStatusResponse(live())
+            val controller=com.papi.nova.manager.NovaLiveBitrateController(api,observed,caps)
+            controller.observe(observed,tableRecommendedKbps=30000)
+            assertTrue("New units capability authorizes scoped stream writes",controller.state.value.canChange)
+            assertEquals(com.papi.nova.manager.NovaBitrateChange.APPLIED,controller.useRecommended())
+            assertEquals(listOf(com.papi.nova.preferences.NovaBitrateAdvice.encoderForRequest(30000,audio,fec)),posts)
+            assertEquals(30000,controller.state.value.requestedKbps)
+        }
+    }
+
 }
