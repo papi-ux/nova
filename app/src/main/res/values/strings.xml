@@ -514,9 +514,8 @@
     <string name="nova_library_launch_dongle">Headless Dongle</string>
     <string name="nova_library_launch_desktop_display">Mirror Desktop</string>
     <string name="nova_library_launch_desktop_takeover">Desktop Takeover</string>
-    <!-- windowed_stream: a Private Stream that keeps frames on the GPU. The Command Center's detail
-         line says the capture, so its name carries no note. -->
-    <string name="nova_library_launch_gpu_native_test">Private Stream</string>
+    <!-- windowed_stream, by the name Polaris gives it, so it never shares headless_stream's. -->
+    <string name="nova_library_launch_gpu_native_test">Private Stream (GPU-native)</string>
     <string name="nova_library_play">Launch Recommended</string>
     <string name="nova_library_play_mode">Launch %1$s</string>
     <string name="nova_library_play_unavailable">Launch Unavailable</string>

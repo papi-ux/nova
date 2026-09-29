@@ -1162,22 +1162,25 @@ data class NovaQuickMenuUiState(
         }
 
         /**
-         * The session pill's mode, in plain words from resources, by the names the library uses.
-         * The host status's own English label brackets a technical note, "Private Stream
-         * (GPU-native)"; the detail line under the pill says the capture when the host reports
-         * one: GPU capture, GPU encoding or CPU capture. A label Nova has no name for, such as a
-         * Space's, is the host's own.
+         * The session pill's mode: the host's own name for it, as the library's picker, the game
+         * page and Settings show it, so a mode reads the same wherever Nova names it. Polaris names
+         * windowed_stream "Private Stream (GPU-native)" and headless_stream "Private Stream". A
+         * host that sends no name gets Nova's, from resources, by the names the library uses.
          */
-        private fun sessionModeName(context: Context, status: PolarisSessionStatus): String = when (status.sessionMode) {
-            PolarisSessionStatus.SessionMode.PRIVATE_STREAM,
-            PolarisSessionStatus.SessionMode.PRIVATE_STREAM_GPU_NATIVE -> context.getString(R.string.nova_session_mode_headless)
-            PolarisSessionStatus.SessionMode.MIRROR_DESKTOP -> context.getString(R.string.nova_session_mode_host_display)
-            PolarisSessionStatus.SessionMode.DESKTOP_TAKEOVER -> context.getString(R.string.nova_session_mode_desktop_takeover)
-            PolarisSessionStatus.SessionMode.HOST_VIRTUAL_DISPLAY -> context.getString(R.string.nova_session_mode_virtual_display)
-            PolarisSessionStatus.SessionMode.GAMESCOPE_STREAM -> context.getString(R.string.nova_library_launch_gamescope)
-            PolarisSessionStatus.SessionMode.HEADLESS_DONGLE -> context.getString(R.string.nova_library_launch_dongle)
-            PolarisSessionStatus.SessionMode.HOST_LABEL -> status.displayMode.label.trim()
-        }
+        private fun sessionModeName(context: Context, status: PolarisSessionStatus): String =
+            status.displayMode.label.trim().ifBlank {
+                when (status.sessionMode) {
+                    PolarisSessionStatus.SessionMode.PRIVATE_STREAM -> context.getString(R.string.nova_session_mode_headless)
+                    PolarisSessionStatus.SessionMode.PRIVATE_STREAM_GPU_NATIVE -> context.getString(R.string.nova_library_launch_gpu_native_test)
+                    PolarisSessionStatus.SessionMode.MIRROR_DESKTOP -> context.getString(R.string.nova_session_mode_host_display)
+                    PolarisSessionStatus.SessionMode.DESKTOP_TAKEOVER -> context.getString(R.string.nova_session_mode_desktop_takeover)
+                    PolarisSessionStatus.SessionMode.HOST_VIRTUAL_DISPLAY -> context.getString(R.string.nova_session_mode_virtual_display)
+                    PolarisSessionStatus.SessionMode.GAMESCOPE_STREAM -> context.getString(R.string.nova_library_launch_gamescope)
+                    PolarisSessionStatus.SessionMode.HEADLESS_DONGLE -> context.getString(R.string.nova_library_launch_dongle)
+                    // Only a label Nova has no name for reads as the host's; there is none here.
+                    PolarisSessionStatus.SessionMode.HOST_LABEL -> ""
+                }
+            }
 
         private fun resolveSessionDetail(context: Context, status: PolarisSessionStatus?): String {
             if (status == null) {

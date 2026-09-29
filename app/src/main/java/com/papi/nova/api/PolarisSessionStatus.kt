@@ -634,11 +634,13 @@ data class PolarisSessionStatus(
         displayMode.selection.equals("desktop_takeover", ignoreCase = true) ||
             displayMode.requested.equals("desktop_takeover", ignoreCase = true) -> SessionMode.DESKTOP_TAKEOVER
         displayMode.label.isNotBlank() -> sessionModeOfLabel(displayMode.label)
-        // After the label: a Space runs in gamescope_stream under its own name.
-        displayMode.selection.equals("gamescope_stream", ignoreCase = true) ||
-            displayMode.requested.equals("gamescope_stream", ignoreCase = true) -> SessionMode.GAMESCOPE_STREAM
-        displayMode.selection.equals("headless_dongle", ignoreCase = true) ||
-            displayMode.requested.equals("headless_dongle", ignoreCase = true) -> SessionMode.HEADLESS_DONGLE
+        // After the label: a Space runs in gamescope_stream under its own name. What the host
+        // selected outranks what was asked for, so a gamescope_stream request the host ran as a
+        // Private Stream reads as one.
+        displayMode.selection.ifBlank { displayMode.requested }
+            .equals("gamescope_stream", ignoreCase = true) -> SessionMode.GAMESCOPE_STREAM
+        displayMode.selection.ifBlank { displayMode.requested }
+            .equals("headless_dongle", ignoreCase = true) -> SessionMode.HEADLESS_DONGLE
         displayMode.effectiveHeadless -> SessionMode.PRIVATE_STREAM
         displayMode.virtualDisplay -> SessionMode.HOST_VIRTUAL_DISPLAY
         else -> SessionMode.MIRROR_DESKTOP

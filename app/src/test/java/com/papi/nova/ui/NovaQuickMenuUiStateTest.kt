@@ -377,35 +377,39 @@ class NovaQuickMenuUiStateTest {
     }
 
     /**
-     * Review finding 10, the pill: the session strip's pill read "Private Stream (GPU-native)",
-     * the host status's English label with a technical note in brackets, over a detail line that
-     * says the capture in plain words. It names the mode in plain words, from resources, and a
-     * label Nova has no name for, such as a Space's, stays the host's own.
+     * The host's own name for a mode is its name. Polaris names windowed_stream "Private Stream
+     * (GPU-native)" and headless_stream "Private Stream", and the library's picker, the game page
+     * and Settings show those names, so the pill does too. Round 3 made the pill say Private Stream
+     * for both, and round 4 then renamed windowed_stream everywhere, so two modes shared a name.
+     * A host that sends no name gets Nova's, which for windowed_stream is the same one.
      */
     @Test
-    fun theSessionPillSaysPrivateStreamWithNoBracketedNote() {
-        val privateStream = context.getString(com.papi.nova.R.string.nova_session_mode_headless)
-        assertEquals(privateStream, pill("windowed_stream"))
-        assertEquals("the host's own label for it too", privateStream, pill("", label = "Private Stream (GPU-native)"))
-        assertEquals(privateStream, pill("headless", headless = true))
+    fun theSessionPillNamesTheModeAsItsHostDoes() {
+        val gpuNative = "Private Stream (GPU-native)"
+        assertEquals("the host's name", gpuNative, pill("windowed_stream", label = gpuNative))
+        assertEquals("the host's name, whatever Nova calls the mode", "Mirror Desktop", pill("desktop_display", label = "Mirror Desktop"))
+        assertEquals("Nova's name when the host sends none", gpuNative, pill("windowed_stream"))
+        assertEquals("Private Stream", pill("headless", headless = true))
+        assertEquals("Private Stream", pill("headless_stream", label = "Private Stream", headless = true))
     }
 
     /**
      * No locale translates the mode names yet, so English resources and English literals read the
-     * same. The pill runs here against resources that name each mode in other words, which only a
-     * pill that reads its names from resources can say. A label Nova has no name for, such as a
-     * Space's, stays the host's own.
+     * same. For a host that sends no name, the pill runs here against resources that name each
+     * mode in other words, which only a pill that reads its names from resources can say. A name
+     * the host sends, such as a Space's, is the host's own.
      */
     @Test
     fun theSessionPillNamesEveryModeFromResources() {
         val named = contextNaming(
             com.papi.nova.R.string.nova_session_mode_headless to "Privater Stream",
+            com.papi.nova.R.string.nova_library_launch_gpu_native_test to "Privater Stream (GPU-nativ)",
             com.papi.nova.R.string.nova_session_mode_host_display to "Desktop spiegeln",
             com.papi.nova.R.string.nova_session_mode_desktop_takeover to "Desktop übernehmen",
             com.papi.nova.R.string.nova_session_mode_virtual_display to "Virtuelle Anzeige",
         )
         assertEquals(
-            listOf("Privater Stream", "Privater Stream", "Desktop spiegeln", "Desktop übernehmen", "Virtuelle Anzeige", "Living Room Space"),
+            listOf("Privater Stream (GPU-nativ)", "Privater Stream", "Desktop spiegeln", "Desktop übernehmen", "Virtuelle Anzeige", "Living Room Space"),
             listOf(
                 pill("windowed_stream", context = named),
                 pill("headless", headless = true, context = named),
@@ -418,29 +422,32 @@ class NovaQuickMenuUiStateTest {
     }
 
     /**
-     * Review finding 8's follow up: the pill called windowed_stream Private Stream while the
-     * library's picker, the game page's Play badge, the launch snackbar and the settings named it
-     * Private Stream (GPU-native), so a player who picked that saw another name in the Command
-     * Center. Nova names it Private Stream everywhere; the detail line says the capture.
+     * Review finding 8's follow up, settled the other way: round 4 named windowed_stream Private
+     * Stream wherever Nova names it, which is headless_stream's name. Nova's own names for it, for
+     * a host that sends none, are the host's: Private Stream (GPU-native), in the picker, the Play
+     * badge, the launch snackbar, the settings and the pill alike, and never headless_stream's.
      */
     @Test
-    fun windowedStreamIsPrivateStreamWhereverNovaNamesIt() {
-        val privateStream = context.getString(com.papi.nova.R.string.nova_library_launch_headless)
-        assertEquals(
-            "the picker, the Play badge and the launch snackbar",
-            privateStream,
-            context.getString(com.papi.nova.R.string.nova_library_launch_gpu_native_test),
-        )
+    fun windowedStreamHasItsHostsNameWhereverNovaNamesIt() {
+        val gpuNative = "Private Stream (GPU-native)"
+        val library = context.getString(com.papi.nova.R.string.nova_library_launch_gpu_native_test)
+        assertEquals("the picker, the Play badge and the launch snackbar", gpuNative, library)
         val settings = com.papi.nova.api.PolarisClientSettings
-        assertEquals("the settings", privateStream, settings.labelForMode(settings.MODE_GPU_NATIVE_TEST))
-        assertEquals(privateStream, settings.labelForMode("gpu_native"))
-        assertEquals("the pill", context.getString(com.papi.nova.R.string.nova_session_mode_headless), pill("windowed_stream"))
+        assertEquals("the settings", gpuNative, settings.labelForMode(settings.MODE_GPU_NATIVE_TEST))
+        assertEquals("the pill", gpuNative, pill("windowed_stream"))
+        assertFalse(
+            "headless_stream's name",
+            settings.labelForMode(settings.MODE_HEADLESS_STREAM) == settings.labelForMode(settings.MODE_GPU_NATIVE_TEST) ||
+                context.getString(com.papi.nova.R.string.nova_library_launch_headless) == library ||
+                pill("headless_stream", headless = true) == pill("windowed_stream"),
+        )
     }
 
     /**
      * gamescope_stream and headless_dongle, which the library names in resources, had no session
-     * mode: the pill showed the host's English label, or by its flags Private Stream. They are
-     * named from the library's resources now, and a Space's own label still wins.
+     * mode: a host that sent no name for them read as Private Stream by its flags. They are named
+     * from the library's resources then, and a name the host sends, a Space's included, is the
+     * host's own.
      */
     @Test
     fun theSessionPillNamesGamescopeAndTheDongleAsTheLibraryDoes() {
@@ -450,7 +457,7 @@ class NovaQuickMenuUiStateTest {
         )
         assertEquals("Gamescope Übertragung", pill("gamescope_stream", headless = true, context = named))
         assertEquals("Kopfloser Dongle", pill("headless_dongle", headless = true, context = named))
-        assertEquals("the host's own plain name for it too", "Gamescope Übertragung", pill("", label = "Gamescope Stream", context = named))
+        assertEquals("the host's own name for it", "Gamescope Stream", pill("", label = "Gamescope Stream", context = named))
         assertEquals("a Space's own label still wins", "Living Room Space", pill("gamescope_stream", label = "Living Room Space", context = named))
     }
 

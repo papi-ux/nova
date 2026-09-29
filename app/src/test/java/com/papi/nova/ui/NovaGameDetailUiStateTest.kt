@@ -381,7 +381,7 @@ class NovaGameDetailUiStateTest {
         assertFalse(state.playUsesVirtualDisplay)
         assertFalse("following the host is not overriding it", state.overridesHostMode)
         assertEquals(PolarisClientSettings.MODE_GPU_NATIVE_TEST, state.hostStreamDisplayMode)
-        assertEquals("Private Stream", state.hostStreamDisplayModeLabel)
+        assertEquals("Private Stream (GPU-native)", state.hostStreamDisplayModeLabel)
         assertEquals("", state.launchStreamMode)
     }
 
