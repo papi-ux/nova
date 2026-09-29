@@ -119,6 +119,34 @@ class NovaStreamTierRoundSixTest {
         }
     }
 
+    @Test fun panelCorrectionRecalculatesAutoAfterRestoringTheInheritedPyroWaveCodec() {
+        prefs.edit().putString("video_format", "forcepyrowave").commit()
+        editDisk(mapOf("list_fps" to "240", "seekbar_bitrate_kbps" to 45000,
+            NovaSettingsMigration.CUSTOM_AUTO to true)) { activity,_,_ ->
+            val saved = save(activity)
+            assertEquals("60", saved["list_fps"])
+            // Independent calibrated HAND fixture, not the XML default codec's 20 Mbps.
+            assertEquals(108012.0, (saved["seekbar_bitrate_kbps"] as Number).toDouble(), 0.0)
+            assertEquals(true, saved[NovaSettingsMigration.AUTO])
+            assertEquals(true, saved[NovaSettingsMigration.CUSTOM_AUTO])
+            assertFalse(saved.containsKey("list_resolution"))
+            assertFalse(saved.containsKey("video_format"))
+        }
+    }
+
+    @Test fun panelCorrectionUsesTheInheritedResolutionWithoutSavingItAsAnOverride() {
+        prefs.edit().putString("list_resolution", "1280x720").putString("video_format", "forceh265").commit()
+        editDisk(mapOf("list_fps" to "240", "seekbar_bitrate_kbps" to 45000,
+            NovaSettingsMigration.CUSTOM_AUTO to true)) { activity,_,_ ->
+            val saved = save(activity)
+            assertEquals("60", saved["list_fps"])
+            assertEquals(10000.0, (saved["seekbar_bitrate_kbps"] as Number).toDouble(), 0.0)
+            assertEquals(true, saved[NovaSettingsMigration.CUSTOM_AUTO])
+            assertFalse(saved.containsKey("list_resolution"))
+            assertFalse(saved.containsKey("video_format"))
+        }
+    }
+
     @Test fun classicCodecChangeRetainsManualPinAndAutoFlag() {
         editDisk(mapOf("video_format" to "forceh265","seekbar_bitrate_kbps" to 45000,
             NovaSettingsMigration.CUSTOM_AUTO to false)) { activity,fragment,_ ->
