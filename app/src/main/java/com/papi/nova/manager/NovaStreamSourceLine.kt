@@ -19,13 +19,16 @@ data class NovaStreamSourceLine(val source:NovaStreamSource,val text:String,val 
             fun field(name:String)=fields.optJSONObject(name)
             fun value(name:String)=(field(name)?.opt("value") as? Number)?.toDouble()?.takeIf { it.isFinite() && it>0 }
             val asked=request?.let { listOf(it.width.toDouble(),it.height.toDouble(),it.fps,it.bitrateKbps.toDouble()) }
-            val saved=asked!=null && names.withIndex().any { (i,name) -> field(name)?.optString("source") in setOf("paired_client","device_profile_v1") &&
+            val saved=asked!=null && names.withIndex().any { (i,name) -> field(name)?.optString("source") == "paired_client" &&
                 field(name)?.optString("reason_code") != "stability_preset_selected" && value(name)?.let { abs(it-asked[i])>0.5 }==true }
             val reasons=names.mapNotNull { name -> field(name)?.optString("reason_code")?.takeIf { it.isNotEmpty() } }
             val stability="stability_preset_selected" in reasons
+            val devicePolicy=asked!=null && !stability && names.withIndex().any { (i,name) ->
+                field(name)?.optString("source")=="device_profile_v1" && value(name)?.let { abs(it-asked[i])>0.5 }==true }
             val source=when { saved -> NovaStreamSource.HOST_SAVED_COPY
+                devicePolicy -> NovaStreamSource.HOST_POLICY
                 request!=null -> NovaStreamSource.DEVICE;else -> NovaStreamSource.UNKNOWN }
-            val who=when(source) { NovaStreamSource.HOST_SAVED_COPY -> "Host's saved copy";NovaStreamSource.HOST_POLICY -> "Stability"
+            val who=when(source) { NovaStreamSource.HOST_SAVED_COPY -> "Host's saved copy";NovaStreamSource.HOST_POLICY -> "Host device profile"
                 NovaStreamSource.DEVICE -> request!!.who;else -> "Host stream settings" }
             val limits=mutableListOf<Pair<String,String>>()
             val bitrate=value("target_bitrate_kbps")?.toInt()

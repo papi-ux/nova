@@ -641,7 +641,7 @@ class PreferenceConfiguration {
                         when(effective.videoFormat) {
                             FormatOption.FORCE_PYROWAVE -> NovaCodecChoice.PYROWAVE
                             else -> NovaCodecChoice.AUTO
-                        }).kbps)
+                        }, NovaTierRuntime.snapshot()?.inputs?.distance ?: NovaDistance.HAND).kbps)
             }
             if (bitrateKbps > 0) {
                 editor.putInt(BITRATE_PREF_STRING, bitrateKbps)

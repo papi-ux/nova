@@ -582,11 +582,12 @@ class StreamSettings : NovaActivity() {
 
         private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?) {
             // A saved setup is sparse: inherit untouched fields without pinning them.
-            val base = context?.let { PreferenceManager.getDefaultSharedPreferences(it) }
+            val base = context?.let { PreferenceConfiguration.readPreferences(it,
+                PreferenceManager.getDefaultSharedPreferences(it)) }
             val activeRes = res ?: prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING,
-                base?.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, null)) ?: PreferenceConfiguration.DEFAULT_RESOLUTION
+                base?.let { "${it.width}x${it.height}" }) ?: PreferenceConfiguration.DEFAULT_RESOLUTION
             val activeFps = fps ?: prefs.getString(PreferenceConfiguration.FPS_PREF_STRING,
-                base?.getString(PreferenceConfiguration.FPS_PREF_STRING, null)) ?: PreferenceConfiguration.DEFAULT_FPS
+                base?.fps?.toString()) ?: PreferenceConfiguration.DEFAULT_FPS
             prefs.edit().apply {
                 res?.let { putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, it) }
                 fps?.let { putString(PreferenceConfiguration.FPS_PREF_STRING, it) }

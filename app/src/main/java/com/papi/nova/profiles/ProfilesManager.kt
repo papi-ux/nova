@@ -132,9 +132,10 @@ class ProfilesManager private constructor() {
         profiles[profile.getUuid()]=profile
         notifyListeners()
         val context=appContext ?: return
-        val data=ProfilesData().apply { profiles=ArrayList(this@ProfilesManager.profiles.values);activeProfileId=this@ProfilesManager.activeProfileId }
-        val json=Gson().toJson(data)
-        val revision=persistenceRevision.incrementAndGet()
+        val (json,revision)=synchronized(persistenceLock) {
+            val data=ProfilesData().apply { profiles=ArrayList(this@ProfilesManager.profiles.values);activeProfileId=this@ProfilesManager.activeProfileId }
+            Gson().toJson(data) to persistenceRevision.incrementAndGet()
+        }
         persistenceExecutor.execute {
             synchronized(persistenceLock) {
                 if(revision!=persistenceRevision.get()) return@synchronized

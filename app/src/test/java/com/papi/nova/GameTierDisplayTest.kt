@@ -72,4 +72,64 @@ class GameTierDisplayTest {
             else assertTrue("The valid external-display preflight must be reused",requestedFps.isEmpty())
         }
     }
+    @Test fun pyrowaveLaunchPassesItsBitrateLockToTheApi() {
+        val payload=response()
+        val fields=payload.getJSONObject("resolved_profile").getJSONObject("fields")
+        fields.getJSONObject("target_bitrate_kbps").put("value",150000).put("locked",true)
+        ShadowDisplayManager.setSupportedModes(0,mode(120f))
+        val game=Robolectric.buildActivity(Game::class.java).get()
+        game.prefConfig=PreferenceConfiguration().apply {
+            bitrate=150000;meteredBitrate=10000;videoFormat=PreferenceConfiguration.FormatOption.FORCE_PYROWAVE
+        }
+        ReflectionHelpers.setField(game,"appUUID","fixture-game")
+        val calls=mutableListOf<Array<Any>>()
+        game.novaApiClient=Mockito.mock(PolarisApiClient::class.java) { invocation -> when(invocation.method.name) {
+            "identifyLaunchHost" -> PolarisLaunchHostKind.CURRENT_POLARIS
+            "getOptimization" -> { calls+=invocation.arguments;payload }
+            else -> Mockito.RETURNS_DEFAULTS.answer(invocation)
+        } }
+        val load=Game::class.java.declaredMethods.single { it.name=="loadLaunchOptimization" }.apply { isAccessible=true }
+        val result=load.invoke(game,"Fixture",false,1920,1080,120f,false,false,false,"auto")
+        assertFalse(ReflectionHelpers.getField<Boolean>(result,"policyBlocked"))
+        assertEquals(true,calls.single()[12]);assertEquals(150000,calls.single()[11])
+        val path=PolarisApiClient.buildOptimizationPath("fixture","fixture-game",
+            bitrateKbps=calls.single()[11] as Int,bitrateLocked=calls.single()[12] as Boolean)
+        assertTrue(path.contains("bitrate_locked=1"))
+    }
+
+    @Test fun spaceLaunchAcceptsItsContractDespiteADifferentSavedDisplayButHonorsMeteredBitrate() {
+        val worker=com.papi.nova.manager.WorkerLaunchContract
+        fun field(value:Any)=JSONObject().put("value",value).put("locked",true).put("normalized",false)
+            .put("source","capability_validation").put("reason_code","worker_media_contract")
+        val fields=JSONObject()
+        for((key,value) in mapOf("display_mode" to "1920x1080x60","display_width" to 1920,"display_height" to 1080,
+            "target_fps" to 60,"target_bitrate_kbps" to 8000,"hdr" to false,"preferred_codec" to "h264")) fields.put(key,field(value))
+        val payload=JSONObject().put("status",true).put("source","worker_profile_v1")
+            .put("worker_profile",JSONObject().put("version",1).put("id","fixture-space")
+                .put("app_uuid",worker.APP_UUID).put("app_id",worker.APP_ID).put("codec","h264").put("audio_channels",2))
+            .put("resolved_profile",JSONObject().put("policy_version",1).put("preset","worker").put("fields",fields))
+            .put("topology_resolution",JSONObject().put("resolved","gamescope_stream"))
+        assertTrue(StreamSyncManager.hasTrustedResolvedProfile(payload))
+        ShadowDisplayManager.setSupportedModes(0,mode(120f))
+        for(metered in listOf(false,true)) {
+            val game=Robolectric.buildActivity(Game::class.java).get()
+            game.prefConfig=PreferenceConfiguration().apply { bitrate=30000;meteredBitrate=4000;videoFormat=PreferenceConfiguration.FormatOption.FORCE_PYROWAVE }
+            ReflectionHelpers.setField(game,"appUUID",worker.APP_UUID)
+            ReflectionHelpers.setField(game,"launchOptimizationJson",payload.toString())
+            game.novaApiClient=Mockito.mock(PolarisApiClient::class.java) { invocation -> when(invocation.method.name) {
+                "identifyLaunchHost" -> PolarisLaunchHostKind.CURRENT_POLARIS
+                "getOptimization" -> {
+                    assertEquals(false,invocation.arguments[10])
+                    assertEquals(metered,invocation.arguments[12])
+                    payload
+                }
+                else -> Mockito.RETURNS_DEFAULTS.answer(invocation)
+            } }
+            val load=Game::class.java.declaredMethods.single { it.name=="loadLaunchOptimization" }.apply { isAccessible=true }
+            val result=load.invoke(game,"Fixture",metered,1280,720,60f,true,false,false,"auto")
+            assertEquals("metered=$metered",metered,ReflectionHelpers.getField<Boolean>(result,"policyBlocked"))
+            if(!metered) assertTrue(ReflectionHelpers.getField<Boolean>(result,"resolvedProfileTrusted"))
+        }
+    }
+
 }

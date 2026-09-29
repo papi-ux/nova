@@ -243,7 +243,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             val fourKFps=min(60,input.refreshRates.maxOrNull() ?: 60)
             if(!supports(codecInput,decoderCodec,FOUR_K,fourKFps,input.codec) &&
                 supports(codecInput.copy(capabilities=codecInput.capabilities.copy(failed=emptyList())),decoderCodec,FOUR_K,fourKFps,input.codec))
-                return NovaLimit("decoder_failed","4K: stepped down after this decoder failed")
+                return NovaLimit("decoder_failed","Stepped down after the decoder failed at 4K")
             if(!supports(codecInput,decoderCodec,FOUR_K,fourKFps,input.codec)) {
                 val thirty=supports(codecInput,decoderCodec,FOUR_K,30,input.codec)
                 return NovaLimit("decoder_limit",if(thirty) "4K: this decoder tops out at 30 fps" else
