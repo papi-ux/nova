@@ -75,6 +75,43 @@ class NovaLiveTuningSaveTest {
         assertTrue(timers.isEmpty())
     }
 
+    /**
+     * Review finding 7, the handler half: the save asks for the state the split offered, in both
+     * directions, whatever the status it was confirmed on says. A flip of that status, the old
+     * handler, sends the opposite as soon as the host changed while the split stood armed.
+     */
+    @Test
+    fun itAsksForTheStateTheSplitOfferedInBothDirections() {
+        fun host(on: Boolean) = observed.copy(
+            liveTuning = com.papi.nova.api.LiveTuningStatus(
+                enabled = on,
+                state = if (on) "stable" else "off",
+                supported = true,
+                reason = "supported",
+                qualityLimitKbps = 20000,
+                requestedBitrateKbps = 20000,
+                appliedBitrateKbps = 20000,
+                configurationRevision = "a".repeat(64),
+                hostInstance = "host",
+                sequence = 1,
+                sessionGeneration = 41,
+                appSessionId = "session",
+            ),
+            liveTuningPresent = true,
+        )
+        val save = saver()
+
+        save.request(enable = true, host(on = false))
+        save.request(enable = false, host(on = true))
+        assertEquals("Turn On asks for On, Turn Off for Off", listOf(true, false), sent)
+
+        // Armed at Off, and another device turned it on before the confirm: still On.
+        save.request(enable = true, host(on = true))
+        // Armed at On, and it was turned off meanwhile: still Off.
+        save.request(enable = false, host(on = false))
+        assertEquals(listOf(true, false, true, false), sent)
+    }
+
     @Test
     fun aSecondConfirmWhileASaveIsOnItsWayDoesNothing() {
         val waiting = mutableListOf<suspend () -> Unit>()

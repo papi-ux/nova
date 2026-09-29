@@ -310,6 +310,77 @@ class NovaCommandCenterPagesComposeTest {
         assertEquals("Turn Off asks for Off, whatever the host said since", listOf(false), liveTuningRequests)
     }
 
+    private fun liveTuningShowing(on: Boolean): (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { state ->
+        state.copy(
+            liveTuningAction = NovaQuickMenuAction(
+                id = NovaQuickMenuActionId.LIVE_TUNING,
+                label = "Live Tuning",
+                caption = "Steady.",
+                chip = if (on) NovaQuickMenuChip("On", NovaQuickMenuTone.ACTIVE) else NovaQuickMenuChip("Off", NovaQuickMenuTone.INACTIVE),
+                enabled = true,
+            ),
+            sync = state.sync.copy(chip = NovaQuickMenuChip("Synced", NovaQuickMenuTone.ACTIVE)),
+        )
+    }
+
+    /** A arms Live Tuning's split; the frames let it grow in. */
+    private fun armLiveTuning(keys: NovaTestKeys) {
+        focus("Live Tuning")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+    }
+
+    /** Right, then A once the guard has passed. */
+    private fun confirmArmed(keys: NovaTestKeys) {
+        keys.press(NovaTestKeys.RIGHT)
+        rule.advance(450)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+    }
+
+    /**
+     * Review finding 7, the other direction: every Live Tuning test armed at On. Armed at Off it
+     * offers Turn On and asks for On, and a host that turns it on meanwhile does not turn the
+     * offer, or the ask, around.
+     */
+    @Test
+    fun liveTuningArmedAtOffOffersTurnOnAndAsksForOnWhateverTheHostDoesNext() {
+        val keys = open(adjust = liveTuningShowing(on = false))
+        rule.mainClock.autoAdvance = false
+        armLiveTuning(keys)
+        rule.onNodeWithText("Turn On").assertExists()
+        rule.onNodeWithText("Turn Off").assertDoesNotExist()
+
+        uiState.value = liveTuningShowing(on = true)(uiState.value)
+        rule.frames(4)
+        rule.onNodeWithText("Turn On").assertExists()
+        confirmArmed(keys)
+        assertEquals("Turn On asks for On, whatever the host said since", listOf(true), liveTuningRequests)
+    }
+
+    /**
+     * Review finding 7: the offer is taken from the row each time the split arms, and held while
+     * it stays armed. Held for the whole page instead, a second arm after the host changed at rest
+     * would offer the same switch again.
+     */
+    @Test
+    fun liveTuningOffersFromWhatItShowsEachTimeItArms() {
+        val keys = open(adjust = liveTuningShowing(on = true))
+        rule.mainClock.autoAdvance = false
+        armLiveTuning(keys)
+        rule.onNodeWithText("Turn Off").assertExists()
+        keys.back()
+        rule.frames(16)
+
+        uiState.value = liveTuningShowing(on = false)(uiState.value)
+        rule.frames(4)
+        armLiveTuning(keys)
+        rule.onNodeWithText("Turn On").assertExists()
+        rule.onNodeWithText("Turn Off").assertDoesNotExist()
+        confirmArmed(keys)
+        assertEquals(listOf(true), liveTuningRequests)
+    }
+
     /**
      * In-game #4 with XR2: the panel dims the HUD, so a HUD Mode change could not be seen. While
      * a row that changes the HUD has focus the HUD shows at full strength. Whether the row's
