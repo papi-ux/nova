@@ -141,13 +141,13 @@ class PyroWaveBitrateAdviceTest {
     }
 
     @Test
-    fun uncappedAdviceCanExceedEitherHostsManualLimit() {
+    fun uncappedAdviceDoesNotNagAtTheReachableAutomaticOrInputCeiling() {
         assertEquals(214898, advice(1920,1080,120,true,ownScreen).kbps)
         assertEquals(593890, advice(1920,1080,120,true,acrossTheRoom).kbps)
         for (limit in listOf(300000,500000)) {
             val wanted=advice(1920,1080,120,true,acrossTheRoom)
-            assertFalse(PyroWaveDecoderRenderer.bitrateWarning(limit,1920,1080,120,wanted,limit)!!.tellPlayer)
-            assertTrue(PyroWaveDecoderRenderer.bitrateWarning(limit-1,1920,1080,120,wanted,limit)!!.tellPlayer)
+            assertFalse(PyroWaveDecoderRenderer.bitrateWarning(300000,1920,1080,120,wanted,limit)!!.tellPlayer)
+            assertTrue(PyroWaveDecoderRenderer.bitrateWarning(299999,1920,1080,120,wanted,limit)!!.tellPlayer)
         }
     }
 

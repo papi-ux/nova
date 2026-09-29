@@ -99,6 +99,41 @@ class GameTierDisplayTest {
         }
     }
 
+    @Test fun gameUsesOneFrozenCeilingForItsEnvelopeAndRealOptimizationRequest() {
+        ShadowDisplayManager.setSupportedModes(0,mode(120f))
+        val game=Robolectric.buildActivity(Game::class.java).get()
+        game.prefConfig=PreferenceConfiguration().apply { bitrate=450000;videoFormat=PreferenceConfiguration.FormatOption.FORCE_PYROWAVE }
+        ReflectionHelpers.setField(game,"appUUID","fixture-game")
+        val sent=mutableListOf<Int>()
+        val api=PolarisApiClient(ApplicationProvider.getApplicationContext(),"127.0.0.1",47984)
+        val http=okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+            val request=chain.request()
+            assertTrue(request.url.encodedPath.endsWith("/optimize"))
+            val bitrate=request.url.queryParameter("bitrate_kbps")!!.toInt()
+            sent+=bitrate
+            val payload=response()
+            payload.getJSONObject("resolved_profile").getJSONObject("fields")
+                .getJSONObject("target_bitrate_kbps").put("value",bitrate).put("locked",true)
+            okhttp3.Response.Builder().request(request).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("fixture")
+                .body(okhttp3.ResponseBody.create(null,payload.toString())).build()
+        }.build()
+        ReflectionHelpers.setField(api,"client",http)
+        val spy=Mockito.spy(api)
+        Mockito.doReturn(PolarisLaunchHostKind.CURRENT_POLARIS).`when`(spy).identifyLaunchHost()
+        var reads=0
+        Mockito.doAnswer {
+            reads++
+            if(reads==1) PolarisApiClient.parseCapabilitiesResponse(JSONObject().put("features",
+                JSONObject().put("manual_bitrate_max_kbps",500000))) else null
+        }.`when`(spy).getLaunchCapabilities()
+        game.novaApiClient=spy
+        val result=Game::class.java.declaredMethods.single { it.name=="loadLaunchOptimization" }
+            .apply { isAccessible=true }.invoke(game,"Fixture",false,1920,1080,120f,false,false,false,"auto")
+        assertEquals(listOf(450000),sent)
+        assertEquals(1,reads)
+        assertFalse(ReflectionHelpers.getField<Boolean>(result,"policyBlocked"))
+    }
+
     @Test fun pyrowaveLaunchPassesItsBitrateLockToTheApi() {
         val payload=response()
         val fields=payload.getJSONObject("resolved_profile").getJSONObject("fields")
