@@ -22,6 +22,7 @@ import com.papi.nova.ui.panel.frames
 import com.papi.nova.ui.panel.setPanelContent
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -119,20 +120,72 @@ class NovaCommandCenterSplitRowsComposeTest {
 
     /**
      * Review finding 6: the reopen rule kept End Session and Alt + F4 out, because their A arms a
-     * split, but not Live Tuning or Clear Game Profile, which split as well.
+     * split, but not Live Tuning or Clear Game Profile, which split as well. Each split takes focus
+     * first, checked, so a focus request that went nowhere cannot pass on the Close the previous
+     * opening left focused; an armed pair counts as its split.
      */
     @Test
-    fun noSplitRowIsWhereTheCommandCenterReopens() {
+    fun noSplitIsWhereTheCommandCenterReopens() {
         val place = NovaQuickMenuPlace()
-        open(place = place, adjust = liveTuning(on = true))
-        listOf("Live Tuning", "Clear Game Profile").forEach { row ->
-            focus(row)
+        val keys = open(place = place, adjust = liveTuning(on = true))
+        val altF4 = rule.activity.getString(com.papi.nova.R.string.game_menu_send_keys_alt_f4)
+        fun reopensOnClose() {
             panel.close()
             rule.frames(16)
             panel.open(CommandCenterPage.Root("Command Center"))
             rule.waitForIdle()
             rule.frames(4)
             rule.onNodeWithText("Close").assertIsFocused()
+        }
+        listOf("Live Tuning", "Clear Game Profile", "End Session", altF4).forEach { split ->
+            focus(split)
+            rule.onNodeWithText(split).assertIsFocused()
+            reopensOnClose()
+        }
+        focus("Live Tuning")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        rule.onNodeWithText("Stay").assertIsFocused()
+        reopensOnClose()
+    }
+
+    /**
+     * Review finding 6, for splits still to come: every split on the root passes reopenHere =
+     * false, in its own arguments or, where it takes its caller's modifier, in every call that
+     * hands it one. A new split without it fails here, before an opening can start one A from it.
+     */
+    @Test
+    fun everyRootSplitPassesReopenHereFalse() {
+        val content = java.io.File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
+        fun argumentsAt(open: Int): String {
+            var depth = 0
+            for (i in open until content.length) {
+                when (content[i]) {
+                    '(' -> depth++
+                    ')' -> if (--depth == 0) return content.substring(open + 1, i)
+                }
+            }
+            error("unbalanced call at $open")
+        }
+        // Where each call of [name] opens its arguments, leaving out its declaration.
+        fun callsOf(name: String) = Regex("""(?<![A-Za-z.])$name\(""").findAll(content)
+            .filter { !content.substring(0, it.range.first).endsWith("fun ") }
+            .map { it.range.last }.toList()
+        val splits = callsOf("NovaSplitConfirm")
+        assertTrue("End Session, Alt + F4, Clear Game Profile and Live Tuning at least", splits.size >= 4)
+        splits.forEach { open ->
+            val modifier = Regex("""(?m)^\s*modifier = (.+),$""").find(argumentsAt(open))?.groupValues?.get(1)
+                ?: error("a root split at $open names no modifier")
+            if (modifier.trim() == "modifier") {
+                val holder = Regex("""fun (?:[A-Za-z]+\.)?([A-Za-z]+)\(""").findAll(content.substring(0, open)).last().groupValues[1]
+                val handing = callsOf(holder)
+                assertTrue("$holder is handed its modifier somewhere", handing.isNotEmpty())
+                handing.forEach { call ->
+                    assertTrue("every call of $holder hands it reopenHere = false", argumentsAt(call).contains("reopenHere = false"))
+                }
+            } else {
+                assertTrue("the split at $open passes reopenHere = false: $modifier", modifier.contains("reopenHere = false"))
+            }
         }
     }
 
