@@ -30,6 +30,7 @@ class NovaStreamTierReviewRegressionTest {
         ShadowMediaCodecList.reset()
         NovaTierRuntime.installForTest(null)
     }
+    @org.junit.After fun clean() { NovaTierRuntime.installForTest(null);ProfilesManager.instance=null }
     private fun input(failed: List<NovaFailedDecodePoint> = emptyList()): NovaTierInputs {
         val points=listOf(NovaDecodePoint(NovaSize(1280,720),120),NovaDecodePoint(NovaSize(1920,1080),120),
             NovaDecodePoint(NovaSize(2560,1440),120),NovaDecodePoint(NovaSize(3840,2160),60))
@@ -103,7 +104,7 @@ class NovaStreamTierReviewRegressionTest {
         assertFalse(audio.getOptions()!!.containsKey(NovaSettingsMigration.TIER))
     }
     @Test fun futureSchemaIsNeverRewritten() {
-        val old=mapOf(NovaSettingsMigration.SCHEMA to 3,NovaSettingsMigration.TIER to "recommended")
+        val old=mapOf(NovaSettingsMigration.SCHEMA to 4,NovaSettingsMigration.TIER to "recommended")
         assertEquals(old,NovaSettingsMigration.migrate(old))
     }
     @Test fun smallerUnprobedSizeIsCoveredByLargerPoint() {

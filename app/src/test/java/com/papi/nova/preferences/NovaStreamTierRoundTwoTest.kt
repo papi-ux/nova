@@ -33,6 +33,7 @@ class NovaStreamTierRoundTwoTest {
     private val context:Context=ApplicationProvider.getApplicationContext()
     private val prefs get()=PreferenceManager.getDefaultSharedPreferences(context)
     @Before fun reset() { prefs.edit().clear().commit();ProfilesManager.instance=null;NovaTierRuntime.installForTest(null) }
+    @org.junit.After fun clean() { NovaTierRuntime.installForTest(null);ProfilesManager.instance=null }
     private fun mode(id:Int,w:Int,h:Int,hz:Float):Display.Mode = ReflectionHelpers.callStaticMethod(
         ShadowDisplayManager::class.java,"displayModeOf",from(Int::class.javaPrimitiveType,id),
         from(Int::class.javaPrimitiveType,w),from(Int::class.javaPrimitiveType,h),from(Float::class.javaPrimitiveType,hz))

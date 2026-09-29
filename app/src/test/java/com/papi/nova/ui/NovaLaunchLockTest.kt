@@ -14,6 +14,7 @@ class NovaLaunchLockTest {
     @Test fun gameUsesStreamWindowAndSharedSessionLockDecision() {
         val game=File("src/main/java/com/papi/nova/Game.kt").readText()
         assertEquals(3,Regex("getMaxSupportedRefreshRate\\(streamingDisplay\\)").findAll(game).count())
+        assertEquals(2,Regex("sessionModeLocked\\(watchOnlyRequested, resumeExistingRequested,").findAll(game).count())
         assertFalse(game.contains("displayLocked = watchStreamWidth > 0 && watchStreamHeight > 0"))
     }
 
