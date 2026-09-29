@@ -76,6 +76,7 @@ import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaFormFactor
 import com.papi.nova.ui.compose.NovaMenuBackdropBlur
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.overStream
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -184,23 +185,29 @@ fun NovaPanelFrame(
             )
         }
         val tvSafe = LocalNovaFormFactor.current == NovaFormFactor.Television
-        if (NovaPanelMetrics.usesSheet(maxWidth, maxHeight)) {
-            NovaPanelSheet(
-                maxHeight = maxHeight * NovaPanelMetrics.SheetMaxHeightFraction,
-                progress = { progress.value },
-                drag = drag,
-                tvSafe = tvSafe,
-                content = { NovaPanelDensityHost(content) },
-            )
-        } else {
-            NovaEdgePanel(
-                edge = edge,
-                width = NovaPanelMetrics.panelWidth(width, maxWidth, density),
-                progress = { progress.value },
-                drag = drag,
-                tvSafe = tvSafe,
-                content = { NovaPanelDensityHost(content) },
-            )
+        // Over the stream nothing blurs what is behind the panel, so its fill keeps a floor the
+        // game's own text cannot read through; the scrim beside it still follows menu opacity.
+        val surfaces = LocalNovaLibrarySurfaces.current
+        val panelSurfaces = remember(surfaces, scrim) { if (scrim == NovaScrim.Stream) surfaces.overStream() else surfaces }
+        CompositionLocalProvider(LocalNovaLibrarySurfaces provides panelSurfaces) {
+            if (NovaPanelMetrics.usesSheet(maxWidth, maxHeight)) {
+                NovaPanelSheet(
+                    maxHeight = maxHeight * NovaPanelMetrics.SheetMaxHeightFraction,
+                    progress = { progress.value },
+                    drag = drag,
+                    tvSafe = tvSafe,
+                    content = { NovaPanelDensityHost(content) },
+                )
+            } else {
+                NovaEdgePanel(
+                    edge = edge,
+                    width = NovaPanelMetrics.panelWidth(width, maxWidth, density),
+                    progress = { progress.value },
+                    drag = drag,
+                    tvSafe = tvSafe,
+                    content = { NovaPanelDensityHost(content) },
+                )
+            }
         }
     }
 }

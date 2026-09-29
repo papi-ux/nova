@@ -1096,7 +1096,7 @@
     <string name="nova_quick_menu_hud_mode_performance">Performance</string>
     <string name="nova_quick_menu_hud_mode_debug">Debug</string>
     <string name="nova_quick_menu_menu_opacity">Menu Opacity</string>
-    <string name="nova_quick_menu_menu_opacity_caption">How much of the screen shows through Nova\'s menus.</string>
+    <string name="nova_quick_menu_menu_opacity_caption">How much of the screen shows through Nova\'s menus. Over a stream this panel stays solid.</string>
     <string name="nova_quick_menu_hud_opacity">HUD Opacity</string>
     <string name="nova_quick_menu_hud_opacity_caption">How much of the game shows behind the HUD\'s numbers.</string>
     <string name="nova_quick_menu_hud_opacity_disabled_caption">Enable Nova HUD first to change glass opacity.</string>

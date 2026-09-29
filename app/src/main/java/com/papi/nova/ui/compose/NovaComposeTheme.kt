@@ -176,6 +176,18 @@ val LocalNovaMenuOpacityScale = staticCompositionLocalOf { 1f }
 /** The least a panel's fill may be where nothing blurs what is behind it. */
 const val NO_BLUR_MIN_PANEL_ALPHA = 0.9f
 
+/**
+ * The least a panel's fill may be over the stream. Nothing blurs a stream's video surface, and at
+ * 90% menu opacity the game's own text read through the Command Center's rows: Control's "Press
+ * RETURN to Start" lined up with the Menu Opacity value as "Press 90% to Start" (in-game #12). At
+ * this fill the brightest game text behind the panel differs from black by under 2 of 255 levels.
+ */
+const val STREAM_MIN_PANEL_ALPHA = 0.99f
+
+/** These surfaces for a panel over the stream, whose fill is at least [STREAM_MIN_PANEL_ALPHA]. */
+fun NovaLibrarySurfaces.overStream(): NovaLibrarySurfaces =
+    copy(panel = panel.copy(alpha = maxOf(panel.alpha, STREAM_MIN_PANEL_ALPHA)))
+
 fun NovaComposeColors.librarySurfaces(
     theme: String,
     menuOpacityScale: Float = 1f,
