@@ -172,11 +172,11 @@ class NovaHudUiStateTest {
 
         // 13 ms is fine inside a 60 fps frame and a dropped frame at 120.
         assertEquals("13ms", debug(13.0, 60.0).decodeTimeLabel)
-        assertEquals(NovaHudTone.WARNING, debug(13.0, 60.0).decodeTone)
+        assertEquals(NovaHudTone.STABLE, debug(13.0, 60.0).decodeTone)
         assertEquals(NovaHudTone.DANGER, debug(13.0, 120.0).decodeTone)
         // With no target yet the budget is 60 fps.
-        assertEquals(NovaHudTone.WARNING, debug(9.0, 0.0).decodeTone)
-        assertEquals(NovaHudTone.STABLE, debug(4.0, 0.0).decodeTone)
+        assertEquals(NovaHudTone.MUTED, debug(9.0, 0.0).decodeTone)
+        assertEquals(NovaHudTone.MUTED, debug(4.0, 0.0).decodeTone)
     }
 
     @Test
@@ -539,8 +539,8 @@ class NovaHudUiStateTest {
         assertEquals(
             listOf(
                 NovaHudLayerHealth("HOST", NovaHudTone.WARNING),
-                NovaHudLayerHealth("NET", NovaHudTone.STABLE),
-                NovaHudLayerHealth("CLIENT", NovaHudTone.STABLE)
+                NovaHudLayerHealth("NET", NovaHudTone.MUTED),
+                NovaHudLayerHealth("CLIENT", NovaHudTone.MUTED)
             ),
             state.layerHealth
         )
@@ -573,9 +573,9 @@ class NovaHudUiStateTest {
         assertEquals(NovaHudTone.STABLE, state.healthReasonTone)
         assertEquals(
             listOf(
-                NovaHudLayerHealth("HOST", NovaHudTone.STABLE),
-                NovaHudLayerHealth("NET", NovaHudTone.STABLE),
-                NovaHudLayerHealth("CLIENT", NovaHudTone.STABLE)
+                NovaHudLayerHealth("HOST", NovaHudTone.MUTED),
+                NovaHudLayerHealth("NET", NovaHudTone.MUTED),
+                NovaHudLayerHealth("CLIENT", NovaHudTone.MUTED)
             ),
             state.layerHealth
         )
@@ -620,7 +620,7 @@ class NovaHudUiStateTest {
             decodeTimeMs = decodeMs,
         ).layerHealth.single { it.label == "CLIENT" }.tone
         assertEquals(NovaHudTone.DANGER, client(15.0))
-        assertEquals(NovaHudTone.WARNING, client(6.0))
+        assertEquals(NovaHudTone.STABLE, client(6.0))
         assertEquals(NovaHudTone.STABLE, client(2.0))
     }
 
@@ -652,9 +652,9 @@ class NovaHudUiStateTest {
             sparklineSamples = listOf(30f)
         )
 
-        assertEquals("Stable", state.healthReasonLabel)
-        assertEquals(NovaHudTone.STABLE, state.healthReasonTone)
-        assertEquals(NovaHudTone.STABLE, state.fpsTone)
+        assertEquals("Below target", state.healthReasonLabel)
+        assertEquals(NovaHudTone.INFO, state.healthReasonTone)
+        assertEquals(NovaHudTone.INFO, state.fpsTone)
     }
 
     @Test
@@ -722,9 +722,9 @@ class NovaHudUiStateTest {
         assertEquals("Needs attention", status.healthToneLabel)
         assertEquals("Needs attention", state.healthReasonLabel)
         assertEquals(NovaHudTone.WARNING, state.healthReasonTone)
-        assertEquals(NovaHudTone.STABLE, state.layerHealth[0].tone)
+        assertEquals(NovaHudTone.MUTED, state.layerHealth[0].tone)
         assertEquals(NovaHudTone.WARNING, state.layerHealth[1].tone)
-        assertEquals(NovaHudTone.STABLE, state.layerHealth[2].tone)
+        assertEquals(NovaHudTone.MUTED, state.layerHealth[2].tone)
     }
 
     @Test
@@ -813,7 +813,7 @@ class NovaHudUiStateTest {
         assertEquals("Network recheck", state.healthReasonLabel)
         assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
         assertEquals(NovaHudTone.STABLE, state.latencyTone)
-        assertEquals(NovaHudTone.STABLE, state.layerHealth[1].tone)
+        assertEquals(NovaHudTone.MUTED, state.layerHealth[1].tone)
     }
 
     @Test
@@ -896,7 +896,7 @@ class NovaHudUiStateTest {
         assertEquals("Link retries", status.healthToneLabel)
         assertEquals("Link retries", state.healthReasonLabel)
         assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
-        assertEquals(NovaHudTone.STABLE, state.layerHealth[1].tone)
+        assertEquals(NovaHudTone.MUTED, state.layerHealth[1].tone)
     }
 
     @Test
@@ -1067,7 +1067,7 @@ class NovaHudUiStateTest {
         assertEquals("Link retries", state.healthReasonLabel)
         assertEquals(NovaHudTone.MUTED, state.healthReasonTone)
         assertTrue(state.streamModeLabel.contains("SHM/CPU capture"))
-        assertEquals(NovaHudLayerHealth("HOST", NovaHudTone.STABLE), state.layerHealth.first())
+        assertEquals(NovaHudLayerHealth("HOST", NovaHudTone.MUTED), state.layerHealth.first())
     }
 
     @Test
@@ -1124,10 +1124,10 @@ class NovaHudUiStateTest {
         assertEquals("none", staleNetwork.effectivePrimaryIssue)
         assertFalse(staleNetwork.hasHealthConcerns)
         assertEquals("Stable", networkState.healthReasonLabel)
-        assertEquals(NovaHudTone.STABLE, networkState.layerHealth[1].tone)
-        assertEquals("Stable", pacingState.healthReasonLabel)
-        assertEquals(NovaHudTone.STABLE, pacingState.fpsTone)
-        assertEquals(NovaHudTone.STABLE, pacingState.layerHealth[0].tone)
+        assertEquals(NovaHudTone.MUTED, networkState.layerHealth[1].tone)
+        assertEquals("Below target", pacingState.healthReasonLabel)
+        assertEquals(NovaHudTone.INFO, pacingState.fpsTone)
+        assertEquals(NovaHudTone.MUTED, pacingState.layerHealth[0].tone)
     }
 
     @Test
@@ -1233,7 +1233,7 @@ class NovaHudUiStateTest {
 
         assertEquals("Stream 120 • VAAPI + SHM fallback", state.streamTruthLabel)
         assertEquals(NovaHudLayerHealth("VAAPI + SHM fallback", NovaHudTone.WARNING), state.layerHealth.first())
-        assertTrue(state.layerHealth.any { it.label == "CLIENT" && it.tone == NovaHudTone.STABLE })
+        assertTrue(state.layerHealth.any { it.label == "CLIENT" && it.tone == NovaHudTone.MUTED })
     }
 
     @Test
@@ -1343,7 +1343,7 @@ class NovaHudUiStateTest {
         )
 
         assertTrue(source.contains("fun updateFromPerfSample(sample: PerfOverlaySample)"))
-        assertTrue(source.contains("updateFps(sample.fps)"))
+        assertTrue(source.contains("updateFps(sample.renderedFps)"))
         assertTrue(source.contains("sessionStats.recordRawMediaEvidence(sample)"))
         assertTrue(source.contains("lastDecodeTimeMs = sample.decodeTimeMs"))
         // The text path is gone on purpose. It made the decoder build the legacy overlay

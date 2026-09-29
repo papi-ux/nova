@@ -514,14 +514,8 @@ class PyroWaveDecoderRenderer(
                 rttMs = (rttInfo shr 32).toInt(),
                 rttVarianceMs = rttInfo.toInt(),
                 decodeTimeMs = decodeMs,
-                // What the network lost, which is what this field is read as: the HUD prints it as
-                // packet loss and turns red on it.
-                //
-                // It used to be the frames this renderer was handed and could not draw, with a comment
-                // saying those are not network loss. They are not, and putting them here blamed the
-                // network for a fault on this device, which is the one place a player cannot fix it.
-                // They are still visible: drawn frames and received frames are both reported above, a
-                // gap between them is a refusal, and every refusal is logged.
+                // Sequence gaps count missing VIDEO FRAMES, not lost transport packets.
+                // Keep the existing feedback field/contract; the HUD names the observation.
                 packetLossPct = if (windowFrames + windowMissing > 0) {
                     windowMissing.toDouble() / (windowFrames + windowMissing).toDouble() * 100.0
                 }

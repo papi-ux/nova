@@ -8,7 +8,7 @@ internal object NovaHudSessionSummaryLog {
         "observational",
         "avg_fps",
         "target_fps",
-        "low_1_percent_fps",
+        "window_min_sampled_fps",
         "min_fps",
         "frame_pacing_bad_pct",
         "avg_latency_ms",
@@ -50,7 +50,7 @@ internal object NovaHudDiagnosticReport {
         lines += "Nova stream evidence"
         lines += "Observed: ${formatFps(summary["avg_fps"])} / target ${formatFps(summary["target_fps"])}"
         lines += "Video: ${formatBitrate(summary["avg_bitrate_kbps"])} / ${safeString(summary["codec"], "unknown codec")}"
-        lines += "Network: ${formatMs(summary["avg_latency_ms"])} RTT / ${formatPercent(summary["packet_loss_pct"])} loss"
+        lines += "Network: ${formatMs(summary["avg_latency_ms"])} RTT / ${formatPercent(summary["packet_loss_pct"])} frames missing"
         lines += "Counters: ${safeString(summary["frames_received"], "--")} received / " +
             "${safeString(summary["frames_rendered"], "--")} rendered / ${safeString(summary["frames_lost"], "--")} lost"
         lines += "Observational only: no launch setting or action is derived by Nova"
