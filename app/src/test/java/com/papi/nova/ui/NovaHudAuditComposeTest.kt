@@ -32,7 +32,7 @@ class NovaHudAuditComposeTest {
         rule.onNodeWithText("1% LOW").assertDoesNotExist()
     }
     @Test fun missingFramesAreNamedAndKeptWithDelivery() {
-        draw(); rule.onNodeWithText("FRAME LOSS").assertIsDisplayed()
+        draw(); rule.onNodeWithText("FRAME LOSS\nLAST 1s").assertIsDisplayed()
         rule.onNodeWithText("DROPS").assertDoesNotExist()
     }
     @Test fun metricsExposeLabelValueAndUnitTogether() {

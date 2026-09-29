@@ -186,7 +186,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 HudLayerColumn(net?.label ?: "NET", net?.tone ?: NovaHudTone.MUTED, Modifier.width(columnWidth)) {
                     HudFact("RTT", state.latencyLabel, state.latencyTone)
                     HudFact("JITTER", state.jitterLabel)
-                    HudFact("FRAME LOSS", state.packetLossLabel, state.packetLossTone)
+                    HudFact("FRAME LOSS\nLAST 1s", state.packetLossLabel, state.packetLossTone)
                     HudFact("MISSING", state.framesLostLabel)
                     HudFact("IN", state.incomingFpsLabel)
                 }
@@ -685,7 +685,7 @@ internal fun hudMetricDescription(label: String, value: String): String {
         "IN" -> "Received frame rate"
         "OUT" -> "Rendered frame rate"
         "WINDOW MIN" -> "Minimum of the last 60 FPS samples"
-        "FRAME LOSS" -> "Video frames missing in the current window"
+        "FRAME LOSS\nLAST 1s" -> "Video frames missing in the latest sample window, about one second"
         "MISSING" -> "Video frames missing this session"
         "RENDER GAP" -> "Receive minus render rate, including intentional pacing"
         "BIT" -> "Bitrate"
