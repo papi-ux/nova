@@ -364,7 +364,7 @@
     <string name="summary_custom_refresh_rate">Entrez le taux de rafraîchissement manuellement. Seulement pris en charge par Apollo.</string>
     <string name="dialog_custom_refresh_rate">Entrez le taux de rafraîchissement en Hz. Peut être fractionnaire.</string>
     <string name="title_touchscreen_mode">Mode de l\'écran tactile</string>
-    <string name="summary_touchscreen_mode">Choisissez entre les modes MultiTouch/SingleTouch/Trackpad/Désactivé.\nLe stylet/stylo sont toujours utilisables lorsque le mode Désactivé est sélectionné.\nForcé en mode Track Pad(Natural) lors de l\'utilisation d\'un affichage externe.</string>
+    <string name="summary_touchscreen_mode">Choisissez entre les modes MultiTouch/SingleTouch/Trackpad/Désactivé.\nLe stylet/stylo sont toujours utilisables lorsque le mode Désactivé est sélectionné.\nForcé en mode Track pad (Natural) lors de l\'utilisation d\'un affichage externe.</string>
 
     <!-- New Strings -->
     <string name="title_checkbox_mouse_local_cursor">Utiliser le curseur local de la souris</string>

@@ -1210,7 +1210,7 @@
     <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
     <string name="pref_refresh_rate_exceeds_display_cap">This display supports up to %1$d Hz</string>
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
-    <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
+    <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track pad (Natural) mode when using an external display.</string>
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
     <string name="title_checkbox_multi_touch_gestures">Enable multi-touch gestures</string>

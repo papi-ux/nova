@@ -471,7 +471,7 @@ data class NovaQuickMenuUiState(
             return NovaQuickMenuUiState(
                 liveTuningAction = NovaQuickMenuAction(
                     NovaQuickMenuActionId.LIVE_TUNING, "Live Tuning",
-                    caption = if (liveTuningPending) "Saving…" else if (hostStateUnavailable) "Reconnecting — state not confirmed" else
+                    caption = if (liveTuningPending) "Saving…" else if (hostStateUnavailable) "Reconnecting, state not confirmed" else
                         if (fixedForSpace) "${autoQuality.detail}." else "${autoQuality.label}. Host setting. ${autoQuality.detail}",
                     chip = NovaQuickMenuChip(if (hostStateUnavailable || status == null) "Unknown" else if (fixedForSpace) "Fixed" else if (status.liveTuningPresent && status.liveTuning == null) "Unknown" else if (autoQuality.enabled) "On" else "Off", if (autoQuality.enabled) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE),
                     // The row stays enabled while a save is pending: the caption already says
