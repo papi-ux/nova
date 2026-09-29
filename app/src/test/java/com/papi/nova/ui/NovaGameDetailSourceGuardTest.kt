@@ -510,9 +510,10 @@ class NovaGameDetailSourceGuardTest {
         val detail = readNovaGameDetail()
         val gauge = detail.section("private fun NovaGameDetailBeatGauge(", "/**\n * Whether two titles are the same game")
         assertTrue(
-            "the estimate chip sits right of Launch, so the default search sent Down to Play Setup " +
-                "and Up came back; Down must name the next control",
-            gauge.contains("down = if (showCorrection) correctionFocus else exitDown") &&
+            "the estimate chip sat right of Launch, so the default search sent Down to Play Setup and Up " +
+                "came back, and the first Right from Launch found it and left Nova for the browser (M5). It " +
+                "is no stop on the D-pad now, and the one stop in the gauge, the correction, names Down",
+            gauge.contains(".focusProperties { canFocus = false }") &&
                 gauge.contains(".focusProperties { down = exitDown }"),
         )
         assertFalse(

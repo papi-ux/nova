@@ -38,6 +38,20 @@ class NovaLaunchProfileSummaryTest {
     }
 
     @Test
+    fun anAutoPresetLaunchSaysTheRateNotLaunchAuto() {
+        // N22: "Launch Auto · 120 FPS" read as launching something called Auto.
+        fun blob(preset: String) = JSONObject("""{
+            "source":"deterministic_preset_v1",
+            "resolved_profile":{"policy_version":1,"preset":"$preset","fields":{
+                "display_mode":{"value":"1920x1080x120"},"target_fps":{"value":120}
+            }}
+        }""")
+        assertEquals("Launch at 120 FPS", buildNovaLaunchProfileSummary(blob("auto"))!!.primaryLaunchLabel)
+        assertEquals("a preset a player chose keeps its name", true,
+            buildNovaLaunchProfileSummary(blob("quality"))!!.primaryLaunchLabel.let { it.startsWith("Launch ") && it.endsWith(" · 120 FPS") && !it.startsWith("Launch at") })
+    }
+
+    @Test
     fun highFpsRecoverySummaryNamesEffectiveLaunchAndRetry() {
         val summary = buildNovaLaunchProfileSummary(
             JSONObject(

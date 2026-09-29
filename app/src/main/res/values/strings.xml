@@ -397,6 +397,8 @@
     <string name="nova_play_setup_frame_rate">Frame Rate</string>
     <string name="nova_play_setup_frame_rate_caption">Auto follows the launch target</string>
     <string name="nova_play_setup_frame_rate_auto">Auto</string>
+    <!-- What a tap on the How Long To Beat estimates does, read by TalkBack. -->
+    <string name="nova_game_detail_beat_opens_browser">Open How Long To Beat in the browser</string>
     <!-- The Frame Rate row's value at rest while Auto is chosen: Auto, then the rate it comes to. -->
     <string name="nova_play_setup_frame_rate_auto_value">Auto · %d FPS</string>
     <string name="nova_play_setup_frame_rate_auto_consequence">Keeps the host-resolved or Settings frame rate</string>

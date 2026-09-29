@@ -67,7 +67,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -529,10 +531,14 @@ private fun NovaGameDetailStatusLine(
 
     // The lamp belongs to the first line, not to the middle of however many there are.
     val lampDrop = with(LocalDensity.current) { (NOVA_GAME_DETAIL_STATUS_LINE.toDp() - NOVA_GAME_DETAIL_LAMP) / 2 }
+    val style = NovaChromeType.label(fontSize = 11.sp).copy(fontFeatureSettings = "tnum")
+    val measurer = rememberTextMeasurer()
     Row(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(9.dp),
-        modifier = modifier.testTag("nova-game-detail-status"),
+        // The line keeps to the column the title and the gauge stand in: at full width it ran on
+        // across the key art (N22).
+        modifier = modifier.widthIn(max = NOVA_GAME_DETAIL_STATUS_MAX).testTag("nova-game-detail-status"),
     ) {
         Box(
             modifier = Modifier
@@ -545,8 +551,22 @@ private fun NovaGameDetailStatusLine(
         // what limited the launch. A Host Virtual launch on a 16:9 handheld already ran past
         // the edge. It takes the lines it needs, breaking only at a dot, and past that the
         // rest shows while Launch holds the cursor.
+        BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
+        val widthPx = constraints.maxWidth
+        val line = novaInstrumentCase(novaGameDetailStatusText(uiState, summary))
+        // Whole parts to a line, and a line never ends in a dot (N22).
+        val packed = remember(line, widthPx, style) {
+            novaPackAtDots(novaDottedParts(line), NOVA_GAME_DETAIL_STATUS_SEPARATOR) { candidate ->
+                measurer.measure(
+                    candidate,
+                    style.merge(TextStyle(fontSize = 11.sp, lineHeight = NOVA_GAME_DETAIL_STATUS_LINE)),
+                    // One unwrapped line: its width is what the candidate needs.
+                    softWrap = false,
+                ).size.width <= widthPx
+            }
+        }
         NovaRevealingText(
-            text = novaBreakAtDots(novaInstrumentCase(novaGameDetailStatusText(uiState, summary))),
+            text = packed,
             highlighted = revealing,
             // Launch holds the cursor from the moment the page opens and may hold it for as
             // long as the page is left open, so the line plays twice and rests. Coming back
@@ -558,8 +578,9 @@ private fun NovaGameDetailStatusLine(
             lineHeight = NOVA_GAME_DETAIL_STATUS_LINE,
             // Measurements, so the digits line up rather than dance. Space Grotesk's
             // digits are proportional by default, so this is load-bearing here.
-            style = NovaChromeType.label(fontSize = 11.sp).copy(fontFeatureSettings = "tnum"),
+            style = style,
         )
+        }
     }
 }
 
@@ -857,6 +878,7 @@ private fun NovaGameDetailBeatGauge(
     // proportional, and these change while you watch them.
     val figures = NovaChromeType.label(fontSize = 10.sp).copy(fontFeatureSettings = "tnum")
     var estimateFocused by remember { mutableStateOf(false) }
+    val opensBrowser = stringResource(R.string.nova_game_detail_beat_opens_browser)
 
     // The hairline's width until the figures need more. Fixed at 330dp, a large font scale
     // pushed the estimates off the end of the row with nothing to say they were gone, and the
@@ -921,17 +943,14 @@ private fun NovaGameDetailBeatGauge(
                         )
                         .border(1.dp, ring, RoundedCornerShape(NOVA_GAUGE_CHIP_RADIUS))
                         .then(
-                            // A page makes this a control; without one it is a readout and
-                            // has no business in the focus lane.
+                            // A page makes this a link for a finger; without one it is a readout.
+                            // It is never a stop on the D-pad: the first Right from Launch found it
+                            // and A left Nova for the browser (M5). The ↗ says it leaves Nova.
                             if (linked) {
-                                // The chip sits at the right end of the gauge, so the default
-                                // search sent Down to whatever was under it, Play Setup in
-                                // landscape, and Up from there came straight back: Launch was
-                                // unreachable with a D-pad. Down goes where the eye reads next.
                                 Modifier
-                                    .focusProperties { down = if (showCorrection) correctionFocus else exitDown }
+                                    .focusProperties { canFocus = false }
                                     .onFocusChanged { estimateFocused = it.isFocused || it.hasFocus }
-                                    .clickable(role = Role.Button) { uriHandler.openUri(page) }
+                                    .clickable(role = Role.Button, onClickLabel = opensBrowser) { uriHandler.openUri(page) }
                             } else {
                                 Modifier
                             }
@@ -1269,6 +1288,12 @@ private fun LaunchProfileReviewNotice(
 }
 
 private val NOVA_GAME_DETAIL_STATUS_LINE = 16.sp
+
+/** The status line's widest: the title's column, clear of the key art. */
+private val NOVA_GAME_DETAIL_STATUS_MAX = 440.dp
+
+/** Between the status line's parts on one line, as the identity line above spaces its own. */
+private const val NOVA_GAME_DETAIL_STATUS_SEPARATOR = "  ·  "
 private val NOVA_GAME_DETAIL_LAMP = 7.dp
 private val NOVA_GAME_DETAIL_TITLE_MAX = 38.sp
 private val NOVA_GAME_DETAIL_TITLE_MIN = 24.sp
@@ -1297,7 +1322,9 @@ private fun novaGameDetailStatusText(
         // desktop, so promising a new screen here was wrong about what pressing Play does.
         summary?.resolvedTopologyLabel?.takeIf { it.isNotBlank() }
             ?: PolarisStreamDisplayMode.labelForMode(uiState.playMode).takeIf { uiState.playUsesVirtualDisplay },
-        summary?.selectedLine,
+        // The numbers themselves: the line is what Launch will do, so "Resolved:" in front of
+        // them added a word and no meaning.
+        summary?.selectedLine?.let(::novaPlaySetupValue),
         // "Resolved: ..." followed by "Resolved for this launch" said the same thing twice.
         summary?.limitingLine?.takeIf { it.isNotBlank() }
             ?: summary?.freshnessLine?.takeIf { summary.selectedLine.isNullOrBlank() },

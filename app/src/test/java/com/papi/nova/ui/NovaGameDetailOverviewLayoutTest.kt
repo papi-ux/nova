@@ -88,7 +88,10 @@ class NovaGameDetailOverviewLayoutTest {
         assertTrue(
             "it was one line ending in an ellipsis, and what it lost is the part that says what limited the launch",
             status.contains("NovaRevealingText(") &&
-                status.contains("text = novaBreakAtDots(novaInstrumentCase(novaGameDetailStatusText(uiState, summary))),") &&
+                // Packed whole parts to a line, so no line ends in a dangling dot (N22).
+                status.contains("val line = novaInstrumentCase(novaGameDetailStatusText(uiState, summary))") &&
+                status.contains("novaPackAtDots(novaDottedParts(line), NOVA_GAME_DETAIL_STATUS_SEPARATOR)") &&
+                status.contains("text = packed,") &&
                 status.contains("maxLines = maxLines,") &&
                 !status.contains("maxLines = 1,")
         )

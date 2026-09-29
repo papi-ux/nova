@@ -321,10 +321,13 @@ private fun buildDeterministicLaunchPresetSummary(
     val profileDescription =
         "Polaris resolved this from the launch request, paired-device settings, and current host capabilities."
     return NovaLaunchProfileSummary(
-        primaryLaunchLabel = if (effectiveFps > 0.0) {
-            "Launch $presetLabel · ${formatFps(effectiveFps)} FPS"
-        } else {
-            "Launch $presetLabel"
+        // Auto names no preset a player chose, and "Launch Auto · 120 FPS" read as launching
+        // something called Auto (N22): it says the rate alone.
+        primaryLaunchLabel = when {
+            preset == "auto" && effectiveFps > 0.0 -> "Launch at ${formatFps(effectiveFps)} FPS"
+            preset == "auto" -> "Launch"
+            effectiveFps > 0.0 -> "Launch $presetLabel · ${formatFps(effectiveFps)} FPS"
+            else -> "Launch $presetLabel"
         },
         requestedLine = "Requested: $presetLabel$asked",
         selectedLine = "Resolved: ${selectedParts.joinToString(" · ").ifBlank { presetLabel }}",
