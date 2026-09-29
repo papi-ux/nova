@@ -79,20 +79,18 @@ class GameLaunchRefusalCopySourceGuardTest {
     // builds its page before the launch is set up (audit X1, follow-up).
     @Test
     fun aSpaceRefusedAtThePolicyGateRetriesThroughTheSpace() {
+        // What the refusal does is GameLaunchPolicyGateSpaceTest's; here, that the gate goes there.
         val gate = game.substringAfter("if (launchDecision.policyBlocked)").substringBefore("return@launchRuntimeIo")
-        val known = gate.indexOf("spaceSession = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(")
-        assertTrue("the gate says whether the launch was a Space", known >= 0)
-        assertTrue("before it builds the page", known < gate.indexOf("showNovaLaunchIssueSheet("))
-        assertTrue(
-            "by the app it asked for, as the stale branch does",
-            gate.contains("isProfileApp(appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())"),
-        )
+        assertTrue("the gate refuses through the function the behaviour test drives", gate.contains("refuseAtLaunchPolicyGate("))
+        assertFalse("and builds no page of its own", gate.contains("showNovaLaunchIssueSheet("))
     }
 
     @Test
     fun aPolicyRefusalIsAStatePageNotAToast() {
         val gate = game.substringAfter("if (launchDecision.policyBlocked)").substringBefore("return@launchRuntimeIo")
-        assertTrue(gate.contains("showNovaLaunchIssueSheet("))
+        val refusal = game.substringAfter("internal fun refuseAtLaunchPolicyGate(").substringBefore("\n}\n")
+        assertTrue(gate.contains("refuseAtLaunchPolicyGate("))
+        assertTrue(refusal.contains("showNovaLaunchIssueSheet(message)"))
         assertFalse(gate.contains("Toast.makeText"))
     }
 }
