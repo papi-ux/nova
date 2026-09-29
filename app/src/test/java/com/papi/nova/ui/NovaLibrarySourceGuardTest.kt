@@ -669,7 +669,7 @@ class NovaLibrarySourceGuardTest {
                 mapper.contains("title = \"Host offline\"") &&
                 mapper.contains("primaryActionLabel = \"Retry\"") &&
                 mapper.contains("title = \"Polaris unavailable\"") &&
-                mapper.contains("primaryActionLabel = \"Manage Server\"")
+                mapper.contains("primaryActionLabel = \"Manage Host\"")
         )
     }
 
@@ -1168,10 +1168,10 @@ class NovaLibrarySourceGuardTest {
                 content.contains("NovaLibraryUiStateMapper::launchFailureRecoveryState")
         )
         assertTrue(
-            "launch recovery copy should offer one Manage server CTA with the raw failure preserved as detail",
+            "launch recovery copy should offer one Manage Host CTA with the raw failure preserved as detail",
             mapper.contains("fun launchFailureRecoveryState(message: String)") &&
                 mapper.contains("title = \"Launch blocked\"") &&
-                mapper.contains("primaryActionLabel = \"Manage Server\"") &&
+                mapper.contains("primaryActionLabel = \"Manage Host\"") &&
                 mapper.contains("detail = message.takeIf { it.isNotBlank() }")
         )
         assertTrue(

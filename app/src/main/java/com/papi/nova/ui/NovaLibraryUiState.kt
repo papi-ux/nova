@@ -919,7 +919,7 @@ object NovaLibraryUiStateMapper {
             return NovaLibraryRecoveryUiState(
                 eyebrow = "Connection",
                 title = "Host offline",
-                message = "Nova cannot reach this host right now. Wake the PC or check the network, then retry.",
+                message = "Nova cannot reach this host right now. Wake the host or check the network, then retry.",
                 primaryActionLabel = "Retry",
                 primaryAction = NovaLibraryRecoveryAction.RETRY,
                 detail = detail
@@ -941,7 +941,7 @@ object NovaLibraryUiStateMapper {
                 eyebrow = "Polaris",
                 title = "Polaris unavailable",
                 message = "The host answered, but the Polaris library API did not. Start or repair Polaris, then return to Nova.",
-                primaryActionLabel = "Manage Server",
+                primaryActionLabel = "Manage Host",
                 primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
                 detail = detail
             )
@@ -962,7 +962,7 @@ object NovaLibraryUiStateMapper {
             eyebrow = "Launch recovery",
             title = "Launch blocked",
             message = "Nova could not start the stream before leaving Library. Review host and library setup, then try again.",
-            primaryActionLabel = "Manage Server",
+            primaryActionLabel = "Manage Host",
             primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
             detail = message.takeIf { it.isNotBlank() }
         )

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Shortcut strings -->
-    <string name="scut_deleted_pc">PC deleted</string>
-    <string name="scut_not_paired">PC not paired</string>
-    <string name="scut_pc_not_found">PC not found</string>
-    <string name="scut_invalid_uuid">Provided PC is not valid</string>
+    <string name="scut_deleted_pc">Host deleted</string>
+    <string name="scut_not_paired">Host not paired</string>
+    <string name="scut_pc_not_found">Host not found</string>
+    <string name="scut_invalid_uuid">Provided host is not valid</string>
     <string name="scut_invalid_app_id">Provided App is not valid</string>
 
     <string name="menu_button">Menu</string>
@@ -16,7 +16,7 @@
     <string name="help_loading_msg">Loading help page…</string>
     <string name="help_load_failed_title">Help Did Not Load</string>
     <string name="help_load_failed_message">Nova could not open this help page. Check that this device is online, then try again.</string>
-    <string name="server_library_label">Server Library</string>
+    <string name="server_library_label">Host Library</string>
     <string name="server_library_search_hint">Search games…</string>
     <string name="badge_streaming">Streaming</string>
     <string name="applist_error_title">Standard app list unavailable</string>
@@ -55,11 +55,11 @@
     <string name="nova_theme_high_contrast_label">High Contrast</string>
     <string name="nova_theme_material_you_label">Material You</string>
     <string name="pcview_quick_library">Open Nova Library</string>
-    <string name="pcview_home_subtitle">Open your game library or set up a server</string>
+    <string name="pcview_home_subtitle">Open your game library or set up a host</string>
     <string name="pcview_browse_label">Browse</string>
     <string name="pcview_rail_collapse">Collapse rail</string>
     <string name="pcview_rail_expand">Expand rail</string>
-    <string name="pcview_mode_servers">Servers</string>
+    <string name="pcview_mode_servers">Hosts</string>
     <string name="pcview_mode_library">Library</string>
     <string name="pcview_dashboard_mode_selector">Dashboard mode selector</string>
     <string name="pcview_dashboard_mode_status_empty">No hosts yet · add or scan to begin</string>
@@ -70,14 +70,14 @@
     <string name="pcview_destination_library_summary">Jump back into the last ready Polaris library</string>
     <string name="pcview_destination_servers_meta_empty">No hosts added yet</string>
     <string name="pcview_destination_servers_meta_format">%1$d online · %2$d total</string>
-    <string name="pcview_destination_library_meta_empty">No paired online server ready</string>
-    <string name="pcview_destination_library_meta_one">1 server ready</string>
-    <string name="pcview_destination_library_meta_many">%1$d servers ready</string>
-    <string name="pcview_tools_label">Setup &amp; Server Management</string>
+    <string name="pcview_destination_library_meta_empty">No paired online host ready</string>
+    <string name="pcview_destination_library_meta_one">1 host ready</string>
+    <string name="pcview_destination_library_meta_many">%1$d hosts ready</string>
+    <string name="pcview_tools_label">Setup &amp; Host Management</string>
     <string name="pcview_tools_hint">Add, pair, wake, or manage a host when Library is not ready.</string>
     <string name="pcview_hosts_label">Hosts</string>
     <string name="pcview_hosts_summary_format">%1$d visible · %2$d total</string>
-    <string name="pcview_quick_add_server">Add Server</string>
+    <string name="pcview_quick_add_server">Add Host</string>
     <string name="pcview_quick_scan_pair">Scan Pair</string>
     <string name="pcview_quick_polaris_sync">Wake Host</string>
     <string name="pcview_quick_start_polaris">Wake Host</string>
@@ -143,16 +143,16 @@
     <string name="pcview_filter_online">Online</string>
     <string name="pcview_filter_streaming">Streaming</string>
     <string name="pcview_filter_needs_pairing">Needs Pairing</string>
-    <string name="pcview_empty_title_searching">Looking for servers</string>
+    <string name="pcview_empty_title_searching">Looking for hosts</string>
     <string name="pcview_empty_hint_searching">Add one manually, scan a pairing code, or keep discovery running.</string>
-    <string name="pcview_empty_title_no_servers">No servers yet</string>
-    <string name="pcview_empty_hint_no_servers">Add a server manually or scan a pairing code to get started.</string>
-    <string name="pcview_empty_title_no_online">No online servers</string>
-    <string name="pcview_empty_hint_no_online">Wake a server or clear the filter to see everything.</string>
+    <string name="pcview_empty_title_no_servers">No hosts yet</string>
+    <string name="pcview_empty_hint_no_servers">Add a host manually or scan a pairing code to get started.</string>
+    <string name="pcview_empty_title_no_online">No online hosts</string>
+    <string name="pcview_empty_hint_no_online">Wake a host or clear the filter to see everything.</string>
     <string name="pcview_empty_title_no_streaming">Nothing is streaming</string>
-    <string name="pcview_empty_hint_no_streaming">Start a session from a server to see it here.</string>
+    <string name="pcview_empty_hint_no_streaming">Start a session from a host to see it here.</string>
     <string name="pcview_empty_title_no_pairing">Nothing needs pairing</string>
-    <string name="pcview_empty_hint_no_pairing">All discovered servers are already paired or offline.</string>
+    <string name="pcview_empty_hint_no_pairing">All discovered hosts are already paired or offline.</string>
     <string name="pcview_card_action_open_apps">Open App List</string>
     <string name="pcview_card_action_open_library">Open Library</string>
     <string name="pcview_card_action_checking_library">Checking</string>
@@ -188,12 +188,12 @@
     <string name="pcview_card_hint_wake">Wake this host or check the network.</string>
     <string name="pcview_card_hint_offline_no_wake">This host is offline and has no wake target saved.</string>
     <string name="pcview_card_hint_refreshing">Refreshing host status.</string>
-    <string name="pcview_library_choose_server">Choose a server for Nova Library</string>
+    <string name="pcview_library_choose_server">Choose a host for Nova Library</string>
     <string name="pcview_library_no_server">No paired host is online, so there is no library to open.</string>
     <string name="pcview_library_checking">Checking Library support…</string>
     <string name="pcview_menu_unpair_pc">Unpair</string>
     <string name="pcview_menu_send_wol">Send Wake-On-LAN request</string>
-    <string name="pcview_menu_delete_pc">Delete PC</string>
+    <string name="pcview_menu_delete_pc">Delete Host</string>
     <string name="pcview_menu_test_network">Test Network Connection</string>
     <string name="pcview_menu_details">View Details</string>
     <string name="pcview_menu_eol">NVIDIA GameStream End-of-Service</string>
@@ -201,7 +201,7 @@
     <string name="pcview_error_no_management_url">Nova does not know this host\'s address, so it cannot open its console.</string>
     <string name="nova_library_title">Library</string>
     <string name="nova_library_server_context">From %1$s</string>
-    <string name="nova_library_server_context_fallback">From your Polaris server</string>
+    <string name="nova_library_server_context_fallback">From your Polaris host</string>
     <string name="nova_library_switch_server">Switch</string>
     <string name="nova_library_manage">Manage</string>
     <string name="nova_library_browse_label">Library</string>
@@ -509,7 +509,7 @@
     <string name="nova_library_error_eyebrow">Recovery</string>
     <string name="nova_library_error_title">Couldn\'t load library</string>
     <string name="nova_library_error_hint">Check Polaris and try again.</string>
-    <string name="nova_library_error_action_manage">Manage server</string>
+    <string name="nova_library_error_action_manage">Manage Host</string>
     <string name="nova_library_card_action_details">Details</string>
     <string name="nova_library_unknown_game">Unknown Game</string>
     <string name="nova_library_meta_last_played">Played %1$s</string>
@@ -573,7 +573,7 @@
     <string name="nova_desktop_steam_message">Polaris detected that this launch may appear on the host\'s physical display. Choose a safe private stream or explicitly mirror the desktop.</string>
     <string name="nova_desktop_steam_private_stream">Private Stream</string>
     <string name="nova_desktop_steam_mirror_desktop">Mirror Desktop</string>
-    <string name="nova_desktop_steam_mirror_caption">Explicitly stream the host desktop. People near the PC may see this session.</string>
+    <string name="nova_desktop_steam_mirror_caption">Explicitly stream the host desktop. People near the host may see this session.</string>
     <string name="nova_desktop_steam_force_private">Close desktop Steam and start private stream</string>
     <string name="nova_desktop_steam_force_private_caption">Nova will ask Polaris to close desktop Steam first, then reopen the game inside the private handheld stream.</string>
     <string name="nova_desktop_steam_cancel">Cancel</string>
@@ -614,7 +614,7 @@
     <string name="nova_polaris_sync_send_nova">Push Nova</string>
     <string name="nova_polaris_sync_use_polaris">Pull Polaris</string>
     <string name="nova_polaris_sync_clear_profile">Clear Profile</string>
-    <string name="nova_polaris_sync_auto_match">Auto Match This Server</string>
+    <string name="nova_polaris_sync_auto_match">Auto Match This Host</string>
     <string name="nova_polaris_sync_ai_auto_quality">Launch preset</string>
     <string name="nova_polaris_sync_nova_profile">Nova</string>
     <string name="nova_polaris_sync_polaris_profile">Polaris</string>
@@ -643,8 +643,8 @@
 
     <!-- Accessibility -->
     <string name="nova_a11y_game_cover">Game cover art</string>
-    <string name="nova_a11y_server_icon">Server icon</string>
-    <string name="nova_a11y_server_status">Server connection status</string>
+    <string name="nova_a11y_server_icon">Host icon</string>
+    <string name="nova_a11y_server_status">Host connection status</string>
 
     <!-- Network test strings -->
     <string name="nettest_title_waiting">Testing Network Connection</string>
@@ -671,10 +671,10 @@
     <string name="nettest_text_blocked">Your device\'s current network connection is blocking Nova. Streaming over the Internet may not work while connected to this network.</string>
 
     <!-- Pair messages -->
-    <string name="pair_pc_confirm_title">Pair PC</string>
-    <string name="pair_pc_confirm_message">Do you really want to pair with %s? Please do not pair with any unfamiliar computers.</string>
-    <string name="pair_pc_offline">Computer is offline</string>
-    <string name="pair_pc_ingame">Computer is currently in a game. You must close the game before pairing.</string>
+    <string name="pair_pc_confirm_title">Pair Host</string>
+    <string name="pair_pc_confirm_message">Do you really want to pair with %s? Do not pair with a host you do not know.</string>
+    <string name="pair_pc_offline">Host is offline</string>
+    <string name="pair_pc_ingame">The host is in a game. Close the game before pairing.</string>
     <string name="pair_pairing_title">Pairing</string>
     <string name="pair_otp_pairing_help">OTP pairing is only available on hosts that support it. If your host uses manual PIN entry, enter the code in the host web UI instead.</string>
     <string name="pair_incorrect_pin">Incorrect PIN or Passphrase</string>
@@ -687,7 +687,7 @@
     <!-- WOL messages -->
     <string name="wol_pc_online">This host is already awake.</string>
     <string name="wol_no_mac">Nova has no MAC address for this host yet, so it cannot wake it. Connect to it once while it is awake.</string>
-    <string name="wol_waking_pc">Waking PC…</string>
+    <string name="wol_waking_pc">Waking the host…</string>
     <string name="wol_waking_msg">Wake request sent. A host can take a few seconds to wake. If it does not, check that Wake on LAN is turned on for it.</string>
     <string name="wol_fail">Nova could not send the wake request.</string>
     <string name="pcview_polaris_starting">Waking the host and waiting for Polaris…</string>
@@ -705,7 +705,7 @@
     <string name="unpair_error">Device was not paired</string>
 
     <!-- Errors -->
-    <string name="error_pc_offline">Computer is offline</string>
+    <string name="error_pc_offline">Host is offline</string>
     <string name="error_manager_not_running">Nova is still starting its host list. Wait a few seconds, then try again.</string>
     <string name="error_unknown_host">Failed to resolve host</string>
     <string name="error_404">The host returned an HTTP 404 error. Make sure it runs a supported GPU. Remote desktop software can also cause this, so try restarting the host.</string>
@@ -723,8 +723,8 @@
     <string name="video_decoder_init_failed">Video decoder failed to initialize. Your device may not support the selected resolution or frame rate.</string>
     <string name="no_video_received_error">No video received from host.</string>
     <string name="no_frame_received_error">Your network connection isn\'t performing well. Reduce your video bitrate setting or try a faster connection.</string>
-    <string name="early_termination_error">Something went wrong on your host PC when starting the stream.\n\nMake sure you don\'t have any DRM-protected content open on your host PC. You can also try restarting your host PC.</string>
-    <string name="frame_conversion_error">The host PC reported a fatal video encoding error.\n\nTry disabling HDR mode, changing the streaming resolution, or changing your host PC\'s display resolution.</string>
+    <string name="early_termination_error">Something went wrong on your host when starting the stream.\n\nMake sure you don\'t have any DRM-protected content open on your host. You can also try restarting your host.</string>
+    <string name="frame_conversion_error">The host reported a fatal video encoding error.\n\nTry disabling HDR mode, changing the streaming resolution, or changing your host\'s display resolution.</string>
     <string name="check_ports_msg">Check your firewall and port forwarding rules for port(s):</string>
 
     <!-- Start application messages -->
@@ -744,11 +744,11 @@
     <string name="nova_launch_issue_dismiss">Back to Nova</string>
 
     <!-- General strings -->
-    <string name="ip_hint">IP address of host PC</string>
-    <string name="searching_pc">Searching for host PCs on your local network…\n\nMake sure your host streaming software is running.</string>
+    <string name="ip_hint">IP address of the host</string>
+    <string name="searching_pc">Searching for hosts on your local network…\n\nMake sure your host streaming software is running.</string>
     <string name="title_details">Details</string>
     <string name="delete_pc_host_unreachable">%1$s could not be reached, so it still lists this device as paired.</string>
-    <string name="delete_pc_host_refused">%1$s would not forget this device. Remove it on that PC.</string>
+    <string name="delete_pc_host_refused">%1$s would not forget this device. Remove it on that host.</string>
     <string name="delete_pc_host_unsupported">%1$s cannot be asked to forget a device, so it still lists this one.</string>
     <string name="slow_connection_msg">Slow connection to PC\nReduce your bitrate</string>
     <string name="poor_connection_msg">Poor connection to PC</string>
@@ -777,7 +777,7 @@
     <string name="toast_no_logs">There is no performance data stored yet.</string>
 
     <!-- AppList activity -->
-    <string name="applist_connect_msg">Connecting to PC…</string>
+    <string name="applist_connect_msg">Connecting to the host…</string>
     <string name="applist_menu_resume">Resume Stream</string>
     <string name="applist_menu_watch">Watch Stream</string>
     <string name="applist_menu_watch_active">Watch Active Stream</string>
@@ -810,10 +810,10 @@
     <string name="applist_details_id">App ID:</string>
 
     <!-- Add computer manually activity -->
-    <string name="title_add_pc">Add PC Manually</string>
-    <string name="msg_add_pc">Connecting to the PC…</string>
-    <string name="addpc_fail">Unable to connect to the specified computer. Make sure the required ports are allowed through the firewall.</string>
-    <string name="addpc_unknown_host">Unable to resolve PC address. Make sure you didn\'t make a typo in the address.</string>
+    <string name="title_add_pc">Add Host Manually</string>
+    <string name="msg_add_pc">Connecting to the host…</string>
+    <string name="addpc_fail">Unable to connect to that host. Make sure the required ports are allowed through the firewall.</string>
+    <string name="addpc_unknown_host">Unable to resolve the host\'s address. Make sure you didn\'t make a typo in the address.</string>
     <string name="addpc_wrong_sitelocal">That address doesn\'t look right. You must use your router\'s public IP address for streaming over the Internet.</string>
 
     <!-- Preferences -->
@@ -822,7 +822,7 @@
     <string name="title_resolution_list">Video resolution</string>
     <string name="summary_resolution_list">Increase to improve image clarity. Decrease for better performance on lower end devices and slower networks.</string>
     <string name="title_native_res_dialog">Native Resolution Warning</string>
-    <string name="text_native_res_dialog">Native resolution and/or FPS may not be supported by the streaming server. You will probably need to configure a matching custom display mode for the host PC manually.\n\nIf you choose to create a custom resolution in NVIDIA Control Panel to match your screen settings, please ensure you have read and understood NVIDIA\'s warning regarding possible monitor damage, PC instability, and other potential problems.\n\nWe are not responsible for any problems resulting from creating a custom resolution on your PC.\n\nIt may be that your monitor does not support a necessary display configuration. If so, you may try to set up a virtual monitor. Finally, if your device or host PC does not support streaming at a specific resolution or refresh rate, you\'re out of luck unfortunately.</string>
+    <string name="text_native_res_dialog">Native resolution and/or FPS may not be supported by the host. You will probably need to configure a matching custom display mode for the host manually.\n\nIf you choose to create a custom resolution in NVIDIA Control Panel to match your screen settings, please ensure you have read and understood NVIDIA\'s warning regarding possible monitor damage, system instability, and other potential problems.\n\nWe are not responsible for any problems resulting from creating a custom resolution on your host.\n\nIt may be that your monitor does not support a necessary display configuration. If so, you may try to set up a virtual monitor. Finally, if your device or host does not support streaming at a specific resolution or refresh rate, you\'re out of luck unfortunately.</string>
     <string name="title_fps_list">Video frame rate</string>
     <string name="summary_fps_list">Increase for a smoother video stream. Decrease for better performance on lower end devices.</string>
     <string name="title_seekbar_bitrate">Video bitrate</string>
@@ -928,8 +928,8 @@
     <string name="category_host_settings">Host Settings</string>
     <string name="title_checkbox_enable_sops">Optimize game settings</string>
     <string name="summary_checkbox_enable_sops">Let the host change a game\'s settings to suit the stream</string>
-    <string name="title_checkbox_host_audio">Play audio on PC</string>
-    <string name="summary_checkbox_host_audio">Play audio from the computer and this device</string>
+    <string name="title_checkbox_host_audio">Play audio on host</string>
+    <string name="summary_checkbox_host_audio">Play audio from the host and this device</string>
 
     <string name="category_advanced_settings">Advanced Settings</string>
     <string name="title_unlock_fps">Unlock all possible frame rates</string>
@@ -958,7 +958,7 @@
 
     <string name="category_help">Help</string>
     <string name="title_setup_guide">Setup guide</string>
-    <string name="summary_setup_guide">View instructions on how to set up your gaming PC for streaming</string>
+    <string name="summary_setup_guide">View instructions on how to set up your host for streaming</string>
     <string name="title_troubleshooting">Troubleshooting guide</string>
     <string name="summary_troubleshooting">View tips for diagnosing and fixing common streaming issues</string>
     <string name="title_privacy_policy">Privacy policy</string>
@@ -1007,7 +1007,7 @@
 
 
     <string name="keyboard_service_label">Nova Physical keyboard</string>
-    <string name="accessibility_description_text">Only used when physical keyboard shortcut were intercepted by system. In some systems, several keyboard shortcut are defind and used by the Android system, causing them not being able to be passed through to the host PC. Nova will not look through your input, nor collecting your password, credit card number or any other private information.</string>
+    <string name="accessibility_description_text">Only used when physical keyboard shortcut were intercepted by system. In some systems, several keyboard shortcut are defind and used by the Android system, causing them not being able to be passed through to the host. Nova will not look through your input, nor collecting your password, credit card number or any other private information.</string>
 
 
     <!-- In Game menu -->
@@ -1031,7 +1031,7 @@
     <string name="game_menu_send_keys_shift_tab">Shift + Tab (Steam Overlay)</string>
     <string name="game_menu_send_keys_alt_enter">Alt + Enter</string>
     <string name="game_menu_send_keys_win_shift_left">Win + shift + left (Move app between Desktops)</string>
-    <string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q (PC Exit Streaming)</string>
+    <string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q (Exit Streaming on Host)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1 (Switch Monitor)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
     <string name="nova_mangohud_detail_label">MangoHud Overlay</string>
@@ -1166,9 +1166,9 @@
     <string name="nova_launch_host_refused_stream">The host answered but could not start this stream. It could not capture or encode the launch as asked, so try another display mode or video codec in Play Setup.</string>
     <!-- Scan Pair's state page when there is no camera, or camera access was refused. -->
     <string name="nova_scan_pair_no_camera_title">No camera to scan with</string>
-    <string name="nova_scan_pair_no_camera_message">This device has no camera for a pairing code. Add the server by its address instead.</string>
+    <string name="nova_scan_pair_no_camera_message">This device has no camera for a pairing code. Add the host by its address instead.</string>
     <string name="nova_scan_pair_camera_denied_title">Camera access is off</string>
-    <string name="nova_scan_pair_camera_denied_message">Nova needs the camera to scan a pairing code. Allow it and try again, or add the server by its address.</string>
+    <string name="nova_scan_pair_camera_denied_message">Nova needs the camera to scan a pairing code. Allow it and try again, or add the host by its address.</string>
     <string name="nova_scan_pair_try_again">Try Again</string>
     <!-- The exact bitrate page's number field, typed in the unit its title shows. -->
     <string name="nova_settings_bitrate_exact_mbps">Exact value in Mbps</string>
@@ -1527,9 +1527,9 @@
     <string name="game_dialog_action_end_session">End Session</string>
     <string name="game_menu_server_cmd">Server Commands</string>
     <string name="game_dialog_message_server_cmd_empty">Make sure your host supports server commands and that this client has been granted the required permission.</string>
-    <string name="vdisplay_not_ready">Virtual display driver isn\'t ready on the server. Please make sure the SudoVDA driver is installed and enabled.</string>
-    <string name="vdisplay_not_supported"><![CDATA[Virtual display isn\'t supported on this server. Use a host that implements virtual display support, such as <a href=\"https://github.com/papi-ux/polaris\">Polaris</a>.]]></string>
-    <string name="clipboard_sync_unsupported">This server does not support clipboard sync. Install or upgrade a host that implements clipboard sync.</string>
+    <string name="vdisplay_not_ready">Virtual display driver isn\'t ready on the host. Please make sure the SudoVDA driver is installed and enabled.</string>
+    <string name="vdisplay_not_supported"><![CDATA[Virtual display isn\'t supported on this host. Use a host that implements virtual display support, such as <a href=\"https://github.com/papi-ux/polaris\">Polaris</a>.]]></string>
+    <string name="clipboard_sync_unsupported">This host does not support clipboard sync. Install or upgrade a host that implements clipboard sync.</string>
     <string name="send_clipboard_failed">Failed to send clipboard: </string>
     <string name="external_display_info">External Display connected with: %1$dx%2$d at %3$.1fHz</string>
     <string name="notification_channel_name">External Display Control</string>
@@ -1543,7 +1543,7 @@
     <string name="get_clipboard_success">Clipboard get successfully</string>
     <string name="proceed">Proceed</string>
     <string name="cancel">Cancel</string>
-    <string name="unlocking_or_starting">Server is starting or computer is unlocking, please wait…</string>
+    <string name="unlocking_or_starting">The host is starting or unlocking, please wait…</string>
     <string name="error_msg_permission_denied">Permission Denied</string>
     <string name="error_msg_timeout">Connection Timeout</string>
     <string name="permission_launch_app">Launch Apps</string>
@@ -1573,7 +1573,7 @@
     <string name="title_checkbox_stretch_video" />
 
     <!-- ShortcutHelper Toast Messages -->
-    <string name="export_launcher_computer_details_incomplete">Cannot export: Computer details are incomplete.</string>
+    <string name="export_launcher_computer_details_incomplete">Cannot export: the host\'s details are incomplete.</string>
     <string name="export_launcher_app_details_incomplete">Cannot export: App details are incomplete.</string>
     <string name="failed_to_initiate_file_export">Failed to initiate file export: %s</string>
     <string name="file_export_failed_no_location_selected">File export failed: No location selected.</string>
@@ -1583,7 +1583,7 @@
     <string name="unexpected_error_during_file_export">An unexpected error occurred during file export.</string>
 
     <!-- AppView Toast Messages -->
-    <string name="app_removed_from_pc">App removed from PC</string>
+    <string name="app_removed_from_pc">App removed from host</string>
     <string name="title_export_sunshine_launcher_file">Export Host Launcher File</string>
     <string name="message_export_sunshine_launcher_file">Launcher export is host-specific and may break after app metadata changes. Re-export after changing the app name or image.\nPolaris provides the most stable experience for this flow.</string>
 
@@ -1655,7 +1655,7 @@
     <string name="companion_deck_status_profile">Profile %1$s</string>
     <string name="nova_settings_modern">Modern</string>
     <string name="nova_server_manage">Manage</string>
-    <string name="nova_server_remove_failed">Couldn\'t remove server. Try again.</string>
+    <string name="nova_server_remove_failed">Couldn\'t remove the host. Try again.</string>
 
     <!-- Polaris artwork correction -->
     <string name="nova_artwork_title">Artwork</string>
@@ -1742,7 +1742,7 @@
     <string name="nova_artwork_library_update_complete">Artwork check complete.</string>
     <string name="nova_artwork_library_update_cancelled">Cancelled after %1$d of %2$d games.</string>
     <string name="nova_artwork_library_update_failed">The update stopped unexpectedly. No partial artwork generation was published.</string>
-    <string name="nova_artwork_library_update_unavailable">This Polaris server does not support library artwork updates yet. Update Polaris, then try again.</string>
+    <string name="nova_artwork_library_update_unavailable">This Polaris host does not support library artwork updates yet. Update Polaris, then try again.</string>
     <string name="nova_artwork_library_update_retry">Retry Failed Games</string>
     <string name="nova_artwork_library_update_retry_hint">Checks only the games that failed.</string>
     <string name="nova_artwork_library_update_retry_all">Try again</string>
@@ -1794,10 +1794,10 @@
     <string name="nova_space_change">Change Space</string>
     <string name="nova_space_changing">Changing Space…</string>
     <string name="nova_space_desktop">Desktop</string>
-    <string name="nova_space_desktop_caption">This computer’s usual games and desktop.</string>
+    <string name="nova_space_desktop_caption">The host’s usual games and desktop.</string>
     <string name="nova_space_current">Current Space</string>
     <string name="nova_space_bar_your_space">Your Space</string>
-    <string name="nova_space_bar_desktop">This computer</string>
+    <string name="nova_space_bar_desktop">Your Host</string>
     <string name="nova_space_bar_spaces">Spaces</string>
     <string name="nova_space_bar_unavailable">Unavailable on the host</string>
     <string name="nova_space_bar_none">None assigned</string>

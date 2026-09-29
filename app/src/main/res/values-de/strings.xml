@@ -78,7 +78,7 @@
     <string name="conn_terminated_msg">Die Verbindung wurde beendet.</string>
     <!-- General strings -->
     <string name="ip_hint">IP-Adresse des GeForce Hosts</string>
-    <string name="searching_pc">Suche nach Host PCs in deinem lokalen Netzwerk…
+    <string name="searching_pc">Suche nach Hosts in deinem lokalen Netzwerk…
 \n
 \nStelle sicher, dass Sunshine läuft oder GameStream in den GeForce Experience SHIELD-Einstellungen aktiviert ist.</string>
     <string name="title_details">Details</string>
@@ -183,17 +183,17 @@
     <string name="title_video_format">Codec-Einstellungen ändern</string>
     <string name="summary_video_format">Neuere Codecs können die Anforderungen an die Videobandbreite senken, wenn diese vom Gerät unterstützt werden. Codec-Auswahl kann ignoriert werden, sollte diese von der Host-Software oder GPU nicht unterstützt werden.</string>
     <string name="title_enable_hdr">HDR aktivieren (experimentell)</string>
-    <string name="summary_enable_hdr">Streame HDR, wenn das Spiel und die PC-GPU dies unterstützen. HDR erfordert eine GPU mit HEVC Main 10-Codierungsunterstützung.</string>
+    <string name="summary_enable_hdr">Streame HDR, wenn das Spiel und die GPU des Hosts dies unterstützen. HDR erfordert eine GPU mit HEVC Main 10-Codierungsunterstützung.</string>
     <string name="title_enable_perf_overlay">Performance Overlay aktivieren</string>
     <string name="summary_enable_perf_overlay">Leistungsmerkmale während des Streamens in Echtzeit einblenden</string>
     <string name="title_enable_post_stream_toast">Zeige Latenz-Informationen nach dem Streaming</string>
     <string name="summary_enable_post_stream_toast">Anzeige einer Informationsmeldung über die Latenz nach dem Ende des Streams</string>
     <string name="resolution_prefix_native">Nativ</string>
-    <string name="text_native_res_dialog">Native Auflösungsmodi werden unter Umständen nicht vom Streaming Server unterstützt. Wahrscheinlich musst du diese manuell für den Host einstellen.
+    <string name="text_native_res_dialog">Native Auflösungsmodi werden unter Umständen nicht vom Host unterstützt. Wahrscheinlich musst du diese manuell für den Host einstellen.
 \n
-\nWenn du eine benutzerdefinierte Auflösung in der NVIDIA Systemsteuerung erstellst, um die Auflösung deines Geräts anzupassen, stelle bitte sicher, dass du die Warnung von NVIDIA bezüglich möglicher Monitorschäden, PC-Instabilität und anderer potenzieller Probleme gelesen und verstanden hast.
+\nWenn du eine benutzerdefinierte Auflösung in der NVIDIA Systemsteuerung erstellst, um die Auflösung deines Geräts anzupassen, stelle bitte sicher, dass du die Warnung von NVIDIA bezüglich möglicher Monitorschäden, Systeminstabilität und anderer potenzieller Probleme gelesen und verstanden hast.
 \n
-\nWir übernehmen keine Verantwortung für Probleme, die aus der Erstellung einer angepassten Auflösung auf deinem PC resultieren.
+\nWir übernehmen keine Verantwortung für Probleme, die aus der Erstellung einer angepassten Auflösung auf deinem Host resultieren.
 \n
 \nEs kann sein, dass dein Monitor eine notwendige Konfiguration nicht unterstützt. In diesem Fall, kann ein Virtuelles Display Abhilfe schaffen. Allerdings kann es sein, dass dein Gerät oder dein Host das Streaming in einer bestimmten Auflösung oder Bildwiederholrate nicht unterstützt.</string>
     <string name="title_native_res_dialog">Native Auflösungswarnung</string>
@@ -234,7 +234,7 @@
     <string name="title_troubleshooting">Anleitung zur Fehlersuche</string>
     <string name="title_privacy_policy">Datenschutzbestimmungen</string>
     <string name="title_checkbox_enable_audiofx">Unterstützung des System-Equalizer aktivieren</string>
-    <string name="summary_setup_guide">Zeige Anweisungen zum Einrichten Ihres Gaming-PCs für das Streaming an</string>
+    <string name="summary_setup_guide">Zeige Anweisungen zum Einrichten Ihres Hosts für das Streaming an</string>
     <string name="title_checkbox_absolute_mouse_mode">Modus für ferngesteuerte Maus</string>
     <string name="category_help">Hilfe</string>
     <string name="title_setup_guide">Einstellungsanleitung</string>
@@ -245,9 +245,9 @@
     <string name="title_checkbox_reduce_refresh_rate">Aktualisierungsrate verringern erlauben</string>
     <string name="summary_checkbox_reduce_refresh_rate">Durch das Verringern der Display Aktualisierungsrate, kann, auf Kosten der Video-Latenz, der Akkuverbrauch reduziert werden</string>
     <string name="resolution_prefix_native_landscape">(Landscape)</string>
-    <string name="frame_conversion_error">Der Host-PC hat einen schwerwiegenden Videocodierungsfehler gemeldet.
+    <string name="frame_conversion_error">Der Host hat einen schwerwiegenden Videocodierungsfehler gemeldet.
 \n
-\nVersuchen Sie, den HDR-Modus zu deaktivieren, die Streaming-Auflösung zu ändern oder die Bildschirmauflösung des Host-PCs zu ändern.</string>
+\nVersuchen Sie, den HDR-Modus zu deaktivieren, die Streaming-Auflösung zu ändern oder die Bildschirmauflösung des Hosts zu ändern.</string>
     <string name="title_native_fps_dialog">Native FPS Warnung</string>
     <string name="videoformat_av1always">Immer AV1 verwenden (Experimentell)</string>
     <string name="title_checkbox_gamepad_motion_sensors">Erlaube Benutzen von Gamepad Bewegungssensoren</string>

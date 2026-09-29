@@ -30,7 +30,7 @@ class HostHttpResponseException(
     fun getWatchProfile(): com.papi.nova.nvstream.NovaWatchProfile? = watchProfile
 
     override val message: String
-        get() = "Host PC returned error: $errorMsg (Error code: $errorCode)"
+        get() = "Host returned error: $errorMsg (Error code: $errorCode)"
 
     companion object {
         private const val serialVersionUID = 1543508830807804222L

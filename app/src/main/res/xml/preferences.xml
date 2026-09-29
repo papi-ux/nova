@@ -706,7 +706,7 @@
         <CheckBoxPreference
             android:key="nova_auto_connect"
             android:title="Auto-Connect"
-            android:summary="Skip server browser when only one paired server"
+            android:summary="Skip the host list when only one host is paired"
             android:defaultValue="false"
             app:iconSpaceReserved="false" />
         <CheckBoxPreference
@@ -736,7 +736,7 @@
         <CheckBoxPreference
             android:key="nova_polaris_auto_detect"
             android:title="Auto-Detect Polaris"
-            android:summary="Probe server for Polaris features on connect"
+            android:summary="Ask the host for Polaris features on connect"
             android:defaultValue="true"
             app:iconSpaceReserved="false" />
         <CheckBoxPreference

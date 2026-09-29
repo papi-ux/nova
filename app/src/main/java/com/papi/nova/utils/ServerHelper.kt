@@ -702,7 +702,7 @@ object ServerHelper {
             message = if (e.getErrorCode() == 599) {
                 "This session wasn't started by this device," +
                     " so it cannot be quit. End streaming on the original " +
-                    "device or the PC itself. (Error code: " + e.getErrorCode() + ")"
+                    "device or the host itself. (Error code: " + e.getErrorCode() + ")"
             } else {
                 e.message
             }

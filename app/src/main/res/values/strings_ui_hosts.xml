@@ -70,7 +70,7 @@
 
     <!-- Welcome, shown once on first launch. The numbered labels are set in capitals. -->
     <string name="nova_welcome_title">Welcome to Nova</string>
-    <string name="nova_welcome_subtitle">Your PC games across Android TVs, handhelds, tablets, and phones.</string>
+    <string name="nova_welcome_subtitle">Your host\'s games on Android TVs, handhelds, tablets, and phones.</string>
     <string name="nova_welcome_step_find">01  Find your host</string>
     <string name="nova_welcome_step_find_body">Nova finds hosts on your network. You can also add one by its address.</string>
     <string name="nova_welcome_step_pair">02  Pair with confidence</string>

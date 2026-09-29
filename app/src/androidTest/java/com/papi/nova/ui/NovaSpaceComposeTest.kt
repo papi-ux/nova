@@ -202,7 +202,7 @@ class NovaSpaceComposeTest {
         compose.setContent { NovaComposeTheme {
             NovaEnvironmentBar(snapshot, true, { choices++ }, modifier = Modifier.requiredSize(560.dp, 70.dp), compact = true)
         } }
-        compose.onNodeWithText("This computer").assertIsDisplayed()
+        compose.onNodeWithText("Your Host").assertIsDisplayed()
         compose.onNodeWithText("Your Space").assertDoesNotExist()
         compose.onNodeWithTag("nova-environment-choose").assertHasClickAction().performClick()
         compose.runOnIdle { assertEquals(1, choices) }

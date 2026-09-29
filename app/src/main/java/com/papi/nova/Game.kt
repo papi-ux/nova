@@ -5884,7 +5884,7 @@ gyroAimController!!.start()
 com.papi.nova.service.NovaStreamNotification.show(
 this@Game,
 if (appName != null) appName!! else "Streaming",
-if (pcName != null) pcName!! else "Server"
+if (pcName != null) pcName!! else "Host"
 )
 updatePipAutoEnter()
 

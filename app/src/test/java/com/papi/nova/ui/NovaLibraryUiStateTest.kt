@@ -555,7 +555,7 @@ class NovaLibraryUiStateTest {
         assertNull(offline.secondaryActionLabel)
 
         assertEquals("Polaris unavailable", unavailable.title)
-        assertEquals("Manage Server", unavailable.primaryActionLabel)
+        assertEquals("Manage Host", unavailable.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, unavailable.primaryAction)
         assertEquals("HTTP 404 polaris/v1/games", unavailable.detail)
         assertNull(unavailable.secondaryActionLabel)
@@ -572,7 +572,7 @@ class NovaLibraryUiStateTest {
         val state = NovaLibraryUiStateMapper.launchFailureRecoveryState("Missing Polaris session details")
 
         assertEquals("Launch blocked", state.title)
-        assertEquals("Manage Server", state.primaryActionLabel)
+        assertEquals("Manage Host", state.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, state.primaryAction)
         assertEquals("Missing Polaris session details", state.detail)
         assertNull(state.secondaryActionLabel)
