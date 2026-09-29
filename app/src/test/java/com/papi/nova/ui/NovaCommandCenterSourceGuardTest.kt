@@ -953,6 +953,24 @@ class NovaCommandCenterSourceGuardTest {
         )
     }
 
+    /** N27: the touch menu button, and its More Controls row, are for touch players only. */
+    @Test
+    fun theTouchMenuButtonAndItsRowWaitForATouchscreen() {
+        val menu = readNovaQuickMenu()
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val touch = menu.section("val touch = CommandCenterSection(", "val controller =")
+        val gate = touch.indexOf("if (NovaTouchMenuButton.available(game)) {")
+        assertTrue(
+            "More Controls offers the button's switch only where a touch player can use the button",
+            gate >= 0 && gate < touch.indexOf("R.string.nova_cc_floating_button"),
+        )
+        val visibility = game.section("private fun updateFloatingButtonVisibility(", "fun toggleFloatingButtonVisibility()")
+        assertTrue(
+            "the stream never shows the button without a touchscreen or on a TV, whatever the setting says",
+            visibility.contains("NovaTouchMenuButton.available(this)"),
+        )
+    }
+
     @Test
     fun companionDeckSkipsUnchangedPerfIntervals() {
         val deck = readSource("src/main/java/com/papi/nova/ui/NovaCompanionCommandDeckView.kt")

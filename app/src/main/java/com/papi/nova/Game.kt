@@ -437,7 +437,7 @@ return keyBoardLayoutController != null && keyBoardLayoutController!!.shown
  val isKeyboardControllerShown:Boolean
 get() = keyBoardController?.shown == true
 
- /** Whether the floating Command Center button is showing. */
+ /** Whether the touch menu button, which opens the Command Center, is showing. */
  val isFloatingButtonVisible:Boolean
 get() = floatingMenuButton?.getVisibility() == View.VISIBLE
 
@@ -7419,7 +7419,8 @@ externalDisplayControlPresentation?.hideGameMenu()
 }
 
 private fun updateFloatingButtonVisibility(show:Boolean) {
-floatingMenuButton!!.setVisibility(if (show) View.VISIBLE else View.GONE)
+// The touch menu button is for touch players: never shown without a touchscreen or on a TV.
+floatingMenuButton!!.setVisibility(if (show && com.papi.nova.ui.NovaTouchMenuButton.available(this)) View.VISIBLE else View.GONE)
 }
  fun toggleFloatingButtonVisibility() {
 if (floatingMenuButton != null)

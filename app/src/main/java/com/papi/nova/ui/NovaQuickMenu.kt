@@ -1346,7 +1346,7 @@ class NovaQuickMenu(
         )
         val touch = CommandCenterSection(
             game.getString(R.string.nova_cc_touch_section),
-            listOf(
+            listOfNotNull(
                 NovaMenuItem.Action(
                     key = "android-keyboard",
                     label = game.getString(R.string.nova_cc_android_keyboard),
@@ -1356,8 +1356,13 @@ class NovaQuickMenu(
                 switch("zoom", R.string.nova_cc_zoom, game.isZoomModeEnabled) {
                     if (it != game.isZoomModeEnabled) game.toggleZoomMode()
                 },
-                switch("floating-button", R.string.nova_cc_floating_button, game.isFloatingButtonVisible) {
-                    if (it != game.isFloatingButtonVisible) game.toggleFloatingButtonVisibility()
+                // For touch players only: without a touchscreen, or on a TV, there is nothing to press.
+                if (NovaTouchMenuButton.available(game)) {
+                    switch("floating-button", R.string.nova_cc_floating_button, game.isFloatingButtonVisible) {
+                        if (it != game.isFloatingButtonVisible) game.toggleFloatingButtonVisibility()
+                    }
+                } else {
+                    null
                 },
                 switch("special-keys-layout", R.string.nova_cc_special_keys_layout, game.isKeyboardControllerShown) {
                     if (it != game.isKeyboardControllerShown) game.toggleKeyboardController()

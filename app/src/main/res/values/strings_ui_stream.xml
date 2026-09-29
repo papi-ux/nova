@@ -28,7 +28,8 @@
     <string name="nova_cc_android_keyboard">Android Keyboard</string>
     <string name="nova_cc_android_keyboard_caption">Types into the host with this device\'s keyboard.</string>
     <string name="nova_cc_zoom">Pan and Zoom</string>
-    <string name="nova_cc_floating_button">Floating Button</string>
+    <!-- The draggable button on the stream that opens the Command Center; touch players only. -->
+    <string name="nova_cc_floating_button">Touch Menu Button</string>
     <string name="nova_cc_special_keys_layout">On-Screen Special Keys</string>
     <!-- A switch: on, the stream uses the custom sensitivity set in Settings. -->
     <string name="nova_cc_touch_sensitivity">Custom Touch Sensitivity</string>
