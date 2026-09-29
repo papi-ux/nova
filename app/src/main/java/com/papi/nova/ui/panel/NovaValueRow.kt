@@ -373,19 +373,18 @@ private val ValueRowMeasurePolicy = NovaTitleAndValueMeasurePolicy(
     stackGap = NovaPanelMetrics.SpaceSm,
 )
 
+/**
+ * The segments, drawn one way wherever they sit: the labels on the row itself with no box of their
+ * own, the current one SemiBold with its check. Beside the title they take their natural widths;
+ * under it they share the row's whole width equally. An inner box stopped short of the row under
+ * the title, and its fill vanished into the focus fill, so the same control had three looks.
+ */
 @Composable
 private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, onSelect: (Int) -> Unit) {
     val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
     val type = novaPanelType
     val select by rememberUpdatedState(onSelect)
     Layout(
-        modifier = Modifier
-            // The row's own corner: a control inside a 6dp tile with a rounder 8dp edge read as
-            // a box of a different kind.
-            .clip(RoundedCornerShape(NovaRadius.row))
-            .background(surfaces.control)
-            .padding(horizontal = NovaPanelMetrics.SpaceXs),
         measurePolicy = SegmentsMeasurePolicy,
         content = {
             options.forEachIndexed { i, option ->
@@ -423,8 +422,11 @@ private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, o
 }
 
 /**
- * Segments take their natural widths. NovaValueRow draws a cycler when they would not fit, so the
- * proportional shrink here is only a guard against rounding, never a place labels break.
+ * Segments take their natural widths where that is all the room they are given, beside a title.
+ * Given more, under a title, they share it: equally while every label fits its share, otherwise
+ * each its natural width and an equal part of what is left. NovaValueRow draws a cycler when they
+ * would not fit at all, so the proportional shrink here is only a guard against rounding, never a
+ * place labels break.
  */
 private val SegmentsMeasurePolicy = MeasurePolicy { measurables, constraints ->
     val gap = NovaPanelMetrics.SpaceXs.roundToPx()
@@ -432,10 +434,12 @@ private val SegmentsMeasurePolicy = MeasurePolicy { measurables, constraints ->
     val gaps = gap * (measurables.size - 1).coerceAtLeast(0)
     val total = naturals.sum()
     val available = constraints.maxWidth - gaps
-    val widths = if (constraints.hasBoundedWidth && total > available && total > 0) {
-        naturals.map { (it.toLong() * available / total).toInt() }
-    } else {
-        naturals
+    val count = measurables.size.coerceAtLeast(1)
+    val widths = when {
+        !constraints.hasBoundedWidth || total <= 0 -> naturals
+        total > available -> naturals.map { (it.toLong() * available / total).toInt() }
+        available / count >= (naturals.maxOrNull() ?: 0) -> List(measurables.size) { available / count }
+        else -> naturals.map { it + (available - total) / count }
     }
     val placeables = measurables.mapIndexed { i, measurable ->
         measurable.measure(Constraints.fixedWidth(widths[i].coerceAtLeast(0)))
