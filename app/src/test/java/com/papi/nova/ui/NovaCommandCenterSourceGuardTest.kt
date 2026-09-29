@@ -89,7 +89,8 @@ class NovaCommandCenterSourceGuardTest {
             content.contains("diagnosis.aiExplanation") &&
                 content.contains("nova_quick_menu_doctor_ai_explanation") &&
                 content.contains("diagnosis.informationalSource") &&
-                content.contains("supportingLine = supportingLine") &&
+                content.contains("listOfNotNull(detail.takeIf { it.isNotBlank() }, aiSupportingLine, sourceSupportingLine)") &&
+                content.contains("caption = details,") &&
                 content.contains("text = supportingLine") &&
                 content.contains("listOfNotNull(action.label, action.chip?.label, supportingLine")
         )

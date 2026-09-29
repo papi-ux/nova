@@ -122,6 +122,10 @@ class NovaQuickMenu(
         val apiClient = game.novaApiClient ?: getServerAddress()?.let {
             PolarisApiClient(game.applicationContext, it, getHttpsPort())
         }
+        // Known when the Command Center opens and kept for this opening: a host that is not
+        // Polaris has no Doctor, and its card is not drawn rather than waiting for a reading.
+        val polarisHost = apiClient != null &&
+            (game.novaIsPolarisServer() || apiClient.withCurrentSessionStatus { it != null })
         val prefs = PreferenceManager.getDefaultSharedPreferences(game)
 
         var sessionStatus: PolarisSessionStatus? = null
@@ -137,6 +141,9 @@ class NovaQuickMenu(
         var profileClearResult: String? = null
         var diagnosticsCopied = false
         var hostStateUnavailable = false
+        // The last status the host sent while this opening stood: the Doctor card keeps its
+        // reading, a few seconds old, while a status read fails.
+        var lastStatus: PolarisSessionStatus? = null
         // Results said in their rows' own captions for a moment, where snackbars had floated.
         // Live Tuning's switch and its result, set once the page can be refreshed.
         var liveTuningSave: NovaLiveTuningSave? = null
@@ -209,6 +216,7 @@ class NovaQuickMenu(
             return doctorMenuRefreshRegistry.runIfCurrent(menuValidationGeneration) {
                 apiClient?.withCurrentSessionStatus { current ->
                     sessionStatus = current
+                    if (current != null) lastStatus = current
                     syncSessionDerivedState()
                     syncDoctorReceiptScope()
                     current != null
@@ -452,6 +460,8 @@ class NovaQuickMenu(
                 context = game,
                 quickKeys = quickKeys,
                 status = sessionStatus,
+                polarisHost = polarisHost,
+                lastStatus = lastStatus,
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
                 hostStateUnavailable = hostStateUnavailable,
@@ -502,6 +512,7 @@ class NovaQuickMenu(
         fun refreshState() {
             if (apiClient != null) apiClient.withCurrentSessionStatus { current ->
                 sessionStatus = current
+                if (current != null) lastStatus = current
                 hostStateUnavailable = current == null
                 syncSessionDerivedState()
                 syncDoctorReceiptScope()

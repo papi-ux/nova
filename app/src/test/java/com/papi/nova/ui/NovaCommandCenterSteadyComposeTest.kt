@@ -107,7 +107,7 @@ class NovaCommandCenterSteadyComposeTest {
     private val hud get() = rule.activity.getString(R.string.nova_quick_menu_nova_hud)
     private val copies get() = rule.activity.getString(R.string.nova_quick_menu_doctor_capability_manual)
 
-    private val waiting = "Connect to Polaris for HOST / NET / CLIENT diagnostics"
+    private val waiting get() = rule.activity.getString(R.string.nova_quick_menu_health_checking)
     private val pressure = "Sustained pressure on the link"
     private val observation = "Control channel retries, no confirmed loss"
 
@@ -158,6 +158,7 @@ class NovaCommandCenterSteadyComposeTest {
     fun theHostsFirstReadingLandsWhereThePlaceholderWas() {
         open(placeholder)
         focus(hud)
+        val row = top(hud)
         val card = bounds(waiting)
         val below = top(hud) - card.bottom.value
         assertTrue("the placeholder sits above the sections too", card.top.value < top(hud))
@@ -166,9 +167,9 @@ class NovaCommandCenterSteadyComposeTest {
         rule.onNodeWithText(hud).assertIsFocused()
         val now = bounds(pressure)
         assertEquals("the reading takes the placeholder's place", card.top.value, now.top.value, 0.5f)
-        // The reading carries a line the placeholder had no use for, what A does; the rows under
-        // the card move with that line and never by a card's height.
+        // Checking or reading, the card is the same size, so the rows under it do not move.
         assertEquals("the rows under it stay against it", below, top(hud) - now.bottom.value, 0.5f)
+        assertEquals("and where they were", row, top(hud), 0.5f)
     }
 
     /** The same flip with the card itself focused: it keeps focus and its place. */

@@ -49,9 +49,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
@@ -220,7 +222,9 @@ fun NovaPageScope.NovaQuickMenuContent(
                 // place whatever the reading says, the host's first answer included: a reading that
                 // only informs reads quieter inside it (N28). Ranked last, it moved between two
                 // places as the verdict flipped every second or two, and every row between them
-                // jumped under the player.
+                // jumped under the player. For a Polaris host it is here from the first frame to
+                // close and the same size whatever it holds, checking, a reading, or the last
+                // reading a few seconds old, so nothing below it moves (review finding 1).
                 if (showDiagnosis) NovaQuickMenuDiagnosisCard(ui, callbacks)
                 if (showReceipt) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
                 NovaQuickMenuStabilityCard(ui, callbacks)
@@ -432,30 +436,42 @@ private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
     val sourceSupportingLine = diagnosis.informationalSource
         .takeIf { it.isNotBlank() }
         ?.let { stringResource(R.string.nova_cc_doctor_source, it) }
-    // A reading that only informs, with nothing to run and nothing the strip warns about, reads
-    // quieter in the card's one place: its finding in the secondary text, and "Nothing to fix"
-    // ahead of what A does (N28).
+    // What A does, on the line under the finding (N28). Before the first reading, why A does
+    // nothing yet. A reading that only informs reads quieter, "Nothing to fix" ahead of what A
+    // does; one the strip warns about says the strip's words there instead; the last reading kept
+    // through a failed status read says how old it is.
     val quiet = diagnosis.informational
-    val doesLine = (diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() } ?: capabilityLabel)
-        .takeIf { diagnosis.available }
-        ?.let { if (quiet) stringResource(R.string.nova_cc_doctor_nothing_to_fix, it) else it }
-    val supportingLine = listOfNotNull(doesLine, aiSupportingLine, sourceSupportingLine).joinToString("\n")
+    val does = diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() } ?: capabilityLabel
+    val doesLine = when {
+        !diagnosis.available -> stringResource(R.string.nova_cc_doctor_checking_why)
+        diagnosis.stale -> stringResource(R.string.nova_cc_doctor_stale, does)
+        quiet -> stringResource(R.string.nova_cc_doctor_nothing_to_fix, does)
+        diagnosis.stripVerdict.isNotBlank() -> stringResource(R.string.nova_cc_doctor_strip_says, diagnosis.stripVerdict, does)
+        else -> does
+    }
+    // The details, then what an AI explanation adds, in the card's detail lines.
+    val details = listOfNotNull(detail.takeIf { it.isNotBlank() }, aiSupportingLine, sourceSupportingLine).joinToString(" · ")
     // The finding is the title and what A does is the line under it, so "Recheck" no longer
     // shows up as title, chip, and button at once.
-    val action = remember(diagnosis, detail, copiedLabel, diagnoseTitle) {
+    val action = remember(diagnosis, details, copiedLabel, diagnoseTitle) {
         NovaQuickMenuAction(
             id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
             label = diagnosis.likelyCause.trim().trimEnd('.').ifBlank { diagnoseTitle },
-            caption = detail,
+            caption = details,
             chip = if (diagnosis.copied) NovaQuickMenuChip(copiedLabel, NovaQuickMenuTone.INFO) else null,
             enabled = diagnosis.available
         )
     }
     NovaQuickMenuCard(
         action = action,
-        modifier = novaPlaceFocus(NovaQuickMenuActionId.DIAGNOSE_STREAM),
-        supportingLine = supportingLine,
+        modifier = novaPlaceFocus(NovaQuickMenuActionId.DIAGNOSE_STREAM).testTag("nova-cc-doctor"),
+        supportingLine = doesLine,
         quiet = quiet,
+        // The same size whatever it holds, and focusable in every state, the disabled-looking
+        // one before the first reading included: a reading landing or a status read failing
+        // never moves a row or takes focus from the card.
+        fixedLines = true,
+        focusableWhenDisabled = true,
         // The real callbacks. A fresh default instance renders enabled and does nothing when
         // pressed, and looks no different from one that works; the guard forbids the
         // constructor by name, so this comment deliberately does not spell it.
@@ -504,9 +520,9 @@ private fun NovaQuickMenuSessionStrip(
         NovaQuickMenuChipView(sessionMode)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
             Text(text = healthSummary, style = type.rowTitle, color = toneColor(healthTone))
-            if (sessionDetail.isNotBlank()) {
-                Text(text = sessionDetail, style = type.caption, color = colors.textSecondary)
-            }
+            // The detail line keeps its place while the host has not answered, or a status read
+            // failed, so the rows under the strip do not move as it comes and goes (review finding 1).
+            Text(text = sessionDetail, style = type.caption, color = colors.textSecondary)
             if (healthDetail.isNotBlank()) {
                 Text(text = healthDetail, style = type.caption, color = colors.textSecondary)
             }
@@ -624,12 +640,22 @@ private fun NovaQuickMenuCard(
     supportingLine: String = "",
     /** Only informs: the title and the line under it in the secondary text, neither in bold. */
     quiet: Boolean = false,
+    /**
+     * The same size whatever it says: two lines for the title, one for the supporting line and two
+     * for the caption, each cut at its end when longer, so a card whose words change never moves
+     * the rows under it. TalkBack still hears every word.
+     */
+    fixedLines: Boolean = false,
+    /** Keeps focus while disabled, so a card that turns disabled never drops it. */
+    focusableWhenDisabled: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
     val titleWeight = if (quiet) FontWeight.Normal else FontWeight.SemiBold
+    val titleLines = if (fixedLines) 2 else Int.MAX_VALUE
     NovaQuickMenuClickableSurface(
         enabled = action.enabled,
+        focusableWhenDisabled = focusableWhenDisabled,
         onClick = { callbacks.perform(action) },
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(NovaPanelMetrics.SpaceMd),
@@ -645,20 +671,32 @@ private fun NovaQuickMenuCard(
                         style = type.rowTitle,
                         fontWeight = titleWeight,
                         color = if (quiet) colors.textSecondary else colors.textPrimary,
+                        minLines = if (fixedLines) titleLines else 1,
+                        maxLines = titleLines,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 chip = action.chip,
             )
-            if (supportingLine.isNotBlank()) {
+            if (supportingLine.isNotBlank() || fixedLines) {
                 Text(
                     text = supportingLine,
                     style = type.caption,
                     fontWeight = titleWeight,
                     color = if (quiet) colors.textSecondary else colors.accent,
+                    maxLines = if (fixedLines) 1 else Int.MAX_VALUE,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (action.caption.isNotBlank()) {
-                Text(text = action.caption, style = type.caption, color = colors.textSecondary)
+            if (action.caption.isNotBlank() || fixedLines) {
+                Text(
+                    text = action.caption,
+                    style = type.caption,
+                    color = colors.textSecondary,
+                    minLines = if (fixedLines) 2 else 1,
+                    maxLines = if (fixedLines) 2 else Int.MAX_VALUE,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -986,6 +1024,7 @@ private fun NovaQuickMenuHudModePicker(
 private fun NovaQuickMenuClickableSurface(
     enabled: Boolean,
     onClick: () -> Unit,
+    focusableWhenDisabled: Boolean = false,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(NovaPanelMetrics.SpaceMd),
     contentDescription: String,
@@ -1001,12 +1040,20 @@ private fun NovaQuickMenuClickableSurface(
             .alpha(if (enabled) 1f else NovaPanelMetrics.DisabledAlpha)
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)
-            .semantics { this.contentDescription = contentDescription }
+            .semantics {
+                this.contentDescription = contentDescription
+                if (!enabled && focusableWhenDisabled) disabled()
+            }
             .onFocusChanged {
                 if (it.hasFocus && !focused) haptics.novaFocusTick()
                 focused = it.hasFocus
             }
-            .novaClickable(enabled = enabled, role = Role.Button) {
+            // A surface that stays a focus stop while disabled keeps its clickable enabled and only
+            // does nothing, saying so to TalkBack and the hint bar: a clickable that enables under
+            // focus adds a focus target of its own, and the card read as unfocused while it had focus.
+            .then(if (focusableWhenDisabled) Modifier.novaFocusHint(if (enabled) null else NovaFocusHint.Read) else Modifier)
+            .novaClickable(enabled = enabled || focusableWhenDisabled, role = Role.Button) {
+                if (!enabled) return@novaClickable
                 haptics.novaConfirm()
                 onClick()
             }

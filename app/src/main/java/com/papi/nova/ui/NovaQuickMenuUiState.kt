@@ -141,15 +141,22 @@ data class NovaQuickMenuDiagnosisState(
     val undoSupported: Boolean,
     val aiExplanation: String,
     val informationalSource: String,
-    // False when the card would only say again what the session strip already says.
+    /** Drawn for a Polaris host, as known when the Command Center opened, and never for another. */
     val visible: Boolean = true,
     /** Set for a moment after A copied the details, so the chip can say so in place. */
     val copied: Boolean = false,
     /**
-     * Nothing to run, and nothing the session strip warns about: an observation, or a reading of
-     * a healthy stream. The card keeps its one place under the strip and reads quieter (N28).
+     * Nothing to run while the session strip does not warn, or the last reading kept a few seconds
+     * old: the card keeps its one place under the strip and reads quieter (N28).
      */
-    val informational: Boolean = false
+    val informational: Boolean = false,
+    /** The last reading, kept a few seconds old while a status read fails. */
+    val stale: Boolean = false,
+    /**
+     * What the session strip says while it warns about a reading with nothing to run, for the card
+     * to say too where "Nothing to fix" would contradict the strip; blank otherwise.
+     */
+    val stripVerdict: String = "",
 )
 
 data class NovaQuickMenuUiState(
@@ -245,6 +252,16 @@ data class NovaQuickMenuUiState(
             fallbackTargetFps: Double,
             doctorReceipt: DoctorActionReceipt? = null,
             spaceSession: Boolean = false,
+            /**
+             * Whether the host is Polaris, as known when the Command Center opened. Another host
+             * has no Doctor, and its card is not drawn for the whole opening.
+             */
+            polarisHost: Boolean = true,
+            /**
+             * The last status the host sent while this opening stood. The Doctor card keeps its
+             * reading, a few seconds old, while a status read fails.
+             */
+            lastStatus: PolarisSessionStatus? = null,
             // Static per locale. The host builds it once per open and hands it back in, so
             // a refresh after every tap does not rebuild nine identical rows from resources.
             quickKeys: List<NovaQuickMenuAction> = quickKeyActions(context)
@@ -321,7 +338,14 @@ data class NovaQuickMenuUiState(
                 )
             }
 
-            val diagnosis = diagnosisState(context, status, healthSummary)
+            val diagnosis = diagnosisState(
+                context = context,
+                status = status,
+                lastStatus = lastStatus,
+                healthSummary = healthSummary,
+                stripWarns = healthTone == NovaQuickMenuTone.WARNING,
+                polarisHost = polarisHost,
+            )
             val stability = NovaQuickMenuStabilityState(
                 title = context.getString(R.string.nova_quick_menu_stream_card),
                 caption = if (hostStateUnavailable) context.getString(R.string.nova_quick_menu_host_state_unavailable) else "",
@@ -696,18 +720,34 @@ data class NovaQuickMenuUiState(
             )
         }
 
+        /**
+         * The Doctor card for a Polaris host, in its one place under the strip from the first frame
+         * to close, so nothing below it moves (review finding 1). Before the host's first reading it
+         * says it is checking, disabled but focusable, and why A does nothing yet. A failed status
+         * read keeps the last reading, a few seconds old, rather than going back to checking. A
+         * Space's verdict is a reading like any other. Another host has no card at all.
+         */
         private fun diagnosisState(
             context: Context,
             status: PolarisSessionStatus?,
+            lastStatus: PolarisSessionStatus?,
             healthSummary: String,
+            stripWarns: Boolean,
+            polarisHost: Boolean,
         ): NovaQuickMenuDiagnosisState {
-            val doctor = status?.doctor
+            fun hasReading(candidate: PolarisSessionStatus?): Boolean = candidate != null && (
+                candidate.doctor.available || candidate.doctor.likelyCause.isNotBlank() ||
+                    candidate.doctor.primaryIssue.isNotBlank()
+                )
+            val stale = status == null && hasReading(lastStatus)
+            val reading = if (stale) lastStatus else status?.takeIf { hasReading(it) }
+            val doctor = reading?.doctor
             val informationalAiExplanation = doctor?.aiExplanation
                 ?.takeIf { it.available && it.informational }
             val actionId = doctor?.actionId.orEmpty()
-            val available = status != null &&
-                (doctor?.likelyCause?.isNotBlank() == true || doctor?.primaryIssue?.isNotBlank() == true)
-            val actionEnvelopeExecutable = doctor?.canExecuteAction == true
+            val available = reading != null
+            // A reading a few seconds old runs nothing; A copies its details.
+            val actionEnvelopeExecutable = !stale && doctor?.canExecuteAction == true
             val readOnlyRecheck = actionId in setOf("recheck_network", "recheck_pacing")
             val actionExecutable = actionEnvelopeExecutable && if (readOnlyRecheck) {
                 status?.authorityContractValid == true &&
@@ -728,37 +768,41 @@ data class NovaQuickMenuUiState(
                     else -> NovaQuickMenuDoctorCapability.MANUAL
                 }
             }
-            val likelyCause = doctor?.likelyCause?.takeIf { it.isNotBlank() }
-                ?: "Connect to Polaris for HOST / NET / CLIENT diagnostics."
+            // Before the first reading the card says it is checking, as the strip does.
+            val likelyCause = if (available) {
+                doctor?.likelyCause.orEmpty()
+            } else {
+                context.getString(R.string.nova_quick_menu_health_checking)
+            }
             val evidence = doctor?.evidence ?: emptyList()
             // The host's first-try line usually opens by restating the finding, which is
             // already the card's title. Keep only the advice that follows it.
             val tryFirst = doctor?.firstTry.orEmpty().withoutLeadingSentence(likelyCause)
-            // An observation ("control-channel retries, but no confirmed loss") or a healthy
-            // reading, with nothing Nova can run, informs and reads quieter; a reading the strip
-            // warns about, or one with an action, is what the player came for (N28).
-            val observationOnly = doctor?.primaryIssue.orEmpty().lowercase() in
-                setOf("network_observation", "control_channel_observation")
-            val informational = !actionExecutable && (observationOnly || status?.hasHealthConcerns != true)
+            // A reading with nothing Nova can run informs and reads quieter while the strip does
+            // not warn, and so does one a few seconds old. While the strip warns, the card says what
+            // the strip says; "Nothing to fix" under a warning contradicted it (N28).
+            val informational = available && (stale || (!actionExecutable && !stripWarns))
+            val stripVerdict = if (available && !stale && !actionExecutable && stripWarns) {
+                healthSummary.trim().trimEnd('.')
+            } else {
+                ""
+            }
             return NovaQuickMenuDiagnosisState(
                 classification = doctor?.classification?.takeIf { it.isNotBlank() } ?: "UNKNOWN",
                 likelyCause = likelyCause,
                 evidence = evidence,
-                evidenceHighlight = doctorEvidenceHighlight(status),
+                evidenceHighlight = doctorEvidenceHighlight(reading),
                 tryFirst = tryFirst,
                 confidence = doctor?.confidence.orEmpty(),
                 available = available,
-                // With no Doctor reading the host's health summary is the only sentence there is,
-                // and a Space sends exactly that. The strip already shows it, so the card goes.
-                // A reading with evidence, a first try or an action keeps its card even when its
-                // cause says what the strip says.
-                visible = likelyCause.trimEnd('.') != healthSummary.trimEnd('.') ||
-                    evidence.isNotEmpty() || tryFirst.isNotBlank() || actionId.isNotBlank(),
+                visible = polarisHost,
                 actionId = actionId,
                 actionLabel = doctor?.actionLabel.orEmpty(),
                 actionExecutable = actionExecutable,
                 capability = capability,
                 informational = informational,
+                stale = stale,
+                stripVerdict = stripVerdict,
                 targetBitrateKbps = doctor?.targetBitrateKbps ?: 0,
                 verificationDelaySeconds = doctor?.verificationDelaySeconds ?: 0,
                 undoSupported = doctor?.undoSupported == true,

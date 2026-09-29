@@ -6523,7 +6523,7 @@ block()
 private fun currentNovaCapabilities():com.papi.nova.api.PolarisCapabilities? =
 com.papi.nova.manager.FeatureFlagManager.capabilitiesForScope(novaFeatureScope)
 
-private fun novaIsPolarisServer():Boolean = currentNovaCapabilities() != null
+internal fun novaIsPolarisServer():Boolean = currentNovaCapabilities() != null
 
 private fun novaHasCursorVisibilityControl():Boolean =
 currentNovaCapabilities()?.features?.cursorVisibilityControl == true

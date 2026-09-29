@@ -658,7 +658,7 @@ class NovaQuickMenuUiStateTest {
 
         assertFalse(diagnose.enabled)
         assertEquals("N/A", diagnose.chip!!.label)
-        assertEquals("Connect to Polaris for HOST / NET / CLIENT diagnostics.", diagnose.caption)
+        assertEquals("before a reading it is checking, as the strip is", "Checking session health", diagnose.caption)
         assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
     }
 
@@ -1181,12 +1181,14 @@ class NovaQuickMenuUiStateTest {
     }
 
     /**
-     * N28 (rest): Doctor's card read the same whatever it said. "Streaming telemetry looks ready"
-     * and "control-channel retries, but no confirmed loss" inform, and read quieter in the card's
-     * one place under the strip. A reading the strip warns about, or one Nova can act on, does not.
+     * N28 (rest) and review finding 1: a reading with nothing to run informs, and reads quieter in
+     * the card's one place under the strip, only while the strip does not warn. "Control-channel
+     * retries, but no confirmed loss" is one the strip warns about, and the card said "Nothing to
+     * fix" under "Needs attention"; it now says what the strip says (NovaCommandCenterDoctorCard
+     * ComposeTest reads the words).
      */
     @Test
-    fun doctorRanksWhatOnlyInformsAfterWhatThePlayerCanActOn() {
+    fun aReadingInformsOnlyWhileTheStripDoesNotWarn() {
         fun verdict(primaryIssue: String, severity: String, light: String, cause: String) = PolarisSessionStatus.DoctorStatus(
             available = true,
             version = 2,
@@ -1213,7 +1215,8 @@ class NovaQuickMenuUiStateTest {
         )
 
         assertTrue("a healthy reading with nothing to run informs", healthy.diagnosis.informational)
-        assertTrue("an observation with nothing to run informs", observation.diagnosis.informational)
+        assertEquals("the strip warns about this observation", NovaQuickMenuTone.WARNING, observation.healthTone)
+        assertFalse("so the card does not say it only informs", observation.diagnosis.informational)
         assertFalse("a reading the strip warns about explains it at full strength", hostRender.diagnosis.informational)
     }
 
@@ -1272,7 +1275,7 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
-    fun aSpaceSaysItsVerdictOnceAndCallsItsBitrateFixed() {
+    fun aSpaceShowsItsVerdictInTheCardAndCallsItsBitrateFixed() {
         // What Polaris sends for a Space (nvhttp.cpp profile_session_status): a health summary,
         // no Doctor object, and live_tuning null.
         val space = com.papi.nova.api.PolarisApiClient.parseSessionStatusResponse(
@@ -1289,7 +1292,10 @@ class NovaQuickMenuUiStateTest {
         val state = quickState(status = space, currentGameName = "papi - heroic")
 
         assertEquals("Profile performance diagnostics are not available yet.", state.healthSummary)
-        assertFalse("the Doctor card would only repeat the strip", state.diagnosis.visible)
+        // Review finding 1: hiding the card for a Space moved every row under it as a Space's
+        // first answer arrived. The card keeps its place and shows the Space's own verdict.
+        assertTrue("the Doctor card shows the Space's verdict", state.diagnosis.visible)
+        assertEquals("Profile performance diagnostics are not available yet.", state.diagnosis.likelyCause)
         assertEquals("Fixed", state.liveTuningAction.chip?.label)
         assertEquals("This Space uses the bitrate selected when the stream starts.", state.liveTuningAction.caption)
     }
