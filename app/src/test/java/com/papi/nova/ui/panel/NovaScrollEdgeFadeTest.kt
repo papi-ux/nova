@@ -4,12 +4,15 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsFocused
@@ -106,6 +109,89 @@ class NovaScrollEdgeFadeTest {
             "the row after the focused one is whole, clear of the edge the fade covers: ${next.bottom} in ${list.bottom}",
             next.bottom <= list.bottom + 0.5.dp,
         )
+    }
+
+    @Test
+    fun theContextIsTheRowAfterTheFocusedOneHoweverTallItIs() {
+        // Where It Runs at 130%: the row after the focused one sat under a band label and wrapped
+        // to three lines, and a context guessed from the focused row's own height cut it.
+        val state = LazyListState()
+        val keys = rule.setPanelContent {
+            NovaRowContextScrolling {
+                LazyColumn(
+                    state = state,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.height(440.dp).testTag("list").novaScrollEdgeFade(state),
+                ) {
+                    items((0 until 12).toList()) { index ->
+                        Column {
+                            if (index == 7) NovaSectionLabel("Band")
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .requiredHeight(if (index == 7) 120.dp else 44.dp)
+                                    .testTag("row-$index")
+                                    .novaFocusRing(RectangleShape)
+                                    .focusable(),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        rule.onNodeWithTag("row-0").requestFocus()
+        rule.waitForIdle()
+        repeat(6) { keys.press(NovaTestKeys.DOWN) }
+        rule.waitForIdle()
+        rule.onNodeWithTag("row-6").assertIsFocused()
+
+        val list = rule.onNodeWithTag("list").getUnclippedBoundsInRoot()
+        val next = rule.onNodeWithTag("row-7").getUnclippedBoundsInRoot()
+        assertTrue(
+            "the tall row after the focused one, under its label, is whole: ${next.bottom} in ${list.bottom}",
+            next.bottom <= list.bottom + 0.5.dp,
+        )
+    }
+
+    @Test
+    fun aListComesToRestOnWholeRows() {
+        // After a scroll no row is left sliced under the top edge with more of it showing than the
+        // faintest part of the fade: the list moves on to the next row's start, or shows it whole.
+        val state = LazyListState()
+        val keys = rule.setPanelContent {
+            NovaRowContextScrolling {
+                LazyColumn(
+                    state = state,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.height(230.dp).testTag("list").novaScrollEdgeFade(state),
+                ) {
+                    items((0 until 12).toList()) { index ->
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .requiredHeight(if (index % 3 == 0) 70.dp else 44.dp)
+                                .testTag("row-$index")
+                                .novaFocusRing(RectangleShape)
+                                .focusable(),
+                        )
+                    }
+                }
+            }
+        }
+        rule.onNodeWithTag("row-0").requestFocus()
+        rule.waitForIdle()
+        repeat(6) {
+            keys.press(NovaTestKeys.DOWN)
+            rule.waitForIdle()
+        }
+        val top = rule.onNodeWithTag("list").getUnclippedBoundsInRoot().top
+        val sliced = (0 until 12).mapNotNull { index ->
+            val nodes = rule.onAllNodes(androidx.compose.ui.test.hasTestTag("row-$index")).fetchSemanticsNodes()
+            if (nodes.isEmpty()) return@mapNotNull null
+            val row = rule.onNodeWithTag("row-$index").getUnclippedBoundsInRoot()
+            index.takeIf { row.top < top - 0.5.dp && row.bottom > top + NovaPanelMetrics.EdgeFade / 4 + 0.5.dp }
+        }
+        assertEquals("rows sliced under the top edge at rest", emptyList<Int>(), sliced)
     }
 
     private fun args(text: String, from: Int): String? {

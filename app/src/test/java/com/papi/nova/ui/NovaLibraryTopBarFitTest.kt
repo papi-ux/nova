@@ -277,4 +277,14 @@ class NovaLibraryTopBarFitTest {
         assertEquals("2F", novaSpaceInitials("2nd Floor"))
         assertEquals("", novaSpaceInitials("  "))
     }
+
+    @Test
+    fun aHostNameTooLongForItsPlaceDropsItsDomainAndAnAddressStaysWhole() {
+        // The strip ended "living-room-gaming-pc.papi..." in an ellipsis; the name alone is whole.
+        assertEquals("living-room-gaming-pc", novaShortHostLabel("living-room-gaming-pc.papi.miami"))
+        assertEquals("pc-papi", novaShortHostLabel("pc-papi.lan"))
+        assertEquals("10.0.0.232", novaShortHostLabel("10.0.0.232"))
+        assertEquals("fe80::1", novaShortHostLabel("fe80::1"))
+        assertEquals("Living Room", novaShortHostLabel("Living Room"))
+    }
 }
