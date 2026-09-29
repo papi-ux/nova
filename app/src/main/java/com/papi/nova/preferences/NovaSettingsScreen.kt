@@ -112,6 +112,7 @@ import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaRowRest
 import com.papi.nova.ui.panel.novaScrollEdgeFade
+import com.papi.nova.ui.panel.novaTouchReach
 import com.papi.nova.ui.panel.NovaRowContextScrolling
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -1207,7 +1208,8 @@ private fun NovaSettingRow(
 /**
  * Reset, for touch. A pad resets with X, so the button is not a focus stop and never sits between
  * a value row and its Left and Right. It looks the size of a header button, and a finger has the
- * full 48dp to hit.
+ * full 48dp to hit: the target reaches past the button above and below, and the row takes only the
+ * button's height, so a compact 44dp row does not grow when its Reset appears (C24).
  */
 @Composable
 private fun NovaSettingResetButton(enabled: Boolean, onReset: () -> Unit) {
@@ -1216,21 +1218,22 @@ private fun NovaSettingResetButton(enabled: Boolean, onReset: () -> Unit) {
     val label = stringResource(R.string.nova_settings_reset)
     val shape = RoundedCornerShape(NovaRadius.hero)
     val reset by rememberUpdatedState(onReset)
+    val reach = (NovaSettingsMetrics.touchTargetMinDp().dp - NovaPanelMetrics.ButtonMinHeight) / 2
     // The tap and the button's meaning span the full target; the outline inside it keeps the look.
-    Box(
-        modifier = Modifier
-            .focusProperties { canFocus = false }
-            .pointerInput(enabled) { if (enabled) detectTapGestures(onTap = { reset() }) }
-            .semantics(mergeDescendants = true) {
-                role = Role.Button
-                if (enabled) {
-                    onClick(label = label) {
-                        reset()
-                        true
-                    }
+    val target = Modifier
+        .focusProperties { canFocus = false }
+        .pointerInput(enabled) { if (enabled) detectTapGestures(onTap = { reset() }) }
+        .semantics(mergeDescendants = true) {
+            role = Role.Button
+            if (enabled) {
+                onClick(label = label) {
+                    reset()
+                    true
                 }
             }
-            .heightIn(min = NovaSettingsMetrics.touchTargetMinDp().dp),
+        }
+    Box(
+        modifier = Modifier.novaTouchReach(reach, target),
         contentAlignment = Alignment.Center,
     ) {
         Box(

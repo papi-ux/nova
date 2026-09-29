@@ -12,6 +12,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -20,6 +21,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.text.TextLayoutResult
@@ -30,6 +34,7 @@ import com.papi.nova.ui.panel.NovaTestKeys
 import com.papi.nova.ui.panel.frames
 import com.papi.nova.ui.panel.setPanelContent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -96,6 +101,7 @@ class NovaSettingsPaneComposeTest {
     private var actions = mutableListOf<String>()
 
     private var resettable by mutableStateOf<Set<String>>(emptySet())
+    private val resets = mutableListOf<String>()
 
     private fun state() = NovaSettingsUiStateFactory.build(definitions, values, selected, "", resettableKeys = resettable)
 
@@ -113,7 +119,7 @@ class NovaSettingsPaneComposeTest {
                     onClearSearch = {},
                     onCategory = { selected = it },
                     headerActions = emptyList(),
-                    onResetSetting = {},
+                    onResetSetting = { resets += it.key },
                     onValue = { definition, value, done ->
                         writes += definition.key to value
                         values = values + (definition.key to value)
@@ -173,6 +179,34 @@ class NovaSettingsPaneComposeTest {
         show()
         val reset = rule.onNode(hasText("Reset") and hasClickAction()).getBoundsInRoot()
         assertTrue("Reset's touch target is at least 48dp tall: $reset", reset.bottom - reset.top >= 48.dp)
+    }
+
+    // A compact row is 44dp, and Reset's 48dp target was its real height: the row grew 4dp when an
+    // override's Reset appeared, and every row under it moved down (audit C24). The target reaches
+    // past the button instead, so the row keeps its height and a tap just off the button resets.
+    @Test
+    fun aResetDoesNotGrowItsRowOrMoveTheRowsUnderIt() {
+        show()
+        val next = row(PreferenceConfiguration.FPS_PREF_STRING)
+        val before = next.getUnclippedBoundsInRoot().top
+        resettable = setOf("checkbox_enable_hdr")
+        settle()
+        assertEquals("the row under the reset one stays put", before.value, next.getUnclippedBoundsInRoot().top.value, 0.5f)
+
+        // The button is drawn 40dp tall around its label; a tap 3dp above it still resets.
+        val label = rule.onNode(hasText("Reset") and hasAnyAncestor(hasClickAction()), useUnmergedTree = true).getUnclippedBoundsInRoot()
+        with(rule.density) {
+            val x = ((label.left + label.right) / 2).toPx()
+            val buttonTop = (label.top + label.bottom) / 2 - 20.dp
+            rule.onRoot().performTouchInput { click(Offset(x, (buttonTop - 3.dp).toPx())) }
+        }
+        rule.waitForIdle()
+        assertEquals("a tap just above the button still resets", listOf("checkbox_enable_hdr"), resets)
+
+        val source = java.io.File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
+            .substringAfter("private fun NovaSettingResetButton(").substringBefore("\n}\n")
+        assertTrue("the target reaches past the button rather than sizing its row", source.contains("Modifier.novaTouchReach(reach, target)"))
+        assertFalse("its 48dp is not layout height", source.contains(".heightIn(min = NovaSettingsMetrics.touchTargetMinDp().dp)"))
     }
 
     @Test

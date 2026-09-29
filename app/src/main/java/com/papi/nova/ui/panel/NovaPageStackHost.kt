@@ -84,6 +84,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.BuildConfig
@@ -417,6 +418,9 @@ fun NovaPageStackHost(
                             onBack = { scope.exit.back() },
                             end = headerEnd,
                             modifier = Modifier
+                                // Over the page, for touch: the back target reaches past a compact
+                                // line into the page's top padding, and must take a tap there first.
+                                .zIndex(1f)
                                 .padding(horizontal = padding)
                                 .padding(top = NovaPanelMetrics.headerTopPadding(formFactor, panelDensity)),
                         )
@@ -585,7 +589,9 @@ private fun NovaPageHeader(
     val backLabel = parentTitle?.let { stringResource(R.string.nova_panel_back_to, it) }
     val back by rememberUpdatedState(onBack)
     val height = NovaPanelMetrics.headerHeight(LocalNovaFormFactor.current, LocalNovaPanelDensity.current)
-    // The touch B, though never a focus stop.
+    // The touch B, though never a focus stop. A compact line is 40dp, and the target reaches past it
+    // above and below to the full header's 48dp, so a finger has 48dp and the line keeps its height (C24).
+    val reach = (NovaPanelMetrics.HeaderHeight - height) / 2
     val backTarget = Modifier
         .testTag(NovaPageBackTag)
         .pointerInput(Unit) { detectTapGestures(onTap = { back() }) }
@@ -608,7 +614,7 @@ private fun NovaPageHeader(
             } else {
                 // The ‹ hangs into the gutter, so the title starts on the text line of the rows
                 // under it, as the mockup draws it. As tall as the line, for the touch B.
-                NovaPageBack(title = title, modifier = Modifier.heightIn(min = height).then(backTarget))
+                NovaPageBack(title = title, modifier = Modifier.novaTouchReach(reach, backTarget).heightIn(min = height))
             }
         }
         end?.let {
