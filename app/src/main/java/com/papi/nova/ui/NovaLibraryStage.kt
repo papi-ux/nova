@@ -1003,8 +1003,10 @@ private fun NovaStageEndAction(label: String, state: NovaSplitConfirmState, onCo
 /**
  * A stage call to action, in the one focus look: the selection fill and a 3dp ring inside the
  * visible surface, animated over 150ms, with no scale. The press target stays the larger box
- * around the surface. The emphasized action keeps its accent fill and reads its label, and its
- * ring, in the theme's on-accent colour, so it holds its contrast on every theme.
+ * around the surface. The emphasized action rests as a tile like the one beside it, marked by its
+ * label in the accent, and takes the accent fill, with its label and ring in the theme's on-accent
+ * colour, only while it holds focus (M6): a solid accent at rest read as a second focus beside the
+ * poster that held it, as every other primary did before it rested as a tile.
  */
 @Composable
 private fun NovaStageHeroAction(
@@ -1021,10 +1023,10 @@ private fun NovaStageHeroAction(
     val surfaces = LocalNovaLibrarySurfaces.current
     val opacityScale = LocalNovaMenuOpacityScale.current
     val shape = RoundedCornerShape(NovaRadius.hero)
-    // The hero's primary action is not menu chrome. Folding the menu-opacity preference
-    // (64% by default) into its fill composited the accent down against the backdrop until
-    // the on-accent label sat at 2:1 against it, which is below the large-text floor.
-    val restFill = if (emphasized) colors.accent else surfaces.focusedArtworkScrim.copy(alpha = 0.72f * opacityScale)
+    // The hero's primary action is not menu chrome. Folding the menu-opacity preference (64% by
+    // default) into its tile would thin the scrim under its accent label until the artwork showed
+    // through the words, so the primary keeps the scrim's own weight at rest.
+    val restFill = if (emphasized) surfaces.focusedArtworkScrim else surfaces.focusedArtworkScrim.copy(alpha = 0.72f * opacityScale)
     val focusedFill = if (emphasized) colors.accent else surfaces.selectedControl
     val ring = if (emphasized) colors.onAccent else surfaces.focusRing
     val focus by animateFloatAsState(
@@ -1082,7 +1084,11 @@ private fun NovaStageHeroAction(
             ) {
                 Text(
                     text = label,
-                    color = if (emphasized) colors.onAccent else colors.textPrimary,
+                    color = when {
+                        emphasized && focused -> colors.onAccent
+                        emphasized -> colors.accentText
+                        else -> colors.textPrimary
+                    },
                     fontSize = visualFontSize,
                     lineHeight = visualLineHeight,
                     fontWeight = if (focused) FontWeight.Bold else FontWeight.SemiBold,

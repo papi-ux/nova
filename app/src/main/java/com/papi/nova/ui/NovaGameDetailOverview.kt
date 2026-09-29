@@ -5,7 +5,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,7 +60,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
@@ -1139,9 +1137,12 @@ private fun Modifier.novaFadeToGround(ground: Color): Modifier = drawWithContent
 }
 
 /**
- * One action in the lane. The primary uses an accent gradient; the rest are quiet,
- * hairline-bordered and marked. Focus is a contrasting ring and a brighter fill,
- * tint — never a scale or an offset, which is the contract the poster cards settled on.
+ * One action in the lane, on the one action surface the panels use. Launch, Resume and every other
+ * action rest as tiles, and focus is the accent fill and the 3dp ring inside it, never a scale or
+ * an offset, which is the contract the poster cards settled on. The primary is marked at rest by its
+ * label and icon in the accent, and it takes the accent fill only while it holds focus (M6): its
+ * gradient stayed lit after focus moved on and read as a second focus beside the real one, and
+ * under focus it changed so little that the page seemed to open with no focus at all.
  */
 @Composable
 private fun NovaGameDetailAction(
@@ -1154,137 +1155,42 @@ private fun NovaGameDetailAction(
     iconRes: Int? = null,
     iconOnly: Boolean = false,
 ) {
-    if (!(primary && enabled)) {
-        // Every other action is the one action surface the panels use: the control fill at rest,
-        // the focused fill and the 3dp ring under focus. A solid accent with a light label had
-        // read at about 2.5:1 and looked like a third focus style.
-        NovaActionSurface(
-            onClick = onClick,
-            enabled = enabled,
-            contentDescription = text,
-            minHeight = NovaGameDetailActionHeight,
-            cornerRadius = NovaRadius.hero,
-            contentPadding = PaddingValues(horizontal = if (iconOnly) 11.dp else 14.dp, vertical = 10.dp),
-            modifier = if (iconOnly) modifier.size(NovaGameDetailActionHeight) else modifier,
-        ) { contentColor, focused ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = if (iconOnly) Arrangement.Center else Arrangement.spacedBy(9.dp),
-            ) {
-                if (mark != null) {
-                    Text(text = mark, color = contentColor.copy(alpha = 0.62f), fontSize = 13.sp)
-                }
-                if (iconRes != null) {
-                    Icon(
-                        painter = painterResource(iconRes),
-                        contentDescription = null,
-                        tint = contentColor.copy(alpha = if (iconOnly) 0.82f else 0.72f),
-                        modifier = Modifier.size(if (iconOnly) 22.dp else 18.dp),
-                    )
-                }
-                if (!iconOnly) {
-                    // Whole words on as many lines as they need, at rest and under the cursor: an
-                    // ellipsis at rest cut "Reset Game Profile" in a phone's half row (C25).
-                    Text(
-                        text = text,
-                        color = contentColor,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+    NovaActionSurface(
+        onClick = onClick,
+        enabled = enabled,
+        primary = primary,
+        contentDescription = text,
+        minHeight = NovaGameDetailActionHeight,
+        cornerRadius = NovaRadius.hero,
+        contentPadding = PaddingValues(horizontal = if (iconOnly) 11.dp else 14.dp, vertical = 10.dp),
+        modifier = if (iconOnly) modifier.size(NovaGameDetailActionHeight) else modifier,
+    ) { contentColor, _ ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (iconOnly) Arrangement.Center else Arrangement.spacedBy(9.dp),
+        ) {
+            if (mark != null) {
+                Text(text = mark, color = contentColor.copy(alpha = 0.62f), fontSize = 13.sp)
             }
-        }
-        return
-    }
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val interactionSource = remember { MutableInteractionSource() }
-    var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(NovaRadius.hero)
-
-    val background = if (primary && enabled) {
-        Brush.linearGradient(
-            if (focused) listOf(
-                lerp(colors.accent, Color.White, 0.48f),
-                lerp(colors.accent, Color.White, 0.68f),
-                lerp(colors.accent, Color.White, 0.82f),
-            ) else listOf(
-                colors.accent,
-                lerp(colors.accent, Color.White, 0.28f),
-                lerp(colors.accent, Color.White, 0.62f),
-            ),
-        )
-    } else {
-        SolidColor((if (focused) surfaces.selectedControl else surfaces.control).copy(alpha = 1f))
-    }
-    val label = when {
-        primary && enabled -> colors.onAccent
-        enabled -> colors.textPrimary
-        else -> colors.textMuted
-    }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = if (iconOnly) {
-            Arrangement.Center
-        } else {
-            Arrangement.spacedBy(9.dp)
-        },
-        modifier = modifier
-            .then(
-                if (iconOnly) {
-                    Modifier.size(NovaGameDetailActionHeight)
-                } else {
-                    Modifier.heightIn(min = NovaGameDetailActionHeight)
-                }
-            )
-            .clip(shape)
-            .background(background, shape)
-            .border(
-                width = if (focused) 3.dp else 1.dp,
-                color = when {
-                    focused && primary && enabled -> colors.onAccent
-                    focused -> colors.accent
-                    else -> surfaces.tileBorder
-                },
-                shape = shape,
-            )
-            .onFocusChanged { focused = it.isFocused }
-            .clickable(
-                enabled = enabled,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
-            .semantics { contentDescription = text }
-            .padding(
-                horizontal = if (iconOnly) 11.dp else 14.dp,
-                vertical = 10.dp,
-            ),
-    ) {
-        if (mark != null) {
-            Text(text = mark, color = label.copy(alpha = 0.62f), fontSize = 13.sp)
-        }
-        if (iconRes != null) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = label.copy(alpha = if (iconOnly) 0.82f else 0.72f),
-                modifier = Modifier.size(if (iconOnly) 22.dp else 18.dp),
-            )
-        }
-        if (!iconOnly) {
-            Text(
-                text = text,
-                color = label,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                // Two actions share a row on a phone held upright, and "Reset Game Profile" did
-                // not fit its half. It wraps between words, whole at rest and under the cursor,
-                // rather than ending in an ellipsis or running past (C25).
-                textAlign = TextAlign.Center,
-            )
+            if (iconRes != null) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    tint = contentColor.copy(alpha = if (iconOnly) 0.82f else 0.72f),
+                    modifier = Modifier.size(if (iconOnly) 22.dp else 18.dp),
+                )
+            }
+            if (!iconOnly) {
+                // Whole words on as many lines as they need, at rest and under the cursor: an
+                // ellipsis at rest cut "Reset Game Profile" in a phone's half row (C25).
+                Text(
+                    text = text,
+                    color = contentColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }

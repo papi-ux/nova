@@ -27,7 +27,8 @@ class NovaGameDetailSourceGuardTest {
                 "action rail; the floor now lives on the rail's own action height, and the choice " +
                 "rows stand on the panel's own row height rather than a floor of their own",
             detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
-                detail.contains("heightIn(min = NovaGameDetailActionHeight)") &&
+                // Launch is the one action surface now, as every other action was (M6).
+                detail.contains("minHeight = NovaGameDetailActionHeight,") &&
                 detail.contains(".heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))") &&
                 !detail.contains("NOVA_DETAIL_ROW_MIN_HEIGHT")
         )
@@ -77,8 +78,10 @@ class NovaGameDetailSourceGuardTest {
         assertTrue(
             "every focusable action clears the accessible target floor",
             detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
-                detail.contains("heightIn(min = NovaGameDetailActionHeight)") &&
-                detail.contains("Modifier.size(NovaGameDetailActionHeight)")
+                // Every action, Launch included, is the one action surface now (M6): its floor is
+                // the surface's minimum height, and an icon action is that size square.
+                detail.contains("minHeight = NovaGameDetailActionHeight,") &&
+                detail.contains("modifier.size(NovaGameDetailActionHeight)")
         )
         assertTrue(
             "Launch stays primary; Play Setup and Reset retain labels; Pin and Artwork are " +
@@ -105,7 +108,8 @@ class NovaGameDetailSourceGuardTest {
         )
         assertTrue(
             "icon-only utilities keep their full spoken label on the parent control",
-            detail.contains(".semantics { contentDescription = text }") &&
+            // The action surface sets the label it is given on the control itself.
+            detail.contains("contentDescription = text,") &&
                 detail.contains("contentDescription = null") &&
                 actions.contains("nova-game-detail-pin-shortcut") &&
                 actions.contains("nova-game-detail-artwork")
