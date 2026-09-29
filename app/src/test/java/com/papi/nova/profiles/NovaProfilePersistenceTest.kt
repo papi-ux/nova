@@ -70,7 +70,7 @@ class NovaProfilePersistenceTest {
         for (close in listOf(false, true)) {
             failAfterOpen(close)
             var result: ProfilesManager.SaveResult? = null
-            manager.updateDeferred(profile) { result = it }
+            manager.updateDeferred(renamed(if (close) "Close failed draft" else "Partial failed draft")) { result = it }
             manager.awaitDeferredWritesForTest()
             assertEquals(ProfilesManager.SaveResult.FAILED, result)
             assertArrayEquals(old, file.readBytes())
@@ -79,7 +79,9 @@ class NovaProfilePersistenceTest {
             assertTrue(cold.load(context))
             assertEquals(2, cold.getProfiles().size)
             assertEquals(profile.getUuid(), cold.getActive()!!.getUuid())
+            assertEquals("Pinned Custom", cold.getActive()!!.getName())
             assertEquals("custom", cold.getActive()!!.getOptions()!![NovaSettingsMigration.TIER])
+            assertTrue(directory.listFiles().orEmpty().none { it.extension == "tmp" })
         }
     }
 
@@ -155,6 +157,38 @@ class NovaProfilePersistenceTest {
         assertTrue(cold.load(context))
         assertEquals(2, cold.getProfiles().size)
         assertEquals("Edited", cold.getActive()!!.getName())
+    }
+
+    @Test fun aCommitPublishesTheCapturedDraftEvenWhenTheCallerEditsItDuringTheWrite() {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        blockFirstWrite(entered, release)
+        val draft = renamed("Captured draft")
+        var committed: Boolean? = null
+        val writer = Thread { committed = manager.commit(context, draft) }
+        writer.start()
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            draft.setName("Later unsaved edit")
+            draft.setModifiedUtc(99L)
+            draft.setOptions(draft.getOptions()!! + mapOf("seekbar_bitrate_kbps" to 450000,
+                NovaSettingsMigration.CUSTOM_AUTO to true))
+        } finally { release.countDown() }
+        writer.join(5000)
+        assertFalse(writer.isAlive)
+        assertEquals(true, committed)
+        val published = manager.getActive()!!
+        assertEquals("Captured draft", published.getName())
+        assertEquals(2L, published.getModifiedUtc())
+        assertEquals(350000, (published.getOptions()!!["seekbar_bitrate_kbps"] as Number).toInt())
+        assertEquals(false, published.getOptions()!![NovaSettingsMigration.CUSTOM_AUTO])
+        assertNotSame(draft, published)
+        ProfilesManager.instance = null
+        val cold = ProfilesManager.getInstance()
+        assertTrue(cold.load(context))
+        assertEquals(published.getName(), cold.getActive()!!.getName())
+        assertEquals(published.getModifiedUtc(), cold.getActive()!!.getModifiedUtc())
+        assertEquals(published.getOptions(), cold.getActive()!!.getOptions())
     }
 
     @Test fun decoderRecoveryReportsFailureAndRetryAcknowledgesOnlyTheSavedReset() {
