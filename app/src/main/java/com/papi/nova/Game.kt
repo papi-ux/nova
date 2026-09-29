@@ -6370,8 +6370,8 @@ applyMouseMode(savedMouseModeIndex)
 }
 }
 /**
- * The mouse modes this display allows, with their original indexes as values, then the local
- * cursor toggle as -1. On an external display only the touchpad modes and Disabled make sense.
+ * The mouse modes this display allows, with their original indexes as values. On an external
+ * display only the touchpad modes and Disabled make sense. The local cursor is a row of its own.
  */
 fun mouseModeChoices():List<NovaOption<Int>> = NovaMouseModeChoices.options(
 modeNames = getResources().getStringArray(R.array.mouse_mode_names).toList(),
@@ -6381,8 +6381,11 @@ getString(R.string.mouse_mode_track_pad_natural),
 getString(R.string.mouse_mode_track_pad_gaming),
 getString(R.string.mouse_mode_disabled)
 ),
-localCursorLabel = getString(R.string.toggle_local_mouse_cursor),
 )
+
+/** Whether the local mouse cursor is drawn on this device, for the Mouse Mode page's switch. */
+val isLocalCursorShown:Boolean
+get() = cursorVisible
 
 /** The mouse mode in use, as the value [mouseModeChoices] marks current. */
 val currentMouseModeChoice:Int

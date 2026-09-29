@@ -18,6 +18,7 @@ import com.papi.nova.ui.panel.NovaMenuItem
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPageStackHost
 import com.papi.nova.ui.panel.NovaPanelState
+import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.NovaTestKeys
 import com.papi.nova.ui.panel.advance
 import com.papi.nova.ui.panel.frames
@@ -53,6 +54,7 @@ class NovaCommandCenterPagesComposeTest {
     private val switches = mutableListOf<Boolean>()
     private val quickKeys = mutableListOf<NovaQuickMenuActionId>()
     private var liveTuningToggles = 0
+    private val localCursor = mutableListOf<Boolean>()
 
     private val callbacks = NovaQuickMenuCallbacks(
         onDismiss = { dismissed++ },
@@ -68,10 +70,15 @@ class NovaCommandCenterPagesComposeTest {
                             modeNames = listOf("Direct", "Relative", "Track pad (Natural)", "Track pad (Gaming)", "Disabled"),
                             onExternalDisplay = false,
                             externalModes = emptySet(),
-                            localCursorLabel = "Toggle local cursor",
                         ),
                         current = 3,
                         onChoose = { chosenModes += it },
+                        localCursor = NovaLocalCursorRow(
+                            label = "Local Cursor",
+                            caption = "Needs a physical mouse.",
+                            shown = false,
+                            onChange = { localCursor += it },
+                        ),
                     ),
                 )
             }
@@ -141,6 +148,7 @@ class NovaCommandCenterPagesComposeTest {
                     when (page) {
                         is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = callbacks)
                         is CommandCenterPage.Listing -> CommandCenterListingPage(page)
+                        is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                         else -> Unit
                     }
                 }
@@ -280,6 +288,42 @@ class NovaCommandCenterPagesComposeTest {
         rule.onNodeWithText("Mouse").assertIsFocused()
     }
 
+    /**
+     * N27 (rest) and XR1: Mouse Mode was a plain Choice page, which narrowed the panel, and the
+     * local cursor toggle sat in the list of modes. It keeps the Command Center's width now, and
+     * the cursor is a switch in its own row after the modes that changes in place.
+     */
+    @Test
+    fun mouseModeKeepsTheCommandCenterWidthAndTheLocalCursorIsARowOfItsOwn() {
+        val keys = open()
+        focus("Mouse")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+
+        assertEquals("the page keeps the root's width", NovaPanelWidth.Wide, panel.top?.width)
+        rule.onNodeWithText("Track pad (Gaming)").assertIsFocused()
+        keys.press(NovaTestKeys.DOWN)
+        keys.press(NovaTestKeys.DOWN)
+        rule.onNodeWithText("Local Cursor").assertIsFocused()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.frames(4)
+
+        assertEquals("Right turns the cursor on in its row", listOf(true), localCursor)
+        assertTrue("the cursor is no mode", chosenModes.isEmpty())
+        assertEquals("a setting keeps the page open", 2, panel.depth)
+    }
+
+    @Test
+    fun mouseModePageIsAsWideAsTheCommandCenter() {
+        val page = NovaMouseModeChoices.page(
+            title = "Mouse Mode",
+            options = listOf(NovaOption(0, "Direct"), NovaOption(4, "Disabled")),
+            current = 0,
+            onChoose = {},
+        )
+        assertEquals("a pushed page narrowed the panel (XR1)", NovaPanelWidth.Wide, page.width)
+    }
+
     @Test
     fun moreKeysOpensTheKeyListAndAKeyClosesThePanelBeforeItIsSent() {
         val keys = open()
@@ -333,10 +377,9 @@ class NovaCommandCenterPagesComposeTest {
             modeNames = listOf("Direct", "Relative", "Track pad (Natural)", "Track pad (Gaming)", "Disabled"),
             onExternalDisplay = true,
             externalModes = setOf("Track pad (Natural)", "Track pad (Gaming)", "Disabled"),
-            localCursorLabel = "Toggle local cursor",
         )
-        assertEquals(listOf(2, 3, 4, NovaMouseModeChoices.LocalCursor), options.map { it.value })
-        assertEquals("Toggle local cursor", options.last().label)
+        // Modes only: the local cursor is a row of its own after them, never a mode among them.
+        assertEquals(listOf(2, 3, 4), options.map { it.value })
     }
 
     @Test

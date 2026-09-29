@@ -71,6 +71,9 @@
     <!-- Sync Status while Live Tuning holds the bitrate. -->
     <string name="nova_cc_live_tuning_sync_capped">Live Tuning is at %1$s under your %2$s limit.</string>
     <string name="nova_cc_live_tuning_sync_target">Live Tuning target is %1$s.</string>
+    <!-- Mouse Mode: the local cursor, a switch in its own row after the modes. -->
+    <string name="nova_cc_local_cursor">Local Cursor</string>
+    <string name="nova_cc_local_cursor_caption">Draws the pointer on this device. Needs a physical mouse.</string>
 
     <!-- Launch failure and stream errors, as full-screen state pages. -->
     <string name="nova_stream_launch_retry">Try Again</string>

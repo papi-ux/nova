@@ -18,7 +18,6 @@ import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.KeyboardTranslator
 import com.papi.nova.preferences.PreferenceConfiguration
-import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaMenuItem
 import com.papi.nova.ui.panel.NovaOption
@@ -1127,6 +1126,7 @@ class NovaQuickMenu(
             when (page) {
                 is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks)
                 is CommandCenterPage.Listing -> CommandCenterListingPage(page)
+                is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                 else -> Unit
             }
         }
@@ -1220,8 +1220,11 @@ class NovaQuickMenu(
         decor.postDelayed(runnable, SETTING_WRITE_DEBOUNCE_MS)
     }
 
-    /** Mouse Mode as a Choice page: it opens on the current mode, and one A applies and pops. */
-    private fun mouseModePage(onChosen: () -> Unit): NovaCommonPage.Choice<Int> = NovaMouseModeChoices.page(
+    /**
+     * Mouse Mode at the Command Center's width: it opens on the current mode, one A applies a mode
+     * and pops, and the local cursor switches in its own row after the modes.
+     */
+    private fun mouseModePage(onChosen: () -> Unit): CommandCenterPage.MouseMode = NovaMouseModeChoices.page(
         title = game.getString(R.string.nova_cc_mouse_mode),
         options = game.mouseModeChoices(),
         current = game.currentMouseModeChoice,
@@ -1229,6 +1232,15 @@ class NovaQuickMenu(
             game.chooseMouseMode(choice)
             onChosen()
         },
+        localCursor = NovaLocalCursorRow(
+            label = game.getString(R.string.nova_cc_local_cursor),
+            caption = game.getString(R.string.nova_cc_local_cursor_caption),
+            shown = game.isLocalCursorShown,
+            onChange = { shown ->
+                if (shown != game.isLocalCursorShown) game.chooseMouseMode(NovaMouseModeChoices.LocalCursor)
+                onChosen()
+            },
+        ),
     )
 
     /** The Keys page: the default special keys and the imported custom ones. */
