@@ -13,9 +13,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.papi.nova.Game
@@ -345,6 +347,11 @@ val Activity.novaSurfaces: NovaSurfaces get() = NovaSurfaces.of(this)
 /**
  * The window's content: the panel frame with its page stack, and the state pages above it.
  * [onIdle] runs once the panel's exit motion has landed and no state page is showing or pending.
+ *
+ * One surface is active at a time. A state page owns the window's input from the moment it is
+ * posted, before a Busy page's 300ms delay, until the last one has gone: the panel under it is
+ * covered ([LocalNovaPanelCovered]) and hidden from accessibility. [onActiveSurfaceChange] hears
+ * each change, so the window can forget a press that began on the other surface.
  */
 @Composable
 internal fun NovaSurfacesLayer(
@@ -357,6 +364,7 @@ internal fun NovaSurfacesLayer(
     hints: List<NovaControllerHint> = emptyList(),
     onShoulder: ((NovaShoulder) -> Unit)? = null,
     isPosted: (String) -> Boolean = { key -> states.any { it.key == key } },
+    onActiveSurfaceChange: (panelCovered: Boolean) -> Unit = {},
 ) {
     val panelOpen = panel.isOpen
     var framePresent by remember { mutableStateOf(panelOpen) }
@@ -368,6 +376,8 @@ internal fun NovaSurfacesLayer(
     // A state page on screen, or about to show, owns the window's keys, Back and focus; a panel
     // opened under it after it showed would otherwise register the newer back handlers.
     val covered = statesShowing || states.isNotEmpty()
+    val activeSurfaceChange by rememberUpdatedState(onActiveSurfaceChange)
+    LaunchedEffect(covered) { activeSurfaceChange(covered) }
     Box(modifier = modifier.fillMaxSize()) {
         if (framePresent || panelOpen) {
             CompositionLocalProvider(LocalNovaFocusRefresh provides focusRefresh, LocalNovaPanelCovered provides covered) {
@@ -378,6 +388,8 @@ internal fun NovaSurfacesLayer(
                     onDismissRequest = panel::close,
                     onClosed = { framePresent = false },
                     scrim = scrim,
+                    // Nothing on a covered panel can be reached or acted on by accessibility.
+                    modifier = if (covered) Modifier.clearAndSetSemantics { } else Modifier,
                 ) {
                     // The window already holds focus in; a state page drawn beside the panel must
                     // be able to take it.

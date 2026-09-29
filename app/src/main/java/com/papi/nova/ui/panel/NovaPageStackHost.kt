@@ -144,8 +144,12 @@ val LocalNovaPageIsTop = compositionLocalOf { true }
 internal val LocalNovaPageMayAct = compositionLocalOf<() -> Boolean> { { true } }
 
 /**
- * True while a state page is on screen above the panel in the same window, or about to show.
- * A covered panel takes no keys, no Back and no focus: they belong to the state page.
+ * True while a state page is on screen above the panel in the same window, or posted and about to
+ * show, as a Busy page is for its first 300ms. Only one surface is active: a covered panel takes
+ * no keys, no Back, no touches (its scrim and drag included), no focus and no accessibility
+ * actions, which all belong to the state page. Its armed splits disarm and its pending presses are
+ * forgotten, so a press that began on the panel never finishes on either surface. When the last
+ * state page goes, the top page takes focus back on the element that held it.
  */
 internal val LocalNovaPanelCovered = compositionLocalOf { false }
 
@@ -211,6 +215,9 @@ fun NovaPageStackHost(
     val saveable = rememberSaveableStateHolder()
     val hostView = LocalNovaHostView.current ?: LocalView.current
     val releaseLatch = remember { NovaPressLatch() }
+    // A Start or shoulder press the panel saw go down belongs to the surface that saw it: covered
+    // or uncovered, its release does nothing here.
+    LaunchedEffect(covered) { releaseLatch.clear() }
     val select = stringResource(R.string.nova_panel_select)
     val back = stringResource(R.string.nova_panel_back)
     val keyA = stringResource(R.string.nova_panel_key_a)
@@ -539,7 +546,16 @@ private class NovaPageScopeImpl(
 
     override fun Modifier.novaRestorableFocus(key: Any, index: Int): Modifier =
         focusRequester(entry.requesterFor(key))
-            .onFocusChanged { if (it.hasFocus) entry.rememberFocus(key, index) }
+            .onFocusChanged {
+                if (it.hasFocus) {
+                    entry.rememberFocus(key, index)
+                } else if (entry.letGo(key) && isTop) {
+                    // Focus moved on within this page, perhaps to an element that is not
+                    // restorable, so this key no longer says where it is. A page covered by a
+                    // state page, or by a page pushed over it, keeps it for its return.
+                    entry.forgetFocus(key)
+                }
+            }
 
     override fun closeThen(awaitHostFocus: Boolean, action: () -> Unit) {
         closeRequest()

@@ -50,11 +50,25 @@ internal class NovaStackEntry(val id: Long, val page: NovaPage) {
     var startKey: Any? = null
     var startIndex: Int = -1
 
+    // Keys whose element holds focus now, so a row that composes without it is not taken for one losing it.
+    private val holding = HashSet<Any>()
+
     fun requesterFor(key: Any): FocusRequester = requesters.getOrPut(key) { FocusRequester() }
 
     fun rememberFocus(key: Any, index: Int) {
         focusKey = key
         focusIndex = index
+        holding += key
+    }
+
+    /** Whether [key]'s element held focus until now; it no longer does. */
+    fun letGo(key: Any): Boolean = holding.remove(key)
+
+    /** Forgets [key] as where focus returns, when focus has moved on within the page to something else. */
+    fun forgetFocus(key: Any) {
+        if (focusKey != key) return
+        focusKey = null
+        focusIndex = -1
     }
 }
 

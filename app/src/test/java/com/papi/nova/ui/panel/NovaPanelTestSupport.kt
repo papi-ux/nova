@@ -57,10 +57,20 @@ internal class NovaTestKeys(private val rule: NovaTestRule) {
      * so B and Escape become Back on release, as they do on a device.
      */
     fun gatedPress(code: Int) {
+        gatedDown(code)
+        gatedUp(code)
+    }
+
+    fun gatedDown(code: Int) = gated(KeyEvent.ACTION_DOWN, code)
+
+    fun gatedUp(code: Int) = gated(KeyEvent.ACTION_UP, code)
+
+    /** Forgets presses in progress at the gate, as a Nova window does when the active surface changes. */
+    fun resetGate() = gate.reset()
+
+    private fun gated(action: Int, code: Int) {
         rule.runOnUiThread {
-            for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
-                gate.dispatch(event(action, code, 0, 0), onBack = rule.activity.onBackPressedDispatcher::onBackPressed, deliver = view::dispatchKeyEvent)
-            }
+            gate.dispatch(event(action, code, 0, 0), onBack = rule.activity.onBackPressedDispatcher::onBackPressed, deliver = view::dispatchKeyEvent)
         }
         rule.waitForIdle()
         if (!rule.mainClock.autoAdvance) rule.frames(1)

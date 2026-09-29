@@ -109,10 +109,11 @@ var SemanticsPropertyReceiver.novaPanelPlacement by NovaPanelPlacementKey
  * up to 88% of the height and animating its height as pages change.
  *
  * [open] drives the slide in and out on the Command Center's spring. A tap on the scrim, or a drag
- * toward the edge past [NovaPanelMetrics.DismissFraction], calls [onDismissRequest]; [onClosed]
- * runs when the exit motion lands. Content is padded by the safe drawing insets, the keyboard and,
- * on a television, the title-safe area, so nothing is cut by the screen. The frame is a panel
- * host: its content is drawn at the panel density for the window ([NovaPanelDensityHost]).
+ * toward the edge past [NovaPanelMetrics.DismissFraction], calls [onDismissRequest], except while
+ * a state page covers the panel ([LocalNovaPanelCovered]); [onClosed] runs when the exit motion
+ * lands. Content is padded by the safe drawing insets, the keyboard and, on a television, the
+ * title-safe area, so nothing is cut by the screen. The frame is a panel host: its content is
+ * drawn at the panel density for the window ([NovaPanelDensityHost]).
  */
 @Composable
 fun NovaPanelFrame(
@@ -130,6 +131,8 @@ fun NovaPanelFrame(
     val dismiss by rememberUpdatedState(onDismissRequest)
     val closed by rememberUpdatedState(onClosed)
     val openNow by rememberUpdatedState(open)
+    // A state page above the panel owns every touch, even while a Busy page waits to show.
+    val coveredNow by rememberUpdatedState(LocalNovaPanelCovered.current)
     val scope = rememberCoroutineScope()
     LaunchedEffect(open) {
         progress.animateTo(if (open) 1f else 0f, PanelSpring)
@@ -146,7 +149,7 @@ fun NovaPanelFrame(
         PanelDrag(
             begin = {
                 // A finger on a closing panel never stops its exit, which is what lets the window go.
-                if (openNow) {
+                if (openNow && !coveredNow) {
                     dragProgress.floatValue = progress.value
                     dragging.value = true
                 }
@@ -176,7 +179,7 @@ fun NovaPanelFrame(
             NovaPanelScrim(
                 baseAlpha = if (scrim == NovaScrim.Stream) NovaPanelMetrics.StreamScrimAlpha else NovaPanelMetrics.ScreenScrimAlpha,
                 progress = { progress.value },
-                onTap = { dismiss() },
+                onTap = { if (!coveredNow) dismiss() },
             )
         }
         val tvSafe = LocalNovaFormFactor.current == NovaFormFactor.Television

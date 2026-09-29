@@ -253,13 +253,15 @@ private fun NovaPageScope.NovaQuickMenuHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
         ) {
+            // Restorable, so focus comes back to the button it left when a state page such as
+            // Connection Lost covers the panel and goes.
             if (!armed) {
-                NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f))
+                NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaRestorableFocus("header-close"))
                 if (disconnect.visible) {
-                    NovaQuickMenuHeaderButton(disconnect, callbacks, Modifier.weight(1f))
+                    NovaQuickMenuHeaderButton(disconnect, callbacks, Modifier.weight(1f).novaRestorableFocus("header-disconnect"))
                 }
             }
-            NovaQuickMenuEndButton(end, callbacks, endSplit, Modifier.weight(1f))
+            NovaQuickMenuEndButton(end, callbacks, endSplit, Modifier.weight(1f).novaRestorableFocus("header-end"))
         }
         AnimatedVisibility(
             visible = armed && consequence != null,

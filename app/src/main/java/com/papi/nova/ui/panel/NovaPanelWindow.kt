@@ -120,6 +120,9 @@ internal class NovaPanelWindow(
                             hints = surfaces.pageHints,
                             onShoulder = surfaces.pageShoulder,
                             isPosted = { key -> surfaces.states.value.any { it.key == key } },
+                            // A press that began on one surface, the panel or a state page, never
+                            // finishes on the other.
+                            onActiveSurfaceChange = { forgetPresses() },
                         )
                     }
                 }
@@ -156,10 +159,13 @@ internal class NovaPanelWindow(
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus) {
-            keyGate.reset()
-            backStartGate.reset()
-        }
+        if (!hasFocus) forgetPresses()
+    }
+
+    /** Forgets A, B and Back presses in progress, whose releases then do nothing. */
+    private fun forgetPresses() {
+        keyGate.reset()
+        backStartGate.reset()
     }
 
     /** Shows the window, reading a companion display's window token at show time. */

@@ -16,13 +16,20 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import com.papi.nova.R
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import com.papi.nova.ui.compose.NovaRadius
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -38,10 +45,15 @@ class NovaPanelFrameComposeTest {
 
     private var open by mutableStateOf(true)
     private var closedCount = 0
+    private var covered by mutableStateOf(false)
 
-    private fun frame(layoutDirection: LayoutDirection = LayoutDirection.Ltr, landscape: Boolean = false) {
+    private fun frame(
+        layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+        landscape: Boolean = false,
+        scrim: NovaScrim = NovaScrim.None,
+    ) {
         rule.setPanelContent {
-            CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+            CompositionLocalProvider(LocalLayoutDirection provides layoutDirection, LocalNovaPanelCovered provides covered) {
                 Box(if (landscape) Modifier.requiredSize(LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT).testTag("frame") else Modifier.fillMaxSize()) {
                     NovaPanelFrame(
                         edge = NovaEdge.End,
@@ -49,7 +61,7 @@ class NovaPanelFrameComposeTest {
                         open = open,
                         onDismissRequest = { open = false },
                         onClosed = { closedCount++ },
-                        scrim = NovaScrim.None,
+                        scrim = scrim,
                     ) {
                         Box(Modifier.fillMaxSize().testTag("content"))
                     }
@@ -95,6 +107,28 @@ class NovaPanelFrameComposeTest {
         rule.advance(2_000)
 
         assertEquals(1, closedCount)
+    }
+
+    @Test
+    fun aCoveredPanelIgnoresItsScrimAndDragsUntilItUncovers() {
+        covered = true
+        frame(scrim = NovaScrim.Stream)
+        val closePanel = rule.activity.getString(R.string.nova_panel_close_panel)
+
+        val scrim = rule.onNodeWithContentDescription(closePanel)
+        // A tap above the portrait sheet, and the scrim's accessibility action.
+        scrim.performTouchInput { click(Offset(centerX, 8f)) }
+        scrim.performSemanticsAction(SemanticsActions.OnClick)
+        // A drag down the sheet's whole height would close it.
+        rule.onNodeWithTag("content").performTouchInput { swipeDown() }
+        rule.waitForIdle()
+        assertTrue("a state page above the panel owns the scrim and the drag", open)
+
+        covered = false
+        rule.waitForIdle()
+        scrim.performTouchInput { click(Offset(centerX, 8f)) }
+        rule.waitForIdle()
+        assertFalse("uncovered, a tap on the scrim closes it again", open)
     }
 
     @Test
