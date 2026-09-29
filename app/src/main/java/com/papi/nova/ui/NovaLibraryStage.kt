@@ -61,11 +61,6 @@ import androidx.compose.ui.graphics.lerp
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.addOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import com.papi.nova.ui.panel.NovaSplitConfirm
 import com.papi.nova.ui.panel.NovaSplitConfirmState
 import com.papi.nova.ui.panel.novaClickable
@@ -1152,17 +1147,15 @@ private fun NovaStageHeroAction(
                 .height(if (largeText) 34.dp else 28.dp)
                 .clip(shape)
                 .background(lerp(restFill, focusedFill, focus))
-                .drawWithCache {
-                    val path = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
-                    val stroke = Stroke(NovaPanelMetrics.FocusRingWidth.toPx() * 2f)
-                    onDrawWithContent {
-                        drawContent()
-                        // The ring sits inside the surface's corners, as it does on every control.
-                        if (focus > 0f) {
-                            clipPath(path) { drawPath(path, ring.copy(alpha = ring.alpha * focus), style = stroke) }
-                        }
-                    }
-                }
+                // The ring sits inside the surface's corners, as it does on every control, and only
+                // with focus: a border takes no room and draws inside its shape.
+                .then(
+                    if (focus > 0f) {
+                        Modifier.border(NovaPanelMetrics.FocusRingWidth, ring.copy(alpha = ring.alpha * focus), shape)
+                    } else {
+                        Modifier
+                    },
+                )
                 .testTag("${testTag}-surface"),
             contentAlignment = Alignment.Center,
         ) {

@@ -662,7 +662,12 @@ class NovaLibraryStageSourceTest {
             "the press target is the larger box, and the ring is drawn on the visible surface inside it",
             action.indexOf(".novaClickable(") < action.indexOf(".width(if (largeText) 132.dp else 108.dp)")
         )
-        assertFalse("Stage CTA must not restore the hard white outline", action.contains(".border("))
+        // Its one border is the focus ring, drawn only while focus is arriving or held: no outline at rest.
+        assertTrue(
+            "Stage CTA must not restore the hard white outline",
+            action.split(".border(").size == 2 &&
+                action.contains("if (focus > 0f) {\n                        Modifier.border(NovaPanelMetrics.FocusRingWidth, ring.copy(alpha = ring.alpha * focus), shape)"),
+        )
 
         val composeTest = read("src/androidTest/java/com/papi/nova/ui/NovaLibraryStageComposeTest.kt")
         assertTrue(composeTest.contains("nova-stage-primary-action-surface"))

@@ -454,6 +454,11 @@ private data class NovaFocusRingElement(
 
     override fun InspectorInfo.inspectableProperties() {
         name = "novaFocusRing"
+        // What it draws at rest and under focus, for a check to read what the look was given.
+        properties["restFill"] = restFill
+        properties["restBorder"] = restBorder
+        properties["focusedFill"] = focusedFill
+        properties["ring"] = ring
     }
 }
 
