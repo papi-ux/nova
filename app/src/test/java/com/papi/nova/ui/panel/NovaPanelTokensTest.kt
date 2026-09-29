@@ -34,6 +34,25 @@ class NovaPanelTokensTest {
     }
 
     @Test
+    fun aGridPanelIsWideOnlyWhereItHasTwoColumns() {
+        // The RP6 in landscape, 833dp wide and compact: two columns, so the Wide width.
+        assertDp(499.8f, NovaPanelMetrics.panelWidth(NovaPanelWidth.Grid, 833.dp, NovaPanelDensity.Compact))
+        // Taller windows and televisions keep one column, at the Standard width.
+        assertDp(399.84f, NovaPanelMetrics.panelWidth(NovaPanelWidth.Grid, 833.dp, NovaPanelDensity.Regular))
+        assertDp(440f, NovaPanelMetrics.panelWidth(NovaPanelWidth.Grid, 1280.dp))
+    }
+
+    @Test
+    fun gridLinesKeepTheItemsOrderAndGiveALoneItemItsOwnLine() {
+        val items = listOf("primary", "a", "b", "c", "d", "e", "delete")
+        assertEquals(
+            listOf(listOf("primary"), listOf("a", "b"), listOf("c", "d"), listOf("e"), listOf("delete")),
+            novaGridRows(items, 2) { it == "primary" || it == "delete" },
+        )
+        assertEquals("one column is one item a line", items.map { listOf(it) }, novaGridRows(items, 1))
+    }
+
+    @Test
     fun aPortraitOrNarrowWindowGetsTheSheet() {
         assertFalse(NovaPanelMetrics.usesSheet(768.dp, 432.dp))
         assertFalse(NovaPanelMetrics.usesSheet(960.dp, 540.dp))

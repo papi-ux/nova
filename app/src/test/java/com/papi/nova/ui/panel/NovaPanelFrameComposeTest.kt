@@ -11,6 +11,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.SemanticsMatcher
@@ -51,13 +53,22 @@ class NovaPanelFrameComposeTest {
         layoutDirection: LayoutDirection = LayoutDirection.Ltr,
         landscape: Boolean = false,
         scrim: NovaScrim = NovaScrim.None,
+        width: NovaPanelWidth = NovaPanelWidth.Standard,
+        windowHeightDp: Int? = null,
     ) {
         rule.setPanelContent {
-            CompositionLocalProvider(LocalLayoutDirection provides layoutDirection, LocalNovaPanelCovered provides covered) {
+            val configuration = LocalConfiguration.current.let { current ->
+                windowHeightDp?.let { height -> Configuration(current).apply { screenHeightDp = height } } ?: current
+            }
+            CompositionLocalProvider(
+                LocalLayoutDirection provides layoutDirection,
+                LocalNovaPanelCovered provides covered,
+                LocalConfiguration provides configuration,
+            ) {
                 Box(if (landscape) Modifier.requiredSize(LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT).testTag("frame") else Modifier.fillMaxSize()) {
                     NovaPanelFrame(
                         edge = NovaEdge.End,
-                        width = NovaPanelWidth.Standard,
+                        width = width,
                         open = open,
                         onDismissRequest = { open = false },
                         onClosed = { closedCount++ },
@@ -129,6 +140,20 @@ class NovaPanelFrameComposeTest {
         scrim.performTouchInput { click(Offset(centerX, 8f)) }
         rule.waitForIdle()
         assertFalse("uncovered, a tap on the scrim closes it again", open)
+    }
+
+    @Test
+    fun aGridPanelIsWideOnACompactWindow() {
+        frame(landscape = true, width = NovaPanelWidth.Grid, windowHeightDp = 468)
+        val compact = rule.onNodeWithTag("content", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertEquals("Wide at 800dp: 60%", 480f, (compact.right - compact.left).value, 0.5f)
+    }
+
+    @Test
+    fun aGridPanelOnATallerWindowStaysStandard() {
+        frame(landscape = true, width = NovaPanelWidth.Grid, windowHeightDp = 900)
+        val regular = rule.onNodeWithTag("content", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertEquals("Standard at 800dp: 48%", 384f, (regular.right - regular.left).value, 0.5f)
     }
 
     @Test

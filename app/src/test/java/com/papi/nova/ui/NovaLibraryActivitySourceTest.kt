@@ -144,12 +144,13 @@ class NovaLibraryActivitySourceTest {
         assertTrue(systemMenu.contains("R.string.nova_system_menu_matrix_hint"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_sponsor"))
         assertTrue(systemMenu.contains("R.string.nova_system_menu_sponsor_hint"))
+        // Each row names its title and its action together, so Matrix and Sponsor cannot swap.
         val matrixAction = sourceBetween(
             systemMenu,
-            "title = stringResource(R.string.nova_system_menu_matrix)",
-            "title = stringResource(R.string.nova_system_menu_sponsor)"
+            "title = R.string.nova_system_menu_matrix,",
+            "title = R.string.nova_system_menu_sponsor,"
         )
-        val sponsorAction = systemMenu.substring(systemMenu.indexOf("title = stringResource(R.string.nova_system_menu_sponsor)"))
+        val sponsorAction = systemMenu.substring(systemMenu.indexOf("title = R.string.nova_system_menu_sponsor,"))
         assertTrue(matrixAction.contains("leave(actions.onMatrix)"))
         assertFalse(matrixAction.contains("leave(actions.onSponsor)"))
         assertTrue(sponsorAction.contains("leave(actions.onSponsor)"))

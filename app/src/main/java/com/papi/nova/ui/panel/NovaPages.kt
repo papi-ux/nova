@@ -17,8 +17,12 @@ interface NovaPage {
 /** The screen edge a panel is attached to. */
 enum class NovaEdge { Start, End }
 
-/** A panel's width class; the pixel width comes from [NovaPanelMetrics.panelWidth]. */
-enum class NovaPanelWidth { Standard, Wide }
+/**
+ * A panel's width class; the pixel width comes from [NovaPanelMetrics.panelWidth]. A [Grid] page
+ * lays its rows two to a line on a compact landscape panel, which is Wide for it, and is Standard
+ * with one column everywhere else ([novaPanelColumns]).
+ */
+enum class NovaPanelWidth { Standard, Wide, Grid }
 
 /** The tone of a status line, such as a host's connection state in a menu header. */
 enum class NovaTone { Neutral, Info, Active, Warning, Danger }
@@ -115,7 +119,10 @@ data class NovaMenuHeader(
 
 /** Pages the host draws itself; no owner code is needed for them. */
 sealed interface NovaCommonPage : NovaPage {
-    /** A list of options that opens on [current]; one A picks and pops. */
+    /**
+     * A list of options that opens on [current]; one A picks and pops. With [NovaPanelWidth.Grid]
+     * the options go two to a line on a compact landscape panel.
+     */
     class Choice<T>(
         override val key: String,
         override val title: String,
@@ -136,12 +143,17 @@ sealed interface NovaCommonPage : NovaPage {
         val onDone: (Set<T>) -> Unit,
     ) : NovaCommonPage
 
-    /** One column of [items], under an optional [header]. */
+    /**
+     * [items] under an optional [header]: one column, or with [NovaPanelWidth.Grid] two to a line
+     * on a compact landscape panel, where the primary, a destructive split and a value changed in
+     * place each keep a line of their own.
+     */
     class Menu(
         override val key: String,
         override val title: String,
         val items: List<NovaMenuItem>,
         val header: NovaMenuHeader? = null,
+        override val width: NovaPanelWidth = NovaPanelWidth.Standard,
     ) : NovaCommonPage
 
     /**

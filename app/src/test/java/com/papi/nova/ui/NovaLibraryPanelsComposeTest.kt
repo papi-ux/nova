@@ -2,6 +2,8 @@ package com.papi.nova.ui
 
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,13 +12,16 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.papi.nova.R
+import com.papi.nova.ui.panel.LocalNovaPanelDensity
 import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageStackHost
+import com.papi.nova.ui.panel.NovaPanelDensity
 import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.panel.NovaRow
 import com.papi.nova.ui.panel.NovaShoulder
@@ -96,7 +101,14 @@ class NovaLibraryPanelsComposeTest {
         onSponsor = {},
     )
 
-    private fun host(): NovaTestKeys = rule.setPanelContent {
+    private fun host(compact: Boolean = false): NovaTestKeys = rule.setPanelContent {
+        // A landscape handheld's panel when compact.
+        val density = if (compact) NovaPanelDensity.Compact else NovaPanelDensity.Regular
+        CompositionLocalProvider(LocalNovaPanelDensity provides density) { hostedPages() }
+    }
+
+    @Composable
+    private fun hostedPages() {
         NovaPageStackHost(
             state = state,
             onCloseRequest = { closeRequests++ },
@@ -205,6 +217,34 @@ class NovaLibraryPanelsComposeTest {
 
         assertEquals("polaris", state.top?.key)
         assertTrue("Polaris Sync is a page of the panel, not a screen of its own", opened.isEmpty())
+    }
+
+    @Test
+    fun onALandscapeHandheldSystemGoesTwoToALineWithTheSamePageBehindEachTile() {
+        state.open(system, system.edge)
+        val keys = host(compact = true)
+        rule.onNodeWithText("Switch Host").assertIsFocused()
+        val switchHost = rule.onNodeWithText("Switch Host").getUnclippedBoundsInRoot()
+        val settings = rule.onNodeWithText("Settings").getUnclippedBoundsInRoot()
+        val sync = rule.onNodeWithText("Polaris Sync").getUnclippedBoundsInRoot()
+        assertEquals("Switch Host and Settings share a line", switchHost.top.value, settings.top.value, 0.5f)
+        assertTrue(settings.left > switchHost.right)
+        assertEquals("Polaris Sync starts the next", switchHost.left.value, sync.left.value, 0.5f)
+        assertTrue(sync.top > switchHost.bottom)
+
+        // Line by line: Right to Settings, Down to Manage Server under it, Left to Polaris Sync.
+        keys.press(NovaTestKeys.RIGHT)
+        rule.onNodeWithText("Settings").assertIsFocused()
+        keys.press(NovaTestKeys.DOWN)
+        rule.onNodeWithText("Manage Server").assertIsFocused()
+        keys.press(NovaTestKeys.LEFT)
+        rule.onNodeWithText("Polaris Sync").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals("polaris", state.top?.key)
+        assertTrue(opened.isEmpty())
+
+        keys.back()
+        rule.onNodeWithText("Polaris Sync").assertIsFocused()
     }
 
     @Test

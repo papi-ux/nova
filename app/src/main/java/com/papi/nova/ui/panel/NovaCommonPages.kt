@@ -111,24 +111,29 @@ private fun PageColumn(content: @Composable () -> Unit) {
 @Composable
 private fun <T> NovaPageScope.ChoicePage(page: NovaCommonPage.Choice<T>, exit: NovaPageExit) {
     val currentIndex = page.options.indexOfFirst { it.value == page.current }
+    val columns = novaPanelColumns(page.width)
     // Opens on the current option, even one far down the list that has not composed yet: the host
     // scrolls there first, with a row of context above it. A current value that is no longer an
     // option opens on the first row.
-    if (currentIndex >= 0) novaInitialFocusAt(currentIndex, currentIndex)
+    if (currentIndex >= 0) novaInitialFocusAt(currentIndex, currentIndex / columns)
+    val lines = remember(page.options.size, columns) { novaGridRows(page.options.indices.toList(), columns) }
     PageList {
-        itemsIndexed(page.options, key = { index, _ -> index }) { index, option ->
-            val initial = index == currentIndex || (currentIndex < 0 && index == 0)
-            NovaRowLayout(
-                title = option.label,
-                caption = option.caption,
-                disabledReason = option.disabledReason,
-                trailing = if (index == currentIndex) NovaRowTrailing.Current else NovaRowTrailing.None,
-                onClick = { exit.leaveThen { page.onChoose(option.value) } },
-                leading = page.leading?.let { draw -> { draw(option) } },
-                modifier = Modifier
-                    .then(if (initial) Modifier.novaInitialFocus() else Modifier)
-                    .novaRestorableFocus(index, index),
-            )
+        itemsIndexed(lines, key = { line, _ -> line }) { line, indices ->
+            NovaGridRow(indices, columns) { index, cell ->
+                val option = page.options[index]
+                val initial = index == currentIndex || (currentIndex < 0 && index == 0)
+                NovaRowLayout(
+                    title = option.label,
+                    caption = option.caption,
+                    disabledReason = option.disabledReason,
+                    trailing = if (index == currentIndex) NovaRowTrailing.Current else NovaRowTrailing.None,
+                    onClick = { exit.leaveThen { page.onChoose(option.value) } },
+                    leading = page.leading?.let { draw -> { draw(option) } },
+                    modifier = cell
+                        .then(if (initial) Modifier.novaInitialFocus() else Modifier)
+                        .novaRestorableFocus(index, line),
+                )
+            }
         }
     }
 }
@@ -166,21 +171,38 @@ private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T
 
 @Composable
 private fun NovaPageScope.MenuPage(page: NovaCommonPage.Menu, exit: NovaPageExit) {
-    val firstFocusable = page.items.indexOfFirst { it !is NovaMenuItem.Action || it.disabledReason == null }
-        .coerceAtLeast(0)
+    val firstFocusable = page.items.firstOrNull { it !is NovaMenuItem.Action || it.disabledReason == null }
+        ?: page.items.firstOrNull()
+    val columns = novaPanelColumns(page.width)
+    // Two to a line on a compact landscape panel, in the items' own order.
+    val lines = remember(page.items, columns) { novaGridRows(page.items, columns) { it.standsAlone() } }
     PageList {
         page.header?.let { header ->
             item(key = "header") { MenuHeader(header) }
         }
-        itemsIndexed(page.items, key = { _, item -> item.key }) { index, item ->
-            val listIndex = index + if (page.header != null) 1 else 0
-            val focus = Modifier
-                .then(if (index == firstFocusable) Modifier.novaInitialFocus() else Modifier)
-                .novaRestorableFocus(item.key, listIndex)
-            MenuItem(item, focus, exit)
+        itemsIndexed(lines, key = { _, cells -> cells.joinToString(GridKeySeparator) { it.key } }) { line, items ->
+            val listIndex = line + if (page.header != null) 1 else 0
+            NovaGridRow(items, if (items.singleOrNull()?.standsAlone() == true) 1 else columns) { item, cell ->
+                val focus = cell
+                    .then(if (item === firstFocusable) Modifier.novaInitialFocus() else Modifier)
+                    .novaRestorableFocus(item.key, listIndex)
+                MenuItem(item, focus, exit)
+            }
         }
     }
 }
+
+/**
+ * Whether a menu item keeps a line of its own in a grid: the primary, a destructive split, whose
+ * armed pair and warning need the width (R3), and a value changed in place.
+ */
+private fun NovaMenuItem.standsAlone(): Boolean = when (this) {
+    is NovaMenuItem.Action -> emphasis
+    is NovaMenuItem.Destructive, is NovaMenuItem.Value<*> -> true
+    is NovaMenuItem.Opens -> false
+}
+
+private const val GridKeySeparator = "+"
 
 @Composable
 private fun NovaPageScope.MenuItem(item: NovaMenuItem, modifier: Modifier, exit: NovaPageExit) {

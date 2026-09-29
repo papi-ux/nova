@@ -221,8 +221,9 @@ class NovaLibrarySourceGuardTest {
                 systemPage.contains("state = listState")
         )
         assertTrue(
-            "System opens with focus on its first row, never on the panel",
-            systemPage.section("item(key = \"switch-host\"", "item(key = \"settings\"").contains("Modifier.novaInitialFocus()")
+            "System opens with focus on its first row, Switch Host, never on the panel",
+            systemPage.indexOf("key = \"switch-host\"") in 0 until systemPage.indexOf("key = \"settings\"") &&
+                systemPage.contains("if (row === rows.first()) Modifier.novaInitialFocus()")
         )
     }
 

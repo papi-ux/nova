@@ -66,13 +66,19 @@ val LocalNovaPanelDensity = staticCompositionLocalOf { NovaPanelDensity.Regular 
  */
 @Composable
 fun NovaPanelDensityHost(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalNovaPanelDensity provides novaWindowPanelDensity(), content = content)
+}
+
+/** The density panels are drawn at in this window, as [NovaPanelDensityHost] chooses it. */
+@Composable
+@ReadOnlyComposable
+internal fun novaWindowPanelDensity(): NovaPanelDensity {
     val height = LocalConfiguration.current.screenHeightDp
-    val density = if (height == Configuration.SCREEN_HEIGHT_DP_UNDEFINED) {
+    return if (height == Configuration.SCREEN_HEIGHT_DP_UNDEFINED) {
         NovaPanelDensity.Regular
     } else {
         NovaPanelMetrics.density(LocalNovaFormFactor.current, height.dp)
     }
-    CompositionLocalProvider(LocalNovaPanelDensity provides density, content = content)
 }
 
 /**
@@ -216,10 +222,17 @@ object NovaPanelMetrics {
     /** ... whose labels add up to at most this many characters. */
     const val SegmentedMaxLabelChars = 28
 
-    /** A panel's width for [width] in a host window [windowWidth] wide. */
-    fun panelWidth(width: NovaPanelWidth, windowWidth: Dp): Dp = when (width) {
+    /**
+     * A panel's width for [width] in a host window [windowWidth] wide, drawn at [density]: a Grid
+     * page is Wide where it has two columns, on a compact panel, and Standard elsewhere.
+     */
+    fun panelWidth(width: NovaPanelWidth, windowWidth: Dp, density: NovaPanelDensity = NovaPanelDensity.Regular): Dp = when (width) {
         NovaPanelWidth.Standard -> (windowWidth * StandardWidthFraction).coerceIn(StandardWidthMin, StandardWidthMax)
         NovaPanelWidth.Wide -> (windowWidth * WideWidthFraction).coerceIn(WideWidthMin, WideWidthMax)
+        NovaPanelWidth.Grid -> panelWidth(
+            if (density == NovaPanelDensity.Compact) NovaPanelWidth.Wide else NovaPanelWidth.Standard,
+            windowWidth,
+        )
     }
 
     /** Whether a window this size shows panels as the portrait sheet rather than at an edge. */

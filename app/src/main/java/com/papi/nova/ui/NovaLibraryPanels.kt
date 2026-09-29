@@ -2,12 +2,14 @@ package com.papi.nova.ui
 
 import android.content.Context
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
@@ -32,6 +34,7 @@ import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaGridRow
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageScope
@@ -45,6 +48,8 @@ import com.papi.nova.ui.panel.NovaSectionLabel
 import com.papi.nova.ui.panel.NovaTextField
 import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.panel.NovaValueStyle
+import com.papi.nova.ui.panel.novaGridRows
+import com.papi.nova.ui.panel.novaPanelColumns
 import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaScrollEdgeFade
 import kotlinx.coroutines.CoroutineScope
@@ -64,9 +69,13 @@ internal sealed interface LibraryPage : NovaPage {
         override val key: String get() = KEY_OPTIONS
     }
 
-    /** The host and the app: switching host, settings, Polaris Sync, help. */
+    /**
+     * The host and the app: switching host, settings, Polaris Sync, help. Two to a line on a
+     * landscape handheld, one column elsewhere.
+     */
     data class System(override val title: String) : LibraryPage {
         override val key: String get() = KEY_SYSTEM
+        override val width: NovaPanelWidth get() = NovaPanelWidth.Grid
     }
 
     /** A live search: the grid behind the panel narrows as the player types. */
@@ -461,15 +470,78 @@ internal class NovaLibrarySystemActions(
     val onSponsor: () -> Unit,
 )
 
+/** One row of System: its key, its words, whether it opens a page, and what A does. */
+private class NovaLibrarySystemRow(
+    val key: String,
+    @StringRes val title: Int,
+    @StringRes val caption: Int,
+    val opens: Boolean = false,
+    val onClick: () -> Unit,
+)
+
 /**
- * System: a header saying which host this is and whether Polaris answers, then one column of rows.
- * Rows that leave the library close the panel first; Polaris Sync is a page of its own, pushed
- * here. Focus opens on the first row, never on the panel.
+ * System: a header saying which host this is and whether Polaris answers, then its rows, two to a
+ * line on a landscape handheld and one column elsewhere, in the same order either way. Rows that
+ * leave the library close the panel first; Polaris Sync is a page of its own, pushed here. Focus
+ * opens on the first row, never on the panel.
  */
 @Composable
 internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, actions: NovaLibrarySystemActions) {
     val colors = LocalNovaComposeColors.current
     val leave: (() -> Unit) -> Unit = { action -> if (isTop) closeThen(action = action) }
+    val rows = listOf(
+        NovaLibrarySystemRow(
+            key = "switch-host",
+            title = R.string.nova_system_menu_switch_host,
+            caption = R.string.nova_system_menu_switch_host_hint,
+            onClick = { leave(actions.onSwitchHost) },
+        ),
+        NovaLibrarySystemRow(
+            key = "settings",
+            title = R.string.nova_system_menu_settings,
+            caption = R.string.nova_system_menu_settings_hint,
+            onClick = { leave(actions.onSettings) },
+        ),
+        NovaLibrarySystemRow(
+            key = "polaris-sync",
+            title = R.string.nova_system_menu_polaris_sync,
+            caption = R.string.nova_system_menu_polaris_sync_hint,
+            opens = true,
+            onClick = { if (isTop) panel.push(actions.polarisSyncPage()) },
+        ),
+        NovaLibrarySystemRow(
+            key = "manage",
+            title = R.string.nova_system_menu_manage_server,
+            caption = R.string.nova_system_menu_manage_server_hint,
+            onClick = { leave(actions.onManageServer) },
+        ),
+        NovaLibrarySystemRow(
+            key = "help",
+            title = R.string.nova_system_menu_help_diagnostics,
+            caption = R.string.nova_system_menu_help_diagnostics_hint,
+            onClick = { leave(actions.onHelp) },
+        ),
+        NovaLibrarySystemRow(
+            key = "about",
+            title = R.string.nova_system_menu_about,
+            caption = R.string.nova_system_menu_about_hint,
+            onClick = { leave(actions.onAbout) },
+        ),
+        NovaLibrarySystemRow(
+            key = "matrix",
+            title = R.string.nova_system_menu_matrix,
+            caption = R.string.nova_system_menu_matrix_hint,
+            onClick = { leave(actions.onMatrix) },
+        ),
+        NovaLibrarySystemRow(
+            key = "sponsor",
+            title = R.string.nova_system_menu_sponsor,
+            caption = R.string.nova_system_menu_sponsor_hint,
+            onClick = { leave(actions.onSponsor) },
+        ),
+    )
+    val columns = novaPanelColumns(NovaPanelWidth.Grid)
+    val lines = novaGridRows(rows, columns)
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm),
@@ -483,70 +555,20 @@ internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, action
                 captionColor = if (ui.ready) colors.accent else colors.textSecondary,
             )
         }
-        item(key = "switch-host", contentType = "row") {
-            NovaRow(
-                title = stringResource(R.string.nova_system_menu_switch_host),
-                caption = stringResource(R.string.nova_system_menu_switch_host_hint),
-                onClick = { leave(actions.onSwitchHost) },
-                modifier = Modifier.novaInitialFocus().novaRestorableFocus("switch-host", 1),
-            )
-        }
-        item(key = "settings", contentType = "row") {
-            NovaRow(
-                title = stringResource(R.string.nova_system_menu_settings),
-                caption = stringResource(R.string.nova_system_menu_settings_hint),
-                onClick = { leave(actions.onSettings) },
-                modifier = Modifier.novaRestorableFocus("settings", 2),
-            )
-        }
-        item(key = "polaris-sync", contentType = "row") {
-            NovaRow(
-                title = stringResource(R.string.nova_system_menu_polaris_sync),
-                caption = stringResource(R.string.nova_system_menu_polaris_sync_hint),
-                trailing = NovaRowTrailing.Opens,
-                onClick = { if (isTop) panel.push(actions.polarisSyncPage()) },
-                modifier = Modifier.novaRestorableFocus("polaris-sync", 3),
-            )
-        }
-        item(key = "manage", contentType = "row") {
-            NovaRow(
-                title = stringResource(R.string.nova_system_menu_manage_server),
-                caption = stringResource(R.string.nova_system_menu_manage_server_hint),
-                onClick = { leave(actions.onManageServer) },
-                modifier = Modifier.novaRestorableFocus("manage", 4),
-            )
-        }
-        item(key = "help", contentType = "row") {
-            NovaRow(
-                title = stringResource(R.string.nova_system_menu_help_diagnostics),
-                caption = stringResource(R.string.nova_system_menu_help_diagnostics_hint),
-                onClick = { leave(actions.onHelp) },
-                modifier = Modifier.novaRestorableFocus("help", 5),
-            )
-        }
-        item(key = "about", contentType = "row") {
-            NovaRow(
-                title = stringResource(R.string.nova_system_menu_about),
-                caption = stringResource(R.string.nova_system_menu_about_hint),
-                onClick = { leave(actions.onAbout) },
-                modifier = Modifier.novaRestorableFocus("about", 6),
-            )
-        }
-        item(key = "matrix", contentType = "row") {
-            NovaRow(
-                title = stringResource(R.string.nova_system_menu_matrix),
-                caption = stringResource(R.string.nova_system_menu_matrix_hint),
-                onClick = { leave(actions.onMatrix) },
-                modifier = Modifier.novaRestorableFocus("matrix", 7),
-            )
-        }
-        item(key = "sponsor", contentType = "row") {
-            NovaRow(
-                title = stringResource(R.string.nova_system_menu_sponsor),
-                caption = stringResource(R.string.nova_system_menu_sponsor_hint),
-                onClick = { leave(actions.onSponsor) },
-                modifier = Modifier.novaRestorableFocus("sponsor", 8),
-            )
+        // Focus opens on the first row, never on the panel. A line's place in the list is where a
+        // pop scrolls back to, one line under the header.
+        itemsIndexed(lines, key = { _, cells -> cells.joinToString("+") { it.key } }, contentType = { _, _ -> "row" }) { line, cells ->
+            NovaGridRow(cells, columns) { row, cell ->
+                NovaRow(
+                    title = stringResource(row.title),
+                    caption = stringResource(row.caption),
+                    trailing = if (row.opens) NovaRowTrailing.Opens else NovaRowTrailing.None,
+                    onClick = row.onClick,
+                    modifier = cell
+                        .then(if (row === rows.first()) Modifier.novaInitialFocus() else Modifier)
+                        .novaRestorableFocus(row.key, line + 1),
+                )
+            }
         }
     }
 }

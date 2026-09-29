@@ -106,6 +106,7 @@ import com.papi.nova.ui.panel.NovaFieldKind
 import com.papi.nova.ui.panel.NovaFocusReturn
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
+import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.NovaStatePage
 import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.ui.panel.novaSurfaces
@@ -157,6 +158,8 @@ internal fun novaThemePickerPage(
     current = current,
     onChoose = onChoose,
     leading = { option -> NovaThemeSwatch(option.value) },
+    // Two to a line on a landscape handheld, as the picker's cards were before it became a page.
+    width = NovaPanelWidth.Grid,
 )
 
 /** A theme's caption on the picker page, kept to two lines beside its swatch. */
@@ -1817,8 +1820,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
     /**
      * A host's menu, as the first page of a right-edge panel: who the host is and how it is, the
-     * one thing it is most likely opened for, then the rest, one column. Polling waits while the
-     * panel is open, so the card it returns focus to is still the card it came from.
+     * one thing it is most likely opened for, then the rest, two to a line on a landscape handheld
+     * and one column elsewhere. Polling waits while the panel is open, so the card it returns
+     * focus to is still the card it came from.
      */
     private fun showHostPanel(computer: ComputerObject) {
         stopComputerUpdates(false)
@@ -1865,6 +1869,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 leave = ::leaveHostPanel,
             ),
             header = novaHostMenuHeader(this, details),
+            width = NovaPanelWidth.Grid,
         )
         surfaces.open(menu, NovaEdge.End, currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None)
         hostPanelWatch?.cancel()

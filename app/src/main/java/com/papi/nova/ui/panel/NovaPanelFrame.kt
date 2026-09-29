@@ -174,6 +174,7 @@ fun NovaPanelFrame(
         )
     }
 
+    val density = novaWindowPanelDensity()
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         if (scrim != NovaScrim.None) {
             NovaPanelScrim(
@@ -194,7 +195,7 @@ fun NovaPanelFrame(
         } else {
             NovaEdgePanel(
                 edge = edge,
-                width = NovaPanelMetrics.panelWidth(width, maxWidth),
+                width = NovaPanelMetrics.panelWidth(width, maxWidth, density),
                 progress = { progress.value },
                 drag = drag,
                 tvSafe = tvSafe,
