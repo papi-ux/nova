@@ -1237,6 +1237,7 @@
     <string name="nova_session_mode_headless">Private Stream</string>
     <string name="nova_session_mode_virtual_display">Host Virtual Display</string>
     <string name="nova_session_mode_host_display">Mirror Desktop</string>
+    <string name="nova_session_mode_desktop_takeover">Desktop Takeover</string>
     <string name="nova_session_mode_watch_format">Watching · %1$s</string>
     <string name="nova_mangohud_warning_big_picture">Avoid on Steam Big Picture on this host.</string>
     <string name="nova_mangohud_warning_steam">Risky on Steam and Proton on this host.</string>

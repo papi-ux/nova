@@ -1104,7 +1104,7 @@ data class NovaQuickMenuUiState(
             if (status == null) {
                 return context.getString(R.string.nova_quick_menu_mode_unknown)
             }
-            val base = listOf(status.sessionModeLabel, status.encoderSelectionLabel)
+            val base = listOf(sessionModeName(context, status), status.encoderSelectionLabel)
                 .filter { it.isNotBlank() }
                 .joinToString(" · ")
             return if (status.isViewer) {
@@ -1112,6 +1112,21 @@ data class NovaQuickMenuUiState(
             } else {
                 base
             }
+        }
+
+        /**
+         * The session pill's mode, in plain words from resources. The host status's own English
+         * label brackets a technical note, "Private Stream (GPU-native)", and the detail line
+         * under the pill already says what the capture is, GPU or CPU. A label Nova has no name
+         * for, such as a Space's, is the host's own.
+         */
+        private fun sessionModeName(context: Context, status: PolarisSessionStatus): String = when (status.sessionMode) {
+            PolarisSessionStatus.SessionMode.PRIVATE_STREAM,
+            PolarisSessionStatus.SessionMode.PRIVATE_STREAM_GPU_NATIVE -> context.getString(R.string.nova_session_mode_headless)
+            PolarisSessionStatus.SessionMode.MIRROR_DESKTOP -> context.getString(R.string.nova_session_mode_host_display)
+            PolarisSessionStatus.SessionMode.DESKTOP_TAKEOVER -> context.getString(R.string.nova_session_mode_desktop_takeover)
+            PolarisSessionStatus.SessionMode.HOST_VIRTUAL_DISPLAY -> context.getString(R.string.nova_session_mode_virtual_display)
+            PolarisSessionStatus.SessionMode.HOST_LABEL -> status.displayMode.label.trim()
         }
 
         private fun resolveSessionDetail(context: Context, status: PolarisSessionStatus?): String {
@@ -1129,7 +1144,7 @@ data class NovaQuickMenuUiState(
             } else {
                 ""
             }
-            // Plain words for the capture path, with its technical name where a player needs it.
+            // Plain words for the capture path: GPU or CPU capture.
             val capture = when {
                 status.isGpuNativeCapture -> context.getString(R.string.nova_cc_capture_gpu)
                 status.capturePathLabel.isBlank() -> ""

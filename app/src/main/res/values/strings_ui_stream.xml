@@ -86,8 +86,7 @@
     <string name="nova_cc_paste_caption">Copies this device\'s clipboard to the host.</string>
     <string name="nova_cc_rotate_caption">Turns the stream between landscape and portrait.</string>
     <string name="nova_cc_shown">Shown</string>
-    <!-- The session strip's detail line, in plain words. The capture's technical name, DMA-BUF or
-         SHM, is in the HUD's Debug layout, where a player chasing a capture problem looks. -->
+    <!-- The session strip's detail line, in plain words: GPU or CPU capture. -->
     <string name="nova_cc_capture_gpu">GPU capture</string>
     <string name="nova_cc_capture_cpu">CPU capture</string>
     <string name="nova_cc_capture_gpu_encoder">GPU encoding</string>

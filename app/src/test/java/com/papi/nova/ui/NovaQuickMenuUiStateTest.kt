@@ -1,6 +1,8 @@
 package com.papi.nova.ui
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Resources
 import com.papi.nova.api.PolarisSessionStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -371,8 +373,81 @@ class NovaQuickMenuUiStateTest {
         assertFalse(state.sessionMode.label.contains("GPU capture"))
         assertFalse(state.sessionMode.label.contains("owner"))
         // N26 and review finding 10: plain words. It read "GPU-native DMA-BUF · Explicit choice ·
-        // Owner", then "GPU capture (DMA-BUF) · ...". The technical name is in the HUD's Debug layout.
+        // Owner", then "GPU capture (DMA-BUF) · ...".
         assertEquals("GPU capture · Mode you picked · Your session", state.sessionDetail)
+    }
+
+    /**
+     * Review finding 10, the pill: the session strip's pill read "Private Stream (GPU-native)",
+     * the host status's English label with a technical note in brackets, over a detail line that
+     * says the capture in plain words. It names the mode in plain words, from resources, and a
+     * label Nova has no name for, such as a Space's, stays the host's own.
+     */
+    @Test
+    fun theSessionPillSaysPrivateStreamWithNoBracketedNote() {
+        val privateStream = context.getString(com.papi.nova.R.string.nova_session_mode_headless)
+        assertEquals(privateStream, pill("windowed_stream"))
+        assertEquals("the host's own label for it too", privateStream, pill("", label = "Private Stream (GPU-native)"))
+        assertEquals(privateStream, pill("headless", headless = true))
+    }
+
+    /**
+     * No locale translates the mode names yet, so English resources and English literals read the
+     * same. The pill runs here against resources that name each mode in other words, which only a
+     * pill that reads its names from resources can say. A label Nova has no name for, such as a
+     * Space's, stays the host's own.
+     */
+    @Test
+    fun theSessionPillNamesEveryModeFromResources() {
+        val named = contextNaming(
+            com.papi.nova.R.string.nova_session_mode_headless to "Privater Stream",
+            com.papi.nova.R.string.nova_session_mode_host_display to "Desktop spiegeln",
+            com.papi.nova.R.string.nova_session_mode_desktop_takeover to "Desktop übernehmen",
+            com.papi.nova.R.string.nova_session_mode_virtual_display to "Virtuelle Anzeige",
+        )
+        assertEquals(
+            listOf("Privater Stream", "Privater Stream", "Desktop spiegeln", "Desktop übernehmen", "Virtuelle Anzeige", "Living Room Space"),
+            listOf(
+                pill("windowed_stream", context = named),
+                pill("headless", headless = true, context = named),
+                pill("desktop_display", context = named),
+                pill("desktop_takeover", context = named),
+                pill("virtual_display", virtual = true, context = named),
+                pill("", label = "Living Room Space", context = named),
+            ),
+        )
+    }
+
+    private fun pill(
+        requested: String,
+        label: String = "",
+        headless: Boolean = false,
+        virtual: Boolean = false,
+        context: Context = this.context,
+    ) = quickState(
+        status = status(
+            displayMode = PolarisSessionStatus.DisplayModeStatus(
+                requested = requested,
+                label = label,
+                effectiveHeadless = headless,
+                virtualDisplay = virtual,
+            ),
+        ),
+        context = context,
+    ).sessionMode.label
+
+    /** The app's context, with the given string resources saying other words. */
+    private fun contextNaming(vararg names: Pair<Int, String>): Context {
+        val base = context
+        val words = names.toMap()
+        @Suppress("DEPRECATION")
+        val resources = object : Resources(base.assets, base.resources.displayMetrics, base.resources.configuration) {
+            override fun getString(id: Int): String = words[id] ?: super.getString(id)
+            override fun getText(id: Int): CharSequence = words[id] ?: super.getText(id)
+        }
+        return object : ContextWrapper(base) {
+            override fun getResources(): Resources = resources
+        }
     }
 
     @Test
@@ -1264,7 +1339,8 @@ class NovaQuickMenuUiStateTest {
         hudOpacityPercent: Int = 90,
         menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
         fallbackTargetFps: Double = 60.0,
-        doctorReceipt: DoctorActionReceipt? = null
+        doctorReceipt: DoctorActionReceipt? = null,
+        context: Context = this.context,
     ) = NovaQuickMenuUiState.from(
         context = context,
         status = status,
