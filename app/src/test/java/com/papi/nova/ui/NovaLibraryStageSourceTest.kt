@@ -531,7 +531,7 @@ class NovaLibraryStageSourceTest {
     }
 
     @Test
-    fun cinematicControllerHintsAreBorderlessRightAlignedAndPreserveFullSemantics() {
+    fun cinematicControllerHintsAreThePanelHintBarRightAlignedAndPreserveFullSemantics() {
         val chrome = read("src/main/java/com/papi/nova/ui/NovaLibraryCinematicChrome.kt")
         val activity = read("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
@@ -544,32 +544,33 @@ class NovaLibraryStageSourceTest {
         assertTrue(helper.contains("compact: Boolean"))
         assertTrue(helper.contains("modifier: Modifier = Modifier"))
         assertTrue(helper.contains("val colors = LocalNovaComposeColors.current"))
-        assertTrue(helper.contains("val surfaces = LocalNovaLibrarySurfaces.current"))
         assertTrue(helper.contains(".fillMaxWidth()"))
         assertTrue(helper.contains(".heightIn(min = 34.dp)"))
         assertTrue(helper.contains("contentAlignment = Alignment.CenterEnd"))
-        // The hint row is chrome, not content: it carries no backing plate of its own and
-        // reads against the backdrop's own bottom gradient.
+        // No wide scrim of its own behind the row: it reads against the backdrop's bottom gradient.
         assertFalse(helper.contains("Brush.horizontalGradient("))
         assertFalse(helper.contains("focusedArtworkScrim"))
         assertTrue(helper.contains("contentDescription = semanticsDescription"))
         assertTrue(helper.contains(".testTag(\"nova-library-cinematic-controller-hints\")"))
         assertTrue(helper.contains(".testTag(\"nova-library-cinematic-controller-hints-row\")"))
         assertTrue(helper.contains(".widthIn(max = rowMaxWidth)"))
-        assertTrue(helper.contains(".horizontalScroll(rememberScrollState())"))
         assertTrue(helper.contains("end = 12.dp"))
         assertTrue(helper.contains("vertical = 6.dp"))
-        assertTrue(helper.contains("Arrangement.spacedBy(itemSpacing)"))
-        assertTrue(helper.contains("CircleShape"))
-        assertTrue(helper.contains(".background(colors.accent.copy("))
-        assertFalse("library cinematic hints must not restore the old bordered panel", helper.contains(".border("))
-        assertFalse("library cinematic hints must not use an enclosing panel surface", helper.contains("surfaces.panel"))
-        assertFalse("library cinematic hints must not use an enclosing tile surface", helper.contains("surfaces.tile"))
+        // N13 (smoke test 2026-09-29): the borderless round chips read at low contrast on the
+        // Shield. The row is the one panel hint bar now, its plate as wide as its hints and at the
+        // end, and its hints wrap rather than scroll. Its own words are cleared, so the row's
+        // description, every hint including those it leaves out, is the one that is read.
+        assertTrue(helper.contains("NovaPanelHintBar(hints = hints)"))
+        assertTrue(helper.contains(".width(IntrinsicSize.Max)"))
+        assertTrue(helper.contains(".clearAndSetSemantics { }"))
+        assertFalse("hints wrap rather than scroll one under the edge", helper.contains(".horizontalScroll("))
+        assertFalse("no second chip style beside the panels' own", helper.contains("CircleShape"))
 
         val screenStart = activity.indexOf("private fun NovaLibraryScreen(")
         val screenEnd = activity.indexOf("@Composable\n    private fun NovaLibraryHomeHero(", screenStart)
         val screen = activity.substring(screenStart, screenEnd)
-        assertTrue(screen.contains("val controllerHints = novaLibraryControllerHints(isLandscape)"))
+        // A remote is named by its own keys, a controller by its own (C04).
+        assertTrue(screen.contains("val controllerHints = if (lastInputRemote) novaLibraryRemoteHints() else novaLibraryControllerHints(isLandscape)"))
         assertTrue(screen.contains("val visibleControllerHints = when {"))
         assertTrue(screen.contains("controllerHints.filterIndexed { index, _ -> index in LARGE_TEXT_HINT_INDICES }"))
         assertTrue(screen.contains("val controllerHintDescription = controllerHints.joinToString(separator = \" · \")"))

@@ -286,11 +286,12 @@
     <string name="nova_system_menu_settings">Settings</string>
     <string name="nova_system_menu_settings_hint">Streaming, input, video, and device defaults.</string>
     <string name="nova_system_menu_polaris_sync">Polaris Sync</string>
-    <string name="nova_system_menu_polaris_sync_hint">Review Nova vs host settings before changing anything.</string>
+    <string name="nova_system_menu_polaris_sync_hint">Compare Nova\'s settings with the host\'s.</string>
     <string name="nova_system_menu_manage_server">Manage Server</string>
     <string name="nova_system_menu_manage_server_hint">Open this Polaris host\'s local management page.</string>
     <string name="nova_system_menu_help_diagnostics">Help and Diagnostics</string>
-    <string name="nova_system_menu_help_diagnostics_hint">Troubleshooting steps for network, input, and stream issues.</string>
+    <!-- One line on the Shield's System panel: the longer caption wrapped and was cut at rest. -->
+    <string name="nova_system_menu_help_diagnostics_hint">Help with network, input and stream problems.</string>
     <string name="nova_system_menu_about">About Nova</string>
     <string name="nova_system_menu_about_hint">Version and client identity.</string>
     <!-- The About Nova page's line, pushed over System. -->
@@ -485,6 +486,10 @@
     <string name="nova_controller_hint_y">Y</string>
     <string name="nova_controller_hint_lb_rb">L1/R1</string>
     <string name="nova_controller_hint_select">Select</string>
+    <!-- A TV remote's keys in the library's hint bar: its center key, and its Back key. -->
+    <string name="nova_controller_hint_remote_center">OK</string>
+    <string name="nova_controller_hint_remote_back">Back</string>
+    <string name="nova_controller_hint_remote_back_label">Go back</string>
     <string name="nova_controller_hint_back">Back</string>
     <string name="nova_controller_hint_options">Options</string>
     <string name="nova_controller_hint_library">Library</string>

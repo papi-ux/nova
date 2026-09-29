@@ -1606,6 +1606,35 @@ object NovaLibraryUiStateMapper {
             .filter { category -> games.any { it.category == category } }
     }
 
+    /**
+     * More Filters' entries, the categories then the genres, with a name shown once. The
+     * fast_action category and a launcher's Action genre read as one filter listed twice (N16).
+     * Where one's games are all in the other, only the wider stays; two that each hold games the
+     * other lacks both stay, and their captions tell them apart.
+     */
+    internal fun moreFilterEntries(
+        games: List<PolarisGame>,
+        categoryLabel: (String) -> String,
+        genreLabel: (String) -> String,
+    ): List<NovaLibraryMoreFilter> {
+        fun inCategory(id: String) = games.filter { it.category.equals(id, ignoreCase = true) }.map { it.id }.toSet()
+        fun inGenre(name: String) = games.filter { game -> game.genres.any { it.equals(name, ignoreCase = true) } }.map { it.id }.toSet()
+        val categories = categoryFilters(games)
+        val genres = genreFilters(games)
+        val dropped = mutableSetOf<NovaLibraryMoreFilter>()
+        categories.forEach { category ->
+            val genre = genres.firstOrNull { genreLabel(it).equals(categoryLabel(category), ignoreCase = true) } ?: return@forEach
+            val categoryGames = inCategory(category)
+            val genreGames = inGenre(genre)
+            when {
+                genreGames.containsAll(categoryGames) -> dropped += NovaLibraryMoreFilter.Category(category)
+                categoryGames.containsAll(genreGames) -> dropped += NovaLibraryMoreFilter.Genre(genre)
+            }
+        }
+        return (categories.map { NovaLibraryMoreFilter.Category(it) } + genres.map { NovaLibraryMoreFilter.Genre(it) })
+            .filterNot { it in dropped }
+    }
+
     fun genreFilters(games: List<PolarisGame>): List<String> {
         return games
             .flatMap { it.genres }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -296,6 +298,10 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
                 current = ui.layoutMode,
                 onChange = actions.onLayoutMode,
                 caption = ui.layoutCaption,
+                // Beside the title as Filter's are, or a cycler where they would not fit there:
+                // Layout's went under the title on a line of their own while Filter's stayed
+                // beside it, two looks for one kind of row on one page (N16).
+                wrapUnderTitle = false,
                 modifier = Modifier.novaRestorableFocus("layout", layoutIndex),
             )
         }
@@ -678,6 +684,48 @@ internal fun NovaPageScope.NovaLibrarySearchPage(
         }
     }
 }
+
+/**
+ * The search the grid is narrowed by, said above it while it is on: "Search: con · 2 shown", with
+ * the close mark that says A clears it. Nothing had shown that a search was active once its page
+ * closed (N12). Clearing hands focus down to the grid first, so the ring never lands on nothing.
+ */
+@Composable
+internal fun NovaLibrarySearchChip(
+    query: String,
+    resultCount: Int,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val label = stringResource(R.string.nova_library_search_chip, query, resultCount)
+    val clear = stringResource(R.string.nova_library_panel_clear_search)
+    com.papi.nova.ui.compose.NovaActionSurface(
+        onClick = {
+            focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
+            onClear()
+        },
+        contentDescription = "$label. $clear",
+        minHeight = NovaPanelMetrics.ButtonMinHeight,
+        modifier = modifier.testTag(NOVA_LIBRARY_SEARCH_CHIP_TAG),
+    ) { contentColor, _ ->
+        androidx.compose.foundation.layout.Row(
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+        ) {
+            Text(text = label, style = novaPanelType.caption, color = contentColor)
+            androidx.compose.material3.Icon(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_close),
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(NovaPanelMetrics.IconSize),
+            )
+        }
+    }
+}
+
+/** The active search's chip above the grid, for a test to find it. */
+internal const val NOVA_LIBRARY_SEARCH_CHIP_TAG = "nova-library-search-chip"
 
 /**
  * The Polaris Sync engine for the System panel's page, held by the library rather than by a

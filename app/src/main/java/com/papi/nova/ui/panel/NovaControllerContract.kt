@@ -1,5 +1,6 @@
 package com.papi.nova.ui.panel
 
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.View
 import android.view.Window
@@ -51,6 +52,19 @@ object NovaKeys {
      */
     fun isGatedBack(keyCode: Int): Boolean =
         keyCode == KeyEvent.KEYCODE_BUTTON_B || keyCode == KeyEvent.KEYCODE_ESCAPE
+}
+
+/**
+ * Whether a key came from a remote rather than a controller: a device with a D-pad or keys and no
+ * gamepad or joystick, such as a TV remote or a keyboard's arrows. Hints name a controller's A, X
+ * and shoulders, which a remote does not have (C04).
+ */
+object NovaRemoteInput {
+    fun isRemote(sources: Int): Boolean {
+        fun has(source: Int) = sources and source == source
+        if (has(InputDevice.SOURCE_GAMEPAD) || has(InputDevice.SOURCE_JOYSTICK)) return false
+        return has(InputDevice.SOURCE_DPAD) || has(InputDevice.SOURCE_KEYBOARD)
+    }
 }
 
 /** Remembers which key started a press, so only that key's release can finish it. */

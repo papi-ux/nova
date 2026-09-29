@@ -55,10 +55,10 @@ class NovaGameDetailOverviewLayoutTest {
         // The Retroid ships at 0.85: the circle the hint row lines up on stays its size.
         assertEquals(20.dp, novaKeyChipSize(20.dp, fontScale = 0.85f))
         assertTrue(
-            "the page's footer and the library's hint row both cut their letters in half at a font scale of 1.5",
+            "the page's footer and the library's hint row both cut their letters in half at a font scale of 1.5; " +
+                "the library's row is the panel hint bar now (N13), whose key chips are padded text that grows with it",
             read("NovaGameDetailOverview.kt").contains("val chip = novaKeyChipSize(20.dp)") &&
-                read("NovaLibraryCinematicChrome.kt")
-                    .contains(".size(novaKeyChipSize(if (hint.key.length <= 2) 20.dp else 28.dp))")
+                read("NovaLibraryCinematicChrome.kt").contains("NovaPanelHintBar(hints = hints)")
         )
     }
 

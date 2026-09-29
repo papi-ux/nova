@@ -26,6 +26,8 @@
     <string name="nova_library_panel_search">Search</string>
     <string name="nova_library_panel_show_results">Show Results</string>
     <string name="nova_library_panel_clear_search">Clear Search</string>
+    <!-- Above the grid while a search narrows it; A on it clears the search. -->
+    <string name="nova_library_search_chip">Search: %1$s · %2$d shown</string>
     <string name="nova_library_panel_refresh_caption">Ask the host for its library again.</string>
     <string name="nova_library_panel_artwork_updating">Updating artwork</string>
     <!-- A category's row on the More Filters page: how many games it holds. -->

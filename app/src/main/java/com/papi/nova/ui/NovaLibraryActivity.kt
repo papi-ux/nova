@@ -195,6 +195,8 @@ class NovaLibraryActivity : NovaActivity() {
     private var launchErrorMessage by mutableStateOf<String?>(null)
     private var clientSettings by mutableStateOf<PolarisClientSettings?>(null)
     private var activeSession by mutableStateOf<NovaLibraryActiveSessionUiState?>(null)
+    /** Whether the last key came from a remote, so the hint bar names a remote's keys (C04). */
+    private var lastInputRemote by mutableStateOf(false)
     /** An End asked for from the library, until the host answers or the session goes (XR3). */
     private var endStatus by mutableStateOf<NovaLibraryEndStatus?>(null)
     private var optionsState by mutableStateOf(NovaLibraryOptionsState())
@@ -689,6 +691,15 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // The hint bar names the keys of whatever was pressed last: a remote has no X or L1.
+        // A phone's own Back gesture comes from a virtual device, which is neither.
+        if (
+            event.action == KeyEvent.ACTION_DOWN &&
+            event.device?.isVirtual != true &&
+            event.keyCode in CONTROLLER_BROWSE_KEYS + REMOTE_ANSWER_KEYS
+        ) {
+            lastInputRemote = com.papi.nova.ui.panel.NovaRemoteInput.isRemote(event.device?.sources ?: event.source)
+        }
         val handled = super.dispatchKeyEvent(event)
         if (
             handled &&
@@ -995,6 +1006,10 @@ class NovaLibraryActivity : NovaActivity() {
 
     private fun clearFilters() {
         updateLibraryFilterState(NovaLibraryFilterState())
+        searchQuery = ""
+    }
+
+    private fun clearSearch() {
         searchQuery = ""
     }
 
@@ -1642,7 +1657,7 @@ class NovaLibraryActivity : NovaActivity() {
                 ?: model.filteredGames.firstOrNull()
                 ?: model.recentGames.firstOrNull()
         }
-        val controllerHints = novaLibraryControllerHints(isLandscape)
+        val controllerHints = if (lastInputRemote) novaLibraryRemoteHints() else novaLibraryControllerHints(isLandscape)
         val visibleControllerHints = when {
             largeText -> controllerHints.filterIndexed { index, _ -> index in LARGE_TEXT_HINT_INDICES }
             // A landscape screen has the room for every key that does something here: the bar
@@ -1780,6 +1795,16 @@ class NovaLibraryActivity : NovaActivity() {
                                     null
                                 },
                             )
+                            // A search in force says so above what it narrows, and A there clears it (N12).
+                            if (searchQuery.isNotBlank()) NovaLibrarySearchChip(
+                                query = searchQuery,
+                                resultCount = model.resultCount,
+                                onClear = ::clearSearch,
+                                modifier = Modifier.padding(
+                                    horizontal = NovaLibraryUiStateMapper.libraryBarContentInsetDp().dp,
+                                    vertical = 4.dp,
+                                ),
+                            )
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
@@ -1885,6 +1910,16 @@ class NovaLibraryActivity : NovaActivity() {
                                     onOpenDetail = onOpenDetail
                                 )
                             }
+                            // A search in force says so above what it narrows, and A there clears it (N12).
+                            if (searchQuery.isNotBlank()) NovaLibrarySearchChip(
+                                query = searchQuery,
+                                resultCount = model.resultCount,
+                                onClear = ::clearSearch,
+                                modifier = Modifier.padding(
+                                    horizontal = NovaLibraryUiStateMapper.libraryBarContentInsetDp().dp,
+                                    vertical = 4.dp,
+                                ),
+                            )
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
@@ -1936,6 +1971,23 @@ class NovaLibraryActivity : NovaActivity() {
             }
         }
     }
+
+    /**
+     * The hints for a remote, which has a center key and Back and none of a controller's face keys
+     * or shoulders: the bar named X, Y and L1/R1 on a TV remote (C04). Options and System are the
+     * strip's own buttons there, reached with the D-pad.
+     */
+    @Composable
+    private fun novaLibraryRemoteHints(): List<NovaControllerHint> = listOf(
+        NovaControllerHint(
+            key = stringResource(R.string.nova_controller_hint_remote_center),
+            label = stringResource(R.string.nova_controller_hint_select),
+        ),
+        NovaControllerHint(
+            key = stringResource(R.string.nova_controller_hint_remote_back),
+            label = stringResource(R.string.nova_controller_hint_remote_back_label),
+        ),
+    )
 
     @Composable
     private fun novaLibraryControllerHints(isLandscape: Boolean): List<NovaControllerHint> {
@@ -2950,26 +3002,34 @@ class NovaLibraryActivity : NovaActivity() {
                     caption = getString(R.string.nova_library_filter_clear_more_hint),
                 ),
             )
-            NovaLibraryUiStateMapper.categoryFilters(model.allGames).forEach { category ->
-                val count = model.allGames.count { it.category.equals(category, ignoreCase = true) }
-                add(
-                    NovaOption<NovaLibraryMoreFilter>(
-                        value = NovaLibraryMoreFilter.Category(category),
-                        label = categoryLabelFor(category),
-                        // "1 games" read as a typo; the count takes its plural.
-                        caption = resources.getQuantityString(R.plurals.nova_library_panel_category_caption, count, count),
-                    ),
-                )
-            }
-            NovaLibraryUiStateMapper.genreFilters(model.allGames).forEach { genre ->
-                val count = model.allGames.count { game -> game.genres.any { it.equals(genre, ignoreCase = true) } }
-                add(
-                    NovaOption<NovaLibraryMoreFilter>(
-                        value = NovaLibraryMoreFilter.Genre(genre),
-                        label = genreLabel(genre),
-                        caption = resources.getQuantityString(R.plurals.nova_library_panel_genre_caption, count, count),
-                    ),
-                )
+            // Each name once: Action was listed as a category and again as a genre (N16).
+            NovaLibraryUiStateMapper.moreFilterEntries(model.allGames, ::categoryLabelFor, ::genreLabel).forEach { entry ->
+                when (entry) {
+                    is NovaLibraryMoreFilter.Category -> {
+                        val category = entry.id
+                        val count = model.allGames.count { it.category.equals(category, ignoreCase = true) }
+                        add(
+                            NovaOption<NovaLibraryMoreFilter>(
+                                value = entry,
+                                label = categoryLabelFor(category),
+                                // "1 games" read as a typo; the count takes its plural.
+                                caption = resources.getQuantityString(R.plurals.nova_library_panel_category_caption, count, count),
+                            ),
+                        )
+                    }
+                    is NovaLibraryMoreFilter.Genre -> {
+                        val genre = entry.name
+                        val count = model.allGames.count { game -> game.genres.any { it.equals(genre, ignoreCase = true) } }
+                        add(
+                            NovaOption<NovaLibraryMoreFilter>(
+                                value = entry,
+                                label = genreLabel(genre),
+                                caption = resources.getQuantityString(R.plurals.nova_library_panel_genre_caption, count, count),
+                            ),
+                        )
+                    }
+                    NovaLibraryMoreFilter.Clear -> Unit
+                }
             }
         }
         val current: NovaLibraryMoreFilter? = when {
@@ -3043,6 +3103,14 @@ class NovaLibraryActivity : NovaActivity() {
             (NovaLibraryUiStateMapper.controllerHintBarMinHeightDp() + 38).dp
 
         private val LARGE_TEXT_HINT_INDICES = setOf(0, 1, 3)
+        /** Keys a remote answers with, beside the D-pad, for telling a remote from a controller. */
+        private val REMOTE_ANSWER_KEYS = setOf(
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_BUTTON_A,
+            KeyEvent.KEYCODE_BUTTON_B,
+        )
         private val PRIMARY_HINT_INDICES = setOf(0, 1, 2)
         private val CONTROLLER_BROWSE_KEYS = setOf(
             KeyEvent.KEYCODE_DPAD_UP,
