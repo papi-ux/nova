@@ -82,14 +82,14 @@ class NovaStreamTierRoundSixTest {
         assertEquals(setOf("one","two"),prefs.getStringSet("set",emptySet()))
     }
     @Test fun sparseStarsShowOnlyDifferentAndOverrideOnlyValues() {
-        prefs.edit().putInt("seekbar_deadzone",13).putBoolean("checkbox_touchscreen_trackpad",false)
+        prefs.edit().putInt("seekbar_deadzone",13).putBoolean("checkbox_absolute_mouse_mode",false)
             .putBoolean("checkbox_enable_sops",true).remove("checkbox_multi_controller").commit()
-        editDisk(mapOf("seekbar_deadzone" to 13,"checkbox_touchscreen_trackpad" to true,
+        editDisk(mapOf("seekbar_deadzone" to 13,"checkbox_absolute_mouse_mode" to true,
             "checkbox_multi_controller" to false)) { _,fragment,_ ->
             fun starred(key:String)=fragment.findPreference<Preference>(key)!!.title.toString().startsWith("*")
             assertFalse("Inherited values are not overrides",starred("checkbox_enable_sops"))
             assertFalse("Double and Int are the same value",starred("seekbar_deadzone"))
-            assertTrue(starred("checkbox_touchscreen_trackpad"))
+            assertTrue(starred("checkbox_absolute_mouse_mode"))
             assertTrue("An override absent from the base still has a star",starred("checkbox_multi_controller"))
         }
     }
