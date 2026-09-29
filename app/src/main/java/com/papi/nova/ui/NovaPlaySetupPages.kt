@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,13 +18,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -188,20 +194,105 @@ internal fun NovaPlaySetupPanel(
 }
 
 /**
+ * Play Setup's root: [card], the plan, pinned over the rows of [scope], This Game's or Every
+ * Game's. Y swaps every row for the other scope's, and focus stays with the rows (N19): on the row
+ * it last held in the scope flipped to, else the row in the same place, else the last. It had gone
+ * to the plan card, and flipping back landed on another row. Focus on the plan card stays there,
+ * and a flip while no row holds focus moves nothing.
+ */
+@Composable
+internal fun NovaPageScope.NovaPlaySetupRootPage(
+    scope: NovaPlaySetupScope,
+    rows: List<NovaPlaySetupRowState>,
+    onAdvance: (NovaPlaySetupRow) -> Unit,
+    /** "Set for this game" in This Game; null in Every Game. */
+    setHereNote: String?,
+    card: @Composable () -> Unit,
+) {
+    // The scope the rows were last settled for. It trails [scope] only between a flip's
+    // composition and its effect, while the swap's own focus events come in: those are not the
+    // player's, so they neither move the remembered row nor say the rows lost focus.
+    var settled by remember { mutableStateOf(scope) }
+    var rowsHaveFocus by remember { mutableStateOf(false) }
+    var focusedIndex by remember { mutableIntStateOf(0) }
+    var focusedRow by remember { mutableStateOf<NovaPlaySetupRow?>(null) }
+    val lastRow = remember { mutableStateMapOf<NovaPlaySetupScope, NovaPlaySetupRow>() }
+    val requesters = remember { mutableMapOf<NovaPlaySetupRow, FocusRequester>() }
+    val latestRows by rememberUpdatedState(rows)
+    fun requester(row: NovaPlaySetupRow) = requesters.getOrPut(row) { FocusRequester() }
+    LaunchedEffect(scope) {
+        if (settled == scope) return@LaunchedEffect
+        val follow = rowsHaveFocus
+        val fromIndex = focusedIndex
+        settled = scope
+        if (!follow) return@LaunchedEffect
+        // A frame at a time until the row holds it: the swapped rows are placed a frame late.
+        repeat(NOVA_PLAY_SETUP_SCOPE_FOCUS_FRAMES) {
+            withFrameNanos { }
+            val now = latestRows.map { it.row }
+            val target = lastRow[scope]?.takeIf { it in now }
+                ?: now.getOrNull(fromIndex.coerceAtMost(now.lastIndex))
+                ?: return@LaunchedEffect
+            if (rowsHaveFocus && focusedRow == target) return@LaunchedEffect
+            if (isTop) runCatching { requester(target).requestFocus() }
+        }
+    }
+    NovaPlaySetupBody(
+        rowsModifier = Modifier
+            .focusGroup()
+            .onFocusChanged { if (settled == scope) rowsHaveFocus = it.hasFocus },
+        card = card,
+    ) {
+        rows.forEachIndexed { index, rowState ->
+            NovaPlaySetupSettingRow(
+                state = rowState,
+                onAdvance = onAdvance,
+                setHereNote = setHereNote,
+                modifier = (if (index == 0) Modifier.novaInitialFocus() else Modifier)
+                    .novaRestorableFocus(rowState.row.name)
+                    .focusRequester(requester(rowState.row))
+                    .onFocusChanged {
+                        if (it.hasFocus && settled == scope) {
+                            focusedIndex = index
+                            focusedRow = rowState.row
+                            lastRow[scope] = rowState.row
+                        }
+                    },
+            )
+        }
+    }
+}
+
+/** Frames a flip of Play Setup's scope waits for its row to take focus. */
+private const val NOVA_PLAY_SETUP_SCOPE_FOCUS_FRAMES = 10
+
+/**
  * Where It Runs: where the game opens, when the host has Spaces, then one row per mode, banded
  * private first and host display second, the current one carrying the check and taking focus when
  * the page opens. One A picks and pops; a mode the host will not take stays a stop so its reason
- * can be read. [card] is the plan card, pinned above the list where the root had it.
+ * can be read. [card] is the plan card, pinned above the list where the root had it. Like the
+ * card on an option page it previews the choice under the cursor: it is given the name of the
+ * focused place or mode when that is not the current one and can be chosen, and null otherwise,
+ * so the card says "If you choose" here as it does on every other page (N19).
  */
 @Composable
 internal fun NovaPageScope.NovaPlayInPage(
     page: PlaySetupPage.PlayIn,
-    card: (@Composable () -> Unit)? = null,
+    card: (@Composable (preview: String?) -> Unit)? = null,
 ) {
     val state = page.picker()
     val places = page.places()
     val modes = page.modes()
     if (state == null && places == null && modes.isEmpty()) return
+    var focusedKey by remember { mutableStateOf<String?>(null) }
+    val track: (String) -> Modifier = { key ->
+        Modifier.onFocusChanged { if (it.hasFocus) focusedKey = key else if (focusedKey == key) focusedKey = null }
+    }
+    val preview = focusedKey?.let { key ->
+        state?.choices?.firstOrNull { it.id == key && !it.current && it.enabled }?.label
+            ?: places?.options?.firstOrNull { "place:${it.label}" == key && !it.current && it.enabled }?.label
+            ?: modes.firstOrNull { "mode:${it.label}" == key && !it.current && it.enabled }?.label
+    }
     val placesTitle = stringResource(R.string.nova_space_where_it_opens)
     val list: @Composable () -> Unit = {
         if (places != null) {
@@ -226,7 +317,8 @@ internal fun NovaPageScope.NovaPlayInPage(
                     // is in flight the places may be all this page holds.
                     focusableWhenDisabled = true,
                     modifier = (if (state == null && modes.isEmpty() && place == initialPlace) Modifier.novaInitialFocus() else Modifier)
-                        .novaRestorableFocus("place:${place.label}"),
+                        .novaRestorableFocus("place:${place.label}")
+                        .then(track("place:${place.label}")),
                 )
             }
         }
@@ -249,7 +341,7 @@ internal fun NovaPageScope.NovaPlayInPage(
                 },
                 onConfigureHost = { if (isTop) page.onConfigureHost() },
                 rowModifier = { key, initial ->
-                    (if (initial) Modifier.novaInitialFocus() else Modifier).novaRestorableFocus(key)
+                    (if (initial) Modifier.novaInitialFocus() else Modifier).novaRestorableFocus(key).then(track(key))
                 },
                 bandHostDefault = places != null,
             )
@@ -265,13 +357,14 @@ internal fun NovaPageScope.NovaPlayInPage(
                         }
                     },
                     modifier = (if (mode == initial) Modifier.novaInitialFocus() else Modifier)
-                        .novaRestorableFocus("mode:${mode.label}"),
+                        .novaRestorableFocus("mode:${mode.label}")
+                        .then(track("mode:${mode.label}")),
                 )
             }
         }
     }
     if (card != null) {
-        NovaPlaySetupBody(card = card) { list() }
+        NovaPlaySetupBody(card = { card(preview) }) { list() }
     } else {
         val scroll = rememberScrollState()
         Column(

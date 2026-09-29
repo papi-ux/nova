@@ -1027,6 +1027,28 @@ internal enum class NovaPlaySetupRow {
     HOST_KEEP_IN_STEP,
 }
 
+/**
+ * Y's scope flip in Play Setup, on the release of a press that began while Play Setup had it, and
+ * once: acting on every key down flipped the scope back and forth for as long as Y was held (C03).
+ * A Y released after the panel has gone, or cancelled, flips nothing.
+ */
+internal class NovaPlaySetupScopeKey {
+    private val latch = com.papi.nova.ui.panel.NovaPressLatch()
+
+    /** Y going down while Play Setup [claims] it: taken, and only its first down is recorded. */
+    fun down(keyCode: Int, repeatCount: Int, claims: Boolean): Boolean {
+        if (keyCode != android.view.KeyEvent.KEYCODE_BUTTON_Y || !claims) return false
+        if (repeatCount == 0) latch.press(keyCode)
+        return true
+    }
+
+    /** Whether this release flips the scope: Y, uncancelled, ending a press recorded here. */
+    fun flipsOnUp(keyCode: Int, canceled: Boolean, claims: Boolean): Boolean {
+        if (keyCode != android.view.KeyEvent.KEYCODE_BUTTON_Y) return false
+        return latch.release(keyCode) && claims && !canceled
+    }
+}
+
 /** The rows Play Setup's root draws; the rest are bands of a page. */
 internal fun novaPlaySetupRootRows(rows: List<NovaPlaySetupRowState>): List<NovaPlaySetupRowState> {
     val hasWhere = rows.any { it.row == NovaPlaySetupRow.WHERE_IT_RUNS }
@@ -1157,8 +1179,9 @@ internal fun novaPlaySetupPlan(
                 value = asked,
                 // The why rides with the grant: "Granted: Recovery profile / 30 FPS · Held by
                 // History Safe Profile" is the whole story in one fact.
+                // A grant the plan's own line already states is not said again under it (N19).
                 detail = listOfNotNull(
-                    granted.takeIf { it.isNotBlank() }?.let { grantedFormat.format(it) },
+                    granted.takeIf { it.isNotBlank() && it != lines.firstOrNull() }?.let { grantedFormat.format(it) },
                     summary.grantHoldReason.takeIf { it.isNotBlank() },
                 ).joinToString(" · "),
             )

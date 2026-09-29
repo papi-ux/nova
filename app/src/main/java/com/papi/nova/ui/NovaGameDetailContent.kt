@@ -35,10 +35,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -455,27 +453,37 @@ internal fun NovaGameDetailContent(
             },
         ) { page ->
             when (page) {
-                is PlaySetupPage.PlayIn -> NovaPlayInPage(page, card = { pinnedCard(null) })
+                is PlaySetupPage.PlayIn -> NovaPlayInPage(
+                    page,
+                    card = { choice ->
+                        // A place or mode other than the current one, under the cursor: the card
+                        // says what choosing it would run, as an option page's card does.
+                        if (choice != null) {
+                            NovaPlaySetupPlanCard(
+                                title = stringResource(R.string.nova_play_setup_if_you_choose, choice),
+                                value = choice,
+                                line = planLine,
+                            )
+                        } else {
+                            pinnedCard(null)
+                        }
+                    },
+                )
                 is PlaySetupPage.Options -> NovaPlaySetupOptionsPage(page, card = pinnedCard)
                 is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)
                 is PlaySetupPage.SteamDecision -> steamDecision?.let { decision ->
                     NovaSteamDecisionPage(decision = decision, onChoice = onSteamChoice)
                 }
                 is PlaySetupPage.Root -> {
-                    // Flipping the scope swaps every row for the other scope's. When the row that held
-                    // focus went with them, focus goes to the new scope's first row, never nowhere (R7).
-                    var rootHoldsFocus by remember { mutableStateOf(false) }
-                    var shownScope by remember { mutableStateOf(playSetupScope) }
-                    val rowsEntry = remember { FocusRequester() }
-                    LaunchedEffect(playSetupScope) {
-                        if (shownScope == playSetupScope) return@LaunchedEffect
-                        shownScope = playSetupScope
-                        withFrameNanos { }
-                        if (!rootHoldsFocus && isTop) runCatching { rowsEntry.requestFocus(FocusDirection.Enter) }
-                    }
-                    NovaPlaySetupBody(
-                        modifier = Modifier.onFocusChanged { rootHoldsFocus = it.hasFocus },
-                        rowsModifier = Modifier.focusRequester(rowsEntry).focusGroup(),
+                    // The rows of the scope on screen: the host's for Every Game once its plan has
+                    // come, and the root's in a fixed order for This Game. A row that opens a page
+                    // carries ›; a row that changes in place steps on Left, Right and A. Y swaps them,
+                    // and focus stays with the rows (N19).
+                    NovaPlaySetupRootPage(
+                        scope = if (everyGame) NovaPlaySetupScope.EVERY_GAME else NovaPlaySetupScope.THIS_GAME,
+                        rows = if (everyGame) hostPlaySetupRows else novaPlaySetupRootRows(playSetupRows),
+                        onAdvance = onAdvancePlaySetupRow,
+                        setHereNote = setHereNote.takeUnless { everyGame },
                         card = {
                             NovaPlaySetupPlanCard(
                                 title = planTitle,
@@ -486,29 +494,7 @@ internal fun NovaGameDetailContent(
                                 modifier = Modifier.novaRestorableFocus("plan"),
                             )
                         },
-                    ) {
-                        if (everyGame) {
-                            NovaHostSetupRowList(
-                                rows = hostPlaySetupRows,
-                                onAdvance = onAdvancePlaySetupRow,
-                                rowModifier = { row, first ->
-                                    (if (first) Modifier.novaInitialFocus() else Modifier).novaRestorableFocus(row.name)
-                                },
-                            )
-                        } else {
-                            // The root's rows in a fixed order. A row that opens a page carries ›; a
-                            // row that changes in place steps on Left, Right and A.
-                            novaPlaySetupRootRows(playSetupRows).forEachIndexed { index, rowState ->
-                                NovaPlaySetupSettingRow(
-                                    state = rowState,
-                                    onAdvance = onAdvancePlaySetupRow,
-                                    setHereNote = setHereNote,
-                                    modifier = (if (index == 0) Modifier.novaInitialFocus() else Modifier)
-                                        .novaRestorableFocus(rowState.row.name),
-                                )
-                            }
-                        }
-                    }
+                    )
                 }
                 else -> Unit
             }

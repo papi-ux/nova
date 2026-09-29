@@ -19,10 +19,12 @@ private fun hostProfileLabel(settings: PolarisClientSettings?): String {
     val desired = settings?.desired ?: return ""
     val mode = desired.displayMode.trim()
     val mbps = desired.targetBitrateKbps.takeIf { it > 0 }?.let { it / 1000 }
+    // "3840×2160 at 120 Hz", as Polaris Sync writes a display mode, not the host's 3840x2160x120.
+    val size = mode.takeIf { it.isNotBlank() }?.let(::novaDisplayModeLabel)
     return when {
-        mode.isNotBlank() && mbps != null -> "$mode \u00b7 $mbps Mbps"
-        mode.isNotBlank() -> mode
-        mbps != null -> "$mbps Mbps"
+        size != null && mbps != null -> "$size \u00b7 $mbps\u00a0Mbps"
+        size != null -> size
+        mbps != null -> "$mbps\u00a0Mbps"
         else -> ""
     }
 }

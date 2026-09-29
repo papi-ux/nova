@@ -2198,7 +2198,7 @@ class NovaLibraryActivity : NovaActivity() {
         PolarisClientSettings.MODE_HOST_VIRTUAL_DISPLAY, "virtual_display" -> "Virtual"
         PolarisClientSettings.MODE_DESKTOP_DISPLAY -> "Desktop"
         PolarisClientSettings.MODE_DESKTOP_TAKEOVER -> "Takeover"
-        PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "GPU Native"
+        PolarisClientSettings.MODE_GPU_NATIVE_TEST -> "GPU-native"
         else -> null
     }
 

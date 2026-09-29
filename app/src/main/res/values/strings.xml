@@ -397,6 +397,8 @@
     <string name="nova_play_setup_frame_rate">Frame Rate</string>
     <string name="nova_play_setup_frame_rate_caption">Auto follows the launch target</string>
     <string name="nova_play_setup_frame_rate_auto">Auto</string>
+    <!-- The Frame Rate row's value at rest while Auto is chosen: Auto, then the rate it comes to. -->
+    <string name="nova_play_setup_frame_rate_auto_value">Auto · %d FPS</string>
     <string name="nova_play_setup_frame_rate_auto_consequence">Keeps the host-resolved or Settings frame rate</string>
     <string name="nova_play_setup_frame_rate_fps_format">%d FPS</string>
     <!-- The unit an ordered Frame Rate strip names once, after its last stop. -->
@@ -572,7 +574,6 @@
     <string name="nova_desktop_steam_cancel">Cancel</string>
     <string name="nova_library_launch_mode_default_format">%1$s · Default</string>
     <string name="nova_library_launch_recommended_mode_badge">Rec. %1$s</string>
-    <string name="nova_library_launch_preferred_mode_format">This app’s default is %1$s.</string>
     <string name="nova_library_launch_mode_unavailable_format">%1$s · Unavailable</string>
     <string name="nova_library_launching_mode">Launching %1$s in %2$s…</string>
     <string name="nova_steam_launch_detail_label">Steam Launch</string>
@@ -600,7 +601,8 @@
     <string name="nova_polaris_sync_synced">Synced</string>
     <string name="nova_polaris_sync_syncing">Syncing</string>
     <string name="nova_polaris_sync_mode_title">Stream Display</string>
-    <string name="nova_polaris_sync_host_mode_detail">Polaris Sync host mode: %1$s</string>
+    <!-- Leads the plan's second line, before the host's own sentence about that mode. -->
+    <string name="nova_polaris_sync_host_mode_detail">The host defaults to %1$s.</string>
     <string name="nova_polaris_sync_profile_title">Launch Profile</string>
     <string name="nova_polaris_sync_controls_title">Host Controls</string>
     <string name="nova_polaris_sync_match_nova">Match Nova</string>

@@ -80,8 +80,11 @@ class NovaPlaySetupLayoutTest {
                 .any { read(it).contains("firstPressFocuses") }
         )
         assertTrue(
-            "both scopes draw their rows the same way",
-            read("NovaGameDetailContent.kt").contains("NovaPlaySetupSettingRow(") &&
+            "both scopes draw their rows the same way: Play Setup's root draws either scope's rows, and " +
+                "Polaris Sync draws the host's with the same row",
+            read("NovaGameDetailContent.kt").contains("NovaPlaySetupRootPage(") &&
+                read("NovaPlaySetupPages.kt").section("internal fun NovaPageScope.NovaPlaySetupRootPage(", "private const val NOVA_PLAY_SETUP_SCOPE_FOCUS_FRAMES")
+                    .contains("NovaPlaySetupSettingRow(") &&
                 read("NovaHostSetupRows.kt").contains("NovaPlaySetupSettingRow(")
         )
     }

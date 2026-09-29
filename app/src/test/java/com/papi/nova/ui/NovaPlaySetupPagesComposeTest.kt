@@ -80,7 +80,10 @@ class NovaPlaySetupPagesComposeTest {
         ),
     )
 
-    private fun host(picker: NovaPlaySetupModePickerState): NovaTestKeys {
+    /** What the pinned card on Where It Runs was last asked to preview. */
+    private var previewed: String? = "unset"
+
+    private fun host(picker: NovaPlaySetupModePickerState, withCard: Boolean = false): NovaTestKeys {
         state.open(PlaySetupPage.Root("Play Setup"), NovaEdge.End)
         state.push(
             PlaySetupPage.PlayIn(
@@ -94,7 +97,11 @@ class NovaPlaySetupPagesComposeTest {
         return rule.setPanelContent {
             NovaPageStackHost(state = state) { page ->
                 when (page) {
-                    is PlaySetupPage.PlayIn -> NovaPlayInPage(page)
+                    is PlaySetupPage.PlayIn -> if (withCard) {
+                        NovaPlayInPage(page, card = { choice -> previewed = choice })
+                    } else {
+                        NovaPlayInPage(page)
+                    }
                     else -> NovaRow(title = "Setup rows", onClick = {}, modifier = Modifier.novaInitialFocus())
                 }
             }
@@ -122,6 +129,23 @@ class NovaPlaySetupPagesComposeTest {
         rule.onNode(hasText("Virtual Display"))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
         rule.onAllNodesWithTag(NovaCurrentMarkTag, useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun wherItRunsCardPreviewsTheFocusedModeAsEveryOtherPageDoes() {
+        // N19: the card said "If you choose" on an option page and never here.
+        val keys = host(picker(), withCard = true)
+        rule.onNode(hasText("Virtual Display")).assertIsFocused()
+        assertEquals("the current mode previews nothing", null, previewed)
+
+        keys.press(NovaTestKeys.UP)
+        keys.press(NovaTestKeys.UP)
+        rule.onNode(hasText("Headless")).assertIsFocused()
+        assertEquals("Headless", previewed)
+
+        keys.press(NovaTestKeys.DOWN)
+        rule.onNode(hasText("GPU Native")).assertIsFocused()
+        assertEquals("a mode the host will not take previews nothing", null, previewed)
     }
 
     @Test

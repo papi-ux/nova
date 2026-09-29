@@ -152,6 +152,7 @@ class NovaGameDetailActivity : NovaActivity() {
     /** What the last pin came to, in the pin button's own label for a moment: it was a Toast. */
     private var shortcutPinResult by mutableStateOf<Int?>(null)
     private var shortcutPinResultJob: Job? = null
+    private val playSetupScopeKey = NovaPlaySetupScopeKey()
 
     /**
      * The sheet took these as constructor lambdas. Keeping the names and the nullable
@@ -451,11 +452,23 @@ class NovaGameDetailActivity : NovaActivity() {
         hostSyncEngine?.close()
     }
 
+    /**
+     * Y is unclaimed everywhere else in this window, so the scope flip takes nothing from anyone.
+     * Claimed only while Play Setup is open: a key that acts on a panel that is not on screen is a
+     * key that does something invisible.
+     */
+    private fun playSetupClaimsY(): Boolean =
+        spaceGame == null && destination == NovaGameDetailDestination.PLAY_SETUP
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Y is unclaimed everywhere else in this window, so the scope flip takes
-        // nothing from anyone. Claimed only while Play Setup is open: a key that acts
-        // on a panel that is not on screen is a key that does something invisible.
-        if (spaceGame == null && keyCode == KeyEvent.KEYCODE_BUTTON_Y && destination == NovaGameDetailDestination.PLAY_SETUP) {
+        // Taken on the way down, acted on at release, once however long Y is held (C03).
+        if (playSetupScopeKey.down(keyCode, event?.repeatCount ?: 0, playSetupClaimsY())) return true
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        val claims = playSetupClaimsY()
+        if (playSetupScopeKey.flipsOnUp(keyCode, event?.isCanceled == true, claims)) {
             selectPlaySetupScope(
                 if (playSetupScope == NovaPlaySetupScope.THIS_GAME) {
                     NovaPlaySetupScope.EVERY_GAME
@@ -465,7 +478,8 @@ class NovaGameDetailActivity : NovaActivity() {
             )
             return true
         }
-        return super.onKeyDown(keyCode, event)
+        if (claims && keyCode == KeyEvent.KEYCODE_BUTTON_Y) return true
+        return super.onKeyUp(keyCode, event)
     }
 
     private fun selectPlaySetupScope(scope: NovaPlaySetupScope) {
@@ -1432,7 +1446,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 if (uiState.headlessAllowed) {
                     add(
                         NovaPlaySetupOption(
-                            label = modeBadgeLabel(PolarisGame.MODE_HEADLESS_STREAM),
+                            label = modeLabel(PolarisGame.MODE_HEADLESS_STREAM),
                             consequence = getString(R.string.nova_play_setup_compare_private),
                             current = uiState.playMode == PolarisGame.MODE_HEADLESS_STREAM,
                             onSelect = { selectLaunchMode(PolarisGame.MODE_HEADLESS_STREAM) },
@@ -1442,7 +1456,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 if (uiState.virtualDisplayAllowed) {
                     add(
                         NovaPlaySetupOption(
-                            label = modeBadgeLabel(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY),
+                            label = modeLabel(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY),
                             consequence = getString(R.string.nova_play_setup_compare_virtual),
                             current = uiState.playMode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY,
                             enabled = !uiState.virtualDisplayUnavailable,
@@ -1464,7 +1478,8 @@ class NovaGameDetailActivity : NovaActivity() {
                 value = if (wherePage && !uiState.hasExplicitOverride) {
                     getString(R.string.nova_play_setup_fact_host_default)
                 } else {
-                    modeBadgeLabel(uiState.playMode)
+                    // The mode's full name, as Where It Runs lists it and the plan card states it.
+                    modeLabel(uiState.playMode)
                 },
                 options = modeOptions,
                 enabled = modeOptions.count { it.enabled } > 1 || wherePage,
@@ -1564,7 +1579,13 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else {
                         getString(R.string.nova_play_setup_frame_rate_caption)
                     },
-                    value = getString(R.string.nova_play_setup_frame_rate_fps_format, effectiveFps),
+                    // Auto reads Auto at rest, as its strip marks it, with the rate it comes to: the
+                    // row said 60 FPS while the strip under the cursor marked Auto (N29).
+                    value = if (chosenFps == null) {
+                        getString(R.string.nova_play_setup_frame_rate_auto_value, effectiveFps)
+                    } else {
+                        getString(R.string.nova_play_setup_frame_rate_fps_format, effectiveFps)
+                    },
                     options = buildList {
                         add(
                             NovaPlaySetupOption(
@@ -2123,8 +2144,8 @@ class NovaGameDetailActivity : NovaActivity() {
                             ?: primaryPlayLabel(uiState)
                     },
                     launchModeTitle = getString(R.string.nova_library_launch_mode_title),
-                    headlessModeLabel = modeBadgeLabel(PolarisGame.MODE_HEADLESS_STREAM),
-                    virtualDisplayModeLabel = modeBadgeLabel(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY),
+                    headlessModeLabel = modeLabel(PolarisGame.MODE_HEADLESS_STREAM),
+                    virtualDisplayModeLabel = modeLabel(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY),
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
                     onPrimaryLaunch = { attemptLaunch() },
                     onAdvancePlaySetupRow = { row ->
@@ -2703,13 +2724,9 @@ class NovaGameDetailActivity : NovaActivity() {
             uiState.recommendedMode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY -> getString(R.string.nova_library_launch_intro_virtual_default)
             else -> getString(R.string.nova_library_launch_intro_headless_default)
         }
-        // The app's own preference trails the description rather than leading it: this
-        // paragraph sits under "What will happen", and opening it with a mode that will
-        // NOT happen ("App default: Host Virtual Display." over a Private Stream plan)
-        // made the headline and its first sentence contradict each other.
-        if (uiState.preferredMode != uiState.recommendedMode) {
-            parts += getString(R.string.nova_library_launch_preferred_mode_format, modeLabel(uiState.preferredMode))
-        }
+        // The app's own default is not said here at all. It only differs from the plan when
+        // something outranks it, so under What Will Happen it named a mode that will not happen,
+        // and beside Where It Runs, which offers no app default, it read as a contradiction (N19).
         return parts.joinToString(" ")
     }
 
