@@ -38,15 +38,15 @@ class NovaStreamTierReviewRegressionTest {
     }
     @Test fun probeEnumeratesBeforeHelperInitialization() {
         MediaCodecHelper::class.java.getDeclaredField("initialized").apply { isAccessible=true }.setBoolean(null,false)
-        val codec=mock(MediaCodecInfo::class.java)
-        `when`(codec.name).thenReturn("c2.qti.hevc.decoder")
-        `when`(codec.supportedTypes).thenReturn(arrayOf("video/hevc"))
-        val caps=mock(MediaCodecInfo.CodecCapabilities::class.java)
-        val video=mock(MediaCodecInfo.VideoCapabilities::class.java)
-        `when`(codec.getCapabilitiesForType("video/hevc")).thenReturn(caps)
-        `when`(caps.videoCapabilities).thenReturn(video)
-        `when`(video.isSizeSupported(anyInt(),anyInt())).thenReturn(true)
-        `when`(video.areSizeAndRateSupported(anyInt(),anyInt(),anyDouble())).thenReturn(true)
+        val caps=org.robolectric.shadows.MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+            .setMediaFormat(android.media.MediaFormat.createVideoFormat("video/hevc",1920,1080))
+            .setProfileLevels(arrayOf(MediaCodecInfo.CodecProfileLevel().apply {
+                profile=MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
+                level=MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel51
+            })).setColorFormats(intArrayOf(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)).build()
+        val codec=org.robolectric.shadows.MediaCodecInfoBuilder.newBuilder().setName("c2.qti.hevc.decoder")
+            .setIsEncoder(false).setIsVendor(true).setIsHardwareAccelerated(true).setIsSoftwareOnly(false)
+            .setCapabilities(caps).build()
         ShadowMediaCodecList.addCodec(codec)
         assertEquals("c2.qti.hevc.decoder",NovaCapabilityProbe.inspect(context,NovaSize(1920,1080),120).codecs.single().decoder)
     }
