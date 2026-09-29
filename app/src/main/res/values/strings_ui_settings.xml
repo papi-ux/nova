@@ -11,6 +11,10 @@
     <string name="nova_settings_applies_next_stream">Applies on the next stream</string>
     <string name="nova_settings_applies_after_restart">Applies after Nova restarts</string>
     <string name="nova_settings_profile_override">Overrides the app setting</string>
+    <!-- The last row of an overridden setting's page in a profile, for a remote, which has no X to
+         reset the row with: drops the profile's value. -->
+    <string name="nova_settings_use_preset_default">Use Preset Default</string>
+    <string name="nova_settings_use_preset_default_caption">Follow the app setting again</string>
     <!-- Joins the parts of a setting's caption. -->
     <string name="nova_settings_caption_separator" translatable="false">" · "</string>
     <string name="nova_settings_needs_dependency">Turn on %1$s to change this</string>

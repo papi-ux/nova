@@ -10,6 +10,7 @@ import com.papi.nova.ui.panel.NovaField
 import com.papi.nova.ui.panel.NovaFieldKind
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
+import com.papi.nova.ui.panel.NovaUseDefault
 
 /**
  * What the Settings pane shows: the rows of one category, or a page pushed over them. Choice,
@@ -112,6 +113,7 @@ internal fun novaSelectChoicePage(
     options: List<NovaOption<String>>,
     current: String?,
     onChoose: (String) -> Unit,
+    useDefault: NovaUseDefault? = null,
 ): NovaCommonPage.Choice<String> = NovaCommonPage.Choice(
     key = "choice:$key",
     title = title,
@@ -119,6 +121,7 @@ internal fun novaSelectChoicePage(
     current = current,
     onChoose = onChoose,
     leading = if (key == THEME_KEY) themeSwatch else null,
+    useDefault = useDefault,
 )
 
 private val themeSwatch: @Composable (NovaOption<String>) -> Unit = { option -> NovaThemeSwatch(option.value) }
@@ -134,6 +137,7 @@ internal fun novaTextFormPage(
     current: String,
     risky: Boolean,
     onSave: (String) -> Unit,
+    useDefault: NovaUseDefault? = null,
 ): NovaCommonPage.Form = NovaCommonPage.Form(
     key = "text:$key",
     title = title,
@@ -149,6 +153,7 @@ internal fun novaTextFormPage(
             novaValidationMessage(context, key)
         }
     },
+    useDefault = useDefault,
 )
 
 /** What can go wrong with a value typed into one of the risky text settings. */

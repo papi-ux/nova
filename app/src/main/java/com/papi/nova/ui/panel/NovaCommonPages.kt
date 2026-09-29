@@ -135,8 +135,26 @@ private fun <T> NovaPageScope.ChoicePage(page: NovaCommonPage.Choice<T>, exit: N
                 )
             }
         }
+        page.useDefault?.let { useDefault ->
+            item(key = NOVA_USE_DEFAULT_KEY) {
+                UseDefaultRow(useDefault, exit, Modifier.novaRestorableFocus(NOVA_USE_DEFAULT_KEY, lines.size))
+            }
+        }
     }
 }
+
+/** The last row of a setting's page that drops the value set here (C02); it leaves, then runs. */
+@Composable
+private fun UseDefaultRow(useDefault: NovaUseDefault, exit: NovaPageExit, modifier: Modifier = Modifier) {
+    NovaRow(
+        title = useDefault.label,
+        caption = useDefault.caption,
+        onClick = { exit.leaveThen { useDefault.run() } },
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
+private const val NOVA_USE_DEFAULT_KEY = "use-default"
 
 @Composable
 private fun <T> NovaPageScope.MultiChoicePage(page: NovaCommonPage.MultiChoice<T>, exit: NovaPageExit) {
@@ -399,6 +417,7 @@ private fun NovaPageScope.FormPage(page: NovaCommonPage.Form, exit: NovaPageExit
             modifier = Modifier.fillMaxWidth(),
         )
         page.warning?.let { Text(text = it, style = novaPanelType.caption, color = colors.warning) }
+        page.useDefault?.let { UseDefaultRow(it, exit) }
     }
 }
 
@@ -450,6 +469,7 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPage
             onClick = { exit.leaveThen { page.onSave(value) } },
             modifier = Modifier.fillMaxWidth(),
         )
+        page.useDefault?.let { UseDefaultRow(it, exit) }
     }
 }
 

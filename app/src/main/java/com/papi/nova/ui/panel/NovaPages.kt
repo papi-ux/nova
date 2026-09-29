@@ -43,6 +43,13 @@ data class NovaOption<out T>(
 data class NovaAction(val label: String, val destructive: Boolean = false, val run: () -> Unit)
 
 /**
+ * A setting page's last row that drops the value set here, such as a preset's own value, for the
+ * one the setting would otherwise follow. A remote has no X to reset a setting from its row, so
+ * the page the row opens carries the reset as a row of its own (C02).
+ */
+data class NovaUseDefault(val label: String, val caption: String? = null, val run: () -> Unit)
+
+/**
  * What a field takes. [SignedNumber] is a number that may go below zero, so it takes a minus sign;
  * [Decimal] is a number with a fraction, such as 12.5 Mbps, so it takes a decimal point.
  */
@@ -124,7 +131,8 @@ data class NovaMenuHeader(
 sealed interface NovaCommonPage : NovaPage {
     /**
      * A list of options that opens on [current]; one A picks and pops. With [NovaPanelWidth.Grid]
-     * the options go two to a line on a compact landscape panel.
+     * the options go two to a line on a compact landscape panel. [useDefault], when given, is a
+     * last row that drops the value set here for the one it would otherwise follow, and pops.
      */
     class Choice<T>(
         override val key: String,
@@ -134,6 +142,7 @@ sealed interface NovaCommonPage : NovaPage {
         val onChoose: (T) -> Unit,
         val leading: (@Composable (NovaOption<T>) -> Unit)? = null,
         override val width: NovaPanelWidth = NovaPanelWidth.Standard,
+        val useDefault: NovaUseDefault? = null,
     ) : NovaCommonPage
 
     /** Options that each toggle, applied together by [doneLabel]. */
@@ -189,13 +198,17 @@ sealed interface NovaCommonPage : NovaPage {
         val monospace: Boolean = false,
     ) : NovaCommonPage
 
-    /** Fields, then [submitLabel]. [onSubmit] returns error text, or null to pop. */
+    /**
+     * Fields, then [submitLabel]. [onSubmit] returns error text, or null to pop. [useDefault] is a
+     * last row, as on a Choice page.
+     */
     class Form(
         override val key: String,
         override val title: String,
         val fields: List<NovaField>,
         val submitLabel: String,
         val warning: String? = null,
+        val useDefault: NovaUseDefault? = null,
         val onSubmit: (Map<String, String>) -> String?,
     ) : NovaCommonPage
 
@@ -214,6 +227,8 @@ sealed interface NovaCommonPage : NovaPage {
          */
         val exactDivisor: Int = 1,
         val exactLabel: String? = null,
+        /** A last row under Save, as on a Choice page. */
+        val useDefault: NovaUseDefault? = null,
         val onSave: (Int) -> Unit,
     ) : NovaCommonPage
 

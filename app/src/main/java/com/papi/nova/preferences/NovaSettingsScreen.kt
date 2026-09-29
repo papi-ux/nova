@@ -104,6 +104,7 @@ import com.papi.nova.ui.panel.NovaPressLatch
 import com.papi.nova.ui.panel.NovaRow
 import com.papi.nova.ui.panel.NovaRowTrailing
 import com.papi.nova.ui.panel.NovaStepperRow
+import com.papi.nova.ui.panel.NovaUseDefault
 import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.panel.NovaValueStyle
 import com.papi.nova.ui.panel.novaClickable
@@ -264,6 +265,7 @@ internal fun NovaSettingsContent(
         NovaSettingsPageOpener(context, pane, onValue, menuOpacityPreview)
     }
     opener.onValue = onValue
+    opener.onReset = onResetSetting
     opener.pyroWave = pyroWave
 
     val hints = novaSettingsHints(wide = wide, canReset = state.resettableKeys.isNotEmpty())
@@ -511,6 +513,23 @@ private class NovaSettingsPageOpener(
 ) {
     var pyroWave: PyroWaveAvailability.Status? = null
 
+    /** Drops a profile's override of a setting, as X does on its row. */
+    var onReset: (NovaSettingDefinition) -> Unit = {}
+
+    /**
+     * The setting's page gets a last row, Use Preset Default, while the profile overrides it: a
+     * remote has no X to reset the row with, and its Reset is for touch only (C02).
+     */
+    private fun useDefault(definition: NovaSettingDefinition, state: NovaSettingsUiState): NovaUseDefault? =
+        if (state.canReset(definition)) {
+            NovaUseDefault(
+                label = context.getString(R.string.nova_settings_use_preset_default),
+                caption = context.getString(R.string.nova_settings_use_preset_default_caption),
+            ) { onReset(definition) }
+        } else {
+            null
+        }
+
     fun open(definition: NovaSettingDefinition, state: NovaSettingsUiState) {
         when (definition.type) {
             NovaSettingType.Select -> openSelect(definition, state)
@@ -523,6 +542,7 @@ private class NovaSettingsPageOpener(
                     current = state.stringValue(definition),
                     risky = definition.risk != NovaSettingRisk.Normal,
                     onSave = { value -> onValue(definition, NovaSettingValue.StringValue(value)) {} },
+                    useDefault = useDefault(definition, state),
                 ),
             )
             else -> Unit
@@ -568,6 +588,7 @@ private class NovaSettingsPageOpener(
                 options = novaSelectOptions(context, definition.key, definition.options, status),
                 current = current,
                 onChoose = { value -> onValue(definition, NovaSettingValue.StringValue(value)) {} },
+                useDefault = useDefault(definition, state),
             ),
         )
     }
@@ -593,6 +614,10 @@ private class NovaSettingsPageOpener(
                     onValue(definition, NovaSettingValue.IntValue(value)) {
                         previewOwnerAtSave?.let(NovaMenuOpacityPreview::clear)
                     }
+                },
+                useDefault = useDefault(definition, state)?.let { reset ->
+                    // The menu opacity preview goes with the value it previewed.
+                    if (opacity) reset.copy(run = { menuOpacity.clear(); reset.run() }) else reset
                 },
             ),
         )
