@@ -71,8 +71,10 @@ sealed interface NovaRowTrailing {
  * One row of a panel page: a title, an optional caption and icon, and a [trailing] mark.
  *
  * The row is one focus stop with the one focus look, and acts on release through [novaClickable].
- * At rest it is the one row tile ([novaRowRest]). An [emphasis] row takes the accent fill instead,
- * as a menu's primary action does. A row with a [disabledReason] stays focusable, shows the reason
+ * At rest it is the one row tile ([novaRowRest]), [emphasis] or not: fills only mean focus (R9), and
+ * an accent row at rest read as a second focused row beside the real one. An [emphasis] row, a
+ * menu's primary action, takes the accent fill when it has focus, and at rest its icon is accent.
+ * A row with a [disabledReason] stays focusable, shows the reason
  * as its caption and swallows A. Titles and captions wrap rather than ellipsize, and a
  * [NovaRowTrailing.Value] too long to sit beside the title goes under it.
  */
@@ -126,13 +128,20 @@ internal fun NovaRowLayout(
     val marked = current || checked == true
     val currentLabel = stringResource(R.string.nova_panel_current)
     val shape = RoundedCornerShape(NovaRadius.row)
+    var focused by remember { mutableStateOf(false) }
+    // The accent fill, and its label colour, only while the row has focus.
+    val onFill = filled && focused
     val ink = when {
-        filled -> colors.onAccent
+        onFill -> colors.onAccent
         enabled -> colors.textPrimary
         else -> colors.textMuted
     }
-    val quietInk = if (filled) colors.onAccent else colors.textSecondary
-    var focused by remember { mutableStateOf(false) }
+    val quietInk = if (onFill) colors.onAccent else colors.textSecondary
+    val iconInk = when {
+        onFill -> colors.onAccent
+        filled -> colors.accent
+        else -> ink
+    }
     val interactive = onClick != null || !enabled
     val rest = novaRowRest
 
@@ -145,9 +154,9 @@ internal fun NovaRowLayout(
                 shape = shape,
                 ring = if (filled) colors.onAccent else Color.Unspecified,
                 focusedFill = if (filled) colors.accent else Color.Unspecified,
-                restFill = if (filled) colors.accent else rest.fill,
-                restBorder = if (filled) Color.Transparent else rest.border,
-                restBorderWidth = if (filled) 0.dp else rest.borderWidth,
+                restFill = rest.fill,
+                restBorder = rest.border,
+                restBorderWidth = rest.borderWidth,
             )
             .semantics(mergeDescendants = true) {
                 if (current) {
@@ -182,7 +191,7 @@ internal fun NovaRowLayout(
             Icon(
                 painter = painterResource(it),
                 contentDescription = null,
-                tint = ink,
+                tint = iconInk,
                 modifier = Modifier.size(NovaPanelMetrics.IconSize),
             )
         }

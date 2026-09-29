@@ -73,7 +73,8 @@ class NovaRowRestTest {
     @Test
     fun theRowsOfEveryPanelRestAsTheTile() {
         val rows = mapOf(
-            "ui/panel/NovaRows.kt" to "restFill = if (filled) colors.accent else rest.fill",
+            // An emphasis row rests as the tile too; the accent fill is its focus look only (R9).
+            "ui/panel/NovaRows.kt" to "restFill = rest.fill,",
             "ui/panel/NovaValueRow.kt" to ".novaFocusRing(shape, rest = novaRowRest)",
             "ui/panel/NovaCommonPages.kt" to ".novaFocusRing(shape, rest = novaRowRest)",
             "ui/panel/NovaSplitConfirm.kt" to "restFill = if (row) novaRowRest.fill else Color.Unspecified",
