@@ -1006,6 +1006,57 @@ internal fun novaPyroWaveShortfallMbps(
     return if (mbps > 0 && mbps * 1000L > bitrateKbps) mbps else 0
 }
 
+/**
+ * The one PyroWave bitrate verdict Play Setup reads, from the inputs a launch has: the codec
+ * [format], the [size] the launch asks for, the saved [preferences] for the bitrate setting, the
+ * launch's [fps], and [screen], this device's own screen in pixels ([novaDeviceScreenPixels]). What
+ * PyroWave asks for is the codec's own rate model (nova#107) as Game advises it at launch: 4:4:4,
+ * which Nova's PyroWave offer carries, at the viewing distance of this device's screen, or a
+ * television's. The screen is the size past which PyroWave's need grows; the saved stream
+ * resolution is not, and read as the screen it hid the verdict for every size up to itself, so
+ * 3840x2160 at 120 FPS on a 1920x1080 handheld said nothing (in-game #10).
+ */
+internal fun novaPlaySetupBitrateShortfallMbps(
+    format: com.papi.nova.preferences.PreferenceConfiguration.FormatOption?,
+    size: Pair<Int, Int>?,
+    preferences: com.papi.nova.preferences.PreferenceConfiguration,
+    screen: Pair<Int, Int>,
+    fps: Int,
+    television: Boolean,
+): Int = novaPyroWaveShortfallMbps(
+    pyroWave = format == com.papi.nova.preferences.PreferenceConfiguration.FormatOption.FORCE_PYROWAVE,
+    size = size,
+    devicePixels = screen.first.toLong() * screen.second,
+    bitrateKbps = preferences.bitrate,
+    need = { width, height ->
+        com.papi.nova.binding.video.PyroWaveDecoderRenderer.advisedMbps(
+            width, height, fps,
+            chroma444 = true,
+            heightFactor = com.papi.nova.binding.video.PyroWaveDecoderRenderer.viewingHeightFactor(
+                television = television,
+                onExternalDisplay = false,
+            ),
+        )
+    },
+)
+
+/**
+ * This device's own screen in pixels, landscape: the display a stream is shown on, as its real
+ * display metrics give it, not the stream resolution saved in Settings.
+ */
+internal fun novaDeviceScreenPixels(context: android.content.Context): Pair<Int, Int> {
+    val metrics = android.util.DisplayMetrics()
+    val display = (context.getSystemService(android.content.Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager)
+        ?.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+    if (display != null) {
+        @Suppress("DEPRECATION")
+        display.getRealMetrics(metrics)
+    } else {
+        metrics.setTo(context.resources.displayMetrics)
+    }
+    return maxOf(metrics.widthPixels, metrics.heightPixels) to minOf(metrics.widthPixels, metrics.heightPixels)
+}
+
 /** Which part of the plan's line an option changes, for the plan card's preview. */
 internal enum class NovaPlaySetupPreviewPart { SIZE, CODEC }
 

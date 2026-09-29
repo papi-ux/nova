@@ -1413,32 +1413,15 @@ class NovaGameDetailActivity : NovaActivity() {
             return NovaDecodeLimit.Unknown
         }
 
-        /** This screen's own size, landscape, for the Resolution choice that matches it. */
-        val screenSize: Pair<Int, Int> by lazy {
-            val metrics = android.util.DisplayMetrics()
-            @Suppress("DEPRECATION")
-            windowManager.defaultDisplay.getRealMetrics(metrics)
-            maxOf(metrics.widthPixels, metrics.heightPixels) to minOf(metrics.widthPixels, metrics.heightPixels)
-        }
+        /**
+         * This screen's own size, landscape: the Resolution choice that matches it, and the size past
+         * which PyroWave's need grows (#10).
+         */
+        val screenSize: Pair<Int, Int> by lazy { novaDeviceScreenPixels(this@NovaGameDetailActivity) }
         val television by lazy {
             (getSystemService(UI_MODE_SERVICE) as? android.app.UiModeManager)?.currentModeType ==
                 Configuration.UI_MODE_TYPE_TELEVISION
         }
-
-        /**
-         * What PyroWave asks for at [width] by [height] and [fps], in whole Mbps, from the codec's own
-         * rate model (nova#107) as Game advises it at launch: 4:4:4, which Nova's PyroWave offer
-         * carries, and the viewing distance of this device's own screen, or a television's.
-         */
-        fun pyroWaveNeedMbps(width: Int, height: Int, fps: Int): Int =
-            com.papi.nova.binding.video.PyroWaveDecoderRenderer.advisedMbps(
-                width, height, fps,
-                chroma444 = true,
-                heightFactor = com.papi.nova.binding.video.PyroWaveDecoderRenderer.viewingHeightFactor(
-                    television = television,
-                    onExternalDisplay = false,
-                ),
-            )
 
         /**
          * The rate a launch will run at: a Frame Rate choice, else Tuning's pin, else the rate the
@@ -1458,22 +1441,23 @@ class NovaGameDetailActivity : NovaActivity() {
                 ?: (preferences.width to preferences.height)
 
         /**
-         * What would hold [format] back at [size]: PyroWave past this device's own size asks for
+         * What would hold [format] back at [size]: PyroWave past this device's own screen asks for
          * more than the bitrate setting, in Mbps; 0 when nothing would. The one verdict the codec
          * preview, the Resolution page and the plan read, so they cannot disagree about one plan:
          * the preview had warned of the bitrate while What Will Happen, for the same plan, did not
-         * (in-game smoke #10).
+         * (in-game smoke #10). The screen is this device's, not the saved stream resolution.
          */
         fun bitrateShortfallMbps(
             format: PreferenceConfiguration.FormatOption?,
             size: Pair<Int, Int>?,
             preferences: PreferenceConfiguration,
-        ): Int = novaPyroWaveShortfallMbps(
-            pyroWave = format == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE,
+        ): Int = novaPlaySetupBitrateShortfallMbps(
+            format = format,
             size = size,
-            devicePixels = preferences.width.toLong() * preferences.height,
-            bitrateKbps = preferences.bitrate,
-            need = { width, height -> pyroWaveNeedMbps(width, height, launchFps(preferences)) },
+            preferences = preferences,
+            screen = screenSize,
+            fps = launchFps(preferences),
+            television = television,
         )
 
         /** What PyroWave asks for past the bitrate setting for this launch's plan, in Mbps, or 0. */

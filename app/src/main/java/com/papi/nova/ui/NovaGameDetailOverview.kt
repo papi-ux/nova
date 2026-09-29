@@ -1290,9 +1290,13 @@ private fun novaGameDetailStatusText(
         // The numbers themselves: the line is what Launch will do, so "Resolved:" in front of
         // them added a word and no meaning.
         summary?.selectedLine?.let(::novaPlaySetupValue),
-        // "Resolved: ..." followed by "Resolved for this launch" said the same thing twice.
-        planLimit.takeIf { it.isNotBlank() }
-            ?: summary?.limitingLine?.takeIf { it.isNotBlank() }
+        // What holds the launch back: the host's own line first, then the bitrate the plan needs,
+        // both when both do; the bitrate verdict had dropped the host's line (#10). "Resolved: ..."
+        // followed by "Resolved for this launch" said the same thing twice.
+        listOfNotNull(
+            summary?.limitingLine?.takeIf { it.isNotBlank() },
+            planLimit.takeIf { it.isNotBlank() },
+        ).takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
             ?: summary?.freshnessLine?.takeIf { summary.selectedLine.isNullOrBlank() },
     ).filter { !it.isNullOrBlank() }.joinToString("  ·  ")
 }
