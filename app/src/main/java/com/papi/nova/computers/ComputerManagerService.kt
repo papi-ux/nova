@@ -118,6 +118,8 @@ class ComputerManagerService : Service() {
             return false
         }
 
+        details.manualWakeMacAddress = WakeMacOverrides(this).get(details.uuid)
+
         // If it's online, update our persistent state
         if (details.state == ComputerDetails.State.ONLINE) {
             val existingComputer = dbManager.getComputerByUUID(details.uuid)
@@ -282,6 +284,9 @@ class ComputerManagerService : Service() {
 
         fun removeComputer(computer: ComputerDetails): Boolean =
             this@ComputerManagerService.removeComputer(computer)
+
+        fun setWakeMacAddress(uuid: String, value: String?): Boolean =
+            this@ComputerManagerService.setWakeMacAddress(uuid, value)
 
         fun stopPolling() {
             // Just call the unbind handler to cleanup
@@ -462,6 +467,7 @@ class ComputerManagerService : Service() {
     }
 
     private fun addTuple(details: ComputerDetails) {
+        details.manualWakeMacAddress = WakeMacOverrides(this).get(details.uuid)
         val existing = pollingTuples[details.uuid]
         if (existing != null) {
             // Update the saved computer with potentially new details
@@ -533,6 +539,23 @@ class ComputerManagerService : Service() {
         } catch (error: RuntimeException) {
             LimeLog.warning("ComputerManagerService: remove failed (${error.javaClass.simpleName})")
             false
+        } finally {
+            releaseLocalDatabaseReference()
+        }
+    }
+
+    private fun setWakeMacAddress(uuid: String, value: String?): Boolean {
+        if (!getLocalDatabaseReference()) return false
+        try {
+            val tuple = pollingTuples[uuid] ?: return false
+            return synchronized(tuple.networkLock) {
+                if (pollingTuples[uuid] !== tuple) return@synchronized false
+                val overrides = WakeMacOverrides(this)
+                if (!overrides.save(uuid, value)) return@synchronized false
+                tuple.computer.manualWakeMacAddress = overrides.get(uuid)
+                listener?.notifyComputerUpdated(tuple.computer)
+                true
+            }
         } finally {
             releaseLocalDatabaseReference()
         }

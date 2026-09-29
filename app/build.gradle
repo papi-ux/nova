@@ -26,7 +26,7 @@ if (!(novaVersionSuffix ==~ /^-(pre|beta\.[0-9]+|rc\.[0-9]+)$/)) {
 
 // Bumped once per release, and the only version number here that is maintained by hand. Stable
 // reads it directly; the prerelease channel scales it, just below.
-def novaVersionCode = 54
+def novaVersionCode = 55
 
 // Successive betas of one version have to be distinguishable, and the sequence has to keep rising
 // across versions as well, because com.papi.nova.pre is a single application id: 1.4.14-beta.1 must
@@ -166,7 +166,7 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionName "1.4.13"
+        versionName "1.4.14"
         // Stable's code stays a hand-maintained pin, bumped once per release. The prerelease
         // channel derives from it; see novaPreReleaseVersionCode above.
         versionCode = novaVersionCode

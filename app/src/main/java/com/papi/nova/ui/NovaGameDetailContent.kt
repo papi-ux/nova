@@ -220,6 +220,7 @@ internal fun NovaGameDetailContent(
     playFocusRequester: FocusRequester = remember { FocusRequester() },
     /** Play Setup's own button, where focus goes back when the panel it opened closes. */
     playSetupFocusRequester: FocusRequester = remember { FocusRequester() },
+    launchBlockedReason: String? = null,
 ) {
     val verticalScroll = rememberScrollState()
     val detailsFocusRequester = remember { FocusRequester() }
@@ -258,6 +259,7 @@ internal fun NovaGameDetailContent(
             apiClient = apiClient,
             planLimit = bitrateLimit,
             playLabel = playLabel,
+            launchBlockedReason = launchBlockedReason,
             lastPlayedText = lastPlayedText,
             sourceLabel = sourceLabel,
             optimizationState = optimizationState,

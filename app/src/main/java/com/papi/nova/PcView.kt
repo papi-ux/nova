@@ -1539,7 +1539,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (details.state == ComputerDetails.State.ONLINE && firstOnline == null) {
                 firstOnline = candidate
             }
-            if (details.macAddress != null && firstWakeable == null) {
+            if (details.wakeMacAddress != null && firstWakeable == null) {
                 firstWakeable = candidate
             }
             if (rememberedUuid != null && rememberedUuid == details.uuid) {
@@ -2003,6 +2003,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             override fun sleep() = sleepHostNow()
             override fun appList() = doAppList(details, false, false)
             override fun testNetwork() = ServerHelper.doNetworkTest(this@PcView)
+            override fun editWakeAddress() = showWakeAddressDialog(details)
             override fun delete() = removeComputer(details)
 
             override fun watch() {
@@ -2437,6 +2438,28 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     /** Wake on LAN from the host menu; what came of it is a Notice, where it can be read (X2). */
+    private fun showWakeAddressDialog(computer: ComputerDetails) {
+        com.papi.nova.ui.showWakeMacAddressEditor(this, computer) { value, complete ->
+            val binder = managerBinder
+            if (binder == null) {
+                complete(false)
+            } else {
+                runtimeTasks.launchIo("NovaWakeAddress") {
+                    val saved = try {
+                        binder.setWakeMacAddress(computer.uuid, value)
+                    } catch (error: RuntimeException) {
+                        LimeLog.warning("Could not save wake address (${error.javaClass.simpleName})")
+                        false
+                    }
+                    runtimeTasks.runOnMainIfActive {
+                        if (saved) computer.manualWakeMacAddress = WakeOnLanSender.usableMacAddress(value)
+                        complete(saved)
+                    }
+                }
+            }
+        }
+    }
+
     private fun doWakeOnLan(computer: ComputerDetails) {
         val title = getString(R.string.pcview_quick_start_polaris)
         if (computer.state == ComputerDetails.State.ONLINE) {
@@ -2444,7 +2467,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             return
         }
 
-        if (computer.macAddress == null) {
+        if (computer.wakeMacAddress == null) {
             showHostsNotice(title, getString(R.string.wol_no_mac))
             return
         }

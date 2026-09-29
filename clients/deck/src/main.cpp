@@ -1248,6 +1248,16 @@ int nativeLaunchCommand(
         std::cout << "nova-deck native: invalid --native-mode or unavailable --native-codec" << std::endl;
         return 2;
     }
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (options.videoFormat == VIDEO_FORMAT_PYROWAVE) {
+        const auto support = nova::deck::stream::cachedPyrowaveDecodeSupport();
+        if (!support.limits.supports(options.width, options.height)) {
+            std::cout << "nova-deck native: " << (support.reason.isEmpty()
+                ? "The stream size exceeds this device's PyroWave limits." : support.reason.toStdString()) << std::endl;
+            return 2;
+        }
+    }
+#endif
     if (!identity || !snapshot || snapshot->selectedHostId.empty()) {
         std::cout << "nova-deck native: no live host selected; Moonlight identity or a reachable Polaris host is missing" << std::endl;
         return 2;
@@ -1757,6 +1767,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     playSettings.setVideoDecodeSupport(fixtureVideoSupport
         ? nova::deck::stream::DeckVideoDecodeSupport{.h264 = {4096, 4096}, .hevc = {1920, 1200}}
         : mediaProbe.videoDecodeSupport);
+    if (!fixtureVideoSupport) playSettings.setPyrowaveProbe(nova::deck::stream::cachedPyrowaveDecodeSupport);
     hostSettings.setPlaySettings(&playSettings);
 #ifdef NOVA_DECK_VULKAN_STREAM
     std::unique_ptr<nova::deck::runtime::DeckVulkanSessionView> vulkanSessionView;

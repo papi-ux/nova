@@ -53,7 +53,7 @@ internal fun novaHostSheetCopy(details: ComputerDetails): NovaHostSheetCopy {
     if (details.state == ComputerDetails.State.OFFLINE) {
         return NovaHostSheetCopy(
             statusRes = R.string.pcview_card_status_offline,
-            hintRes = if (details.macAddress != null) {
+            hintRes = if (details.wakeMacAddress != null) {
                 R.string.pcview_card_hint_wake
             } else {
                 R.string.pcview_card_hint_offline_no_wake
@@ -161,6 +161,7 @@ internal interface NovaHostMenuActions {
     fun sleep()
     fun appList()
     fun testNetwork()
+    fun editWakeAddress() {}
     fun delete()
 }
 
@@ -395,6 +396,9 @@ internal fun novaHostMenuItems(
     // The network test pushes a Busy page, then its result, in this panel.
     menu.inPlace(action("test_network", R.string.pcview_menu_test_network, R.string.pcview_sheet_caption_test_network, R.drawable.ic_language)) {
         actions.testNetwork()
+    }
+    menu.inPlace(action("wake_address", R.string.wol_address_title, R.string.wol_address_caption, R.drawable.ic_edit)) {
+        actions.editWakeAddress()
     }
     menu.opens(action("details", R.string.pcview_menu_details, R.string.pcview_sheet_caption_details, R.drawable.ic_help)) {
         NovaCommonPage.Notice(

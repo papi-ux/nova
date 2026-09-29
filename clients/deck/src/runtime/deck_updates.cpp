@@ -63,7 +63,7 @@ DeckUpdates::DeckUpdates(DeckUpdateOptions options, QDBusConnection bus, QObject
     local_ = running_;
     supported_ = instance.value("Application/name") == "com.papi_ux.Nova"
         && instance.value("Instance/arch") == "x86_64"
-        && commit(running_) && QStringList{"stable", "beta", "pyrowave"}.contains(options_.channel)
+        && commit(running_) && QStringList{"stable", "beta"}.contains(options_.channel)
         && branch == options_.channel && QUrl(options_.feedUrl).scheme() == "https";
     if (!supported_) {
         message_ = "This copy has no Nova update channel. Install a channel from Nova's Downloads page once to enable in-app updates. Your pairing and settings stay on this device.";

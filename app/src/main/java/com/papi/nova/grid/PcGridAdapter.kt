@@ -365,7 +365,7 @@ class PcGridAdapter(
                 statusText.setText(R.string.pcview_card_status_offline)
                 statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
             }
-            if (obj.details.macAddress != null) {
+            if (obj.details.wakeMacAddress != null) {
                 primaryAction?.setText(R.string.pcview_card_action_wake)
                 setPrimaryActionReady(primaryAction, true)
                 setStatusHint(statusHint, R.string.pcview_card_hint_wake)

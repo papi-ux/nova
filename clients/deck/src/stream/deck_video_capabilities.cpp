@@ -7,9 +7,6 @@ extern "C" {
 }
 #include <algorithm>
 #include <vector>
-#ifdef NOVA_DECK_BUILD_PYROWAVE
-#include "codec.h"
-#endif
 
 namespace nova::deck::stream {
 int selectSdrVideoFormat(std::string_view preference, bool hostH264, bool hostHevc,
@@ -109,17 +106,7 @@ DeckVideoDecodeSupport probeVaapiDecodeSupport(AVBufferRef* device) {
 }
 
 DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
-    auto support = probeVaapiDecodeSupport(device);
-    // Startup review and stream launch must see the same codec capabilities.
-    // PyroWave uses its own Vulkan device, even when VAAPI is unavailable.
-#ifdef NOVA_DECK_BUILD_PYROWAVE
-    nova::pyrowave::Codec decoder;
-    if (decoder.open(128, 128, false)) {
-        const int limit = decoder.probeGpuLimit();
-        support.pyrowave = {limit, limit};
-    }
-#endif
-    return support;
+    return probeVaapiDecodeSupport(device);
 }
 
 DeckVideoDecodeSupport detectVideoDecodeSupport() {

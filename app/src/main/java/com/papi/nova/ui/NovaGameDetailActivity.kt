@@ -2087,6 +2087,10 @@ class NovaGameDetailActivity : NovaActivity() {
                     uiState = uiState.copy(playEnabled = !environmentChanging &&
                         (environmentError != null || (uiState.playEnabled && playEnvironmentReady()))),
                     launchIntro = environmentError ?: buildLaunchIntro(uiState),
+                    launchBlockedReason = currentGame.space?.let { space ->
+                        NovaSpacesCopy.launchBlockedReason(environmentSnapshot, space.id, environmentChanging,
+                            uiState.playEnabled)?.let { getString(it) }
+                    },
                     recommendedBadge = getString(
                         R.string.nova_library_launch_recommended_mode_badge,
                         modeBadgeLabel(uiState.recommendedMode)

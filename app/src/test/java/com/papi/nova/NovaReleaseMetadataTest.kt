@@ -6,30 +6,28 @@ import org.junit.Test
 
 class NovaReleaseMetadataTest {
     @Test
-    fun experimentalLinuxBundleIsSeparateAndRequiredForTags() {
+    fun standardLinuxBundleIncludesLazyPyrowaveAndIsRequiredForTags() {
         val root = repoRoot()
         val workflow = File(root, ".github/workflows/build.yml").readText()
         val standard = workflowJob(workflow, "deck-flatpak")
-        val experimental = workflowJob(workflow, "deck-flatpak-pyrowave")
         val release = workflowJob(workflow, "build")
         assertTrue(standard.contains("manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.json"))
-        assertTrue(experimental.contains("manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.pyrowave.json"))
-        assertTrue(experimental.contains("bundle: Nova-Linux-PyroWave-x86_64-alpha.flatpak"))
-        assertTrue(experimental.contains("ref: \${{ github.sha }}"))
-        assertTrue(experimental.contains("submodules: recursive"))
-        assertTrue(experimental.contains("if-no-files-found: error"))
-        assertTrue(release.contains("needs: [verify, android-smoke, deck-flatpak, deck-flatpak-pyrowave]"))
-        assertTrue(release.contains("needs.deck-flatpak-pyrowave.result == 'success'"))
-        assertTrue(release.contains("needs.deck-flatpak-pyrowave.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v')"))
-        assertTrue(workflowStep(release, "Add the experimental PyroWave bundle")
-            .contains("name: nova-linux-pyrowave-flatpak"))
-        val checksums = workflowStep(release, "Checksum both Linux Alpha bundles")
-        assertTrue(checksums.contains("sha256sum Nova-Linux-PyroWave-x86_64-alpha.flatpak > Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256"))
-        val manifest = File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.pyrowave.json").readText()
+        assertTrue(standard.contains("ref: \${{ github.sha }}"))
+        assertTrue(standard.contains("submodules: recursive"))
+        assertTrue(standard.contains("if-no-files-found: error"))
+        assertTrue(release.contains("needs: [verify, android-smoke, deck-flatpak]"))
+        assertTrue(release.contains("needs.deck-flatpak.result == 'success'"))
+        assertTrue(!workflow.contains("deck-flatpak-pyrowave"))
+        assertTrue(!workflow.contains("Nova-Linux-PyroWave"))
+        val checksums = workflowStep(release, "Checksum the Linux Alpha bundle")
+        assertTrue(checksums.contains("sha256sum Nova-Linux-x86_64-alpha.flatpak > Nova-Linux-x86_64-alpha.flatpak.sha256"))
+        val manifest = File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").readText()
+        assertTrue(manifest.contains("modules/pyrowave.json"))
         assertTrue(manifest.contains("-DNOVA_DECK_BUILD_PYROWAVE=ON"))
         assertTrue(!manifest.contains("NOVA_DECK_UPDATE_CHANNEL"))
-        val standardManifest = File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").readText()
-        assertTrue(!standardManifest.contains("-DNOVA_DECK_BUILD_PYROWAVE=ON"))
+        val cmake = File(root, "clients/deck/CMakeLists.txt").readText()
+        assertTrue(cmake.contains("install(TARGETS nova-deck-pyrowave-probe"))
+        assertTrue(!File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.pyrowave.json").exists())
     }
 
     private fun repoRoot(): File {
@@ -100,7 +98,7 @@ class NovaReleaseMetadataTest {
     }
 
     @Test
-    fun versionNameCodeAndPublicReleaseMetadataStayConsistent() {
+    fun developmentAndReleaseNotesMetadataStayConsistent() {
         val root = repoRoot()
         val build = File(root, "app/build.gradle").readText()
         val changelog = File(root, "CHANGELOG.md").readText()
@@ -112,17 +110,20 @@ class NovaReleaseMetadataTest {
         )
         val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
-        assertTrue(build.contains("versionName \"1.4.13\""))
+        assertTrue(build.contains("versionName \"1.4.14\""))
         // The Deck bundle reports the same version in its support report and its AppStream data.
-        assertTrue(File(root, "clients/deck/CMakeLists.txt").readText().contains("project(NovaDeck VERSION 1.4.13 "))
+        assertTrue(File(root, "clients/deck/CMakeLists.txt").readText().contains("project(NovaDeck VERSION 1.4.14 "))
         assertTrue(
             File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
                 .contains("<release version=\"1.4.13\" date=\"2026-09-24\"/>")
         )
-        // Stable's code is still a hand-maintained pin, and still 54, because the store notes above
-        // are filed under that number. It now has a name so the prerelease derivation can read it
-        // rather than repeat it.
-        assertTrue(build.contains("def novaVersionCode = 54"))
+        assertTrue(
+            File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
+                .contains("<release version=\"1.4.14\" type=\"development\" date=\"2026-09-27\"/>"),
+        )
+        // Development builds advance to code 55. Keep 1.4.13's store notes under 54
+        // until the next release's notes are prepared.
+        assertTrue(build.contains("def novaVersionCode = 55"))
         assertTrue(build.contains("versionCode = novaVersionCode"))
 
         // A beta's code is derived from that pin, because beta.2 and beta.3 both shipped 54 when it
@@ -426,8 +427,6 @@ class NovaReleaseMetadataTest {
             "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
             "Nova-Linux-x86_64-alpha.flatpak",
             "Nova-Linux-x86_64-alpha.flatpak.sha256",
-            "Nova-Linux-PyroWave-x86_64-alpha.flatpak",
-            "Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertConsecutive(stageLines, listOf(
@@ -438,7 +437,7 @@ class NovaReleaseMetadataTest {
         ))
         assertConsecutive(stageLines, listOf(
             "if [ \"\${local_asset_names[*]}\" != \"\${expected_asset_names[*]}\" ]; then",
-            "echo \"Local release assets do not match the exact ten-file contract\" >&2",
+            "echo \"Local release assets do not match the exact eight-file contract\" >&2",
             "printf 'expected: %s\\n' \"\${expected_asset_names[*]}\" >&2",
             "printf 'local: %s\\n' \"\${local_asset_names[*]}\" >&2",
             "exit 1",
@@ -464,8 +463,6 @@ class NovaReleaseMetadataTest {
             "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
             "Nova-Linux-x86_64-alpha.flatpak",
             "Nova-Linux-x86_64-alpha.flatpak.sha256",
-            "Nova-Linux-PyroWave-x86_64-alpha.flatpak",
-            "Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256",
             ")",
         ))
         assertTrue(uploadLines.contains(
@@ -491,8 +488,6 @@ class NovaReleaseMetadataTest {
             "\"\${NOVA_ASSET_PREFIX}-x86_64.apk.sha256\"",
             "Nova-Linux-x86_64-alpha.flatpak",
             "Nova-Linux-x86_64-alpha.flatpak.sha256",
-            "Nova-Linux-PyroWave-x86_64-alpha.flatpak",
-            "Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256",
         )
         for (asset in exactAssetNames) {
             assertTrue(verifyLines.contains(asset))
@@ -506,7 +501,7 @@ class NovaReleaseMetadataTest {
         ))
         assertConsecutive(verifyLines, listOf(
             "if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then",
-            "echo \"Release assets do not match the exact ten-file contract on \${GITHUB_REF_NAME}\" >&2",
+            "echo \"Release assets do not match the exact eight-file contract on \${GITHUB_REF_NAME}\" >&2",
             "printf 'expected: %s\\n' \"\${expected_assets[*]}\" >&2",
             "printf 'published: %s\\n' \"\${published_assets[*]}\" >&2",
             "exit 1",

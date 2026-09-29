@@ -2,6 +2,7 @@ package com.papi.nova.utils
 
 import android.app.Activity
 import android.app.ActivityOptions
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
@@ -235,21 +236,36 @@ class ExternalDisplayControlActivity : Activity(),
 
     companion object {
         @JvmStatic
-        fun launch(game: Game, displayId: Int) {
+        fun launch(game: Game, displayId: Int): Boolean {
+            val displayManager = game.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            if (displayManager.getDisplay(displayId)?.isValid != true ||
+                (displayId != Display.DEFAULT_DISPLAY && Build.VERSION.SDK_INT < Build.VERSION_CODES.O)) {
+                return false
+            }
             val intent = Intent(game, ExternalDisplayControlActivity::class.java)
                 .addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_NO_ANIMATION or
                         Intent.FLAG_ACTIVITY_SINGLE_TOP,
                 )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val options = ActivityOptions.makeBasic()
-                options.setLaunchDisplayId(displayId)
-                game.startActivity(intent, options.toBundle())
-            } else {
-                game.startActivity(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val options = ActivityOptions.makeBasic()
+                    options.setLaunchDisplayId(displayId)
+                    game.startActivity(intent, options.toBundle())
+                } else {
+                    game.startActivity(intent)
+                }
+                game.overridePendingTransition(0, 0)
+                return true
+            } catch (_: SecurityException) {
+                return false
+            } catch (_: IllegalArgumentException) {
+                // The display can disappear between the lookup and launch.
+                return false
+            } catch (_: ActivityNotFoundException) {
+                return false
             }
-            game.overridePendingTransition(0, 0)
         }
     }
 }

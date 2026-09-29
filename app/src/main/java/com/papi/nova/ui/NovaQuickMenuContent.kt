@@ -741,6 +741,11 @@ private fun NovaPageScope.NovaQuickKeys(
     val actions by ui.slice(select)
     val closeApp = rememberNovaSplitConfirmState()
     Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+        Text(
+            text = stringResource(R.string.nova_quick_menu_quick_keys_caption),
+            color = LocalNovaComposeColors.current.textMuted,
+            style = novaPanelType.caption,
+        )
         actions.chunked(3).forEach { row ->
             val splitTakesRow = closeApp.armed && row.any { it.id == NovaQuickMenuActionId.QUICK_ALT_F4 }
             Row(horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {

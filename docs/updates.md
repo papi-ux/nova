@@ -72,7 +72,7 @@ It uses Flatpak rather than Android APKs. The Linux app ID remains
 `com.papi_ux.Nova`.
 
 **Channel installations:** when a signed channel installer is published, choose
-the **stable**, **beta**, or experimental **pyrowave** installer named in the
+the **stable** or **beta** installer named in the
 release. Open **Settings → Nova → Nova Updates** to check or install an update on
 that installed channel. Automatic installation is optional and waits until Nova
 is idle. Reopen Nova when it says the update is ready. Selecting a channel is
@@ -109,14 +109,12 @@ the decoder to those clients.
   Older builds, including v1.4.13-beta.3, do not have this Play Setup row: use
   **Settings → Client Stream Defaults → Change codec settings → PyroWave (experimental)**.
   Auto does not select PyroWave, and stable Android builds do not expose it.
-- **Nova Linux:** use a PyroWave-enabled build, made with the separate
-  `com.papi_ux.Nova.pyrowave.json` manifest. The ordinary Linux Alpha Flatpak
-  attached to **v1.4.13-beta.3** uses the standard manifest and does **not** contain
-  PyroWave. Releases using the separate-asset workflow attach
-  `Nova-Linux-PyroWave-x86_64-alpha.flatpak` and its checksum beside the standard
-  bundle. Use that explicitly named package when present; a beta tag alone does
-  not enable the codec. It replaces the standard Linux app and has no automatic
-  stable/beta feed. Follow the [experimental install and return instructions](../clients/deck/docs/pyrowave.md#packaging-and-compatibility).
+- **Nova Linux:** starting with 1.4.14, the standard Linux package includes
+  PyroWave with a lazy, isolated device check. Version 1.4.13 attached a separate
+  codec bundle; install the new standard bundle over it to keep pairing and settings.
+  The ordinary v1.4.13-beta.3 bundle does not include PyroWave. The separate
+  bundle is retired, and no separate codec update channel is offered.
+  Follow the [installation guide](../clients/deck/docs/pyrowave.md#packaging-and-compatibility).
 
 In an enabled Nova Linux build, open a game's **Play Setup → Video Codec →
 PyroWave · Experimental**. The host and the Linux device's Vulkan decoder must

@@ -54,7 +54,10 @@ FocusScope {
     property var displayCapabilities: ({})
     readonly property bool spaceSession: spaceDestination || gameId.indexOf("space.") === 0
         || gameId === "706f6c61-7269-4373-8000-6d756c746973" || gameId === "1347244801"
-    readonly property var plan: settingsProvider.streamPlan(requestedConfiguration, streamCapabilities, displayPlanner, displayCapabilities, spaceSession)
+    readonly property var plan: {
+        const revision = settingsProvider.videoSupportRevision
+        return settingsProvider.streamPlan(requestedConfiguration, streamCapabilities, displayPlanner, displayCapabilities, spaceSession)
+    }
     readonly property var audioSettings: settingsProvider.audioSettings
     readonly property int audioChannels: spaceSession ? 2 : audioSettings.channels
     readonly property string audioLabel: audioChannels === 8 ? "7.1 surround" : audioChannels === 6 ? "5.1 surround" : "Stereo audio"

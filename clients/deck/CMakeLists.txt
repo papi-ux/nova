@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.24)
 
 # The release version, kept equal to versionName in app/build.gradle by NovaReleaseMetadataTest.
-project(NovaDeck VERSION 1.4.13 LANGUAGES C CXX)
+project(NovaDeck VERSION 1.4.14 LANGUAGES C CXX)
 
 # Only builds exported to a signed update feed enable the in-app updater.
-set(NOVA_DECK_UPDATE_CHANNEL "" CACHE STRING "Flatpak update branch: stable, beta or pyrowave")
+set(NOVA_DECK_UPDATE_CHANNEL "" CACHE STRING "Flatpak update branch: stable or beta")
 set(NOVA_DECK_UPDATE_URL "https://papi-ux.github.io/nova" CACHE STRING "Nova update catalog base URL")
-if(NOT NOVA_DECK_UPDATE_CHANNEL MATCHES "^(|stable|beta|pyrowave)$")
+if(NOT NOVA_DECK_UPDATE_CHANNEL MATCHES "^(|stable|beta)$")
     message(FATAL_ERROR "Unknown Nova update channel")
 endif()
 if(NOT NOVA_DECK_UPDATE_URL MATCHES "^https://[A-Za-z0-9./_-]+$")
@@ -72,6 +72,7 @@ add_library(nova_deck_core STATIC
     src/stream/deck_stream_media_adapters.cpp
     src/stream/deck_video_color.cpp
     src/stream/deck_video_capabilities.cpp
+    src/stream/deck_pyrowave_probe.cpp
     src/stream/deck_audio_output.cpp
     src/stream/deck_audio_buffer.cpp
     src/stream/deck_audio_recovery.cpp
@@ -132,13 +133,7 @@ set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
     CACHE PATH
     "Path to the checked-out moonlight-common-c source tree used by the Deck stream skeleton"
 )
-option(NOVA_DECK_BUILD_PYROWAVE "Build the experimental pinned PyroWave codec" OFF)
-if(NOVA_DECK_UPDATE_CHANNEL STREQUAL "pyrowave" AND NOT NOVA_DECK_BUILD_PYROWAVE)
-    message(FATAL_ERROR "The PyroWave update channel must include the codec")
-endif()
-if(NOVA_DECK_UPDATE_CHANNEL MATCHES "^(stable|beta)$" AND NOVA_DECK_BUILD_PYROWAVE)
-    message(FATAL_ERROR "Use the separate pyrowave update channel for codec-enabled builds")
-endif()
+option(NOVA_DECK_BUILD_PYROWAVE "Build the pinned PyroWave codec" OFF)
 if(NOVA_DECK_BUILD_PYROWAVE)
     # Keep the Android submodule unchanged. Only this optional native build
     # consumes the private, version-negotiated GameStream extension.
@@ -203,6 +198,9 @@ target_compile_definitions(nova_deck_core
 include(CTest)
 if(NOVA_DECK_BUILD_PYROWAVE)
     add_subdirectory(pyrowave)
+    add_executable(nova-deck-pyrowave-probe pyrowave/probe.cpp)
+    target_link_libraries(nova-deck-pyrowave-probe PRIVATE nova_pyrowave)
+    install(TARGETS nova-deck-pyrowave-probe RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     target_link_libraries(nova_deck_core PUBLIC nova_pyrowave)
     target_compile_definitions(nova_deck_core PUBLIC NOVA_DECK_BUILD_PYROWAVE=1)
     if(BUILD_TESTING)
@@ -226,6 +224,17 @@ if(NOVA_DECK_BUILD_HDR_VALIDATION OR NOVA_DECK_BUILD_VULKAN_STREAM)
     target_link_libraries(nova_deck_hdr_render PUBLIC nova_deck_core PkgConfig::NOVA_DECK_PLACEBO)
 endif()
 if(BUILD_TESTING)
+    add_executable(nova_deck_pyrowave_probe_test tests/deck_pyrowave_probe_test.cpp src/stream/deck_pyrowave_probe.cpp)
+    target_include_directories(nova_deck_pyrowave_probe_test PRIVATE src)
+    target_link_libraries(nova_deck_pyrowave_probe_test PRIVATE Qt6::Core)
+    add_test(NAME nova_deck_pyrowave_probe_test COMMAND nova_deck_pyrowave_probe_test)
+    set_tests_properties(nova_deck_pyrowave_probe_test PROPERTIES TIMEOUT 20)
+    if(NOVA_DECK_BUILD_PYROWAVE)
+        add_dependencies(nova_deck_pyrowave_probe_test nova-deck-pyrowave-probe)
+        add_test(NAME nova_deck_pyrowave_real_probe_test COMMAND nova_deck_pyrowave_probe_test
+            --real-helper $<TARGET_FILE:nova-deck-pyrowave-probe>)
+        set_tests_properties(nova_deck_pyrowave_real_probe_test PROPERTIES TIMEOUT 20)
+    endif()
     add_executable(nova_deck_players_test tests/deck_players_test.cpp src/stream/deck_players.cpp)
     target_include_directories(nova_deck_players_test PRIVATE src)
     add_test(NAME nova_deck_players_test COMMAND nova_deck_players_test)
@@ -638,6 +647,9 @@ if(NOVA_DECK_BUILD_QT_SHELL)
         qt_add_executable(nova-deck
             src/main.cpp
         )
+        if(NOVA_DECK_BUILD_PYROWAVE)
+            add_dependencies(nova-deck nova-deck-pyrowave-probe)
+        endif()
         target_compile_definitions(nova-deck PRIVATE $<$<BOOL:${BUILD_TESTING}>:NOVA_DECK_TESTING>
             NOVA_DECK_VERSION="${PROJECT_VERSION}")
         if(NOVA_DECK_BUILD_VULKAN_STREAM)

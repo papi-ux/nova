@@ -199,6 +199,7 @@ internal fun NovaGameDetailOverview(
      */
     chromeClipEnd: Dp = 0.dp,
     modifier: Modifier = Modifier,
+    launchBlockedReason: String? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     val game = uiState.game
@@ -379,6 +380,16 @@ internal fun NovaGameDetailOverview(
                 )
             }
 
+            if (game.space != null && !uiState.playEnabled && activeSession == null) {
+                Text(
+                    text = launchBlockedReason?.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.nova_space_launch_mode_unavailable),
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 10.dp).testTag("nova-space-launch-blocked-reason"),
+                )
+            }
+
             NovaGameDetailActions(
                 stacked = portrait,
                 uiState = uiState,
@@ -522,6 +533,7 @@ private fun NovaGameDetailTitle(
                     .sizeIn(maxWidth = 200.dp, maxHeight = 64.dp)
                     .semantics { contentDescription = logoContentDescription }
                     .testTag("nova-game-detail-logo"),
+                onRelease = PolarisApiClient::releaseArtworkView,
             )
         }
     } else {

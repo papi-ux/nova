@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Nova Beta identifies new pairings as “Beta” instead of “Pre”, keeping the same installed app and data. Existing pairings keep their stored host name until the device pairs again.
+**Nova Linux (Alpha)**
+
+- The standard `Nova-Linux-x86_64-alpha.flatpak` now includes PyroWave. Nova checks the device only when you choose PyroWave, so H.264 and HEVC do not run that check. The separate PyroWave bundle is retired: if you installed it from 1.4.13, install the standard bundle over it; your pairing and settings stay. Keep app data; do not uninstall with `--delete-data`.
 
 - **Nova Linux (Alpha)** is the name of the native client for x86_64 Linux desktops, laptops and handhelds, including Steam Deck. New release bundles use `Nova-Linux-x86_64-alpha.flatpak` and a matching checksum. Hardware-specific codec, HDR and frame-rate limits still apply.
 

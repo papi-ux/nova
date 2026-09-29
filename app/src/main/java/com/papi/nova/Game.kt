@@ -554,13 +554,9 @@ val currentPresentation:ExternalDisplayControlHost? = externalDisplayControlPres
 if (currentPresentation == null || !currentPresentation.isHostShowing() || companionControlDisplayId != companionDisplayId)
 {
 currentPresentation?.dismissAfterCurrentCallback()
-when (CompanionControlHostPolicy.select(companionDisplayId)) {
+when (CompanionControlHostPolicy.select(companionDisplayId, companionDisplay.flags and Display.FLAG_PRESENTATION != 0)) {
 CompanionControlHostPolicy.HostType.ACTIVITY -> {
-externalDisplayControlPresentation = null
-companionControlDisplayId = companionDisplayId
-companionControlHasWindowFocus = false
-ExternalDisplayControlActivity.launch(this, companionDisplayId)
-ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
+launchCompanionControlActivity(companionDisplayId)
 }
 CompanionControlHostPolicy.HostType.PRESENTATION -> {
 val presentation = ExternalDisplayControlPresentation(this, companionDisplay)
@@ -600,11 +596,27 @@ lastQuickMenuInteractionDisplayId = streamingDisplayId
 companionControlDisplayId = INVALID_DISPLAY_ID
 companionControlHasWindowFocus = false
 LimeLog.warning("Nova: Android companion presentation unavailable display_id=$companionDisplayId")
+launchCompanionControlActivity(companionDisplayId)
 }
 }
 }
 }
 listenForExternalDisplayRemoval()
+}
+}
+
+private fun launchCompanionControlActivity(displayId: Int) {
+externalDisplayControlPresentation = null
+companionControlDisplayId = displayId
+companionControlHasWindowFocus = false
+if (ExternalDisplayControlActivity.launch(this, displayId)) {
+ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
+} else {
+companionControlDisplayId = INVALID_DISPLAY_ID
+if (lastQuickMenuInteractionDisplayId == displayId) {
+lastQuickMenuInteractionDisplayId = streamingDisplayId
+}
+LimeLog.warning("Nova: Android companion activity unavailable display_id=$displayId")
 }
 }
 
@@ -693,7 +705,7 @@ explicitUserRequest = false,
 return false
 }
 val companionDisplayId = getCompanionControlDisplay()?.displayId ?: return false
-if (companionDisplayId != Display.DEFAULT_DISPLAY)
+if (activity.controlDisplay.displayId != companionDisplayId)
 {
 return false
 }
