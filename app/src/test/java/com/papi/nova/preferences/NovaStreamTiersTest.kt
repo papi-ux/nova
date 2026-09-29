@@ -141,7 +141,10 @@ class NovaStreamTiersTest {
             pyrowave=NovaPyrowaveSupport(available=true))
         assertTrue(NovaStreamTiers.generate(pyro).recommended.available)
         assertEquals(NovaCodecChoice.PYROWAVE,NovaStreamTiers.generate(pyro).max.codec)
-        val capped=NovaStreamTiers.generate(pyro.copy(host=NovaHostTierLimits(pyrowaveFourKCapKbps=200000)))
+        // The calibrated 31 dB handheld figure now fits 4K60 below 200 Mbps.
+        val fits=NovaStreamTiers.generate(pyro.copy(host=NovaHostTierLimits(pyrowaveFourKCapKbps=200000)))
+        assertEquals(NovaFourK.IsMax,fits.fourK)
+        val capped=NovaStreamTiers.generate(pyro.copy(host=NovaHostTierLimits(pyrowaveFourKCapKbps=150000)))
         assertEquals("pyrowave_cap",(capped.fourK as NovaFourK.Unavailable).because.code)
         assertTrue(capped.max.height<2160)
         assertFalse(NovaStreamTiers.generate(pyro.copy(pyrowave=NovaPyrowaveSupport())).recommended.available)

@@ -3256,7 +3256,7 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     fun setBitrateResult(encoderKbps: Int, observed: PolarisSessionStatus?): PolarisBitrateWriteResult {
-        if (encoderKbps !in 1000..300000) return PolarisBitrateWriteResult.Failed
+        if (encoderKbps !in 1000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS) return PolarisBitrateWriteResult.Failed
         return try {
             val status = getSessionStatus() ?: return PolarisBitrateWriteResult.Failed
             if (!status.streamingActive || status.shutdownRequested || status.isViewer ||
@@ -3273,7 +3273,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 if (response.code != 200) return PolarisBitrateWriteResult.Failed
                 val receipt=JSONObject(response.body?.string().orEmpty())
                 val actual=receipt.opt("bitrate_kbps") as? Number ?: return PolarisBitrateWriteResult.Failed
-                if (receipt.opt("status") != true || actual.toDouble()%1.0 != 0.0 || actual.toDouble() !in 1000.0..300000.0)
+                if (receipt.opt("status") != true || actual.toDouble()%1.0 != 0.0 || actual.toDouble() !in 1000.0..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS.toDouble())
                     return PolarisBitrateWriteResult.Failed
                 PolarisBitrateWriteResult.Applied(actual.toInt(),status)
             }

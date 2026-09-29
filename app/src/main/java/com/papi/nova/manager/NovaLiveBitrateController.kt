@@ -24,7 +24,7 @@ interface NovaLiveBitrateTransport {
 /** VIDEO is the encoder target; REQUEST is the split budget, including actual audio and FEC. */
 enum class NovaBitrateUnits { VIDEO, REQUEST, UNKNOWN }
 data class NovaLiveBitrateState(val requestedKbps:Int?=null,val recommendedKbps:Int?=null,val receivedKbps:Int?=null,
-    val codec:String="",val maximumKbps:Int=300000,val canChange:Boolean=false,val busy:Boolean=false,
+    val codec:String="",val maximumKbps:Int=NovaBitrateAdvice.MANUAL_MAX_KBPS,val canChange:Boolean=false,val busy:Boolean=false,
     val minimumKbps:Int=1000,val units:NovaBitrateUnits=NovaBitrateUnits.UNKNOWN,
     val negotiatedUnits:PolarisBitrateUnits?=null)
 enum class NovaBitrateChange { APPLIED, UNAVAILABLE, SESSION_CHANGED, FAILED, AT_LIMIT }
@@ -70,9 +70,11 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
     private fun allowed(s:PolarisSessionStatus)=streamScopedWritesSupported && same(s) && s.streamingActive && !s.shutdownRequested &&
         !s.isViewer && s.canAdjustHostTuning && !s.liveTuningUnavailable && s.liveTuning?.supported==true && units(s)!=NovaBitrateUnits.UNKNOWN
     private fun maximum(s:PolarisSessionStatus):Int {
-        val requestCap=if(units(s)==NovaBitrateUnits.REQUEST) minOf(hostMaximum ?: 300000,
-            s.pyrowaveBitrate?.hostMaximumKbps ?: 300000,s.pyrowaveBitrate?.capKbps ?: 300000) else 300000
-        return minOf(300000,requestCap,learnedMaximum ?: 300000)
+        val ceiling=NovaBitrateAdvice.MANUAL_MAX_KBPS
+        // PyroWave cap_kbps limits automatic advice, not a player's manual choice.
+        val requestCap=if(units(s)==NovaBitrateUnits.REQUEST) minOf(hostMaximum ?: ceiling,
+            s.pyrowaveBitrate?.hostMaximumKbps ?: ceiling) else ceiling
+        return minOf(ceiling,requestCap,learnedMaximum ?: ceiling)
     }
     private fun encoder(request:Int,s:PolarisSessionStatus):Int = assumptions(s)?.let {
         NovaBitrateAdvice.encoderForRequest(request,it.first,it.second)
@@ -87,9 +89,14 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
         return if(abs(grid-raw)<=1) grid else raw
     }
     private fun minimum(s:PolarisSessionStatus)=maxOf(learnedMinimum ?: 1000,request(1000,s))
-    private fun recommended(s:PolarisSessionStatus):Int? = if(units(s)!=NovaBitrateUnits.REQUEST) null else
-        (if(s.encoder.codec.equals("pyrowave",true)) s.pyrowaveBitrate?.raiseGoalKbps else tableRecommendation)
-            ?.takeIf { it>=minimum(s) }?.coerceAtMost(maximum(s))
+    private fun recommended(s:PolarisSessionStatus):Int? {
+        if(units(s)!=NovaBitrateUnits.REQUEST) return null
+        val pyrowave=s.encoder.codec.equals("pyrowave",true)
+        val goal=if(pyrowave) s.pyrowaveBitrate?.raiseGoalKbps else tableRecommendation
+        val cap=minOf(NovaBitrateAdvice.AUTOMATIC_MAX_KBPS,maximum(s),
+            if(pyrowave) s.pyrowaveBitrate?.capKbps ?: NovaBitrateAdvice.AUTOMATIC_MAX_KBPS else NovaBitrateAdvice.AUTOMATIC_MAX_KBPS)
+        return goal?.coerceAtMost(cap)?.takeIf { it>=minimum(s) }
+    }
     private fun liveEncoder(s:PolarisSessionStatus)=negotiatedUnits(s)?.liveEncoderKbps?.takeIf { it>0 }
         ?: s.liveTuning?.requestedBitrateKbps?.takeIf { it>0 }
     private fun current(s:PolarisSessionStatus):Int? {
@@ -108,8 +115,8 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
             ackFloor=-1;ackEncoder=null;ackRequest=null;learnedMaximum=null;learnedMinimum=null;lastSequence=-1;awaitingBarrier=false
         }
         if(awaitingBarrier && live!=null && liveEncoder(valid)==ackEncoder) { ackFloor=live.sequence;awaitingBarrier=false }
-        if(hostMaximumKbps!=null) hostMaximum=hostMaximumKbps.takeIf { it in 1000..300000 }
-        if(tableRecommendedKbps!=null) tableRecommendation=tableRecommendedKbps.takeIf { it in 1000..300000 }
+        if(hostMaximumKbps!=null) hostMaximum=hostMaximumKbps.takeIf { it>=1000 }?.coerceAtMost(NovaBitrateAdvice.MANUAL_MAX_KBPS)
+        if(tableRecommendedKbps!=null) tableRecommendation=tableRecommendedKbps.takeIf { it>=1000 }?.coerceAtMost(NovaBitrateAdvice.AUTOMATIC_MAX_KBPS)
         val current=current(valid)
         if(live!=null) { lastHost=live.hostInstance;lastSequence=maxOf(lastSequence,live.sequence) }
         mutableState.update { old -> old.copy(requestedKbps=current,recommendedKbps=recommended(valid),
@@ -164,7 +171,7 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
                         if(!sameConversion) { learnedMaximum=null;learnedMinimum=null }
                         ackFloor=maxOf(lastSequence,live.sequence);lastHost=live.hostInstance
                         ackEncoder=result.encoderKbps;ackRequest=actual;awaitingBarrier=after?.liveTuning==null
-                        if(sameConversion && actual<desired.first) learnedMaximum=minOf(learnedMaximum ?: 300000,actual)
+                        if(sameConversion && actual<desired.first) learnedMaximum=minOf(learnedMaximum ?: NovaBitrateAdvice.MANUAL_MAX_KBPS,actual)
                         if(sameConversion && actual>desired.first && desired.second!=null && desired.first<desired.second!!)
                             learnedMinimum=maxOf(learnedMinimum ?: 1000,actual)
                         mutableState.update { it.copy(requestedKbps=actual,recommendedKbps=recommended(effective),

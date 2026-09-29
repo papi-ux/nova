@@ -30,6 +30,8 @@ class NovaBitratePolicyApprovalTest {
                 val row = cases.getJSONObject(i)
                 if (row.getString("chroma") != "444" || row.getInt("height_factor") != heightFactor) continue
                 val encoder = (row.getDouble("mbps") * 1000).toInt() // Polaris truncates encoder kbps.
+                assertEquals(row.toString(), encoder, NovaBitrateAdvice.pyrowaveEncoderKbps(
+                    row.getInt("width"), row.getInt("height"), row.getInt("fps"), distance))
                 val expected = NovaBitrateAdvice.requestForEncoder(encoder).coerceAtMost(300000)
                 val advice = NovaBitrateAdvice.recommend(row.getInt("width"), row.getInt("height"),
                     row.getInt("fps"), NovaCodecChoice.PYROWAVE, distance)
@@ -66,6 +68,9 @@ class NovaBitratePolicyApprovalTest {
             }
             assertEquals(420000,NovaStreamTiers.resolve(input.copy(host=NovaHostTierLimits(bitrateCapKbps=420000)),
                 NovaTier.RECOMMENDED,pins=NovaStreamPins(bitrateKbps=500000)).bitrateKbps)
+            if(codec==NovaCodecChoice.AVC) assertEquals(8000,NovaStreamTiers.resolve(
+                input.copy(host=NovaHostTierLimits(space=true)),NovaTier.RECOMMENDED,
+                pins=NovaStreamPins(bitrateKbps=500000)).bitrateKbps)
         }
     }
 

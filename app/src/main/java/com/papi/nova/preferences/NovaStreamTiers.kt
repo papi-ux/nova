@@ -204,7 +204,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             }
             if(selected==null) {
                 val reason=if(choice==NovaCodecChoice.PYROWAVE) input.pyrowave.unavailable else null
-                return NovaStreamPlan(requested.width,requested.height,top,choices.first(),bitratePin ?: NovaBitrateAdvice.recommend(
+                return NovaStreamPlan(requested.width,requested.height,top,choices.first(),bitratePin?.coerceIn(500,NovaBitrateAdvice.MANUAL_MAX_KBPS) ?: NovaBitrateAdvice.recommend(
                     requested.width,requested.height,top.coerceAtLeast(1),choices.first(),input.distance,hostAdvice(input,requested,top)).kbps,
                     limits=limits+(reason ?: NovaLimit("decoder_unavailable","No usable decoder point for this stream")),available=false)
             }
@@ -223,7 +223,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             if(size==input.panel && fps==panelTop) reasons+=NovaReason("native_panel","Fills this ${size.label} screen at its full $fps Hz")
             if(codec==NovaCodecChoice.PYROWAVE && hostAdvice(input,size,fps)!=null) reasons+=NovaReason("pyrowave_advice","The host's PyroWave figure for this screen")
             val advice=NovaBitrateAdvice.recommend(size.width,size.height,fps,codec,input.distance,hostAdvice(input,size,fps))
-            var bitrate=bitratePin?.coerceIn(500,300000) ?: advice.kbps
+            var bitrate=bitratePin?.coerceIn(500,NovaBitrateAdvice.MANUAL_MAX_KBPS) ?: advice.kbps
             if(host!=null && host.bitrateCapKbps in 1 until bitrate) {
                 bitrate=host.bitrateCapKbps;limits+=NovaLimit("host_bitrate","The host caps bitrate at ${bitrate/1000} Mbps")
             }

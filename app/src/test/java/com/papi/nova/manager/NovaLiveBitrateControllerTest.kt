@@ -77,12 +77,12 @@ class NovaLiveBitrateControllerTest {
     @Test fun stepsHonorPreflightHostMaximumAndGlobalBounds() = runBlocking {
         for (codec in listOf("h264","hevc","pyrowave")) {
             val start = status().copy(encoder=PolarisSessionStatus.EncoderStatus(codec=codec),
-                liveTuning=status().liveTuning!!.copy(enabled=false,requestedBitrateKbps=NovaBitrateAdvice.encoderForRequest(299000)),
-                bitrateUnits=com.papi.nova.api.PolarisBitrateUnits(299000,NovaBitrateAdvice.encoderForRequest(299000),NovaBitrateAdvice.encoderForRequest(299000),512,10,splitKbps=299000))
+                liveTuning=status().liveTuning!!.copy(enabled=false,requestedBitrateKbps=NovaBitrateAdvice.encoderForRequest(499000)),
+                bitrateUnits=com.papi.nova.api.PolarisBitrateUnits(499000,NovaBitrateAdvice.encoderForRequest(499000),NovaBitrateAdvice.encoderForRequest(499000),512,10,splitKbps=499000))
             val fake = Fake(start);val controller = NovaLiveBitrateController(fake,"session-a",7,true,true)
             controller.observe(start)
             assertEquals(NovaBitrateChange.APPLIED,controller.step(1))
-            assertEquals(300000,controller.state.value.requestedKbps)
+            assertEquals(500000,controller.state.value.requestedKbps)
             controller.observe(start,hostMaximumKbps=150000)
             assertEquals(NovaBitrateChange.APPLIED,controller.step(1))
             assertEquals(150000,controller.state.value.requestedKbps)

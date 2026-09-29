@@ -20,7 +20,8 @@ class PolarisStreamAdviceTest {
         assertNull(PolarisPyrowaveAdvice.parse(advice().put("version",2)))
         assertNull(PolarisPyrowaveAdvice.parse(advice().put("raise_goal_kbps","201125")))
         assertNull(PolarisPyrowaveAdvice.parse(advice().put("raise_goal_kbps",201125.5)))
-        assertNull(PolarisPyrowaveAdvice.parse(advice().put("raise_goal_kbps",300001)))
+        assertEquals(300000,PolarisPyrowaveAdvice.parse(advice().put("raise_goal_kbps",300001))!!.raiseGoalKbps)
+        assertNull(PolarisPyrowaveAdvice.parse(advice().put("raise_goal_kbps",500001)))
     }
     @Test fun captureRefusalsAndAdviceFeatureRemainOptionalAndStrict() {
         val json = JSONObject().put("features",JSONObject().put("pyrowave_advice_v1",true))
