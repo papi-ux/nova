@@ -14,6 +14,8 @@
     <string name="nova_panel_current">Current</string>
     <string name="nova_panel_previous">Previous</string>
     <string name="nova_panel_next">Next</string>
+    <!-- The hint bar's label for Left and Right on a row that changes in place. -->
+    <string name="nova_panel_change">Change</string>
     <string name="nova_panel_exact_value">Exact value</string>
     <string name="nova_panel_working">Working</string>
     <string name="nova_panel_back_to">Back to %1$s</string>
@@ -29,4 +31,6 @@
     <!-- Controller button names in the hint bar. They name physical buttons, so they stay as printed. -->
     <string name="nova_panel_key_a" translatable="false">A</string>
     <string name="nova_panel_key_b" translatable="false">B</string>
+    <!-- Left and Right on the d-pad, as one key chip in the hint bar. -->
+    <string name="nova_panel_key_left_right" translatable="false">◂▸</string>
 </resources>

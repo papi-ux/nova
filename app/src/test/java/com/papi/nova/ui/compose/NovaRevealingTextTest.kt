@@ -61,14 +61,16 @@ class NovaRevealingTextTest {
         )
         val setup = read("main/java/com/papi/nova/ui/NovaPlaySetup.kt")
         assertFalse(
-            "Play Setup cuts nothing, so it has nothing to reveal: the legend's cards and the plan say every " +
+            "Play Setup cuts nothing, so it has nothing to reveal: its rows, its options and the plan say every " +
                 "sentence whole, and the reveal that replayed inside the panel was an animation with no end (R13)",
             setup.contains("NovaRevealingText(") || setup.contains("passes =")
         )
+        val option = setup.section("internal fun NovaPlaySetupOptionRow(", "internal fun NovaPlaySetupBands(")
         assertTrue(
-            "a place the game cannot open in says why in a caption, so the cursor may stand on it to read it",
-            setup.section("internal fun NovaPlaySetupDestinations(", "private val NOVA_PLAY_SETUP_ROWS_FADE")
-                .contains("focusableWhenDisabled = true,") &&
+            "a place or a size that cannot be chosen says why on its own line at rest, \"Not available\" and its " +
+                "reason, whole, so it is read without the cursor standing on it",
+            option.contains("!option.enabled -> listOf(notAvailable, option.consequence)") &&
+                !option.contains("maxLines") &&
                 read("main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
                     .contains("focusableWhenDisabled = focusableWhenDisabled,")
         )

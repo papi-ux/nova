@@ -55,7 +55,6 @@ class NovaPolarisSyncControllerTest {
         val first = controller.engine
         assertNotNull(first)
         assertTrue("with no host client the page says Polaris Sync is unavailable", first!!.settingsUnavailable)
-        controller.explainedRow = NovaPlaySetupRow.HOST_PROFILE
         controller.open(initialSettings = null)
         assertSame("a second open keeps the engine already running", first, controller.engine)
 
@@ -64,12 +63,7 @@ class NovaPolarisSyncControllerTest {
         assertFalse(controller.isOpen)
 
         controller.open(initialSettings = null)
-        assertNotSame(first, controller.engine)
-        assertEquals(
-            "a fresh page explains Default Display first again",
-            NovaPlaySetupRow.HOST_DEFAULT_DISPLAY,
-            controller.explainedRow,
-        )
+        assertNotSame("a fresh page starts a fresh engine", first, controller.engine)
     }
 
     @Test

@@ -250,14 +250,6 @@ class NovaGameDetailActivity : NovaActivity() {
     private val playSetupButtonFocus = FocusRequester()
     private val playButtonFocus = FocusRequester()
 
-    /** The strip explains this row; rows point it at themselves as focus moves. */
-    private var explainedRow by mutableStateOf(NovaPlaySetupRow.WHERE_IT_RUNS)
-
-    // Where a Space game opens is its own control above the rows, not a row the strip explains,
-    // so a Space game's strip starts on Resolution. A row it does not have would leave it empty.
-    private fun openingExplainedRow(): NovaPlaySetupRow =
-        if (spaceGame != null) NovaPlaySetupRow.RESOLUTION else NovaPlaySetupRow.WHERE_IT_RUNS
-
     /**
      * The Polaris Sync sheet's engine, as Every Game's second surface. Started when
      * that scope first opens so the panel does not poll the host for people who never
@@ -444,7 +436,6 @@ class NovaGameDetailActivity : NovaActivity() {
         // The panel reopens on the game it was opened for; host scope is a place
         // someone flips to, not a place the panel should quietly resume in.
         playSetupScope = NovaPlaySetupScope.THIS_GAME
-        explainedRow = openingExplainedRow()
         hostSyncEngine?.close()
     }
 
@@ -470,13 +461,9 @@ class NovaGameDetailActivity : NovaActivity() {
             return
         }
         playSetupScope = scope
-        // Where It Runs belongs to the scope it was opened for.
-        if (playSetupPanel.top is PlaySetupPage.PlayIn) playSetupPanel.pop()
-        explainedRow = if (scope == NovaPlaySetupScope.EVERY_GAME) {
-            NovaPlaySetupRow.HOST_DEFAULT_DISPLAY
-        } else {
-            openingExplainedRow()
-        }
+        // Every page belongs to the scope it was opened from: the Every Game rows are different
+        // rows, so no page stays open across the flip. Y on a page pops to the root first.
+        while (playSetupPanel.depth > 1) playSetupPanel.pop()
         if (scope == NovaPlaySetupScope.EVERY_GAME) {
             hostSyncEngine?.let { engine ->
                 engine.start(clientSettings)
@@ -541,10 +528,6 @@ class NovaGameDetailActivity : NovaActivity() {
         var resetWorking by mutableStateOf(false)
         var optimizationState by mutableStateOf(NovaGameDetailOptimizationState())
         var artworkState by mutableStateOf(loadArtworkState(game))
-        // Which row the comparison strip is explaining. It follows focus, and a tap sets
-        // it too -- touch has no cursor for the strip to follow, and a finger that lands
-        // on a row should get the same explanation a d-pad would.
-        explainedRow = openingExplainedRow()
         // An explicit resolution, held until launch rather than launching on the spot.
         // Picking one used to start the game immediately, which is why the row that owned
         // it could not be a setting: there was nothing to set. The choice itself is
@@ -1363,16 +1346,60 @@ class NovaGameDetailActivity : NovaActivity() {
         }
         loadPlayDestinations()
 
+        /**
+         * This device's decoders, asked once per codec and off the main thread, since MediaCodecList
+         * is slow to walk. Until a codec's answer is in, nothing is greyed for it.
+         */
+        var decodeLimits by mutableStateOf<Map<PreferenceConfiguration.FormatOption?, NovaDecodeLimit>>(emptyMap())
+        val decodeAsked = mutableSetOf<PreferenceConfiguration.FormatOption?>()
+        fun decodeLimit(codec: PreferenceConfiguration.FormatOption?): NovaDecodeLimit {
+            decodeLimits[codec]?.let { return it }
+            if (decodeAsked.add(codec)) {
+                lifecycleScope.launch {
+                    val limit = withContext(Dispatchers.Default) { NovaDecodeLimit.forFormat(codec) }
+                    decodeLimits = decodeLimits + (codec to limit)
+                }
+            }
+            return NovaDecodeLimit.Unknown
+        }
+
+        /** This screen's own size, landscape, for the Resolution choice that matches it. */
+        val screenSize: Pair<Int, Int> by lazy {
+            val metrics = android.util.DisplayMetrics()
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealMetrics(metrics)
+            maxOf(metrics.widthPixels, metrics.heightPixels) to minOf(metrics.widthPixels, metrics.heightPixels)
+        }
+        val television by lazy {
+            (getSystemService(UI_MODE_SERVICE) as? android.app.UiModeManager)?.currentModeType ==
+                Configuration.UI_MODE_TYPE_TELEVISION
+        }
+
+        /**
+         * What PyroWave asks for at [width] by [height] and [fps], in whole Mbps, from the codec's own
+         * rate model (nova#107) as Game advises it at launch: 4:4:4, which Nova's PyroWave offer
+         * carries, and the viewing distance of this device's own screen, or a television's.
+         */
+        fun pyroWaveNeedMbps(width: Int, height: Int, fps: Int): Int =
+            com.papi.nova.binding.video.PyroWaveDecoderRenderer.advisedMbps(
+                width, height, fps,
+                chroma444 = true,
+                heightFactor = com.papi.nova.binding.video.PyroWaveDecoderRenderer.viewingHeightFactor(
+                    television = television,
+                    onExternalDisplay = false,
+                ),
+            )
+
         fun buildPlaySetupRows(): List<NovaPlaySetupRowState> {
             val rows = mutableListOf<NovaPlaySetupRowState>()
+            val currentPlace = currentGame.space?.name ?: getString(R.string.nova_space_desktop)
             if (playDestinations.isNotEmpty()) rows += NovaPlaySetupRowState(
-                row = NovaPlaySetupRow.PLAY_IN, label = getString(R.string.nova_space_change),
-                // Said above the destination cards only when there is something to say: the cards
-                // and their heading already explain the choice.
+                row = NovaPlaySetupRow.PLAY_IN, label = getString(R.string.nova_game_detail_where_it_runs),
+                // Said above the places only when there is something to say: a change in flight, or
+                // why one failed. The places and their sentences say the rest.
                 caption = environmentError
                     ?: if (environmentChanging) getString(R.string.nova_space_changing) else "",
-                value = currentGame.space?.name ?: getString(R.string.nova_space_desktop),
-                stripTitle = getString(R.string.nova_space_where_it_opens),
+                value = currentPlace,
                 options = playDestinations.map { choice -> NovaPlaySetupOption(
                     label = choice.name,
                     consequence = getString(NovaPlayDestinationMatch.caption(choice), choice.name),
@@ -1382,6 +1409,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     onSelect = { choosePlayDestination(choice) },
                 ) },
                 enabled = !environmentChanging && environmentSnapshot?.canSwitch == true,
+                opensPage = true,
             )
             val preferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
             val fpsPin = if (spaceGame == null) NovaLaunchStreamOverride.highFpsPin(profilePreference, preferences.fps) else null
@@ -1410,23 +1438,46 @@ class NovaGameDetailActivity : NovaActivity() {
                 }
             }
             val modePicker = gameModePickerEligible()
+            // A page when the host offers more than the classic pair, or has Spaces to open the game
+            // in: the page carries each place's and each mode's sentence, which a row cannot.
+            val wherePage = modePicker || playDestinations.isNotEmpty()
             rows += NovaPlaySetupRowState(
                 row = NovaPlaySetupRow.WHERE_IT_RUNS,
                 label = getString(R.string.nova_game_detail_where_it_runs),
-                caption = novaPlaySetupSetHereCaption(
-                    getString(R.string.nova_play_setup_where_caption),
-                    setHere = uiState.overridesHostMode,
-                    note = getString(R.string.nova_play_setup_set_for_game),
-                ),
-                value = modeBadgeLabel(uiState.playMode),
-                stripTitle = getString(R.string.nova_play_setup_strip_where),
+                caption = getString(R.string.nova_play_setup_where_caption),
+                // The option its page checks: the host's default, or the mode chosen here. The plan
+                // card above already names the mode it resolves to.
+                value = if (wherePage && !uiState.hasExplicitOverride) {
+                    getString(R.string.nova_play_setup_fact_host_default)
+                } else {
+                    modeBadgeLabel(uiState.playMode)
+                },
                 options = modeOptions,
-                enabled = modeOptions.count { it.enabled } > 1 || modePicker,
+                enabled = modeOptions.count { it.enabled } > 1 || wherePage,
                 overridden = uiState.overridesHostMode,
-                opensPage = modePicker,
+                opensPage = wherePage,
             )
 
             val planner = resolutionPlanner(currentGame)
+            // The rate a launch will use, which Resolution's advice and Frame Rate's value both read.
+            val effectiveFps = chosenFps ?: fpsPin ?: NovaLaunchStreamOverride.automaticFps(
+                optimizationState.rawOptimization,
+                preferences.fps.toInt(),
+            )
+            val codec = effectiveCodec()
+            val decode = decodeLimit(codec)
+            val devicePixels = preferences.width.toLong() * preferences.height
+            val limitedBy = getString(R.string.nova_play_setup_limited_by_bitrate)
+            // PyroWave's need grows with the picture: past this device's own size, a size says what the
+            // codec's rate model asks for when the bitrate setting is under it.
+            fun pyroWaveNeed(size: Pair<Int, Int>?): Int =
+                if (codec == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE && size != null &&
+                    size.first.toLong() * size.second > devicePixels
+                ) {
+                    pyroWaveNeedMbps(size.first, size.second, effectiveFps)
+                } else {
+                    0
+                }
             if (planner.available && planner.visibleChoices.isNotEmpty()) {
                 val chosen = chosenResolution
                 val recommended = planner.visibleChoices.firstOrNull { it.recommended }
@@ -1435,43 +1486,58 @@ class NovaGameDetailActivity : NovaActivity() {
                 rows += NovaPlaySetupRowState(
                     row = NovaPlaySetupRow.RESOLUTION,
                     label = getString(R.string.nova_play_setup_resolution),
-                    caption = if (overridden) {
-                        getString(R.string.nova_play_setup_resolution_chosen)
-                    } else {
-                        getString(R.string.nova_play_setup_resolution_caption)
-                    },
-                    value = NovaDisplayResolutionPlanner.resolutionLabel(effective?.targetMode.orEmpty()),
-                    stripTitle = getString(R.string.nova_play_setup_strip_resolution),
+                    caption = listOf(
+                        getString(
+                            if (overridden) R.string.nova_play_setup_applies_at_launch else R.string.nova_play_setup_resolution_caption,
+                        ),
+                        NovaDisplayResolutionPlanner.resolutionLabel(effective?.targetMode.orEmpty()),
+                    ).filter { it.isNotBlank() }.joinToString(" · "),
+                    value = effective?.title.orEmpty(),
                     options = planner.visibleChoices.map { choice ->
+                        val size = NovaDisplayResolutionPlanner.resolutionSize(choice.targetMode)
+                        val sizeLabel = NovaDisplayResolutionPlanner.resolutionLabel(choice.targetMode)
+                        // Only a decoder's own answer greys a size; with none, nothing is greyed.
+                        val decodes = size?.let { decode.decodes(it.first, it.second) }
+                        val matchesScreen = choice.recommended && size != null &&
+                            (maxOf(size.first, size.second) to minOf(size.first, size.second)) == screenSize
+                        val need = pyroWaveNeed(size)
+                        val limited = need > 0 && need * 1000L > preferences.bitrate
                         NovaPlaySetupOption(
                             label = choice.title,
-                            consequence = listOf(
-                                NovaDisplayResolutionPlanner.resolutionLabel(choice.targetMode),
-                                choice.reason,
-                            )
-                                .filter { it.isNotBlank() }
-                                .joinToString(" · "),
+                            value = sizeLabel,
+                            consequence = when {
+                                decodes == false -> getString(R.string.nova_play_setup_resolution_cannot_decode)
+                                limited -> getString(R.string.nova_play_setup_resolution_pyrowave_need, need)
+                                matchesScreen -> getString(R.string.nova_play_setup_resolution_matches_screen)
+                                else -> choice.reason
+                            },
                             current = choice.id == effective?.id,
+                            // Greyed, it stays listed with its reason, and nothing can choose it.
+                            enabled = decodes != false,
                             onSelect = { chooseResolution(choice) },
+                            recommended = matchesScreen,
+                            warning = limited,
+                            preview = NovaPlaySetupPreview(
+                                part = NovaPlaySetupPreviewPart.SIZE,
+                                changed = sizeLabel,
+                                limit = if (limited) limitedBy else "",
+                            ),
                         )
                     },
                     overridden = overridden,
+                    // Two of its options carry notes that have to be read, which a cycling row cannot show.
+                    opensPage = true,
                 )
 
-                val effectiveFps = chosenFps ?: fpsPin ?: NovaLaunchStreamOverride.automaticFps(
-                    optimizationState.rawOptimization,
-                    preferences.fps.toInt(),
-                )
                 rows += NovaPlaySetupRowState(
                     row = NovaPlaySetupRow.FRAME_RATE,
                     label = getString(R.string.nova_play_setup_frame_rate),
                     caption = if (chosenFps != null) {
-                        getString(R.string.nova_play_setup_frame_rate_chosen)
+                        getString(R.string.nova_play_setup_applies_at_launch)
                     } else {
                         getString(R.string.nova_play_setup_frame_rate_caption)
                     },
                     value = getString(R.string.nova_play_setup_frame_rate_fps_format, effectiveFps),
-                    stripTitle = getString(R.string.nova_play_setup_strip_frame_rate),
                     options = buildList {
                         add(
                             NovaPlaySetupOption(
@@ -1494,13 +1560,16 @@ class NovaGameDetailActivity : NovaActivity() {
                                     consequence = "",
                                     current = chosenFps == fps,
                                     onSelect = { chooseFrameRate(fps) },
+                                    short = fps.toString(),
                                 )
                             )
                         }
                     },
                     overridden = chosenFps != null,
-                    // Auto, then the rates in order: a scale, so Left and Right stop at its ends.
+                    // Auto, then the rates in order: a scale, so Left and Right stop at its ends, and
+                    // with focus the row shows every stop.
                     ordered = true,
+                    unit = getString(R.string.nova_play_setup_fps_unit),
                 )
             } else if (chosenFps != null) {
                 // The Frame Rate row only exists alongside the display planner above. A
@@ -1513,21 +1582,45 @@ class NovaGameDetailActivity : NovaActivity() {
 
             val profileApp = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(currentGame.id)
             if (spaceGame == null && !profileApp && !serverUuid.isNullOrBlank()) {
-                rows += novaPlaySetupCodecRow(this@NovaGameDetailActivity, chosenCodec,
-                    preferences.videoFormat, ::chooseVideoCodec)
+                // The size the launch will ask for, which PyroWave's advice is judged at.
+                val launchSize = chosenResolution?.let { NovaDisplayResolutionPlanner.resolutionSize(it.targetMode) }
+                    ?: (preferences.width to preferences.height)
+                rows += novaPlaySetupCodecRow(
+                    this@NovaGameDetailActivity,
+                    chosenCodec,
+                    preferences.videoFormat,
+                    preview = { format ->
+                        val need = if (format == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
+                            pyroWaveNeedMbps(launchSize.first, launchSize.second, effectiveFps)
+                        } else {
+                            0
+                        }
+                        NovaPlaySetupPreview(
+                            part = NovaPlaySetupPreviewPart.CODEC,
+                            changed = NovaVideoCodecOverrides.label(format),
+                            limit = if (need > 0 && need * 1000L > preferences.bitrate) limitedBy else "",
+                        )
+                    },
+                    onSelect = ::chooseVideoCodec,
+                )
             }
             val codecManagesEncoder = effectiveCodec() == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE
             val encoderCatalog = clientSettings?.capabilities?.takeIf {
                 it.sessionEncoderOverride
             }?.encoders.orEmpty().filter { it.available }.distinctBy { it.value }
             if (codecManagesEncoder && !profileApp) {
+                // A readout while PyroWave is the codec: it brings its own encoder.
                 rows += NovaPlaySetupRowState(
                     row = NovaPlaySetupRow.ENCODER,
                     label = getString(R.string.nova_play_setup_encoder),
                     caption = getString(R.string.nova_play_setup_encoder_pyrowave_detail),
                     value = getString(R.string.nova_play_setup_encoder_pyrowave),
-                    stripTitle = getString(R.string.nova_play_setup_strip_encoder),
-                    options = emptyList(),
+                    options = listOf(
+                        NovaPlaySetupOption(
+                            label = getString(R.string.nova_play_setup_encoder_pyrowave),
+                            consequence = getString(R.string.nova_play_setup_encoder_pyrowave_detail),
+                        ),
+                    ),
                     enabled = false,
                 )
             } else if (encoderCatalog.isNotEmpty() && !profileApp) {
@@ -1547,7 +1640,6 @@ class NovaGameDetailActivity : NovaActivity() {
                     },
                     value = selectedOption?.displayLabel
                         ?: getString(R.string.nova_play_setup_encoder_host_default),
-                    stripTitle = getString(R.string.nova_play_setup_strip_encoder),
                     options = buildList {
                         add(
                             NovaPlaySetupOption(
@@ -1586,25 +1678,20 @@ class NovaGameDetailActivity : NovaActivity() {
                 rows += NovaPlaySetupRowState(
                     row = NovaPlaySetupRow.FACE_BUTTONS,
                     label = getString(R.string.nova_play_setup_face_buttons),
-                    caption = novaPlaySetupSetHereCaption(
-                        when (selectedLayout) {
-                            NovaFaceButtonLayoutOverrides.POSITIONS -> getString(R.string.nova_play_setup_face_buttons_positions_caption)
-                            NovaFaceButtonLayoutOverrides.LABELS -> getString(R.string.nova_play_setup_face_buttons_labels_caption)
-                            else -> if (switchGame) {
-                                getString(R.string.nova_play_setup_face_buttons_switch_hint)
-                            } else {
-                                getString(R.string.nova_play_setup_face_buttons_app_setting_caption)
-                            }
-                        },
-                        setHere = selectedLayout != null,
-                        note = getString(R.string.nova_play_setup_set_for_game),
-                    ),
+                    caption = when (selectedLayout) {
+                        NovaFaceButtonLayoutOverrides.POSITIONS -> getString(R.string.nova_play_setup_face_buttons_positions_caption)
+                        NovaFaceButtonLayoutOverrides.LABELS -> getString(R.string.nova_play_setup_face_buttons_labels_caption)
+                        else -> if (switchGame) {
+                            getString(R.string.nova_play_setup_face_buttons_switch_hint)
+                        } else {
+                            getString(R.string.nova_play_setup_face_buttons_app_setting_caption)
+                        }
+                    },
                     value = when (selectedLayout) {
                         NovaFaceButtonLayoutOverrides.POSITIONS -> getString(R.string.nova_play_setup_face_buttons_positions)
                         NovaFaceButtonLayoutOverrides.LABELS -> getString(R.string.nova_play_setup_face_buttons_labels)
                         else -> getString(R.string.nova_play_setup_face_buttons_app_setting)
                     },
-                    stripTitle = getString(R.string.nova_play_setup_strip_face_buttons),
                     options = listOf(
                         NovaPlaySetupOption(
                             label = getString(R.string.nova_play_setup_face_buttons_app_setting),
@@ -1642,8 +1729,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 // in this launch either way.
                 caption = when {
                     chosenFps == null && fpsPin != null -> getString(R.string.nova_play_setup_tuning_pins, fpsPin)
-                    // The row used to show only the saved ask; for the asks the host
-                    // owns, the outcome is the half that was never said anywhere.
+                    // For the asks the host owns, the outcome; otherwise what the preset does.
                     else -> when (
                         val outcome = novaTuningOutcome(optimizationState.rawOptimization, profilePreference)
                     ) {
@@ -1653,15 +1739,13 @@ class NovaGameDetailActivity : NovaActivity() {
                         } else {
                             getString(R.string.nova_play_setup_tuning_declined_no_reason)
                         }
-                        else -> getString(R.string.nova_game_detail_profile_caption)
+                        else -> getString(novaProfilePreferenceConsequenceRes(profilePreference))
                     }
                 },
                 value = getString(AutoQualityProfilePreferences.shortLabelRes(profilePreference)),
-                stripTitle = getString(R.string.nova_play_setup_strip_tuning),
                 options = AutoQualityProfilePreferences.values().map { value ->
                     NovaPlaySetupOption(
-                        // shortLabelRes, not labelRes: the long form is "Launch preset: X",
-                        // and four cards of it ellipsize to four identical words.
+                        // shortLabelRes, not labelRes: the long form is "Launch preset: X".
                         label = getString(AutoQualityProfilePreferences.shortLabelRes(value)),
                         consequence = getString(novaProfilePreferenceConsequenceRes(value)),
                         current = value == profilePreference,
@@ -1677,7 +1761,6 @@ class NovaGameDetailActivity : NovaActivity() {
                     label = getString(R.string.nova_steam_launch_detail_label),
                     caption = steamLaunchCaption(uiState),
                     value = steamLaunchModeLabel(uiState.steamLaunchMode),
-                    stripTitle = getString(R.string.nova_play_setup_strip_steam),
                     options = listOf("direct", "big-picture").map { mode ->
                         val normalized = PolarisGame.SteamLaunchContract.normalizeMode(mode)
                         NovaPlaySetupOption(
@@ -1696,20 +1779,48 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         /**
-         * A press moves the row to its next value.
+         * A in place moves the row to its next value.
          *
-         * Read off the same option list the strip draws, so the order someone sees is the
-         * order they get. Disabled options are stepped over rather than landed on, which is
-         * what made the blocked virtual-display case reachable-but-inert before.
+         * Read off the same option list the row draws, so the order someone sees is the order
+         * they get. Disabled options are stepped over rather than landed on, which is what made
+         * the blocked virtual-display case reachable-but-inert before.
          */
         fun advancePlaySetupRow(row: NovaPlaySetupRow) {
-            explainedRow = row
             val options = buildPlaySetupRows().firstOrNull { it.row == row }?.options.orEmpty()
             val selectable = options.filter { it.enabled && it.onSelect != null }
             if (selectable.size < 2) return
             val currentIndex = selectable.indexOfFirst { it.current }
             val next = selectable[(currentIndex + 1).mod(selectable.size)]
             next.onSelect?.invoke()
+        }
+
+        /**
+         * A row's options as a page (R2): Resolution with the sizes the host offers from this
+         * device, and Video Codec with its encoder as the second band. The bands are rebuilt as the
+         * page composes, so it follows the row while it is open.
+         */
+        fun optionsPage(row: NovaPlaySetupRow): PlaySetupPage.Options? {
+            val state = buildPlaySetupRows().firstOrNull { it.row == row } ?: return null
+            return PlaySetupPage.Options(
+                title = state.label,
+                row = row,
+                bands = {
+                    val rows = buildPlaySetupRows()
+                    buildList {
+                        rows.firstOrNull { it.row == row }?.let { add(NovaPlaySetupBand(null, it.options)) }
+                        if (row == NovaPlaySetupRow.VIDEO_CODEC) {
+                            rows.firstOrNull { it.row == NovaPlaySetupRow.ENCODER }?.let { encoder ->
+                                add(NovaPlaySetupBand(encoder.label, encoder.options))
+                            }
+                        }
+                    }
+                },
+                footer = if (row == NovaPlaySetupRow.RESOLUTION && spaceGame == null) {
+                    getString(R.string.nova_play_setup_resolution_footer)
+                } else {
+                    ""
+                },
+            )
         }
 
         fun hostPolarisProfileValue(sync: NovaPolarisSyncUiState): String =
@@ -1741,7 +1852,6 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         fun advanceHostPlaySetupRow(row: NovaPlaySetupRow) {
-            explainedRow = row
             val sync = hostScopeUiState()
             advanceNovaPlaySetupHostRow(
                 row = row,
@@ -1786,10 +1896,23 @@ class NovaGameDetailActivity : NovaActivity() {
             onPick = { mode -> hostSyncEngine?.setStreamDisplayMode(mode) },
         )
 
-        /** Where It Runs for this game: the catalog cut to its contract, with Host default pinned first. */
+        /**
+         * Where It Runs for this game: where it opens when the host has Spaces, then the catalog cut
+         * to its contract with Host default pinned first, or the classic pair on a host with no
+         * catalog. A Space game has only its places.
+         */
         fun gamePlayInPage() = PlaySetupPage.PlayIn(
             title = getString(R.string.nova_game_detail_where_it_runs),
-            picker = {
+            places = { buildPlaySetupRows().firstOrNull { it.row == NovaPlaySetupRow.PLAY_IN } },
+            modes = {
+                if (spaceGame != null || gameModePickerEligible()) {
+                    emptyList()
+                } else {
+                    buildPlaySetupRows().firstOrNull { it.row == NovaPlaySetupRow.WHERE_IT_RUNS }?.options.orEmpty()
+                }
+            },
+            picker = picker@{
+                if (spaceGame != null || !gameModePickerEligible()) return@picker null
                 buildGameModePickerState(
                     modes = hostScopeUiState().modes,
                     allowedModes = currentGame.launchMode?.allowedModes.orEmpty(),
@@ -1821,6 +1944,18 @@ class NovaGameDetailActivity : NovaActivity() {
             onPick = { mode -> pickPlayMode(mode) },
             onPickHostDefault = { pickHostDefault() },
             onConfigureHost = { finishWithManageServerRequest() },
+        )
+
+        /** Every Game's profile verbs, each on its own line with what it does. */
+        fun hostProfilePage() = PlaySetupPage.Options(
+            title = getString(R.string.nova_play_setup_host_profile_row),
+            row = NovaPlaySetupRow.HOST_PROFILE,
+            bands = {
+                listOfNotNull(
+                    buildHostPlaySetupRows().firstOrNull { it.row == NovaPlaySetupRow.HOST_PROFILE }
+                        ?.let { NovaPlaySetupBand(null, it.options) },
+                )
+            },
         )
 
         setContentView(
@@ -1917,7 +2052,6 @@ class NovaGameDetailActivity : NovaActivity() {
                     steamLaunchCaption = steamLaunchCaption(uiState),
                     optimizationState = launchPreview,
                     playSetupRows = buildPlaySetupRows(),
-                    explainedPlaySetupRow = explainedRow,
                     playSetupScope = playSetupScope,
                     onPlaySetupScopeSelected = { selectPlaySetupScope(it) },
                     hostPlaySetupRows = if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
@@ -1967,23 +2101,27 @@ class NovaGameDetailActivity : NovaActivity() {
                     virtualDisplayModeLabel = modeBadgeLabel(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY),
                     coverContentDescription = getString(R.string.nova_a11y_game_cover),
                     onPrimaryLaunch = { attemptLaunch() },
-                    onExplainPlaySetupRow = { row -> explainedRow = row },
                     onAdvancePlaySetupRow = { row ->
+                        // A row whose value carries a › opens its page; any other row steps in place.
                         if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
-                            if (row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY &&
-                                novaModePickerEligible(hostScopeUiState().modes.size)
-                            ) {
-                                explainedRow = row
-                                playSetupPanel.push(hostPlayInPage())
-                            } else {
-                                advanceHostPlaySetupRow(row)
+                            when {
+                                row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY &&
+                                    novaModePickerEligible(hostScopeUiState().modes.size) ->
+                                    playSetupPanel.push(hostPlayInPage())
+                                row == NovaPlaySetupRow.HOST_PROFILE -> playSetupPanel.push(hostProfilePage())
+                                else -> advanceHostPlaySetupRow(row)
                             }
                         } else {
-                            if (row == NovaPlaySetupRow.WHERE_IT_RUNS && gameModePickerEligible()) {
-                                explainedRow = row
-                                playSetupPanel.push(gamePlayInPage())
-                            } else {
-                                advancePlaySetupRow(row)
+                            when (row) {
+                                NovaPlaySetupRow.WHERE_IT_RUNS, NovaPlaySetupRow.PLAY_IN ->
+                                    if (buildPlaySetupRows().firstOrNull { it.row == row }?.opensPage == true) {
+                                        playSetupPanel.push(gamePlayInPage())
+                                    } else {
+                                        advancePlaySetupRow(row)
+                                    }
+                                NovaPlaySetupRow.RESOLUTION, NovaPlaySetupRow.VIDEO_CODEC ->
+                                    optionsPage(row)?.let { playSetupPanel.push(it) }
+                                else -> advancePlaySetupRow(row)
                             }
                         }
                     },

@@ -17,7 +17,6 @@ import com.papi.nova.manager.PolarisProfileSync
 @Composable
 internal fun NovaHostSetupRowList(
     rows: List<NovaPlaySetupRowState>,
-    onExplain: (NovaPlaySetupRow) -> Unit,
     onAdvance: (NovaPlaySetupRow) -> Unit,
     /**
      * Focus marks for each row, from the page that draws them: whether it is the row the page
@@ -28,36 +27,8 @@ internal fun NovaHostSetupRowList(
     rows.forEachIndexed { index, rowState ->
         NovaPlaySetupSettingRow(
             state = rowState,
-            onExplain = onExplain,
             onAdvance = onAdvance,
             modifier = rowModifier(rowState.row, index == 0),
-        )
-    }
-}
-
-@Composable
-internal fun NovaHostSetupComparison(
-    rows: List<NovaPlaySetupRowState>,
-    explainedRow: NovaPlaySetupRow,
-    /** All of the legend, or the current choice alone, as the room under the rows allows. */
-    form: NovaPlaySetupLegendForm = NovaPlaySetupLegendForm.All,
-) {
-    val explained = rows.firstOrNull { it.row == explainedRow } ?: rows.firstOrNull()
-    if (explained != null && explained.options.size > 1) {
-        // 2x2 for the classic four; three per row once a six-mode catalog
-        // would otherwise stack three rows.
-        val perRow = if (explained.row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY) {
-            if (explained.options.size > 4) 3 else 2
-        } else {
-            Int.MAX_VALUE
-        }
-        // Every card says its whole sentence. A legend that stacks rows of cards is tall, and where
-        // it does not fit under the rows it explains, the body draws the current mode's card alone.
-        NovaPlaySetupComparison(
-            title = explained.stripTitle,
-            options = explained.options,
-            form = form,
-            perRow = perRow,
         )
     }
 }

@@ -51,7 +51,7 @@ class NovaPlaySetupModePickerComposeTest {
                         }
                     },
                 ) {
-                    NovaPlaySetupModePicker(
+                    NovaPlaySetupModeList(
                         state = NovaPlaySetupModePickerState(
                             title = "Where It Runs",
                             hostDefaultLabel = null,
@@ -104,7 +104,7 @@ class NovaPlaySetupModePickerComposeTest {
 
         composeRule.setContent {
             NovaComposeTheme {
-                NovaPlaySetupModePicker(
+                NovaPlaySetupModeList(
                     state = NovaPlaySetupModePickerState(
                         title = "Where It Runs",
                         hostDefaultLabel = null,

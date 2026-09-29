@@ -2,22 +2,17 @@ package com.papi.nova.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.unit.dp
 import com.papi.nova.ui.panel.NovaPageStackHost
 import com.papi.nova.ui.panel.NovaPanelState
@@ -33,9 +28,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Play Setup cuts nothing (R13). What does not fit where it stands is shown whole elsewhere or
- * not at all: the legend as every card, else the current choice's card, else nothing, and the plan
- * as one row that opens its own page, where every part of it is a stop the cursor can scroll to.
+ * Play Setup cuts nothing (R13). The plan card is pinned above the rows and says the plan in two
+ * lines; the whole plan opens on its own page, where every part is a stop the cursor can scroll to.
+ * The rows scroll under the card when they are taller than the panel, and the card stays put.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -45,102 +40,84 @@ class NovaPlaySetupFitComposeTest {
 
     private val plan = NovaPlaySetupPlan(
         mode = "Private Stream",
-        lines = listOf("1920x1080 at 60 FPS in HEVC", "Nothing outside this game changes."),
+        lines = listOf("1920×1080 at 60 FPS · HEVC", "Nothing outside this game changes."),
         facts = listOf(
             NovaPlaySetupFact(key = "Last session", value = "Smooth", tone = NovaPlaySetupTone.GOOD),
             NovaPlaySetupFact(key = "Limited by", value = "Network", detail = "12 ms of jitter", tone = NovaPlaySetupTone.WARN),
         ),
     )
 
-    private fun placed(tag: String): Boolean =
-        rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().any { it.layoutInfo.isPlaced }
-
-    private fun fits(maxHeight: Dp, heights: List<Dp>, keepTallest: Boolean = false) = rule.setPanelContent {
-        NovaFirstThatFits(
-            maxHeight = maxHeight,
-            forms = heights.mapIndexed { index, height ->
-                { Box(Modifier.fillMaxWidth().height(height).testTag("form$index")) }
-            },
-            keepTallest = keepTallest,
-            modifier = Modifier.width(200.dp).testTag("fit"),
-        )
-    }
-
     @Test
-    fun theFirstFormThatFitsIsPlacedWhole() {
-        fits(100.dp, listOf(120.dp, 60.dp))
-        assertTrue("the second form fits and is drawn", placed("form1"))
-        assertTrue("the first did not fit and is not drawn cut", !placed("form0"))
-        val bounds = rule.onNodeWithTag("fit").getUnclippedBoundsInRoot()
-        assertEquals(60.dp, bounds.bottom - bounds.top)
-    }
-
-    @Test
-    fun whenNothingFitsNothingIsDrawn() {
-        fits(40.dp, listOf(120.dp, 60.dp))
-        assertTrue(!placed("form0") && !placed("form1"))
-        val bounds = rule.onNodeWithTag("fit").getUnclippedBoundsInRoot()
-        assertEquals(0.dp, bounds.bottom - bounds.top)
-    }
-
-    @Test
-    fun theWholeFormIsPreferredWhenItFits() {
-        fits(200.dp, listOf(120.dp, 60.dp))
-        assertTrue(placed("form0") && !placed("form1"))
-    }
-
-    @Test
-    fun aLegendKeepsTheTallestHeightItHasHad() {
-        var tall by mutableStateOf(true)
+    fun thePlanCardSaysThePlanAndOpensItWholeOnItsPage() {
+        var opened = 0
         rule.setPanelContent {
-            NovaFirstThatFits(
-                maxHeight = 100.dp,
-                forms = listOf({ Box(Modifier.fillMaxWidth().height(if (tall) 80.dp else 30.dp)) }),
-                keepTallest = true,
-                modifier = Modifier.width(200.dp).testTag("fit"),
+            Box(Modifier.width(476.dp)) {
+                NovaPlaySetupBody(
+                    card = {
+                        NovaPlaySetupPlanCard(
+                            title = "What Will Happen",
+                            value = plan.mode,
+                            line = novaPlaySetupPlanSummary(plan).orEmpty(),
+                            onOpen = { opened++ },
+                        )
+                    },
+                ) {
+                    NovaRow(title = "Resolution", onClick = {})
+                }
+            }
+        }
+        rule.onNodeWithText("1920×1080 at 60 FPS · HEVC · Limited by: Network", substring = true, useUnmergedTree = true)
+            .assertExists()
+        rule.onNodeWithText("12 ms of jitter", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithTag(NOVA_PLAY_SETUP_PLAN_CARD_TAG).performClick()
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun thePinnedCardStaysPutWhileTheRowsScrollUnderIt() {
+        rule.setPanelContent {
+            Box(Modifier.width(476.dp).height(260.dp)) {
+                NovaPlaySetupBody(card = { NovaPlaySetupPlanCard(title = "What Will Happen", value = "Private Stream", line = "1920×1080") }) {
+                    repeat(12) { index -> NovaRow(title = "Row $index", onClick = {}, modifier = Modifier.testTag("row-$index")) }
+                }
+            }
+        }
+        val before = rule.onNodeWithTag(NOVA_PLAY_SETUP_PLAN_CARD_TAG).getUnclippedBoundsInRoot()
+        rule.onNodeWithTag("row-11").requestFocus()
+        rule.waitForIdle()
+        rule.onNodeWithTag("row-11").assertIsFocused()
+        val after = rule.onNodeWithTag(NOVA_PLAY_SETUP_PLAN_CARD_TAG).getUnclippedBoundsInRoot()
+        assertEquals("the plan card is pinned, not scrolled away with the rows", before, after)
+        val rows = rule.onNodeWithTag(NOVA_PLAY_SETUP_ROWS_TAG).getUnclippedBoundsInRoot()
+        val last = rule.onNodeWithTag("row-11").getUnclippedBoundsInRoot()
+        assertTrue("the focused row is brought whole into the rows' view", last.bottom <= rows.bottom + 0.5.dp)
+        assertTrue("and never under the card", last.top >= after.bottom)
+    }
+
+    @Test
+    fun aPreviewSaysWhatWouldHoldTheChoiceBackInPlaceOfTheMode() {
+        rule.setPanelContent {
+            NovaPlaySetupPlanCard(
+                title = "If you choose 2x",
+                value = "Private Stream",
+                line = novaPlaySetupPreviewLine(
+                    "1920×1080 at 120 FPS · 200 Mbps · PyroWave · SDR",
+                    NovaPlaySetupPreview(NovaPlaySetupPreviewPart.SIZE, "3840×2160", limit = "Limited by bitrate"),
+                ),
+                accentPart = "3840×2160",
+                limit = "Limited by bitrate",
             )
         }
-        rule.runOnIdle { tall = false }
-        rule.waitForIdle()
-        val bounds = rule.onNodeWithTag("fit").getUnclippedBoundsInRoot()
-        assertEquals("a shorter legend keeps the room, so the rows above do not move", 80.dp, bounds.bottom - bounds.top)
-    }
-
-    @Test
-    fun aNarrowPanelShowsThePlanAsARowThatOpensItWhole() {
-        var opened: NovaPlaySetupPlan? = null
-        rule.setPanelContent {
-            Box(Modifier.width(440.dp)) {
-                NovaPlaySetupBody(
-                    plan = plan,
-                    rows = { NovaRow(title = "Resolution", onClick = {}) },
-                    fitHeight = 400.dp,
-                    onOpenPlan = { opened = it },
-                )
-            }
-        }
-        rule.onNodeWithTag(NOVA_PLAY_SETUP_PLAN_ROW_TAG).assertExistsAndIsPlaced()
-        rule.onNodeWithText("12 ms of jitter").assertDoesNotExist()
-        rule.onNodeWithText("Private Stream", substring = true).performClick()
-        assertEquals(plan, opened)
-    }
-
-    @Test
-    fun withoutAPageThePlanStaysWholeInTheBody() {
-        rule.setPanelContent {
-            Box(Modifier.width(440.dp)) {
-                NovaPlaySetupBody(plan = plan, rows = { NovaRow(title = "Resolution", onClick = {}) }, fitHeight = 400.dp)
-            }
-        }
-        rule.onNodeWithTag(NOVA_PLAY_SETUP_READ_TAG).assertExistsAndIsPlaced()
-        rule.onNodeWithText("12 ms of jitter", useUnmergedTree = true).assertExistsAndIsPlaced()
+        rule.onNodeWithText("Limited by bitrate", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Private Stream", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithText("3840×2160 at 120 FPS · 200 Mbps · PyroWave · SDR", useUnmergedTree = true).assertExists()
     }
 
     @Test
     fun thePlansPageOpensOnItsStatementAndWalksEveryFact() {
         val state = NovaPanelState()
         var closes = 0
-        state.open(PlaySetupPage.Plan("What will happen", plan))
+        state.open(PlaySetupPage.Plan("What Will Happen", plan))
         val keys = rule.setPanelContent {
             NovaPageStackHost(state = state, onCloseRequest = { closes++ }) { page ->
                 if (page is PlaySetupPage.Plan) NovaPlaySetupPlanPage(page)
@@ -155,9 +132,5 @@ class NovaPlaySetupFitComposeTest {
         assertEquals("a part of the plan does nothing on A", 1, state.depth)
         keys.back()
         assertEquals(1, closes)
-    }
-
-    private fun androidx.compose.ui.test.SemanticsNodeInteraction.assertExistsAndIsPlaced() {
-        assertTrue(fetchSemanticsNode().layoutInfo.isPlaced)
     }
 }

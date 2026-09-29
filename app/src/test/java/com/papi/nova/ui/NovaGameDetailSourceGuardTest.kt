@@ -162,13 +162,12 @@ class NovaGameDetailSourceGuardTest {
         )
         assertFalse(detail.contains("HOST_AUTO_QUALITY"))
         assertTrue(
-            "the strip is a legend for whichever row holds focus, not a picker with a state of " +
-                "its own. Three picker states ranked by a when is what made Steam Launch work " +
-                "from a fresh panel and go dead once either other row had been touched",
-            detail.contains("onExplain = onExplainPlaySetupRow,") &&
-                detail.contains("val followsFocus = Modifier.onFocusChanged { if (it.hasFocus) explain(row) }") &&
-                detail.contains("it.row == explainedPlaySetupRow") &&
-                detail.contains("onAdvance = onAdvancePlaySetupRow,")
+            "each row reads its value from its own options, and the page a row opens reads the same list, " +
+                "rebuilt as the page composes. Three picker states ranked by a when is what made Steam " +
+                "Launch work from a fresh panel and go dead once either other row had been touched",
+            detail.contains("onAdvance = onAdvancePlaySetupRow,") &&
+                detail.contains("fun optionsPage(row: NovaPlaySetupRow): PlaySetupPage.Options?") &&
+                detail.section("fun optionsPage(row: NovaPlaySetupRow)", "footer = ").contains("val rows = buildPlaySetupRows()")
         )
         assertFalse(
             "no picker state may come back: each one is a rank in a chain, and a chain needs " +
@@ -177,11 +176,14 @@ class NovaGameDetailSourceGuardTest {
                 detail.contains("profileOptionsState") ||
                 detail.contains("steamLaunchOptionsState")
         )
-        assertFalse(
-            "the comparison strip must not be a focus target. It explains the row under the " +
-                "cursor, so stopping on it means stopping on the explanation of the thing you " +
-                "just stopped on, and it costs two more presses on every trip down the column",
-            playSetupComparison().contains(".focusable(")
+        val card = readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt")
+            .section("internal fun NovaPlaySetupPlanCard(", "Column(\n        modifier = modifier")
+        assertTrue(
+            "on a page the plan card is not a stop. It previews the option under the cursor, so " +
+                "stopping on it would mean stopping on the explanation of the thing you just stopped " +
+                "on; only at the root, where A opens the whole plan, is it a row",
+            card.contains("val frame = if (onOpen != null) {") &&
+                card.section("} else {", "}\n").let { !it.contains("novaClickable") && !it.contains("focusable") }
         )
         assertFalse(
             "LaunchControls served the destination that no longer exists; leaving it behind " +
@@ -191,53 +193,26 @@ class NovaGameDetailSourceGuardTest {
     }
 
     @Test
-    fun whereAGameOpensIsDrawnOnceAsItsOwnControl() {
-        val content = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt")
+    fun whereAGameOpensIsDrawnOnceAsTheFirstBandOfItsPage() {
         val setup = readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt")
+        val pages = readSource("src/main/java/com/papi/nova/ui/NovaPlaySetupPages.kt")
+        val activity = readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
         assertTrue(
-            "where a game opens is one control: focusable destination cards above the rows. A Change Space " +
-                "row that cycled the places and a legend that restated them as cards drew the same choice " +
-                "twice, which is what LaunchControls was removed for",
-            setup.contains("internal fun NovaPlaySetupDestinations(") &&
-                content.contains("NovaPlaySetupDestinations(") &&
-                content.contains("val settingRows = playSetupRows.filter { it.row != NovaPlaySetupRow.PLAY_IN }") &&
-                content.contains("settingRows.forEachIndexed { index, rowState ->") &&
-                content.contains("settingRows.firstOrNull { it.row == explainedPlaySetupRow }") &&
-                !content.contains("playSetupRows.forEachIndexed")
-        )
-        assertFalse(
-            "the destination cards are not the legend: the legend stays a description and never a stop",
-            playSetupComparison().contains("NovaPlaySetupDestinations")
+            "where a game opens is one control, the first band of the Where It Runs page, and the root " +
+                "draws no card strip for it. A Change Space row that cycled the places and a legend that " +
+                "restated them as cards drew the same choice twice, which is what LaunchControls was removed for",
+            setup.contains("NovaPlaySetupRow.PLAY_IN -> !hasWhere") &&
+                activity.contains("places = { buildPlaySetupRows().firstOrNull { it.row == NovaPlaySetupRow.PLAY_IN } },") &&
+                pages.section("internal fun NovaPageScope.NovaPlayInPage(", "internal fun NovaPageScope.NovaPlaySetupOptionsPage(").let {
+                    it.indexOf("if (places != null) {") in 0 until it.indexOf("NovaPlaySetupModeList(")
+                }
         )
         assertTrue(
-            "while a destination card holds focus the legend describes the place under the cursor and " +
-                "nothing else. Falling back to the first row opened Play Setup on \"If you changed where it " +
-                "runs\" with the cursor on Desktop, and no legend at all opened it with the drawer empty. " +
-                "The cursor is remembered by the card's name, because the host can add or drop a Space " +
-                "while it holds focus and a remembered position then points at the place that moved into it",
-            content.contains("onExplainPlaySetupRow(NovaPlaySetupRow.PLAY_IN)") &&
-                content.contains("focusedDestination = destinationsRow.options.getOrNull(index)?.label") &&
-                content.contains("novaPlaySetupPlaceUnderCursor(") &&
-                !content.contains("?: settingRows.firstOrNull()")
-        )
-        val placeLegend = setup.section(
-            "internal fun NovaPlaySetupPlaceLegend(",
-            "/** What a legend card says to a screen reader: its name, then what choosing it would mean. */",
-        )
-        assertFalse(
-            "the place legend describes; the card above it is the control, so the legend takes neither a " +
-                "tap nor focus, and it is the one place under the cursor rather than the cards restated",
-            placeLegend.contains(".clickable(") || placeLegend.contains(".focusable(") ||
-                placeLegend.contains("forEach")
+            "a place is remembered by its name, because the host can add or drop a Space while it holds " +
+                "focus and a remembered position then points at the place that moved into it",
+            pages.contains(".novaRestorableFocus(\"place:${'$'}{place.label}\")")
         )
     }
-
-    /** Just the strip, so a focusable anywhere else in Play Setup cannot satisfy the check. */
-    private fun playSetupComparison(): String =
-        readSource("src/main/java/com/papi/nova/ui/NovaPlaySetup.kt").section(
-            "internal fun NovaPlaySetupComparison(",
-            "/** The resolved plan, as one readable statement plus the facts behind it. */",
-        )
 
     @Test
     fun gameDetailKeepsMangoHudOutOfPrimaryLaunchDrawer() {
@@ -252,12 +227,11 @@ class NovaGameDetailSourceGuardTest {
             sheetContent.contains("MangoHudCard(")
         )
         assertTrue(
-            "when MangoHUD is already enabled, Play Setup shows only a passive status, and it " +
-                "comes after the choices rather than competing with them",
+            "when MangoHUD is already enabled, Play Setup says so as a fact of the plan on its What Will " +
+                "Happen page, a readout of what the launch carries, rather than a row among the choices",
             sheetContent.contains("if (mangoHudEnabled) {") &&
-                sheetContent.contains("MangoHudPassiveStatus(") &&
-                sheetContent.indexOf("NovaPlaySetupBody(") in
-                0 until sheetContent.indexOf("MangoHudPassiveStatus(")
+                sheetContent.contains("key = stringResource(R.string.nova_play_setup_fact_overlay),") &&
+                !sheetContent.contains("MangoHudPassiveStatus(")
         )
     }
 

@@ -1425,6 +1425,22 @@ class NovaLibraryActivity : NovaActivity() {
         onPick = { mode -> polarisSync?.engine?.setStreamDisplayMode(mode) },
     )
 
+    /** The host profile's verbs inside Polaris Sync, each with what it does. */
+    private fun polarisProfilePage(): NovaPage = PlaySetupPage.Options(
+        title = getString(R.string.nova_play_setup_host_profile_row),
+        row = NovaPlaySetupRow.HOST_PROFILE,
+        bands = {
+            val model = polarisSync?.let { controller ->
+                @Suppress("DEPRECATION")
+                rememberNovaPolarisSyncModel(controller, streamPcUuid, windowManager.defaultDisplay)
+            }
+            listOfNotNull(
+                model?.rows?.firstOrNull { it.row == NovaPlaySetupRow.HOST_PROFILE }
+                    ?.let { NovaPlaySetupBand(null, it.options) },
+            )
+        },
+    )
+
     private fun openHelpDiagnostics() {
         HelpLauncher.launchTroubleshooting(this)
     }
@@ -2795,9 +2811,11 @@ class NovaLibraryActivity : NovaActivity() {
                     serverUuid = streamPcUuid,
                     display = windowManager.defaultDisplay,
                     playInPage = ::polarisPlayInPage,
+                    profilePage = ::polarisProfilePage,
                 )
             }
             is PlaySetupPage.PlayIn -> NovaPlayInPage(page)
+            is PlaySetupPage.Options -> NovaPlaySetupOptionsPage(page)
             is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)
             else -> Unit
         }

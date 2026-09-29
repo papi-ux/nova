@@ -68,7 +68,6 @@ internal fun buildNovaPlaySetupHostRows(
             } else {
                 sync.screenToAddMode
             },
-            stripTitle = getString(R.string.nova_play_setup_strip_screen_to_add),
             options = listOf(
                 NovaPlaySetupOption(
                     label = getString(R.string.nova_play_setup_screen_to_add_device),
@@ -145,7 +144,6 @@ internal fun buildNovaPlaySetupHostRows(
             label = getString(R.string.nova_play_setup_screen_scale),
             caption = getString(R.string.nova_play_setup_screen_scale_caption),
             value = novaScreenScaleLabel(effectiveScale),
-            stripTitle = getString(R.string.nova_play_setup_strip_screen_scale),
             options = scaleOptions,
             enabled = ready,
             overridden = sync.screenToAddScale > 0.0,
@@ -162,7 +160,6 @@ internal fun buildNovaPlaySetupHostRows(
         } else {
             sync.desiredModeLabel
         },
-        stripTitle = getString(R.string.nova_play_setup_strip_default_display),
         options = sync.modes.map { mode ->
             NovaPlaySetupOption(
                 label = mode.label,
@@ -189,7 +186,6 @@ internal fun buildNovaPlaySetupHostRows(
         label = getString(R.string.nova_play_setup_host_profile_row),
         caption = getString(R.string.nova_play_setup_host_profile_caption),
         value = polarisProfileValue,
-        stripTitle = getString(R.string.nova_play_setup_strip_host_profile),
         options = listOf(
             NovaPlaySetupOption(
                 label = getString(R.string.nova_polaris_sync_match_nova),
@@ -217,13 +213,15 @@ internal fun buildNovaPlaySetupHostRows(
             ),
         ),
         enabled = ready,
+        // Four verbs, each a push or a pull, are never stepped through in place: A opens them as a
+        // page, where each says what it does and one is chosen on purpose.
+        opensPage = true,
     )
     rows += NovaPlaySetupRowState(
         row = NovaPlaySetupRow.HOST_KEEP_IN_STEP,
         label = getString(R.string.nova_play_setup_host_keep_in_step),
         caption = getString(R.string.nova_play_setup_host_keep_in_step_caption),
         value = onOff(sync.autoSyncChecked),
-        stripTitle = getString(R.string.nova_play_setup_strip_keep_in_step),
         options = listOf(
             NovaPlaySetupOption(
                 label = onOff(true),
@@ -254,10 +252,10 @@ internal fun buildNovaPlaySetupHostRows(
 }
 
 /**
- * A on a host row. Default Display cycles like the game rows do and the toggles flip,
- * but Profile does not cycle: its four cards are four different verbs, and stepping
- * through them would fire pushes and pulls nobody sequenced. A performs the one its
- * caption names — match this handheld — and only when that verb is enabled.
+ * A on a host row that changes in place. Default Display cycles like the game rows do and the
+ * toggles flip, but Profile never cycles: its options are four different verbs, and stepping
+ * through them would fire pushes and pulls nobody sequenced. Its row opens their page; asked here
+ * anyway, it performs only the one its caption names, match this handheld, and only when enabled.
  */
 internal fun advanceNovaPlaySetupHostRow(
     row: NovaPlaySetupRow,

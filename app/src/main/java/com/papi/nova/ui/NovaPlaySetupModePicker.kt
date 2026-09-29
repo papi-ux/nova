@@ -165,29 +165,6 @@ internal fun buildGameModePickerState(
 }
 
 /**
- * Where a game runs, drawn where a panel or a sheet asks for it: the title, then the list. Play
- * Setup and Polaris Sync push it as a page of their own ([NovaPlayInPage]); this form keeps the
- * list for a body that still draws it in place.
- */
-@Composable
-internal fun NovaPlaySetupModePicker(
-    state: NovaPlaySetupModePickerState,
-    onPick: (String) -> Unit,
-    onPickHostDefault: (() -> Unit)?,
-    onConfigureHost: () -> Unit = {},
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        NovaPlaySetupColumnHead(state.title)
-        NovaPlaySetupModeList(
-            state = state,
-            onPick = onPick,
-            onPickHostDefault = onPickHostDefault,
-            onConfigureHost = onConfigureHost,
-        )
-    }
-}
-
-/**
  * One row per mode, banded private first and host display second, with the pinned Host default
  * entry above them when there is a host to follow.
  *

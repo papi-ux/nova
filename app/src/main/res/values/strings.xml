@@ -299,8 +299,7 @@
     <string name="nova_game_detail_tune">Tune</string>
     <string name="nova_game_detail_where_it_runs">Where It Runs</string>
     <string name="nova_play_setup_title">Play Setup</string>
-    <string name="nova_play_setup_what_will_happen">What will happen</string>
-    <string name="nova_play_setup_what_you_can_change">What you can change</string>
+    <string name="nova_play_setup_what_will_happen">What Will Happen</string>
     <string name="nova_play_setup_settings_caption">Resolution, frame rate, codec and bitrate</string>
     <string name="nova_play_setup_fact_last_session">Last session</string>
     <string name="nova_play_setup_fact_limited_by">Limited by</string>
@@ -331,10 +330,10 @@
     <string name="nova_play_setup_host_not_followed">This entry answers for itself, and uses %1$s.</string>
     <string name="nova_play_setup_host_safe_fallback">This host mode is not ready, so this launch uses %1$s instead.</string>
     <string name="nova_play_setup_every_game">Every Game</string>
-    <string name="nova_play_setup_pref_auto">Uses this launch request and paired-device settings, normalized only for current capabilities.</string>
+    <string name="nova_play_setup_pref_auto">Uses this launch request and your paired device settings.</string>
     <string name="nova_play_setup_pref_quality">Holds resolution and bitrate. Drops frames before it drops sharpness.</string>
     <string name="nova_play_setup_pref_stability">Plays it safe. Holds a steadier, lower target instead of chasing peaks.</string>
-    <string name="nova_play_setup_pref_high_fps">Pins your Settings frame rate. Softens the picture rather than give up the rate.</string>
+    <string name="nova_play_setup_pref_high_fps">Pins your Settings frame rate. Softens the picture to keep it.</string>
     <string name="nova_play_setup_steam_direct">Launches the game itself. Nothing else opens.</string>
     <string name="nova_play_setup_steam_big_picture">Opens Big Picture first, which takes the controller until the game starts.</string>
     <string name="nova_play_setup_every_game_caption">Host defaults and paired-device profile for every game</string>
@@ -347,10 +346,8 @@
     <string name="nova_play_setup_host_effective_matches">What sessions are actually getting right now.</string>
     <string name="nova_play_setup_host_default_display">Default Display</string>
     <string name="nova_play_setup_host_default_display_caption">Which display new sessions get on this host</string>
-    <string name="nova_play_setup_strip_default_display">If you changed the default display</string>
     <string name="nova_play_setup_host_profile_row">Profile</string>
-    <string name="nova_play_setup_host_profile_caption">Press to match this handheld’s profile</string>
-    <string name="nova_play_setup_strip_host_profile">If you changed the host profile</string>
+    <string name="nova_play_setup_host_profile_caption">What the host keeps for this device</string>
     <string name="nova_play_setup_host_profile_matched">Matched to this handheld</string>
     <string name="nova_play_setup_consequence_match_nova">The host takes this handheld’s profile now.</string>
     <string name="nova_play_setup_consequence_send_nova">Save this handheld’s profile on the host.</string>
@@ -363,7 +360,6 @@
     <string name="nova_play_setup_consequence_auto_off">Launch presets remain deterministic.</string>
     <string name="nova_play_setup_host_keep_in_step">Keep in Step</string>
     <string name="nova_play_setup_host_keep_in_step_caption">Re-send this handheld\'s profile when it changes</string>
-    <string name="nova_play_setup_strip_keep_in_step">If you changed Keep in Step</string>
     <string name="nova_play_setup_consequence_keep_on">Profile changes here reach the host automatically.</string>
     <string name="nova_play_setup_consequence_keep_off">The host keeps whatever was last sent.</string>
     <string name="nova_play_setup_on">On</string>
@@ -371,34 +367,45 @@
     <!-- Play Setup's rows. The strip titles are conditional sentences rather than
          nouns, because the strip explains a change not yet made. -->
     <string name="nova_play_setup_where_caption">Which display Polaris makes for this session</string>
-    <string name="nova_play_setup_strip_where">If you changed where it runs</string>
     <string name="nova_play_setup_screen_to_add">Screen To Add</string>
     <string name="nova_play_setup_screen_to_add_caption">How big a display Polaris creates for this device</string>
-    <string name="nova_play_setup_strip_screen_to_add">If you changed the screen to add</string>
     <string name="nova_play_setup_screen_to_add_device">Match this device</string>
     <string name="nova_play_setup_screen_to_add_stream">Follow the stream</string>
     <string name="nova_play_setup_screen_to_add_stream_consequence">The screen is made the size you stream at, which may not be this screen\'s shape.</string>
     <string name="nova_play_setup_screen_scale">Screen Scale</string>
     <string name="nova_play_setup_screen_scale_caption">How big things are on the display Polaris creates</string>
-    <string name="nova_play_setup_strip_screen_scale">If you changed the screen scale</string>
     <string name="nova_play_setup_screen_scale_device">Match this device</string>
-    <string name="nova_play_setup_place_legend">About this place</string>
     <string name="nova_play_setup_resolution">Resolution</string>
     <string name="nova_play_setup_resolution_caption">The display is made to match this handheld</string>
-    <string name="nova_play_setup_resolution_chosen">Chosen here \u00b7 applies at launch</string>
-    <string name="nova_play_setup_strip_resolution">If you changed the resolution</string>
     <string name="nova_play_setup_frame_rate">Frame Rate</string>
-    <string name="nova_play_setup_frame_rate_caption">Uses the current launch target</string>
-    <string name="nova_play_setup_frame_rate_chosen">Chosen here \u00b7 applies at launch</string>
-    <string name="nova_play_setup_strip_frame_rate">If you changed the frame rate</string>
+    <string name="nova_play_setup_frame_rate_caption">Auto follows the launch target</string>
     <string name="nova_play_setup_frame_rate_auto">Auto</string>
     <string name="nova_play_setup_frame_rate_auto_consequence">Keeps the host-resolved or Settings frame rate</string>
     <string name="nova_play_setup_frame_rate_fps_format">%d FPS</string>
+    <!-- The unit an ordered Frame Rate strip names once, after its last stop. -->
+    <string name="nova_play_setup_fps_unit">FPS</string>
+    <!-- Follows "Set for this game" in a row's caption, for a choice the launch picks up. -->
+    <string name="nova_play_setup_applies_at_launch">applies at launch</string>
+    <!-- The plan card's title while an option on a page has focus. -->
+    <string name="nova_play_setup_if_you_choose">If you choose %1$s</string>
+    <!-- The plan card's warning when the bitrate setting is under what the choice needs. -->
+    <string name="nova_play_setup_limited_by_bitrate">Limited by bitrate</string>
+    <!-- Leads the note of the option that suits this device. -->
+    <string name="nova_play_setup_recommended">Recommended</string>
+    <!-- Leads the note of an option that cannot be chosen, before its reason. -->
+    <string name="nova_play_setup_not_available">Not available</string>
+    <string name="nova_play_setup_resolution_matches_screen">Matches this screen</string>
+    <string name="nova_play_setup_resolution_cannot_decode">Too big for this device to decode</string>
+    <string name="nova_play_setup_resolution_pyrowave_need">PyroWave needs about %1$d Mbps at this size. Pick HEVC in Video Codec.</string>
+    <string name="nova_play_setup_resolution_footer">Sizes come from the host presets, scaled from this device.</string>
+    <string name="nova_play_setup_codec_pyrowave_caption">Experimental. Needs host support and a fast network.</string>
+    <!-- The key of a plan fact about an overlay the launch carries, such as MangoHUD. -->
+    <string name="nova_play_setup_fact_overlay">Overlay</string>
     <string name="nova_play_setup_encoder">Encoder</string>
     <string name="nova_play_setup_video_codec">Video Codec</string>
     <string name="nova_play_setup_codec_app_setting">App setting</string>
     <string name="nova_play_setup_codec_inherited">App setting · %1$s</string>
-    <string name="nova_play_setup_codec_caption">Saved for this game on this PC · applies at launch</string>
+    <string name="nova_play_setup_codec_caption">Applies at launch on this host</string>
     <string name="nova_play_setup_codec_inherit_detail">Follow the codec in Nova Settings. Other games keep their own choices.</string>
     <string name="nova_play_setup_codec_standard_detail">Use this codec preference for this game. Availability depends on both devices.</string>
     <string name="nova_play_setup_codec_pyrowave_detail">Experimental Vulkan codec. Requires matching host support and a fast network; never falls back to another codec.</string>
@@ -408,11 +415,10 @@
     <string name="nova_play_setup_encoder_host_default_caption">Uses Polaris\' configured encoder policy</string>
     <string name="nova_play_setup_encoder_auto_caption">Polaris chooses for this launch · fallback allowed</string>
     <string name="nova_play_setup_encoder_exact_caption">Required for this launch · no silent fallback</string>
-    <string name="nova_play_setup_strip_encoder">If you changed the encoder</string>
     <string name="nova_play_setup_encoder_host_default_consequence">Keeps the encoder configured on this host</string>
     <string name="nova_play_setup_encoder_auto_consequence">Lets Polaris live-test and choose a working encoder</string>
     <string name="nova_play_setup_encoder_exact_consequence">Fails the launch if this backend cannot initialize</string>
-    <string name="nova_play_setup_face_buttons">Face buttons</string>
+    <string name="nova_play_setup_face_buttons">Face Buttons</string>
     <string name="nova_play_setup_face_buttons_app_setting">App setting</string>
     <string name="nova_play_setup_face_buttons_labels">Match labels</string>
     <string name="nova_play_setup_face_buttons_positions">Match positions</string>
@@ -423,15 +429,12 @@
     <string name="nova_play_setup_face_buttons_app_setting_consequence">Uses the Settings face button flip for this game</string>
     <string name="nova_play_setup_face_buttons_labels_consequence">Sends each button by its name; confirm may sit on the other side</string>
     <string name="nova_play_setup_face_buttons_positions_consequence">Swaps A/B and X/Y so your pad\'s positions match the game\'s</string>
-    <string name="nova_play_setup_strip_face_buttons">If you changed the face buttons</string>
-    <string name="nova_play_setup_tuning">Launch preset</string>
-    <string name="nova_play_setup_strip_tuning">If you changed the tuning</string>
+    <string name="nova_play_setup_tuning">Launch Preset</string>
     <string name="nova_play_setup_tuning_pins">Pins %1$d FPS from your Settings frame rate</string>
     <string name="nova_play_setup_tuning_pins_over_hold">Pins %1$d FPS · overrides the recovery hold (host would run %2$d)</string>
     <string name="nova_play_setup_tuning_applied">Applied by host</string>
     <string name="nova_play_setup_tuning_declined">Host declined · %1$s</string>
     <string name="nova_play_setup_tuning_declined_no_reason">Host declined this preference</string>
-    <string name="nova_play_setup_strip_steam">If you changed how Steam starts</string>
     <string name="nova_play_setup_compare_private">Its own display, made for this session. The desk keeps its own screen.</string>
     <string name="nova_play_setup_compare_virtual">A screen of its own on the host\'s desktop, beside its monitors, for games that need the desktop session.</string>
     <string name="nova_game_detail_group_state">State</string>
@@ -449,7 +452,6 @@
     <string name="nova_game_detail_virtual_caption">A dedicated display on the host, at your resolution</string>
     <string name="nova_game_detail_more_settings_caption">Resolution, bitrate and codec for this launch</string>
     <string name="nova_game_detail_profile_label">Launch preset</string>
-    <string name="nova_game_detail_profile_caption">Deterministic settings for this launch</string>
     <string name="nova_polaris_wordmark" translatable="false">✦ POLARIS</string>
     <string name="nova_controller_hint_a">A</string>
     <string name="nova_controller_hint_b">B</string>

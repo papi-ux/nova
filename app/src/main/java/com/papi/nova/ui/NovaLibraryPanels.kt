@@ -3,7 +3,6 @@ package com.papi.nova.ui
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,7 +25,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.Dp
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
@@ -621,15 +619,11 @@ internal class NovaPolarisSyncController(
     var engine: NovaPolarisSyncEngine? by mutableStateOf(null)
         private set
 
-    /** Which row the legend under the rows explains; rows point it at themselves as focus moves. */
-    var explainedRow: NovaPlaySetupRow by mutableStateOf(NovaPlaySetupRow.HOST_DEFAULT_DISPLAY)
-
     val isOpen: Boolean get() = engine != null
 
     /** Starts the engine, from [initialSettings] while the host is asked again. Opening twice keeps the first. */
     fun open(initialSettings: PolarisClientSettings?) {
         if (engine != null) return
-        explainedRow = NovaPlaySetupRow.HOST_DEFAULT_DISPLAY
         engine = NovaPolarisSyncEngine(
             context = context,
             apiClient = apiClient,
@@ -660,21 +654,22 @@ internal class NovaPolarisSyncController(
     }
 }
 
-/**
- * Polaris Sync as a wide page: the same host rows, plan and legend as Play Setup's Every Game
- * scope, fitted to the page's height so the legend under the rows stays in sight. A row whose
- * choices outgrow a press pushes [playInPage].
- */
+/** Polaris Sync's host rows, plan and status, as its page and its Profile page both read them. */
+internal class NovaPolarisSyncModel(
+    val uiState: NovaPolarisSyncUiState,
+    val rows: List<NovaPlaySetupRowState>,
+    val plan: NovaPlaySetupPlan,
+    val actions: NovaPlaySetupHostActions,
+)
+
+/** The host rows and plan from [controller]'s engine, or null once it has closed. */
 @Composable
-internal fun NovaPageScope.NovaPolarisSyncPage(
+internal fun rememberNovaPolarisSyncModel(
     controller: NovaPolarisSyncController,
-    serverName: String,
     serverUuid: String?,
-    /** The display the library is on, for the screen size the host is offered to match. */
     display: android.view.Display?,
-    playInPage: (NovaPlaySetupModePickerState) -> NovaPage,
-) {
-    val engine = controller.engine ?: return
+): NovaPolarisSyncModel? {
+    val engine = controller.engine ?: return null
     val context = LocalContext.current
     val getString: (Int) -> String = { resId -> context.getString(resId) }
     val profileRevision = engine.profileRevision
@@ -708,13 +703,36 @@ internal fun NovaPageScope.NovaPolarisSyncPage(
         onKeepInStep = { engine.setAutoSync(it) },
     )
     val profileValue = novaPlaySetupHostProfileValue(uiState, engine.currentSettings, getString)
-    val rows = buildNovaPlaySetupHostRows(
-        sync = uiState,
-        polarisProfileValue = profileValue,
-        getString = getString,
+    return NovaPolarisSyncModel(
+        uiState = uiState,
+        rows = buildNovaPlaySetupHostRows(
+            sync = uiState,
+            polarisProfileValue = profileValue,
+            getString = getString,
+            actions = actions,
+        ),
+        plan = novaPlaySetupHostPlan(sync = uiState, polarisProfileValue = profileValue, getString = getString),
         actions = actions,
     )
-    val plan = novaPlaySetupHostPlan(sync = uiState, polarisProfileValue = profileValue, getString = getString)
+}
+
+/**
+ * Polaris Sync as a wide page: the same plan card and host rows as Play Setup's Every Game scope.
+ * A row whose choices outgrow a press pushes its page: [playInPage] for the Default Display, and
+ * [profilePage] for the profile's verbs.
+ */
+@Composable
+internal fun NovaPageScope.NovaPolarisSyncPage(
+    controller: NovaPolarisSyncController,
+    serverName: String,
+    serverUuid: String?,
+    /** The display the library is on, for the screen size the host is offered to match. */
+    display: android.view.Display?,
+    playInPage: (NovaPlaySetupModePickerState) -> NovaPage,
+    profilePage: () -> NovaPage,
+) {
+    val model = rememberNovaPolarisSyncModel(controller, serverUuid, display) ?: return
+    val uiState = model.uiState
     val statusLabel = stringResource(
         when (uiState.status) {
             NovaPolarisSyncStatus.LOADING -> R.string.nova_polaris_sync_loading
@@ -724,46 +742,38 @@ internal fun NovaPageScope.NovaPolarisSyncPage(
         },
     )
     val pickerTitle = stringResource(R.string.nova_play_setup_host_default_display)
+    val readTitle = stringResource(R.string.nova_play_setup_host_read_title)
     val colors = LocalNovaComposeColors.current
     Column(modifier = Modifier.fillMaxWidth()) {
         NovaPanelStatusText(
             caption = "$serverName · $statusLabel",
             captionColor = if (uiState.status == NovaPolarisSyncStatus.SYNCED) colors.accent else colors.textSecondary,
         )
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val bodyHeight: Dp = maxHeight
-            val readTitle = stringResource(R.string.nova_play_setup_host_read_title)
-            NovaPlaySetupBody(
-                plan = plan,
-                readTitle = readTitle,
-                fitHeight = bodyHeight,
-                // Too narrow for the plan beside the rows, the plan opens whole on its own page.
-                onOpenPlan = { shown -> if (isTop) panel.push(PlaySetupPage.Plan(readTitle, shown)) },
-                planRowModifier = Modifier.novaRestorableFocus("plan"),
-                rows = {
-                    NovaHostSetupRowList(
-                        rows = rows,
-                        onExplain = { controller.explainedRow = it },
-                        onAdvance = { row ->
-                            if (!isTop) return@NovaHostSetupRowList
-                            if (row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY && novaModePickerEligible(uiState.modes.size)) {
-                                controller.explainedRow = row
-                                panel.push(playInPage(buildHostModePickerState(modes = uiState.modes, title = pickerTitle)))
-                            } else {
-                                advanceNovaPlaySetupHostRow(row = row, rows = rows, sync = uiState, actions = actions)
-                            }
-                        },
-                        rowModifier = { row, first ->
-                            (if (first) Modifier.novaInitialFocus() else Modifier).novaRestorableFocus(row.name)
-                        },
-                    )
+        NovaPlaySetupBody(
+            card = {
+                NovaPlaySetupPlanCard(
+                    title = readTitle,
+                    value = model.plan.mode,
+                    line = novaPlaySetupPlanSummary(model.plan).orEmpty(),
+                    // The plan opens whole on its own page, and focus comes back here (R7).
+                    onOpen = { if (isTop) panel.push(PlaySetupPage.Plan(readTitle, model.plan)) },
+                    modifier = Modifier.novaRestorableFocus("plan"),
+                )
+            },
+        ) {
+            NovaHostSetupRowList(
+                rows = model.rows,
+                onAdvance = { row ->
+                    if (!isTop) return@NovaHostSetupRowList
+                    when {
+                        row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY && novaModePickerEligible(uiState.modes.size) ->
+                            panel.push(playInPage(buildHostModePickerState(modes = uiState.modes, title = pickerTitle)))
+                        row == NovaPlaySetupRow.HOST_PROFILE -> panel.push(profilePage())
+                        else -> advanceNovaPlaySetupHostRow(row = row, rows = model.rows, sync = uiState, actions = model.actions)
+                    }
                 },
-                comparison = { form ->
-                    NovaHostSetupComparison(
-                        rows = rows,
-                        explainedRow = controller.explainedRow,
-                        form = form,
-                    )
+                rowModifier = { row, first ->
+                    (if (first) Modifier.novaInitialFocus() else Modifier).novaRestorableFocus(row.name)
                 },
             )
         }

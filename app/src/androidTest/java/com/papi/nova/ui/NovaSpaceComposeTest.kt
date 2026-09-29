@@ -94,7 +94,7 @@ class NovaSpaceComposeTest {
 
     @Test fun settingsOffer120FpsWithoutHostTopologyControls() {
         var selected = 0
-        val row = NovaPlaySetupRowState(NovaPlaySetupRow.FRAME_RATE, "Frame Rate", "Saved For Next Launch", "60 FPS", "",
+        val row = NovaPlaySetupRowState(NovaPlaySetupRow.FRAME_RATE, "Frame Rate", "Saved For Next Launch", "60 FPS",
             listOf(NovaPlaySetupOption("120 FPS", "", onSelect = { selected = 120 })))
         compose.setContent {
             NovaComposeTheme {

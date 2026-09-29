@@ -128,6 +128,7 @@ class NovaScrollEdgeFadeTest {
             "ui/NovaCommandCenterPages.kt",
             "ui/NovaQuickMenuContent.kt",
             "ui/NovaLibraryPanels.kt",
+            "ui/NovaPlaySetup.kt",
             "ui/NovaPlaySetupPages.kt",
             "preferences/NovaSettingsScreen.kt",
             "preferences/NovaDisplayRoleComposer.kt",

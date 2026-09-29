@@ -174,6 +174,92 @@ class NovaPlaySetupPagesComposeTest {
         assertEquals(1, state.depth)
     }
 
+    /** The mockup's Resolution page: This Device, 2x under a PyroWave bitrate, and 3x this device cannot decode. */
+    private fun resolutionPage(): NovaTestKeys {
+        val bands = listOf(
+            NovaPlaySetupBand(
+                null,
+                listOf(
+                    NovaPlaySetupOption(
+                        label = "This Device", value = "1920\u00d71080", consequence = "Matches this screen",
+                        current = true, recommended = true, onSelect = { picked += "device" },
+                    ),
+                    NovaPlaySetupOption(
+                        label = "2x", value = "3840\u00d72160", consequence = "PyroWave needs about 800 Mbps at this size.",
+                        warning = true, onSelect = { picked += "2x" },
+                        preview = NovaPlaySetupPreview(NovaPlaySetupPreviewPart.SIZE, "3840\u00d72160", limit = "Limited by bitrate"),
+                    ),
+                    NovaPlaySetupOption(
+                        label = "3x", value = "5760\u00d73240", consequence = "Too big for this device to decode", enabled = false,
+                    ),
+                ),
+            ),
+        )
+        state.open(PlaySetupPage.Root("Play Setup"), NovaEdge.End)
+        state.push(PlaySetupPage.Options(title = "Resolution", row = NovaPlaySetupRow.RESOLUTION, bands = { bands }, footer = "Sizes come from the host presets."))
+        return rule.setPanelContent {
+            NovaPageStackHost(state = state) { page ->
+                when (page) {
+                    is PlaySetupPage.Options -> NovaPlaySetupOptionsPage(page) { focused ->
+                        val preview = focused?.takeIf { !it.current }?.preview
+                        NovaPlaySetupPlanCard(
+                            title = if (preview != null) "If you choose " + focused.label else "What Will Happen",
+                            value = "Private Stream",
+                            line = "1920\u00d71080 at 120 FPS",
+                            limit = preview?.limit.orEmpty(),
+                        )
+                    }
+                    else -> NovaRow(title = "Setup rows", onClick = {}, modifier = Modifier.novaInitialFocus())
+                }
+            }
+        }
+    }
+
+    @Test
+    fun anOptionsPageOpensOnTheCurrentOptionAndOneAPicksAndPops() {
+        val keys = resolutionPage()
+
+        rule.onNode(hasText("This Device")).assertIsFocused()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+        rule.onAllNodesWithTag(NovaCurrentMarkTag, useUnmergedTree = true).assertCountEquals(1)
+        rule.onNode(hasText("Recommended \u00b7 Matches this screen")).assertExists()
+        rule.onNode(hasText("Sizes come from the host presets.")).assertExists()
+
+        keys.press(NovaTestKeys.DOWN)
+        keys.press(NovaTestKeys.CENTER)
+
+        assertEquals(listOf("2x"), picked)
+        assertEquals("the page popped back to the rows", 1, state.depth)
+    }
+
+    @Test
+    fun thePinnedCardPreviewsTheOptionUnderTheCursorAndStaysOffTheDpad() {
+        val keys = resolutionPage()
+        rule.onNode(hasText("What Will Happen")).assertExists()
+
+        keys.press(NovaTestKeys.DOWN)
+        rule.onNode(hasText("2x")).assertIsFocused()
+        rule.onNode(hasText("If you choose 2x")).assertExists()
+        rule.onNode(hasText("Limited by bitrate")).assertExists()
+
+        keys.press(NovaTestKeys.UP)
+        keys.press(NovaTestKeys.UP)
+        rule.onNode(hasText("This Device")).assertIsFocused()
+        rule.onNode(hasText("What Will Happen")).assertExists()
+    }
+
+    @Test
+    fun aSizeThisDeviceCannotTakeStaysListedWithItsReasonAndFocusPassesOverIt() {
+        val keys = resolutionPage()
+        rule.onNode(hasText("Not available \u00b7 Too big for this device to decode")).assertExists()
+
+        keys.press(NovaTestKeys.DOWN)
+        keys.press(NovaTestKeys.DOWN)
+        rule.onNode(hasText("2x")).assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(listOf("2x"), picked)
+    }
+
     @Test
     fun closingThePanelGivesFocusBackToTheButtonThatOpenedIt() {
         // As game detail draws it: the Overview is out of reach while the panel covers it, so the
