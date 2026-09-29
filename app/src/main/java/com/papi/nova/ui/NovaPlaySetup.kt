@@ -719,6 +719,8 @@ internal fun NovaPlaySetupOptionRow(
      * as the places a game can open in while a change is in flight: focus is never left on nothing.
      */
     focusableWhenDisabled: Boolean = false,
+    /** A opens somewhere else rather than choosing, such as the host's settings: `›` in the slot. */
+    opens: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
@@ -767,7 +769,12 @@ internal fun NovaPlaySetupOptionRow(
                     color = if (option.enabled) colors.textSecondary else colors.textMuted,
                 )
             }
-            NovaPlaySetupSlot { if (option.current) NovaCurrentMark() }
+            NovaPlaySetupSlot {
+                when {
+                    option.current -> NovaCurrentMark()
+                    opens -> NovaPlaySetupChevron(OpensGlyph, colors.textSecondary)
+                }
+            }
         }
         val note = when {
             !option.enabled -> listOf(notAvailable, option.consequence).filter { it.isNotBlank() }.joinToString(" · ")

@@ -16,8 +16,6 @@ import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.panel.NovaPanelMetrics
-import com.papi.nova.ui.panel.NovaRow
-import com.papi.nova.ui.panel.NovaRowTrailing
 import com.papi.nova.ui.panel.NovaSectionLabel
 
 /** One selectable mode in the picker: the host catalog entry plus its standing here. */
@@ -36,6 +34,8 @@ internal data class NovaPlaySetupModeChoice(
     val hostDefaultOnly: Boolean = false,
     /** The provider's advisory pick from the current optimization payload; never auto-applied. */
     val aiRecommended: Boolean = false,
+    /** Nova's own recommendation, which leads its note with "Recommended" in accent. */
+    val recommended: Boolean = false,
 )
 
 internal data class NovaPlaySetupModeBand(
@@ -123,6 +123,8 @@ internal fun buildGameModePickerState(
     aiRecommendedMode: String = "",
     hostDefaultOnlyDetail: String = "",
     plainModeDetails: Map<String, String> = emptyMap(),
+    /** The modes Nova recommends: the private one, which leaves the host's desktop alone. */
+    recommendedModes: Set<String> = setOf(PolarisClientSettings.MODE_HEADLESS_STREAM),
 ): NovaPlaySetupModePickerState {
     val allowed = allowedModes.map { PolarisGame.normalizeLaunchMode(it) }.toSet()
     return NovaPlaySetupModePickerState(
@@ -159,6 +161,7 @@ internal fun buildGameModePickerState(
                     hostDefaultOnly = hostDefaultOnly,
                     aiRecommended = mode.available && !hostDefaultOnly &&
                         aiRecommendedMode.isNotBlank() && mode.mode == aiRecommendedMode,
+                    recommended = mode.available && !hostDefaultOnly && normalizedMode in recommendedModes,
                 )
             },
     )
@@ -175,6 +178,11 @@ internal fun buildGameModePickerState(
  * default opens Polaris settings instead of picking. [rowModifier] marks a row by its key, and
  * whether it is the one that should take focus when the list opens: the current choice, or the
  * first that can be chosen.
+ *
+ * Every entry is a Play Setup option row, as the places above it are, so the page has one row
+ * style: title and check on the first line, the note under it, "Recommended" leading Nova's own
+ * pick in accent. With [bandHostDefault], as when the places are drawn above, Host default heads
+ * a band of its own, so it never reads as a fourth place.
  */
 @Composable
 internal fun NovaPlaySetupModeList(
@@ -183,6 +191,7 @@ internal fun NovaPlaySetupModeList(
     onPickHostDefault: (() -> Unit)?,
     onConfigureHost: () -> Unit = {},
     rowModifier: (key: String, initial: Boolean) -> Modifier = { _, _ -> Modifier },
+    bandHostDefault: Boolean = false,
 ) {
     val hostDefaultShown = state.hostDefaultLabel != null && onPickHostDefault != null
     val initialKey = when {
@@ -201,6 +210,7 @@ internal fun NovaPlaySetupModeList(
         "private" to stringResource(R.string.nova_play_setup_band_private),
         "host" to stringResource(R.string.nova_play_setup_band_host),
     )
+    val hostDefaultBand = stringResource(R.string.nova_play_setup_band_how_it_runs)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -208,11 +218,15 @@ internal fun NovaPlaySetupModeList(
     ) {
         if (hostDefaultShown) {
             val detail = state.hostDefaultLabel.orEmpty()
-            NovaRow(
-                title = hostDefaultTitle,
-                caption = detail,
-                trailing = if (state.hostDefaultCurrent) NovaRowTrailing.Current else NovaRowTrailing.None,
-                onClick = { onPickHostDefault() },
+            if (bandHostDefault) NovaSectionLabel(hostDefaultBand)
+            NovaPlaySetupOptionRow(
+                option = NovaPlaySetupOption(
+                    label = hostDefaultTitle,
+                    consequence = detail,
+                    current = state.hostDefaultCurrent,
+                    onSelect = { onPickHostDefault() },
+                ),
+                onPick = { onPickHostDefault() },
                 modifier = rowModifier(HOST_DEFAULT_KEY, initialKey == HOST_DEFAULT_KEY)
                     .semantics { contentDescription = "$hostDefaultTitle. $detail" },
             )
@@ -229,16 +243,21 @@ internal fun NovaPlaySetupModeList(
                 }
                 val caption = listOfNotNull(badge, choice.detail.takeIf { it.isNotBlank() }).joinToString(" · ")
                 val interactive = choice.enabled || choice.hostDefaultOnly
-                NovaRow(
-                    title = choice.label,
-                    caption = caption.ifBlank { null },
-                    trailing = when {
-                        choice.current -> NovaRowTrailing.Current
-                        choice.hostDefaultOnly -> NovaRowTrailing.Opens
-                        else -> NovaRowTrailing.None
-                    },
-                    disabledReason = if (interactive) null else caption.ifBlank { choice.detail },
-                    onClick = { if (choice.enabled) onPick(choice.id) else if (choice.hostDefaultOnly) onConfigureHost() },
+                val act = { if (choice.enabled) onPick(choice.id) else if (choice.hostDefaultOnly) onConfigureHost() }
+                NovaPlaySetupOptionRow(
+                    option = NovaPlaySetupOption(
+                        label = choice.label,
+                        consequence = caption,
+                        current = choice.current,
+                        // A host-only mode is pressed to open the host's settings, so it acts.
+                        enabled = interactive,
+                        onSelect = if (interactive) act else null,
+                        recommended = choice.recommended,
+                    ),
+                    onPick = act,
+                    // A mode the host will not take stays a stop, so its reason can be read.
+                    focusableWhenDisabled = true,
+                    opens = choice.hostDefaultOnly && !choice.current,
                     modifier = rowModifier(choice.id, initialKey == choice.id)
                         .semantics {
                             contentDescription = when {

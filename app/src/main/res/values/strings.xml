@@ -312,13 +312,14 @@
     <string name="nova_play_setup_mode_host_default_only_badge">Host default only</string>
     <string name="nova_play_setup_mode_current_host_default_badge">Current host default</string>
     <string name="nova_play_setup_mode_open_host_settings">Open Polaris Settings</string>
-    <string name="nova_play_setup_mode_private_detail">Recommended. Runs the game on a private display without touching the host monitors.</string>
+    <string name="nova_play_setup_mode_private_detail">Runs the game on a private display without touching the host\'s monitors.</string>
     <string name="nova_play_setup_mode_gpu_detail">Same privacy, keeping frames on the GPU when the host supports it.</string>
     <string name="nova_play_setup_mode_gamescope_detail">Steam Deck-style session for Steam-first hosts. Gamescope must be installed.</string>
     <string name="nova_play_setup_mode_virtual_detail">Adds a display to the host desktop. Windows and icons may rearrange.</string>
     <string name="nova_play_setup_mode_dongle_detail">Moves the desktop to a dummy plug. Privacy blanks the real panel after one-time portal approval is saved; the approval session keeps it on. Off keeps it active. Configure this once as the host default.</string>
     <string name="nova_play_setup_mode_mirror_detail">Streams everything visible on the host, including notifications.</string>
     <string name="nova_play_setup_mode_takeover_detail">Moves the live Hyprland desktop to a temporary streaming display, then restores the physical monitors when streaming ends.</string>
+    <string name="nova_play_setup_band_how_it_runs">How it runs</string>
     <string name="nova_play_setup_band_private">Private: your desktop stays untouched</string>
     <string name="nova_play_setup_band_host">Host display: uses or swaps the host screen</string>
     <string name="nova_play_setup_host_default_entry_detail">Follow the host\'s Default Display, currently %1$s</string>
@@ -1790,8 +1791,8 @@
     <string name="nova_space_retry_check">Retry Space Check</string>
     <string name="nova_space_launch_intro">Runs in %1$s, with its own sign-in and saves.</string>
     <string name="nova_space_where_it_opens">Where this game opens</string>
-    <string name="nova_space_option_desktop">Use this computer’s usual games and account.</string>
-    <string name="nova_space_option_desktop_missing">Not in this computer’s Desktop library. Use Change Space in the Library to switch to Desktop.</string>
+    <string name="nova_space_option_desktop">Use the host’s usual games and account.</string>
+    <string name="nova_space_option_desktop_missing">Not in the host’s Desktop library. Use Change Space in the Library to switch to Desktop.</string>
     <string name="nova_space_option_use">Use the sign-in and saves in %1$s.</string>
     <string name="nova_space_option_no_library">This Space has no game library yet.</string>
     <string name="nova_space_option_missing">Not in %1$s. Use Change Space in the Library to open that Space.</string>

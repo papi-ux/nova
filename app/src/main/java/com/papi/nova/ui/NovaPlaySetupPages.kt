@@ -251,6 +251,7 @@ internal fun NovaPageScope.NovaPlayInPage(
                 rowModifier = { key, initial ->
                     (if (initial) Modifier.novaInitialFocus() else Modifier).novaRestorableFocus(key)
                 },
+                bandHostDefault = places != null,
             )
         } else if (modes.isNotEmpty()) {
             val initial = modes.firstOrNull { it.current && it.enabled } ?: modes.firstOrNull { it.enabled }
