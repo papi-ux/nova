@@ -116,4 +116,23 @@ class NovaCommandCenterSplitRowsComposeTest {
         rule.frames(16)
         assertEquals("its confirm is the accent fill", colors.onAccent, labelColour("Turn Off"))
     }
+
+    /**
+     * Review finding 6: the reopen rule kept End Session and Alt + F4 out, because their A arms a
+     * split, but not Live Tuning or Clear Game Profile, which split as well.
+     */
+    @Test
+    fun noSplitRowIsWhereTheCommandCenterReopens() {
+        val place = NovaQuickMenuPlace()
+        open(place = place, adjust = liveTuning(on = true))
+        listOf("Live Tuning", "Clear Game Profile").forEach { row ->
+            focus(row)
+            panel.close()
+            rule.frames(16)
+            panel.open(CommandCenterPage.Root("Command Center"))
+            rule.waitForIdle()
+            rule.frames(4)
+            rule.onNodeWithText("Close").assertIsFocused()
+        }
+    }
 }

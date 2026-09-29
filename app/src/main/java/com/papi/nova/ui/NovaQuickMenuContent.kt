@@ -302,8 +302,9 @@ class NovaQuickMenuDoctorSlot {
 
 /**
  * [NovaPageScope.novaRestorableFocus], also recorded as where the Command Center next opens. A
- * button whose A acts at once (Disconnect) or arms a split (End Session, Alt + F4) passes
- * [reopenHere] false: the next opening starts on Close instead of one A from ending something.
+ * button whose A acts at once (Disconnect) and every split (End Session, Alt + F4, Live Tuning and
+ * Clear Game Profile) pass [reopenHere] false: the next opening starts on Close instead of one A
+ * from ending something or rewriting the host.
  */
 @Composable
 private fun NovaPageScope.novaPlaceFocus(key: Any, reopenHere: Boolean = true): Modifier {
@@ -819,7 +820,7 @@ private fun NovaPageScope.NovaQuickMenuRows(
                 shape = NovaSplitShape.Row,
                 enabled = row.enabled,
                 caption = row.caption,
-                modifier = novaPlaceFocus(row.id).testTag("nova-cc-clear-game-profile"),
+                modifier = novaPlaceFocus(row.id, reopenHere = false).testTag("nova-cc-clear-game-profile"),
             )
         } else {
             // A row that pushed a page is where focus lands when that page pops.
@@ -853,7 +854,7 @@ private fun NovaPageScope.NovaQuickMenuLiveTuningRow(
         caption = row.caption,
         trailing = row.chip?.let { chip -> { NovaQuickMenuChipView(chip) } },
         tone = NovaSplitTone.Neutral,
-        modifier = novaPlaceFocus(row.id).testTag("nova-cc-live-tuning"),
+        modifier = novaPlaceFocus(row.id, reopenHere = false).testTag("nova-cc-live-tuning"),
     )
 }
 
