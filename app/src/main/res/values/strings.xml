@@ -301,13 +301,13 @@
     <string name="nova_play_setup_title">Play Setup</string>
     <string name="nova_play_setup_what_will_happen">What Will Happen</string>
     <string name="nova_play_setup_settings_caption">Resolution, frame rate, codec and bitrate</string>
-    <string name="nova_play_setup_fact_last_session">Last session</string>
-    <string name="nova_play_setup_fact_limited_by">Limited by</string>
-    <string name="nova_play_setup_fact_asked">Asked / granted</string>
+    <string name="nova_play_setup_fact_last_session">Last Session</string>
+    <string name="nova_play_setup_fact_limited_by">Limited By</string>
+    <string name="nova_play_setup_fact_asked">Asked / Granted</string>
     <string name="nova_play_setup_fact_profile">Profile</string>
     <string name="nova_play_setup_granted_format">Granted: %1$s</string>
     <string name="nova_play_setup_compare_where">If you changed where it runs</string>
-    <string name="nova_play_setup_fact_host_default">Host default</string>
+    <string name="nova_play_setup_fact_host_default">Host Default</string>
     <string name="nova_play_setup_mode_host_default_only">Headless Dongle rearranges physical displays, so a game cannot turn it on for one launch.</string>
     <string name="nova_play_setup_mode_host_default_only_badge">Host default only</string>
     <string name="nova_play_setup_mode_current_host_default_badge">Current host default</string>
@@ -325,7 +325,7 @@
     <string name="nova_play_setup_host_default_entry_detail">Follow the host\'s Default Display, currently %1$s</string>
     <string name="nova_play_setup_host_default_entry_own_detail">Let this entry answer, currently %1$s</string>
     <string name="nova_play_setup_ai_pick">Host match</string>
-    <string name="nova_play_setup_fact_host_profile">Host profile</string>
+    <string name="nova_play_setup_fact_host_profile">Host Profile</string>
     <string name="nova_play_setup_host_overridden">This game overrides it. Every other game follows the host.</string>
     <string name="nova_play_setup_host_followed">This game follows it.</string>
     <string name="nova_play_setup_host_not_followed">This entry answers for itself, and uses %1$s.</string>

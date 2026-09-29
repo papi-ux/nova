@@ -166,7 +166,7 @@ class NovaPlaySetupPagesComposeTest {
     fun followingTheHostOpensOnTheHostDefaultEntry() {
         val keys = host(picker(hostDefaultCurrent = true, currentId = null))
 
-        rule.onNode(hasText("Host default")).assertIsFocused()
+        rule.onNode(hasText("Host Default")).assertIsFocused()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
         keys.press(NovaTestKeys.CENTER)
 
