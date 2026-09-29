@@ -165,6 +165,68 @@ class NovaHudAuditRegressionTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
         assertEquals(0, requests)
     }
+    @Test fun hostReadingsExpireWhileMediaContinues() {
+        start()
+        hud.applySessionStatus(PolarisSessionStatus("streaming", streamingActive = true,
+            adaptiveBitrateEnabled = true, encoder = PolarisSessionStatus.EncoderStatus(bitrateKbps = 20000)))
+        assertEquals("Tuning: On", state().autopilotHudLabel)
+        repeat(6) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            hud.updateFromPerfSample(sample().copy(packetLossPct = 0.0))
+        }
+        assertEquals("Tuning: Unknown", state().autopilotHudLabel)
+        assertEquals("--", state().bitrateLabel)
+        assertEquals("81", state().fpsLabel)
+    }
+    @Test fun equalSuccessfulHostPollsKeepStatusFresh() {
+        start()
+        val host = PolarisSessionStatus("streaming", streamingActive = true, adaptiveBitrateEnabled = true)
+        repeat(7) {
+            hud.applySessionStatus(host)
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            hud.updateFromPerfSample(sample())
+        }
+        assertEquals("Tuning: On", state().autopilotHudLabel)
+    }
+    @Test fun staleReadingsRecoverOnTheNextFreshSample() {
+        start(); shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
+        assertEquals("--", state().fpsLabel)
+        hud.updateFromPerfSample(sample(rendered = 100.0))
+        assertEquals("100", state().fpsLabel)
+    }
+    @Test fun outOfOrderGenerationCannotReplaceCurrentMedia() {
+        start()
+        hud.updateFromPerfSample(sample(rendered = 100.0).copy(sessionGeneration = 2))
+        hud.updateFromPerfSample(sample(rendered = 50.0).copy(sessionGeneration = 1))
+        assertEquals("100", state().fpsLabel)
+    }
+    @Test fun resetAndCornerSelectionWorkWithoutDragging() {
+        hud.show()
+        root.layout(0, 0, 1000, 600); view().layout(0, 0, 100, 100)
+        hud.setPosition(NovaHudCorner.BOTTOM_RIGHT)
+        assertEquals(888f, view().x, 0.1f)
+        assertEquals(488f, view().y, 0.1f)
+        hud.resetPosition()
+        assertEquals(12f, view().x, 0.1f)
+        assertEquals(12f, view().y, 0.1f)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
+        assertFalse(prefs.contains("nova_polaris_hud_x"))
+        assertEquals(0f, prefs.getFloat("nova_polaris_hud_position_x_fraction", -1f), 0f)
+    }
+    @Test fun resolvedPresetBindingOverridesNoMutablePreference() {
+        start(); hud.setLaunchPresetLabel("Quality")
+        assertTrue(state().streamTruthLabel.contains("Quality preset"))
+        hud.setLaunchPresetLabel("")
+        assertFalse(state().streamTruthLabel.contains("preset"))
+    }
+    @Test fun attachedLongPressStillOpensTheCommandCenterOnce() {
+        hud.show()
+        controller.visible()
+        val down = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 10f, 10f, 0)
+        view().dispatchTouchEvent(down); down.recycle()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertEquals(1, requests)
+    }
     @Test fun cutoutInsetsAreInsideTheHudSafeZone() {
         hud.show()
         val safeRoot = object : android.widget.FrameLayout(activity) {
@@ -188,6 +250,8 @@ class NovaHudAuditRegressionTest {
         NovaStreamHud::class.java.getDeclaredMethod("clampAndSaveHudPosition", View::class.java)
             .apply { isAccessible = true }.invoke(hud, view)
         root.layout(0, 0, 1600, 900)
+        // The platform measures the Compose child again after the root's layout pass.
+        view.layout(0, 0, 100, 100)
         NovaStreamHud::class.java.getDeclaredMethod("restoreHudPosition", View::class.java, ViewGroup::class.java, Float::class.javaPrimitiveType)
             .apply { isAccessible = true }.invoke(hud, view, root, 12f)
         assertTrue("bottom-right stays bottom-right on a larger surface", view.x > 1400f && view.y > 700f)

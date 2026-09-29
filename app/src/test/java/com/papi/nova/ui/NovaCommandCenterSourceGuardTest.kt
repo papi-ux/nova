@@ -188,7 +188,7 @@ class NovaCommandCenterSourceGuardTest {
         val source = readNovaStreamHudContent()
         val fact = source.section(
             "private fun HudFact(",
-            "@Composable\nprivate fun HudColumnRule("
+            "@Composable\nprivate fun HudEventBreadcrumb("
         )
         val valueText = source.section(
             "private fun HudValueText(",
@@ -245,16 +245,8 @@ class NovaCommandCenterSourceGuardTest {
                 touchHandler.contains("DRAG_THRESHOLD")
         )
         assertTrue(
-            "tap-to-cycle must not reset a user-dragged HUD back to top-left. This used to " +
-                "also pin the layoutParams reassignment that cycleMode did to change the " +
-                "width between modes -- but every mode is WRAP_CONTENT, so it re-laid out " +
-                "to the width it already had. The save and restore is what preserves the " +
-                "position, and it is what is pinned.",
-            cycleMode.contains("val savedX = view.x") &&
-                cycleMode.contains("val savedY = view.y") &&
-                cycleMode.contains("view.post") &&
-                cycleMode.contains("view.x = savedX") &&
-                cycleMode.contains("view.y = savedY")
+            "mode changes restore the normalized safe-area position after the new layout",
+            cycleMode.contains("view.post") && cycleMode.contains("restoreHudPosition(view, it")
         )
     }
 
@@ -389,13 +381,13 @@ class NovaCommandCenterSourceGuardTest {
                 !commandCenter.contains("NovaInGameOverlayAlpha.")
         )
         assertTrue(
-            "NovaHUD should use its own literal outer opacity plus the same border and divider tokens",
+            "NovaHUD keeps adjustable panel glass and the shared border; text has an independent readability backing",
             hud.contains(".background(surfaces.panel.copy(alpha = hudOpacityScale))") &&
                 hud.contains("NovaInGameOverlayAlpha.Border") &&
-                hud.contains("NovaInGameOverlayAlpha.AccentDivider")
+                hud.contains("NovaHudReadability.backing")
         )
         assertFalse(
-            "NovaHUD draws no box inside its panel: each fact's own fill stayed visible as a faint box when the HUD was made transparent, long after the panel under it had faded",
+            "NovaHUD does not use the retired nested tile/control fills",
             hud.contains("NovaInGameOverlayAlpha.NestedControl") ||
                 hud.contains("NovaInGameOverlayAlpha.NestedTile") ||
                 hud.contains("surfaces.control")
@@ -619,7 +611,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "debug HUD status label should have a max width so it cannot crowd the FPS label",
-            debugHud.contains(".widthIn(max = 96.dp)")
+            debugHud.contains(".widthIn(max = 150.dp)")
         )
         assertTrue(
             "performance HUD should cap its overlay width while allowing narrow parents to constrain it",
@@ -683,19 +675,19 @@ class NovaCommandCenterSourceGuardTest {
 
         assertTrue(
             "Debug answers 'how long does my panel take to decode', graded against the frame budget rather than a fixed number",
-            debugHud.contains("HudFact(\"DEC\", state.decodeTimeLabel, state.decodeTone)")
+            debugHud.contains("HudFact(\"DECODE\", state.decodeTimeLabel, state.decodeTone)")
         )
         assertTrue(
             "Debug shows host encode latency and incoming against rendered fps, the legacy text's remaining facts, so the legacy overlay can retire later",
-            debugHud.contains("HudFact(\"HOST\", state.hostLatencyLabel)") &&
+            debugHud.contains("HudFact(\"ENCODE\", state.hostLatencyLabel)") &&
                 debugHud.contains("HudFact(\"IN\", state.incomingFpsLabel)") &&
                 debugHud.contains("HudFact(\"OUT\", state.renderedFpsLabel)")
         )
         assertTrue(
             "Debug keeps the network's facts: loss in the current window graded so zero is the only green, round-trip jitter, and the session's lost-frame count",
-            debugHud.contains("HudFact(\"LOSS\", state.packetLossLabel, state.packetLossTone)") &&
-                debugHud.contains("HudFact(\"JIT\", state.jitterLabel)") &&
-                debugHud.contains("HudFact(\"DROPS\", state.framesLostLabel)")
+            debugHud.contains("HudFact(\"FRAME LOSS\", state.packetLossLabel, state.packetLossTone)") &&
+                debugHud.contains("HudFact(\"JITTER\", state.jitterLabel)") &&
+                debugHud.contains("HudFact(\"MISSING\", state.framesLostLabel)")
         )
         val hostColumn = debugHud.indexOf("HudLayerColumn(host?.label")
         val netColumn = debugHud.indexOf("HudLayerColumn(net?.label")
@@ -703,9 +695,9 @@ class NovaCommandCenterSourceGuardTest {
         assertTrue(
             "Debug puts each fact under the layer it belongs to, headed by that layer's health, so the layer that went amber and the numbers that explain it line up",
             hostColumn in 0 until netColumn && netColumn < clientColumn &&
-                debugHud.indexOf("HudFact(\"HOST\"") in hostColumn until netColumn &&
+                debugHud.indexOf("HudFact(\"ENCODE\"") in hostColumn until netColumn &&
                 debugHud.indexOf("HudFact(\"RTT\"") in netColumn until clientColumn &&
-                debugHud.indexOf("HudFact(\"DEC\"") > clientColumn
+                debugHud.indexOf("HudFact(\"DECODE\"") > clientColumn
         )
         assertFalse(
             "Performance stays the four-metric row it is pinned to",
