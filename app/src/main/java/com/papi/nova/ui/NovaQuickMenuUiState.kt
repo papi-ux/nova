@@ -144,7 +144,12 @@ data class NovaQuickMenuDiagnosisState(
      * Nothing to run, and nothing the session strip warns about: an observation, or a reading of
      * a healthy stream. It ranks after the sections a player adjusts, not right under the strip.
      */
-    val informational: Boolean = false
+    val informational: Boolean = false,
+    /**
+     * The host has answered, so this is its reading and not the placeholder shown before it did.
+     * The Command Center picks the card's slot from the first reading of each opening.
+     */
+    val fromHost: Boolean = false
 )
 
 data class NovaQuickMenuUiState(
@@ -734,6 +739,7 @@ data class NovaQuickMenuUiState(
                 actionExecutable = actionExecutable,
                 capability = capability,
                 informational = informational,
+                fromHost = status != null,
                 targetBitrateKbps = doctor?.targetBitrateKbps ?: 0,
                 verificationDelaySeconds = doctor?.verificationDelaySeconds ?: 0,
                 undoSupported = doctor?.undoSupported == true,

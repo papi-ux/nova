@@ -41,7 +41,7 @@ class NovaInGameSmokeFixesSourceGuardTest {
     fun theCommandCenterRemembersWhereItWasLeft() {
         val menu = read("ui/NovaQuickMenu.kt")
         assertTrue(menu.contains("private val rootPlace = NovaQuickMenuPlace()"))
-        assertTrue(menu.contains("NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace)"))
+        assertTrue(menu.contains("NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace, doctorSlot = menu.doctorSlot)"))
     }
 
     /**

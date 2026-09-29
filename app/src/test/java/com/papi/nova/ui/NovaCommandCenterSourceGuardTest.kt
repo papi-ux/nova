@@ -487,7 +487,7 @@ class NovaCommandCenterSourceGuardTest {
         val controlsPanel = body.indexOf("NovaSectionLabel(controlsTitle)")
         val sessionPanel = body.indexOf("NovaSectionLabel(sessionTitle)")
         val overlaysPanel = body.indexOf("NovaSectionLabel(overlaysTitle)")
-        val diagnosisCard = body.indexOf("NovaQuickMenuDiagnosisCard(ui, callbacks)")
+        val diagnosisCard = body.indexOf("NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)")
         val stabilityCard = body.indexOf("NovaQuickMenuStabilityCard(ui, callbacks)")
         val syncCard = body.indexOf("{ it.sync }")
         val advancedToggleCard = body.indexOf("{ it.advancedToggle }")
@@ -513,8 +513,8 @@ class NovaCommandCenterSourceGuardTest {
             "sync and Advanced stay at the end",
             syncCard in 0 until advancedToggleCard
         )
-        val actionableDoctor = body.indexOf("if (showDiagnosis && !diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)")
-        val informationalDoctor = body.indexOf("if (showDiagnosis && diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)")
+        val actionableDoctor = body.indexOf("if (showDiagnosis && !diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)")
+        val informationalDoctor = body.indexOf("if (showDiagnosis && diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)")
         assertTrue(
             "a Doctor reading that only informs ranks after the sections a player adjusts, and before Sync and Advanced; one that explains the strip or can act stays under it (N28)",
             actionableDoctor in (pinnedKeys + 1) until stabilityCard &&
@@ -898,7 +898,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "the diagnosis card takes callbacks and passes them to the card it draws",
-            quickMenu.contains("NovaQuickMenuDiagnosisCard(ui, callbacks)") &&
+            quickMenu.contains("NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)") &&
                 quickMenu.contains("callbacks: NovaQuickMenuCallbacks,")
         )
     }
