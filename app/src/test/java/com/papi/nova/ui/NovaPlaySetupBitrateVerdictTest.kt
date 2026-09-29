@@ -101,6 +101,22 @@ class NovaPlaySetupBitrateVerdictTest {
         )
     }
 
+    // The game page's own verdict: it reads the screen from the page's context and takes no screen
+    // from its caller, so the smoke's saved 4K, asked for as the plan's size, is held back on this
+    // 1080p handheld. Measured against the saved size instead, it had said nothing (#10).
+    @Test
+    fun theGamePagesVerdictMeasuresThePlanAgainstThisScreen() {
+        val preferences = smokeSettings()
+        val verdict = NovaDeviceBitrateVerdict(context)
+        assertEquals("this device's own screen", 1920 to 1080, verdict.screen)
+        assertEquals(
+            "the saved 4K is held back",
+            need(3840, 2160),
+            verdict.shortfallMbps(preferences.videoFormat, preferences.width to preferences.height, preferences, fps = 120),
+        )
+        assertEquals("the screen's own size is not", 0, verdict.shortfallMbps(preferences.videoFormat, 1920 to 1080, preferences, fps = 120))
+    }
+
     @Test
     fun thePreviewTheResolutionPageAndThePlanReadTheOneVerdict() {
         val activity = File("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt").readText()
@@ -109,10 +125,9 @@ class NovaPlaySetupBitrateVerdictTest {
         assertTrue("the Resolution page", activity.contains("val need = bitrateShortfallMbps(codec, size, preferences)"))
         assertTrue("the plan", activity.contains("playSetupBitrateShortfallMbps = planShortfallMbps()"))
         assertTrue(
-            "each measured against this device's own screen",
-            activity.contains("val screenSize: Pair<Int, Int> by lazy { novaDeviceScreenPixels(this@NovaGameDetailActivity) }") &&
-                activity.contains("): Int = novaPlaySetupBitrateShortfallMbps(") &&
-                activity.contains("            screen = screenSize,\n"),
+            "each through the page's one verdict, which measures against this device's own screen",
+            activity.contains("val bitrateVerdict = NovaDeviceBitrateVerdict(this@NovaGameDetailActivity)") &&
+                activity.contains("): Int = bitrateVerdict.shortfallMbps(format, size, preferences, fps = launchFps(preferences))"),
         )
         assertTrue("What Will Happen's card", content.contains("limit = planLimit,"))
         assertTrue("the status line", content.contains("planLimit = bitrateLimit,"))

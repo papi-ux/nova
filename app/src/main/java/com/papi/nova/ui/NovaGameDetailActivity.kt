@@ -8,7 +8,6 @@ import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.ViewModelProvider
 import android.content.Intent
 import android.content.Context
-import android.content.res.Configuration
 import android.os.Bundle
 import android.view.KeyEvent
 import android.text.format.DateUtils
@@ -1414,14 +1413,10 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         /**
-         * This screen's own size, landscape: the Resolution choice that matches it, and the size past
-         * which PyroWave's need grows (#10).
+         * The bitrate verdict against this device's own screen (#10), and that screen, landscape: the
+         * Resolution choice that matches it, and the size past which PyroWave's need grows.
          */
-        val screenSize: Pair<Int, Int> by lazy { novaDeviceScreenPixels(this@NovaGameDetailActivity) }
-        val television by lazy {
-            (getSystemService(UI_MODE_SERVICE) as? android.app.UiModeManager)?.currentModeType ==
-                Configuration.UI_MODE_TYPE_TELEVISION
-        }
+        val bitrateVerdict = NovaDeviceBitrateVerdict(this@NovaGameDetailActivity)
 
         /**
          * The rate a launch will run at: a Frame Rate choice, else Tuning's pin, else the rate the
@@ -1451,14 +1446,7 @@ class NovaGameDetailActivity : NovaActivity() {
             format: PreferenceConfiguration.FormatOption?,
             size: Pair<Int, Int>?,
             preferences: PreferenceConfiguration,
-        ): Int = novaPlaySetupBitrateShortfallMbps(
-            format = format,
-            size = size,
-            preferences = preferences,
-            screen = screenSize,
-            fps = launchFps(preferences),
-            television = television,
-        )
+        ): Int = bitrateVerdict.shortfallMbps(format, size, preferences, fps = launchFps(preferences))
 
         /** What PyroWave asks for past the bitrate setting for this launch's plan, in Mbps, or 0. */
         fun planShortfallMbps(): Int {
@@ -1576,7 +1564,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         // Only a decoder's own answer greys a size; with none, nothing is greyed.
                         val decodes = size?.let { decode.decodes(it.first, it.second) }
                         val matchesScreen = choice.recommended && size != null &&
-                            (maxOf(size.first, size.second) to minOf(size.first, size.second)) == screenSize
+                            (maxOf(size.first, size.second) to minOf(size.first, size.second)) == bitrateVerdict.screen
                         // PyroWave's need grows with the picture: past this device's own size, a size says
                         // what the codec's rate model asks for when the bitrate setting is under it.
                         val need = bitrateShortfallMbps(codec, size, preferences)

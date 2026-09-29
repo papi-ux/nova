@@ -1057,6 +1057,39 @@ internal fun novaDeviceScreenPixels(context: android.content.Context): Pair<Int,
     return maxOf(metrics.widthPixels, metrics.heightPixels) to minOf(metrics.widthPixels, metrics.heightPixels)
 }
 
+/**
+ * The bitrate verdict as a page on this device reads it (#10): [novaPlaySetupBitrateShortfallMbps]
+ * measured against [screen], this device's own screen read from [context], at the viewing distance
+ * of a television when [context] is one. The game page's codec preview, its Resolution page and its
+ * plan all ask this, and none of them passes a screen of its own, so none can measure against the
+ * saved stream size again: that hid 3840x2160 at 120 FPS on a 1920x1080 handheld everywhere.
+ */
+internal class NovaDeviceBitrateVerdict(private val context: android.content.Context) {
+    /** This device's own screen in pixels, landscape. */
+    val screen: Pair<Int, Int> by lazy { novaDeviceScreenPixels(context) }
+
+    /** Whether this device is a television, whose screen is watched from further away. */
+    val television: Boolean by lazy {
+        (context.getSystemService(android.content.Context.UI_MODE_SERVICE) as? android.app.UiModeManager)
+            ?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+    }
+
+    /** What PyroWave in [format] at [size] and [fps] asks for past the bitrate setting, in Mbps, or 0. */
+    fun shortfallMbps(
+        format: com.papi.nova.preferences.PreferenceConfiguration.FormatOption?,
+        size: Pair<Int, Int>?,
+        preferences: com.papi.nova.preferences.PreferenceConfiguration,
+        fps: Int,
+    ): Int = novaPlaySetupBitrateShortfallMbps(
+        format = format,
+        size = size,
+        preferences = preferences,
+        screen = screen,
+        fps = fps,
+        television = television,
+    )
+}
+
 /** Which part of the plan's line an option changes, for the plan card's preview. */
 internal enum class NovaPlaySetupPreviewPart { SIZE, CODEC }
 
