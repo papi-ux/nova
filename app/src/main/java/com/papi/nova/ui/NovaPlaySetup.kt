@@ -843,44 +843,39 @@ internal fun novaPlaySetupInitialOption(bands: List<NovaPlaySetupBand>): String?
 }
 
 /**
- * One key/value fact about why the plan is what it is, on the plan's page.
- *
- * A definition list rather than four stacked blocks: the keys line up, so the eye reads down one
- * edge instead of hunting for where each one starts. Key, value and detail each wrap whole.
+ * One key/value fact about why the plan is what it is, on the plan's page, drawn as a page row: the
+ * key as its title, the value at the end in its tone, and the detail on the line under them. The
+ * value goes under the key when both will not fit, and every part wraps whole. Small spaced
+ * capitals in a fixed column were a second box style, and on a television they broke over lines.
  */
 @Composable
 internal fun NovaPlaySetupFact(fact: NovaPlaySetupFact) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = fact.key.uppercase(),
-            color = colors.textMuted,
-            style = type.sectionLabel,
-            // Wrapping in its own column, because a key that ran past it printed itself over the
-            // value it is labelling.
-            modifier = Modifier.width(NOVA_PLAY_SETUP_FACT_KEY).padding(top = 3.dp, end = NovaPanelMetrics.SpaceSm),
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = fact.value,
-                color = when (fact.tone) {
-                    // The same source LaunchProfilePrimaryNotice reads for a healthy tone. It is not a
-                    // theme token; a good grade is good in every theme.
-                    NovaPlaySetupTone.GOOD -> colorResource(R.color.nova_success)
-                    NovaPlaySetupTone.WARN -> colors.warning
-                    NovaPlaySetupTone.PLAIN -> colors.textSecondary
+    val valueStyle = novaPlaySetupValueStyle()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Layout(
+            contents = listOf(
+                { Text(text = fact.key, style = type.rowTitle, color = colors.textPrimary) },
+                {
+                    Text(
+                        text = fact.value,
+                        color = when (fact.tone) {
+                            // The same source LaunchProfilePrimaryNotice reads for a healthy tone. It is
+                            // not a theme token; a good grade is good in every theme.
+                            NovaPlaySetupTone.GOOD -> colorResource(R.color.nova_success)
+                            NovaPlaySetupTone.WARN -> colors.warning
+                            NovaPlaySetupTone.PLAIN -> colors.textSecondary
+                        },
+                        style = valueStyle,
+                        textAlign = TextAlign.End,
+                    )
                 },
-                style = type.rowTitle,
-            )
-            if (fact.detail.isNotBlank()) {
-                Text(
-                    text = fact.detail,
-                    color = colors.textMuted,
-                    style = type.caption,
-                    modifier = Modifier.padding(top = NovaPanelMetrics.SpaceXs),
-                )
-            }
+            ),
+            measurePolicy = NovaPlaySetupTitleFirst,
+        )
+        if (fact.detail.isNotBlank()) {
+            Text(text = fact.detail, color = colors.textSecondary, style = type.caption)
         }
     }
 }
@@ -1046,7 +1041,6 @@ private val NovaPlaySetupUnderline = 2.dp
 private val NovaPlaySetupWarningSize = 14.dp
 private val NovaPlaySetupPillHeight = 24.dp
 private val NovaPlaySetupPillMark = 14.dp
-private val NOVA_PLAY_SETUP_FACT_KEY = 104.dp
 
 /** The scrolling rows under the plan card. */
 internal const val NOVA_PLAY_SETUP_ROWS_TAG = "nova-play-setup-rows"
