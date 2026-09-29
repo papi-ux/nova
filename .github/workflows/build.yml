@@ -141,42 +141,6 @@ jobs:
           # Long enough to re-run a failed release job without rebuilding the bundle.
           retention-days: 14
 
-  deck-flatpak-pyrowave:
-    name: Linux PyroWave Alpha Flatpak
-    needs: deck
-    # A separate, explicitly experimental bundle; the standard Linux app stays codec-off.
-    # This release asset intentionally has no NOVA_DECK_UPDATE_CHANNEL: codec-on builds
-    # cannot enroll in the stable or beta feeds. Installing it replaces the same app id.
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
-      options: --privileged
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.sha }}
-          submodules: recursive
-
-      - name: Build the experimental PyroWave Flatpak bundle
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          bundle: Nova-Linux-PyroWave-x86_64-alpha.flatpak
-          manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.pyrowave.json
-          # A release is built from its own tree every time; a cache keyed per commit never hits.
-          cache: false
-          upload-artifact: false
-
-      - name: Keep the bundle for the release
-        uses: actions/upload-artifact@v7
-        with:
-          name: nova-linux-pyrowave-flatpak
-          path: Nova-Linux-PyroWave-x86_64-alpha.flatpak
-          if-no-files-found: error
-          # Long enough to re-run a failed release job without rebuilding the bundle.
-          retention-days: 14
-
   android-smoke:
     name: Emulator smoke test
     needs: verify
@@ -226,10 +190,10 @@ jobs:
 
   build:
     name: Assemble release APK
-    needs: [verify, android-smoke, deck-flatpak, deck-flatpak-pyrowave]
-    # A tag needs both Linux bundles. Their jobs are skipped on ordinary pushes by design,
-    # but a tag must stop before signing APKs if either package failed or never built.
-    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || (needs.deck-flatpak.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) && (needs.deck-flatpak-pyrowave.result == 'success' || (needs.deck-flatpak-pyrowave.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) }}
+    needs: [verify, android-smoke, deck-flatpak]
+    # A tag requires the standard Linux bundle, including PyroWave and its lazy probe.
+    # Its job is skipped on ordinary pushes, but tags cannot release without it.
+    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || (needs.deck-flatpak.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -457,20 +421,12 @@ jobs:
           name: nova-linux-flatpak
           path: ${{ env.APK_ASSET_DIR }}
 
-      - name: Add the experimental PyroWave bundle
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/download-artifact@v8
-        with:
-          name: nova-linux-pyrowave-flatpak
-          path: ${{ env.APK_ASSET_DIR }}
-
-      - name: Checksum both Linux Alpha bundles
+      - name: Checksum the Linux Alpha bundle
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
           cd "${APK_ASSET_DIR}"
           sha256sum Nova-Linux-x86_64-alpha.flatpak > Nova-Linux-x86_64-alpha.flatpak.sha256
-          sha256sum Nova-Linux-PyroWave-x86_64-alpha.flatpak > Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
 
       - name: Verify release tag matches built source
         if: startsWith(github.ref, 'refs/tags/v')
@@ -518,8 +474,6 @@ jobs:
             "${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"
             Nova-Linux-x86_64-alpha.flatpak
             Nova-Linux-x86_64-alpha.flatpak.sha256
-            Nova-Linux-PyroWave-x86_64-alpha.flatpak
-            Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
           )
           release_assets=()
           for asset_name in "${expected_asset_names[@]}"; do
@@ -537,7 +491,7 @@ jobs:
             printf '%s\n' "${expected_asset_names[@]}" | sort
           )
           if [ "${local_asset_names[*]}" != "${expected_asset_names[*]}" ]; then
-            echo "Local release assets do not match the exact ten-file contract" >&2
+            echo "Local release assets do not match the exact eight-file contract" >&2
             printf 'expected: %s\n' "${expected_asset_names[*]}" >&2
             printf 'local: %s\n' "${local_asset_names[*]}" >&2
             exit 1
@@ -595,8 +549,6 @@ jobs:
             "${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"
             Nova-Linux-x86_64-alpha.flatpak
             Nova-Linux-x86_64-alpha.flatpak.sha256
-            Nova-Linux-PyroWave-x86_64-alpha.flatpak
-            Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
           )
           release_assets=()
           for asset_name in "${expected_asset_names[@]}"; do
@@ -621,15 +573,13 @@ jobs:
             "${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"
             Nova-Linux-x86_64-alpha.flatpak
             Nova-Linux-x86_64-alpha.flatpak.sha256
-            Nova-Linux-PyroWave-x86_64-alpha.flatpak
-            Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
           )
           mapfile -t published_assets < <(
             gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | sort
           )
           mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
           if [ "${published_assets[*]}" != "${expected_assets[*]}" ]; then
-            echo "Release assets do not match the exact ten-file contract on ${GITHUB_REF_NAME}" >&2
+            echo "Release assets do not match the exact eight-file contract on ${GITHUB_REF_NAME}" >&2
             printf 'expected: %s\n' "${expected_assets[*]}" >&2
             printf 'published: %s\n' "${published_assets[*]}" >&2
             exit 1

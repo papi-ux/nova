@@ -122,7 +122,6 @@ GitHub Actions will create or update the public release and upload:
   - ${asset_prefix}-armeabi-v7a.apk
   - ${asset_prefix}-x86_64.apk
   - Nova-Linux-x86_64-alpha.flatpak
-  - Nova-Linux-PyroWave-x86_64-alpha.flatpak (experimental; replaces the standard Linux app)
   - matching .sha256 files
 
 Release URL:

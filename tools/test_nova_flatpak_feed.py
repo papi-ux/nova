@@ -11,7 +11,8 @@ class FeedTests(unittest.TestCase):
     def test_release_admission(self):
         release = dict(tag_name="v1.4.13-beta.1", published_at="2026-01-01", draft=False, prerelease=True)
         feed.validate_release(release, "beta")
-        feed.validate_release(release, "pyrowave")
+        with self.assertRaises(ValueError):
+            feed.validate_release(release, "pyrowave")
         for channel, changes in [("stable", {}), ("beta", {"draft": True}),
                                  ("beta", {"published_at": None}), ("beta", {"prerelease": False}),
                                  ("beta", {"tag_name": "master"}), ("other", {})]:
@@ -19,17 +20,21 @@ class FeedTests(unittest.TestCase):
                 feed.validate_release(release | changes, channel)
         feed.validate_release(release | dict(prerelease=False, tag_name="v1.4.13"), "stable")
 
-    def test_real_manifests_keep_codec_channels_separate(self):
+    def test_standard_manifest_includes_pyrowave_in_both_channels(self):
         root = Path(__file__).resolve().parents[1] / "clients/deck/packaging/flatpak"
         for channel in feed.CHANNELS:
-            name = "com.papi_ux.Nova.pyrowave.json" if channel == "pyrowave" else "com.papi_ux.Nova.json"
+            name = "com.papi_ux.Nova.json"
             source = json.loads((root / name).read_text())
             result = feed.prepare(source, channel, "https://example.org/nova/")
             self.assertEqual(result["branch"], channel)
             self.assertNotIn("branch", source)
             self.assertEqual(result["finish-args"], source["finish-args"])
+            without_codec = json.loads(json.dumps(source))
+            without_codec["modules"].remove("modules/pyrowave.json")
             with self.assertRaises(ValueError):
-                feed.prepare(source, "beta" if channel == "pyrowave" else "pyrowave", "https://example.org/nova")
+                feed.prepare(without_codec, channel, "https://example.org/nova")
+            with self.assertRaises(ValueError):
+                feed.prepare(source, "pyrowave", "https://example.org/nova")
 
     def test_url_and_signing_metadata(self):
         for bad in ["http://example.org", "https://user:secret@example.org", "https://example.org/#x", "https://example.org/?x"]:

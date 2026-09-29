@@ -17,11 +17,9 @@ add it to Moonlight.
 
 Nova Linux supports Linux desktops, laptops and handhelds, including Steam Deck.
 
-1. Choose a release whose assets include
-   **`Nova-Linux-PyroWave-x86_64-alpha.flatpak`** and its checksum. The ordinary
-   `Nova-Linux-x86_64-alpha.flatpak` does not contain PyroWave, including the bundle
-   attached to v1.4.13-beta.3. If the separate asset is absent, that release does
-   not provide a PyroWave Linux bundle. Follow the
+1. For 1.4.14 and later, install the standard **`Nova-Linux-x86_64-alpha.flatpak`**
+   and verify its checksum. It includes PyroWave; no separate codec bundle is needed.
+   Version 1.4.13 used a separate PyroWave bundle. See the
    [installation steps below](#packaging-and-compatibility).
 2. Open Nova, pair your Polaris PC if needed, and open a game's **Play Setup**.
    Use the normal **Desktop** destination; PyroWave is unavailable in Spaces.
@@ -63,51 +61,35 @@ failure. Use a later beta whose notes confirm the alignment fix.
 
 ## Packaging and compatibility
 
-The regular and experimental Flatpak manifests use the same application ID,
-`com.papi_ux.Nova`. Installing the experimental bundle updates that application;
-it is not a second, independent installation. Keep a copy of the previous bundle
-before testing an upgrade. Android's separate beta application ID does not apply
-to the Linux Flatpak.
+Starting with 1.4.14, the standard Flatpak includes the pinned PyroWave decoder
+and a separate device-check helper. The app ID stays `com.papi_ux.Nova`, so an
+upgrade from either older bundle retains pairing and preferences.
 
-Releases built with the separate-asset workflow attach
-`Nova-Linux-PyroWave-x86_64-alpha.flatpak` and its `.sha256` sidecar beside the
-standard `Nova-Linux-x86_64-alpha.flatpak`. Check the selected release's asset list:
-older releases, including v1.4.13-beta.3, only attached the standard bundle.
-A beta tag alone does not enable the codec.
-
-Download the experimental bundle and its checksum from the same release, then
-run these commands in that download directory with Nova closed:
-
-```sh
-sha256sum -c Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256
-flatpak install --user ./Nova-Linux-PyroWave-x86_64-alpha.flatpak
-flatpak run com.papi_ux.Nova --standalone
-```
-
-This replaces the standard app while retaining its pairing and preferences.
-It is an explicit experimental bundle, with no automatic stable or beta update
-feed. Select **PyroWave · Experimental** in Play Setup and use the normal
-**Desktop** destination with a compatible Polaris host.
-
-To return, close Nova, download the standard bundle and checksum from the same
-release, verify and reinstall it:
+Download the standard bundle and checksum from the same release, then run these
+commands in that download directory with Nova closed:
 
 ```sh
 sha256sum -c Nova-Linux-x86_64-alpha.flatpak.sha256
 flatpak install --user ./Nova-Linux-x86_64-alpha.flatpak
+flatpak run com.papi_ux.Nova --standalone
 ```
 
-Keep app data; do not uninstall with `--delete-data`. Check release notes before
-installing an older version. These packages share an app ID, so they cannot be
-installed side by side like the Android beta app.
+Nova checks this device the first time you choose PyroWave. H.264, HEVC and Auto
+do not run that check. Play waits for it, and the result lasts until Nova restarts.
+Passing the check does not prove that a stream plays; check picture, audio and
+input after starting one.
+
+Version 1.4.13 attached a separate PyroWave bundle. It is retired. If you installed
+it, install the standard bundle over it with the commands above; your pairing and
+settings stay. Keep app data; do not uninstall with `--delete-data`.
 
 ## Limits and troubleshooting
 
 - **Missing or disabled choice:** check the package first. The standard Linux
-  Flatpak and stable Android app do not provide this experimental path. On
+  Flatpak before 1.4.14 and the stable Android app do not provide this experimental path. On
   Linux, Play Setup also explains incompatible host support, unavailable Vulkan
-  decoding or an unsupported stream size. Choose an enabled build, compatible
-  host/device and supported size; selecting Auto does not enable PyroWave.
+  decoding or an unsupported stream size. Use Nova Linux 1.4.14 or later, a
+  compatible host/device and a supported size; selecting Auto does not enable PyroWave.
 - **A session starts but receives no video:** inspect the host's capture log.
   PyroWave cannot read FP16 DMA-BUF capture, including `ABGR16161616F` (`AB4H`)
   produced by some KDE HDR configurations. The host may refuse it after the
@@ -165,9 +147,10 @@ equal sharpness at equal bitrate across codecs.
 ## Building the Linux client
 
 Build with `-DNOVA_DECK_BUILD_PYROWAVE=ON` and the pinned `pyrowave-shared` 0.6.0
-development package. The experimental Flatpak manifest is
-`packaging/flatpak/com.papi_ux.Nova.pyrowave.json`; the regular manifest keeps the
-feature disabled. The separate release bundle has no update channel configured.
+development package. The standard manifest,
+`packaging/flatpak/com.papi_ux.Nova.json`, enables it and installs the isolated
+`nova-deck-pyrowave-probe` helper beside the app. Codec-disabled developer builds
+remain supported.
 
 ## Linux SDR transport contract
 
