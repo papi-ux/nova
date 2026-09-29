@@ -111,12 +111,10 @@ private fun PageColumn(content: @Composable () -> Unit) {
 @Composable
 private fun <T> NovaPageScope.ChoicePage(page: NovaCommonPage.Choice<T>, exit: NovaPageExit) {
     val currentIndex = page.options.indexOfFirst { it.value == page.current }
-    var scrolled by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        // Opens on the current option, even one far down the list, with a row of context above it.
-        if (!scrolled && currentIndex > 1) listState.scrollToItem(currentIndex - 1)
-        scrolled = true
-    }
+    // Opens on the current option, even one far down the list that has not composed yet: the host
+    // scrolls there first, with a row of context above it. A current value that is no longer an
+    // option opens on the first row.
+    if (currentIndex >= 0) novaInitialFocusAt(currentIndex, currentIndex)
     PageList {
         itemsIndexed(page.options, key = { index, _ -> index }) { index, option ->
             val initial = index == currentIndex || (currentIndex < 0 && index == 0)

@@ -20,6 +20,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.requestFocus
@@ -49,6 +50,7 @@ class NovaPageStackHostComposeTest {
     private val split = NovaSplitConfirmState()
     private var name by mutableStateOf("")
     private var watcherSawLeave = false
+    private var picked: Int? = null
 
     private fun setUp(): NovaTestKeys = rule.setPanelContent {
         Box(Modifier.fillMaxSize()) {
@@ -70,6 +72,31 @@ class NovaPageStackHostComposeTest {
                                     .then(if (i == 2) Modifier.novaInitialFocus() else Modifier)
                                     .novaRestorableFocus(i, i),
                             )
+                        }
+                    }
+                    // Names row 60 as where it starts, far past the viewport and never composed
+                    // before the page scrolls there. No row carries novaInitialFocus.
+                    "long" -> {
+                        novaInitialFocusAt(60, 60)
+                        LazyColumn(state = listState) {
+                            items(80) { i ->
+                                NovaRow(title = "Long $i", onClick = { picked = i }, modifier = Modifier.novaRestorableFocus(i, i))
+                            }
+                        }
+                    }
+                    // Names a start no row answers to, as when that value has gone.
+                    "gone" -> {
+                        novaInitialFocusAt("removed", 60)
+                        LazyColumn(state = listState) {
+                            items(80) { i ->
+                                NovaRow(
+                                    title = "Gone $i",
+                                    onClick = {},
+                                    modifier = Modifier
+                                        .then(if (i == 3) Modifier.novaInitialFocus() else Modifier)
+                                        .novaRestorableFocus(i, i),
+                                )
+                            }
                         }
                     }
                     "detail" -> Column {
@@ -108,6 +135,25 @@ class NovaPageStackHostComposeTest {
         state.open(TestPage("rows"))
         setUp()
         rule.onNodeWithText("Row 2").assertIsFocused()
+    }
+
+    @Test
+    fun firstOpenScrollsToTheNamedStartBeforeItsRowExistsThenFocusesItAndAAppliesIt() {
+        state.open(TestPage("long"))
+        val keys = setUp()
+
+        rule.onNodeWithText("Long 60").assertIsDisplayed().assertIsFocused()
+        rule.onNodeWithText("Long 59").assertIsDisplayed()
+
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals("A applies the option focus opened on", 60, picked)
+    }
+
+    @Test
+    fun aNamedStartNoRowAnswersFallsBackToTheMarkedRowAtTheTop() {
+        state.open(TestPage("gone"))
+        setUp()
+        rule.onNodeWithText("Gone 3").assertIsDisplayed().assertIsFocused()
     }
 
     @Test

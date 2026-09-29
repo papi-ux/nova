@@ -43,6 +43,13 @@ internal class NovaStackEntry(val id: Long, val page: NovaPage) {
     /** Whether the page's own buttons or B answered it, so leaving it runs no Stay or Close of its own. */
     var answered: Boolean = false
 
+    /**
+     * Where focus starts when the page first opens, named while it composes and before its row
+     * does ([NovaPageScope.novaInitialFocusAt]): the element's restorable key and its list index.
+     */
+    var startKey: Any? = null
+    var startIndex: Int = -1
+
     fun requesterFor(key: Any): FocusRequester = requesters.getOrPut(key) { FocusRequester() }
 
     fun rememberFocus(key: Any, index: Int) {

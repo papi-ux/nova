@@ -110,6 +110,19 @@ interface NovaPageScope {
     /** Marks the element that takes focus when the page opens: its current value, safe action or first row. */
     fun Modifier.novaInitialFocus(): Modifier
 
+    /**
+     * Names where focus starts when this page first opens, before any row is composed: the element
+     * marked [novaRestorableFocus] with [key], at [index] in [listState], or -1 when it is not in
+     * that list. A long lazy list does not compose its current row until it scrolls there, so the
+     * row's own [novaInitialFocus] cannot answer in time; this can. The host scrolls [index] into
+     * view with a row of context above it, waits for the row, then focuses it. If it takes no
+     * focus, as when that value has gone, the list goes back to its top and the element marked
+     * [novaInitialFocus] takes focus, and failing that the page's first focusable. A row that is
+     * disabled still takes it, to show why. Call it while composing the page; returning to the
+     * page restores what last held focus instead.
+     */
+    fun novaInitialFocusAt(key: Any, index: Int = -1)
+
     /** Records this element, at list [index], as where focus returns when a page above it pops. */
     fun Modifier.novaRestorableFocus(key: Any, index: Int = -1): Modifier
 
@@ -160,9 +173,10 @@ internal val LocalNovaFocusRefresh = compositionLocalOf { 0 }
  * and are read in the bubble phase, so a focused control sees them first. With [containFocus],
  * focus cannot leave the host.
  *
- * Focus: a page opens on the element marked [NovaPageScope.novaInitialFocus], or its first
- * focusable; returning to a page restores the element marked [NovaPageScope.novaRestorableFocus]
- * that last held focus, scrolling to it first.
+ * Focus: a page opens on the element it names with [NovaPageScope.novaInitialFocusAt], scrolled
+ * to before its row composes, or else on the element marked [NovaPageScope.novaInitialFocus], or
+ * else its first focusable; returning to a page restores the element marked
+ * [NovaPageScope.novaRestorableFocus] that last held focus, scrolling to it first.
  *
  * The hint bar reads [leadingHints], then A with [selectHint]'s label or Select, B Back, then
  * [hints]: a row that changes in place leads with its own keys and says what A does there.
@@ -518,6 +532,11 @@ private class NovaPageScopeImpl(
 
     override fun Modifier.novaInitialFocus(): Modifier = focusRequester(entry.initialRequester)
 
+    override fun novaInitialFocusAt(key: Any, index: Int) {
+        entry.startKey = key
+        entry.startIndex = index
+    }
+
     override fun Modifier.novaRestorableFocus(key: Any, index: Int): Modifier =
         focusRequester(entry.requesterFor(key))
             .onFocusChanged { if (it.hasFocus) entry.rememberFocus(key, index) }
@@ -537,8 +556,8 @@ private class NovaPageScopeImpl(
 
     /**
      * Returning to a page restores the element that last held focus, scrolling to it first and
-     * retrying once. A new page, or a failed restore, focuses the marked element, and failing
-     * that enters the page's first focusable.
+     * retrying once. A new page, or a failed restore, focuses the element the page named, then the
+     * marked element, and failing that enters the page's first focusable.
      */
     suspend fun settleFocus() {
         withFrameNanos { }
@@ -553,9 +572,35 @@ private class NovaPageScopeImpl(
 
     private suspend fun restoreFocus(): Boolean {
         val key = entry.focusKey ?: return false
-        val index = entry.focusIndex
-        if (index >= 0 && entry.listState.layoutInfo.visibleItemsInfo.none { it.index == index }) {
-            entry.listState.scrollToItem(index)
+        return focusListItem(key, entry.focusIndex, rowAbove = false)
+    }
+
+    private suspend fun initialFocus() {
+        entry.startKey?.let { key ->
+            if (focusListItem(key, entry.startIndex, rowAbove = true)) return
+            // Gone, or unable to hold focus: the fallbacks start from the top of the list.
+            if (entry.startIndex > 0 && listLaidOut()) {
+                entry.listState.scrollToItem(0)
+                withFrameNanos { }
+            }
+        }
+        // The marked element may sit in a list the page scrolls to on its first frame.
+        repeat(2) {
+            if (entry.initialRequester.requestFocus()) return
+            withFrameNanos { }
+        }
+        entry.groupRequester.requestFocus(FocusDirection.Enter)
+    }
+
+    /**
+     * Brings list [index] into view when none of it shows, with the row above it for context when
+     * [rowAbove], waits a frame for its row to compose, then focuses [key]'s element, asking again
+     * a frame later. A page that never laid out its list is not scrolled: a scroll would wait for
+     * a first layout that never comes.
+     */
+    private suspend fun focusListItem(key: Any, index: Int, rowAbove: Boolean): Boolean {
+        if (index >= 0 && listLaidOut() && entry.listState.layoutInfo.visibleItemsInfo.none { it.index == index }) {
+            entry.listState.scrollToItem(if (rowAbove) (index - 1).coerceAtLeast(0) else index)
             withFrameNanos { }
         }
         val requester = entry.requesterFor(key)
@@ -564,14 +609,7 @@ private class NovaPageScopeImpl(
         return requester.requestFocus()
     }
 
-    private suspend fun initialFocus() {
-        // The marked element may sit in a list the page scrolls to on its first frame.
-        repeat(2) {
-            if (entry.initialRequester.requestFocus()) return
-            withFrameNanos { }
-        }
-        entry.groupRequester.requestFocus(FocusDirection.Enter)
-    }
+    private fun listLaidOut(): Boolean = entry.listState.layoutInfo.totalItemsCount > 0
 
     private companion object {
         const val TAG = "NovaPanel"

@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.state.ToggleableState
@@ -61,6 +62,66 @@ class NovaCommonPagesComposeTest {
 
         assertEquals(26, chosen)
         assertEquals(1, state.depth)
+    }
+
+    @Test
+    fun choiceFirstOpensOnACurrentOptionFarPastTheViewportAndAAppliesIt() {
+        var chosen: Int? = null
+        state.open(TestPage("root"))
+        state.push(
+            NovaCommonPage.Choice(
+                key = "resolution",
+                title = "Resolution",
+                options = (0 until 60).map { NovaOption(it, "Option $it") },
+                current = 52,
+                onChoose = { chosen = it },
+            ),
+        )
+        val keys = host()
+
+        rule.onNodeWithText("Option 52").assertIsDisplayed().assertIsFocused()
+        rule.onNodeWithText("Option 51").assertIsDisplayed()
+
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals("A applies the current option it opened on", 52, chosen)
+        assertEquals(1, state.depth)
+    }
+
+    @Test
+    fun aDisabledCurrentOptionFarDownStillTakesFocusToShowWhy() {
+        var chosen: Int? = null
+        state.open(TestPage("root"))
+        state.push(
+            NovaCommonPage.Choice(
+                key = "resolution",
+                title = "Resolution",
+                options = (0 until 60).map { NovaOption(it, "Option $it", disabledReason = if (it == 45) "Too big for this device" else null) },
+                current = 45,
+                onChoose = { chosen = it },
+            ),
+        )
+        val keys = host()
+
+        rule.onNodeWithText("Option 45", substring = true).assertIsDisplayed().assertIsFocused()
+        rule.onNodeWithText("Too big for this device", substring = true).assertIsDisplayed()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals("a disabled option swallows A", null, chosen)
+    }
+
+    @Test
+    fun aCurrentValueThatIsNoLongerAnOptionOpensOnTheFirstRow() {
+        state.open(TestPage("root"))
+        state.push(
+            NovaCommonPage.Choice(
+                key = "resolution",
+                title = "Resolution",
+                options = (0 until 60).map { NovaOption(it, "Option $it") },
+                current = 99,
+                onChoose = {},
+            ),
+        )
+        host()
+        rule.onNodeWithText("Option 0").assertIsDisplayed().assertIsFocused()
     }
 
     @Test
