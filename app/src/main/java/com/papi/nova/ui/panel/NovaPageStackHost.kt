@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -67,7 +69,9 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.BuildConfig
@@ -159,6 +163,10 @@ internal val LocalNovaFocusRefresh = compositionLocalOf { 0 }
  * Focus: a page opens on the element marked [NovaPageScope.novaInitialFocus], or its first
  * focusable; returning to a page restores the element marked [NovaPageScope.novaRestorableFocus]
  * that last held focus, scrolling to it first.
+ *
+ * The hint bar reads [leadingHints], then A with [selectHint]'s label or Select, B Back, then
+ * [hints]: a row that changes in place leads with its own keys and says what A does there.
+ * [headerEnd] is drawn at the end of every page's header line, such as Play Setup's scope pill.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -169,6 +177,9 @@ fun NovaPageStackHost(
     onShoulder: ((NovaShoulder) -> Unit)? = null,
     onCloseRequest: () -> Unit = state::close,
     hints: List<NovaControllerHint> = emptyList(),
+    leadingHints: List<NovaControllerHint> = emptyList(),
+    selectHint: NovaControllerHint? = null,
+    headerEnd: (@Composable () -> Unit)? = null,
     content: NovaPageContent,
 ) {
     val closeRequest by rememberUpdatedState(onCloseRequest)
@@ -190,8 +201,8 @@ fun NovaPageStackHost(
     val back = stringResource(R.string.nova_panel_back)
     val keyA = stringResource(R.string.nova_panel_key_a)
     val keyB = stringResource(R.string.nova_panel_key_b)
-    val allHints = remember(hints, select, back, keyA, keyB) {
-        listOf(NovaControllerHint(keyA, select), NovaControllerHint(keyB, back)) + hints
+    val allHints = remember(hints, leadingHints, selectHint, select, back, keyA, keyB) {
+        leadingHints + listOf(selectHint ?: NovaControllerHint(keyA, select), NovaControllerHint(keyB, back)) + hints
     }
     val formFactor = LocalNovaFormFactor.current
     val panelDensity = LocalNovaPanelDensity.current
@@ -266,6 +277,7 @@ fun NovaPageStackHost(
                             title = shown.page.title,
                             parentTitle = state.entryBelow(shown)?.page?.title,
                             onBack = { scope.exit.back() },
+                            end = headerEnd,
                             modifier = Modifier
                                 .padding(horizontal = padding)
                                 .padding(top = NovaPanelMetrics.headerTopPadding(formFactor, panelDensity)),
@@ -407,7 +419,13 @@ private fun pageTransition(push: Boolean, fromLeft: Boolean, offsetPx: Int): Con
  * page below is still named to accessibility, as the tap's label.
  */
 @Composable
-private fun NovaPageHeader(title: String, parentTitle: String?, onBack: () -> Unit, modifier: Modifier = Modifier) {
+private fun NovaPageHeader(
+    title: String,
+    parentTitle: String?,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    end: (@Composable () -> Unit)? = null,
+) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
     val backLabel = parentTitle?.let { stringResource(R.string.nova_panel_back_to, it) }
@@ -424,35 +442,57 @@ private fun NovaPageHeader(title: String, parentTitle: String?, onBack: () -> Un
             }
         }
     if (oneLine) {
-        Box(
-            contentAlignment = Alignment.CenterStart,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = modifier.fillMaxWidth().heightIn(min = NovaPanelMetrics.HeaderHeightCompact),
         ) {
-            if (parentTitle == null) {
-                Text(text = title, style = type.panelTitle, color = colors.textPrimary)
-            } else {
-                Box(
-                    contentAlignment = Alignment.CenterStart,
-                    modifier = Modifier.heightIn(min = NovaPanelMetrics.HeaderHeightCompact).then(backTarget),
-                ) {
-                    Text(text = "$BackGlyph $title", style = type.pageTitle, color = colors.textPrimary)
+            Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.weight(1f)) {
+                if (parentTitle == null) {
+                    Text(text = title, style = type.panelTitle, color = colors.textPrimary)
+                } else {
+                    // The ‹ stands in the 12dp gutter, so the title starts on the text line of the
+                    // rows under it, as the mockup draws it.
+                    val measurer = rememberTextMeasurer()
+                    val density = LocalDensity.current
+                    val lead = remember(type.pageTitle, density) {
+                        with(density) { measurer.measure("$BackGlyph ", type.pageTitle).size.width.toDp() }
+                    }
+                    Box(
+                        contentAlignment = Alignment.CenterStart,
+                        modifier = Modifier
+                            .padding(start = (NovaPanelMetrics.SpaceMd - lead).coerceAtLeast(0.dp))
+                            .heightIn(min = NovaPanelMetrics.HeaderHeightCompact)
+                            .then(backTarget),
+                    ) {
+                        Text(text = "$BackGlyph $title", style = type.pageTitle, color = colors.textPrimary)
+                    }
                 }
+            }
+            end?.let {
+                Spacer(Modifier.width(NovaPanelMetrics.SpaceSm))
+                it()
             }
         }
         return
     }
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
-        if (parentTitle == null) {
-            Text(text = title, style = type.panelTitle, color = colors.textPrimary)
-            return@Column
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
+            if (parentTitle == null) {
+                Text(text = title, style = type.panelTitle, color = colors.textPrimary)
+                return@Column
+            }
+            Text(text = parentTitle, style = type.caption, color = colors.textSecondary)
+            // A full touch target for the touch B.
+            Box(
+                contentAlignment = Alignment.CenterStart,
+                modifier = Modifier.heightIn(min = NovaPanelMetrics.ArrowTarget).then(backTarget),
+            ) {
+                Text(text = "$BackGlyph $title", style = type.pageTitle, color = colors.textPrimary)
+            }
         }
-        Text(text = parentTitle, style = type.caption, color = colors.textSecondary)
-        // A full touch target for the touch B.
-        Box(
-            contentAlignment = Alignment.CenterStart,
-            modifier = Modifier.heightIn(min = NovaPanelMetrics.ArrowTarget).then(backTarget),
-        ) {
-            Text(text = "$BackGlyph $title", style = type.pageTitle, color = colors.textPrimary)
+        end?.let {
+            Spacer(Modifier.width(NovaPanelMetrics.SpaceSm))
+            it()
         }
     }
 }
