@@ -23,13 +23,16 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.currentValueOf
+import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -46,8 +49,9 @@ import kotlinx.coroutines.launch
  * already has, so the focused row always keeps a row of context between it and the fade.
  *
  * Inside [NovaRowContextScrolling] the list also comes to rest on whole rows: once a scroll
- * settles, a row the top edge cuts with more of it showing than the fade can hide is either shown
- * whole or scrolled away, so no sliced line of text is left under the edge.
+ * settles, a row the top edge cuts with more of it showing than a faint sliver is either shown
+ * whole or scrolled away, so no sliced line of text is left under the edge. Where the list cannot
+ * move that far, at its end, the cut remnant is cleared from the edge instead.
  */
 fun Modifier.novaScrollEdgeFade(state: ScrollableState, band: Dp = NovaPanelMetrics.EdgeFade): Modifier =
     novaEdgeFade(top = { state.canScrollBackward }, bottom = { state.canScrollForward }, band = band) then
@@ -91,10 +95,10 @@ fun Modifier.novaEdgeFade(top: () -> Boolean, bottom: () -> Boolean, band: Dp): 
  * never cut at the list's edge and the edge fade never covers the focused row. For a list outside
  * a page stack, such as the Settings rail.
  *
- * The context is sized by what is really there rather than by the least row: the larger of a least
- * row at this font scale and the focused row itself, since the rows beside it are usually its size,
- * plus a section label, which may head the next row. It also tracks the rows it holds, so a list in
- * it comes to rest on whole rows ([novaScrollEdgeFade]).
+ * The context is sized by what is really there: the row before or after the focused one, with any
+ * section label between, as the rows it tracks were last placed. A row not yet composed is taken as
+ * the larger of a least row at this font scale and the focused row itself, plus a section label.
+ * The tracked rows also let a list in it come to rest on whole rows ([novaScrollEdgeFade]).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -108,8 +112,8 @@ fun NovaRowContextScrolling(content: @Composable () -> Unit) {
     val labelPx = with(density) {
         type.sectionLabel.fontSize.toPx() * NovaLabelLineFactor + (NovaPanelMetrics.SpaceSm + NovaPanelMetrics.SpaceXs).toPx()
     }
-    val spec = remember(contextPx, labelPx, gapPx) { NovaContextBringIntoViewSpec(contextPx, labelPx, gapPx) }
     val tracker = remember { NovaRowTracker() }
+    val spec = remember(contextPx, labelPx, gapPx, tracker) { NovaContextBringIntoViewSpec(contextPx, labelPx, gapPx, tracker) }
     CompositionLocalProvider(
         LocalBringIntoViewSpec provides spec,
         LocalNovaRowTracker provides tracker,
@@ -121,21 +125,24 @@ fun NovaRowContextScrolling(content: @Composable () -> Unit) {
 private const val NovaLabelLineFactor = 1.5f
 
 /**
- * Scrolls a focused row into view together with a row of context on the side it scrolls toward:
- * [contextPx] or the focused row's own height and [gapPx], whichever is more, and [labelPx] for a
- * label that may stand between, never more than half the room the row leaves.
+ * Scrolls a focused row into view together with a row of context on the side it scrolls toward: the
+ * row before or after it as [tracker] last saw them placed, with any label between. Where that row
+ * is not known, [contextPx] or the focused row's own height and [gapPx], whichever is more, and
+ * [labelPx] for a label that may stand between. Never more than half the room the row leaves.
  */
 @OptIn(ExperimentalFoundationApi::class)
 internal class NovaContextBringIntoViewSpec(
     private val contextPx: Float,
     private val labelPx: Float = 0f,
     private val gapPx: Float = 0f,
+    private val tracker: NovaRowTracker? = null,
 ) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val wanted = maxOf(contextPx, size + gapPx) + labelPx
-        val margin = minOf(wanted, ((containerSize - size) / 2f).coerceAtLeast(0f))
-        val leading = offset - margin
-        val trailing = offset + size + margin
+        val guess = maxOf(contextPx, size + gapPx) + labelPx
+        val around = tracker?.contextAround(size)
+        val cap = ((containerSize - size) / 2f).coerceAtLeast(0f)
+        val leading = offset - minOf(around?.before ?: guess, cap)
+        val trailing = offset + size + minOf(around?.after ?: guess, cap)
         return when {
             leading >= 0f && trailing <= containerSize -> 0f
             leading < 0f -> leading
@@ -150,18 +157,45 @@ internal class NovaContextBringIntoViewSpec(
  * itself ([novaFocusRing]), as does a section label, so a list can tell what its top edge cuts.
  */
 internal class NovaRowTracker {
-    class Entry(var bounds: Rect, var focused: Boolean)
+    class Entry(var bounds: Rect, var focused: Boolean, val label: Boolean)
+
+    /** How far the row before the focused one reaches above it, and the row after it below. */
+    class Context(val before: Float?, val after: Float?)
 
     val rows = HashMap<Any, Entry>()
+
+    /**
+     * The context around the focused row, [size] tall: from the top of the row before it, and to
+     * the bottom of the row after it, labels between included. Null where no focused row that tall
+     * is tracked, and either side null where no row is placed there yet.
+     */
+    fun contextAround(size: Float): Context? {
+        val focused = rows.values
+            .filter { it.focused && !it.label && kotlin.math.abs(it.bounds.height - size) <= 2f }
+            .minByOrNull { it.bounds.width * it.bounds.height }
+            ?.bounds ?: return null
+        val beside = rows.values.filter { it.bounds.left < focused.right && it.bounds.right > focused.left }
+        val rowsOnly = beside.filter { !it.label }.map { it.bounds }
+        val above = rowsOnly.filter { it.bottom <= focused.top + 1f }.maxByOrNull { it.bottom }
+        val below = rowsOnly.filter { it.top >= focused.bottom - 1f }.minByOrNull { it.top }
+        return Context(
+            before = above?.let { focused.top - it.top },
+            after = below?.let { it.bottom - focused.bottom },
+        )
+    }
 }
 
 internal val LocalNovaRowTracker = staticCompositionLocalOf<NovaRowTracker?> { null }
 
-/** Registers this element with the [NovaRowTracker] around it, if there is one, as a row of its list. */
-internal fun Modifier.novaTrackedRow(): Modifier = this then NovaTrackedRowElement
+/**
+ * Registers this element with the [NovaRowTracker] around it, if there is one, as a row of its list,
+ * or with [label] as a section label, which belongs to the row after it.
+ */
+internal fun Modifier.novaTrackedRow(label: Boolean = false): Modifier =
+    this then if (label) NovaTrackedLabelElement else NovaTrackedRowElement
 
 private data object NovaTrackedRowElement : ModifierNodeElement<NovaTrackedRowNode>() {
-    override fun create() = NovaTrackedRowNode()
+    override fun create() = NovaTrackedRowNode(label = false)
 
     override fun update(node: NovaTrackedRowNode) = Unit
 
@@ -170,7 +204,17 @@ private data object NovaTrackedRowElement : ModifierNodeElement<NovaTrackedRowNo
     }
 }
 
-private class NovaTrackedRowNode :
+private data object NovaTrackedLabelElement : ModifierNodeElement<NovaTrackedRowNode>() {
+    override fun create() = NovaTrackedRowNode(label = true)
+
+    override fun update(node: NovaTrackedRowNode) = Unit
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "novaTrackedLabel"
+    }
+}
+
+private class NovaTrackedRowNode(private val label: Boolean) :
     Modifier.Node(), GlobalPositionAwareModifierNode, FocusEventModifierNode, CompositionLocalConsumerModifierNode {
     private var tracker: NovaRowTracker? = null
     private var focused = false
@@ -179,7 +223,7 @@ private class NovaTrackedRowNode :
         val tracker = tracker ?: currentValueOf(LocalNovaRowTracker)?.also { tracker = it } ?: return
         val bounds = coordinates.uncutBoundsInWindow()
         val entry = tracker.rows[this]
-        if (entry == null) tracker.rows[this] = NovaRowTracker.Entry(bounds, focused) else entry.bounds = bounds
+        if (entry == null) tracker.rows[this] = NovaRowTracker.Entry(bounds, focused, label) else entry.bounds = bounds
     }
 
     override fun onFocusEvent(focusState: FocusState) {
@@ -213,15 +257,37 @@ private data class NovaScrollRestElement(val state: ScrollableState, val band: D
     }
 }
 
-private class NovaScrollRestNode(private var state: ScrollableState, private var band: Dp) :
-    Modifier.Node(), GlobalPositionAwareModifierNode, CompositionLocalConsumerModifierNode {
+private class NovaScrollRestNode(
+    private var state: ScrollableState,
+    private var band: Dp,
+) : Modifier.Node(), GlobalPositionAwareModifierNode, CompositionLocalConsumerModifierNode, DrawModifierNode {
     private var viewport: Rect? = null
+
+    /** What is left at the top edge of a cut row the list could not scroll past, cleared there. */
+    private var remnant = 0f
+        set(value) {
+            if (field == value) return
+            field = value
+            if (isAttached) invalidateDraw()
+        }
 
     fun update(state: ScrollableState, band: Dp) {
         val changed = state !== this.state
         this.state = state
         this.band = band
         if (changed && isAttached) watch()
+    }
+
+    // Inside the edge fade's layer, before its gradients: the remnant is cleared, then faded below.
+    override fun ContentDrawScope.draw() {
+        drawContent()
+        if (remnant > 0f && state.canScrollBackward) {
+            drawRect(
+                color = Color.Transparent,
+                size = Size(size.width, remnant.coerceAtMost(size.height / 2f)),
+                blendMode = BlendMode.Clear,
+            )
+        }
     }
 
     override fun onAttach() {
@@ -242,6 +308,8 @@ private class NovaScrollRestNode(private var state: ScrollableState, private var
             snapshotFlow { watched.isScrollInProgress }.collect { inProgress ->
                 if (inProgress) {
                     moved = true
+                    // Moving, the edge fades as it always does; what it cuts is judged at rest.
+                    remnant = 0f
                 } else if (moved) {
                     moved = false
                     // The rows report where they landed on the frame after the scroll.
@@ -273,19 +341,30 @@ private class NovaScrollRestNode(private var state: ScrollableState, private var
             }
         }
         if (cut.isEmpty()) return
-        val focus = tracker.rows.values.firstOrNull { it.focused && across(it.bounds) }?.bounds
+        // The innermost element holding focus: a card around the focused row holds it too.
+        val focus = tracker.rows.values
+            .filter { it.focused && !it.label && across(it.bounds) }
+            .minByOrNull { it.bounds.width * it.bounds.height }
+            ?.bounds
         // Never move past the focused row, and leave a cut that holds it alone.
         if (focus != null && cut.any { it.top <= focus.top + Slack && it.bottom >= focus.bottom - Slack }) return
         val showing = cut.maxOf { it.bottom } - top
-        if (showing <= fade + Slack) return
+        // A sliver in the faintest part of the fade reads as the fade; more than that reads as a
+        // sliced line of text.
+        if (showing <= fade * FaintShare + Slack) return
         val reveal = top - cut.minOf { it.top }
         val revealFits = focus == null || focus.bottom + reveal <= view.bottom - Slack
         val delta = if (watched.lastScrolledBackward && revealFits) -reveal else showing
-        watched.animateScrollBy(delta)
+        val moved = watched.animateScrollBy(delta)
+        // At the list's end it cannot scroll the rest of the way: clear what is left of the row.
+        if (delta > 0f && moved < delta - Slack) remnant = delta - moved
     }
 
     private companion object {
         /** A pixel of rounding either way is not a cut. */
         const val Slack = 1f
+
+        /** The share of the edge fade a cut row may show at rest: its faintest quarter. */
+        const val FaintShare = 0.25f
     }
 }
