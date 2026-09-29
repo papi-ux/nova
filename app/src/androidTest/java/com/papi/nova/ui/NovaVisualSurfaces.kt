@@ -221,6 +221,7 @@ private fun NovaVisualStage.commandCenter(
         when (page) {
             is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = NovaQuickMenuCallbacks())
             is CommandCenterPage.Listing -> CommandCenterListingPage(page)
+            is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
             else -> Unit
         }
     }

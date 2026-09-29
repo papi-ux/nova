@@ -91,10 +91,15 @@ internal object NovaVisualFixtures {
             modeNames = context.resources.getStringArray(R.array.mouse_mode_names).toList(),
             onExternalDisplay = false,
             externalModes = emptySet(),
-            localCursorLabel = context.getString(R.string.toggle_local_mouse_cursor),
         ),
         current = 3,
         onChoose = {},
+        localCursor = NovaLocalCursorRow(
+            label = context.getString(R.string.nova_cc_local_cursor),
+            caption = context.getString(R.string.nova_cc_local_cursor_caption),
+            shown = false,
+            onChange = {},
+        ),
     )
 
     /** The Keys page as the Command Center builds it, with three imported shortcuts whose names run long. */
