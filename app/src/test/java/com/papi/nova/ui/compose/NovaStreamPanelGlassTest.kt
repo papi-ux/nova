@@ -7,7 +7,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.ui.NovaMenuPreferences
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.panel.NovaPanelMetrics
-import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,12 +63,7 @@ class NovaStreamPanelGlassTest {
     }
 
     @Test
-    fun theStreamPanelTakesTheFloorAndOtherPanelsKeepTheirGlass() {
-        val frame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
-        assertTrue(
-            "the panel over the stream draws its fill from the stream surfaces",
-            frame.contains("if (scrim == NovaScrim.Stream) surfaces.overStream() else surfaces"),
-        )
+    fun theStreamSurfacesTakeTheFloor() {
         val glass = colors.librarySurfaces(NovaThemeManager.THEME_POLARIS, 0.64f).overStream()
         // A colour keeps its alpha in 8 bits.
         assertTrue(glass.panel.alpha >= STREAM_MIN_PANEL_ALPHA - 1f / 255f)

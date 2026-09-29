@@ -1,9 +1,7 @@
 package com.papi.nova.ui.compose
 
 import androidx.compose.ui.graphics.Color
-import java.io.File
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -24,12 +22,5 @@ class NovaActionRingTest {
             onAccent,
             novaActionRing(fills = true, destructive = false, onFill = onAccent, focusRing = accent),
         )
-    }
-
-    @Test
-    fun theActionSurfaceTakesItsRingFromThatRule() {
-        val source = File("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt").readText()
-        val surface = source.substringAfter("fun NovaActionSurface(").substringBefore(".semantics {")
-        assertTrue(surface.contains("ring = novaActionRing(fills = fills, destructive = destructive"))
     }
 }

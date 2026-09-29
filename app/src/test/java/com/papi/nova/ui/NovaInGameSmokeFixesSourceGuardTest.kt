@@ -20,6 +20,30 @@ class NovaInGameSmokeFixesSourceGuardTest {
         assertTrue("the host's own reading is asked first, and the warning is only set without it", quiet in 0 until slow)
     }
 
+    /** In-game #12: only the panel over the stream takes the solid floor; every other panel keeps its glass. */
+    @Test
+    fun thePanelOverTheStreamDrawsItsFillFromTheStreamSurfaces() {
+        val frame = read("ui/panel/NovaPanelFrame.kt")
+        assertTrue(frame.contains("if (scrim == NovaScrim.Stream) surfaces.overStream() else surfaces"))
+        assertTrue(frame.contains("CompositionLocalProvider(LocalNovaLibrarySurfaces provides panelSurfaces)"))
+    }
+
+    /** In-game #14: the action surface takes its focus ring from the one rule, not its label colour. */
+    @Test
+    fun theActionSurfaceTakesItsRingFromTheOneRule() {
+        val surface = read("ui/compose/NovaFocusComponents.kt").substringAfter("fun NovaActionSurface(").substringBefore(".semantics {")
+        assertTrue(surface.contains("ring = novaActionRing(fills = fills, destructive = destructive"))
+        assertTrue("a filled surface no longer rings in its label colour", !surface.contains("ring = if (fills) onFill else surfaces.focusRing"))
+    }
+
+    /** In-game #16: the Command Center's host keeps where its root was left and hands it to every opening. */
+    @Test
+    fun theCommandCenterRemembersWhereItWasLeft() {
+        val menu = read("ui/NovaQuickMenu.kt")
+        assertTrue(menu.contains("private val rootPlace = NovaQuickMenuPlace()"))
+        assertTrue(menu.contains("NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace)"))
+    }
+
     /**
      * In-game #19: the stream only laid itself out for immersive mode in onCreate, and the bars
      * were hidden a second after the connection started, so the gesture handle sat over the first
