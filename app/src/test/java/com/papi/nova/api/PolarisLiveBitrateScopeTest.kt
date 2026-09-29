@@ -101,7 +101,8 @@ class PolarisLiveBitrateScopeTest {
     }
     @Test fun versionedUnitsEnableDeviceRecommendationWithActualSurroundAndFec() = kotlinx.coroutines.runBlocking {
         for (codec in listOf("h264","hevc")) for ((audio,fec) in listOf(192 to 10,1536 to 20,2048 to 150)) {
-            var current=10000
+            val initialEncoder=com.papi.nova.preferences.NovaBitrateAdvice.encoderForRequest(10000,audio,fec)
+            var current=initialEncoder
             var sequence=1
             val posts=mutableListOf<Int>()
             fun live() = status().put("encoder",JSONObject().put("codec",codec))
@@ -111,7 +112,9 @@ class PolarisLiveBitrateScopeTest {
                     .put("version",1).put("scope","host").put("state","stable").put("quality_limit_kbps",300000)
                     .put("applied_bitrate_kbps",current).put("session_generation",7).put("app_session_id","session-a"))
                 .put("bitrate_units",JSONObject().put("version",1).put("formula","stream_bitrate_v1")
-                    .put("requested_kbps",30000).put("encoder_kbps",10000).put("live_encoder_kbps",current)
+                    .put("requested_kbps",10000).put("split_kbps",10000).put("warp_factor",1)
+                    .put("cap_kbps",JSONObject.NULL).put("cap_source",JSONObject.NULL)
+                    .put("encoder_kbps",initialEncoder).put("live_encoder_kbps",current)
                     .put("audio_kbps",audio).put("fec_percentage",fec))
             val api=client { request -> if(request.method=="GET") reply(request,live().toString()) else {
                 val body=Buffer();request.body!!.writeTo(body)
@@ -134,10 +137,11 @@ class PolarisLiveBitrateScopeTest {
 
     @Test fun malformedOrUnsupportedUnitObjectsNeverSupplyConversionInputs() {
         val valid=JSONObject().put("version",1).put("formula","stream_bitrate_v1").put("requested_kbps",30000)
+            .put("split_kbps",30000).put("warp_factor",1).put("cap_kbps",JSONObject.NULL).put("cap_source",JSONObject.NULL)
             .put("encoder_kbps",24963).put("live_encoder_kbps",24963).put("audio_kbps",1536).put("fec_percentage",10)
         assertNotNull(PolarisBitrateUnits.parse(valid))
         for((key,value) in listOf("version" to 2,"formula" to "future", "audio_kbps" to -1,
-            "fec_percentage" to 256,"fec_percentage" to "10","live_encoder_kbps" to 0,"requested_kbps" to 1.5))
+            "fec_percentage" to 256,"fec_percentage" to "10","live_encoder_kbps" to -1,"requested_kbps" to 1.5))
             assertNull("$key=$value",PolarisBitrateUnits.parse(JSONObject(valid.toString()).put(key,value)))
         for(key in listOf("version","formula","audio_kbps","fec_percentage","encoder_kbps","requested_kbps","live_encoder_kbps")) {
             val missing=JSONObject(valid.toString());missing.remove(key)

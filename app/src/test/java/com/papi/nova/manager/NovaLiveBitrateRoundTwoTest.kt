@@ -52,7 +52,7 @@ class NovaLiveBitrateRoundTwoTest {
         assertEquals(1,fake.writes.size)
     }
     @Test fun capabilityFlagAndObjectAreBothRequiredForRequestUnits() {
-        val status=owner(24963).copy(bitrateUnits=PolarisBitrateUnits(30000,24963,24963,1536,10))
+        val status=owner(24963).copy(bitrateUnits=PolarisBitrateUnits(30000,24963,24963,1536,10,splitKbps=NovaBitrateAdvice.requestForEncoder(24963,1536,10)))
         for((flag,obj,expected) in listOf(Triple(false,status.bitrateUnits,NovaBitrateUnits.VIDEO),
             Triple(true,null,NovaBitrateUnits.VIDEO),Triple(true,status.bitrateUnits,NovaBitrateUnits.REQUEST))) {
             val fixture=status.copy(bitrateUnits=obj)

@@ -78,7 +78,7 @@ class NovaLiveBitrateControllerTest {
         for (codec in listOf("h264","hevc","pyrowave")) {
             val start = status().copy(encoder=PolarisSessionStatus.EncoderStatus(codec=codec),
                 liveTuning=status().liveTuning!!.copy(enabled=false,requestedBitrateKbps=NovaBitrateAdvice.encoderForRequest(299000)),
-                bitrateUnits=com.papi.nova.api.PolarisBitrateUnits(299000,NovaBitrateAdvice.encoderForRequest(299000),NovaBitrateAdvice.encoderForRequest(299000),512,10))
+                bitrateUnits=com.papi.nova.api.PolarisBitrateUnits(299000,NovaBitrateAdvice.encoderForRequest(299000),NovaBitrateAdvice.encoderForRequest(299000),512,10,splitKbps=299000))
             val fake = Fake(start);val controller = NovaLiveBitrateController(fake,"session-a",7,true,true)
             controller.observe(start)
             assertEquals(NovaBitrateChange.APPLIED,controller.step(1))

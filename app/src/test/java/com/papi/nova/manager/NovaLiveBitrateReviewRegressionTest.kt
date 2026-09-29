@@ -9,7 +9,7 @@ import org.junit.Test
 class NovaLiveBitrateReviewRegressionTest {
     private fun owner()=PolarisSessionStatus("streaming",streamingActive=true,appSessionId="session",sessionGeneration=1,
         ownedByClient=true,encoder=PolarisSessionStatus.EncoderStatus(codec="hevc"),liveTuningPresent=true,
-        bitrateUnits=PolarisBitrateUnits(30000,25987,25987,512,10),
+        bitrateUnits=PolarisBitrateUnits(30000,25987,25987,512,10,splitKbps=30000),
         liveTuning=LiveTuningStatus(true,"stable",true,"",300000,25987,25987,"a".repeat(64),"host",1,1,"session"))
     private open class Fake(var observed: PolarisSessionStatus):NovaLiveBitrateTransport {
         var writes=0
@@ -120,7 +120,7 @@ class NovaLiveBitrateReviewRegressionTest {
         assertEquals(NovaBitrateChange.SESSION_CHANGED,controller.step(1))
         assertFalse(controller.state.value.canChange);assertNull(controller.state.value.requestedKbps)
     }
-    @Test fun acknowledgementAboveRequestAndAdviceAssumptionsUseWireUnits()=runBlocking {
+    @Test fun legacyAdviceAcknowledgementAboveRequestUsesWireUnits()=runBlocking {
         val s=owner().copy(bitrateUnits=null,encoder=PolarisSessionStatus.EncoderStatus(codec="pyrowave"),pyrowaveBitrate=PolarisPyrowaveAdvice(1920,1080,120,200000,300000,"advice",20,256))
         val fake=object:Fake(s) {
             override fun write(encoderKbps:Int,observed:PolarisSessionStatus):PolarisBitrateWriteResult {
@@ -128,7 +128,7 @@ class NovaLiveBitrateReviewRegressionTest {
                 return PolarisBitrateWriteResult.Applied(NovaBitrateAdvice.encoderForRequest(60000,256,20),observed)
             }
         }
-        val controller=NovaLiveBitrateController(fake,"session",1,true,true)
+        val controller=NovaLiveBitrateController(fake,"session",1,true,false)
         assertEquals(NovaBitrateChange.APPLIED,controller.setBitrate(50000))
         assertEquals(60000,controller.state.value.requestedKbps)
     }

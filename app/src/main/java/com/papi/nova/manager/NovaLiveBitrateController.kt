@@ -21,7 +21,7 @@ interface NovaLiveBitrateTransport {
         else PolarisBitrateWriteResult.Failed
 }
 
-/** VIDEO is the encoder target; REQUEST includes the session's actual audio and FEC. */
+/** VIDEO is the encoder target; REQUEST is the split budget, including actual audio and FEC. */
 enum class NovaBitrateUnits { VIDEO, REQUEST, UNKNOWN }
 data class NovaLiveBitrateState(val requestedKbps:Int?=null,val recommendedKbps:Int?=null,val receivedKbps:Int?=null,
     val codec:String="",val maximumKbps:Int=300000,val canChange:Boolean=false,val busy:Boolean=false,
@@ -56,10 +56,12 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
     private var awaitingBarrier=false
     private var tableRecommendation:Int?=null
     private fun same(s:PolarisSessionStatus)=sessionId.isNotBlank() && generation>0 && s.appSessionId==sessionId && s.sessionGeneration==generation
-    private fun assumptions(s:PolarisSessionStatus):Pair<Int,Int>? =
-        s.bitrateUnits?.takeIf { bitrateUnitsSupported }?.let { it.audioKbps to it.fecPercent }
-            ?: s.pyrowaveBitrate?.takeIf { s.encoder.codec.equals("pyrowave",true) && it.assumptionsKnown }
-                ?.let { it.audioKbps to it.fecPercent }
+    private fun negotiatedUnits(s:PolarisSessionStatus)=s.bitrateUnits.takeIf { bitrateUnitsSupported }
+    private fun assumptions(s:PolarisSessionStatus):Pair<Int,Int>? = if(bitrateUnitsSupported) {
+        // The advertised session contract is authoritative, including an inapplicable split.
+        negotiatedUnits(s)?.takeIf { it.splitKbps!=null }?.let { it.audioKbps to it.fecPercent }
+    } else s.pyrowaveBitrate?.takeIf { s.encoder.codec.equals("pyrowave",true) && it.assumptionsKnown }
+        ?.let { it.audioKbps to it.fecPercent }
     private fun units(s:PolarisSessionStatus)=when {
         assumptions(s)!=null -> NovaBitrateUnits.REQUEST
         s.encoder.codec.lowercase() in setOf("h264","hevc","av1") -> NovaBitrateUnits.VIDEO
@@ -77,6 +79,9 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
     } ?: request
     private fun request(encoder:Int,s:PolarisSessionStatus):Int {
         val pair=assumptions(s) ?: return encoder
+        // Preserve the exact negotiated budget despite integer rounding in the host formula.
+        // requestedKbps is the original client request, before warp and the handshake cap.
+        negotiatedUnits(s)?.takeIf { it.encoderKbps==encoder }?.splitKbps?.let { return it }
         val raw=NovaBitrateAdvice.requestForEncoder(encoder,pair.first,pair.second)
         val grid=(raw/500.0).roundToInt()*500
         return if(abs(grid-raw)<=1) grid else raw
@@ -85,7 +90,7 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
     private fun recommended(s:PolarisSessionStatus):Int? = if(units(s)!=NovaBitrateUnits.REQUEST) null else
         (if(s.encoder.codec.equals("pyrowave",true)) s.pyrowaveBitrate?.raiseGoalKbps else tableRecommendation)
             ?.takeIf { it>=minimum(s) }?.coerceAtMost(maximum(s))
-    private fun liveEncoder(s:PolarisSessionStatus)=s.bitrateUnits?.takeIf { bitrateUnitsSupported }?.liveEncoderKbps
+    private fun liveEncoder(s:PolarisSessionStatus)=negotiatedUnits(s)?.liveEncoderKbps?.takeIf { it>0 }
         ?: s.liveTuning?.requestedBitrateKbps?.takeIf { it>0 }
     private fun current(s:PolarisSessionStatus):Int? {
         val live=s.liveTuning
@@ -109,7 +114,8 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
         if(live!=null) { lastHost=live.hostInstance;lastSequence=maxOf(lastSequence,live.sequence) }
         mutableState.update { old -> old.copy(requestedKbps=current,recommendedKbps=recommended(valid),
             receivedKbps=receivedKbps?.takeIf { valid.streamingActive && it>0 },codec=valid.encoder.codec,
-            maximumKbps=maximum(valid),minimumKbps=minimum(valid),canChange=allowed(valid) && !awaitingBarrier,units=units(valid)) }
+            maximumKbps=maximum(valid),minimumKbps=minimum(valid),canChange=allowed(valid) && !awaitingBarrier,units=units(valid),
+            negotiatedUnits=negotiatedUnits(valid)) }
     }
 
     suspend fun useRecommended()=change(null,null)
@@ -152,16 +158,19 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
                         }
                         val live=after?.liveTuning ?: result.observed.liveTuning
                             ?: return@synchronized NovaBitrateChange.FAILED
-                        val actual=if(result.encoderKbps==desired.third) desired.first else request(result.encoderKbps,observed)
+                        val effective=after ?: result.observed
+                        val sameConversion=units(effective)==units(observed) && assumptions(effective)==assumptions(observed)
+                        val actual=if(sameConversion && result.encoderKbps==desired.third) desired.first else request(result.encoderKbps,effective)
+                        if(!sameConversion) { learnedMaximum=null;learnedMinimum=null }
                         ackFloor=maxOf(lastSequence,live.sequence);lastHost=live.hostInstance
                         ackEncoder=result.encoderKbps;ackRequest=actual;awaitingBarrier=after?.liveTuning==null
-                        if(actual<desired.first) learnedMaximum=minOf(learnedMaximum ?: 300000,actual)
-                        if(actual>desired.first && desired.second!=null && desired.first<desired.second!!)
+                        if(sameConversion && actual<desired.first) learnedMaximum=minOf(learnedMaximum ?: 300000,actual)
+                        if(sameConversion && actual>desired.first && desired.second!=null && desired.first<desired.second!!)
                             learnedMinimum=maxOf(learnedMinimum ?: 1000,actual)
-                        mutableState.update { it.copy(requestedKbps=actual,recommendedKbps=recommended(observed),
-                            maximumKbps=maximum(observed),minimumKbps=minimum(observed),canChange=!awaitingBarrier && allowed(after ?: observed),
-                            codec=observed.encoder.codec,units=units(observed)) }
-                        if(actual==desired.second) NovaBitrateChange.AT_LIMIT else NovaBitrateChange.APPLIED
+                        mutableState.update { it.copy(requestedKbps=actual,recommendedKbps=recommended(effective),
+                            maximumKbps=maximum(effective),minimumKbps=minimum(effective),canChange=!awaitingBarrier && allowed(effective),
+                            codec=effective.encoder.codec,units=units(effective),negotiatedUnits=negotiatedUnits(effective)) }
+                        if(sameConversion && actual==desired.second) NovaBitrateChange.AT_LIMIT else NovaBitrateChange.APPLIED
                     }
                 }
             }
