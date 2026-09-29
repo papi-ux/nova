@@ -102,25 +102,33 @@ object NovaCapabilityProbe {
         return NovaDeviceCapabilities(codecs, failed)
     }
 
-    fun deviceInputs(context: Context): NovaTierInputs {
-        val environment = deviceEnvironment(context)
-        return environment.copy(capabilities=inspect(context,environment.panel,environment.refreshRates.maxOrNull() ?: 60))
-    }
+    fun deviceInputs(context: Context): NovaTierInputs = deviceInputs(context, deviceEnvironment(context))
 
-    /** Cheap callback signature; codec discovery stays on the runtime worker. */
+    internal fun deviceInputs(context: Context, environment: NovaTierInputs): NovaTierInputs =
+        environment.copy(capabilities=inspect(context,environment.panel,environment.refreshRates.maxOrNull() ?: 60))
+
+    /** Display and network metadata; callers keep these service queries on the IO worker. */
     internal fun deviceEnvironment(context: Context): NovaTierInputs {
         val display = (context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
         val room = (context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager)?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
         val current = if (Build.VERSION.SDK_INT >= 23) display?.mode else null
-        val aspect = if (room) 16.0/9 else current?.let { maxOf(it.physicalWidth,it.physicalHeight).toDouble()/minOf(it.physicalWidth,it.physicalHeight) } ?: 16.0/9
-        val modes = if (Build.VERSION.SDK_INT >= 23) display?.supportedModes.orEmpty().map {
+        val available = if (Build.VERSION.SDK_INT >= 23) display?.supportedModes.orEmpty().map {
             NovaDisplayMode(NovaSize(maxOf(it.physicalWidth,it.physicalHeight),minOf(it.physicalWidth,it.physicalHeight)),it.refreshRate.roundToInt().coerceIn(1,240))
-        }.filter { kotlin.math.abs(it.size.width.toDouble()/it.size.height/aspect-1) < 0.02 }.distinct().sortedWith(
-            compareBy<NovaDisplayMode> { it.size.pixels }.thenBy { it.fps }) else emptyList()
+        } else emptyList()
+        fun aspect(mode: NovaDisplayMode) = mode.size.width.toDouble()/mode.size.height
+        val currentAspect = current?.let { maxOf(it.physicalWidth,it.physicalHeight).toDouble()/minOf(it.physicalWidth,it.physicalHeight) }
+        // Prefer UHD on TVs that also advertise DCI cinema modes, while retaining the
+        // actual aspect family on 16:10, ultrawide and DCI-only sinks.
+        val aspect = when {
+            room && available.any { kotlin.math.abs(aspect(it)/(16.0/9)-1) < 0.02 } -> 16.0/9
+            currentAspect != null && available.any { kotlin.math.abs(aspect(it)/currentAspect-1) < 0.02 } -> currentAspect
+            else -> available.maxByOrNull { it.size.pixels }?.let(::aspect) ?: 16.0/9
+        }
+        val modes = available.filter { kotlin.math.abs(aspect(it)/aspect-1) < 0.02 }.distinct().sortedWith(
+            compareBy<NovaDisplayMode> { it.size.pixels }.thenBy { it.fps })
         val size = modes.maxByOrNull { it.size.pixels }?.size ?: NovaSize(1920,1080)
         val panelRates = modes.map { it.fps }.distinct().sorted().ifEmpty { listOf(display?.refreshRate?.roundToInt() ?: 60) }
-        val top = panelRates.maxOrNull() ?: 60
         val distance = if (room) NovaDistance.ROOM else if (context.resources.configuration.smallestScreenWidthDp >= 600)
             NovaDistance.LAP else NovaDistance.HAND
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager

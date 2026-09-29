@@ -167,14 +167,14 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
                     size.pixels>=it.size.pixels && fps>=it.fps }) return false
             if(input.capabilities.covered(codec,size,fps)) return true
             val points=input.capabilities.codecs.filter { it.codec==codec }.flatMap { it.points }
-            return input.capabilities.codecs.filter { it.codec in codecOrder(choice) }.none { it.points.any { p -> p.covered } } && points.any { size.fits(it.size) && fps<=it.fps }
+            return input.capabilities.codecs.filter { it.codec==codec }.none { it.points.any { p -> p.covered } } && points.any { size.fits(it.size) && fps<=it.fps }
         }
 
-        private fun displaySupports(input: NovaTierInputs, size: NovaSize, fps: Int): Boolean {
-            if (input.displayModes.isEmpty()) return true
-            // Above-native streams downscale; they still use the physical panel's refresh ceiling.
+        private fun displayTop(input: NovaTierInputs, size: NovaSize): Int {
+            if (input.displayModes.isEmpty()) return input.refreshRates.maxOrNull() ?: 60
+            // Above-native streams downscale at the physical panel's refresh ceiling.
             val physical = if (size.fits(input.panel)) size else input.panel
-            return input.displayModes.any { physical.fits(it.size) && fps <= it.fps }
+            return input.displayModes.filter { physical.fits(it.size) }.maxOfOrNull { it.fps } ?: 0
         }
 
         private fun constrain(input:NovaTierInputs,requested:NovaSize,requestedFps:Int,choice:NovaCodecChoice,bitratePin:Int?,
@@ -197,7 +197,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
                 .filter { it in 1..top && (fixedFps==null || it==fixedFps) }.sortedDescending()
             var selected:Triple<NovaSize,Int,NovaCodecChoice>?=null
             for(floor in listOf(min(top,60),1).distinct()) {
-                selected=sizes.firstNotNullOfOrNull { size -> rates.filter { it>=floor && displaySupports(input,size,it) }.firstNotNullOfOrNull { fps ->
+                selected=sizes.firstNotNullOfOrNull { size -> rates.filter { it>=floor && it<=displayTop(input,size) }.firstNotNullOfOrNull { fps ->
                     choices.firstOrNull { supports(input,it,size,fps,choice) }?.let { Triple(size,fps,it) }
                 } }
                 if(selected!=null) break
@@ -209,7 +209,9 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
                     limits=limits+(reason ?: NovaLimit("decoder_unavailable","No usable decoder point for this stream")),available=false)
             }
             val (size,fps,codec)=selected
-            if(size!=requested || fps<top) limits+=NovaLimit("decoder_limit","This device decodes ${size.label} at $fps fps")
+            val sizeTop=displayTop(input,size)
+            if(sizeTop<top) limits+=NovaLimit("panel_fps","This screen displays ${size.label} at up to $sizeTop Hz")
+            if(size!=requested || fps<min(top,sizeTop)) limits+=NovaLimit("decoder_limit","This device decodes ${size.label} at $fps fps")
             if(input.capabilities.failed.isNotEmpty()) {
                 val withoutFailure=constrain(input.copy(capabilities=input.capabilities.copy(failed=emptyList())),requested,requestedFps,choice,bitratePin,fixedSize,fixedFps)
                 if(withoutFailure.size!=size || withoutFailure.fps!=fps || withoutFailure.codec!=codec) {
@@ -219,8 +221,8 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             }
             val reasons=mutableListOf<NovaReason>()
             if(codec!=NovaCodecChoice.PYROWAVE && !input.capabilities.covered(codec,size,fps))
-                reasons+=NovaReason("decoder_claimed","Decoder advertises this mode; performance is unmeasured")
-            if(size==input.panel && fps==panelTop) reasons+=NovaReason("native_panel","Fills this ${size.label} screen at its full $fps Hz")
+                reasons+=NovaReason("decoder_claimed","Decoder mode is advertised but unmeasured")
+            if(size==input.panel && fps==displayTop(input,input.panel)) reasons+=NovaReason("native_panel","Fills this ${size.label} screen at its full $fps Hz")
             if(codec==NovaCodecChoice.PYROWAVE && hostAdvice(input,size,fps)!=null) reasons+=NovaReason("pyrowave_advice","The host's PyroWave figure for this screen")
             val advice=NovaBitrateAdvice.recommend(size.width,size.height,fps,codec,input.distance,hostAdvice(input,size,fps))
             var bitrate=bitratePin?.coerceIn(500,NovaBitrateAdvice.MANUAL_MAX_KBPS) ?: advice.kbps

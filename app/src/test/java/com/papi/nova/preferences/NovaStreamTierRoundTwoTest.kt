@@ -78,6 +78,9 @@ class NovaStreamTierRoundTwoTest {
         assertEquals(NovaSize(3840,2160),inputs.panel)
         assertEquals(60,tiers.recommended.fps)
         assertTrue(tiers.mergedMax)
+        assertTrue(tiers.recommended.reasons.any { it.code=="native_panel" })
+        assertTrue(tiers.recommended.limits.any { it.code=="panel_fps" })
+        assertFalse(tiers.recommended.limits.any { it.code=="decoder_limit" })
     }
     @Test fun shieldsReportedModesOffer1080p120AndFourK60() {
         var id=0
@@ -87,6 +90,9 @@ class NovaStreamTierRoundTwoTest {
         val inputs=capable(panel(*modes,room=true)).copy(link=NovaLink.WIFI)
         val tiers=NovaStreamTiers.forDevice(inputs)
         assertEquals(60,tiers.max.fps)
+        assertTrue(tiers.max.reasons.any { it.code=="native_panel" })
+        assertTrue(tiers.max.limits.any { it.code=="panel_fps" })
+        assertFalse(tiers.max.limits.any { it.code=="decoder_limit" })
         val pinned=NovaStreamTiers.resolve(inputs,NovaTier.RECOMMENDED,pins=NovaStreamPins(size=NovaSize(1920,1080),fps=120))
         assertEquals(120,pinned.fps)
         assertEquals(NovaSize(1920,1080),pinned.size)
@@ -101,9 +107,9 @@ class NovaStreamTierRoundTwoTest {
     @Test fun unchangedInvalidationKeepsThePublishedSnapshot()=runBlocking {
         val first=NovaTierRuntime.prepare(context)
         NovaTierRuntime.invalidate(context)
-        assertTrue("An unchanged callback must not invalidate an already usable plan",NovaTierRuntime.isPrepared())
         val second=NovaTierRuntime.prepare(context)
         assertSame(first,second)
+        assertTrue(NovaTierRuntime.isPrepared())
     }
     @Test fun profileEditorSaveRetainsAutomaticRecomputedBitrate() {
         val profile=SettingsProfile(UUID.randomUUID(),"Couch",0,0,mapOf("list_resolution" to "2560x1440"))
@@ -153,14 +159,14 @@ class NovaStreamTierRoundTwoTest {
             assertTrue(prefs.getBoolean(NovaSettingsMigration.CUSTOM_AUTO,false))
         } finally { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    @Test fun measuredAvcWinsOverClaimedOnlyHevcInAuto() {
+    @Test fun claimedOnlyHevcIsLabelledWhenAvcHasMeasuredPoints() {
         val input=room(NovaLink.ETHERNET).copy(capabilities=NovaDeviceCapabilities(listOf(
             NovaCodecCapability(NovaCodecChoice.HEVC,"claimed",listOf(NovaDecodePoint(NovaSize(3840,2160),60,false))),
             NovaCodecCapability(NovaCodecChoice.AVC,"measured",listOf(NovaDecodePoint(NovaSize(1920,1080),60))))))
         val plan=NovaStreamTiers.forDevice(input).recommended
-        assertEquals(NovaCodecChoice.AVC,plan.codec)
-        assertEquals(NovaSize(1920,1080),plan.size)
-        assertFalse(plan.reasons.any { it.code=="decoder_claimed" })
+        assertEquals(NovaCodecChoice.HEVC,plan.codec)
+        assertEquals(NovaSize(3840,2160),plan.size)
+        assertTrue(plan.reasons.any { it.code=="decoder_claimed" && it.message.contains("advertised but unmeasured") })
     }
     @Test fun hostPyrowaveAdviceIsScopedToItsSizeAndRateAndHighCapAllowsFourK() {
         val input=room(NovaLink.ETHERNET).copy(codec=NovaCodecChoice.PYROWAVE,

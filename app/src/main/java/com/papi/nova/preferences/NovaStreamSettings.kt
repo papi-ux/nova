@@ -80,10 +80,16 @@ object NovaStreamSettings {
             .remove("checkbox_enable_hdr").remove("checkbox_unlock_fps").remove("checkbox_full_range").apply()
     }
 
+    fun writeManualBitrate(prefs: SharedPreferences, bitrateKbps: Int) {
+        prefs.edit().putInt(PreferenceConfiguration.BITRATE_PREF_STRING, bitrateKbps)
+            .putBoolean(NovaSettingsMigration.AUTO, false)
+            .putBoolean(NovaSettingsMigration.CUSTOM_AUTO, false).apply()
+    }
+
     fun classicWrite(prefs: SharedPreferences, key: String?) {
         if (key !in NovaSettingsMigration.STREAM_KEYS) return
         val editor = prefs.edit().putString(NovaSettingsMigration.TIER, "custom").putBoolean(NovaSettingsMigration.CUSTOM_EXISTS, true)
-        if (key == "seekbar_bitrate_kbps") {
+        if (key == "seekbar_bitrate_kbps" && !prefs.contains(NovaSettingsMigration.CUSTOM_AUTO)) {
             val raw = runCatching { PreferenceConfiguration.getDefaultBitrate(prefs.getString("list_resolution", "1920x1080")!!,
                 prefs.getString("list_fps", "60")!!) }.getOrDefault(20000)
             val value = prefs.getInt(key, 0)

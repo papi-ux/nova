@@ -110,7 +110,7 @@ class NovaStreamSettingsIntegrationTest {
 
     @Test fun classicAndSavedSetupWritesWinOverGeneratedTierWithoutChangingBase() {
         NovaSettingsMigration.apply(context)
-        prefs.edit().putInt("seekbar_bitrate_kbps",37000).commit()
+        NovaStreamSettings.writeManualBitrate(prefs,37000)
         NovaStreamSettings.classicWrite(prefs,"seekbar_bitrate_kbps")
         assertEquals("custom",prefs.getString(NovaSettingsMigration.TIER,null))
         assertFalse(prefs.getBoolean(NovaSettingsMigration.AUTO,true))

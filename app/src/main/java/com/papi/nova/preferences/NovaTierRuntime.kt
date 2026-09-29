@@ -9,6 +9,7 @@ import android.net.NetworkRequest
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -21,6 +22,18 @@ object NovaTierRuntime {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutex = Mutex()
     private val generation = AtomicLong()
+    private val stateLock = Any()
+    private var revision = 0L
+    private var epoch = 0L
+    private data class Invalidation(val context: Context, val epoch: Long)
+    private val invalidations = Channel<Invalidation>(Channel.CONFLATED)
+    init {
+        scope.launch {
+            for (event in invalidations) {
+                if (synchronized(stateLock) { epoch == event.epoch }) prepareInternal(event.context, retryFailure=false, event.epoch)
+            }
+        }
+    }
     private val mutableSnapshot = MutableStateFlow<Snapshot?>(null)
     val updates = mutableSnapshot.asStateFlow()
     fun snapshot(): Snapshot? = mutableSnapshot.value
@@ -38,44 +51,72 @@ object NovaTierRuntime {
         NovaStreamTiers(plan,plan,plan,NovaFourK.Unavailable(NovaLimit("probe_pending","Checking this device's decoder")),null,"pending")
     }
 
-    private fun signature(context: Context): Any = listOf(NovaCapabilityProbe.deviceEnvironment(context),
+    private data class Signature(val environment: NovaTierInputs, val gl: Map<String, *>, val failures: String?)
+    private fun signature(context: Context) = Signature(NovaCapabilityProbe.deviceEnvironment(context),
         context.getSharedPreferences("GlPreferences",Context.MODE_PRIVATE).all,
         context.getSharedPreferences("nova_capability_probe_v1",Context.MODE_PRIVATE).getString("failures",null))
 
-    suspend fun prepare(context: Context): Snapshot = withContext(Dispatchers.IO) {
+    suspend fun prepare(context: Context): Snapshot = prepareInternal(context, retryFailure=true)
+
+    private suspend fun prepareInternal(context: Context, retryFailure: Boolean, expectedEpoch: Long? = null): Snapshot = withContext(Dispatchers.IO) {
         mutex.withLock {
-            snapshot()?.takeIf { testOverride || (!dirty && it.tiers.inputsHash!="failed") }?.let { return@withLock it }
+            val runEpoch = synchronized(stateLock) { epoch }
+            snapshot()?.takeIf { testOverride || (!dirty && (it.tiers.inputsHash!="failed" || !retryFailure)) }?.let { return@withLock it }
+            if (expectedEpoch != null && expectedEpoch != runEpoch) return@withLock snapshot() ?: failedSnapshot()
             preparing=true
             try {
-            dirty=false
-            val app=context.applicationContext
-            val signature=runCatching { signature(app) }.getOrNull()
-            snapshot()?.takeIf { signature!=null && signature==lastSignature } ?: try {
-                val inputs=NovaCapabilityProbe.deviceInputs(app)
-                val previous=snapshot()
-                val candidate=previous?.takeIf { it.inputs==inputs && it.tiers.inputsHash!="failed" } ?:
-                    Snapshot(inputs,NovaStreamTiers.forDevice(inputs),generation.incrementAndGet())
-                lastSignature=signature
-                mutableSnapshot.value=candidate
-                candidate
-            } catch (error: Exception) {
-                // A metadata failure is a visible unavailable result, never a stuck launch gate.
-                val inputs=NovaTierInputs(NovaSize(1920,1080),listOf(60),NovaDistance.HAND,NovaDeviceCapabilities(emptyList()))
-                val reason=NovaReason("probe_failed","Could not check this device's decoder. Try again.")
-                val plan=pendingTiers.recommended.copy(reasons=emptyList(),limits=listOf(reason))
-                val failed=Snapshot(inputs,NovaStreamTiers(plan,plan,plan,NovaFourK.Unavailable(reason),null,"failed"),generation.incrementAndGet())
-                lastSignature=null
-                mutableSnapshot.value=failed
-                failed
+                var retry = retryFailure
+                while (true) {
+                    currentCoroutineContext().ensureActive()
+                    val started = synchronized(stateLock) { revision }
+                    val app = context.applicationContext
+                    val observed = runCatching { signature(app) }.getOrNull()
+                    val previous = snapshot()
+                    val candidate = if (previous != null && observed == lastSignature &&
+                        !(retry && previous.tiers.inputsHash == "failed")) previous else try {
+                        checkNotNull(observed) { "Device environment unavailable" }
+                        // Probe precisely the environment whose signature we will publish.
+                        val inputs = NovaCapabilityProbe.deviceInputs(app, observed.environment)
+                        previous?.takeIf { it.inputs==inputs && it.tiers.inputsHash!="failed" } ?:
+                            Snapshot(inputs,NovaStreamTiers.forDevice(inputs),generation.incrementAndGet())
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        previous?.takeIf { it.tiers.inputsHash=="failed" } ?: failedSnapshot()
+                    }
+                    val after = runCatching { signature(app) }.getOrNull()
+                    val stable = synchronized(stateLock) {
+                        if (epoch != runEpoch) return@withLock snapshot() ?: candidate
+                        lastSignature=observed
+                        mutableSnapshot.value=candidate
+                        dirty=revision != started || after != observed
+                        !dirty
+                    }
+                    if (stable) return@withLock candidate
+                    // A change (including a revert to the previous signature) during the
+                    // probe always gets another pass. Background failures remain cached.
+                    retry=false
+                }
+                @Suppress("UNREACHABLE_CODE") error("unreachable")
+            } finally {
+                synchronized(stateLock) { if (epoch==runEpoch) preparing=false }
             }
-            } finally { preparing=false }
         }
     }
 
+    private fun failedSnapshot(): Snapshot {
+        val inputs=NovaTierInputs(NovaSize(1920,1080),listOf(60),NovaDistance.HAND,NovaDeviceCapabilities(emptyList()))
+        val reason=NovaReason("probe_failed","Could not check this device's decoder. Try again.")
+        val plan=pendingTiers.recommended.copy(reasons=emptyList(),limits=listOf(reason))
+        return Snapshot(inputs,NovaStreamTiers(plan,plan,plan,NovaFourK.Unavailable(reason),null,"failed"),generation.incrementAndGet())
+    }
+
     fun invalidate(context: Context) {
-        if(runCatching { signature(context.applicationContext)==lastSignature }.getOrDefault(false)) return
-        dirty=true
-        scope.launch { prepare(context.applicationContext) }
+        // Callbacks only enqueue. Service queries and signature comparison run on IO.
+        synchronized(stateLock) {
+            dirty=true
+            revision++
+            invalidations.trySend(Invalidation(context,epoch))
+        }
     }
 
     fun initialize(context: Context) {
@@ -111,9 +152,12 @@ object NovaTierRuntime {
         }
     }
 
-    internal fun installForTest(inputs: NovaTierInputs?) {
+    internal fun installForTest(inputs: NovaTierInputs?) = synchronized(stateLock) {
+        epoch++
+        revision++
         lastSignature=null
         dirty=inputs==null
+        preparing=false
         testOverride=inputs!=null
         val current=generation.incrementAndGet()
         mutableSnapshot.value=inputs?.let { Snapshot(it,NovaStreamTiers.forDevice(it),current) }

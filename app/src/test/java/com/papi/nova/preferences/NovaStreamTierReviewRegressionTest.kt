@@ -167,7 +167,7 @@ class NovaStreamTierReviewRegressionTest {
     @Test fun profileEditorChangesMarkCustomAndManualBitrateDoesNotStayAutomatic() {
         val profile=SettingsProfile(UUID.randomUUID(),"Custom",0,0,mapOf("list_resolution" to "1920x1080"))
         profile.selectStreamTier(NovaTier.RECOMMENDED,true)
-        profile.setOptions(profile.getOptions()!! + mapOf("seekbar_bitrate_kbps" to 37000))
+        profile.setOptions(profile.getOptions()!! + mapOf("seekbar_bitrate_kbps" to 37000, NovaSettingsMigration.AUTO to false, NovaSettingsMigration.CUSTOM_AUTO to false))
         assertEquals("custom",profile.getOptions()!![NovaSettingsMigration.TIER])
         assertEquals(false,profile.getOptions()!![NovaSettingsMigration.AUTO])
     }
@@ -214,7 +214,7 @@ class NovaStreamTierReviewRegressionTest {
             NovaSettingsMigration.apply(context)
             val pinned=mapOf<String,Any>("list_resolution" to "1920x1080","list_fps" to "120",
                 "video_format" to "auto","seekbar_bitrate_kbps" to 37000,NovaSettingsMigration.TIER to "custom",
-                NovaSettingsMigration.CUSTOM_EXISTS to true,NovaSettingsMigration.AUTO to false)
+                NovaSettingsMigration.CUSTOM_EXISTS to true,NovaSettingsMigration.AUTO to false,NovaSettingsMigration.CUSTOM_AUTO to false)
             if(savedSetup) {
                 val manager=ProfilesManager.getInstance()
                 val profile=SettingsProfile(UUID.randomUUID(),"Pinned",0,0,pinned)

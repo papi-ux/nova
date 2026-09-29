@@ -97,8 +97,9 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
             if(pyrowave) s.pyrowaveBitrate?.capKbps ?: NovaBitrateAdvice.AUTOMATIC_MAX_KBPS else NovaBitrateAdvice.AUTOMATIC_MAX_KBPS)
         return goal?.coerceAtMost(cap)?.takeIf { it>=minimum(s) }
     }
-    private fun liveEncoder(s:PolarisSessionStatus)=negotiatedUnits(s)?.liveEncoderKbps?.takeIf { it>0 }
-        ?: s.liveTuning?.requestedBitrateKbps?.takeIf { it>0 }
+    // The live target updates at POST time; encoder statistics arrive on a later tick.
+    private fun liveEncoder(s:PolarisSessionStatus)=s.liveTuning?.requestedBitrateKbps?.takeIf { it>0 }
+        ?: negotiatedUnits(s)?.liveEncoderKbps?.takeIf { it>0 }
     private fun current(s:PolarisSessionStatus):Int? {
         val live=s.liveTuning
         if(live!=null && live.hostInstance==lastHost && (awaitingBarrier || live.sequence<=ackFloor)) return ackRequest

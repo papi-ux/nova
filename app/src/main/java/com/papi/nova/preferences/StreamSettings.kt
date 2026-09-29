@@ -581,22 +581,20 @@ class StreamSettings : NovaActivity() {
         }
 
         private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?) {
-            val activeRes = res ?: prefs.getString(
-                PreferenceConfiguration.RESOLUTION_PREF_STRING,
-                PreferenceConfiguration.DEFAULT_RESOLUTION
-            ) ?: PreferenceConfiguration.DEFAULT_RESOLUTION
-            val activeFps = fps ?: prefs.getString(
-                PreferenceConfiguration.FPS_PREF_STRING,
-                PreferenceConfiguration.DEFAULT_FPS
-            ) ?: PreferenceConfiguration.DEFAULT_FPS
-
-            // Publish the point and its automatic rate together: listeners must never see
-            // the new default paired with the old resolution or refresh rate.
-            prefs.edit().putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, activeRes)
-                .putString(PreferenceConfiguration.FPS_PREF_STRING, activeFps)
-                .putBoolean(NovaSettingsMigration.AUTO, true).putBoolean(NovaSettingsMigration.CUSTOM_AUTO, true)
-                .putInt(PreferenceConfiguration.BITRATE_PREF_STRING,
-                    PreferenceConfiguration.getDefaultBitrate(activeRes, activeFps)).apply()
+            // A saved setup is sparse: inherit untouched fields without pinning them.
+            val base = context?.let { PreferenceManager.getDefaultSharedPreferences(it) }
+            val activeRes = res ?: prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING,
+                base?.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, null)) ?: PreferenceConfiguration.DEFAULT_RESOLUTION
+            val activeFps = fps ?: prefs.getString(PreferenceConfiguration.FPS_PREF_STRING,
+                base?.getString(PreferenceConfiguration.FPS_PREF_STRING, null)) ?: PreferenceConfiguration.DEFAULT_FPS
+            prefs.edit().apply {
+                res?.let { putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, it) }
+                fps?.let { putString(PreferenceConfiguration.FPS_PREF_STRING, it) }
+                putBoolean(NovaSettingsMigration.AUTO, true)
+                putBoolean(NovaSettingsMigration.CUSTOM_AUTO, true)
+                putInt(PreferenceConfiguration.BITRATE_PREF_STRING,
+                    PreferenceConfiguration.getDefaultBitrate(activeRes, activeFps))
+            }.apply()
         }
 
         override fun onCreateView(
@@ -672,6 +670,7 @@ class StreamSettings : NovaActivity() {
                     getPrefs().edit()
                         .putString("list_resolution", preset.resolution)
                         .putInt("seekbar_bitrate_kbps", preset.bitrateKbps)
+                        .putBoolean(NovaSettingsMigration.AUTO, false).putBoolean(NovaSettingsMigration.CUSTOM_AUTO, false)
                         .putString("video_format", preset.codec)
                         .apply()
 
@@ -1144,6 +1143,11 @@ class StreamSettings : NovaActivity() {
                 false
             }
 
+            findPreference<Preference>(PreferenceConfiguration.BITRATE_PREF_STRING)?.setOnPreferenceChangeListener { _, value ->
+                NovaStreamSettings.writeManualBitrate(getPrefs(), value as Int)
+                true
+            }
+
             findPreference<EditTextPreference>(PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING)?.let { bitrateEditPref ->
                 bitrateEditPref.setOnBindEditTextListener { editText: EditText ->
                     editText.inputType = InputType.TYPE_NUMBER_FLAG_DECIMAL
@@ -1157,7 +1161,7 @@ class StreamSettings : NovaActivity() {
                         return@setOnPreferenceChangeListener false
                     }
                     val bitrate = (value.toFloat() * 1000).toInt()
-                    getPrefs().edit().putInt(PreferenceConfiguration.BITRATE_PREF_STRING, bitrate).apply()
+                    NovaStreamSettings.writeManualBitrate(getPrefs(), bitrate)
                     Toast.makeText(activity, getString(R.string.pref_set_success), Toast.LENGTH_SHORT).show()
                     true
                 }

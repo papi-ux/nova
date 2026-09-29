@@ -48,18 +48,9 @@ class SettingsProfile(
         val explicitTier = options?.get(migration.TIER)?.let { it != old[migration.TIER] } == true
         val updated = if (changed && options != null && !explicitTier) options + mapOf(
             migration.TIER to "custom", migration.CUSTOM_EXISTS to true) else options
-        this.options = updated?.let { values ->
-            val bitrateChanged = !sameValue(old["seekbar_bitrate_kbps"],values["seekbar_bitrate_kbps"])
-            val raw = runCatching { com.papi.nova.preferences.PreferenceConfiguration.getDefaultBitrate(
-                values["list_resolution"] as? String ?: "1920x1080", values["list_fps"] as? String ?: "60") }.getOrNull()
-            val bitrate = (values["seekbar_bitrate_kbps"] as? Number)?.toInt()
-            val pointChanged = listOf("list_resolution","list_fps","video_format").any { old[it] != values[it] }
-            val automatic = values[migration.CUSTOM_AUTO] == true &&
-                (old[migration.CUSTOM_AUTO] != true || pointChanged || bitrate == raw ||
-                    (raw != null && bitrate == ((raw+4999)/5000)*5000))
-            migration.savedSetup(if (bitrateChanged && bitrate != null && !automatic) values +
-                mapOf(migration.AUTO to false, migration.CUSTOM_AUTO to false) else values)
-        }
+        // Writers publish bitrate and its Auto state together. Inferring intent from
+        // the numeric value or a simultaneous size change loses explicit manual pins.
+        this.options = updated?.let(migration::savedSetup)
     }
 
     /** A crash reset changes selection while retaining this setup's Custom stream values. */

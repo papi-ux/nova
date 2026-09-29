@@ -72,6 +72,7 @@ class NovaStreamTierRoundThreeTest {
             resetRate(fragment,memory,null,"120")
             profile.setOptions(memory.all.mapValues { it.value!! })
             assertFalse(profile.getOptions()!!.containsKey("list_resolution"))
+            assertEquals(true,profile.getOptions()!![NovaSettingsMigration.CUSTOM_AUTO])
             assertEquals("120",profile.getOptions()!!["list_fps"])
             assertEquals(PreferenceConfiguration.getDefaultBitrate("2560x1440","120"),profile.getOptions()!!["seekbar_bitrate_kbps"])
         }
@@ -81,6 +82,7 @@ class NovaStreamTierRoundThreeTest {
             val memory=activity.getInMemoryPrefs();resetRate(fragment,memory,"1920x1080",null)
             profile.setOptions(memory.all.mapValues { it.value!! })
             assertFalse(profile.getOptions()!!.containsKey("list_fps"))
+            assertEquals(true,profile.getOptions()!![NovaSettingsMigration.CUSTOM_AUTO])
             assertEquals(PreferenceConfiguration.getDefaultBitrate("1920x1080","90"),profile.getOptions()!!["seekbar_bitrate_kbps"])
         }
     }
@@ -99,6 +101,14 @@ class NovaStreamTierRoundThreeTest {
                 assertEquals(key,false,profile.getOptions()!![NovaSettingsMigration.AUTO])
             }
         }
+    }
+    @Test fun classicManualRateEqualToTheDefaultRemainsPinnedAfterTheListener() {
+        prefs.edit().putString("list_resolution","1920x1080").putString("list_fps","60").commit()
+        NovaSettingsMigration.apply(context)
+        NovaStreamSettings.writeManualBitrate(prefs,20000)
+        NovaStreamSettings.classicWrite(prefs,"seekbar_bitrate_kbps")
+        assertFalse(prefs.getBoolean(NovaSettingsMigration.AUTO,true))
+        assertFalse(prefs.getBoolean(NovaSettingsMigration.CUSTOM_AUTO,true))
     }
     @Test fun revertingDisplayDuringProbeIsNotLost()=runBlocking {
         val full=mode(0,3840,2160,60f);val small=mode(0,1920,1080,60f)

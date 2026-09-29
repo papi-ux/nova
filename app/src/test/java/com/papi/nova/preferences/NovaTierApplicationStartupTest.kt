@@ -6,6 +6,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.NovaApplication
 import com.papi.nova.shadows.ShadowMoonBridge
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,7 +24,7 @@ class NovaTierApplicationStartupTest {
         val prefs=PreferenceManager.getDefaultSharedPreferences(context)
         assertEquals("recommended",prefs.getString(NovaSettingsMigration.TIER,null))
         assertFalse(prefs.getBoolean(NovaSettingsMigration.CUSTOM_EXISTS,true))
-        val snapshot=NovaTierRuntime.prepare(context)
+        val snapshot=withTimeout(5000) { NovaTierRuntime.updates.filterNotNull().first() }
         assertSame(snapshot,NovaTierRuntime.snapshot())
     }
 }
