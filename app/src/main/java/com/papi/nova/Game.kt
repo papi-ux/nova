@@ -1367,6 +1367,10 @@ if (policyMessage != null) {
 (policyReason?.name ?: "unproven deterministic launch authority")
 }
 )
+// A Space refused here retries through the library's Space path, which checks the Space
+// again, as a stale handoff does below: the page is built before the launch is set up, so the
+// app it asked for says whether it was a Space (X1).
+spaceSession = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())
 // A state page with Retry and Back, not a Toast cut off by its ellipsis as the page closed.
 showNovaLaunchIssueSheet(
 policyMessage ?: getString(

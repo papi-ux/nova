@@ -75,6 +75,20 @@ class GameLaunchRefusalCopySourceGuardTest {
         assertTrue("before it builds the page", known < handoff.indexOf("showNovaLaunchIssueSheet("))
     }
 
+    // The same Space-blind Try Again, for a Space refused at the launch policy gate, which also
+    // builds its page before the launch is set up (audit X1, follow-up).
+    @Test
+    fun aSpaceRefusedAtThePolicyGateRetriesThroughTheSpace() {
+        val gate = game.substringAfter("if (launchDecision.policyBlocked)").substringBefore("return@launchRuntimeIo")
+        val known = gate.indexOf("spaceSession = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(")
+        assertTrue("the gate says whether the launch was a Space", known >= 0)
+        assertTrue("before it builds the page", known < gate.indexOf("showNovaLaunchIssueSheet("))
+        assertTrue(
+            "by the app it asked for, as the stale branch does",
+            gate.contains("isProfileApp(appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())"),
+        )
+    }
+
     @Test
     fun aPolicyRefusalIsAStatePageNotAToast() {
         val gate = game.substringAfter("if (launchDecision.policyBlocked)").substringBefore("return@launchRuntimeIo")
