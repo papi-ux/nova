@@ -47,6 +47,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.MultiContentMeasurePolicy
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
@@ -65,7 +67,9 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.papi.nova.R
@@ -188,23 +192,27 @@ internal fun NovaPlaySetupPlanCard(
         verticalArrangement = Arrangement.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = title, style = type.rowTitle, color = colors.textPrimary, modifier = Modifier.weight(1f))
-            if (limit.isNotBlank()) {
-                NovaPlaySetupWarningGlyph(Modifier.padding(start = NovaPanelMetrics.SpaceMd))
-                Text(
-                    text = limit,
-                    style = novaPlaySetupValueStyle(),
-                    color = colors.warning,
-                    modifier = Modifier.padding(start = NovaPanelMetrics.SpaceXs),
-                )
-            } else if (value.isNotBlank()) {
-                Text(
-                    text = value,
-                    style = novaPlaySetupValueStyle(),
-                    color = colors.textSecondary,
-                    modifier = Modifier.padding(start = NovaPanelMetrics.SpaceMd),
-                )
-            }
+            // The title takes its whole width first and the value what is left, at the end; when
+            // both will not fit on the line the value goes under the title, never the title into
+            // a column of one word a line.
+            val valueStyle = novaPlaySetupValueStyle()
+            Layout(
+                contents = listOf(
+                    { Text(text = title, style = type.rowTitle, color = colors.textPrimary) },
+                    {
+                        if (limit.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                NovaPlaySetupWarningGlyph(Modifier.padding(end = NovaPanelMetrics.SpaceXs))
+                                Text(text = limit, style = valueStyle, color = colors.warning)
+                            }
+                        } else if (value.isNotBlank()) {
+                            Text(text = value, style = valueStyle, color = colors.textSecondary, textAlign = TextAlign.End)
+                        }
+                    },
+                ),
+                modifier = Modifier.weight(1f),
+                measurePolicy = NovaPlaySetupTitleFirst,
+            )
             NovaPlaySetupSlot { if (onOpen != null) NovaPlaySetupChevron(OpensGlyph, colors.textSecondary) }
         }
         if (line.isNotBlank()) {
@@ -228,14 +236,45 @@ internal fun NovaPlaySetupPlanCard(
 }
 
 /**
- * The plan card's second line: the plan's first line, which is the numbers, and what holds the
- * launch back when a fact warns of it. The rest is a press away on the plan's page.
+ * The plan card's second line: the plan's first line, which is the numbers, as the mockup draws it.
+ * What holds the launch back is a press away on the plan's page, and the card's preview names it
+ * in the warning colour for the option that would meet it; on the card's own line it wrapped the
+ * numbers onto a second line as a label and a colon.
  */
 internal fun novaPlaySetupPlanSummary(plan: NovaPlaySetupPlan): String? =
-    listOfNotNull(
-        plan.lines.firstOrNull()?.takeIf { it.isNotBlank() },
-        plan.facts.firstOrNull { it.tone == NovaPlaySetupTone.WARN }?.let { "${it.key}: ${it.value}" },
-    ).joinToString(" · ").takeIf { it.isNotBlank() }
+    plan.lines.firstOrNull()?.takeIf { it.isNotBlank() }
+
+/**
+ * A title and a value on one line: the title at its whole width, the value in what is left at the
+ * end. When both will not fit, the value goes under the title, where it has the whole width.
+ */
+private val NovaPlaySetupTitleFirst = MultiContentMeasurePolicy { (titles, values), constraints ->
+    val title = titles.first()
+    val value = values.firstOrNull()
+    val width = if (constraints.hasBoundedWidth) constraints.maxWidth else Constraints.Infinity
+    val gap = NovaPanelMetrics.SpaceMd.roundToPx()
+    val titleNatural = title.maxIntrinsicWidth(Constraints.Infinity)
+    val valueNatural = value?.maxIntrinsicWidth(Constraints.Infinity) ?: 0
+    if (value == null || valueNatural == 0 || titleNatural + gap + valueNatural <= width) {
+        val titlePlaced = title.measure(Constraints(maxWidth = minOf(titleNatural, width)))
+        val room = (width - titlePlaced.width - gap).coerceAtLeast(0)
+        val valuePlaced = value?.measure(Constraints(maxWidth = room))
+        val shownWidth = if (constraints.hasBoundedWidth) width else titlePlaced.width + gap + (valuePlaced?.width ?: 0)
+        val height = maxOf(titlePlaced.height, valuePlaced?.height ?: 0, constraints.minHeight)
+        layout(shownWidth, height) {
+            titlePlaced.placeRelative(0, (height - titlePlaced.height) / 2)
+            valuePlaced?.placeRelative(shownWidth - valuePlaced.width, (height - valuePlaced.height) / 2)
+        }
+    } else {
+        val titlePlaced = title.measure(Constraints(maxWidth = width))
+        val valuePlaced = value.measure(Constraints(maxWidth = width))
+        val height = maxOf(titlePlaced.height + valuePlaced.height, constraints.minHeight)
+        layout(width, height) {
+            titlePlaced.placeRelative(0, 0)
+            valuePlaced.placeRelative(0, titlePlaced.height)
+        }
+    }
+}
 
 /**
  * The line the plan card shows while [preview]'s option has focus: [base], the plan's own line,

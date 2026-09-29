@@ -156,7 +156,7 @@ class NovaPlaySetupLayoutTest {
     }
 
     @Test
-    fun thePlanCardSaysItsNumbersAndWhatHoldsItBackOnOneLine() {
+    fun thePlanCardSaysItsNumbersAndLeavesWhatHoldsItBackToItsPage() {
         val plan = NovaPlaySetupPlan(
             mode = "Private Stream",
             lines = listOf("1920×1080 · 60 FPS · HEVC", "Nothing outside this game changes."),
@@ -165,7 +165,9 @@ class NovaPlaySetupLayoutTest {
                 NovaPlaySetupFact(key = "Limited by", value = "Network", detail = "12 ms jitter", tone = NovaPlaySetupTone.WARN),
             ),
         )
-        assertEquals("1920×1080 · 60 FPS · HEVC · Limited by: Network", novaPlaySetupPlanSummary(plan))
+        // The mockup's line is the numbers alone; what limits them is on the plan's page and in
+        // the preview of the option that would meet it (papi's approved Play Setup, 2026-09-28).
+        assertEquals("1920×1080 · 60 FPS · HEVC", novaPlaySetupPlanSummary(plan))
         assertEquals("1920×1080 · 60 FPS · HEVC", novaPlaySetupPlanSummary(plan.copy(facts = plan.facts.take(1))))
         assertNull(novaPlaySetupPlanSummary(plan.copy(lines = emptyList(), facts = emptyList())))
     }

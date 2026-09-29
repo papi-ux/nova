@@ -66,8 +66,8 @@ class NovaPlaySetupFitComposeTest {
                 }
             }
         }
-        rule.onNodeWithText("1920×1080 at 60 FPS · HEVC · Limited by: Network", substring = true, useUnmergedTree = true)
-            .assertExists()
+        rule.onNodeWithText("1920×1080 at 60 FPS · HEVC", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Limited by", substring = true, useUnmergedTree = true).assertDoesNotExist()
         rule.onNodeWithText("12 ms of jitter", useUnmergedTree = true).assertDoesNotExist()
         rule.onNodeWithTag(NOVA_PLAY_SETUP_PLAN_CARD_TAG).performClick()
         assertEquals(1, opened)
