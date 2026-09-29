@@ -1,9 +1,11 @@
 package com.papi.nova.preferences
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Looper
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
+import androidx.preference.Preference
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.EditProfileActivity
 import com.papi.nova.R
@@ -154,6 +156,25 @@ class NovaLegacySettingsPagesTest {
         assertNull(page.onSubmit(mapOf(key to "Couch")))
         assertTrue(activity.title.toString().contains("Couch"))
         assertNotEquals(context.getString(R.string.profile_manager_new_profile), activity.title.toString())
+    }
+
+    /**
+     * Review finding 9: the Compose Settings screen, the stream and More Controls offer the Touch
+     * Menu Button only to touch players, but the legacy screen still listed it with no touchscreen
+     * and on a television.
+     */
+    @Test
+    fun theTouchMenuButtonIsOfferedOnlyToTouchPlayers() {
+        val features = Shadows.shadowOf(context.packageManager)
+        val key = com.papi.nova.ui.NovaTouchMenuButton.SETTING_KEY
+        features.setSystemFeature(PackageManager.FEATURE_TOUCHSCREEN, false)
+        legacyEditor { _, fragment -> assertNull("no touchscreen, no row", fragment.findPreference<Preference>(key)) }
+
+        features.setSystemFeature(PackageManager.FEATURE_TOUCHSCREEN, true)
+        legacyEditor { _, fragment -> assertNotNull("a touch player keeps it", fragment.findPreference<Preference>(key)) }
+
+        features.setSystemFeature(PackageManager.FEATURE_LEANBACK, true)
+        legacyEditor { _, fragment -> assertNull("a television never needs it", fragment.findPreference<Preference>(key)) }
     }
 
     companion object {
