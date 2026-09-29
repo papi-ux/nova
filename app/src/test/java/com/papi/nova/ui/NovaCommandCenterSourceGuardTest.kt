@@ -138,7 +138,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         val closeButton = quickMenuContent.section(
             "private fun NovaQuickMenuCloseButton(",
-            "@Composable\nprivate fun NovaQuickMenuDiagnosisCard("
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuDiagnosisCard("
         )
 
         // The smoke test of 2026-09-29 found the page opening on the strip, which acts on nothing:
@@ -150,7 +150,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "Command Center should open on Close, the header's safe action, while asynchronous Doctor data is loading; the page host focuses it one frame after the page opens",
-            header.contains("NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaInitialFocus().novaRestorableFocus(\"header-close\"))") &&
+            header.contains("NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaInitialFocus().then(novaPlaceFocus(\"header-close\")))") &&
                 content.contains("NovaQuickMenuSessionStrip(ui, Modifier)") &&
                 sessionStrip.contains("modifier: Modifier")
         )
@@ -478,7 +478,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         val closeButton = content.section(
             "private fun NovaQuickMenuCloseButton(",
-            "@Composable\nprivate fun NovaQuickMenuDiagnosisCard("
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuDiagnosisCard("
         )
 
         val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier)")
@@ -1029,7 +1029,7 @@ class NovaCommandCenterSourceGuardTest {
             "both opacity rows show every preset in the row with the current one checked, as HUD Mode does",
             menuOpacity.contains("style = NovaValueStyle.Segmented") && hudOpacity.contains("style = NovaValueStyle.Segmented"),
         )
-        val stream = content.section("private fun NovaQuickMenuStabilityCard(", "private fun NovaQuickMenuStaticCard(")
+        val stream = content.section("private fun NovaPageScope.NovaQuickMenuStabilityCard(", "private fun NovaQuickMenuStaticCard(")
         assertTrue(
             "the Stream card insets its text as a row does and leaves its nested row its own inset",
             stream.contains("NovaQuickMenuStaticCard(contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceMd))"),

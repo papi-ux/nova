@@ -141,14 +141,17 @@ class NovaCommandCenterPagesComposeTest {
         ),
     )
 
-    private fun open(adjust: (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { it }): NovaTestKeys {
+    private fun open(
+        place: NovaQuickMenuPlace? = null,
+        adjust: (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { it },
+    ): NovaTestKeys {
         val state = MutableStateFlow(adjust(NovaQuickMenuUiState.preview(rule.activity)))
         panel.open(CommandCenterPage.Root("Command Center"))
         val keys = rule.setPanelContent {
             Box(Modifier.fillMaxSize()) {
                 NovaPageStackHost(state = panel, containFocus = false) { page ->
                     when (page) {
-                        is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = callbacks)
+                        is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = callbacks, place = place)
                         is CommandCenterPage.Listing -> CommandCenterListingPage(page)
                         is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                         else -> Unit
@@ -337,6 +340,32 @@ class NovaCommandCenterPagesComposeTest {
         }
         rule.onNodeWithText("Copies the details").assertExists()
         rule.onNodeWithText("Copy details").assertDoesNotExist()
+    }
+
+    /**
+     * In-game #16: every opening put focus back on Close with the list at the top, so trying HUD
+     * modes meant seven Downs after each look. It comes back to the row that had focus now, except
+     * a button whose one A acts, which reopens on Close.
+     */
+    @Test
+    fun reopeningComesBackToTheRowThatHadFocus() {
+        val place = NovaQuickMenuPlace()
+        open(place = place)
+        focus("Keyboard")
+        panel.close()
+        rule.frames(16)
+        panel.open(CommandCenterPage.Root("Command Center"))
+        rule.waitForIdle()
+        rule.frames(4)
+        rule.onNodeWithText("Keyboard").assertIsFocused()
+
+        focus("Disconnect")
+        panel.close()
+        rule.frames(16)
+        panel.open(CommandCenterPage.Root("Command Center"))
+        rule.waitForIdle()
+        rule.frames(4)
+        rule.onNodeWithText("Close").assertIsFocused()
     }
 
     @Test

@@ -23,7 +23,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -32,6 +34,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -161,6 +165,7 @@ fun NovaPageScope.NovaQuickMenuContent(
     state: StateFlow<NovaQuickMenuUiState>,
     callbacks: NovaQuickMenuCallbacks,
     modifier: Modifier = Modifier,
+    place: NovaQuickMenuPlace? = null,
 ) {
     val ui = state.collectAsState()
     val endSplit = rememberNovaSplitConfirmState()
@@ -175,64 +180,96 @@ fun NovaPageScope.NovaQuickMenuContent(
     val advancedExpanded by ui.slice { it.advancedExpanded }
     val showReport by ui.slice { it.advancedExpanded && it.postSessionReport.visible }
 
-    val sections = rememberScrollState()
+    // Reopened in the same stream, the page comes back where it was left: the row that had focus,
+    // scrolled as it was (in-game #16). It opened on Close at the top every time.
+    val sections = rememberScrollState(place?.scroll ?: 0)
+    place?.focusKey?.let { novaInitialFocusAt(it) }
+    LaunchedEffect(sections, place) {
+        if (place != null) snapshotFlow { sections.value }.collect { place.scroll = it }
+    }
     val hudPreview = remember(callbacks) { NovaHudPreviewFocus(callbacks.onHudPreview) }
     DisposableEffect(hudPreview) { onDispose { hudPreview.clear() } }
-    Column(modifier = modifier.fillMaxSize()) {
-        // The header stays put. Close, Disconnect and End Session are under the thumb however
-        // far the sections have been scrolled; they used to scroll away on a Retroid.
-        NovaQuickMenuHeader(ui, callbacks, endSplit)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                // A card cut by the edge under the header or above the hint bar dissolves there.
-                .novaScrollEdgeFade(sections)
-                .verticalScroll(sections)
-                .padding(vertical = NovaPanelMetrics.SpaceSm),
-            verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
-        ) {
-            // The page opens on Close, its safe action (R7); it opened on this strip, which acts
-            // on nothing, so the first A did nothing and the ring sat on a status card.
-            NovaQuickMenuSessionStrip(ui, Modifier)
-            NovaQuickMenuLiveTuningRow(ui, callbacks)
-            // The keys a handheld cannot press any other way stay one reach from the top; the
-            // full grid lives further down with the rest of the sections.
-            if (showPinnedKeys) NovaQuickKeys(ui, { it.pinnedQuickKeys }, callbacks)
-            // The strip is a one-line verdict. What explains it, the Doctor's reading and what
-            // Auto is running, comes next instead of three screens down. A reading that only
-            // informs, with nothing to run and nothing the strip warns about, ranks last (N28).
-            if (showDiagnosis && !diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)
-            if (showReceipt) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
-            NovaQuickMenuStabilityCard(ui, callbacks)
+    CompositionLocalProvider(LocalNovaQuickMenuPlace provides place) {
+        Column(modifier = modifier.fillMaxSize()) {
+            // The header stays put. Close, Disconnect and End Session are under the thumb however
+            // far the sections have been scrolled; they used to scroll away on a Retroid.
+            NovaQuickMenuHeader(ui, callbacks, endSplit)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    // A card cut by the edge under the header or above the hint bar dissolves there.
+                    .novaScrollEdgeFade(sections)
+                    .verticalScroll(sections)
+                    .padding(vertical = NovaPanelMetrics.SpaceSm),
+                verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
+            ) {
+                // The page opens on Close, its safe action (R7); it opened on this strip, which acts
+                // on nothing, so the first A did nothing and the ring sat on a status card.
+                NovaQuickMenuSessionStrip(ui, Modifier)
+                NovaQuickMenuLiveTuningRow(ui, callbacks)
+                // The keys a handheld cannot press any other way stay one reach from the top; the
+                // full grid lives further down with the rest of the sections.
+                if (showPinnedKeys) NovaQuickKeys(ui, { it.pinnedQuickKeys }, callbacks)
+                // The strip is a one-line verdict. What explains it, the Doctor's reading and what
+                // Auto is running, comes next instead of three screens down. A reading that only
+                // informs, with nothing to run and nothing the strip warns about, ranks last (N28).
+                if (showDiagnosis && !diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)
+                if (showReceipt) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
+                NovaQuickMenuStabilityCard(ui, callbacks)
 
-            // Overlays first because the HUD switch is the frequent tap.
-            NovaSectionLabel(overlaysTitle)
-            NovaQuickMenuOverlayRows(ui, callbacks, hudPreview)
-            NovaQuickMenuMenuOpacityControl(ui, callbacks)
-            NovaQuickMenuHudOpacityControl(ui, callbacks, hudPreview)
+                // Overlays first because the HUD switch is the frequent tap.
+                NovaSectionLabel(overlaysTitle)
+                NovaQuickMenuOverlayRows(ui, callbacks, hudPreview)
+                NovaQuickMenuMenuOpacityControl(ui, callbacks)
+                NovaQuickMenuHudOpacityControl(ui, callbacks, hudPreview)
 
-            NovaSectionLabel(controlsTitle)
-            NovaQuickMenuRows(ui, { it.controlRows }, callbacks)
+                NovaSectionLabel(controlsTitle)
+                NovaQuickMenuRows(ui, { it.controlRows }, callbacks)
 
-            NovaSectionLabel(sessionTitle)
-            NovaQuickMenuRows(ui, { rows -> rows.sessionRows.filter { it.visible } }, callbacks)
+                NovaSectionLabel(sessionTitle)
+                NovaQuickMenuRows(ui, { rows -> rows.sessionRows.filter { it.visible } }, callbacks)
 
-            // The full grid last of the daily sections, since its top three are pinned above.
-            NovaSectionLabel(quickKeysTitle)
-            NovaQuickKeys(ui, { it.gridQuickKeys }, callbacks)
+                // The full grid last of the daily sections, since its top three are pinned above.
+                NovaSectionLabel(quickKeysTitle)
+                NovaQuickKeys(ui, { it.gridQuickKeys }, callbacks)
 
-            if (showDiagnosis && diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)
+                if (showDiagnosis && diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)
 
-            NovaQuickMenuInfoCard(ui, { it.sync }, callbacks)
-            NovaQuickMenuInfoCard(ui, { it.advancedToggle }, callbacks)
-            if (advancedExpanded) {
-                NovaQuickMenuRows(ui, { it.advancedRows }, callbacks)
-                // Observational history from the host; it explains Auto's fallbacks but never
-                // changes a launch, so it lives with the other diagnostics.
-                if (showReport) NovaQuickMenuPostSessionReportCard(ui)
+                NovaQuickMenuInfoCard(ui, { it.sync }, callbacks)
+                NovaQuickMenuInfoCard(ui, { it.advancedToggle }, callbacks)
+                if (advancedExpanded) {
+                    NovaQuickMenuRows(ui, { it.advancedRows }, callbacks)
+                    // Observational history from the host; it explains Auto's fallbacks but never
+                    // changes a launch, so it lives with the other diagnostics.
+                    if (showReport) NovaQuickMenuPostSessionReportCard(ui)
+                }
             }
         }
+    }
+}
+
+/**
+ * Where the Command Center's focus and scroll were when it last closed, kept by its host for the
+ * rest of the stream so the next opening comes back there (in-game #16).
+ */
+class NovaQuickMenuPlace {
+    internal var focusKey: Any? = null
+    internal var scroll: Int = 0
+}
+
+private val LocalNovaQuickMenuPlace = staticCompositionLocalOf<NovaQuickMenuPlace?> { null }
+
+/**
+ * [NovaPageScope.novaRestorableFocus], also recorded as where the Command Center next opens. A
+ * button whose A acts at once (Disconnect) or arms a split (End Session, Alt + F4) passes
+ * [reopenHere] false: the next opening starts on Close instead of one A from ending something.
+ */
+@Composable
+private fun NovaPageScope.novaPlaceFocus(key: Any, reopenHere: Boolean = true): Modifier {
+    val place = LocalNovaQuickMenuPlace.current
+    return Modifier.novaRestorableFocus(key).onFocusChanged {
+        if (it.hasFocus && place != null) place.focusKey = key.takeIf { reopenHere }
     }
 }
 
@@ -269,12 +306,12 @@ private fun NovaPageScope.NovaQuickMenuHeader(
             // Restorable, so focus comes back to the button it left when a state page such as
             // Connection Lost covers the panel and goes.
             if (!armed) {
-                NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaInitialFocus().novaRestorableFocus("header-close"))
+                NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaInitialFocus().then(novaPlaceFocus("header-close")))
                 if (disconnect.visible) {
-                    NovaQuickMenuHeaderButton(disconnect, callbacks, Modifier.weight(1f).novaRestorableFocus("header-disconnect"))
+                    NovaQuickMenuHeaderButton(disconnect, callbacks, Modifier.weight(1f).then(novaPlaceFocus("header-disconnect", reopenHere = false)))
                 }
             }
-            NovaQuickMenuEndButton(end, callbacks, endSplit, Modifier.weight(1f).novaRestorableFocus("header-end"))
+            NovaQuickMenuEndButton(end, callbacks, endSplit, Modifier.weight(1f).then(novaPlaceFocus("header-end", reopenHere = false)))
         }
         AnimatedVisibility(
             visible = armed && consequence != null,
@@ -354,7 +391,7 @@ private fun NovaQuickMenuCloseButton(
 }
 
 @Composable
-private fun NovaQuickMenuDiagnosisCard(
+private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
     ui: State<NovaQuickMenuUiState>,
     callbacks: NovaQuickMenuCallbacks,
 ) {
@@ -405,6 +442,7 @@ private fun NovaQuickMenuDiagnosisCard(
     }
     NovaQuickMenuCard(
         action = action,
+        modifier = novaPlaceFocus(NovaQuickMenuActionId.DIAGNOSE_STREAM),
         supportingLine = supportingLine,
         // The real callbacks. A fresh default instance renders enabled and does nothing when
         // pressed, and looks no different from one that works; the guard forbids the
@@ -492,7 +530,7 @@ private fun NovaQuickMenuPostSessionReportCard(ui: State<NovaQuickMenuUiState>) 
  * its own row. The current profile carries the check, never a filled button.
  */
 @Composable
-private fun NovaQuickMenuStabilityCard(
+private fun NovaPageScope.NovaQuickMenuStabilityCard(
     ui: State<NovaQuickMenuUiState>,
     callbacks: NovaQuickMenuCallbacks,
 ) {
@@ -527,6 +565,7 @@ private fun NovaQuickMenuStabilityCard(
                 current = current,
                 onChange = callbacks.onProfilePreference,
                 enabled = enabled,
+                modifier = novaPlaceFocus("launch-preset"),
             )
         }
     }
@@ -556,19 +595,20 @@ private fun NovaQuickMenuStaticCard(
 
 /** A card that acts: the Doctor's receipt, Sync and Advanced. */
 @Composable
-private fun NovaQuickMenuInfoCard(
+private fun NovaPageScope.NovaQuickMenuInfoCard(
     ui: State<NovaQuickMenuUiState>,
     select: (NovaQuickMenuUiState) -> NovaQuickMenuAction,
     callbacks: NovaQuickMenuCallbacks,
 ) {
     val action by ui.slice(select)
-    NovaQuickMenuCard(action = action, callbacks = callbacks)
+    NovaQuickMenuCard(action = action, callbacks = callbacks, modifier = novaPlaceFocus(action.id))
 }
 
 @Composable
 private fun NovaQuickMenuCard(
     action: NovaQuickMenuAction,
     callbacks: NovaQuickMenuCallbacks,
+    modifier: Modifier = Modifier,
     supportingLine: String = "",
 ) {
     val colors = LocalNovaComposeColors.current
@@ -576,7 +616,7 @@ private fun NovaQuickMenuCard(
     NovaQuickMenuClickableSurface(
         enabled = action.enabled,
         onClick = { callbacks.perform(action) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(NovaPanelMetrics.SpaceMd),
         contentDescription = listOfNotNull(action.label, action.chip?.label, supportingLine, action.caption)
             .filter { it.isNotBlank() }
@@ -623,7 +663,7 @@ private fun NovaQuickMenuTitleAndChip(title: @Composable () -> Unit, chip: NovaQ
  * would be narrower than 96dp, and its neighbours step aside.
  */
 @Composable
-private fun NovaQuickKeys(
+private fun NovaPageScope.NovaQuickKeys(
     ui: State<NovaQuickMenuUiState>,
     select: (NovaQuickMenuUiState) -> List<NovaQuickMenuAction>,
     callbacks: NovaQuickMenuCallbacks,
@@ -647,12 +687,12 @@ private fun NovaQuickKeys(
                                 enabled = action.enabled,
                                 state = closeApp,
                                 fillSlot = true,
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).then(novaPlaceFocus(action.id, reopenHere = false)),
                             )
                             !splitTakesRow -> NovaPanelButton(
                                 text = action.label,
                                 onClick = { if (action.enabled) callbacks.perform(action) },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).then(novaPlaceFocus(action.id)),
                             )
                         }
                     }
@@ -676,12 +716,12 @@ private fun NovaPageScope.NovaQuickMenuOverlayRows(
 ) {
     val rows by ui.slice { it.overlayRows }
     rows.forEach { row ->
-        NovaQuickMenuRow(row, callbacks, Modifier.novaRestorableFocus(row.id))
+        NovaQuickMenuRow(row, callbacks, novaPlaceFocus(row.id))
         if (row.id == NovaQuickMenuActionId.NOVA_HUD) {
             NovaQuickMenuHudModePicker(
                 ui,
                 callbacks,
-                Modifier.novaRestorableFocus("hud-mode").onFocusChanged { hudPreview.update("hud-mode", it.hasFocus) },
+                novaPlaceFocus("hud-mode").onFocusChanged { hudPreview.update("hud-mode", it.hasFocus) },
             )
         }
     }
@@ -738,11 +778,11 @@ private fun NovaPageScope.NovaQuickMenuRows(
                 shape = NovaSplitShape.Row,
                 enabled = row.enabled,
                 caption = row.caption,
-                modifier = Modifier.novaRestorableFocus(row.id).testTag("nova-cc-clear-game-profile"),
+                modifier = novaPlaceFocus(row.id).testTag("nova-cc-clear-game-profile"),
             )
         } else {
             // A row that pushed a page is where focus lands when that page pops.
-            NovaQuickMenuRow(row, callbacks, Modifier.novaRestorableFocus(row.id), opens = row.id in OpensPage)
+            NovaQuickMenuRow(row, callbacks, novaPlaceFocus(row.id), opens = row.id in OpensPage)
         }
     }
 }
@@ -770,7 +810,7 @@ private fun NovaPageScope.NovaQuickMenuLiveTuningRow(
         enabled = row.enabled,
         caption = row.caption,
         trailing = row.chip?.let { chip -> { NovaQuickMenuChipView(chip) } },
-        modifier = Modifier.novaRestorableFocus(row.id).testTag("nova-cc-live-tuning"),
+        modifier = novaPlaceFocus(row.id).testTag("nova-cc-live-tuning"),
     )
 }
 
@@ -832,7 +872,7 @@ private fun NovaPageScope.NovaQuickMenuMenuOpacityControl(
         // cycler its value sat mid row, an arrow's width in from where every other row's value ends.
         style = NovaValueStyle.Segmented,
         ordered = true,
-        modifier = Modifier.novaRestorableFocus("menu-opacity"),
+        modifier = novaPlaceFocus("menu-opacity"),
     )
 }
 
@@ -860,7 +900,7 @@ private fun NovaPageScope.NovaQuickMenuHudOpacityControl(
         style = NovaValueStyle.Segmented,
         ordered = true,
         enabled = hudOpacity.enabled,
-        modifier = Modifier.novaRestorableFocus("hud-opacity").onFocusChanged { hudPreview.update("hud-opacity", it.hasFocus) },
+        modifier = novaPlaceFocus("hud-opacity").onFocusChanged { hudPreview.update("hud-opacity", it.hasFocus) },
     )
 }
 

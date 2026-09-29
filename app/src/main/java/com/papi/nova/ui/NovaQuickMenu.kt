@@ -45,6 +45,8 @@ class NovaQuickMenu(
 ) : Game.GameMenuCallbacks {
     /** The Command Center that is open, or was open last. */
     private var session: MenuSession? = null
+    /** Where the root page's focus and scroll were when it last closed, for the next opening. */
+    private val rootPlace = NovaQuickMenuPlace()
     private val doctorActionLock = Any()
     private var doctorReceipt: DoctorActionReceipt? = null
     private var doctorReceiptScopeId: String? = null
@@ -1126,7 +1128,7 @@ class NovaQuickMenu(
                 menu.anchorRef = WeakReference(view)
             }
             when (page) {
-                is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks)
+                is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace)
                 is CommandCenterPage.Listing -> CommandCenterListingPage(page)
                 is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                 else -> Unit
