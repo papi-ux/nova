@@ -129,7 +129,8 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains(") == null && !containsNovaLaunchOverride)") &&
                 game.contains("displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(displayLocked,") &&
                 !game.contains("queryDisplayLocked = containsNovaLaunchOverride") &&
-                game.contains("return LaunchOptimizationDecision(optimizationResult, false, preference, true)")
+                game.contains("return LaunchOptimizationDecision(optimizationResult, false, preference, true,\n" +
+                    "manualBitrateMaximumKbps = observedManualMaximumKbps)")
         )
         assertTrue(
             "fresh and preflight resolved profiles must pass the same HDR, client-FPS, and metered-lock envelope, and every refusal must name the cause it is shown for",
