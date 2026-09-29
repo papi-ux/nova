@@ -40,8 +40,15 @@ class NovaCommandCenterHostStatusTest {
     private var redraws = 0
     private var derived = 0
 
+    /** Nothing here switches Live Tuning; NovaCommandCenterLiveTuningResultComposeTest does. */
+    private val runtime = object : NovaCommandCenterRuntime {
+        override fun launchIo(name: String, block: suspend () -> Unit) = error("no work here")
+        override suspend fun onMain(block: () -> Unit) = error("no work here")
+        override fun postDelayed(delayMs: Long, block: () -> Unit) = error("no work here")
+    }
+
     private fun host(api: PolarisApiClient? = this.api, polarisServer: Boolean = true) =
-        NovaCommandCenterHostStatus(api, registry, generation, polarisServer = { polarisServer }).also {
+        NovaCommandCenterHostStatus(api, registry, generation, polarisServer = { polarisServer }, runtime = runtime).also {
             it.derive = { derived++ }
             it.redraw = { redraws++ }
         }

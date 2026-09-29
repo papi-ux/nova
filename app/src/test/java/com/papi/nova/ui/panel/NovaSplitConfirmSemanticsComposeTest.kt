@@ -34,7 +34,8 @@ import org.robolectric.annotation.Config
  * their own is read as well as the Texts, not instead of them. Round 3 described each half as its
  * label and caption joined, and the label, and a result in the caption, were said twice. Each half
  * now says its words once, and a result is announced by the caption's own Text, a polite live
- * region, and by nothing else in the row.
+ * region, and by nothing else in the row. A row's state, such as Live Tuning's On, is its state
+ * description; the chip that shows it says nothing more, where it had said On a second time.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -57,6 +58,8 @@ class NovaSplitConfirmSemanticsComposeTest {
                     caption = result,
                     announceCaption = announce,
                     trailing = { Text("On") },
+                    // As the Live Tuning row passes its chip's label.
+                    stateDescription = "On",
                     state = state,
                     tone = NovaSplitTone.Neutral,
                 )
@@ -75,20 +78,28 @@ class NovaSplitConfirmSemanticsComposeTest {
 
     private fun SemanticsNode.subtree(): List<SemanticsNode> = listOf(this) + children.flatMap { it.subtree() }
 
-    /** How many nodes in [node]'s subtree say [words], in a Text or a description. */
-    private fun times(node: SemanticsNode, words: String): Int = node.subtree().count { each ->
-        each.config.getOrNull(SemanticsProperties.Text).orEmpty().any { it.text == words } ||
-            each.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty().any { it.contains(words) }
-    }
+    /**
+     * The half that shows [label] as a screen reader reads it: one node, with the words of all
+     * under it merged in, less any a node under it clears, as the Live Tuning row's chip is.
+     */
+    private fun heard(label: String): SemanticsNode =
+        rule.onNode(hasClickAction() and hasText(label, substring = true)).fetchSemanticsNode()
+
+    /** How many times [node] says [words]: in its Texts, its descriptions and its state. */
+    private fun times(node: SemanticsNode, words: String): Int =
+        node.config.getOrNull(SemanticsProperties.Text).orEmpty().count { it.text == words } +
+            node.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty().count { it.contains(words) } +
+            (if (node.config.getOrNull(SemanticsProperties.StateDescription) == words) 1 else 0)
 
     @Test
     fun aRowSaysItsLabelAndItsResultOnce() {
         setUp(announce = true)
-        val row = half("Live Tuning")
-        assertNull("no description of its own", row.config.getOrNull(SemanticsProperties.ContentDescription))
+        assertNull("no description of its own", half("Live Tuning").config.getOrNull(SemanticsProperties.ContentDescription))
+        val row = heard("Live Tuning")
         assertEquals("the label once", 1, times(row, "Live Tuning"))
         assertEquals("the result once", 1, times(row, result))
         assertEquals("the state once", 1, times(row, "On"))
+        assertEquals("as the row's state", "On", row.config.getOrNull(SemanticsProperties.StateDescription))
     }
 
     @Test
@@ -120,9 +131,8 @@ class NovaSplitConfirmSemanticsComposeTest {
         keys.press(NovaTestKeys.CENTER)
         rule.waitForIdle()
         listOf("Stay", "Turn Off").forEach { label ->
-            val half = half(label)
-            assertNull("$label has no description of its own", half.config.getOrNull(SemanticsProperties.ContentDescription))
-            assertEquals("$label once", 1, times(half, label))
+            assertNull("$label has no description of its own", half(label).config.getOrNull(SemanticsProperties.ContentDescription))
+            assertEquals("$label once", 1, times(heard(label), label))
         }
     }
 }

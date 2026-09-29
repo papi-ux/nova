@@ -15,6 +15,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -56,6 +57,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -187,7 +189,10 @@ fun NovaSplitConfirm(
      */
     trailing: (@Composable () -> Unit)? = null,
     tone: NovaSplitTone = NovaSplitTone.Destructive,
-    /** What [trailing] shows, for a screen reader, which hears the row's state from it. */
+    /**
+     * What [trailing] shows, for a screen reader, which hears it as the row's state and not again
+     * from [trailing]'s own words: Live Tuning's On was said twice.
+     */
     stateDescription: String? = null,
     /**
      * [caption] holds a result a screen reader should hear as it arrives, such as a switch the
@@ -470,7 +475,8 @@ private fun SplitHalf(
                         )
                     }
                 }
-                trailing?.invoke()
+                // Said once, as the row's state, where the state describes the slot.
+                trailing?.let { slot -> if (stateDescription != null) Box(Modifier.clearAndSetSemantics { }) { slot() } else slot() }
             }
         } else {
             val style = buttonStyle?.text ?: novaPanelType.value

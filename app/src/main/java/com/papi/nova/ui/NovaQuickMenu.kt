@@ -56,13 +56,7 @@ class NovaQuickMenu(
     private val doctorActionPendingRegistry = DoctorActionPendingRegistry()
     private var doctorVerificationRunnable: Runnable? = null
     /** The stream's runtime, where the Command Center's work runs. */
-    private val runtime = object : NovaCommandCenterRuntime {
-        override fun launchIo(name: String, block: suspend () -> Unit) = game.launchRuntimeIo(name) { block() }
-        override suspend fun onMain(block: () -> Unit) = game.runOnMainIfRuntimeActive(block)
-        override fun postDelayed(delayMs: Long, block: () -> Unit) {
-            game.window.decorView.postDelayed(block, delayMs)
-        }
-    }
+    private val runtime = NovaCommandCenterRuntime.of(game)
 
     /**
      * One opening of the Command Center: the controller that opened it, for More Controls, and
@@ -130,6 +124,7 @@ class NovaQuickMenu(
             registry = doctorMenuRefreshRegistry,
             generation = menuValidationGeneration,
             polarisServer = game::novaIsPolarisServer,
+            runtime = runtime,
         )
         val prefs = PreferenceManager.getDefaultSharedPreferences(game)
 
@@ -146,8 +141,6 @@ class NovaQuickMenu(
         var profileClearResult: String? = null
         var diagnosticsCopied = false
         // Results said in their rows' own captions for a moment, where snackbars had floated.
-        // Live Tuning's switch and its result, set once the page can be refreshed.
-        var liveTuningSave: NovaLiveTuningSave? = null
         var launchPresetSaved = false
         var launchPresetSaves = 0
         lateinit var scheduleDoctorVerification: (DoctorActionReceipt?) -> Unit
@@ -462,8 +455,8 @@ class NovaQuickMenu(
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
                 hostStateUnavailable = host.unavailable,
-                liveTuningPending = liveTuningSave?.pending == true,
-                liveTuningUnconfirmed = liveTuningSave?.unconfirmed,
+                liveTuningPending = host.liveTuning?.pending == true,
+                liveTuningUnconfirmed = host.liveTuning?.unconfirmed,
                 adaptiveSupported = adaptiveSupported,
                 aiSupported = aiSupported,
                 adaptiveEnabled = adaptiveEnabled,
@@ -508,16 +501,6 @@ class NovaQuickMenu(
         val uiState = MutableStateFlow(buildState())
         host.redraw = { uiState.value = buildState() }
         fun refreshState() = host.refresh()
-
-        liveTuningSave = apiClient?.let { api ->
-            liveTuningSave(
-                runtime = runtime,
-                api = api,
-                current = ::menuValidationIsCurrent,
-                publish = { host.publish() },
-                changed = ::refreshState,
-            )
-        }
 
         fun sendQuickKey(actionId: NovaQuickMenuActionId) {
             val quickKeys = when (actionId) {
@@ -894,14 +877,9 @@ class NovaQuickMenu(
                     }
                 }
             },
-            onLiveTuning = { enable ->
-                val observed = sessionStatus
-                if (observed?.canAdjustHostTuning == true && !host.unavailable) {
-                    // The state the split offered, not a flip of whatever the host says now; the
-                    // result is said in the row's own caption (NovaLiveTuningSave).
-                    liveTuningSave?.request(enable, observed)
-                }
-            },
+            // The state the split offered, not a flip of whatever the host says now; the result
+            // is said in the row's own caption (NovaLiveTuningSave).
+            onLiveTuning = host::switchLiveTuning,
             onToggleAdvanced = {
                 haptic {
                     advancedTuningVisible = !advancedTuningVisible
@@ -1470,29 +1448,6 @@ class NovaQuickMenu(
         private const val PROFILE_CLEAR_RESULT_SHOWN_MS = 4_000L
         private const val HUD_OPACITY_WRITE = "hud-opacity"
         private const val MENU_OPACITY_WRITE = "menu-opacity"
-
-        /**
-         * Live Tuning's switch as the Command Center wires it for one opening (review findings 5
-         * and 7): the save asks [api] for exactly the state the split offered, the host's status
-         * is fetched again and [publish]ed to the page, which records whether the host answered,
-         * and a result leaves the row after its time. Work runs on [runtime] while [current] says
-         * this opening still stands; [changed] redraws the page.
-         */
-        internal fun liveTuningSave(
-            runtime: NovaCommandCenterRuntime,
-            api: PolarisApiClient,
-            current: () -> Boolean,
-            publish: () -> Unit,
-            changed: () -> Unit,
-        ): NovaLiveTuningSave = NovaLiveTuningSave(
-            launch = { block -> runtime.launchIo("NovaLiveTuningSave") { block() } },
-            onMain = { block -> runtime.onMain { if (current()) block() } },
-            later = { delayMs, block -> runtime.postDelayed(delayMs, block) },
-            save = { enable, observed -> api.setLiveTuningEnabled(enable, observed) },
-            fetch = { api.getSessionStatus() },
-            publish = publish,
-            changed = changed,
-        )
     }
 }
 
@@ -1504,4 +1459,15 @@ internal interface NovaCommandCenterRuntime {
     fun launchIo(name: String, block: suspend () -> Unit)
     suspend fun onMain(block: () -> Unit)
     fun postDelayed(delayMs: Long, block: () -> Unit)
+
+    companion object {
+        /** [game]'s own: its runtime tasks, its main thread while it runs, and its window. */
+        fun of(game: Game): NovaCommandCenterRuntime = object : NovaCommandCenterRuntime {
+            override fun launchIo(name: String, block: suspend () -> Unit) = game.launchRuntimeIo(name) { block() }
+            override suspend fun onMain(block: () -> Unit) = game.runOnMainIfRuntimeActive(block)
+            override fun postDelayed(delayMs: Long, block: () -> Unit) {
+                game.window.decorView.postDelayed(block, delayMs)
+            }
+        }
+    }
 }

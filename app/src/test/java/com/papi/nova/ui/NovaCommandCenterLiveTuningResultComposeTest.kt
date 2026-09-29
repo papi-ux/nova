@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsEnabled
@@ -29,6 +30,8 @@ import com.papi.nova.ui.panel.setPanelContent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,14 +41,17 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Review findings 5 and 7, through the Command Center's own save ([NovaQuickMenu.liveTuningSave])
- * against a fake host behind the client's API. A Live Tuning switch the host did not confirm said
+ * Review findings 5 and 7, through the Command Center's own wiring ([NovaCommandCenterHostStatus],
+ * which holds each opening's host status and Live Tuning's switch) against a fake host behind the
+ * client's API and a runtime of the test's own. A Live Tuning switch the host did not confirm said
  * "Try again" beside a chip that could already show the state asked for; it was silent for
  * TalkBack; a status refresh that failed too left only "Reconnecting" and disabled the row, so
  * focus left it as the failure arrived. The row now says the state the host reports, which its
- * chip shows, offers nothing that undoes the change, keeps focus, and lets the line go after its
- * time. The save asks the host for the state the split offered, even when another device switched
- * it while the split was armed; a flip of the host's state turned Turn Off into On.
+ * chip shows and TalkBack hears once, as the row's state; offers nothing that undoes the change;
+ * keeps focus; and lets the line go after its time. The save asks the host for the state the
+ * split offered, even when another device switched it while the split was armed; a flip of the
+ * host's state turned Turn Off into On. The runtime the stream gives it is tested on a stream
+ * (NovaCommandCenterRuntimeTest), and the request the client sends in LiveTuningStatusTest.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -65,11 +71,9 @@ class NovaCommandCenterLiveTuningResultComposeTest {
     /** The client's copy of the host's status, which a status read replaces, as PolarisApiClient's does. */
     private var store: PolarisSessionStatus? = null
 
-    // The page: the status it was last handed, and whether the host answered.
-    private var shown: PolarisSessionStatus? = null
-    private var unavailable = false
     private val timers = mutableListOf<Pair<Long, () -> Unit>>()
-    private lateinit var save: NovaLiveTuningSave
+    private val registry = DoctorMenuRefreshRegistry()
+    private lateinit var host: NovaCommandCenterHostStatus
     private lateinit var state: MutableStateFlow<NovaQuickMenuUiState>
 
     private fun live(name: String): LiveTuningStatus {
@@ -79,7 +83,7 @@ class NovaCommandCenterLiveTuningResultComposeTest {
             .let { LiveTuningStatus.parse(it.getJSONObject("live_tuning"))!! }
     }
 
-    private fun host(): PolarisSessionStatus? = if (!answers) null else PolarisSessionStatus(
+    private fun hostStatus(): PolarisSessionStatus? = if (!answers) null else PolarisSessionStatus(
         state = "streaming",
         streamingActive = true,
         game = "Portal",
@@ -100,7 +104,7 @@ class NovaCommandCenterLiveTuningResultComposeTest {
                 afterSave(enable)
                 confirms
             }
-            "getSessionStatus" -> host().also { store = it }
+            "getSessionStatus" -> hostStatus().also { store = it }
             "withCurrentSessionStatus" -> (call.arguments[0] as (PolarisSessionStatus?) -> Any?)(store)
             else -> Mockito.RETURNS_DEFAULTS.answer(call)
         }
@@ -115,16 +119,17 @@ class NovaCommandCenterLiveTuningResultComposeTest {
         }
     }
 
+    /** The page's state from what the Command Center holds, as NovaQuickMenu builds it. */
     private fun build(): NovaQuickMenuUiState = NovaQuickMenuUiState.from(
         context = rule.activity,
-        status = shown,
+        status = host.status,
         apiAvailable = true,
-        hostStateUnavailable = unavailable,
-        liveTuningPending = save.pending,
-        liveTuningUnconfirmed = save.unconfirmed,
+        hostStateUnavailable = host.unavailable,
+        liveTuningPending = host.liveTuning?.pending == true,
+        liveTuningUnconfirmed = host.liveTuning?.unconfirmed,
         adaptiveSupported = true,
         aiSupported = true,
-        adaptiveEnabled = shown?.liveTuning?.enabled == true,
+        adaptiveEnabled = host.status?.liveTuning?.enabled == true,
         aiEnabled = false,
         mangoHudEnabled = false,
         stabilityApplied = false,
@@ -144,32 +149,14 @@ class NovaCommandCenterLiveTuningResultComposeTest {
         fallbackTargetFps = 60.0,
     )
 
-    /** What the Command Center does with a status read: hands it to the page, and records whether there was one. */
-    private fun publish() {
-        unavailable = !api.withCurrentSessionStatus { current ->
-            shown = current
-            current != null
-        }
-    }
-
+    /** One opening, wired as NovaQuickMenu wires it: the host's status, the page, and Live Tuning's confirm. */
     private fun open(): NovaTestKeys {
-        store = host()
-        shown = store
-        save = NovaQuickMenu.liveTuningSave(
-            runtime = runtime,
-            api = api,
-            current = { true },
-            publish = ::publish,
-            changed = { state.value = build() },
-        )
+        store = hostStatus()
+        host = NovaCommandCenterHostStatus(api, registry, registry.open(), polarisServer = { true }, runtime = runtime)
+        host.publish()
         state = MutableStateFlow(build())
-        // As the Command Center's onLiveTuning: the state the split offered, against the status shown.
-        val callbacks = NovaQuickMenuCallbacks(
-            onLiveTuning = { enable ->
-                val observed = shown
-                if (observed?.canAdjustHostTuning == true && !unavailable) save.request(enable, observed)
-            },
-        )
+        host.redraw = { state.value = build() }
+        val callbacks = NovaQuickMenuCallbacks(onLiveTuning = host::switchLiveTuning)
         panel.open(CommandCenterPage.Root("Command Center"))
         val keys = rule.setPanelContent {
             Box(Modifier.fillMaxSize()) {
@@ -211,6 +198,14 @@ class NovaCommandCenterLiveTuningResultComposeTest {
         rule.onNodeWithText(caption).assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ContentDescription))
     }
 
+    /** The row says its state once, as its state; its chip, which shows it, says nothing more. */
+    private fun assertStateSaidOnce(state: String) {
+        val node = rule.onNode(row).fetchSemanticsNode()
+        assertEquals(state, node.config.getOrNull(SemanticsProperties.StateDescription))
+        val words = node.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
+        assertFalse("the chip says $state again: $words", state in words)
+    }
+
     @Test
     fun aSwitchTheHostKeptIsSaidOnTheFocusedRowThenGoesAfterItsTime() {
         val keys = open()
@@ -218,18 +213,19 @@ class NovaCommandCenterLiveTuningResultComposeTest {
 
         assertEquals("the split offered Off and the host was asked for Off", listOf(false), sent.map { it.first })
         val kept = string(R.string.nova_cc_live_tuning_kept_on)
-        rule.onNodeWithText(kept)
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, string(R.string.nova_quick_menu_on)))
+        rule.onNodeWithText(kept).assertExists()
+        assertStateSaidOnce(string(R.string.nova_quick_menu_on))
         rule.onNodeWithText("Try again", substring = true).assertDoesNotExist()
         assertAnnounced(kept)
         rule.onNode(row).assertIsFocused()
 
-        assertEquals("one result, waiting its time", listOf(NovaLiveTuningSave.SHOWN_MS), timers.map { it.first })
+        assertEquals("one result, waiting its time on the runtime", listOf(NovaLiveTuningSave.SHOWN_MS), timers.map { it.first })
         rule.onNodeWithText(kept).assertExists()
         timers.toList().forEach { it.second() }
         rule.waitForIdle()
         rule.onNodeWithText(kept).assertDoesNotExist()
         rule.onNodeWithText("Steady. 20 Mbps applied, 20 Mbps limit.").assertExists()
+        assertStateSaidOnce(string(R.string.nova_quick_menu_on))
         rule.onNode(row).assertIsFocused()
     }
 
@@ -242,6 +238,7 @@ class NovaCommandCenterLiveTuningResultComposeTest {
         val unanswered = string(R.string.nova_cc_live_tuning_unconfirmed)
         rule.onNodeWithText(unanswered).assertExists()
         rule.onNodeWithText(string(R.string.nova_cc_live_tuning_reconnecting)).assertDoesNotExist()
+        assertTrue("the failed refresh landed", host.unavailable)
         assertAnnounced(unanswered)
         rule.onNode(row).assertIsFocused().assertIsEnabled()
     }
@@ -256,6 +253,7 @@ class NovaCommandCenterLiveTuningResultComposeTest {
         rule.onNodeWithText(string(R.string.nova_cc_live_tuning_kept_on)).assertDoesNotExist()
         rule.onNodeWithText(string(R.string.nova_cc_live_tuning_kept_off)).assertDoesNotExist()
         rule.onNodeWithText(string(R.string.nova_cc_live_tuning_off_caption)).assertExists()
+        assertStateSaidOnce(string(R.string.nova_quick_menu_off))
     }
 
     /**
@@ -269,12 +267,23 @@ class NovaCommandCenterLiveTuningResultComposeTest {
         val keys = open()
         switchLiveTuning(keys) {
             hostOn = false
-            store = host()
-            publish()
-            state.value = build()
+            store = hostStatus()
+            host.refresh()
         }
 
         assertEquals(listOf(false), sent.map { it.first })
         assertEquals("asked against the status that said Off", false, sent.single().second.liveTuning?.enabled)
+    }
+
+    /** A Command Center that has closed takes nothing the save brings back, and its row keeps no result. */
+    @Test
+    fun aSaveThatLandsAfterTheCommandCenterClosedChangesNothing() {
+        val keys = open()
+        afterSave = { registry.open() }
+        switchLiveTuning(keys)
+
+        assertEquals("the host was still asked", listOf(false), sent.map { it.first })
+        assertTrue("the save waits on no result", timers.isEmpty())
+        assertEquals("the opening that closed kept its status", true, host.status?.liveTuning?.enabled)
     }
 }

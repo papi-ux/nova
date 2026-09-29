@@ -13,6 +13,7 @@ import org.junit.Test
  */
 class NovaCommandCenterResultsInPlaceTest {
     private val menu = File("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt").readText()
+    private val hostStatus = File("src/main/java/com/papi/nova/ui/NovaCommandCenterHostStatus.kt").readText()
     private val state = File("src/main/java/com/papi/nova/ui/NovaQuickMenuUiState.kt").readText()
 
     private fun String.section(start: String, end: String): String {
@@ -23,9 +24,12 @@ class NovaCommandCenterResultsInPlaceTest {
     /** NovaCommandCenterLiveTuningResultComposeTest runs the save through to the row. */
     @Test
     fun aFailedLiveTuningSaveIsSaidOnItsRow() {
-        val save = menu.section("onLiveTuning = {", "onToggleAdvanced = {")
-        assertFalse("nothing about the save floats", save.contains("NovaSnackbar"))
-        assertTrue("the save goes through the one that says its result on the row", save.contains("liveTuningSave?.request(enable, observed)"))
+        val confirm = menu.section("onLiveTuning = ", "onToggleAdvanced = {")
+        assertFalse("nothing about the save floats", confirm.contains("NovaSnackbar"))
+        assertTrue("the confirm goes through the Command Center's own switch", confirm.contains("host::switchLiveTuning"))
+        val save = hostStatus.section("fun switchLiveTuning(", "private fun take(")
+        assertTrue("the save goes through the one that says its result on the row", save.contains("liveTuning?.request(enable, observed)"))
+        assertFalse(hostStatus.contains("NovaSnackbar"))
         assertFalse(File("src/main/java/com/papi/nova/ui/NovaLiveTuningSave.kt").readText().contains("NovaSnackbar"))
         assertTrue(state.section("private fun liveTuningAction(", "private fun liveTuningCaption(").contains("result != null -> result"))
     }
