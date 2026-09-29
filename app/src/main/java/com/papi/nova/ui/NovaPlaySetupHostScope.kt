@@ -17,7 +17,22 @@ internal fun novaScreenScaleLabel(scale: Double): String {
 }
 
 /**
- * The desktop that scale leaves, as WIDTHxHEIGHT of points, or blank when the pixels are unknown.
+ * A display mode as a person reads it: "2560×1440 at 120 Hz" for the host's 2560x1440x120, one
+ * multiplication sign and the refresh in words. A mode it cannot read is shown as it came.
+ */
+internal fun novaDisplayModeLabel(mode: String): String {
+    val parts = mode.trim().split("x", "X", "×")
+    val width = parts.getOrNull(0)?.trim()?.toIntOrNull() ?: return mode
+    val height = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: return mode
+    val rate = parts.getOrNull(2)?.trim()?.toDoubleOrNull()?.takeIf { it > 0.0 }
+    val size = "$width\u00d7$height"
+    if (rate == null) return size
+    val hz = if (kotlin.math.abs(rate - kotlin.math.round(rate)) < 0.01) kotlin.math.round(rate).toInt().toString() else rate.toString()
+    return "$size at $hz\u00a0Hz"
+}
+
+/**
+ * The desktop that scale leaves, as WIDTH×HEIGHT of points, or blank when the pixels are unknown.
  *
  * This is the number that answers the question, and it is not one anybody can do in their head
  * while looking at a list of multipliers.
@@ -28,7 +43,7 @@ internal fun novaScreenScaleConsequence(screenMode: String, scale: Double): Stri
     val width = parts.getOrNull(0)?.toIntOrNull() ?: return ""
     val height = parts.getOrNull(1)?.toIntOrNull() ?: return ""
     if (width <= 0 || height <= 0) return ""
-    return "${kotlin.math.round(width / scale).toInt()}x${kotlin.math.round(height / scale).toInt()}"
+    return "${kotlin.math.round(width / scale).toInt()}\u00d7${kotlin.math.round(height / scale).toInt()}"
 }
 
 internal class NovaPlaySetupHostActions(
@@ -59,6 +74,10 @@ internal fun buildNovaPlaySetupHostRows(
     // screen the shape of the stream rather than the shape of its own glass.
     if (sync.deviceScreenMode.isNotBlank()) {
         val followsStream = sync.screenToAddMode.isBlank()
+        // A size the host was given elsewhere is neither choice. It is still what the host will make,
+        // so it is the current option, read and not chosen again, and the row keeps its two choices
+        // one step away. Without it the row had no current option and became a dead stop.
+        val hostOwn = !followsStream && sync.screenToAddMode != sync.deviceScreenMode
         rows += NovaPlaySetupRowState(
             row = NovaPlaySetupRow.HOST_SCREEN_TO_ADD,
             label = getString(R.string.nova_play_setup_screen_to_add),
@@ -66,12 +85,22 @@ internal fun buildNovaPlaySetupHostRows(
             value = if (followsStream) {
                 getString(R.string.nova_play_setup_screen_to_add_stream)
             } else {
-                sync.screenToAddMode
+                novaDisplayModeLabel(sync.screenToAddMode)
             },
-            options = listOf(
+            options = listOfNotNull(
+                if (hostOwn) {
+                    NovaPlaySetupOption(
+                        label = getString(R.string.nova_play_setup_screen_to_add_host),
+                        consequence = novaDisplayModeLabel(sync.screenToAddMode),
+                        current = true,
+                        enabled = ready,
+                    )
+                } else {
+                    null
+                },
                 NovaPlaySetupOption(
                     label = getString(R.string.nova_play_setup_screen_to_add_device),
-                    consequence = sync.deviceScreenMode,
+                    consequence = novaDisplayModeLabel(sync.deviceScreenMode),
                     current = sync.screenToAddMode == sync.deviceScreenMode,
                     enabled = ready,
                     onSelect = if (ready) {

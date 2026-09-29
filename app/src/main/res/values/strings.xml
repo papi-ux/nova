@@ -371,6 +371,7 @@
     <string name="nova_play_setup_screen_to_add_caption">How big a display Polaris creates for this device</string>
     <string name="nova_play_setup_screen_to_add_device">Match this device</string>
     <string name="nova_play_setup_screen_to_add_stream">Follow the stream</string>
+    <string name="nova_play_setup_screen_to_add_host">Set on the host</string>
     <string name="nova_play_setup_screen_to_add_stream_consequence">The screen is made the size you stream at, which may not be this screen\'s shape.</string>
     <string name="nova_play_setup_screen_scale">Screen Scale</string>
     <string name="nova_play_setup_screen_scale_caption">How big things are on the display Polaris creates</string>

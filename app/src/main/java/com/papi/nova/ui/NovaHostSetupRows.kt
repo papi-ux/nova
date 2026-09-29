@@ -46,7 +46,7 @@ internal fun novaPlaySetupHostProfileValue(
     return when {
         profile == null -> getString(R.string.nova_polaris_sync_unset)
         profile.bitrateKbps > 0 ->
-            "${profile.displayMode.ifBlank { getString(R.string.nova_polaris_sync_unset) }} · ${profile.bitrateKbps / 1000} Mbps"
-        else -> profile.displayMode
+            "${profile.displayMode.takeIf { it.isNotBlank() }?.let(::novaDisplayModeLabel) ?: getString(R.string.nova_polaris_sync_unset)} · ${profile.bitrateKbps / 1000}\u00a0Mbps"
+        else -> novaDisplayModeLabel(profile.displayMode)
     }
 }
