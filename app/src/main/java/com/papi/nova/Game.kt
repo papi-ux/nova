@@ -1419,7 +1419,11 @@ if (launchPolicyTokenInvalid)
 {
 // The one-shot handoff token was stale or already spent, which says nothing about the host.
 LimeLog.severe("Nova: Refusing launch because the one-shot launch policy handoff was not valid")
-// The launch issue page with Try Again and Back, not a Toast floated as the screen closed.
+// The launch issue page with Try Again and Back, not a Toast floated as the screen closed. A
+// Space launch retries through the library's Space path, which checks the Space again; the
+// handoff that would have said it was one is the part that failed, so the app it asked for says
+// so (X1).
+spaceSession = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())
 showNovaLaunchIssueSheet(getString(R.string.nova_launch_retry))
 return
 }
@@ -5578,9 +5582,15 @@ this@Game.runOnUiThread({ Toast.makeText(this@Game, e!!.message, Toast.LENGTH_LO
 }
 }
 override fun stageFailed(stage:String, portFlags:Int, errorCode:Int):Boolean {
+// A 503 is the host answering and refusing, so the network reached it. "Failed to start RTSP
+// handshake (error 503)" and a list of firewall ports sent someone to fix a network that worked;
+// Mirror Desktop with PyroWave on pc-papi was refused because KDE's HDR desktop could not be read.
+val hostAnswered = errorCode == RTSP_SERVICE_UNAVAILABLE
  // Perform a connection test if the failure could be due to a blocked port
-        // This does network I/O, so don't do it on the main thread.
-        var portTestResult:Int = MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443, portFlags)
+        // This does network I/O, so don't do it on the main thread. Not for a host that answered:
+        // the outside test has nothing to say about it, and its "blocking Nova" sentence under the
+        // host's refusal sent people to their network (XR4).
+        var portTestResult:Int = if (hostAnswered) MoonBridge.ML_TEST_RESULT_INCONCLUSIVE else MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443, portFlags)
 
 if (errorCode == 0 && portFlags != 0 && (portTestResult == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE || portTestResult == 0))
 {
@@ -5615,10 +5625,6 @@ var dialogText:String = getResources().getString(R.string.conn_error_msg) + " " 
 {
 dialogText = getResources().getString(R.string.nova_pyrowave_profile_unavailable)
 }
-// A 503 is the host answering and refusing, so the network reached it. "Failed to start RTSP
-// handshake (error 503)" and a list of firewall ports sent someone to fix a network that worked;
-// Mirror Desktop with PyroWave on pc-papi was refused because KDE's HDR desktop could not be read.
-val hostAnswered = errorCode == RTSP_SERVICE_UNAVAILABLE
 if (hostAnswered)
 {
 dialogText = getResources().getString(R.string.nova_launch_host_refused_stream)
@@ -5658,7 +5664,7 @@ dialogText += ("\n\n" + getResources().getString(R.string.check_ports_msg) + "\n
 MoonBridge.stringifyPortFlags(portFlags, "\n"))
 }
 
-if (portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE && portTestResult != 0)
+if (!hostAnswered && portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE && portTestResult != 0)
 {
 dialogText += "\n\n" + getResources().getString(R.string.nettest_text_blocked)
 }

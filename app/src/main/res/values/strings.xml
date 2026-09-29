@@ -1161,8 +1161,9 @@
     <string name="nova_settings_clear_confirm">Clear</string>
     <string name="nova_settings_reset_stream_ui_consequence">The HUD, overlays, touch controls and in-stream settings go back to their defaults.</string>
     <string name="nova_settings_reset_osc_consequence">Every on-screen control goes back to its default size and place.</string>
-    <!-- A host that answered the stream setup and refused it (RTSP 503): the network is fine. -->
-    <string name="nova_launch_host_refused_stream">The host answered but could not start this stream. It could not capture or encode the launch as asked, so try another display mode or video codec in Play Setup.</string>
+    <!-- A host that answered the stream setup and refused it (RTSP 503): the network is fine. A bare
+         503 does not say why, so this names no cause; a host that gives its reason is shown that. -->
+    <string name="nova_launch_host_refused_stream">The host answered but did not start this stream, and it did not say why. Try another display mode or video codec in Play Setup.</string>
     <!-- Scan Pair's state page when there is no camera, or camera access was refused. -->
     <string name="nova_scan_pair_no_camera_title">No camera to scan with</string>
     <string name="nova_scan_pair_no_camera_message">This device has no camera for a pairing code. Add the host by its address instead.</string>

@@ -41,6 +41,40 @@ class GameLaunchRefusalCopySourceGuardTest {
         assertFalse(topology.contains("nova_launch_deterministic_host_required"))
     }
 
+    // A 503 is the host answering, yet the outside connection test still ran and its "your
+    // network is blocking Nova" sentence went under the host's refusal (audit XR4).
+    @Test
+    fun aHostThatAnsweredIsNeverToldTheNetworkBlocksNova() {
+        val stage = game.substringAfter("override fun stageFailed(").substringBefore("showNovaLaunchIssueSheet(dialogText)")
+        val beforePage = stage.substringBefore("runOnUiThread(")
+        assertTrue("the answer is known before the outside test runs", beforePage.contains("val hostAnswered = errorCode == RTSP_SERVICE_UNAVAILABLE"))
+        assertTrue(
+            "a host that answered skips the outside test",
+            beforePage.contains("if (hostAnswered) MoonBridge.ML_TEST_RESULT_INCONCLUSIVE else MoonBridge.testClientConnectivity("),
+        )
+        val blockedGuard = stage.substringBefore("R.string.nettest_text_blocked").substringAfterLast("if (")
+        assertTrue("and never adds the blocking sentence: $blockedGuard", blockedGuard.startsWith("!hostAnswered &&"))
+    }
+
+    // The 503 line named capture or encode as the cause, which a bare 503 does not say (XR4).
+    @Test
+    fun theAnsweredHostsLineGuessesNoCause() {
+        val strings = File("src/main/res/values/strings.xml").readText()
+        val line = Regex("<string name=\"nova_launch_host_refused_stream\">(.*?)</string>").find(strings)!!.groupValues[1]
+        assertFalse(line, line.contains("capture", ignoreCase = true))
+        assertFalse(line, line.contains("encode", ignoreCase = true))
+    }
+
+    // A stale handoff for a Space launch offered the ordinary Try Again, which relaunches the
+    // stream, because the page was built before the launch was known to be a Space (audit X1).
+    @Test
+    fun aStaleHandoffForASpaceRetriesThroughTheSpace() {
+        val handoff = game.substringAfter("if (launchPolicyTokenInvalid)").substringBefore("return\n")
+        val known = handoff.indexOf("spaceSession = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(")
+        assertTrue("the stale branch says whether the launch was a Space", known >= 0)
+        assertTrue("before it builds the page", known < handoff.indexOf("showNovaLaunchIssueSheet("))
+    }
+
     @Test
     fun aPolicyRefusalIsAStatePageNotAToast() {
         val gate = game.substringAfter("if (launchDecision.policyBlocked)").substringBefore("return@launchRuntimeIo")
