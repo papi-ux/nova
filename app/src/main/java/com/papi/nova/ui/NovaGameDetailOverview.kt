@@ -69,7 +69,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -170,6 +173,11 @@ internal fun NovaGameDetailOverview(
      * thing worth seeing through to.
      */
     chromeAlpha: Float = 1f,
+    /**
+     * How far in from the end edge the chrome is not drawn: the width of a panel over it, whose
+     * translucent tiles the chrome would otherwise read through. The backdrop is left whole.
+     */
+    chromeClipEnd: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
@@ -202,6 +210,20 @@ internal fun NovaGameDetailOverview(
             modifier = Modifier
                 .align(if (portrait) Alignment.TopStart else Alignment.BottomStart)
                 .graphicsLayer { alpha = chromeAlpha }
+                .then(
+                    if (chromeClipEnd > 0.dp) {
+                        Modifier.drawWithContent {
+                            val cut = chromeClipEnd.toPx()
+                            if (layoutDirection == LayoutDirection.Ltr) {
+                                clipRect(right = size.width - cut) { this@drawWithContent.drawContent() }
+                            } else {
+                                clipRect(left = cut) { this@drawWithContent.drawContent() }
+                            }
+                        }
+                    } else {
+                        Modifier
+                    },
+                )
                 .fillMaxWidth()
                 .then(if (portrait) Modifier.padding(top = 176.dp) else Modifier)
                 // Cutouts and bars, not gesture zones, and the library's margin: the page stands
