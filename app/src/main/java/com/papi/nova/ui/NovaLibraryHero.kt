@@ -568,6 +568,9 @@ internal fun RowScope.NovaLibraryStripContinue(
         }
     }
     val ending = !endFailed && (confirmed || hero.endStatus is NovaLibraryEndStatus.Ending)
+    // A refusal the strip has room for only alone takes the title's place: the reason is the one
+    // thing in the strip that says why End went (XR3).
+    val titleShown = fit.showContinueText && (!endFailed || endArmed || fit.showContinueEyebrow)
     Row(
         modifier = Modifier
             .weight(1f)
@@ -640,7 +643,7 @@ internal fun RowScope.NovaLibraryStripContinue(
                     color = colors.accent,
                 )
             }
-            if (!endFailed || endArmed || fit.showContinueEyebrow) {
+            if (titleShown) {
                 Text(
                     text = hero.title,
                     color = colors.textPrimary,
@@ -665,8 +668,9 @@ internal fun RowScope.NovaLibraryStripContinue(
             modifier = Modifier.widthIn(min = 88.dp).focusRequester(resumeFocus),
             // The card's own action is the next step, so it carries the accent; End Session stays quiet.
             primary = true,
-            // Without the title on screen the action still says what it continues.
-            contentDescription = if (fit.showContinueText) hero.actionLabel else "${hero.actionLabel}, ${hero.title}",
+            // Without the title on screen, left out or given way to a refusal, the action still
+            // says what it continues.
+            contentDescription = if (titleShown) hero.actionLabel else "${hero.actionLabel}, ${hero.title}",
             minHeight = NOVA_LIBRARY_STRIP_BUTTON_HEIGHT,
         ) { contentColor, focused ->
             // One line, whole at the width the strip's fit measured for it. The strip is one fixed

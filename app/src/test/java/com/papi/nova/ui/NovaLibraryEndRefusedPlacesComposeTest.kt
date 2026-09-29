@@ -3,6 +3,9 @@ package com.papi.nova.ui
 import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
@@ -12,6 +15,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.DpRect
@@ -123,6 +127,45 @@ class NovaLibraryEndRefusedPlacesComposeTest {
         strip(hero(NovaLibraryEndStatus.Failed(24, line, canRetry = true)))
         assertWholeInside(NOVA_LIBRARY_END_FAILED_TAG, line, "nova-library-landscape-toolbar")
         rule.onNodeWithContentDescription(context.getString(R.string.nova_panel_try_again)).assertIsDisplayed()
+    }
+
+    /** The strip card alone, with the fit the strip measured: where the title gives way or not. */
+    private fun card(hero: NovaLibraryHeroState, fit: NovaTopBarFit) {
+        rule.setPanelContent {
+            Row(Modifier.fillMaxWidth().height(60.dp)) {
+                NovaLibraryStripContinue(
+                    hero = hero,
+                    apiClient = PolarisApiClient(context, ""),
+                    fit = fit,
+                    onPrimaryAction = {},
+                    onSecondaryAction = if (hero.secondaryAction != null) ({}) else null,
+                )
+            }
+        }
+        rule.waitForIdle()
+    }
+
+    // Where the strip has room for the reason only alone, the title gives way to it: the reason is
+    // the one thing in the strip that says why End went. Resume then names the game it continues,
+    // for a screen reader, as it does wherever the title is not on screen.
+    @Test
+    fun theTitleGivesWayToTheReasonAndResumeStillNamesTheGame() {
+        val line = context.getString(R.string.nova_library_end_started_elsewhere)
+        val hero = hero(NovaLibraryEndStatus.Failed(24, line, canRetry = false))
+        card(hero, NovaTopBarFit(showContinueEyebrow = false, continueEyebrowLines = 3))
+        rule.onNodeWithTag(NOVA_LIBRARY_END_FAILED_TAG, useUnmergedTree = true).assertTextEquals(line)
+        rule.onNodeWithText(game.name).assertDoesNotExist()
+        rule.onNodeWithContentDescription("${hero.actionLabel}, ${game.name}").assertIsDisplayed()
+    }
+
+    @Test
+    fun withRoomOverTheTitleBothShowAndResumeSaysItsAction() {
+        val line = context.getString(R.string.nova_library_end_started_elsewhere)
+        val hero = hero(NovaLibraryEndStatus.Failed(24, line, canRetry = false))
+        card(hero, NovaTopBarFit(showContinueEyebrow = true, continueEyebrowLines = 2))
+        rule.onNodeWithTag(NOVA_LIBRARY_END_FAILED_TAG, useUnmergedTree = true).assertTextEquals(line)
+        rule.onNodeWithText(game.name).assertIsDisplayed()
+        rule.onNodeWithContentDescription(hero.actionLabel).assertIsDisplayed()
     }
 
     @Test
