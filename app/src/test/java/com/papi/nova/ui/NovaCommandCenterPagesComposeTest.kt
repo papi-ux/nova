@@ -53,15 +53,16 @@ class NovaCommandCenterPagesComposeTest {
     private val serverCommandRuns = mutableListOf<Int>()
     private val switches = mutableListOf<Boolean>()
     private val quickKeys = mutableListOf<NovaQuickMenuActionId>()
-    private var liveTuningToggles = 0
+    private val liveTuningRequests = mutableListOf<Boolean>()
     private val localCursor = mutableListOf<Boolean>()
     private val hudPreviews = mutableListOf<Boolean>()
+    private lateinit var uiState: MutableStateFlow<NovaQuickMenuUiState>
 
     private val callbacks = NovaQuickMenuCallbacks(
         onDismiss = { dismissed++ },
         onEndStream = { ended++ },
         onQuickKey = { quickKeys += it },
-        onLiveTuning = { liveTuningToggles++ },
+        onLiveTuning = { liveTuningRequests += it },
         onHudPreview = { hudPreviews += it },
         onControlAction = { id ->
             if (id == NovaQuickMenuActionId.MOUSE_MODE) {
@@ -146,6 +147,7 @@ class NovaCommandCenterPagesComposeTest {
         adjust: (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { it },
     ): NovaTestKeys {
         val state = MutableStateFlow(adjust(NovaQuickMenuUiState.preview(rule.activity)))
+        uiState = state
         panel.open(CommandCenterPage.Root("Command Center"))
         val keys = rule.setPanelContent {
             Box(Modifier.fillMaxSize()) {
@@ -262,7 +264,7 @@ class NovaCommandCenterPagesComposeTest {
         keys.press(NovaTestKeys.CENTER)
         rule.frames(16)
 
-        assertEquals("one A never rewrites the host's setting", 0, liveTuningToggles)
+        assertEquals("one A never rewrites the host's setting", emptyList<Boolean>(), liveTuningRequests)
         rule.onNodeWithText("Stay").assertIsFocused()
         rule.onNodeWithText("Turn Off").assertExists()
         rule.onNodeWithText("Changes Polaris for every device.").assertExists()
@@ -271,7 +273,41 @@ class NovaCommandCenterPagesComposeTest {
         rule.advance(450)
         keys.press(NovaTestKeys.CENTER)
         rule.frames(4)
-        assertEquals("A, Right, A after the guard switches it once", 1, liveTuningToggles)
+        assertEquals("A, Right, A after the guard switches it off, once", listOf(false), liveTuningRequests)
+    }
+
+    /**
+     * Review finding 7: armed on Turn Off, a change from another device turned the offer to Turn On
+     * and the confirm flipped whatever the host said then. The confirm asks for what it offered.
+     */
+    @Test
+    fun liveTuningConfirmsTheStateItOfferedWhenItArmed() {
+        fun liveTuning(on: Boolean): (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { state ->
+            state.copy(
+                liveTuningAction = NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.LIVE_TUNING,
+                    label = "Live Tuning",
+                    caption = "Steady.",
+                    chip = if (on) NovaQuickMenuChip("On", NovaQuickMenuTone.ACTIVE) else NovaQuickMenuChip("Off", NovaQuickMenuTone.INACTIVE),
+                    enabled = true,
+                ),
+                sync = state.sync.copy(chip = NovaQuickMenuChip("Synced", NovaQuickMenuTone.ACTIVE)),
+            )
+        }
+        val keys = open(adjust = liveTuning(on = true))
+        rule.mainClock.autoAdvance = false
+        focus("Live Tuning")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        rule.onNodeWithText("Turn Off").assertExists()
+
+        uiState.value = liveTuning(on = false)(uiState.value)
+        rule.frames(4)
+        keys.press(NovaTestKeys.RIGHT)
+        rule.advance(450)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+        assertEquals("Turn Off asks for Off, whatever the host said since", listOf(false), liveTuningRequests)
     }
 
     /**

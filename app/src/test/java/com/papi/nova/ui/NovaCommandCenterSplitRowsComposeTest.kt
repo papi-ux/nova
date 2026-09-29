@@ -135,4 +135,22 @@ class NovaCommandCenterSplitRowsComposeTest {
             rule.onNodeWithText("Close").assertIsFocused()
         }
     }
+
+    /**
+     * Review finding 7: armed, Live Tuning offered Turn Off, and a change from another device while
+     * it stayed armed turned the offer, and the switch, the other way. It offers what it showed.
+     */
+    @Test
+    fun liveTuningOffersWhatItShowedWhenArmedWhateverTheHostDoesNext() {
+        val keys = open(adjust = liveTuning(on = true))
+        focus("Live Tuning")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        rule.onNodeWithText("Turn Off").assertExists()
+
+        state.value = liveTuning(on = false)(state.value)
+        rule.waitForIdle()
+        rule.onNodeWithText("Turn Off").assertExists()
+        rule.onNodeWithText("Turn On").assertDoesNotExist()
+    }
 }

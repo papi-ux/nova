@@ -89,7 +89,8 @@ data class NovaQuickMenuCallbacks(
     val onDisconnect: () -> Unit = {},
     val onEndStream: () -> Unit = {},
     val onStability: () -> Unit = {},
-    val onLiveTuning: () -> Unit = {},
+    /** Sets Live Tuning to the state its split offered when it armed, On for true. */
+    val onLiveTuning: (enable: Boolean) -> Unit = {},
     val onSyncStatus: () -> Unit = {},
     val onToggleAdvanced: () -> Unit = {},
     val onClearGameProfile: () -> Unit = {},
@@ -111,7 +112,9 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.DISCONNECT -> onDisconnect()
             NovaQuickMenuActionId.END_STREAM -> onEndStream()
             NovaQuickMenuActionId.STABILITY -> onStability()
-            NovaQuickMenuActionId.LIVE_TUNING -> onLiveTuning()
+            // Live Tuning's split confirms the state it offered, through onLiveTuning; a bare
+            // perform would have to guess, and a guess can turn it the wrong way.
+            NovaQuickMenuActionId.LIVE_TUNING -> Unit
             NovaQuickMenuActionId.SYNC_STATUS -> onSyncStatus()
             NovaQuickMenuActionId.ADVANCED_TUNING -> onToggleAdvanced()
             NovaQuickMenuActionId.CLEAR_GAME_PROFILE -> onClearGameProfile()
@@ -835,6 +838,10 @@ private fun NovaPageScope.NovaQuickMenuRows(
  * Stay and Turn Off (or Turn On), with what it changes written under the pair. At rest it is a row
  * among rows, its state on the chip at its end, in the rows' own look rather than End Session's
  * red: it changes a setting and ends nothing, so its confirm takes the accent.
+ *
+ * What the split offers is fixed when it arms, from the state the row showed then, and the confirm
+ * asks for that state: a change from another device while it was armed turned Turn Off into Turn
+ * On under the player, and the switch flipped whatever the host said at that moment.
  */
 @Composable
 private fun NovaPageScope.NovaQuickMenuLiveTuningRow(
@@ -843,10 +850,13 @@ private fun NovaPageScope.NovaQuickMenuLiveTuningRow(
 ) {
     val row by ui.slice { it.liveTuningAction }
     val on = row.chip?.tone == NovaQuickMenuTone.ACTIVE
+    val split = rememberNovaSplitConfirmState()
+    val turnOn = remember(split.arms) { !on }
     NovaSplitConfirm(
         label = row.label,
-        confirmLabel = stringResource(if (on) R.string.nova_cc_live_tuning_turn_off else R.string.nova_cc_live_tuning_turn_on),
-        onConfirm = { if (row.enabled) callbacks.perform(row) },
+        confirmLabel = stringResource(if (turnOn) R.string.nova_cc_live_tuning_turn_on else R.string.nova_cc_live_tuning_turn_off),
+        onConfirm = { if (row.enabled) callbacks.onLiveTuning(turnOn) },
+        state = split,
         consequence = stringResource(R.string.nova_cc_live_tuning_consequence),
         icon = R.drawable.ic_settings,
         shape = NovaSplitShape.Row,

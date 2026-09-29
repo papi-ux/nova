@@ -880,10 +880,11 @@ class NovaQuickMenu(
                     }
                 }
             },
-            onLiveTuning = {
+            onLiveTuning = { enable ->
                 val observed = sessionStatus
                 if (apiClient != null && observed?.canAdjustHostTuning == true && !hostStateUnavailable && !liveTuningPending) {
-                    val desired = !(observed.liveTuning?.enabled ?: adaptiveEnabled)
+                    // The state the split offered, not a flip of whatever the host says now.
+                    val desired = enable
                     liveTuningPending = true
                     liveTuningResult = null
                     refreshState()
