@@ -426,7 +426,9 @@ fun Modifier.novaFocusRing(
     restFill: Color = Color.Transparent,
     restBorder: Color = Color.Transparent,
     restBorderWidth: Dp = 0.dp,
-): Modifier = this then NovaFocusRingElement(shape, ring, focusedFill, restFill, restBorder, restBorderWidth)
+): Modifier = this then NovaFocusRingElement(shape, ring, focusedFill, restFill, restBorder, restBorderWidth) then
+    // Everything with the focus look is a row of whatever list it is in, for the list to rest on.
+    Modifier.novaTrackedRow()
 
 private data class NovaFocusRingElement(
     val shape: Shape,

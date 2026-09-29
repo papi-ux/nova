@@ -294,6 +294,8 @@ fun NovaSectionLabel(text: String, modifier: Modifier = Modifier) {
         style = novaPanelType.sectionLabel,
         color = LocalNovaComposeColors.current.accent,
         modifier = modifier
+            // A row of its list, whose edge must not slice it.
+            .novaTrackedRow()
             .padding(top = NovaPanelMetrics.SpaceSm, bottom = NovaPanelMetrics.SpaceXs)
             .semantics { heading() },
     )
