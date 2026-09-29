@@ -92,6 +92,7 @@ class GameTierDisplayTest {
             } }
             val load=Game::class.java.declaredMethods.single { it.name=="loadLaunchOptimization" }.apply { isAccessible=true }
             val result=load.invoke(game,"Fixture",false,1920,1080,120f,false,false,false,"auto")
+            assertEquals(maximum ?: 300000,ReflectionHelpers.getField<Int>(result,"manualBitrateMaximumKbps"))
             assertEquals("limit=$maximum",listOf(expected),calls)
             assertFalse("limit=$maximum",ReflectionHelpers.getField<Boolean>(result,"policyBlocked"))
             assertEquals(450000,game.prefConfig.bitrate)

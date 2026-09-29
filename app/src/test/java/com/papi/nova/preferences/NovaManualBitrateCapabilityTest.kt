@@ -69,6 +69,25 @@ class NovaManualBitrateCapabilityTest {
             assertEquals(listOf(minOf(450000,maximum ?: 300000)),requests)
         }
     }
+    @Test fun optimizationUsesItsObservedCeilingEvenIfAnotherProbeClearsTheCache() {
+        val real=PolarisApiClient(ApplicationProvider.getApplicationContext(),"127.0.0.1",47984)
+        val sent=mutableListOf<Int>()
+        val http=OkHttpClient.Builder().addInterceptor { chain ->
+            val request=chain.request()
+            assertTrue(request.url.encodedPath.endsWith("/optimize"))
+            sent+=request.url.queryParameter("bitrate_kbps")!!.toInt()
+            Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture")
+                .body(ResponseBody.create(null,"{}")).build()
+        }.build()
+        PolarisApiClient::class.java.getDeclaredField("client").apply { isAccessible=true }.set(real,http)
+        val api=org.mockito.Mockito.spy(real)
+        org.mockito.Mockito.doAnswer {
+            PolarisApiClient::class.java.getDeclaredField("latestCapabilities").apply { isAccessible=true }.set(api,null)
+            caps(500000)
+        }.`when`(api).getLaunchCapabilities()
+        assertNotNull(api.getOptimization("fixture","game",bitrateKbps=450000,bitrateLocked=true))
+        assertEquals(listOf(450000),sent)
+    }
     @Test fun oneShotLaunchHandoffRetainsTheHostCeilingWithItsDecision() {
         val decision=NovaLaunchPolicyGateStore.Decision(null,"auto",true,500000)
         val token=NovaLaunchPolicyGateStore.issue("host-one",decision)
