@@ -2862,15 +2862,36 @@ class NovaLibraryActivity : NovaActivity() {
         activeSession = activeSession,
     )
 
-    /** The source, category or genre narrowing the grid, while one does. */
+    /**
+     * The source, category or genre narrowing the grid, while one does, named as its More Filters
+     * row names it: "Action Category" where a genre is also called Action.
+     */
     private fun narrowedFilterLabel(state: NovaLibraryFilterState): String? = when (state.primary) {
         NovaLibraryPrimaryFilter.SOURCES -> state.source.takeIf { it.isNotBlank() }?.let(::sourceLabelFor)
-        NovaLibraryPrimaryFilter.MORE -> when {
-            state.category.isNotBlank() -> categoryLabelFor(state.category)
-            state.genre.isNotBlank() -> genreLabel(state.genre)
-            else -> null
+        NovaLibraryPrimaryFilter.MORE -> {
+            val entry = when {
+                state.category.isNotBlank() -> NovaLibraryMoreFilter.Category(state.category)
+                state.genre.isNotBlank() -> NovaLibraryMoreFilter.Genre(state.genre)
+                else -> null
+            }
+            entry?.let {
+                val entries = NovaLibraryUiStateMapper.moreFilterEntries(allGames, ::categoryLabelFor, ::genreLabel)
+                val clashes = NovaLibraryUiStateMapper.moreFilterClashes((entries + it).distinct(), ::categoryLabelFor, ::genreLabel)
+                moreFilterTitle(it, it in clashes)
+            }
         }
         else -> null
+    }
+
+    /** A More Filters entry's title: its name, or with Category or Genre after it where [clashes]. */
+    private fun moreFilterTitle(entry: NovaLibraryMoreFilter, clashes: Boolean): String = when (entry) {
+        is NovaLibraryMoreFilter.Category -> categoryLabelFor(entry.id).let {
+            if (clashes) getString(R.string.nova_library_more_category_named, it) else it
+        }
+        is NovaLibraryMoreFilter.Genre -> genreLabel(entry.name).let {
+            if (clashes) getString(R.string.nova_library_more_genre_named, it) else it
+        }
+        NovaLibraryMoreFilter.Clear -> getString(R.string.nova_library_filter_clear_more)
     }
 
     /**
@@ -3023,8 +3044,11 @@ class NovaLibraryActivity : NovaActivity() {
                     caption = getString(R.string.nova_library_filter_clear_more_hint),
                 ),
             )
-            // Each name once: Action was listed as a category and again as a genre (N16).
-            NovaLibraryUiStateMapper.moreFilterEntries(model.allGames, ::categoryLabelFor, ::genreLabel).forEach { entry ->
+            // Each name once: Action was listed as a category and again as a genre (N16). Where
+            // both stay, each holding games the other lacks, their titles say which is which.
+            val entries = NovaLibraryUiStateMapper.moreFilterEntries(model.allGames, ::categoryLabelFor, ::genreLabel)
+            val clashes = NovaLibraryUiStateMapper.moreFilterClashes(entries, ::categoryLabelFor, ::genreLabel)
+            entries.forEach { entry ->
                 when (entry) {
                     is NovaLibraryMoreFilter.Category -> {
                         val category = entry.id
@@ -3032,7 +3056,7 @@ class NovaLibraryActivity : NovaActivity() {
                         add(
                             NovaOption<NovaLibraryMoreFilter>(
                                 value = entry,
-                                label = categoryLabelFor(category),
+                                label = moreFilterTitle(entry, entry in clashes),
                                 // "1 games" read as a typo; the count takes its plural.
                                 caption = resources.getQuantityString(R.plurals.nova_library_panel_category_caption, count, count),
                             ),
@@ -3044,7 +3068,7 @@ class NovaLibraryActivity : NovaActivity() {
                         add(
                             NovaOption<NovaLibraryMoreFilter>(
                                 value = entry,
-                                label = genreLabel(genre),
+                                label = moreFilterTitle(entry, entry in clashes),
                                 caption = resources.getQuantityString(R.plurals.nova_library_panel_genre_caption, count, count),
                             ),
                         )

@@ -1648,6 +1648,31 @@ object NovaLibraryUiStateMapper {
             .filterNot { it in dropped }
     }
 
+    /**
+     * The More Filters entries among [entries] whose name another entry shares: a category and a
+     * genre that both stay, because each holds games the other lacks, and read the same, as the
+     * fast_action category and a launcher's Action genre both read Action. Their row titles say
+     * which is which, since two rows titled Action were told apart only by their captions (N16).
+     */
+    internal fun moreFilterClashes(
+        entries: List<NovaLibraryMoreFilter>,
+        categoryLabel: (String) -> String,
+        genreLabel: (String) -> String,
+    ): Set<NovaLibraryMoreFilter> {
+        fun name(entry: NovaLibraryMoreFilter): String? = when (entry) {
+            is NovaLibraryMoreFilter.Category -> categoryLabel(entry.id)
+            is NovaLibraryMoreFilter.Genre -> genreLabel(entry.name)
+            NovaLibraryMoreFilter.Clear -> null
+        }?.trim()?.lowercase()
+        return entries
+            .filter { name(it) != null }
+            .groupBy { name(it) }
+            .values
+            .filter { it.size > 1 }
+            .flatten()
+            .toSet()
+    }
+
     fun genreFilters(games: List<PolarisGame>): List<String> {
         return games
             .flatMap { it.genres }

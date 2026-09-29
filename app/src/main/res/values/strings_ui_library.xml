@@ -44,6 +44,11 @@
         <item quantity="other">Category · %1$d games</item>
     </plurals>
     <!-- A genre's row on the More Filters page: how many games it holds. -->
+    <!-- A More Filters row, and the filter's value, when a category and a genre share a name:
+         the category's title, as in "Action Category". -->
+    <string name="nova_library_more_category_named">%1$s Category</string>
+    <!-- The same for the genre, as in "Action Genre". -->
+    <string name="nova_library_more_genre_named">%1$s Genre</string>
     <plurals name="nova_library_panel_genre_caption">
         <item quantity="one">Genre · %1$d game</item>
         <item quantity="other">Genre · %1$d games</item>
