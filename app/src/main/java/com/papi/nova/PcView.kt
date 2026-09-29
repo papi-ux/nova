@@ -146,12 +146,14 @@ import org.xmlpull.v1.XmlPullParserException
 
 /**
  * The themes as a Choice page: each with its swatch and a caption, the current one marked and
- * focused. One A applies a theme and closes the panel.
+ * focused. One A applies a theme and closes the panel. Settings passes [useDefault] while a
+ * preset overrides the theme, as the page's last row (C02).
  */
 internal fun novaThemePickerPage(
     context: Context,
     themes: List<String>,
     current: String,
+    useDefault: com.papi.nova.ui.panel.NovaUseDefault? = null,
     onChoose: (String) -> Unit,
 ): NovaCommonPage.Choice<String> = NovaCommonPage.Choice(
     key = "theme",
@@ -164,6 +166,7 @@ internal fun novaThemePickerPage(
     leading = { option -> NovaThemeSwatch(option.value) },
     // Two to a line on a landscape handheld, as the picker's cards were before it became a page.
     width = NovaPanelWidth.Grid,
+    useDefault = useDefault,
 )
 
 /** A theme's caption on the picker page, kept to two lines beside its swatch. */
@@ -1082,7 +1085,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     /** The theme picker, in a right-edge panel opened from the dashboard's theme action. */
     private fun showThemePicker(anchor: View?) {
         novaSurfaces.open(
-            novaThemePickerPage(this, buildThemePickerThemes(), NovaThemeManager.getTheme(this), ::applyThemeSelection),
+            novaThemePickerPage(this, buildThemePickerThemes(), NovaThemeManager.getTheme(this), onChoose = ::applyThemeSelection),
             NovaEdge.End,
             anchor?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None,
         )

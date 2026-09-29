@@ -25,12 +25,13 @@ sealed interface SettingsPage : NovaPage {
     /**
      * The display role composer. It opens on [currentTarget] and hands the chosen target to
      * [onApply]; Compose Settings pushes it in the pane, the legacy screen opens it as a
-     * right-edge page.
+     * right-edge page. [useDefault], while a preset overrides the target, is its last row (C02).
      */
     class DisplayRole(
         override val title: String,
         val currentTarget: String,
         val onApply: (String) -> Unit,
+        val useDefault: NovaUseDefault? = null,
     ) : SettingsPage {
         override val key: String get() = "display-role"
     }

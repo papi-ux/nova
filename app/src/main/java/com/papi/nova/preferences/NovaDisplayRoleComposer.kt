@@ -46,6 +46,7 @@ import com.papi.nova.ui.panel.NovaCurrentMark
 import com.papi.nova.ui.panel.NovaPageScope
 import com.papi.nova.ui.panel.NovaPanelButtonPair
 import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.NovaRow
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
@@ -147,6 +148,22 @@ internal fun NovaPageScope.NovaDisplayRolePage(page: SettingsPage.DisplayRole) {
                     }
                 },
             )
+        }
+        // While a preset overrides the target, the last row drops it for the preset's own (C02).
+        page.useDefault?.let { useDefault ->
+            item(key = "use-default") {
+                NovaRow(
+                    title = useDefault.label,
+                    caption = useDefault.caption,
+                    onClick = {
+                        if (isTop) {
+                            if (!panel.pop()) panel.close()
+                            useDefault.run()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

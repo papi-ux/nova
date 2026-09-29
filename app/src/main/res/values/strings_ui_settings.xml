@@ -15,6 +15,10 @@
          reset the row with: drops the profile's value. -->
     <string name="nova_settings_use_preset_default">Use Preset Default</string>
     <string name="nova_settings_use_preset_default_caption">Follow the app setting again</string>
+    <!-- The hint bar's key for a hold that resets an overridden switch or in-place choice: a remote's
+         OK, and a controller's A. Its label is nova_settings_reset. -->
+    <string name="nova_settings_hint_hold_ok">Hold OK</string>
+    <string name="nova_settings_hint_hold_a">Hold A</string>
     <!-- Joins the parts of a setting's caption. -->
     <string name="nova_settings_caption_separator" translatable="false">" · "</string>
     <string name="nova_settings_needs_dependency">Turn on %1$s to change this</string>

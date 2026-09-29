@@ -44,6 +44,17 @@ class NovaSettingsUseDefaultRowComposeTest {
                 type = NovaSettingType.Slider, defaultValue = NovaSettingValue.IntValue(20_000),
                 min = 500, max = 300_000, step = 500,
             ),
+            // The two page Selects that are drawn by pages of their own.
+            NovaSettingDefinition(
+                key = PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING, title = "Display role", summary = "",
+                categoryKey = "stream", type = NovaSettingType.Select, defaultValue = NovaSettingValue.StringValue("auto"),
+                options = listOf(NovaSettingOption("Follow", "auto")),
+            ),
+            NovaSettingDefinition(
+                key = "nova_theme", title = "Theme", summary = "", categoryKey = "stream",
+                type = NovaSettingType.Select, defaultValue = NovaSettingValue.StringValue("polaris"),
+                options = listOf("polaris", "oled", "miami").map { NovaSettingOption(it, it) },
+            ),
         ),
     )
 
@@ -108,6 +119,44 @@ class NovaSettingsUseDefaultRowComposeTest {
         keys.press(NovaTestKeys.CENTER)
         rule.frames(8)
         rule.onNodeWithText(useDefault()).assertExists()
+    }
+
+    // The display role composer and the theme picker are pages of their own, and they returned
+    // before the row was built, so neither ended in it.
+    @Test
+    fun theDisplayRolePageEndsInUseDefaultToo() {
+        resettable = setOf(PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING)
+        val keys = show()
+        keys.press(NovaTestKeys.RIGHT)
+        repeat(2) { keys.press(NovaTestKeys.DOWN) }
+        rule.frames(8)
+        rule.onNodeWithTag("nova-settings-row-${PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING}").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(8)
+        repeat(12) { keys.press(NovaTestKeys.DOWN) }
+        rule.frames(8)
+        rule.onNodeWithText(useDefault()).assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(8)
+        assertEquals(listOf(PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING), resets)
+    }
+
+    @Test
+    fun theThemePageEndsInUseDefaultToo() {
+        resettable = setOf("nova_theme")
+        val keys = show()
+        keys.press(NovaTestKeys.RIGHT)
+        repeat(3) { keys.press(NovaTestKeys.DOWN) }
+        rule.frames(8)
+        rule.onNodeWithTag("nova-settings-row-nova_theme").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(8)
+        repeat(8) { keys.press(NovaTestKeys.DOWN) }
+        rule.frames(8)
+        rule.onNodeWithText(useDefault()).assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(8)
+        assertEquals(listOf("nova_theme"), resets)
     }
 
     @Test

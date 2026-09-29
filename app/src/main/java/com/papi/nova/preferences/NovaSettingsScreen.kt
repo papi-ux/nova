@@ -39,14 +39,17 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -101,6 +104,7 @@ import com.papi.nova.ui.panel.NovaPanelDensityHost
 import com.papi.nova.ui.panel.LocalNovaPanelDensity
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaPanelState
+import com.papi.nova.ui.panel.NovaKeys
 import com.papi.nova.ui.panel.NovaPressLatch
 import com.papi.nova.ui.panel.NovaRemoteInput
 import com.papi.nova.ui.panel.NovaRow
@@ -115,9 +119,12 @@ import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaRowRest
 import com.papi.nova.ui.panel.novaScrollEdgeFade
 import com.papi.nova.ui.panel.novaTouchReach
+import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
 import com.papi.nova.ui.panel.NovaRowContextScrolling
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -274,7 +281,17 @@ internal fun NovaSettingsContent(
     // Whether the last key came from a remote, which has neither X nor shoulders: the hint bar then
     // names its OK and Back, as the Library's does (C04).
     var remoteKeys by remember { mutableStateOf(false) }
-    val hints = novaSettingsHints(wide = wide, canReset = state.resettableKeys.isNotEmpty(), remote = remoteKeys)
+    // The row with focus, so the hint bar can say a hold resets it (C02).
+    var focusedRow by remember { mutableStateOf<String?>(null) }
+    val holdReset = focusedRow
+        ?.let { key -> state.visibleSettings.firstOrNull { it.key == key } }
+        ?.let { it.resetsByHold && state.canReset(it) && state.isEnabled(it) } == true
+    val hints = novaSettingsHints(
+        wide = wide,
+        canReset = state.resettableKeys.isNotEmpty(),
+        remote = remoteKeys,
+        holdReset = holdReset,
+    )
     val shoulderLatch = remember { NovaPressLatch() }
     fun stepCategory(delta: Int) {
         val current = latestState
@@ -387,6 +404,9 @@ internal fun NovaSettingsContent(
                             onOpen = { definition -> opener.open(definition, latestState) },
                             onSetting = onSetting,
                             onResetSetting = onResetSetting,
+                            onRowFocus = { key, focused ->
+                                if (focused) focusedRow = key else if (focusedRow == key) focusedRow = null
+                            },
                         )
                         is SettingsPage.DisplayRole -> NovaDisplayRolePage(page)
                         else -> Unit
@@ -439,20 +459,29 @@ private fun NovaSettingsUiState.paneKey(): String = if (isSearchActive()) SEARCH
 
 /**
  * The hints beside A Select and B Back: L1/R1 through the categories, and X for a profile's reset.
- * A remote has neither, so after its key there are none: the rail and a setting's Use Preset
- * Default row do those with the D-pad.
+ * A remote has neither: after its key the rail does the categories with the D-pad, and a setting's
+ * page ends in Use Preset Default. On a switch or a choice that changes in place, a hold of OK or A
+ * resets it ([holdReset]), and the bar names that hold for the keys last pressed (C02).
  */
 @Composable
-private fun novaSettingsHints(wide: Boolean, canReset: Boolean, remote: Boolean): List<NovaControllerHint> {
+private fun novaSettingsHints(wide: Boolean, canReset: Boolean, remote: Boolean, holdReset: Boolean): List<NovaControllerHint> {
     val lbRb = stringResource(R.string.nova_controller_hint_lb_rb)
     val category = stringResource(R.string.nova_settings_hint_category)
     val x = stringResource(R.string.nova_controller_hint_x)
     val reset = stringResource(R.string.nova_settings_reset)
-    return remember(wide, canReset, remote, lbRb, category, x, reset) {
+    val holdOk = stringResource(R.string.nova_settings_hint_hold_ok)
+    val holdA = stringResource(R.string.nova_settings_hint_hold_a)
+    return remember(wide, canReset, remote, holdReset, lbRb, category, x, reset, holdOk, holdA) {
         buildList {
-            if (remote) return@buildList
+            if (remote) {
+                if (holdReset) add(NovaControllerHint(holdOk, reset))
+                return@buildList
+            }
             if (wide) add(NovaControllerHint(lbRb, category))
-            if (canReset) add(NovaControllerHint(x, reset))
+            when {
+                holdReset -> add(NovaControllerHint(holdA, reset))
+                canReset -> add(NovaControllerHint(x, reset))
+            }
         }
     }
 }
@@ -574,6 +603,7 @@ private class NovaSettingsPageOpener(
                     title = context.getString(R.string.title_display_role_composer),
                     currentTarget = current.ifEmpty { com.papi.nova.utils.AndroidStreamDisplayTarget.AUTO },
                     onApply = { target -> onValue(definition, NovaSettingValue.StringValue(target)) {} },
+                    useDefault = useDefault(definition, state),
                 ),
             )
             return
@@ -589,6 +619,7 @@ private class NovaSettingsPageOpener(
                     },
                     current = current.ifEmpty { NovaThemeManager.getTheme(context) },
                     onChoose = { value -> onValue(definition, NovaSettingValue.StringValue(value)) {} },
+                    useDefault = useDefault(definition, state),
                 ),
             )
             return
@@ -945,6 +976,7 @@ private fun NovaPageScope.NovaSettingsRowsPage(
     onOpen: (NovaSettingDefinition) -> Unit,
     onSetting: (NovaSettingDefinition) -> Unit,
     onResetSetting: (NovaSettingDefinition) -> Unit,
+    onRowFocus: (key: String, focused: Boolean) -> Unit,
 ) {
     val colors = LocalNovaComposeColors.current
     val context = LocalContext.current
@@ -1013,6 +1045,8 @@ private fun NovaPageScope.NovaSettingsRowsPage(
                 onOpen = onOpen,
                 onSetting = onSetting,
                 onReset = onResetSetting,
+                onFocus = { onRowFocus(definition.key, it) },
+                onRefocus = { focus.focusRow(definition.key) },
                 modifier = rowModifier,
             )
         }
@@ -1080,7 +1114,10 @@ private fun NovaSettingsUiState.stringSetting(key: String, defaultValue: String)
  * One setting in the one component its situation calls for: a switch or an in-place choice in a
  * [NovaValueRow], a slider in a [NovaStepperRow], and a list, text or action in a [NovaRow] that
  * opens its page. In a profile, a setting the profile overrides can be reset with X or its Reset
- * button.
+ * button, and from the page it opens. A switch or a choice that changes in place opens no page, so
+ * a remote resets it with a hold of OK (A on a controller): the row splits in place into Keep,
+ * focused, and Use Preset Default (C02). [onFocus] hears the row take and lose focus, and
+ * [onRefocus] puts focus back on it once the split is answered.
  */
 @Composable
 private fun NovaSettingRow(
@@ -1091,6 +1128,8 @@ private fun NovaSettingRow(
     onOpen: (NovaSettingDefinition) -> Unit,
     onSetting: (NovaSettingDefinition) -> Unit,
     onReset: (NovaSettingDefinition) -> Unit,
+    onFocus: (Boolean) -> Unit,
+    onRefocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val enabled = state.isEnabled(definition)
@@ -1100,10 +1139,60 @@ private fun NovaSettingRow(
     val reset by rememberUpdatedState({ onReset(definition) })
     val resetLatch = remember { NovaPressLatch() }
     val (shown, write) = rememberSettingValue(definition, state.values[definition.key] ?: definition.defaultValue, onValue)
+    // The hold that splits an overridden switch or in-place choice (C02).
+    val holdable = canReset && enabled && definition.resetsByHold
+    val holdableNow by rememberUpdatedState(holdable)
+    val split = rememberNovaSplitConfirmState()
+    val hold = remember { NovaHoldToReset() }
+    val holdScope = rememberCoroutineScope()
+    var pairFocused by remember { mutableStateOf(false) }
+    val refocus by rememberUpdatedState(onRefocus)
+    // Keep, Use Preset Default and B hand focus back to the row, which the split stood over.
+    LaunchedEffect(split.armed) {
+        if (split.armed) return@LaunchedEffect
+        pairFocused = false
+        if (split.refocus) {
+            withFrameNanos { }
+            refocus()
+            split.refocus = false
+        }
+    }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .onFocusChanged {
+                onFocus(it.hasFocus)
+                if (!it.hasFocus) hold.cancel()
+            }
+            // A held OK or A on an overridden switch or in-place choice splits the row instead of
+            // changing it: its repeats and its release are the hold's, never a step of the value.
+            .onPreviewKeyEvent { event ->
+                val native = event.nativeKeyEvent
+                if (!NovaKeys.isActivation(native.keyCode)) return@onPreviewKeyEvent false
+                when (event.type) {
+                    KeyEventType.KeyDown -> {
+                        if (native.repeatCount == 0) {
+                            hold.cancel()
+                            if (holdableNow) {
+                                hold.job = holdScope.launch {
+                                    delay(NOVA_SETTINGS_HOLD_RESET_MS)
+                                    hold.fired = true
+                                    pairFocused = false
+                                    split.arm()
+                                }
+                            }
+                        }
+                        hold.fired
+                    }
+                    KeyEventType.KeyUp -> {
+                        val fired = hold.fired
+                        hold.cancel()
+                        fired
+                    }
+                    else -> false
+                }
+            }
             // X resets a profile override, on release.
             .onKeyEvent { event ->
                 if (!canReset || event.key != Key.ButtonX) return@onKeyEvent false
@@ -1118,29 +1207,59 @@ private fun NovaSettingRow(
         horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
     ) {
         val rowModifier = modifier.weight(1f)
+        // Armed, the split stands over the row, which keeps its place and gives focus to Keep.
+        val splitRow: @Composable (@Composable (Modifier) -> Unit) -> Unit = { valueRow ->
+            Box(modifier = Modifier.weight(1f)) {
+                valueRow(
+                    Modifier
+                        .then(if (split.armed) Modifier.alpha(0f) else Modifier)
+                        .focusProperties { canFocus = !(split.armed && pairFocused) }
+                        .then(modifier),
+                )
+                if (split.armed) {
+                    NovaSplitConfirm(
+                        label = definition.title,
+                        confirmLabel = stringResource(R.string.nova_settings_use_preset_default),
+                        onConfirm = reset,
+                        stayLabel = stringResource(R.string.nova_settings_keep),
+                        consequence = stringResource(R.string.nova_settings_use_preset_default_caption),
+                        icon = R.drawable.ic_update,
+                        shape = NovaSplitShape.Row,
+                        state = split,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { pairFocused = it.hasFocus },
+                    )
+                }
+            }
+        }
         when (definition.type) {
-            NovaSettingType.Toggle -> NovaValueRow(
-                title = definition.title,
-                options = switchOptions(context),
-                current = (shown as? NovaSettingValue.BooleanValue)?.value ?: false,
-                onChange = { write(NovaSettingValue.BooleanValue(it)) },
-                caption = caption,
-                style = NovaValueStyle.Switch,
-                enabled = enabled,
-                modifier = rowModifier,
-            )
-            NovaSettingType.Select -> if (definition.selectPresentation == NovaSelectPresentation.InPlace) {
+            NovaSettingType.Toggle -> splitRow { valueModifier ->
                 NovaValueRow(
                     title = definition.title,
-                    options = remember(definition.options) { definition.options.map { NovaOption(it.value, it.label) } },
-                    current = (shown as? NovaSettingValue.StringValue)?.value.orEmpty(),
-                    onChange = { write(NovaSettingValue.StringValue(it)) },
+                    options = switchOptions(context),
+                    current = (shown as? NovaSettingValue.BooleanValue)?.value ?: false,
+                    onChange = { write(NovaSettingValue.BooleanValue(it)) },
                     caption = caption,
-                    ordered = definition.isOrderedScale,
+                    style = NovaValueStyle.Switch,
                     enabled = enabled,
-                    onOpenList = { onOpen(definition) },
-                    modifier = rowModifier,
+                    modifier = valueModifier,
                 )
+            }
+            NovaSettingType.Select -> if (definition.selectPresentation == NovaSelectPresentation.InPlace) {
+                splitRow { valueModifier ->
+                    NovaValueRow(
+                        title = definition.title,
+                        options = remember(definition.options) { definition.options.map { NovaOption(it.value, it.label) } },
+                        current = (shown as? NovaSettingValue.StringValue)?.value.orEmpty(),
+                        onChange = { write(NovaSettingValue.StringValue(it)) },
+                        caption = caption,
+                        ordered = definition.isOrderedScale,
+                        enabled = enabled,
+                        onOpenList = { onOpen(definition) },
+                        modifier = valueModifier,
+                    )
+                }
             } else {
                 NovaRow(
                     title = definition.title,
@@ -1218,6 +1337,26 @@ private fun NovaSettingRow(
             }
         }
         if (canReset) NovaSettingResetButton(enabled = enabled, onReset = reset)
+    }
+}
+
+/** A switch or a choice that changes in its own row: it has no page to carry Use Preset Default. */
+internal val NovaSettingDefinition.resetsByHold: Boolean
+    get() = type == NovaSettingType.Toggle ||
+        (type == NovaSettingType.Select && selectPresentation == NovaSelectPresentation.InPlace)
+
+/** How long OK or A is held on an overridden switch or in-place choice before its row splits (C02). */
+internal const val NOVA_SETTINGS_HOLD_RESET_MS = 500L
+
+/** One hold of OK or A on a row: its timer, and whether it has split the row. */
+private class NovaHoldToReset {
+    var job: Job? = null
+    var fired = false
+
+    fun cancel() {
+        job?.cancel()
+        job = null
+        fired = false
     }
 }
 
