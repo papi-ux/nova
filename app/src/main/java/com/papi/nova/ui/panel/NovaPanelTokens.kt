@@ -128,9 +128,11 @@ object NovaPanelMetrics {
         get() = rowGap(LocalNovaPanelDensity.current)
 
     /**
-     * A page header at the compact density is one line, the root's title or a pushed page's
-     * `‹ Title`, at least this tall, so a pushed page's rows start where the root's did.
+     * A page header is one line at every density, the root's title or a pushed page's `‹ Title`,
+     * at least this tall, so a pushed page's rows start where the root's did: 48dp, the touch
+     * target of the tap that pops a page, or [HeaderHeightCompact] at the compact density.
      */
+    val HeaderHeight: Dp = 48.dp
     val HeaderHeightCompact: Dp = 40.dp
     /** TV title-safe padding on a panel's outer screen edge, and at top and bottom. */
     val TvSafeHorizontal: Dp = 48.dp
@@ -276,12 +278,16 @@ object NovaPanelMetrics {
 
     fun buttonMinHeight(density: NovaPanelDensity): Dp = if (density == NovaPanelDensity.Compact) 40.dp else 44.dp
 
+    /** A page header's one line on [formFactor] at [density]: 48dp, or 40dp compact. */
+    fun headerHeight(formFactor: NovaFormFactor, density: NovaPanelDensity): Dp =
+        if (formFactor != NovaFormFactor.Television && density == NovaPanelDensity.Compact) HeaderHeightCompact else HeaderHeight
+
     /**
-     * Above a page's header: the panel padding, or 4dp at the compact density, where the header's
-     * own 40dp line leaves the room above its title.
+     * Above a page's header: 8dp, or 4dp at the compact density. The header's own line leaves the
+     * rest of the room above its title, so the title sits about a panel padding down.
      */
     fun headerTopPadding(formFactor: NovaFormFactor, density: NovaPanelDensity): Dp =
-        if (formFactor != NovaFormFactor.Television && density == NovaPanelDensity.Compact) SpaceXs else panelPadding(formFactor, density)
+        if (formFactor != NovaFormFactor.Television && density == NovaPanelDensity.Compact) SpaceXs else SpaceSm
 
     /** Above and below the hint bar: the panel padding, or 8dp compact. Its sides keep the panel padding. */
     fun hintBarMargin(formFactor: NovaFormFactor, density: NovaPanelDensity): Dp =

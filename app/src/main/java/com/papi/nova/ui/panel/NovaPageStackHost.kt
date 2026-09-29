@@ -565,11 +565,12 @@ private fun pageTransition(push: Boolean, fromLeft: Boolean, offsetPx: Int): Con
 }
 
 /**
- * The page title. A pushed page shows `‹ Title`; tapping it pops. It is never a focus stop: B does
- * the same on a pad. At the regular density a small label above it names the page below. At the
- * compact density the header is one line, root and pushed alike, at least
- * [NovaPanelMetrics.HeaderHeightCompact] tall, so nothing under it moves when a page opens; the
- * page below is still named to accessibility, as the tap's label.
+ * The page title, on one line at every density: the root's title, or `‹ Title` on a pushed page,
+ * at least [NovaPanelMetrics.headerHeight] tall, so nothing under it moves when a page opens.
+ * Tapping a pushed page's title pops it. It is never a focus stop: B does the same on a pad. The
+ * page below is named to accessibility, as the tap's label. On a television and in tall windows a
+ * pushed page once had a second line above its title naming the page below, and its rows jumped
+ * down by that line whenever a page opened.
  */
 @Composable
 private fun NovaPageHeader(
@@ -583,7 +584,7 @@ private fun NovaPageHeader(
     val type = novaPanelType
     val backLabel = parentTitle?.let { stringResource(R.string.nova_panel_back_to, it) }
     val back by rememberUpdatedState(onBack)
-    val oneLine = LocalNovaPanelDensity.current == NovaPanelDensity.Compact
+    val height = NovaPanelMetrics.headerHeight(LocalNovaFormFactor.current, LocalNovaPanelDensity.current)
     // The touch B, though never a focus stop.
     val backTarget = Modifier
         .testTag(NovaPageBackTag)
@@ -595,38 +596,20 @@ private fun NovaPageHeader(
                 true
             }
         }
-    if (oneLine) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = modifier.fillMaxWidth().heightIn(min = NovaPanelMetrics.HeaderHeightCompact),
-        ) {
-            Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.weight(1f)) {
-                if (parentTitle == null) {
-                    Text(text = title, style = type.panelTitle, color = colors.textPrimary)
-                } else {
-                    // The ‹ hangs into the 12dp gutter, so the title starts on the text line of the
-                    // rows under it, as the mockup draws it.
-                    NovaPageBack(title = title, modifier = Modifier.heightIn(min = NovaPanelMetrics.HeaderHeightCompact).then(backTarget))
-                }
-            }
-            end?.let {
-                Spacer(Modifier.width(NovaPanelMetrics.SpaceSm))
-                it()
-            }
-        }
-        return
-    }
-    // 8dp under the title, so the first tile does not sit flush against it; the compact header's
-    // 40dp line keeps that room inside itself.
-    Row(modifier = modifier.fillMaxWidth().padding(bottom = NovaPanelMetrics.SpaceSm), verticalAlignment = Alignment.Top) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
+    // The line keeps the room under the title inside itself, so the first tile never sits flush
+    // against it.
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.fillMaxWidth().heightIn(min = height),
+    ) {
+        Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.weight(1f)) {
             if (parentTitle == null) {
                 Text(text = title, style = type.panelTitle, color = colors.textPrimary)
-                return@Column
+            } else {
+                // The ‹ hangs into the gutter, so the title starts on the text line of the rows
+                // under it, as the mockup draws it. As tall as the line, for the touch B.
+                NovaPageBack(title = title, modifier = Modifier.heightIn(min = height).then(backTarget))
             }
-            Text(text = parentTitle, style = type.caption, color = colors.textSecondary)
-            // A full touch target for the touch B.
-            NovaPageBack(title = title, modifier = Modifier.heightIn(min = NovaPanelMetrics.ArrowTarget).then(backTarget))
         }
         end?.let {
             Spacer(Modifier.width(NovaPanelMetrics.SpaceSm))

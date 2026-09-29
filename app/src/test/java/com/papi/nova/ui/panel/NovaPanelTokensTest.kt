@@ -90,7 +90,9 @@ class NovaPanelTokensTest {
         assertDp(44f, NovaPanelMetrics.buttonMinHeight(regular))
         assertDp(48f, NovaPanelMetrics.ArrowTarget)
         assertDp("a value row is as tall as a plain row", 52f, NovaPanelMetrics.valueControlHeight(regular) + NovaPanelMetrics.SpaceXs * 2)
-        assertDp("the header sits a panel padding down", 16f, NovaPanelMetrics.headerTopPadding(handheld, regular))
+        assertDp("the header's one line sits 8dp down and keeps the rest of a padding inside it", 8f, NovaPanelMetrics.headerTopPadding(handheld, regular))
+        assertDp("one 48dp header line for the root and a pushed page", 48f, NovaPanelMetrics.headerHeight(handheld, regular))
+        assertDp("on a television too", 48f, NovaPanelMetrics.headerHeight(NovaFormFactor.Television, regular))
         assertDp("the hint bar keeps a panel padding all round", 16f, NovaPanelMetrics.hintBarMargin(handheld, regular))
         assertType(NovaPanelType.of(handheld, regular), listOf(20, 18, 16, 15, 13, 11), hintKey = 11)
         assertType(NovaPanelType.of(NovaFormFactor.Television, regular), listOf(22, 20, 18, 17, 15, 13), hintKey = 13)
@@ -108,6 +110,7 @@ class NovaPanelTokensTest {
         assertDp("the arrows keep their 48dp wide target", 48f, NovaPanelMetrics.ArrowTarget)
         assertDp("a value row is as tall as a plain row", 44f, NovaPanelMetrics.valueControlHeight(compact) + NovaPanelMetrics.SpaceXs * 2)
         assertDp("one header line for the root and a pushed page", 40f, NovaPanelMetrics.HeaderHeightCompact)
+        assertDp(40f, NovaPanelMetrics.headerHeight(handheld, compact))
         assertDp(4f, NovaPanelMetrics.headerTopPadding(handheld, compact))
         assertDp("8dp above and below the hint bar; its sides keep the 12dp padding", 8f, NovaPanelMetrics.hintBarMargin(handheld, compact))
         val type = NovaPanelType.of(handheld, compact)
@@ -123,7 +126,8 @@ class NovaPanelTokensTest {
         val compact = NovaPanelDensity.Compact
         assertDp(56f, NovaPanelMetrics.rowMinHeight(tv, compact))
         assertDp(20f, NovaPanelMetrics.panelPadding(tv, compact))
-        assertDp(20f, NovaPanelMetrics.headerTopPadding(tv, compact))
+        assertDp(8f, NovaPanelMetrics.headerTopPadding(tv, compact))
+        assertDp(48f, NovaPanelMetrics.headerHeight(tv, compact))
         assertDp(20f, NovaPanelMetrics.hintBarMargin(tv, compact))
         assertSame(NovaPanelType.of(tv, NovaPanelDensity.Regular), NovaPanelType.of(tv, compact))
     }

@@ -117,6 +117,34 @@ class NovaPanelDensityComposeTest {
         )
     }
 
+    /** Pushes a page over the root and checks the rows start where the root's did. */
+    private fun assertAPushedPageStartsItsRowsWhereTheRootDid(expectedHeader: Dp) {
+        val rootTop = top("row-root")
+
+        rule.runOnIdle { state.push(TestPage("pushed", "Pushed")) }
+        rule.waitForIdle()
+
+        val back = rule.onNode(androidx.compose.ui.test.hasTestTag(com.papi.nova.ui.panel.NovaPageBackTag) and androidx.compose.ui.test.hasText("Pushed"))
+        back.assertExists()
+        assertDp("the one line header is as tall as the root's, so nothing moves", rootTop, top("row-pushed"))
+        rule.onNodeWithText("Root").assertDoesNotExist()
+        val bounds = back.getUnclippedBoundsInRoot()
+        assertTrue("the back target keeps the header's height", bounds.bottom - bounds.top >= expectedHeader - 0.5.dp)
+    }
+
+    @Test
+    fun aTelevisionPushedPageStartsItsRowsWhereTheRootDid() {
+        panel(television = true)
+        assertAPushedPageStartsItsRowsWhereTheRootDid(NovaPanelMetrics.HeaderHeight)
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp")
+    fun aTallWindowsPushedPageStartsItsRowsWhereTheRootDid() {
+        panel()
+        assertAPushedPageStartsItsRowsWhereTheRootDid(NovaPanelMetrics.HeaderHeight)
+    }
+
     @Test
     @Config(qualifiers = "w1280dp-h800dp")
     fun aTallWindowKeepsTheRegularScale() {
