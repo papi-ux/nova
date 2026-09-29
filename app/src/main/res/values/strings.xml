@@ -459,7 +459,7 @@
     <string name="nova_controller_hint_b">B</string>
     <string name="nova_controller_hint_x">X</string>
     <string name="nova_controller_hint_y">Y</string>
-    <string name="nova_controller_hint_lb_rb">LB/RB</string>
+    <string name="nova_controller_hint_lb_rb">L1/R1</string>
     <string name="nova_controller_hint_select">Select</string>
     <string name="nova_controller_hint_back">Back</string>
     <string name="nova_controller_hint_options">Options</string>

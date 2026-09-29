@@ -83,6 +83,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.BuildConfig
@@ -488,7 +489,8 @@ fun NovaPanelHintBar(hints: List<NovaControllerHint>, modifier: Modifier = Modif
             ) {
                 Text(
                     text = hint.key,
-                    style = type.hintKey,
+                    // A key of several characters, such as L1/R1, reads as one word, not spaced out.
+                    style = if (hint.key.length > 1) type.hintKey.copy(letterSpacing = 0.sp) else type.hintKey,
                     color = colors.onAccent,
                     modifier = Modifier
                         .clip(chip)
