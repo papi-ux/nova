@@ -205,6 +205,12 @@ sealed interface NovaCommonPage : NovaPage {
         val step: Int,
         val format: (Int) -> String,
         val onPreview: ((Int) -> Unit)? = null,
+        /**
+         * The exact field's unit, as a divisor of the value: 1000 types a kbps value in Mbps, the
+         * unit its title and track already show. [exactLabel] names it.
+         */
+        val exactDivisor: Int = 1,
+        val exactLabel: String? = null,
         val onSave: (Int) -> Unit,
     ) : NovaCommonPage
 

@@ -354,6 +354,38 @@ class NovaCommonPagesComposeTest {
     }
 
     @Test
+    fun aKbpsValueIsTypedInMbpsUnderItsMbpsTitle() {
+        // The exact bitrate field showed 200000 under "Bitrate (Mbps)" on the RP6.
+        var saved: Int? = null
+        state.open(TestPage("root"))
+        state.push(
+            NovaCommonPage.Slider(
+                key = "bitrate",
+                title = "Video bitrate",
+                value = 200_000,
+                range = 500..500_000,
+                step = 500,
+                format = { "${it / 1000} Mbps" },
+                exactDivisor = 1000,
+                exactLabel = "Exact value in Mbps",
+                onSave = { saved = it },
+            ),
+        )
+        val keys = host()
+        keys.press(NovaTestKeys.DOWN)
+        val field = rule.onNodeWithText("200")
+        field.assertIsFocused()
+        rule.onNodeWithText("Exact value in Mbps").assertExists()
+        keys.press(NovaTestKeys.CENTER)
+        field.performTextReplacement("215.5")
+        keys.press(NovaTestKeys.DOWN)
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(215_500, saved)
+        assertEquals("20.5", novaExactScaledValue(20_500, 1000))
+        assertEquals("12.3", novaExactDecimalText("12.34a"))
+    }
+
+    @Test
     fun aNegativeValueCanBeTypedAndSaved() {
         var saved: Int? = null
         state.open(TestPage("root"))

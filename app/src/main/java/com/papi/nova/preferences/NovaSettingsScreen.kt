@@ -8,6 +8,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import com.papi.nova.ui.compose.NovaInPlaceKeyboard
+import com.papi.nova.ui.panel.NovaBackHandler
+import com.papi.nova.ui.panel.NovaSplitConfirm
+import com.papi.nova.ui.panel.NovaSplitShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -156,6 +160,10 @@ data class NovaSettingsHeaderAction(
 internal typealias NovaSettingWrite = (NovaSettingDefinition, NovaSettingValue, onCompleted: () -> Unit) -> Unit
 
 private const val RESET_STREAM_UI_DEFAULTS_KEY = "nova_reset_stream_ui"
+private const val RESET_ON_SCREEN_CONTROLS_KEY = "option_reset_osc_preference"
+
+/** Resets that cannot be undone, which confirm in their own row. */
+private val SPLIT_CONFIRM_KEYS = setOf(RESET_STREAM_UI_DEFAULTS_KEY, RESET_ON_SCREEN_CONTROLS_KEY)
 private const val OVERLAYS_CATEGORY_KEY = "category_overlays"
 private const val SEARCH_PANE_KEY = "search"
 
@@ -248,7 +256,11 @@ internal fun NovaSettingsContent(
         val categories = current.categories
         if (categories.isEmpty()) return
         val from = categories.indexOfFirst { it.key == current.selectedCategoryKey }.coerceAtLeast(0)
-        val next = categories[Math.floorMod(from + delta, categories.size)].key
+        // The shoulders stop at the ends, as the rail does: L1 on the first category had wrapped
+        // to the last one.
+        val to = (from + delta).coerceIn(0, categories.lastIndex)
+        if (to == from) return
+        val next = categories[to].key
         if (current.isSearchActive()) clearSearch()
         select(next)
         when {
@@ -541,6 +553,8 @@ private class NovaSettingsPageOpener(
                 step = definition.step ?: 1,
                 format = { value -> formatSettingInt(context, definition, value) },
                 onPreview = if (opacity) menuOpacity::update else null,
+                exactDivisor = if (definition.isBitrateKbps()) 1000 else 1,
+                exactLabel = if (definition.isBitrateKbps()) context.getString(R.string.nova_settings_bitrate_exact_mbps) else null,
                 onSave = { value ->
                     val previewOwnerAtSave = if (opacity) menuOpacity.takeForSave() else null
                     onValue(definition, NovaSettingValue.IntValue(value)) {
@@ -636,35 +650,45 @@ private fun NovaSettingsSearchField(
     // This was a plain BasicTextField: focus it with a d-pad and the direction keys went into
     // the text rather than moving on, so there was no way off the field without a touchscreen.
     val colors = LocalNovaComposeColors.current
-    NovaSearchTextField(
-        value = query,
-        onValueChange = onQuery,
-        contentDescription = stringResource(R.string.nova_settings_search_hint),
+    // B clears a query before it leaves Settings, the way a page's B unwinds one level.
+    NovaBackHandler(active = query.isNotBlank()) { onClear() }
+    Row(
         modifier = modifier,
-        shape = NovaSettingsCardShape
-    ) { innerTextField ->
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = NovaPanelMetrics.SpaceMd),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (query.isBlank()) {
-                    Text(
-                        text = stringResource(R.string.nova_settings_search_hint),
-                        style = novaPanelType.caption,
-                        color = colors.textMuted,
-                    )
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+    ) {
+        Box(modifier = Modifier.weight(1f)) {
+            // Typed where it stands: without this the RP6 swapped the screen for the keyboard's
+            // full-screen white extract view.
+            NovaInPlaceKeyboard {
+                NovaSearchTextField(
+                    value = query,
+                    onValueChange = onQuery,
+                    contentDescription = stringResource(R.string.nova_settings_search_hint),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = NovaSettingsCardShape
+                ) { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = NovaPanelMetrics.SpaceMd),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (query.isBlank()) {
+                            Text(
+                                text = stringResource(R.string.nova_settings_search_hint),
+                                style = novaPanelType.caption,
+                                color = colors.textMuted,
+                            )
+                        }
+                        innerTextField()
+                    }
                 }
-                innerTextField()
             }
-            if (query.isNotBlank()) {
-                NovaSettingsHeaderButton(stringResource(R.string.nova_settings_search_clear), onClear, compact = true)
-            }
+        }
+        // Beside the field, not inside its decoration, where the D-pad could never reach it.
+        if (query.isNotBlank()) {
+            NovaSettingsHeaderButton(stringResource(R.string.nova_settings_search_clear), onClear, compact = true)
         }
     }
 }
@@ -1081,12 +1105,35 @@ private fun NovaSettingRow(
                     caption = state.valueLabel(context, definition),
                     modifier = rowModifier,
                 )
+            } else if (definition.key in SPLIT_CONFIRM_KEYS) {
+                // A reset that cannot be undone splits in its own row with Keep focused (R3); one
+                // A had reset every stream UI setting.
+                NovaSplitConfirm(
+                    label = definition.title,
+                    confirmLabel = stringResource(
+                        if (definition.key == RESET_STREAM_UI_DEFAULTS_KEY) R.string.nova_settings_reset_confirm else R.string.nova_settings_clear_confirm,
+                    ),
+                    stayLabel = stringResource(R.string.nova_settings_keep),
+                    onConfirm = { onSetting(definition) },
+                    consequence = stringResource(
+                        if (definition.key == RESET_STREAM_UI_DEFAULTS_KEY) {
+                            R.string.nova_settings_reset_stream_ui_consequence
+                        } else {
+                            R.string.nova_settings_reset_osc_consequence
+                        },
+                    ),
+                    icon = R.drawable.ic_update,
+                    shape = NovaSplitShape.Row,
+                    enabled = enabled,
+                    caption = caption,
+                    modifier = rowModifier,
+                )
             } else {
                 NovaRow(
                     title = definition.title,
                     onClick = { onSetting(definition) },
                     caption = caption,
-                    trailing = if (definition.key == RESET_STREAM_UI_DEFAULTS_KEY) NovaRowTrailing.None else NovaRowTrailing.Opens,
+                    trailing = NovaRowTrailing.Opens,
                     disabledReason = disabledReason,
                     modifier = rowModifier,
                 )
@@ -1223,6 +1270,10 @@ internal fun NovaSettingsUiState.isEnabled(definition: NovaSettingDefinition): B
 }
 
 /** A slider's value as the player reads it: bitrates in Mbps (0 is Auto), anything else with its suffix. */
+/** A bitrate stored in kbps and shown in Mbps. */
+private fun NovaSettingDefinition.isBitrateKbps(): Boolean =
+    key == PreferenceConfiguration.BITRATE_PREF_STRING || key == "seekbar_metered_bitrate_kbps"
+
 internal fun formatSettingInt(context: Context, definition: NovaSettingDefinition, value: Int): String {
     return when (definition.key) {
         PreferenceConfiguration.BITRATE_PREF_STRING,

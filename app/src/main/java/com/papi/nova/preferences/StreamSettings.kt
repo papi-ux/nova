@@ -81,6 +81,8 @@ class StreamSettings : NovaActivity() {
     private var previousDisplayPixelCount = 0
     private var prefsFragment: SettingsFragment? = null
     private var legacyMode = false
+    /** Set when a row Compose cannot handle opened the legacy screen, so B goes back to Compose. */
+    private var legacyOpenedFromCompose = false
 
     /**
      * Back leaves Settings, from the legacy screen and from Compose Settings when its pane has
@@ -88,7 +90,16 @@ class StreamSettings : NovaActivity() {
      * directly, never an onBackPressed override, so the language check lives here.
      */
     private val leaveCallback = object : OnBackPressedCallback(true) {
-        override fun handleOnBackPressed() = leaveSettings()
+        override fun handleOnBackPressed() {
+            if (legacyMode && legacyOpenedFromCompose) {
+                // B goes back one level, to the Compose category that opened the legacy screen,
+                // not out of Settings altogether.
+                legacyOpenedFromCompose = false
+                showComposeSettings()
+            } else {
+                leaveSettings()
+            }
+        }
     }
 
     fun reloadSettings() {
@@ -140,7 +151,13 @@ class StreamSettings : NovaActivity() {
         val definitions = NovaSettingsAvailability.filter(this, canonicalDefinitions).let { filtered ->
             filtered.copy(
                 settings = filtered.settings
-                    .filterNot { it.key == NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY }
+                    // Custom bitrate saved a string only the legacy listener turned into the
+                    // bitrate, so on this screen it saved nothing. The bitrate row's exact page
+                    // types the same number, in Mbps.
+                    .filterNot {
+                        it.key == NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY ||
+                            it.key == PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING
+                    }
                     .map { definition -> cullFpsOptionsToPanel(definition, maxPanelFps) }
             )
         }
@@ -245,11 +262,11 @@ class StreamSettings : NovaActivity() {
             )
             "option_software_release" -> checkForNovaUpdate()
             "option_follow_update" -> HelpLauncher.launchUrl(this, getString(R.string.obtainium_app_url))
+            // Confirmed in its own row already; it had sent the player to the legacy screen.
+            "option_reset_osc_preference" ->
+                com.papi.nova.binding.input.virtual_controller.VirtualControllerConfigurationLoader.clearProfile(this)
             else -> {
-                NovaSnackbar.show(
-                    this,
-                    getString(R.string.nova_settings_opening_legacy, definition.title)
-                )
+                legacyOpenedFromCompose = true
                 showLegacySettings()
             }
         }

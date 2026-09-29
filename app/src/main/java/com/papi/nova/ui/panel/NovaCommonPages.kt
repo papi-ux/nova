@@ -405,7 +405,8 @@ private fun NovaPageScope.FormPage(page: NovaCommonPage.Form, exit: NovaPageExit
 @Composable
 private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPageExit) {
     var value by rememberSaveable(page.key) { mutableIntStateOf(page.value.coerceIn(page.range)) }
-    var typed by remember(page) { mutableStateOf(value.toString()) }
+    val divisor = page.exactDivisor.coerceAtLeast(1)
+    var typed by remember(page) { mutableStateOf(novaExactScaledValue(value, divisor)) }
     LaunchedEffect(value, isTop) { if (isTop) page.onPreview?.invoke(value) }
     PageColumn {
         NovaSliderTrack(
@@ -415,7 +416,7 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPage
             label = page.format(value),
             onChange = {
                 value = it
-                typed = it.toString()
+                typed = novaExactScaledValue(it, divisor)
             },
             modifier = Modifier.novaInitialFocus(),
         )
@@ -425,12 +426,22 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPage
         NovaTextField(
             value = typed,
             onValueChange = { text ->
-                typed = novaExactValueText(text, negatives)
-                typed.toIntOrNull()?.let { value = it.coerceIn(page.range) }
+                if (divisor == 1) {
+                    typed = novaExactValueText(text, negatives)
+                    typed.toIntOrNull()?.let { value = it.coerceIn(page.range) }
+                } else {
+                    // In the unit the title shows: the bitrate field took kbps under a Mbps title.
+                    typed = novaExactDecimalText(text)
+                    typed.toDoubleOrNull()?.let { value = Math.round(it * divisor).toInt().coerceIn(page.range) }
+                }
             },
-            label = stringResource(R.string.nova_panel_exact_value),
+            label = page.exactLabel ?: stringResource(R.string.nova_panel_exact_value),
             kind = if (negatives) NovaFieldKind.SignedNumber else NovaFieldKind.Number,
-            maxLength = maxOf(page.range.first.toString().length, page.range.last.toString().length),
+            maxLength = if (divisor == 1) {
+                maxOf(page.range.first.toString().length, page.range.last.toString().length)
+            } else {
+                (page.range.last / divisor).toString().length + 2
+            },
             modifier = Modifier.fillMaxWidth(),
         )
         NovaPanelButton(
@@ -451,6 +462,24 @@ internal fun novaExactValueText(text: String, negatives: Boolean): String {
     val digits = text.filter(Char::isDigit)
     return if (negatives && text.trimStart().startsWith("-")) "-$digits" else digits
 }
+
+/** [value] in the exact field's unit: whole where it divides evenly, otherwise to one decimal. */
+internal fun novaExactScaledValue(value: Int, divisor: Int): String = when {
+    divisor <= 1 -> value.toString()
+    value % divisor == 0 -> (value / divisor).toString()
+    else -> "%.1f".format(java.util.Locale.ROOT, value.toDouble() / divisor)
+}
+
+/** What a scaled exact field keeps of [text]: its digits and one decimal point with one digit after it. */
+internal fun novaExactDecimalText(text: String): String {
+    val kept = text.filter { it.isDigit() || it == '.' || it == ',' }.replace(',', '.')
+    val point = kept.indexOf('.')
+    if (point < 0) return kept
+    val whole = kept.substring(0, point)
+    val fraction = kept.substring(point + 1).filter(Char::isDigit).take(1)
+    return "$whole.$fraction"
+}
+
 
 /** A focused track moved with Left and Right by [step], stopping at the ends of [range]. */
 @Composable
