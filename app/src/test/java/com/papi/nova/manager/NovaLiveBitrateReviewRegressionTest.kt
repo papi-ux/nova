@@ -9,6 +9,7 @@ import org.junit.Test
 class NovaLiveBitrateReviewRegressionTest {
     private fun owner()=PolarisSessionStatus("streaming",streamingActive=true,appSessionId="session",sessionGeneration=1,
         ownedByClient=true,encoder=PolarisSessionStatus.EncoderStatus(codec="hevc"),liveTuningPresent=true,
+        bitrateUnits=PolarisBitrateUnits(30000,25987,25987,512,10),
         liveTuning=LiveTuningStatus(true,"stable",true,"",300000,25987,25987,"a".repeat(64),"host",1,1,"session"))
     private open class Fake(var observed: PolarisSessionStatus):NovaLiveBitrateTransport {
         var writes=0
@@ -23,7 +24,7 @@ class NovaLiveBitrateReviewRegressionTest {
     }
     @Test fun unsupportedEncoderCannotWriteEvenWithOwnerAuthority()=runBlocking {
         val fake=Fake(owner().let { it.copy(liveTuning=it.liveTuning!!.copy(supported=false)) })
-        val controller=NovaLiveBitrateController(fake,"session",1,true)
+        val controller=NovaLiveBitrateController(fake,"session",1,true,true)
         controller.observe(fake.observed)
         assertFalse(controller.state.value.canChange)
         assertEquals(NovaBitrateChange.UNAVAILABLE,controller.setBitrate(40000));assertEquals(0,fake.writes)
@@ -36,7 +37,7 @@ class NovaLiveBitrateReviewRegressionTest {
         val fake=object:Fake(owner()) {
             override fun setBitrate(kbps:Int,observed:PolarisSessionStatus):Boolean { sent=kbps;return true }
         }
-        val controller=NovaLiveBitrateController(fake,"session",1,true)
+        val controller=NovaLiveBitrateController(fake,"session",1,true,true)
         controller.observe(fake.observed)
         assertTrue(controller.state.value.canChange)
         assertEquals(30000,controller.state.value.requestedKbps)
@@ -53,7 +54,7 @@ class NovaLiveBitrateReviewRegressionTest {
                 return true
             }
         }
-        val controller=NovaLiveBitrateController(fake,"session",1,true)
+        val controller=NovaLiveBitrateController(fake,"session",1,true,true)
         controller.observe(fake.observed,27000,35000)
         val first=async(Dispatchers.Default) { controller.step(1) }
         try {
@@ -72,26 +73,26 @@ class NovaLiveBitrateReviewRegressionTest {
         assertFalse(controller.state.value.busy)
     }
     @Test fun stepUsesFreshStatusAndNewHostSequencesCanStartOver() = runBlocking {
-        val fake=Fake(owner());val controller=NovaLiveBitrateController(fake,"session",1,true)
+        val fake=Fake(owner());val controller=NovaLiveBitrateController(fake,"session",1,true,true)
         controller.observe(fake.observed)
-        fake.observed=owner().let { it.copy(liveTuning=it.liveTuning!!.copy(sequence=50,requestedBitrateKbps=NovaBitrateAdvice.encoderForRequest(40000))) }
+        fake.observed=owner().let { it.copy(liveTuning=it.liveTuning!!.copy(sequence=50,requestedBitrateKbps=NovaBitrateAdvice.encoderForRequest(40000)),bitrateUnits=it.bitrateUnits!!.copy(liveEncoderKbps=NovaBitrateAdvice.encoderForRequest(40000))) }
         assertEquals(NovaBitrateChange.APPLIED,controller.step(1))
         assertEquals(45000,controller.state.value.requestedKbps)
         controller.observe(fake.observed)
         fake.observed=owner().let { it.copy(liveTuning=it.liveTuning!!.copy(hostInstance="new-host",sequence=1)) }
         controller.observe(fake.observed)
-        controller.observe(fake.observed.let { it.copy(liveTuning=it.liveTuning!!.copy(sequence=2,requestedBitrateKbps=NovaBitrateAdvice.encoderForRequest(50000))) })
+        controller.observe(fake.observed.let { it.copy(liveTuning=it.liveTuning!!.copy(sequence=2,requestedBitrateKbps=NovaBitrateAdvice.encoderForRequest(50000)),bitrateUnits=it.bitrateUnits!!.copy(liveEncoderKbps=NovaBitrateAdvice.encoderForRequest(50000))) })
         assertEquals(50000,controller.state.value.requestedKbps)
     }
     @Test fun pyroWithoutHostAdviceNeverUsesTableRecommendation()=runBlocking {
         val fake=Fake(owner().copy(encoder=PolarisSessionStatus.EncoderStatus(codec="pyrowave")))
-        val controller=NovaLiveBitrateController(fake,"session",1,true)
+        val controller=NovaLiveBitrateController(fake,"session",1,true,true)
         controller.observe(fake.observed,tableRecommendedKbps=200000)
         assertNull(controller.state.value.recommendedKbps)
         assertEquals(NovaBitrateChange.UNAVAILABLE,controller.useRecommended());assertEquals(0,fake.writes)
     }
     @Test fun clampedRecommendedBecomesInUseAndLimitPressDoesNotPauseTuning()=runBlocking {
-        val fake=Fake(owner());val controller=NovaLiveBitrateController(fake,"session",1,true)
+        val fake=Fake(owner());val controller=NovaLiveBitrateController(fake,"session",1,true,true)
         controller.observe(fake.observed,tableRecommendedKbps=80000,hostMaximumKbps=50000)
         assertEquals(50000,controller.state.value.recommendedKbps)
         assertEquals(NovaBitrateChange.APPLIED,controller.useRecommended())
@@ -100,7 +101,7 @@ class NovaLiveBitrateReviewRegressionTest {
         assertEquals(1,fake.writes)
     }
     @Test fun refusalKeepsReadoutAndSessionChangeClearsIt()=runBlocking {
-        val fake=Fake(owner());val controller=NovaLiveBitrateController(fake,"session",1,true)
+        val fake=Fake(owner());val controller=NovaLiveBitrateController(fake,"session",1,true,true)
         controller.observe(fake.observed,27000,35000)
         fake.observed=owner().let { it.copy(liveTuning=it.liveTuning!!.copy(supported=false)) }
         assertEquals(NovaBitrateChange.UNAVAILABLE,controller.step(1))
@@ -115,19 +116,19 @@ class NovaLiveBitrateReviewRegressionTest {
         val fake=object:Fake(owner()) {
             override fun write(encoderKbps:Int,observed:PolarisSessionStatus)=PolarisBitrateWriteResult.SessionChanged
         }
-        val controller=NovaLiveBitrateController(fake,"session",1,true);controller.observe(fake.observed)
+        val controller=NovaLiveBitrateController(fake,"session",1,true,true);controller.observe(fake.observed)
         assertEquals(NovaBitrateChange.SESSION_CHANGED,controller.step(1))
         assertFalse(controller.state.value.canChange);assertNull(controller.state.value.requestedKbps)
     }
     @Test fun acknowledgementAboveRequestAndAdviceAssumptionsUseWireUnits()=runBlocking {
-        val s=owner().copy(pyrowaveBitrate=PolarisPyrowaveAdvice(1920,1080,120,200000,300000,"advice",20,256))
+        val s=owner().copy(bitrateUnits=null,encoder=PolarisSessionStatus.EncoderStatus(codec="pyrowave"),pyrowaveBitrate=PolarisPyrowaveAdvice(1920,1080,120,200000,300000,"advice",20,256))
         val fake=object:Fake(s) {
             override fun write(encoderKbps:Int,observed:PolarisSessionStatus):PolarisBitrateWriteResult {
                 assertEquals(NovaBitrateAdvice.encoderForRequest(50000,256,20),encoderKbps)
                 return PolarisBitrateWriteResult.Applied(NovaBitrateAdvice.encoderForRequest(60000,256,20),observed)
             }
         }
-        val controller=NovaLiveBitrateController(fake,"session",1,true)
+        val controller=NovaLiveBitrateController(fake,"session",1,true,true)
         assertEquals(NovaBitrateChange.APPLIED,controller.setBitrate(50000))
         assertEquals(60000,controller.state.value.requestedKbps)
     }

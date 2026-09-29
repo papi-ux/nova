@@ -708,6 +708,13 @@ class ShortcutTrampoline : NovaActivity() {
             }
 
             val clientSettings = apiClient.getClientSettings()
+            // This preflight already runs on the shortcut worker. Await the same cold plan
+            // used by Game before sending any requested numbers to the host.
+            val tier = com.papi.nova.preferences.NovaStreamSettings.selected(
+                com.papi.nova.profiles.ProfilesManager.getInstance().getOverlayingSharedPreferences(this).all)
+            if (!isWorkerProfile && tier != com.papi.nova.preferences.NovaTier.CUSTOM) kotlinx.coroutines.runBlocking {
+                com.papi.nova.preferences.NovaTierRuntime.prepare(applicationContext)
+            }
             val preferences = PreferenceConfiguration.readPreferences(this)
             val codec = com.papi.nova.ui.NovaVideoCodecOverrides.resolve(
                 com.papi.nova.ui.NovaVideoCodecOverrides.load(this, details.uuid, polarisGame.id, polarisGame.appId),

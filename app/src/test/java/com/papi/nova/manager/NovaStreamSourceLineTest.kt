@@ -43,8 +43,9 @@ class NovaStreamSourceLineTest {
         assertEquals(NovaStreamSource.DEVICE,capped.source)
         assertEquals(listOf("host_refresh_cap"),capped.limitCodes)
         assertEquals("Recommended · the host caps it at 60 fps",capped.text)
-        fields.put("target_fps",field(60,"preset","stability_preset_selected"))
-        assertEquals(NovaStreamSource.HOST_POLICY,NovaStreamSourceLine.fromPreflight(preflight,request).source)
+        fields.put("target_fps",field(60,"device_profile_v1","stability_preset_selected"))
+        assertEquals(NovaStreamSource.DEVICE,NovaStreamSourceLine.fromPreflight(preflight,request).source)
+        assertEquals("Recommended · Stability preset",NovaStreamSourceLine.fromPreflight(preflight,request).text)
         fields.put("target_fps",field(60,"capability_validation","client_refresh_cap"))
         assertEquals("Recommended · this screen caps it at 60 fps",NovaStreamSourceLine.fromPreflight(preflight,request).text)
     }
@@ -52,4 +53,31 @@ class NovaStreamSourceLineTest {
         assertEquals("Set by this Space · H.264 up to 8 Mbps",NovaStreamSourceLine.space().text)
         assertEquals("Watching · 1080p at 24 fps",NovaStreamSourceLine.watch(1920,1080,24).text)
     }
+    @Test fun savedBitrateOnlyDifferenceNamesBitrateWithTheRealHostSource() {
+        val fields=JSONObject()
+        for((key,value) in listOf("display_width" to 1920,"display_height" to 1080,"target_fps" to 120,"target_bitrate_kbps" to 45000))
+            fields.put(key,JSONObject().put("source","device_profile_v1").put("value",value))
+        val preflight=JSONObject().put("resolved_profile",JSONObject().put("policy_version",1).put("fields",fields))
+        assertEquals("Host's saved copy · 45 Mbps",NovaStreamSourceLine.fromPreflight(preflight,NovaStreamSourceRequest(1920,1080,120.0,30000)).text)
+    }
+
+    @Test fun missingRequestAndMultipleLimitsKeepSourceAndConciseCopy() {
+        fun field(v:Any,reason:String)=JSONObject().put("value",v).put("source","capability_validation").put("reason_code",reason)
+        val fields=JSONObject().put("target_bitrate_kbps",field(28000,"host_bitrate_cap"))
+            .put("target_fps",field(60,"host_refresh_cap"))
+        val preflight=JSONObject().put("resolved_profile",JSONObject().put("policy_version",1).put("fields",fields))
+        val request=NovaStreamSourceRequest(1920,1080,120.0,30000)
+        val known=NovaStreamSourceLine.fromPreflight(preflight,request)
+        assertEquals(NovaStreamSource.DEVICE,known.source)
+        assertEquals("Recommended · host cap 28 Mbps",known.text)
+        assertEquals(listOf("host_bitrate_cap","host_refresh_cap"),known.limitCodes)
+        val unknown=NovaStreamSourceLine.fromPreflight(preflight)
+        assertEquals(NovaStreamSource.UNKNOWN,unknown.source)
+        assertEquals("Host stream settings · host cap 28 Mbps",unknown.text)
+        for(line in listOf(known,unknown,NovaStreamSourceLine.fromPreflight(preflight,request.copy(who="A".repeat(56))))) {
+            assertTrue(line.text.length<=56)
+            assertFalse(line.text.contains('\u2014') || line.text.contains('\u2013'))
+        }
+    }
+
 }

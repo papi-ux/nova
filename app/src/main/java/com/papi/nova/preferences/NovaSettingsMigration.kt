@@ -47,9 +47,13 @@ object NovaSettingsMigration {
 
     /** Pure and idempotent. The existing legacy normalization precedes the schema transition. */
     fun migrate(input: Map<String, Any?>): Map<String, Any?> {
-        if (((input[SCHEMA] as? Number)?.toInt() ?: 0) >= 2) return input
+        val schema=(input[SCHEMA] as? Number)?.toInt() ?: 0
+        if (schema >= 3) return input
+        if (schema == 2) return input + mapOf(SCHEMA to 3,
+            CUSTOM_AUTO to (input[CUSTOM_AUTO] ?: input[AUTO] ?: !input.containsKey("seekbar_bitrate_kbps")),
+            CUSTOM_EXISTS to (input[CUSTOM_EXISTS] ?: input.keys.any { it in STREAM_KEYS }))
         val output = legacyBalanced(input).toMutableMap()
-        output[SCHEMA] = 2
+        output[SCHEMA] = 3
         val upgrade = input.keys.any { it in STREAM_KEYS || it in setOf(SCHEMA, LEGACY_BALANCED,
             "list_resolution_fps", "seekbar_bitrate", "seekbar_metered_bitrate_kbps", "nova_stream_preset") }
         if (!upgrade) {
@@ -93,7 +97,7 @@ object NovaSettingsMigration {
 
     fun apply(context: Context) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-        if (prefs.getInt(SCHEMA, 0) >= 2) return
+        if (prefs.getInt(SCHEMA, 0) >= 3) return
         val before = prefs.all
         writeDifference(prefs, migrate(before), before)
     }

@@ -151,6 +151,7 @@ class NovaStreamSettingsIntegrationTest {
         PreferenceConfiguration.resetStreamingSettings(context)
         assertEquals("recommended",manager.getOverlayingSharedPreferences(context).getString(NovaSettingsMigration.TIER,null))
         custom.forEach { (key,value) -> assertEquals(value,profile.getOptions()!![key]) }
+        manager.awaitDeferredWritesForTest()
         ProfilesManager.instance=null
         val restored=ProfilesManager.getInstance();restored.load(context)
         assertEquals("recommended",restored.getOverlayingSharedPreferences(context).getString(NovaSettingsMigration.TIER,null))

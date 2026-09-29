@@ -129,7 +129,8 @@ class NovaStreamTierReviewRegressionTest {
     }
     @Test fun fourKClaimAgreesWithGeneratedPlanAfterHevcFailure() {
         val tiers=NovaStreamTiers.forDevice(input(listOf(NovaFailedDecodePoint(NovaCodecChoice.HEVC,NovaSize(3840,2160),60))))
-        if(tiers.fourK==NovaFourK.IsMax) assertEquals(NovaSize(3840,2160),tiers.max.size)
+        assertTrue(tiers.fourK is NovaFourK.Unavailable)
+        assertEquals("decoder_failed",(tiers.fourK as NovaFourK.Unavailable).because.code)
     }
 
     @Test fun memoizedRecommendedReachesActualPreferenceReaderWithoutReprobing() {

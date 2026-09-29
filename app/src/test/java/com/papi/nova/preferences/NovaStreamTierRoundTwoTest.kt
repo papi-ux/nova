@@ -65,21 +65,21 @@ class NovaStreamTierRoundTwoTest {
         assertTrue(NovaTierLaunchPolicy.needsGeneratedTier(NovaTier.RECOMMENDED,false,false,false))
     }
     @Test fun s20ModesKeepFullRefreshAtTheHandheldCandidateSize() {
-        val inputs=panel(mode(1,2400,1080,120f),mode(2,2400,1080,60f),mode(3,3200,1440,60f))
+        val inputs=panel(mode(0,2400,1080,120f),mode(2,2400,1080,60f),mode(3,3200,1440,60f))
         val tiers=NovaStreamTiers.forDevice(capable(inputs))
         assertEquals(NovaSize(3200,1440),inputs.panel)
         assertEquals(NovaSize(2400,1080),tiers.recommended.size)
         assertEquals(120,tiers.recommended.fps)
     }
     @Test fun dciModeDoesNotTurnAnUhdTvIntoATwentyFourHzPanel() {
-        val inputs=panel(mode(1,3840,2160,60f),mode(2,4096,2160,24f),mode(3,1920,1080,120f),room=true)
+        val inputs=panel(mode(0,3840,2160,60f),mode(2,4096,2160,24f),mode(3,1920,1080,120f),room=true)
         val tiers=NovaStreamTiers.forDevice(capable(inputs).copy(link=NovaLink.ETHERNET))
         assertEquals(NovaSize(3840,2160),inputs.panel)
         assertEquals(60,tiers.recommended.fps)
         assertTrue(tiers.mergedMax)
     }
     @Test fun shieldsReportedModesOffer1080p120AndFourK60() {
-        var id=1
+        var id=0
         val modes=(listOf(59.94f,23.976f,24f,25f,29.97f,30f,50f,60f).map { mode(id++,3840,2160,it) } +
             listOf(23.976f,24f,29.97f,30f,50f,59.94f,60f,120f).map { mode(id++,1920,1080,it) } +
             listOf(50f,59.94f,60f).map { mode(id++,1280,720,it) }+mode(id++,720,480,60f)).toTypedArray()
@@ -152,4 +152,58 @@ class NovaStreamTierRoundTwoTest {
             assertTrue(prefs.getBoolean(NovaSettingsMigration.CUSTOM_AUTO,false))
         } finally { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
+    @Test fun measuredAvcWinsOverClaimedOnlyHevcInAuto() {
+        val input=room(NovaLink.ETHERNET).copy(capabilities=NovaDeviceCapabilities(listOf(
+            NovaCodecCapability(NovaCodecChoice.HEVC,"claimed",listOf(NovaDecodePoint(NovaSize(3840,2160),60,false))),
+            NovaCodecCapability(NovaCodecChoice.AVC,"measured",listOf(NovaDecodePoint(NovaSize(1920,1080),60))))))
+        val plan=NovaStreamTiers.forDevice(input).recommended
+        assertEquals(NovaCodecChoice.AVC,plan.codec)
+        assertEquals(NovaSize(1920,1080),plan.size)
+        assertFalse(plan.reasons.any { it.code=="decoder_claimed" })
+    }
+    @Test fun hostPyrowaveAdviceIsScopedToItsSizeAndRateAndHighCapAllowsFourK() {
+        val input=room(NovaLink.ETHERNET).copy(codec=NovaCodecChoice.PYROWAVE,
+            pyrowave=NovaPyrowaveSupport(available=true),host=NovaHostTierLimits(pyrowaveRaiseGoalKbps=250000,
+                pyrowaveFourKCapKbps=300000,pyrowaveAdviceSize=NovaSize(3840,2160),pyrowaveAdviceFps=60))
+        val tiers=NovaStreamTiers.generate(input)
+        assertEquals(250000,tiers.recommended.bitrateKbps)
+        assertEquals(NovaBitrateBasis.PYROWAVE_MODEL,tiers.saver.bitrateBasis)
+        assertTrue(tiers.max.available)
+        assertEquals(NovaSize(3840,2160),tiers.max.size)
+    }
+    @Test fun probeFailurePublishesAnExplicitRetryableResult()=runBlocking {
+        val bad=object:android.content.ContextWrapper(context) {
+            override fun getApplicationContext():Context=this
+            override fun getSystemService(name:String):Any? = throw IllegalStateException("fixture failure")
+        }
+        val result=NovaTierRuntime.prepare(bad)
+        assertFalse(result.tiers.recommended.available)
+        assertEquals("probe_failed",result.tiers.recommended.limits.single().code)
+        NovaTierRuntime.invalidate(context)
+        assertNotEquals("failed",NovaTierRuntime.prepare(context).tiers.inputsHash)
+    }
+
+    @Test fun earlierBetaSchemaRepairsOnlyMissingCustomMetadata() {
+        val old=mapOf(NovaSettingsMigration.SCHEMA to 2,NovaSettingsMigration.TIER to "custom",
+            NovaSettingsMigration.AUTO to false,"list_resolution" to "2560x1440","seekbar_bitrate_kbps" to 37000)
+        val migrated=NovaSettingsMigration.migrate(old)
+        assertEquals(old,migrated.filterKeys { it in old.keys } + (NovaSettingsMigration.SCHEMA to 2))
+        assertEquals(false,migrated[NovaSettingsMigration.CUSTOM_AUTO])
+        assertEquals(true,migrated[NovaSettingsMigration.CUSTOM_EXISTS])
+        assertEquals(3,migrated[NovaSettingsMigration.SCHEMA])
+        assertEquals(migrated,NovaSettingsMigration.migrate(migrated))
+    }
+
+    @Test fun sizePinKeepsAutoCodecSelectionInsteadOfPinningTheOriginalDecoder() {
+        val input=room(NovaLink.ETHERNET).copy(panel=NovaSize(1920,1080),refreshRates=listOf(60,120),distance=NovaDistance.HAND,
+            capabilities=NovaDeviceCapabilities(listOf(
+                NovaCodecCapability(NovaCodecChoice.HEVC,"hevc",listOf(NovaDecodePoint(NovaSize(1920,1080),120))),
+                NovaCodecCapability(NovaCodecChoice.AVC,"avc",listOf(NovaDecodePoint(NovaSize(2560,1440),120))))))
+        assertEquals(NovaCodecChoice.HEVC,NovaStreamTiers.forDevice(input).recommended.codec)
+        val pinned=NovaStreamTiers.resolve(input,NovaTier.RECOMMENDED,pins=NovaStreamPins(size=NovaSize(2560,1440)))
+        assertEquals(NovaCodecChoice.AVC,pinned.codec)
+        assertEquals(NovaSize(2560,1440),pinned.size)
+        assertEquals(120,pinned.fps)
+    }
+
 }

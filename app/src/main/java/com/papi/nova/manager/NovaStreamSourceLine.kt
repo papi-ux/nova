@@ -19,11 +19,11 @@ data class NovaStreamSourceLine(val source:NovaStreamSource,val text:String,val 
             fun field(name:String)=fields.optJSONObject(name)
             fun value(name:String)=(field(name)?.opt("value") as? Number)?.toDouble()?.takeIf { it.isFinite() && it>0 }
             val asked=request?.let { listOf(it.width.toDouble(),it.height.toDouble(),it.fps,it.bitrateKbps.toDouble()) }
-            val saved=asked!=null && names.withIndex().any { (i,name) -> field(name)?.optString("source")=="paired_client" &&
-                value(name)?.let { abs(it-asked[i])>0.5 }==true }
+            val saved=asked!=null && names.withIndex().any { (i,name) -> field(name)?.optString("source") in setOf("paired_client","device_profile_v1") &&
+                field(name)?.optString("reason_code") != "stability_preset_selected" && value(name)?.let { abs(it-asked[i])>0.5 }==true }
             val reasons=names.mapNotNull { name -> field(name)?.optString("reason_code")?.takeIf { it.isNotEmpty() } }
             val stability="stability_preset_selected" in reasons
-            val source=when { saved -> NovaStreamSource.HOST_SAVED_COPY;stability -> NovaStreamSource.HOST_POLICY
+            val source=when { saved -> NovaStreamSource.HOST_SAVED_COPY
                 request!=null -> NovaStreamSource.DEVICE;else -> NovaStreamSource.UNKNOWN }
             val who=when(source) { NovaStreamSource.HOST_SAVED_COPY -> "Host's saved copy";NovaStreamSource.HOST_POLICY -> "Stability"
                 NovaStreamSource.DEVICE -> request!!.who;else -> "Host stream settings" }
@@ -33,10 +33,18 @@ data class NovaStreamSourceLine(val source:NovaStreamSource,val text:String,val 
             val fps=value("target_fps")?.toInt()
             if("host_refresh_cap" in reasons && fps!=null) limits += "host_refresh_cap" to "the host caps it at $fps fps"
             if("client_refresh_cap" in reasons && fps!=null) limits += "client_refresh_cap" to "this screen caps it at $fps fps"
-            if(stability) limits += "stability_preset_selected" to "host's stability preset"
+            if(stability) limits += "stability_preset_selected" to "Stability preset"
             val width=value("display_width")?.toInt();val height=value("display_height")?.toInt()
-            val detail=limits.firstOrNull()?.second ?: if(saved && width!=null && height!=null) "${width}×$height" else ""
-            return NovaStreamSourceLine(source,who+(if(detail.isEmpty()) "" else " · $detail"),
+            val savedDetail=when {
+                !saved || request==null -> ""
+                width!=null && height!=null && (width!=request.width || height!=request.height) -> "${width}×$height"
+                fps!=null && abs(fps-request.fps)>0.5 -> "$fps fps"
+                bitrate!=null && bitrate!=request.bitrateKbps -> NovaBitrateAdvice.text(bitrate,false)
+                else -> ""
+            }
+            val detail=limits.firstOrNull()?.second ?: savedDetail
+            val text=who+(if(detail.isEmpty()) "" else " · $detail")
+            return NovaStreamSourceLine(source,text.take(56),
                 bitrate.takeIf { "host_bitrate_cap" in reasons },limits.map { it.first })
         }
         fun space()=NovaStreamSourceLine(NovaStreamSource.SPACE,"Set by this Space · H.264 up to 8 Mbps",8000)

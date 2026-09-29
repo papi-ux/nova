@@ -5,7 +5,7 @@ import org.json.JSONObject
 /** Host advice is already expressed as requested stream kbps, including link overhead. */
 data class PolarisPyrowaveAdvice(val width: Int, val height: Int, val fps: Int,
     val raiseGoalKbps: Int, val capKbps: Int, val limitedBy: String,
-    val fecPercent: Int = 10, val audioKbps: Int = 512) {
+    val fecPercent: Int = 10, val audioKbps: Int = 512, val assumptionsKnown: Boolean = true) {
     val hostMaximumKbps: Int? get() = raiseGoalKbps.takeIf { limitedBy == "max_bitrate" }
     companion object {
         fun parse(json: JSONObject?): PolarisPyrowaveAdvice? {
@@ -24,8 +24,9 @@ data class PolarisPyrowaveAdvice(val width: Int, val height: Int, val fps: Int,
                 positive("raise_goal_kbps", 300000) ?: return null,
                 positive("cap_kbps", 300000) ?: return null,
                 json.optString("raise_goal_limited_by").takeIf { it in setOf("advice", "cap", "max_bitrate") } ?: return null,
-                assumption("fec_percentage",10,100) ?: return null,
-                assumption("audio_kbps",512,100000) ?: return null)
+                assumption("fec_percentage",10,255) ?: return null,
+                assumption("audio_kbps",512,100000) ?: return null,
+                assumes?.has("audio_kbps") == true && assumes.has("fec_percentage"))
         }
     }
 }

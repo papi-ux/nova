@@ -590,12 +590,13 @@ class StreamSettings : NovaActivity() {
                 PreferenceConfiguration.DEFAULT_FPS
             ) ?: PreferenceConfiguration.DEFAULT_FPS
 
-            prefs.edit()
-                .putInt(
-                    PreferenceConfiguration.BITRATE_PREF_STRING,
-                    PreferenceConfiguration.getDefaultBitrate(activeRes, activeFps)
-                )
-                .apply()
+            // Publish the point and its automatic rate together: listeners must never see
+            // the new default paired with the old resolution or refresh rate.
+            prefs.edit().putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, activeRes)
+                .putString(PreferenceConfiguration.FPS_PREF_STRING, activeFps)
+                .putBoolean(NovaSettingsMigration.AUTO, true).putBoolean(NovaSettingsMigration.CUSTOM_AUTO, true)
+                .putInt(PreferenceConfiguration.BITRATE_PREF_STRING,
+                    PreferenceConfiguration.getDefaultBitrate(activeRes, activeFps)).apply()
         }
 
         override fun onCreateView(

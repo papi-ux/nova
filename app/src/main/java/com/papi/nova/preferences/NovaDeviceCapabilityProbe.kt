@@ -103,16 +103,24 @@ object NovaCapabilityProbe {
     }
 
     fun deviceInputs(context: Context): NovaTierInputs {
+        val environment = deviceEnvironment(context)
+        return environment.copy(capabilities=inspect(context,environment.panel,environment.refreshRates.maxOrNull() ?: 60))
+    }
+
+    /** Cheap callback signature; codec discovery stays on the runtime worker. */
+    internal fun deviceEnvironment(context: Context): NovaTierInputs {
         val display = (context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
-        val mode = if (Build.VERSION.SDK_INT >= 23) display?.supportedModes?.maxByOrNull { it.physicalWidth.toLong()*it.physicalHeight } else null
-        val size = if (mode != null) NovaSize(maxOf(mode.physicalWidth, mode.physicalHeight), minOf(mode.physicalWidth, mode.physicalHeight))
-            else NovaSize(1920, 1080)
-        val panelRates = if (Build.VERSION.SDK_INT >= 23 && mode != null) display!!.supportedModes.filter {
-            maxOf(it.physicalWidth,it.physicalHeight)==size.width && minOf(it.physicalWidth,it.physicalHeight)==size.height
-        }.map { it.refreshRate.roundToInt().coerceIn(1,240) }.distinct().sorted() else listOf(display?.refreshRate?.roundToInt() ?: 60)
-        val top = panelRates.maxOrNull() ?: 60
         val room = (context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager)?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+        val current = if (Build.VERSION.SDK_INT >= 23) display?.mode else null
+        val aspect = if (room) 16.0/9 else current?.let { maxOf(it.physicalWidth,it.physicalHeight).toDouble()/minOf(it.physicalWidth,it.physicalHeight) } ?: 16.0/9
+        val modes = if (Build.VERSION.SDK_INT >= 23) display?.supportedModes.orEmpty().map {
+            NovaDisplayMode(NovaSize(maxOf(it.physicalWidth,it.physicalHeight),minOf(it.physicalWidth,it.physicalHeight)),it.refreshRate.roundToInt().coerceIn(1,240))
+        }.filter { kotlin.math.abs(it.size.width.toDouble()/it.size.height/aspect-1) < 0.02 }.distinct().sortedWith(
+            compareBy<NovaDisplayMode> { it.size.pixels }.thenBy { it.fps }) else emptyList()
+        val size = modes.maxByOrNull { it.size.pixels }?.size ?: NovaSize(1920,1080)
+        val panelRates = modes.map { it.fps }.distinct().sorted().ifEmpty { listOf(display?.refreshRate?.roundToInt() ?: 60) }
+        val top = panelRates.maxOrNull() ?: 60
         val distance = if (room) NovaDistance.ROOM else if (context.resources.configuration.smallestScreenWidthDp >= 600)
             NovaDistance.LAP else NovaDistance.HAND
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
@@ -122,7 +130,7 @@ object NovaCapabilityProbe {
             network?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> NovaLink.WIFI
             else -> NovaLink.OTHER
         }
-        return NovaTierInputs(size, panelRates, distance, inspect(context, size, top), link)
+        return NovaTierInputs(size, panelRates, distance, NovaDeviceCapabilities(emptyList()), link, displayModes=modes)
     }
 
     /** Called before the crash tombstone is committed, using the actual negotiated point. */

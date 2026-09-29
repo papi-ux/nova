@@ -54,7 +54,8 @@ class NovaLiveBitrateControllerTest {
         controller.observe(fake.current,0)
         assertNull(controller.state.value.receivedKbps)
         assertEquals(NovaBitrateChange.APPLIED,controller.step(1))
-        assertEquals(listOf("${NovaBitrateAdvice.encoderForRequest(35000)}:7"),fake.writes)
+        assertEquals(NovaBitrateUnits.VIDEO,controller.state.value.units)
+        assertEquals(listOf("${25987+5000}:7"),fake.writes)
         controller.observe(null,10000)
         assertFalse(controller.state.value.canChange)
         assertNull(controller.state.value.requestedKbps)
@@ -76,15 +77,16 @@ class NovaLiveBitrateControllerTest {
     @Test fun stepsHonorPreflightHostMaximumAndGlobalBounds() = runBlocking {
         for (codec in listOf("h264","hevc","pyrowave")) {
             val start = status().copy(encoder=PolarisSessionStatus.EncoderStatus(codec=codec),
-                liveTuning=status().liveTuning!!.copy(enabled=false,requestedBitrateKbps=NovaBitrateAdvice.encoderForRequest(299000)))
-            val fake = Fake(start);val controller = NovaLiveBitrateController(fake,"session-a",7,true)
+                liveTuning=status().liveTuning!!.copy(enabled=false,requestedBitrateKbps=NovaBitrateAdvice.encoderForRequest(299000)),
+                bitrateUnits=com.papi.nova.api.PolarisBitrateUnits(299000,NovaBitrateAdvice.encoderForRequest(299000),NovaBitrateAdvice.encoderForRequest(299000),512,10))
+            val fake = Fake(start);val controller = NovaLiveBitrateController(fake,"session-a",7,true,true)
             controller.observe(start)
             assertEquals(NovaBitrateChange.APPLIED,controller.step(1))
             assertEquals(300000,controller.state.value.requestedKbps)
             controller.observe(start,hostMaximumKbps=150000)
             assertEquals(NovaBitrateChange.APPLIED,controller.step(1))
             assertEquals(150000,controller.state.value.requestedKbps)
-            fake.current=start.copy(liveTuning=start.liveTuning!!.copy(requestedBitrateKbps=1000,sequence=10))
+            fake.current=start.copy(liveTuning=start.liveTuning!!.copy(requestedBitrateKbps=1000,sequence=10),bitrateUnits=start.bitrateUnits!!.copy(liveEncoderKbps=1000))
             controller.observe(fake.current)
             val writesAtFloor=fake.writes.size
             assertEquals(NovaBitrateChange.AT_LIMIT,controller.step(-1))

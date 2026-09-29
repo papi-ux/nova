@@ -636,6 +636,12 @@ class PreferenceConfiguration {
             if (mode != null) {
                 editor.putString(RESOLUTION_PREF_STRING, mode.width.toString() + "x" + mode.height)
                 editor.putString(FPS_PREF_STRING, formatFpsValue(mode.fps))
+                if (automatic && bitrateKbps <= 0) editor.putInt(BITRATE_PREF_STRING,
+                    NovaBitrateAdvice.recommend(mode.width,mode.height,mode.fps.roundToInt(),
+                        when(effective.videoFormat) {
+                            FormatOption.FORCE_PYROWAVE -> NovaCodecChoice.PYROWAVE
+                            else -> NovaCodecChoice.AUTO
+                        }).kbps)
             }
             if (bitrateKbps > 0) {
                 editor.putInt(BITRATE_PREF_STRING, bitrateKbps)

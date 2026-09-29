@@ -9,10 +9,10 @@ object NovaTierLaunchPolicy {
 
     // The launch callers share this decision so resume and shortcut semantics can be tested.
     fun sessionModeLocked(watchOnly: Boolean, resumeExisting: Boolean, width: Int, height: Int) =
-        watchOnly && width > 0 && height > 0
+        (watchOnly || resumeExisting) && width > 0 && height > 0
 
     fun needsGeneratedTier(tier: com.papi.nova.preferences.NovaTier, watchOnly: Boolean,
-        resumeExisting: Boolean, space: Boolean) = !watchOnly && tier != com.papi.nova.preferences.NovaTier.CUSTOM
+        resumeExisting: Boolean, space: Boolean) = !watchOnly && !resumeExisting && !space && tier != com.papi.nova.preferences.NovaTier.CUSTOM
 
     fun displayLocked(requested: Boolean, space: Boolean) = requested && !space
 }

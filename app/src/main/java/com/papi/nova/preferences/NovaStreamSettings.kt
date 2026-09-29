@@ -47,8 +47,9 @@ object NovaStreamSettings {
     internal fun selectActiveSetupTier(tier: NovaTier, automatic: Boolean? = null) {
         val profiles = com.papi.nova.profiles.ProfilesManager.getInstance()
         profiles.getActive()?.takeIf { it.getOptions()?.keys?.any { key -> key in NovaSettingsMigration.STREAM_KEYS } == true }?.let { active ->
+            val before=active.getOptions()
             active.selectStreamTier(tier, automatic)
-            profiles.update(active)
+            if(active.getOptions()!=before) profiles.updateDeferred(active)
         }
     }
 

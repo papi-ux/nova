@@ -39,6 +39,7 @@ class SimpleStartupTest {
     }
 
     @Test
+    @Config(application=NovaApplication::class)
     fun testApplicationOnCreate() {
         val app = ApplicationProvider.getApplicationContext<NovaApplication>()
         assertNotNull("Application should exist", app)

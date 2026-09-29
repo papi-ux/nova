@@ -30,7 +30,8 @@ data class PolarisCapabilities(
         val doctorTrials: Boolean = false,
         val doctorTrialsEnabled: Boolean = false,
         val hostSleep: Boolean = false,
-        val pyrowaveAdviceV1: Boolean = false
+        val pyrowaveAdviceV1: Boolean = false,
+        val bitrateUnitsV1: Boolean = false
     ) {
         constructor(
             aiOptimizer: Boolean,

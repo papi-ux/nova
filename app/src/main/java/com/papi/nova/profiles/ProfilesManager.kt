@@ -18,6 +18,11 @@ class ProfilesManager private constructor() {
     private var activeProfileId: UUID? = null
     private val listeners: MutableList<ProfileChangeListener> = ArrayList()
     private var appContext: Context? = null
+    private val persistenceLock=Any()
+    private val persistenceRevision=java.util.concurrent.atomic.AtomicLong()
+    private val persistenceExecutor=java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+        Thread(task,"NovaProfileWriter").apply { isDaemon=true }
+    }
 
     fun load(context: Context?): Boolean {
         LimeLog.info("ArtemisProfile: Loading profile...")
@@ -71,7 +76,12 @@ class ProfilesManager private constructor() {
         return true
     }
 
-    fun save(context: Context?): Boolean {
+    fun save(context: Context?): Boolean = synchronized(persistenceLock) {
+        persistenceRevision.incrementAndGet()
+        saveNow(context)
+    }
+
+    private fun saveNow(context: Context?): Boolean {
         if (context == null) {
             return false
         }
@@ -116,6 +126,28 @@ class ProfilesManager private constructor() {
         notifyListeners()
         saveIfPossible()
     }
+
+    /** Keep selection immediate; serialize an immutable snapshot before handing disk IO to the worker. */
+    fun updateDeferred(profile: SettingsProfile) {
+        profiles[profile.getUuid()]=profile
+        notifyListeners()
+        val context=appContext ?: return
+        val data=ProfilesData().apply { profiles=ArrayList(this@ProfilesManager.profiles.values);activeProfileId=this@ProfilesManager.activeProfileId }
+        val json=Gson().toJson(data)
+        val revision=persistenceRevision.incrementAndGet()
+        persistenceExecutor.execute {
+            synchronized(persistenceLock) {
+                if(revision!=persistenceRevision.get()) return@synchronized
+                try {
+                    val dir=File(context.filesDir,PROFILES_DIR)
+                    check(dir.exists() || dir.mkdirs())
+                    File(dir,PROFILES_FILE).writeText(json)
+                } catch(error:Exception) { LimeLog.warning("Nova: Could not save stream tier selection: ${error.message}") }
+            }
+        }
+    }
+
+    internal fun awaitDeferredWritesForTest() = persistenceExecutor.submit {}.get(5,java.util.concurrent.TimeUnit.SECONDS)
 
     fun delete(uuid: UUID?) {
         profiles.remove(uuid)

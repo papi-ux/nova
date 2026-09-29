@@ -21,6 +21,7 @@ class NovaLiveBitrateRoundTwoTest {
             val encoder=NovaBitrateAdvice.encoderForRequest(wire,audio,fec)
             val fake=Fake(owner(encoder));val controller=NovaLiveBitrateController(fake,"round-two",1,true)
             controller.observe(fake.current,tableRecommendedKbps=wire)
+            assertEquals(NovaBitrateUnits.VIDEO,controller.state.value.units)
             assertEquals(encoder,controller.state.value.requestedKbps)
             assertNull("A request-unit recommendation cannot be converted without the session's overhead",controller.state.value.recommendedKbps)
             assertEquals(NovaBitrateChange.APPLIED,controller.step(1))
@@ -50,4 +51,27 @@ class NovaLiveBitrateRoundTwoTest {
         assertEquals(NovaBitrateChange.AT_LIMIT,controller.step(-1))
         assertEquals(1,fake.writes.size)
     }
+    @Test fun capabilityFlagAndObjectAreBothRequiredForRequestUnits() {
+        val status=owner(24963).copy(bitrateUnits=PolarisBitrateUnits(30000,24963,24963,1536,10))
+        for((flag,obj,expected) in listOf(Triple(false,status.bitrateUnits,NovaBitrateUnits.VIDEO),
+            Triple(true,null,NovaBitrateUnits.VIDEO),Triple(true,status.bitrateUnits,NovaBitrateUnits.REQUEST))) {
+            val fixture=status.copy(bitrateUnits=obj)
+            val controller=NovaLiveBitrateController(Fake(fixture),"round-two",1,true,flag)
+            controller.observe(fixture,tableRecommendedKbps=30000)
+            assertEquals(expected,controller.state.value.units)
+            assertEquals(expected==NovaBitrateUnits.REQUEST,controller.state.value.recommendedKbps!=null)
+        }
+    }
+    @Test fun unknownCodecOrPyrowaveAssumptionsIsReadOnly()=runBlocking {
+        for(codec in listOf("future","pyrowave","")) {
+            val status=owner(30000).copy(encoder=PolarisSessionStatus.EncoderStatus(codec=codec))
+            val fake=Fake(status);val controller=NovaLiveBitrateController(fake,"round-two",1,true)
+            controller.observe(status,receivedKbps=25000,tableRecommendedKbps=30000)
+            assertEquals(NovaBitrateUnits.UNKNOWN,controller.state.value.units)
+            assertFalse(controller.state.value.canChange)
+            assertEquals(25000,controller.state.value.receivedKbps)
+            assertEquals(NovaBitrateChange.UNAVAILABLE,controller.step(1));assertTrue(fake.writes.isEmpty())
+        }
+    }
+
 }

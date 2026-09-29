@@ -39,15 +39,23 @@ class SettingsProfile(
     fun getOptions(): Map<String, Any>? = options?.let(com.papi.nova.preferences.NovaSettingsMigration::savedSetup)
 
     fun setOptions(options: Map<String, Any>?) {
-        val changed = com.papi.nova.preferences.NovaSettingsMigration.STREAM_KEYS.any { this.options?.get(it) != options?.get(it) }
-        val bitrateChanged = this.options?.get("seekbar_bitrate_kbps") != options?.get("seekbar_bitrate_kbps")
-        val updated = if (changed && options != null) options + mapOf(com.papi.nova.preferences.NovaSettingsMigration.TIER to "custom",
-            com.papi.nova.preferences.NovaSettingsMigration.CUSTOM_EXISTS to true) else options
+        val old = this.options.orEmpty()
+        val migration = com.papi.nova.preferences.NovaSettingsMigration
+        val changed = migration.STREAM_KEYS.any { old[it] != options?.get(it) }
+        val explicitTier = options?.get(migration.TIER)?.let { it != old[migration.TIER] } == true
+        val updated = if (changed && options != null && !explicitTier) options + mapOf(
+            migration.TIER to "custom", migration.CUSTOM_EXISTS to true) else options
         this.options = updated?.let { values ->
-            com.papi.nova.preferences.NovaSettingsMigration.savedSetup(
-                if (bitrateChanged && values.containsKey("seekbar_bitrate_kbps")) values +
-                    mapOf(com.papi.nova.preferences.NovaSettingsMigration.AUTO to false,
-                        com.papi.nova.preferences.NovaSettingsMigration.CUSTOM_AUTO to false) else values)
+            val bitrateChanged = old["seekbar_bitrate_kbps"] != values["seekbar_bitrate_kbps"]
+            val raw = runCatching { com.papi.nova.preferences.PreferenceConfiguration.getDefaultBitrate(
+                values["list_resolution"] as? String ?: "1920x1080", values["list_fps"] as? String ?: "60") }.getOrNull()
+            val bitrate = values["seekbar_bitrate_kbps"] as? Int
+            val pointChanged = listOf("list_resolution","list_fps","video_format").any { old[it] != values[it] }
+            val automatic = values[migration.CUSTOM_AUTO] == true &&
+                (old[migration.CUSTOM_AUTO] != true || pointChanged || bitrate == raw ||
+                    (raw != null && bitrate == ((raw+4999)/5000)*5000))
+            migration.savedSetup(if (bitrateChanged && bitrate != null && !automatic) values +
+                mapOf(migration.AUTO to false, migration.CUSTOM_AUTO to false) else values)
         }
     }
 

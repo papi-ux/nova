@@ -17,14 +17,20 @@ class NovaStreamTiersTest {
     @Test fun deviceMatrixUsesFixtureCapabilitiesOnly() {
         val rows = javaClass.getResource("/capability/tier-devices.csv")!!.readText().lines()
             .filter { it.isNotBlank() && !it.startsWith("#") }.drop(1)
-        assertEquals(9, rows.size)
+        assertEquals(10, rows.size)
         rows.forEach { row ->
             val c = row.split(','); fun n(i: Int) = c[i].toInt()
-            val tiers = NovaStreamTiers.generate(inputs(NovaSize(n(1), n(2)), n(3),
-                NovaDistance.valueOf(c[4]), NovaLink.valueOf(c[5]), n(6)))
+            var input=inputs(NovaSize(n(1),n(2)),n(3),NovaDistance.valueOf(c[4]),NovaLink.valueOf(c[5]),n(6))
+            if(c[20]=="avc") input=input.copy(capabilities=input.capabilities.copy(codecs=input.capabilities.codecs.filter { it.codec==NovaCodecChoice.AVC }))
+            val tiers = NovaStreamTiers.generate(input)
             assertEquals(c[0], listOf(n(7), n(8), n(9), n(10)),
                 listOf(tiers.recommended.width, tiers.recommended.height, tiers.recommended.fps, tiers.recommended.bitrateKbps))
             assertEquals(c[0], listOf(n(11), n(12), n(13)), listOf(tiers.saver.width, tiers.saver.height, tiers.saver.bitrateKbps))
+            assertEquals(c[0],listOf(n(14),n(15),n(16),n(17)),listOf(tiers.max.width,tiers.max.height,tiers.max.fps,tiers.max.bitrateKbps))
+            assertEquals(c[0],c[18],when(tiers.fourK) {
+                NovaFourK.IsRecommended -> "recommended";NovaFourK.IsMax -> "max";is NovaFourK.Unavailable -> "unavailable"
+            })
+            assertTrue(c[0]+" reason "+c[19],(tiers.recommended.reasons+tiers.recommended.limits).any { it.code==c[19] })
         }
     }
 
@@ -124,7 +130,7 @@ class NovaStreamTiersTest {
             NovaCodecCapability(NovaCodecChoice.AV1,"av1",listOf(NovaDecodePoint(NovaStreamTiers.FOUR_K,120))))))
         val auto=NovaStreamTiers.forDevice(av1)
         assertEquals(NovaCodecChoice.AVC,auto.recommended.codec)
-        assertTrue(auto.fourK is NovaFourK.Unavailable)
+        assertEquals("4K at 60 fps needs AV1 · choose AV1",(auto.fourK as NovaFourK.Unavailable).because.message)
         assertTrue(auto.max.height<=1080)
     }
     @Test fun mirrorAndPyrowaveUseTheirOwnLimits() {

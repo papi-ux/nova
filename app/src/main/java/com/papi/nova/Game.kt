@@ -1177,16 +1177,23 @@ val tierPreferences = ProfilesManager.getInstance().getOverlayingSharedPreferenc
 val needsGeneratedTier = com.papi.nova.manager.NovaTierLaunchPolicy.needsGeneratedTier(
     com.papi.nova.preferences.NovaStreamSettings.selected(tierPreferences.all), watchOnlyRequested,
     resumeExistingRequested, com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID ?: appId.toString()))
-if (needsGeneratedTier && (!com.papi.nova.preferences.NovaTierRuntime.isPrepared() ||
-        com.papi.nova.preferences.NovaTierRuntime.snapshot() !== tierSnapshotAtRead)) {
+if (needsGeneratedTier && (com.papi.nova.preferences.NovaTierRuntime.snapshot()?.tiers?.inputsHash == "failed" ||
+        !com.papi.nova.preferences.NovaTierRuntime.isPrepared() ||
+        com.papi.nova.preferences.NovaTierRuntime.snapshot()?.tiers != tierSnapshotAtRead?.tiers)) {
     val gateIntent = intent
     val gateGeneration = launchPolicyGateGeneration.incrementAndGet()
     launchPolicyGatePending.set(true)
     launchRuntimeIo("NovaLaunchPolicyGate") {
-        com.papi.nova.preferences.NovaTierRuntime.prepare(applicationContext)
+        val prepared = com.papi.nova.preferences.NovaTierRuntime.prepare(applicationContext)
         runOnMainIfRuntimeActive {
             if (launchPolicyGateGeneration.get() == gateGeneration && intent === gateIntent) {
                 launchPolicyGatePending.set(false)
+                if (prepared.tiers.inputsHash == "failed") {
+                    Toast.makeText(this, getString(R.string.nova_tier_unavailable,
+                        prepared.tiers.recommended.limits.first().message), Toast.LENGTH_LONG).show()
+                    finish()
+                    return@runOnMainIfRuntimeActive
+                }
                 launchPolicyHandoffRecreation = true
                 recreate()
             }

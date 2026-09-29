@@ -107,7 +107,9 @@ class PolarisLiveBitrateScopeTest {
             fun live() = status().put("encoder",JSONObject().put("codec",codec))
                 .put("live_tuning",JSONObject().put("supported",true).put("enabled",true)
                     .put("requested_bitrate_kbps",current).put("sequence",sequence++)
-                    .put("host_instance","host").put("state_hash","a".repeat(64)))
+                    .put("host_instance","host").put("configuration_revision","a".repeat(64))
+                    .put("version",1).put("scope","host").put("state","stable").put("quality_limit_kbps",300000)
+                    .put("applied_bitrate_kbps",current).put("session_generation",7).put("app_session_id","session-a"))
                 .put("bitrate_units",JSONObject().put("version",1).put("formula","stream_bitrate_v1")
                     .put("requested_kbps",30000).put("encoder_kbps",10000).put("live_encoder_kbps",current)
                     .put("audio_kbps",audio).put("fec_percentage",fec))
@@ -121,10 +123,25 @@ class PolarisLiveBitrateScopeTest {
             val observed=PolarisApiClient.parseSessionStatusResponse(live())
             val controller=com.papi.nova.manager.NovaLiveBitrateController(api,observed,caps)
             controller.observe(observed,tableRecommendedKbps=30000)
+            assertNotNull("The fixture must carry a valid Live Tuning contract",observed.liveTuning)
+            assertEquals(com.papi.nova.manager.NovaBitrateUnits.REQUEST,controller.state.value.units)
             assertTrue("New units capability authorizes scoped stream writes",controller.state.value.canChange)
             assertEquals(com.papi.nova.manager.NovaBitrateChange.APPLIED,controller.useRecommended())
             assertEquals(listOf(com.papi.nova.preferences.NovaBitrateAdvice.encoderForRequest(30000,audio,fec)),posts)
             assertEquals(30000,controller.state.value.requestedKbps)
+        }
+    }
+
+    @Test fun malformedOrUnsupportedUnitObjectsNeverSupplyConversionInputs() {
+        val valid=JSONObject().put("version",1).put("formula","stream_bitrate_v1").put("requested_kbps",30000)
+            .put("encoder_kbps",24963).put("live_encoder_kbps",24963).put("audio_kbps",1536).put("fec_percentage",10)
+        assertNotNull(PolarisBitrateUnits.parse(valid))
+        for((key,value) in listOf("version" to 2,"formula" to "future", "audio_kbps" to -1,
+            "fec_percentage" to 256,"fec_percentage" to "10","live_encoder_kbps" to 0,"requested_kbps" to 1.5))
+            assertNull("$key=$value",PolarisBitrateUnits.parse(JSONObject(valid.toString()).put(key,value)))
+        for(key in listOf("version","formula","audio_kbps","fec_percentage","encoder_kbps","requested_kbps","live_encoder_kbps")) {
+            val missing=JSONObject(valid.toString());missing.remove(key)
+            assertNull(key,PolarisBitrateUnits.parse(missing))
         }
     }
 

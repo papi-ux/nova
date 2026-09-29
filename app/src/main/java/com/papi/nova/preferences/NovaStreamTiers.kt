@@ -25,6 +25,7 @@ data class NovaSize(val width: Int, val height: Int) {
     }
     fun fits(other: NovaSize) = width <= other.width && height <= other.height
 }
+data class NovaDisplayMode(val size: NovaSize, val fps: Int)
 data class NovaDecodePoint(val size: NovaSize, val fps: Int, val covered: Boolean = true)
 data class NovaFailedDecodePoint(val codec: NovaCodecChoice, val size: NovaSize, val fps: Int)
 data class NovaCodecCapability(val codec: NovaCodecChoice, val decoder: String, val points: List<NovaDecodePoint>)
@@ -50,11 +51,14 @@ sealed interface NovaFourK {
 }
 data class NovaHostTierLimits(val maxFps: Int = 0, val bitrateCapKbps: Int = 0,
     val mirroredDesktop: NovaSize? = null, val space: Boolean = false,
-    val pyrowaveRaiseGoalKbps: Int? = null, val pyrowaveFourKCapKbps: Int? = null)
+    val pyrowaveRaiseGoalKbps: Int? = null, val pyrowaveFourKCapKbps: Int? = null,
+    val pyrowaveAdviceSize: NovaSize? = null, val pyrowaveAdviceFps: Int? = null,
+    val pyrowaveFourKCapLimited: Boolean = false)
 data class NovaTierInputs(val panel: NovaSize, val refreshRates: List<Int>, val distance: NovaDistance,
     val capabilities: NovaDeviceCapabilities, val link: NovaLink = NovaLink.OTHER,
     val codec: NovaCodecChoice = NovaCodecChoice.AUTO, val host: NovaHostTierLimits? = null,
-    val pyrowave: NovaPyrowaveSupport = NovaPyrowaveSupport())
+    val pyrowave: NovaPyrowaveSupport = NovaPyrowaveSupport(),
+    val displayModes: List<NovaDisplayMode> = emptyList())
 data class NovaPyrowaveSupport(val available: Boolean = false, val maxSize: NovaSize = NovaSize(3840,2160),
     val maxFps: Int = 240, val unavailable: NovaReason? = null) {
     companion object {
@@ -96,7 +100,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
 
         private fun decorate(input: NovaTierInputs, plan: NovaStreamPlan, tier: NovaTier): NovaStreamPlan {
             var result=plan
-            if (tier == NovaTier.RECOMMENDED && input.distance == NovaDistance.ROOM && input.link == NovaLink.WIFI && result.bitrateKbps > 50000)
+            if (tier == NovaTier.RECOMMENDED && input.distance == NovaDistance.ROOM && input.link == NovaLink.WIFI && result.bitrateKbps > 50000 && result.bitrateBasis != NovaBitrateBasis.CUSTOM)
                 result=result.copy(bitrateKbps=50000,limits=result.limits+NovaLimit("wifi_hold",
                     "Held to 50 Mbps on Wi-Fi · Ethernet allows ${result.bitrateKbps/1000}"))
             if (tier == NovaTier.MAX && result.size.pixels > input.panel.pixels)
@@ -117,6 +121,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             } ?: recommended
             val max=decorate(inputs,maximum,NovaTier.MAX)
             val fourK=when {
+                max.available && max.size==FOUR_K && recommended.limits.any { it.code=="wifi_hold" } -> NovaFourK.IsMax
                 recommended.available && recommended.size==FOUR_K -> NovaFourK.IsRecommended
                 max.available && max.size==FOUR_K -> NovaFourK.IsMax
                 else -> NovaFourK.Unavailable(fourKFailure(inputs,max))
@@ -139,15 +144,37 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
         private fun codecOrder(choice: NovaCodecChoice)=if(choice==NovaCodecChoice.AUTO)
             listOf(NovaCodecChoice.HEVC,NovaCodecChoice.AVC) else listOf(choice)
 
+        private fun pyrowaveCapLimited(input: NovaTierInputs, fps: Int): Boolean {
+            val host=input.host ?: return false
+            val cap=host.pyrowaveFourKCapKbps ?: return false
+            return host.pyrowaveFourKCapLimited || NovaBitrateAdvice.recommend(3840,2160,fps,
+                NovaCodecChoice.PYROWAVE,input.distance).kbps > cap
+        }
+
+        private fun hostAdvice(input: NovaTierInputs, size: NovaSize, fps: Int): Int? {
+            val host=input.host ?: return null
+            val advisedSize=host.pyrowaveAdviceSize ?: scaled(host.mirroredDesktop ?: input.panel,
+                if(input.distance==NovaDistance.HAND) 1080 else 2160)
+            val advisedFps=host.pyrowaveAdviceFps ?: input.refreshRates.maxOrNull() ?: 60
+            return host.pyrowaveRaiseGoalKbps.takeIf { size==advisedSize && fps==advisedFps }
+        }
+
         private fun supports(input:NovaTierInputs,codec:NovaCodecChoice,size:NovaSize,fps:Int,choice:NovaCodecChoice):Boolean {
             if(codec==NovaCodecChoice.AVC && size.pixels>=FOUR_K.pixels) return false
             if(codec==NovaCodecChoice.PYROWAVE) return input.pyrowave.available && size.fits(input.pyrowave.maxSize) && fps<=input.pyrowave.maxFps &&
-                !(size.pixels>=FOUR_K.pixels && input.host?.pyrowaveFourKCapKbps!=null)
+                !(size.pixels>=FOUR_K.pixels && pyrowaveCapLimited(input,fps))
             if(input.capabilities.failed.any { (it.codec==codec || choice==NovaCodecChoice.AUTO) &&
                     size.pixels>=it.size.pixels && fps>=it.fps }) return false
             if(input.capabilities.covered(codec,size,fps)) return true
             val points=input.capabilities.codecs.filter { it.codec==codec }.flatMap { it.points }
-            return points.none { it.covered } && points.any { size.fits(it.size) && fps<=it.fps }
+            return input.capabilities.codecs.filter { it.codec in codecOrder(choice) }.none { it.points.any { p -> p.covered } } && points.any { size.fits(it.size) && fps<=it.fps }
+        }
+
+        private fun displaySupports(input: NovaTierInputs, size: NovaSize, fps: Int): Boolean {
+            if (input.displayModes.isEmpty()) return true
+            // Above-native streams downscale; they still use the physical panel's refresh ceiling.
+            val physical = if (size.fits(input.panel)) size else input.panel
+            return input.displayModes.any { physical.fits(it.size) && fps <= it.fps }
         }
 
         private fun constrain(input:NovaTierInputs,requested:NovaSize,requestedFps:Int,choice:NovaCodecChoice,bitratePin:Int?,
@@ -170,7 +197,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
                 .filter { it in 1..top && (fixedFps==null || it==fixedFps) }.sortedDescending()
             var selected:Triple<NovaSize,Int,NovaCodecChoice>?=null
             for(floor in listOf(min(top,60),1).distinct()) {
-                selected=sizes.firstNotNullOfOrNull { size -> rates.filter { it>=floor }.firstNotNullOfOrNull { fps ->
+                selected=sizes.firstNotNullOfOrNull { size -> rates.filter { it>=floor && displaySupports(input,size,it) }.firstNotNullOfOrNull { fps ->
                     choices.firstOrNull { supports(input,it,size,fps,choice) }?.let { Triple(size,fps,it) }
                 } }
                 if(selected!=null) break
@@ -178,7 +205,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             if(selected==null) {
                 val reason=if(choice==NovaCodecChoice.PYROWAVE) input.pyrowave.unavailable else null
                 return NovaStreamPlan(requested.width,requested.height,top,choices.first(),bitratePin ?: NovaBitrateAdvice.recommend(
-                    requested.width,requested.height,top.coerceAtLeast(1),choices.first(),input.distance,host?.pyrowaveRaiseGoalKbps).kbps,
+                    requested.width,requested.height,top.coerceAtLeast(1),choices.first(),input.distance,hostAdvice(input,requested,top)).kbps,
                     limits=limits+(reason ?: NovaLimit("decoder_unavailable","No usable decoder point for this stream")),available=false)
             }
             val (size,fps,codec)=selected
@@ -186,7 +213,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             if(input.capabilities.failed.isNotEmpty()) {
                 val withoutFailure=constrain(input.copy(capabilities=input.capabilities.copy(failed=emptyList())),requested,requestedFps,choice,bitratePin,fixedSize,fixedFps)
                 if(withoutFailure.size!=size || withoutFailure.fps!=fps || withoutFailure.codec!=codec) {
-                    val failed=input.capabilities.failed.firstOrNull { withoutFailure.size.pixels>=it.size.pixels && withoutFailure.fps>=it.fps }
+                    val failed=input.capabilities.failed.firstOrNull { (it.codec==withoutFailure.codec || choice==NovaCodecChoice.AUTO) && withoutFailure.size.pixels>=it.size.pixels && withoutFailure.fps>=it.fps }
                     if(failed!=null) limits.add(0,NovaLimit("decoder_failed","Stepped down after the decoder failed at ${failed.size.label}"))
                 }
             }
@@ -194,8 +221,8 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             if(codec!=NovaCodecChoice.PYROWAVE && !input.capabilities.covered(codec,size,fps))
                 reasons+=NovaReason("decoder_claimed","Decoder advertises this mode; performance is unmeasured")
             if(size==input.panel && fps==panelTop) reasons+=NovaReason("native_panel","Fills this ${size.label} screen at its full $fps Hz")
-            if(codec==NovaCodecChoice.PYROWAVE && host?.pyrowaveRaiseGoalKbps!=null) reasons+=NovaReason("pyrowave_advice","The host's PyroWave figure for this screen")
-            val advice=NovaBitrateAdvice.recommend(size.width,size.height,fps,codec,input.distance,host?.pyrowaveRaiseGoalKbps)
+            if(codec==NovaCodecChoice.PYROWAVE && hostAdvice(input,size,fps)!=null) reasons+=NovaReason("pyrowave_advice","The host's PyroWave figure for this screen")
+            val advice=NovaBitrateAdvice.recommend(size.width,size.height,fps,codec,input.distance,hostAdvice(input,size,fps))
             var bitrate=bitratePin?.coerceIn(500,300000) ?: advice.kbps
             if(host!=null && host.bitrateCapKbps in 1 until bitrate) {
                 bitrate=host.bitrateCapKbps;limits+=NovaLimit("host_bitrate","The host caps bitrate at ${bitrate/1000} Mbps")
@@ -208,7 +235,14 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             val selected=if(input.codec==NovaCodecChoice.AUTO) NovaCodecChoice.HEVC else input.codec
             val decoderCodec=if(selected==NovaCodecChoice.AVC) NovaCodecChoice.HEVC else selected
             val codecInput=input.copy(host=null)
-            if(!supports(codecInput,decoderCodec,FOUR_K,min(60,input.refreshRates.maxOrNull() ?: 60),input.codec)) {
+            if(input.codec==NovaCodecChoice.AUTO && !input.capabilities.covered(NovaCodecChoice.HEVC,FOUR_K,60) &&
+                input.capabilities.covered(NovaCodecChoice.AV1,FOUR_K,60))
+                return NovaLimit("codec","4K at 60 fps needs AV1 · choose AV1")
+            val fourKFps=min(60,input.refreshRates.maxOrNull() ?: 60)
+            if(!supports(codecInput,decoderCodec,FOUR_K,fourKFps,input.codec) &&
+                supports(codecInput.copy(capabilities=codecInput.capabilities.copy(failed=emptyList())),decoderCodec,FOUR_K,fourKFps,input.codec))
+                return NovaLimit("decoder_failed","4K: stepped down after this decoder failed")
+            if(!supports(codecInput,decoderCodec,FOUR_K,fourKFps,input.codec)) {
                 val thirty=supports(codecInput,decoderCodec,FOUR_K,30,input.codec)
                 return NovaLimit("decoder_limit",if(thirty) "4K: this decoder tops out at 30 fps" else
                     "4K: this device decodes up to ${max.width}×${max.height}")
@@ -218,7 +252,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
                 return NovaLimit("host_desktop","4K: the host's desktop is ${it.width}×${it.height}")
             }
             if(input.host?.space==true) return NovaLimit("space","This Space streams H.264 at up to 8 Mbps")
-            if(selected==NovaCodecChoice.PYROWAVE) input.host?.pyrowaveFourKCapKbps?.let {
+            if(selected==NovaCodecChoice.PYROWAVE && pyrowaveCapLimited(input,fourKFps)) input.host?.pyrowaveFourKCapKbps?.let {
                 return NovaLimit("pyrowave_cap","PyroWave at 4K is past the host's ${it/1000} Mbps cap")
             }
             return NovaLimit("decoder_limit","4K: this device decodes up to ${max.width}×${max.height}")

@@ -1203,7 +1203,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     doctorTrials = features?.optBoolean("doctor_trials_v1") ?: false,
                     doctorTrialsEnabled = features?.optBoolean("doctor_trials_enabled") ?: false,
                     hostSleep = features?.optBoolean("host_sleep_v1") ?: false,
-                    pyrowaveAdviceV1 = strictBoolean(features, "pyrowave_advice_v1")
+                    pyrowaveAdviceV1 = strictBoolean(features, "pyrowave_advice_v1"),
+                    bitrateUnitsV1 = strictBoolean(features, "bitrate_units_v1")
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
@@ -1824,6 +1825,7 @@ class PolarisApiClient @JvmOverloads constructor(
 
             return PolarisSessionStatus(
                 pyrowaveBitrate = PolarisPyrowaveAdvice.parse(json.optJSONObject("pyrowave_bitrate")),
+                bitrateUnits = PolarisBitrateUnits.parse(json.optJSONObject("bitrate_units")),
                 state = json.optString("state", "unknown"),
                 streamingActive = json.optBoolean("streaming_active", false),
                 shutdownRequested = json.optBoolean("shutdown_requested", false),
@@ -3256,12 +3258,12 @@ class PolarisApiClient @JvmOverloads constructor(
     fun setBitrateResult(encoderKbps: Int, observed: PolarisSessionStatus?): PolarisBitrateWriteResult {
         if (encoderKbps !in 1000..300000) return PolarisBitrateWriteResult.Failed
         return try {
-            val status = getSessionStatus()?.takeIf {
-                it.canAdjustHostTuning && it.appSessionId.isNotBlank() && it.sessionGeneration > 0L
-            } ?: return PolarisBitrateWriteResult.SessionChanged
-            if (observed != null && (status.appSessionId != observed.appSessionId ||
-                    status.sessionGeneration != observed.sessionGeneration || !status.streamingActive ||
-                    status.shutdownRequested || status.isViewer)) return PolarisBitrateWriteResult.SessionChanged
+            val status = getSessionStatus() ?: return PolarisBitrateWriteResult.Failed
+            if (!status.streamingActive || status.shutdownRequested || status.isViewer ||
+                (observed != null && (status.appSessionId != observed.appSessionId ||
+                    status.sessionGeneration != observed.sessionGeneration))) return PolarisBitrateWriteResult.SessionChanged
+            if (!status.canAdjustHostTuning || status.appSessionId.isBlank() || status.sessionGeneration <= 0L)
+                return PolarisBitrateWriteResult.Failed
             val body = JSONObject().put("bitrate_kbps",encoderKbps).put("app_session_id",status.appSessionId)
                 .put("session_generation",status.sessionGeneration)
             val request = Request.Builder().url("$baseUrl/session/bitrate")

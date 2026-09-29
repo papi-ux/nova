@@ -11,7 +11,7 @@ class NovaLaunchLockTest {
         assertTrue(game.contains("NovaTierLaunchPolicy.bitrateLocked(prefConfig.videoFormat,"))
         assertTrue(game.contains("WorkerLaunchContract.isProfileApp(safeAppIdentity), bitrateLocked)"))
     }
-    @Test fun gameUsesStreamWindowAndOnlyWatchCanRequestDisplayLock() {
+    @Test fun gameUsesStreamWindowAndSharedSessionLockDecision() {
         val game=File("src/main/java/com/papi/nova/Game.kt").readText()
         assertEquals(3,Regex("getMaxSupportedRefreshRate\\(streamingDisplay\\)").findAll(game).count())
         assertFalse(game.contains("displayLocked = watchStreamWidth > 0 && watchStreamHeight > 0"))
@@ -24,6 +24,6 @@ class NovaLaunchLockTest {
         val decoder=game.indexOf("MediaCodecHelper.initialize(this")
         assertTrue(gate>0 && gate<refusal && refusal<decoder)
         assertTrue(game.contains("if (plan == null || !plan.available)"))
-        assertTrue(game.contains("NovaTierRuntime.snapshot() !== tierSnapshotAtRead"))
+        assertTrue(game.contains("NovaTierRuntime.snapshot()?.tiers != tierSnapshotAtRead?.tiers"))
     }
 }
