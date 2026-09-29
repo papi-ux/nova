@@ -275,7 +275,7 @@
     <string name="nova_library_layout_toast_format">Layout: %1$s</string>
     <string name="nova_system_menu_title">System</string>
     <string name="nova_system_menu_host_format">Host: %1$s</string>
-    <string name="nova_system_menu_host_named_format">Host: %1$s • %2$s</string>
+    <string name="nova_system_menu_host_named_format">Host: %1$s · %2$s</string>
     <string name="nova_system_menu_status_polaris_ready">Polaris ready</string>
     <string name="nova_system_menu_status_offline">Host offline</string>
     <string name="nova_system_menu_status_checking">Checking host</string>
@@ -287,14 +287,21 @@
     <string name="nova_system_menu_polaris_sync_hint">Review Nova vs host settings before changing anything.</string>
     <string name="nova_system_menu_manage_server">Manage Server</string>
     <string name="nova_system_menu_manage_server_hint">Open this Polaris host\'s local management page.</string>
-    <string name="nova_system_menu_help_diagnostics">Help / diagnostics</string>
+    <string name="nova_system_menu_help_diagnostics">Help and Diagnostics</string>
     <string name="nova_system_menu_help_diagnostics_hint">Troubleshooting steps for network, input, and stream issues.</string>
     <string name="nova_system_menu_about">About Nova</string>
     <string name="nova_system_menu_about_hint">Version and client identity.</string>
     <string name="nova_system_menu_about_toast">%1$s</string>
-    <string name="nova_system_menu_matrix">[m] Matrix</string>
+    <string name="nova_system_menu_matrix">Matrix</string>
     <string name="nova_system_menu_matrix_hint">Join the papi-ux Matrix community.</string>
-    <string name="nova_system_menu_sponsor">♥ Sponsor</string>
+    <string name="nova_system_menu_sponsor">Sponsor</string>
+    <!-- Settings rows whose words lived in preferences.xml, untranslatable and with dashes. -->
+    <string name="title_nova_gyro_aim">Gyro Aiming</string>
+    <string name="summary_nova_gyro_aim">Tilt the device to move the camera. Good for shooters.</string>
+    <string name="title_nova_audio_haptics">Audio Haptics</string>
+    <string name="summary_nova_audio_haptics">Vibrates with the game\'s bass, so explosions and impacts can be felt.</string>
+    <string name="title_nova_polaris_max_retries">Max Reconnect Attempts</string>
+    <string name="summary_nova_polaris_max_retries">How many failed reconnects before Nova stops trying.</string>
     <string name="nova_system_menu_sponsor_hint">Support Polaris and Nova on GitHub Sponsors.</string>
     <string name="nova_controller_hint_system">System</string>
     <!-- The same words as the library strip's button. -->
@@ -695,9 +702,7 @@
     <string name="error_pc_offline">Computer is offline</string>
     <string name="error_manager_not_running">The ComputerManager service is not running. Please wait a few seconds or restart the app.</string>
     <string name="error_unknown_host">Failed to resolve host</string>
-    <string name="error_404">GFE returned an HTTP 404 error. Make sure your PC is running a supported GPU.
-	    Using remote desktop software can also cause this error. Try rebooting your machine or reinstalling GFE.
-    </string>
+    <string name="error_404">The host returned an HTTP 404 error. Make sure it runs a supported GPU. Remote desktop software can also cause this, so try restarting the host.</string>
     <string name="title_report_problem">Report a problem</string>
     <string name="summary_report_problem">Build a redacted report of what Nova saw and choose where to send it. Nothing is sent until you pick a destination.</string>
     <string name="title_crash_report">Nova stopped unexpectedly</string>
@@ -821,7 +826,7 @@
     <string name="title_seekbar_bitrate">Video bitrate</string>
     <string name="summary_seekbar_bitrate">Increase for better image quality. Decrease to improve performance on slower connections.</string>
     <string name="title_seekbar_metered_bitrate">Video bitrate on metered networks</string>
-    <string name="summary_seekbar_metered_bitrate">High bitrates consume more data, lower bitrates improve smoothness in metered networks.\nSet 0 for ¼ of the above bitrate settings.</string>
+    <string name="summary_seekbar_metered_bitrate">A lower bitrate uses less data on a metered network. At 0, Nova uses a quarter of the bitrate above.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="title_resolution_scale_factor">Resolution Scale Factor</string>
     <string name="summary_resolution_scale_factor">Multiplies the resolution this session renders and streams.\ne.g. 120% makes 1920x1080 into 2304x1296: more detail, more bandwidth, and everything on screen a little smaller.\nTo make a desktop Polaris creates readable instead, use Screen Scale in Play Setup.</string>
@@ -920,7 +925,7 @@
 
     <string name="category_host_settings">Host Settings</string>
     <string name="title_checkbox_enable_sops">Optimize game settings</string>
-    <string name="summary_checkbox_enable_sops">Allow GFE to modify game settings for optimal streaming</string>
+    <string name="summary_checkbox_enable_sops">Let the host change a game\'s settings to suit the stream</string>
     <string name="title_checkbox_host_audio">Play audio on PC</string>
     <string name="summary_checkbox_host_audio">Play audio from the computer and this device</string>
 
@@ -1015,7 +1020,8 @@
     <string name="game_menu_send_keys_ctrl_v">Ctrl + V</string>
     <string name="game_menu_send_keys_ctrl_1">Ctrl + 1</string>
     <string name="game_menu_send_keys_ctrl_2">Ctrl + 2</string>
-    <string name="game_menu_send_keys_win">Win (Meta)</string>
+    <!-- The same name the Command Center's other Meta keys use. -->
+    <string name="game_menu_send_keys_win">Meta</string>
     <string name="game_menu_send_keys_win_d">Win + D</string>
     <string name="game_menu_send_keys_alt_b">ALT + B</string>
     <string name="game_menu_send_keys_win_g">Win + G (Xbox Game Bar)</string>
@@ -1417,7 +1423,7 @@
     <string name="title_touch_sensitivity_y">Screen Sensitivity Adjustment Y Axis</string>
     <string name="summary_touch_sensitivity_y">Multi-touch mode, when playing games, some games may not meet the sensitivity adjustment needs, you can use this option to modify the sensitivity of the field of view.</string>
     <string name="title_debug_info">Debug Info</string>
-    <string name="summary_debug_info">Test gamepad vibration and other stuff.</string>
+    <string name="summary_debug_info">Test controller vibration and see what Nova knows about this device.</string>
     <string name="title_touchpad_sensitivity_x">Touchpad Sensitivity X Axis</string>
     <string name="summary_touchpad_sensitivity_x">For mouse touchpad mode and virtual special button touchpad control;\nBoth share a sensitivity value, but the sensitivity performance may be different.\nDoes anyone use both together?</string>
     <string name="title_touchpad_sensitivity_y">Touchpad Sensitivity Y Axis</string>
@@ -1437,7 +1443,7 @@
     <string name="title_trackpad_swap_axis">Swap X and Y axis of the trackpad input</string>
     <string name="summary_trackpad_swap_axis">On some devices, trackpad input may be rotated in axis. Enabling this option may help.</string>
     <string name="title_checkbox_force_qwerty">Force QWERTY layout</string>
-    <string name="summary_checkbox_force_qwerty">Force use QWERTY keyboard layout.\nRequired by GFE.\nTurn off if you want to use a different keyboard layout.</string>
+    <string name="summary_checkbox_force_qwerty">Sends keys as a QWERTY keyboard. Turn it off to use another layout.</string>
     <string name="title_checkbox_back_as_meta">Back button as Meta</string>
     <string name="summary_back_as_meta">Send Meta(Win) key on physical back button press.</string>
     <string name="title_back_as_guide">Back button as Guide</string>
@@ -1459,7 +1465,7 @@
     <string name="summary_checkbox_gamepad_enable_battery_report">Report gamepad battery status when possible.\nDisable this option might help if you experience stutter with touch screen/touch pad/stylus/mouse input occasionally.</string>
     <string name="title_checkbox_enforce_display_mode">Enforce Display Mode</string>
     <string name="summary_checkbox_enforce_display_mode">Force surface to use the optimal display mode.\nRequired by some systems (such as ColorOS) to set refresh rate/resolution properly.\nDo not enable on ChromeCast 4K as it might lead to bugs.</string>
-    <string name="title_checkbox_ultra_low_latency">Ultra Low Latency (experimental)</string>
+    <string name="title_checkbox_ultra_low_latency">Ultra Low Latency (Experimental)</string>
     <string name="summary_checkbox_ultra_low_latency">Only effective for SD8Gen2/8(s)Gen3/8Elite and MTK devices.</string>
    	<string name="title_checkbox_forceTightThresholds">Tight Vsync (Experimental)</string>
     <string name="summary_checkbox_forceTightThresholds">Tighter VSYNC thresholds for lower latency; may increase drops.</string>
@@ -1602,7 +1608,7 @@
     <string name="profile_manager_no_profiles_yet">No presets yet</string>
     <string name="profile_manager_profiles_description">Presets change picture quality and performance, such as resolution, frame rate, and bitrate. Spaces in Polaris keep separate sign-ins, games, and saves.</string>
     <string name="profile_manager_preset_name">Preset: %s</string>
-    <string name="profile_manager_tap_create_profile">Tap + to create your first preset</string>
+    <string name="profile_manager_tap_create_profile">No presets yet. Press + or tap it to make one.</string>
     <string name="profile_manager_choose_profile">Choose Preset</string>
     <string name="profile_manager_deactivated_profile">Deactivated preset</string>
     <string name="profile_manager_activated_profile">Activated preset \'%s\'</string>

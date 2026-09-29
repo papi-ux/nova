@@ -139,6 +139,9 @@ internal fun NovaRowLayout(
         else -> colors.textMuted
     }
     val quietInk = if (onFill) colors.onAccent else colors.textSecondary
+    // A disabled row's value and mark recede with its title; its reason stays readable in
+    // quietInk. They had stayed at full contrast beside a muted title.
+    val trailingInk = if (enabled) quietInk else colors.textMuted
     val iconInk = when {
         onFill -> colors.onAccent
         filled -> colors.accent
@@ -211,15 +214,16 @@ internal fun NovaRowLayout(
         }
         if (trailing is NovaRowTrailing.Value) {
             Layout(
-                contents = listOf(titleBlock, { Text(text = trailing.text, style = type.value, color = quietInk) }),
+                contents = listOf(titleBlock, { Text(text = trailing.text, style = type.value, color = trailingInk) }),
                 modifier = Modifier.weight(1f),
                 measurePolicy = RowValueMeasurePolicy,
             )
-            NovaChevron(back = false, tint = quietInk)
+            // A row that cannot open anything shows no chevron saying it would.
+            if (enabled) NovaChevron(back = false, tint = trailingInk)
         } else {
             Box(modifier = Modifier.weight(1f)) { titleBlock() }
             when (checked) {
-                null -> NovaRowTrailingMark(trailing, quietInk)
+                null -> if (enabled || trailing != NovaRowTrailing.Opens) NovaRowTrailingMark(trailing, trailingInk)
                 true -> NovaCheckGlyph()
                 // Off keeps the check's room, so the label does not move when it toggles.
                 false -> Spacer(Modifier.size(NovaPanelMetrics.CurrentMarkSize))

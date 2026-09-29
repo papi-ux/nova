@@ -110,7 +110,7 @@ class KotlinPreferenceScreensMigrationTest {
         val settingsScreen = File("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt").readText()
 
         assertTrue(streamSettings.contains("NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY"))
-        assertTrue(streamSettings.contains("filterNot { it.key == NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY }"))
+        assertTrue(streamSettings.contains("it.key == NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY ||"))
         assertTrue(strings.contains("%1\$s · Stream · input · Polaris"))
         assertTrue(preferences.contains("android:title=\"Modern Settings\""))
         assertFalse(preferences.contains("android:title=\"New Settings\""))
@@ -152,7 +152,8 @@ class KotlinPreferenceScreensMigrationTest {
         // The gate is every Nova screen's since the closing step (NovaActivityKeyGateTest).
         assertFalse(streamSettings.contains("override val novaKeyGate"))
         assertTrue(streamSettings.contains("onBackPressedDispatcher.addCallback(this, leaveCallback)"))
-        assertTrue(streamSettings.contains("override fun handleOnBackPressed() = leaveSettings()"))
+        // B from a legacy screen that a Compose row opened goes back to Compose first.
+        assertTrue(streamSettings.contains("override fun handleOnBackPressed() {") && streamSettings.contains("leaveSettings()"))
         assertTrue(streamSettings.contains("onBack = ::leaveSettings"))
         assertFalse(streamSettings.contains("override fun onKeyDown("))
         assertFalse(streamSettings.contains("override fun onBackPressed()"))

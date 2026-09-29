@@ -570,7 +570,7 @@ class NovaLibraryStageSourceTest {
         val screenEnd = activity.indexOf("@Composable\n    private fun NovaLibraryHomeHero(", screenStart)
         val screen = activity.substring(screenStart, screenEnd)
         assertTrue(screen.contains("val controllerHints = novaLibraryControllerHints(isLandscape)"))
-        assertTrue(screen.contains("val visibleControllerHints = if (largeText)"))
+        assertTrue(screen.contains("val visibleControllerHints = when {"))
         assertTrue(screen.contains("controllerHints.filterIndexed { index, _ -> index in LARGE_TEXT_HINT_INDICES }"))
         assertTrue(screen.contains("val controllerHintDescription = controllerHints.joinToString(separator = \" · \")"))
         assertTrue(screen.contains("visible = space == null && (stageMode || controllerHintsVisible)"))
@@ -590,7 +590,7 @@ class NovaLibraryStageSourceTest {
             "R.string.nova_controller_hint_b",
             "R.string.nova_controller_hint_back",
             "R.string.nova_controller_hint_x",
-            "R.string.nova_controller_hint_library",
+            "R.string.nova_controller_hint_options",
             "R.string.nova_controller_hint_y",
             "R.string.nova_controller_hint_layout",
             "R.string.menu_button",

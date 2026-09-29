@@ -128,7 +128,7 @@ class NovaHostMenuTest {
     }
 
     @Test
-    fun theNetworkTestStaysInThePanelAndDetailsIsAMonospaceNotice() {
+    fun theNetworkTestStaysInThePanelAndDetailsIsAReadableNotice() {
         val items = menu(host())
         val test = items.first { it.key == "test_network" } as NovaMenuItem.Action
         assertFalse(test.closesPanel)
@@ -136,7 +136,9 @@ class NovaHostMenuTest {
         assertEquals(listOf("test_network"), ran)
 
         val details = (items.first { it.key == "details" } as NovaMenuItem.Opens).page() as NovaCommonPage.Notice
-        assertTrue(details.monospace)
+        // Labelled lines in the panel's own type since the 2026-09-29 smoke test, not a monospace dump.
+        assertFalse(details.monospace)
+        assertFalse(details.message.contains("null"))
         assertEquals(context.getString(R.string.title_details), details.title)
     }
 

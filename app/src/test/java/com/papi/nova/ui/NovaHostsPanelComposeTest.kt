@@ -133,7 +133,7 @@ class NovaHostsPanelComposeTest {
 
         // Behind the tile is the same page the row opened, and B comes back to the tile.
         keys.press(NovaTestKeys.CENTER)
-        assertTrue((state.top as NovaCommonPage.Notice).monospace)
+        assertTrue(state.top is NovaCommonPage.Notice)
         keys.back()
         rule.onNodeWithText(string(R.string.pcview_menu_details)).assertIsFocused()
 
@@ -223,14 +223,14 @@ class NovaHostsPanelComposeTest {
     }
 
     @Test
-    fun detailsPushesAMonospaceNoticeAndBReturnsToDetails() {
+    fun detailsPushesANoticeAndBReturnsToDetails() {
         val keys = openHostMenu()
         repeat(4) { keys.press(NovaTestKeys.DOWN) }
         rule.onNodeWithText(string(R.string.pcview_menu_details)).assertIsFocused()
 
         keys.press(NovaTestKeys.CENTER)
         assertEquals(2, state.depth)
-        assertTrue((state.top as NovaCommonPage.Notice).monospace)
+        assertTrue(state.top is NovaCommonPage.Notice)
         rule.onNodeWithText(string(R.string.nova_panel_close)).assertIsFocused()
 
         keys.back()

@@ -333,7 +333,7 @@ class NovaLibrarySourceGuardTest {
                 strings.contains("name=\"nova_system_menu_settings\">Settings") &&
                 strings.contains("name=\"nova_system_menu_polaris_sync\">Polaris Sync") &&
                 strings.contains("name=\"nova_system_menu_manage_server\">Manage Server") &&
-                strings.contains("name=\"nova_system_menu_help_diagnostics\">Help / diagnostics") &&
+                strings.contains("name=\"nova_system_menu_help_diagnostics\">Help and Diagnostics") &&
                 strings.contains("name=\"nova_system_menu_about\">About Nova") &&
                 strings.contains("name=\"nova_system_menu_about_toast\">%1\$s")
         )

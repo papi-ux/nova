@@ -29,6 +29,16 @@ class NovaStreamPanelsSmokeFixesSourceGuardTest {
     }
 
     @Test
+    fun librarySearchKeepsShowResultsAboveTheKeyboard() {
+        val search = read("ui/NovaLibraryPanels.kt")
+            .substringAfter("internal fun NovaPageScope.NovaLibrarySearchPage(")
+            .substringBefore("\n}\n")
+        assertTrue(search.contains(".imePadding()"))
+        assertTrue(search.contains(".bringIntoViewRequester(showResultsInView)"))
+        assertTrue(search.contains("if (imeUp) {"))
+    }
+
+    @Test
     fun polarisSyncOpensOnItsReadOnlySummary() {
         val sync = read("ui/NovaLibraryPanels.kt").substringAfter("internal fun NovaPageScope.NovaPolarisSyncPage(")
         assertTrue(sync.contains("modifier = Modifier.novaInitialFocus().novaRestorableFocus(\"plan\"),"))

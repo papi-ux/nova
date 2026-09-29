@@ -54,9 +54,10 @@ class NovaLibrarySurfacesTest {
         // because the fixture was a hardcoded copy -- it was exercising a theme that no
         // longer exists. Material You in light mode is the real dark-text case.
         val colors = darkTextColors()
-        val full = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 1f)
-        val half = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0.5f)
-        val zero = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0f)
+        // With blur, as on API 31 and later: without it a panel keeps at least 0.9 of its fill.
+        val full = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 1f, blurAvailable = true)
+        val half = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0.5f, blurAvailable = true)
+        val zero = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0f, blurAvailable = true)
 
         assertEquals(
             NovaMenuPreferences.readabilityScrimAlpha(
@@ -112,6 +113,7 @@ class NovaLibrarySurfacesTest {
         val dimmed = portableColors.librarySurfaces(
             NovaThemeManager.THEME_PORTABLE_CHROME,
             menuOpacityScale = 0.5f,
+            blurAvailable = true,
         )
         assertTrue(
             "a turned-down Portable Chrome panel is no longer held above the dark-text floor",

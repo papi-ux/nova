@@ -86,7 +86,8 @@ class NovaGameDetailSourceGuardTest {
             actions.contains("NovaGameDetailDestination.PLAY_SETUP") &&
                 actions.contains("NovaGameDetailDestination.ARTWORK") &&
                 actions.contains("iconRes = R.drawable.ic_settings") &&
-                actions.contains("iconRes = R.drawable.ic_update") &&
+                // Clear Game Profile is a split confirm now, and carries its mark as icon.
+                actions.contains("icon = R.drawable.ic_update") &&
                 actions.substringAfter("val pinAction:").substringBefore("val artworkAction:")
                     .contains("iconOnly = true") &&
                 actions.substringAfter("val artworkAction:").substringBefore("val showEnd")

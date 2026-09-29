@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -591,6 +596,7 @@ internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, action
  * narrows as the player types; B hides the keyboard first, then returns to Options.
  */
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 internal fun NovaPageScope.NovaLibrarySearchPage(
     query: String,
     resultCount: Int,
@@ -600,9 +606,20 @@ internal fun NovaPageScope.NovaLibrarySearchPage(
     val openedByTouch = LocalInputModeManager.current.inputMode == InputMode.Touch
     val showResults = { if (isTop) closeThen {} }
     val scroll = rememberScrollState()
+    // The keyboard covered Show Results by half on the RP6. The column keeps clear of the keyboard,
+    // and Show Results comes into view above it when it opens.
+    val showResultsInView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val imeUp = WindowInsets.isImeVisible
+    LaunchedEffect(imeUp) {
+        if (imeUp) {
+            androidx.compose.runtime.withFrameNanos { }
+            showResultsInView.bringIntoView()
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .imePadding()
             .novaScrollEdgeFade(scroll)
             .verticalScroll(scroll)
             .padding(vertical = NovaPanelMetrics.SpaceSm),
@@ -627,7 +644,9 @@ internal fun NovaPageScope.NovaLibrarySearchPage(
             text = stringResource(R.string.nova_library_panel_show_results),
             primary = true,
             onClick = showResults,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .bringIntoViewRequester(showResultsInView),
         )
         if (query.isNotBlank()) {
             NovaPanelButton(

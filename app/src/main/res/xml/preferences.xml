@@ -365,8 +365,8 @@
         <!-- Gyro aiming -->
         <CheckBoxPreference
             android:key="nova_gyro_aim"
-            android:title="Gyro Aiming"
-            android:summary="Tilt device to move camera — great for FPS games"
+            android:title="@string/title_nova_gyro_aim"
+            android:summary="@string/summary_nova_gyro_aim"
             android:defaultValue="false"
             app:iconSpaceReserved="false" />
         <com.papi.nova.preferences.SeekBarPreference
@@ -608,8 +608,8 @@
         <!-- Audio-driven haptics -->
         <ListPreference
             android:key="nova_audio_haptics"
-            android:title="Audio Haptics"
-            android:summary="Vibrate on bass — feel explosions and impacts"
+            android:title="@string/title_nova_audio_haptics"
+            android:summary="@string/summary_nova_audio_haptics"
             android:entries="@array/nova_haptics_names"
             android:entryValues="@array/nova_haptics_values"
             android:defaultValue="off"
@@ -747,8 +747,8 @@
             app:iconSpaceReserved="false" />
         <ListPreference
             android:key="nova_polaris_max_retries"
-            android:title="Max Reconnect Attempts"
-            android:summary="Give up after N failures"
+            android:title="@string/title_nova_polaris_max_retries"
+            android:summary="@string/summary_nova_polaris_max_retries"
             android:dependency="nova_polaris_resilience"
             android:entries="@array/nova_retry_names"
             android:entryValues="@array/nova_retry_values"

@@ -276,9 +276,12 @@ class NovaFocusDrawableTest {
             "server row primary action should use the shared chip background",
             hasViewAttribute(row, "primary_action_text", "android:background", "@drawable/nova_chip_default")
         )
+        // The smoke test of 2026-09-29: a ready primary rested in a solid accent fill, as loud as
+        // focus, and nothing changed when its card took focus. It now rests as a tile with its
+        // label in the accent and fills while its card holds focus, the one look every primary has.
         assertTrue(
             "Open Library should read as actionable without needing a second focus ring",
-            chip.contains("state_activated") &&
+            !chip.contains("state_activated") &&
                 adapter.contains("private fun setPrimaryActionReady") &&
                 adapter.contains("setPrimaryActionReady(primaryAction, true)")
         )
@@ -289,17 +292,18 @@ class NovaFocusDrawableTest {
         // its own, because the card is what holds focus.
         val ready = adapter.substringAfter("private fun setPrimaryActionReady").substringBefore("private fun formatAddressSuffix")
         assertTrue(
-            "a ready primary action is filled with the theme manager's accent, and its ink is the accent's own",
-            ready.contains("setColor(NovaThemeManager.getAccentColor(context))") &&
-                ready.contains("if (ready) NovaThemeManager.getOnAccentColor(context) else NovaThemeManager.getTextMutedColor(context),")
+            "a ready primary action rests as a tile and fills with the accent while its card holds focus",
+            ready.contains("primaryAction.background = NovaViewBridge.primaryButton(context)") &&
+                ready.contains("primaryAction.setTextColor(NovaViewBridge.primaryButtonText(context))")
         )
         assertTrue(
             "cards are recycled: one that is not ready goes back to the shared outline",
             ready.contains("primaryAction.setBackgroundResource(R.drawable.nova_chip_default)")
         )
         assertTrue(
-            "the two pills are one pair: the fill takes the corner the shared chip has, the button corner",
-            adapter.contains("cornerRadius = context.resources.getDimension(R.dimen.nova_radius_hero)") &&
+            "the two pills are one pair: the primary takes the corner the shared chip has, the button corner",
+            readSource("src/main/java/com/papi/nova/ui/panel/NovaViewBridge.kt")
+                .contains("fun primaryButton(context: Context, radius: Dp = NovaRadius.hero): Drawable") &&
                 chip.split("<corners ").size == chip.split("<corners android:radius=\"@dimen/nova_radius_hero\" />").size
         )
         assertTrue(
@@ -307,8 +311,9 @@ class NovaFocusDrawableTest {
             genericAdapter.contains("open fun onItemFocusChanged(") &&
                 genericAdapter.contains("onItemFocusChanged(holder.itemView, hasFocus)") &&
                 adapter.contains("override fun onItemFocusChanged(") &&
-                adapter.contains("primaryAction?.isSelected = false") &&
-                !adapter.contains("primaryAction?.isSelected = hasFocus")
+                // Selected, not focused: the card keeps focus and its primary shows what A presses.
+                adapter.contains("primaryAction?.isSelected = hasFocus && primaryAction?.isActivated == true") &&
+                !hasViewAttribute(row, "primary_action_text", "android:focusable", "true")
         )
         assertTrue(
             "Manage should retain a 48dp focus/touch target around the visual chip",

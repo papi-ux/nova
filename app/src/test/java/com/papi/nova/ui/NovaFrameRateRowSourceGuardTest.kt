@@ -67,7 +67,9 @@ class NovaFrameRateRowSourceGuardTest {
         assertTrue(
             "When the planner is unavailable, the else branch must check chosenFps != null so a " +
                 "pin from an earlier session with a planner is not left stuck.",
-            elseBranch in plannerGate until (plannerGate + 6000),
+            // The Resolution row's options sort by size since the 2026-09-29 smoke test, which
+            // added a few lines between the gate and its else branch.
+            elseBranch in plannerGate until (plannerGate + 8000),
         )
 
         val retireCall = source.indexOf("chooseFrameRate(null)", elseBranch)

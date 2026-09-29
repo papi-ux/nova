@@ -37,6 +37,9 @@ import com.papi.nova.utils.KeyMapper
  * More Controls, which carries every extra the legacy Quick Menu had and the Command Center did not.
  */
 sealed interface CommandCenterPage : NovaPage {
+    /** Every Command Center page keeps the root's width: a pushed page had narrowed the panel. */
+    override val width: NovaPanelWidth get() = NovaPanelWidth.Wide
+
     /** The Command Center: session, Doctor, overlays, controls and quick keys. */
     data class Root(override val title: String) : CommandCenterPage {
         override val key: String get() = RootKey
