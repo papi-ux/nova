@@ -1191,7 +1191,7 @@
     <string name="nova_launch_envelope_bitrate">Polaris resolved a bitrate outside what this launch allows. Change the bitrate in Play Setup, then try again.</string>
     <string name="nova_quick_menu_safe">Safe</string>
     <string name="nova_quick_menu_mouse">Mouse</string>
-    <string name="nova_quick_menu_mouse_caption">Closes Command Center to open the mouse mode picker.</string>
+    <string name="nova_quick_menu_mouse_caption">Opens the mouse mode picker in Command Center.</string>
     <string name="nova_quick_menu_controller">Touch Controls</string>
     <string name="nova_quick_menu_touch_controls_caption">On-screen overlay; physical gamepad stays active.</string>
     <string name="nova_quick_menu_players">Players</string>
@@ -1210,7 +1210,7 @@
     <string name="nova_quick_menu_rotate_screen">Rotate</string>
     <string name="nova_quick_menu_rotate_screen_caption">Closes Command Center while the screen rotates.</string>
     <string name="nova_quick_menu_special_keys">More Keys</string>
-    <string name="nova_quick_menu_special_keys_caption">Closes Command Center to open the extended game menu.</string>
+    <string name="nova_quick_menu_special_keys_caption">Opens more keys in Command Center.</string>
     <string name="nova_quick_menu_show">Show</string>
     <string name="nova_quick_menu_hide">Hide</string>
     <string name="nova_quick_menu_loading">Loading</string>

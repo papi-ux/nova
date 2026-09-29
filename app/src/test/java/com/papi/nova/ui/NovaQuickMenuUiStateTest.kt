@@ -1122,7 +1122,7 @@ class NovaQuickMenuUiStateTest {
             collapsed.sessionRows.first { it.id == NovaQuickMenuActionId.PASTE_CLIPBOARD }.caption,
         )
         assertEquals(
-            "Turns the stream between landscape and portrait.",
+            "Closes Command Center and turns the stream between landscape and portrait.",
             collapsed.sessionRows.first { it.id == NovaQuickMenuActionId.ROTATE_SCREEN }.caption,
         )
     }
