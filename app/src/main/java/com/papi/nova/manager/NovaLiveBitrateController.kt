@@ -25,7 +25,8 @@ interface NovaLiveBitrateTransport {
 enum class NovaBitrateUnits { VIDEO, REQUEST, UNKNOWN }
 data class NovaLiveBitrateState(val requestedKbps:Int?=null,val recommendedKbps:Int?=null,val receivedKbps:Int?=null,
     val codec:String="",val maximumKbps:Int=300000,val canChange:Boolean=false,val busy:Boolean=false,
-    val minimumKbps:Int=1000,val units:NovaBitrateUnits=NovaBitrateUnits.UNKNOWN)
+    val minimumKbps:Int=1000,val units:NovaBitrateUnits=NovaBitrateUnits.UNKNOWN,
+    val negotiatedUnits:PolarisBitrateUnits?=null)
 enum class NovaBitrateChange { APPLIED, UNAVAILABLE, SESSION_CHANGED, FAILED, AT_LIMIT }
 
 /** Converts only with advertised session inputs. Released hosts remain read-only. */

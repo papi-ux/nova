@@ -4,7 +4,9 @@ import org.json.JSONObject
 
 /** Session-owned conversion inputs, advertised by bitrate_units_v1. */
 data class PolarisBitrateUnits(val requestedKbps: Int, val encoderKbps: Int, val liveEncoderKbps: Int,
-    val audioKbps: Int, val fecPercent: Int) {
+    val audioKbps: Int, val fecPercent: Int,
+    val splitKbps: Int? = null, val warpFactor: Int = 1,
+    val capKbps: Int? = null, val capSource: String? = null) {
     companion object {
         fun parse(json: JSONObject?): PolarisBitrateUnits? {
             if (json == null || json.opt("version") != 1 || json.opt("formula") != "stream_bitrate_v1") return null
