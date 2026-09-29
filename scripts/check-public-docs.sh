@@ -146,8 +146,6 @@ expected_assets = (
     '"${NOVA_ASSET_PREFIX}-x86_64.apk.sha256"',
     "Nova-Linux-x86_64-alpha.flatpak",
     "Nova-Linux-x86_64-alpha.flatpak.sha256",
-    "Nova-Linux-PyroWave-x86_64-alpha.flatpak",
-    "Nova-Linux-PyroWave-x86_64-alpha.flatpak.sha256",
 )
 verify = workflow[positions[3]:positions[4]]
 verify_lines = [line.strip() for line in verify.splitlines()]

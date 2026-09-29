@@ -779,7 +779,15 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 : "These stream settings could not be verified. Refresh this PC and review Play Setup again.");
             return;
         }
-        const auto videoSupport = target->probeVideoSupport ? target->probeVideoSupport() : DeckVideoDecodeSupport{};
+        auto videoSupport = target->probeVideoSupport ? target->probeVideoSupport() : DeckVideoDecodeSupport{};
+        stream::DeckPyrowaveProbeResult pyrowave;
+        if (configuration && configuration->videoCodec == "pyrowave" && capabilities->pyrowave &&
+            !polaris::isSpaceGame(gameId.toStdString()) && target->probePyrowaveSupport) {
+            pyrowave = target->probePyrowaveSupport();
+            videoSupport.pyrowave = pyrowave.limits;
+        }
+        if (shared->cancelled) { finish("cancelled", "Stream cancelled."); return; }
+        if (!pyrowave.reason.isEmpty()) { finish("failed", pyrowave.reason); return; }
         target->request.videoFormat = selectSdrVideoFormat(configuration ? configuration->videoCodec.toStdString() : "h264",
             capabilities->h264, capabilities->hevc && !polaris::isSpaceGame(gameId.toStdString()), videoSupport,
             target->request.width, target->request.height, capabilities->pyrowave && !polaris::isSpaceGame(gameId.toStdString()));

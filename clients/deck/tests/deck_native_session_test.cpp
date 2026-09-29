@@ -128,6 +128,8 @@ struct Host {
     std::string resumeResponse = "<root status_code=\"200\"><resume>1</resume><sessionToken>private-token</sessionToken>"
         "<sessionUrl0>rtsp://192.0.2.10:48010</sessionUrl0></root>";
     DeckVideoDecodeSupport decoderSupport{.h264 = {4096, 4096}, .hevc = {1920, 1200}};
+    DeckPyrowaveProbeResult pyrowaveSupport{{1920, 1200}, {}};
+    std::atomic<int> pyrowaveChecks{0};
     DeckHudHostFactory hostTelemetry;
     std::function<bool(const QString&, const QString&, const std::function<bool()>&)> authorizeSetup;
     std::function<bool(const std::string&, const std::function<bool()>&)> authorizeMode;
@@ -148,6 +150,7 @@ struct Host {
             target.resolveLaunchTopology = resolveTopology;
             target.verifyStreamCapabilities = verifyStream;
             target.probeVideoSupport = [this] { return decoderSupport; };
+            target.probePyrowaveSupport = [this] { ++pyrowaveChecks; return pyrowaveSupport; };
             target.hostTelemetry = hostTelemetry;
             target.automaticReconnect = automaticReconnect;
             target.transientCapabilityFailure = [this] { return transientCapabilities; };
@@ -305,7 +308,7 @@ void testPyrowaveEncoderOverride() {
     for (int scenario = 0; scenario < 5; ++scenario) {
         Host host; Driver driver;
         std::atomic<int> checks{0};
-        host.decoderSupport.pyrowave = scenario == 4 ? DeckDecodeLimits{} : DeckDecodeLimits{1920, 1200};
+        if (scenario == 4) host.pyrowaveSupport = {{}, "PyroWave device check timed out. Restart Nova to check again."};
         host.verifyStream = [scenario](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
             nova::deck::DeckStreamCapabilities capabilities;
             capabilities.pyrowave = scenario != 3;
@@ -345,6 +348,11 @@ void testPyrowaveEncoderOverride() {
         }
         settled(controller);
         require(checks == expectedChecks && values.value("encoderBackend") == "nvenc", "codec review changed saved choices or checked unavailable tuning");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        require(host.pyrowaveChecks == (scenario == 3 ? 0 : 1), "explicit PyroWave did not use its isolated probe exactly once");
+        if (scenario == 4) require(controller.state().value("copy") == host.pyrowaveSupport.reason,
+            "launch dropped the named PyroWave refusal");
+#endif
         if (!allowed) require(host.launches == 0 && host.resumes == 0 && host.cancels == 0 && driver.starts == 0,
             "unsupported codec or refused tuning mutated the host");
     }
@@ -461,12 +469,13 @@ void testStreamCapabilitiesAtLaunch() {
 
 void testVideoCodecAtLaunch() {
     // Fresh local decode, catalog and serverinfo checks precede host mutation.
-    for (int scenario = 0; scenario < 8; ++scenario) {
+    for (int scenario = 0; scenario < 9; ++scenario) {
         Host host;
         Driver driver;
         host.verifyStream = [&](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
             nova::deck::DeckStreamCapabilities capabilities;
             capabilities.hevc = true;
+            capabilities.pyrowave = true;
             if (scenario == 1) capabilities.hevc = false;
             if (scenario == 7) capabilities.h264 = false;
             return capabilities;
@@ -478,18 +487,19 @@ void testVideoCodecAtLaunch() {
         if (scenario == 6) host.expectedGame = "space.worker";
         DeckNativeSessionController controller(true, host.resolver(), driver);
         auto values = DeckPlayConfiguration{}.toMap();
-        values["videoCodec"] = scenario == 5 ? "auto" : "hevc";
+        values["videoCodec"] = scenario == 8 ? "h264" : scenario == 5 ? "auto" : "hevc";
         require(controller.startConfigured("host", host.expectedGame, values), "codec review not accepted");
-        const bool allowed = scenario == 0 || scenario == 5 || scenario == 7;
+        const bool allowed = scenario == 0 || scenario == 5 || scenario == 7 || scenario == 8;
         if (allowed) {
             until([&] { return phase(controller) == "active"; });
-            require(driver.receivedConfiguration.supportedVideoFormats == (scenario == 5 ? VIDEO_FORMAT_H264 : VIDEO_FORMAT_H265),
+            require(driver.receivedConfiguration.supportedVideoFormats == (scenario == 5 || scenario == 8 ? VIDEO_FORMAT_H264 : VIDEO_FORMAT_H265),
                 "reviewed codec did not reach Moonlight negotiation");
             require(!(driver.receivedConfiguration.supportedVideoFormats & VIDEO_FORMAT_MASK_10BIT) &&
                 driver.receivedConfiguration.colorSpace == COLORSPACE_REC_709, "SDR selected HDR negotiation");
             controller.stop();
         }
         settled(controller);
+        require(host.pyrowaveChecks == 0, "ordinary codec launch ran the PyroWave probe");
         if (!allowed) require(host.launches == 0 && host.resumes == 0 && host.cancels == 0 && driver.starts == 0,
             "unsupported/stale codec mutated host or started transport");
     }

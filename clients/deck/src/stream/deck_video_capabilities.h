@@ -18,8 +18,8 @@ struct DeckVideoDecodeSupport {
     bool supports(int videoFormat, int width, int height) const;
 };
 
-// Query VAAPI codec limits and, in enabled builds, the independent PyroWave
-// Vulkan decoder. A missing VAAPI device does not disable Vulkan decoding.
+// Query only VAAPI codec limits. PyroWave is checked separately, on selection,
+// through the isolated cached probe; generic startup never initializes it.
 // Missing profiles, decode entrypoints, surface formats or size limits remain unsupported.
 DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device);
 DeckVideoDecodeSupport detectVideoDecodeSupport();

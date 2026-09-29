@@ -30,8 +30,18 @@ QImage requestImage(const QString& id,QSize* size,const QSize&) override {
 int main(int argc,char** argv) {
     QTemporaryDir config; qputenv("XDG_CONFIG_HOME",config.path().toUtf8()); QGuiApplication app(argc,argv);
     QCoreApplication::setOrganizationName("NovaDeckTests"); QCoreApplication::setApplicationName("GameTools");
+    std::atomic<int> probeCalls{0};
+    std::atomic<bool> probeMayFinish{false};
     game_tools_fixture::Host host; DeckGameTools tools; DeckPlaySettings settings(config.filePath("play.ini")); DeckGameShortcuts shortcuts;
-    settings.setVideoDecodeSupport({.h264={4096,4096},.hevc={1920,1200},.pyrowave={1920,1200}});
+    settings.setVideoDecodeSupport({.h264={4096,4096},.hevc={1920,1200}});
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    settings.setPyrowaveProbe([&] {
+        ++probeCalls;
+        QElapsedTimer deadline; deadline.start();
+        while (!probeMayFinish && deadline.elapsed() < 5000) QThread::msleep(1);
+        return nova::deck::stream::DeckPyrowaveProbeResult{{1920, 1200}, {}};
+    });
+#endif
     tools.setTarget("host",host.resolver());
     tools.setPreviewPublisher([](const auto&,const auto&,QVariantList items) { int index=0; for(auto& raw:items) {auto value=raw.toMap(); value.remove("previewPath"); value["preview"]="image://art/"+QString::number(index++);raw=value;}return items;});
     QQmlEngine engine; engine.addImageProvider("art",new Artwork);
@@ -116,7 +126,12 @@ int main(int argc,char** argv) {
     QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();});
     check(!setupState()["setupAllowed"].toBool(),"unavailable saved encoder admitted");
 #ifdef NOVA_DECK_BUILD_PYROWAVE
+    check(probeCalls == 0, "opening Play Setup or browsing codecs probed PyroWave");
     chooseCodec("pyrowave");
+    check(!setupState()["streamPlan"].toMap()["playable"].toBool(), "pending probe enabled Play");
+    probeMayFinish = true;
+    wait([&] { return setupState()["streamPlan"].toMap()["playable"].toBool(); });
+    check(probeCalls == 1, "QML plan refresh repeated the probe");
     const auto pyroState=setupState(); const auto pyroConfig=pyroState["streamPlan"].toMap()["configuration"].toMap();
     check(pyroState["setupAllowed"].toBool() && pyroState["streamPlan"].toMap()["playable"].toBool(),"saved encoder blocked PyroWave");
     check(pyroConfig["encoderBackend"].toString().isEmpty() && pyroConfig["profilePreference"]=="quality","PyroWave review lost tuning or retained encoder");
