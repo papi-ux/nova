@@ -14,6 +14,8 @@
     <string name="configuration_mode_exiting">Exiting configuration mode</string>
     <string name="help_loading_title">Help Viewer</string>
     <string name="help_loading_msg">Loading help page…</string>
+    <string name="help_load_failed_title">Help Did Not Load</string>
+    <string name="help_load_failed_message">Nova could not open this help page. Check that this device is online, then try again.</string>
     <string name="server_library_label">Server Library</string>
     <string name="server_library_search_hint">Search games…</string>
     <string name="badge_streaming">Streaming</string>
