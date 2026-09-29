@@ -139,7 +139,12 @@ data class NovaQuickMenuDiagnosisState(
     // False when the card would only say again what the session strip already says.
     val visible: Boolean = true,
     /** Set for a moment after A copied the details, so the chip can say so in place. */
-    val copied: Boolean = false
+    val copied: Boolean = false,
+    /**
+     * Nothing to run, and nothing the session strip warns about: an observation, or a reading of
+     * a healthy stream. It ranks after the sections a player adjusts, not right under the strip.
+     */
+    val informational: Boolean = false
 )
 
 data class NovaQuickMenuUiState(
@@ -704,6 +709,12 @@ data class NovaQuickMenuUiState(
             // The host's first-try line usually opens by restating the finding, which is
             // already the card's title. Keep only the advice that follows it.
             val tryFirst = doctor?.firstTry.orEmpty().withoutLeadingSentence(likelyCause)
+            // An observation ("control-channel retries, but no confirmed loss") or a healthy
+            // reading, with nothing Nova can run, informs; a reading the strip warns about, or one
+            // with an action, is what the player came for (N28).
+            val observationOnly = doctor?.primaryIssue.orEmpty().lowercase() in
+                setOf("network_observation", "control_channel_observation")
+            val informational = !actionExecutable && (observationOnly || status?.hasHealthConcerns != true)
             return NovaQuickMenuDiagnosisState(
                 classification = doctor?.classification?.takeIf { it.isNotBlank() } ?: "UNKNOWN",
                 likelyCause = likelyCause,
@@ -722,6 +733,7 @@ data class NovaQuickMenuUiState(
                 actionLabel = doctor?.actionLabel.orEmpty(),
                 actionExecutable = actionExecutable,
                 capability = capability,
+                informational = informational,
                 targetBitrateKbps = doctor?.targetBitrateKbps ?: 0,
                 verificationDelaySeconds = doctor?.verificationDelaySeconds ?: 0,
                 undoSupported = doctor?.undoSupported == true,

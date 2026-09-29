@@ -494,6 +494,7 @@ class NovaQuickMenuUiStateTest {
         assertTrue(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
         assertEquals(16000, state.diagnosis.targetBitrateKbps)
+        assertFalse("a reading Nova can act on keeps its place under the strip", state.diagnosis.informational)
     }
 
     @Test
@@ -1102,6 +1103,43 @@ class NovaQuickMenuUiStateTest {
         val off = quickState(status = status().copy(liveTuning = live("off"), liveTuningPresent = true))
         assertEquals("Off", off.liveTuningAction.chip?.label)
         assertEquals("The bitrate stays where the stream started.", off.liveTuningAction.caption)
+    }
+
+    /**
+     * N28 (rest): Doctor's card sat right under the strip whatever it said. "Streaming telemetry
+     * looks ready" and "control-channel retries, but no confirmed loss" inform; they rank after
+     * the sections a player adjusts. A reading the strip warns about, or one Nova can act on, stays.
+     */
+    @Test
+    fun doctorRanksWhatOnlyInformsAfterWhatThePlayerCanActOn() {
+        fun verdict(primaryIssue: String, severity: String, light: String, cause: String) = PolarisSessionStatus.DoctorStatus(
+            available = true,
+            version = 2,
+            resultId = "doctor-$primaryIssue",
+            status = if (severity == "info") "ok" else "watch",
+            severity = severity,
+            trafficLight = light,
+            likelyCause = cause,
+            primaryIssue = primaryIssue,
+        )
+        val healthy = quickState(status = status(doctor = verdict("none", "info", "green", "Streaming telemetry looks ready")))
+        val observation = quickState(
+            status = status(
+                doctor = verdict(
+                    "control_channel_observation",
+                    "warning",
+                    "amber",
+                    "Control-channel retries were observed, but video packet loss is not confirmed",
+                ),
+            ),
+        )
+        val hostRender = quickState(
+            status = status(doctor = verdict("host_render_limited", "warning", "amber", "Host is rendering below the stream target")),
+        )
+
+        assertTrue("a healthy reading with nothing to run informs", healthy.diagnosis.informational)
+        assertTrue("an observation with nothing to run informs", observation.diagnosis.informational)
+        assertFalse("a reading the strip warns about explains it, right under it", hostRender.diagnosis.informational)
     }
 
     @Test

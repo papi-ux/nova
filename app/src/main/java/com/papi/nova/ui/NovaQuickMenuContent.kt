@@ -170,6 +170,7 @@ fun NovaPageScope.NovaQuickMenuContent(
     val quickKeysTitle = stringResource(R.string.nova_quick_menu_quick_keys)
     val showPinnedKeys by ui.slice { it.pinnedQuickKeys.isNotEmpty() }
     val showDiagnosis by ui.slice { it.diagnosis.visible }
+    val diagnosisInformational by ui.slice { it.diagnosis.informational }
     val showReceipt by ui.slice { it.doctorReceiptAction.visible }
     val advancedExpanded by ui.slice { it.advancedExpanded }
     val showReport by ui.slice { it.advancedExpanded && it.postSessionReport.visible }
@@ -199,8 +200,9 @@ fun NovaPageScope.NovaQuickMenuContent(
             // full grid lives further down with the rest of the sections.
             if (showPinnedKeys) NovaQuickKeys(ui, { it.pinnedQuickKeys }, callbacks)
             // The strip is a one-line verdict. What explains it, the Doctor's reading and what
-            // Auto is running, comes next instead of three screens down.
-            if (showDiagnosis) NovaQuickMenuDiagnosisCard(ui, callbacks)
+            // Auto is running, comes next instead of three screens down. A reading that only
+            // informs, with nothing to run and nothing the strip warns about, ranks last (N28).
+            if (showDiagnosis && !diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)
             if (showReceipt) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
             NovaQuickMenuStabilityCard(ui, callbacks)
 
@@ -219,6 +221,8 @@ fun NovaPageScope.NovaQuickMenuContent(
             // The full grid last of the daily sections, since its top three are pinned above.
             NovaSectionLabel(quickKeysTitle)
             NovaQuickKeys(ui, { it.gridQuickKeys }, callbacks)
+
+            if (showDiagnosis && diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)
 
             NovaQuickMenuInfoCard(ui, { it.sync }, callbacks)
             NovaQuickMenuInfoCard(ui, { it.advancedToggle }, callbacks)

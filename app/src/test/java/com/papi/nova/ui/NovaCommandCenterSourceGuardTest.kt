@@ -513,6 +513,13 @@ class NovaCommandCenterSourceGuardTest {
             "sync and Advanced stay at the end",
             syncCard in 0 until advancedToggleCard
         )
+        val actionableDoctor = body.indexOf("if (showDiagnosis && !diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)")
+        val informationalDoctor = body.indexOf("if (showDiagnosis && diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks)")
+        assertTrue(
+            "a Doctor reading that only informs ranks after the sections a player adjusts, and before Sync and Advanced; one that explains the strip or can act stays under it (N28)",
+            actionableDoctor in (pinnedKeys + 1) until stabilityCard &&
+                informationalDoctor in (quickKeysPanel + 1) until syncCard
+        )
         assertTrue(
             "the host safe profile is observational history and lives inside the expanded Advanced section, not in the first paint",
             reportCard > advancedToggleCard &&
