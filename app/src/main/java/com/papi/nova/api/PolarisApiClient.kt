@@ -3537,12 +3537,15 @@ class PolarisApiClient @JvmOverloads constructor(
         hdr: Boolean? = null,
         clientMaxFps: Float = 0f,
         launchBounded: Boolean = false,
-        encoderBackend: String = ""
+        encoderBackend: String = "",
+        manualBitrateMaximumKbps: Int? = null
     ): org.json.JSONObject? {
         return try {
             // This API object belongs to one paired host. Shortcut and game-page preflights
             // may arrive before any feature probe; never borrow another host's ceiling.
-            val launchCapabilities = getLaunchCapabilities()
+            // Game supplies the same frozen ceiling used by its launch envelope. Other
+            // callers resolve their own paired host here.
+            val observedMaximum = manualBitrateMaximumKbps ?: getLaunchCapabilities()?.features?.manualBitrateMaxKbps
             val url = "$baseUrl${buildOptimizationPath(
                 device = device,
                 game = game,
@@ -3556,7 +3559,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 fps = fps,
                 displayLocked = displayLocked,
                 bitrateKbps = bitrateKbps.coerceAtMost(com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
-                    launchCapabilities?.features?.manualBitrateMaxKbps)),
+                    observedMaximum)),
                 bitrateLocked = bitrateLocked,
                 hdr = hdr,
                 clientMaxFps = clientMaxFps,

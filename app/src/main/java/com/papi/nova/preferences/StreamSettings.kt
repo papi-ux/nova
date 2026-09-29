@@ -580,7 +580,10 @@ class StreamSettings : NovaActivity() {
             pref.entryValues = entryValues.requireNoNulls()
         }
 
-        private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?) {
+        private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?) =
+            resetBitrateToDefault(prefs, res, fps, null)
+
+        private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?, codecValue: String?) {
             // A saved setup is sparse: inherit untouched fields without pinning them.
             val base = context?.let { PreferenceManager.getDefaultSharedPreferences(it) }
             val activeRes = res ?: prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING,
@@ -588,7 +591,7 @@ class StreamSettings : NovaActivity() {
             val activeFps = fps ?: prefs.getString(PreferenceConfiguration.FPS_PREF_STRING,
                 base?.getString(PreferenceConfiguration.FPS_PREF_STRING, null)) ?: PreferenceConfiguration.DEFAULT_FPS
             val size = activeRes.split("x").map { it.toInt() }
-            val codec = NovaCodecChoice.fromPreference(prefs.getString("video_format",
+            val codec = NovaCodecChoice.fromPreference(codecValue ?: prefs.getString("video_format",
                 base?.getString("video_format", "auto")))
             val advice = NovaBitrateAdvice.recommend(size[0], size[1], Math.round(activeFps.toFloat()), codec,
                 NovaTierRuntime.snapshot()?.inputs?.distance ?: NovaDistance.HAND)
@@ -1040,6 +1043,16 @@ class StreamSettings : NovaActivity() {
                     resetBitrateToDefault(prefs, null, valueStr)
                     true
                 }
+
+            findPreference<Preference>("video_format")!!.setOnPreferenceChangeListener { _, newValue ->
+                val prefs = getPrefs()
+                if (NovaStreamSettings.customAutomatic(prefs.all)) {
+                    // ListPreference persists after this callback. Compute against the new
+                    // codec while inheriting untouched size/fps from the raw base settings.
+                    resetBitrateToDefault(prefs, null, null, newValue as String)
+                }
+                true
+            }
 
             findPreference<Preference>("checkbox_enable_perf_logging")!!
                 .setOnPreferenceChangeListener { preference, newValue ->

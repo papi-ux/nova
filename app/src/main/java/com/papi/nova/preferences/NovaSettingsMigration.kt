@@ -112,6 +112,22 @@ object NovaSettingsMigration {
             is Boolean -> editor.putBoolean(key, value)
             is Long -> editor.putLong(key, value)
             is Float -> editor.putFloat(key, value)
+            // Gson reads untyped JSON numbers as Double. SharedPreferences has no Double
+            // slot: keep integral settings integral and fractional settings as Float.
+            is Number -> {
+                val number = value.toDouble()
+                require(number.isFinite()) { "Non-finite preference: $key" }
+                when {
+                    number in Int.MIN_VALUE.toDouble()..Int.MAX_VALUE.toDouble() && number == number.toInt().toDouble() ->
+                        editor.putInt(key, number.toInt())
+                    number >= Long.MIN_VALUE.toDouble() && number < Long.MAX_VALUE.toDouble() && number == number.toLong().toDouble() ->
+                        editor.putLong(key, number.toLong())
+                    else -> editor.putFloat(key, number.toFloat())
+                }
+            }
+            is Set<*> -> editor.putStringSet(key, value.map {
+                require(it is String) { "Non-string preference set: $key" }; it
+            }.toSet())
         } }
         check(editor.commit()) { "Could not migrate stream settings" }
     }

@@ -218,15 +218,17 @@ class PyroWaveDecoderRenderer(
             bitrateAdvice(width, height, fps, chroma444, heightFactor).mbps
 
         /** Compare exact requested kbps; rounded display text must not warn on calibrated Auto. */
-        fun bitrateWarning(streamKbps: Int, width: Int, height: Int, fps: Int, advice: BitrateAdvice, maximumKbps: Int = NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS): BitrateWarning? {
+        fun bitrateWarning(streamKbps: Int, width: Int, height: Int, fps: Int, advice: BitrateAdvice, maximumKbps: Int = NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS, automatic: Boolean = false): BitrateWarning? {
             val wantedMbps = advice.mbps
             if (wantedMbps <= 0 || streamKbps >= advice.kbps) {
                 return null
             }
             val line = "PyroWave: $streamKbps kbps for ${width}x$height at $fps fps; it wants about $wantedMbps Mbps"
-            if (streamKbps >= maximumKbps) {
+            val actionableMaximum = minOf(maximumKbps, PreferenceConfiguration.MAX_BITRATE_KBPS,
+                if (automatic) NovaBitrateAdvice.AUTOMATIC_MAX_KBPS else NovaBitrateAdvice.MANUAL_MAX_KBPS)
+            if (streamKbps >= actionableMaximum) {
                 return BitrateWarning(
-                    "$line, over the ${maximumKbps / 1000} Mbps maximum of the " +
+                    "$line, over the ${actionableMaximum / 1000} Mbps maximum of the " +
                         "bitrate setting, so the player is not told",
                     tellPlayer = false,
                 )

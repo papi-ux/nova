@@ -1703,7 +1703,7 @@ configuredStreamHdr = willStreamHdr
         // carries 4:4:4, and a host that serves PyroWave takes it. The distance is H 2.0 for a television
         // or a stream on an external display and H 2.87 for the device's own screen.
         // PyroWaveDecoderRenderer.adviceChroma444 and viewingHeightFactor say why, and bitrateAdvice
-        // quotes request units and respects this host's advertised manual limit.
+        // quotes request units; warnings respect both host and client input limits.
         if ((supportedVideoFormats and MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0)
         {
             val pyroWaveFps = Math.round(chosenFrameRate)
@@ -1725,10 +1725,13 @@ configuredStreamHdr = willStreamHdr
                 "; television=" + pyroWaveTelevision + " external_display=" + isOnExternalDisplay +
                 " hdr=" + willStreamHdr)
             // Under the advice the log always says so, and the player is told only while the bitrate
-            // setting can still go higher. bitrateWarning says why.
+            // input can still go higher. Auto stays quiet at its automatic cap as well.
             val pyroWaveWarning = com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateWarning(
                 configuredStreamBitrateKbps, displayWidth, displayHeight, pyroWaveFps, pyroWaveAdvice,
-                maximumKbps = launchManualBitrateMaximumKbps,
+                maximumKbps = minOf(launchManualBitrateMaximumKbps, PreferenceConfiguration.MAX_BITRATE_KBPS),
+                automatic = com.papi.nova.preferences.NovaStreamSettings.selected(tierPreferences.all) !=
+                    com.papi.nova.preferences.NovaTier.CUSTOM ||
+                    com.papi.nova.preferences.NovaStreamSettings.customAutomatic(tierPreferences.all),
             )
             if (pyroWaveWarning != null)
             {
@@ -2040,19 +2043,7 @@ if (needsGeneratedTier && (com.papi.nova.preferences.NovaTierRuntime.snapshot()?
         runOnMainIfRuntimeActive {
             if (launchPolicyGateGeneration.get() == gateGeneration && intent === gateIntent) {
                 launchPolicyGatePending.set(false)
-                if (prepared.tiers.inputsHash == "failed") {
-                    Toast.makeText(this@Game, getString(R.string.nova_tier_unavailable,
-                        prepared.tiers.recommended.limits.first().message), Toast.LENGTH_LONG).show()
-                    finish()
-                    return@runOnMainIfRuntimeActive
-                }
-                if (prepared.tiers == tierSnapshotAtRead?.tiers) {
-                    // The callback only dirtied the cache. Finish this activity's launch once.
-                    continueLaunch()
-                } else {
-                    launchPolicyHandoffRecreation = true
-                    recreate()
-                }
+                completeTierPreparation(prepared, tierSnapshotAtRead?.tiers, continueLaunch)
             }
         }
     }
@@ -2060,6 +2051,27 @@ if (needsGeneratedTier && (com.papi.nova.preferences.NovaTierRuntime.snapshot()?
 }
 
 continueLaunch()
+}
+
+/** The generation and intent fence is checked by the IO caller before entering this boundary. */
+internal fun completeTierPreparation(
+    prepared: com.papi.nova.preferences.NovaTierRuntime.Snapshot,
+    tiersAtRead: com.papi.nova.preferences.NovaStreamTiers?,
+    continueLaunch: () -> Unit,
+) {
+                if (prepared.tiers.inputsHash == "failed") {
+                    Toast.makeText(this, getString(R.string.nova_tier_unavailable,
+                        prepared.tiers.recommended.limits.first().message), Toast.LENGTH_LONG).show()
+                    finish()
+                    return
+                }
+                if (prepared.tiers == tiersAtRead) {
+                    // The callback only dirtied the cache. Finish this activity's launch once.
+                    continueLaunch()
+                } else {
+                    launchPolicyHandoffRecreation = true
+                    recreate()
+                }
 }
 
 @SuppressLint("ClickableViewAccessibility")
@@ -3095,7 +3107,8 @@ bitrateLocked = resolverRequest.bitrateLocked,
 hdr = requestedHdr,
 clientMaxFps = getMaxSupportedRefreshRate(streamingDisplay),
 launchBounded = true,
-encoderBackend = encoderBackend)
+encoderBackend = encoderBackend,
+manualBitrateMaximumKbps = observedManualMaximumKbps)
 }
 catch (e:com.papi.nova.api.PolarisApiRejectedException)
 {

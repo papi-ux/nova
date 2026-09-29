@@ -379,15 +379,11 @@ class EditProfileActivity : NovaActivity() {
         private companion object {
             private fun diff(target: Map<String, *>, newPrefs: Map<String, *>): Map<String, Any?> {
                 val patch = HashMap<String, Any?>()
-                for ((key, value) in target) {
-                    if (newPrefs.containsKey(key)) {
-                        val defaultValue = newPrefs[key]
-                        if (value == null || value != defaultValue) {
-                            patch[key] = value
-                        }
-                    } else {
-                        patch[key] = value
-                    }
+                for ((key, value) in newPrefs) {
+                    val inherited = target[key]
+                    val same = if (value is Number && inherited is Number)
+                        value.toDouble() == inherited.toDouble() else value == inherited
+                    if (!target.containsKey(key) || !same) patch[key] = value
                 }
                 return patch
             }
@@ -428,7 +424,7 @@ class EditProfileActivity : NovaActivity() {
 
         override fun getFloat(key: String?, defValue: Float): Float {
             val value = values[key]
-            return if (value is Float) value else defValue
+            return if (value is Number) value.toFloat() else defValue
         }
 
         override fun getBoolean(key: String?, defValue: Boolean): Boolean {
