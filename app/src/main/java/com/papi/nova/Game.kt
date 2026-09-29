@@ -825,12 +825,10 @@ if (prefConfig!!.fullScreen)
  // Full-screen
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
- // If we're going to use immersive mode, we want to have
-            // the entire screen
-            getWindow().getDecorView().setSystemUiVisibility(
-(View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN))
+// Immersive from the first frame, not only laid out for it: with the layout flags alone the
+// navigation bar's gesture handle was drawn over the stream until hideSystemUi ran, a second
+// after the connection started (in-game #19). The same flags hideSystemUi keeps setting.
+hideSystemUi.run()
 }
 
 getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
