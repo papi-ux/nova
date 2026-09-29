@@ -1,11 +1,18 @@
 package com.papi.nova.ui.panel
 
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.MultiContentMeasurePolicy
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
@@ -15,7 +22,7 @@ import com.papi.nova.ui.compose.NovaRadius
 /**
  * A button on a panel page or a state page: the shared action surface, with its label in the
  * panel's value type, centred and wrapping onto more lines rather than cut at any size or font
- * scale.
+ * scale. An [icon] leads the label, as the destructive half of a split carries its own.
  */
 @Composable
 internal fun NovaPanelButton(
@@ -24,6 +31,7 @@ internal fun NovaPanelButton(
     modifier: Modifier = Modifier,
     primary: Boolean = false,
     destructive: Boolean = false,
+    @DrawableRes icon: Int? = null,
 ) {
     NovaActionSurface(
         onClick = onClick,
@@ -35,7 +43,22 @@ internal fun NovaPanelButton(
         cornerRadius = NovaRadius.hero,
         contentPadding = PaddingValues(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
     ) { contentColor, _ ->
-        Text(text = text, style = novaPanelType.value, color = contentColor, textAlign = TextAlign.Center)
+        if (icon == null) {
+            Text(text = text, style = novaPanelType.value, color = contentColor, textAlign = TextAlign.Center)
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm, Alignment.CenterHorizontally),
+            ) {
+                Icon(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(NovaPanelMetrics.IconSize),
+                )
+                Text(text = text, style = novaPanelType.value, color = contentColor, textAlign = TextAlign.Center)
+            }
+        }
     }
 }
 

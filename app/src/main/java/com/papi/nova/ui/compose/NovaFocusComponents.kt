@@ -213,8 +213,11 @@ fun NovaActionButton(
  * halo ([novaFocusRing]). The ring contrasts with the fill it sits on: `onAccent` on a primary,
  * `onDestructiveFill` on a primary destructive (the armed half of a split confirm), whose fill is
  * the destructive fill, a red on every theme, never the text colour the destructive text falls
- * back to. A destructive action at rest has destructive text and a destructive hairline. Activation goes through
- * [novaClickable], so A acts on release and only on the surface that took the press.
+ * back to. A destructive action at rest has destructive text and a hairline in the destructive
+ * fill: the text colour falls back to the ordinary text colour on a theme whose red does not read
+ * as words, and a hairline in that colour read as a second focus ring. A line needs only 3:1,
+ * which the fill always has. Activation goes through [novaClickable], so A acts on release and
+ * only on the surface that took the press.
  *
  * [selected] marks the current value the one way R9 allows: the check ([NovaCurrentMark]) after the
  * content, selected semantics and the state description Current. It never fills the surface,
@@ -266,7 +269,8 @@ fun NovaActionSurface(
     }
     val restBorder = when {
         filled -> Color.Transparent
-        destructive && enabled -> colors.destructive
+        // The fill's red, never the text fallback: a hairline in the text colour is a second ring.
+        destructive && enabled -> colors.destructiveFill
         else -> surfaces.tileBorder
     }
     val alpha = if (enabled) 1f else NovaPanelMetrics.DisabledAlpha

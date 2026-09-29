@@ -133,7 +133,9 @@ enum class NovaSplitShape { Button, Row, Tile }
  * confirm; A, Right, A does.
  *
  * At rest a [NovaSplitShape.Row] is a row among rows: the row tile, its icon and label at the
- * start in the row title type, with the destructive text and hairline. A split that sits in a row
+ * start in the row title type, with the destructive text, and its icon and hairline in the
+ * destructive fill. Every split carries its [icon] at rest and armed, the close mark unless it
+ * names another, so a destructive action reads as one before it is pressed. A split that sits in a row
  * of buttons is a [NovaSplitShape.Button], as tall as they are with their 8dp corners; with
  * [fillSlot] it spans the slot it is given, as a button sharing its row by weight does, and so
  * does its armed pair. Otherwise a button keeps its own width and its pair widens only as far as
@@ -155,6 +157,7 @@ fun NovaSplitConfirm(
     fillSlot: Boolean = false,
 ) {
     val confirm by rememberUpdatedState(onConfirm)
+    val mark = icon ?: R.drawable.ic_close
     val isTop = LocalNovaPageIsTop.current
     val isTopNow by rememberUpdatedState(isTop)
     val root = LocalView.current.rootView
@@ -233,7 +236,7 @@ fun NovaSplitConfirm(
             if (!armed) {
                 SplitHalf(
                     text = label,
-                    icon = icon,
+                    icon = mark,
                     destructive = true,
                     filled = false,
                     enabled = enabled,
@@ -279,7 +282,7 @@ fun NovaSplitConfirm(
                     )
                     SplitHalf(
                         text = confirmLabel,
-                        icon = icon,
+                        icon = mark,
                         destructive = true,
                         filled = true,
                         enabled = true,
@@ -345,6 +348,10 @@ private fun SplitHalf(
             PaddingValues(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm)
         },
     ) { contentColor, _ ->
+        // At rest the icon takes the fill's red, as the hairline does; the label keeps the
+        // destructive text colour, which is the ordinary text colour where red would not read.
+        val colors = LocalNovaComposeColors.current
+        val iconTint = if (destructive && !filled && enabled) colors.destructiveFill else contentColor
         if (tile) {
             // The icon over the label in the caption type, as the deck's other tiles draw theirs, so
             // a tile a fifth of a companion screen wide wraps "End Session" between its words and
@@ -357,7 +364,7 @@ private fun SplitHalf(
                     Icon(
                         painter = painterResource(it),
                         contentDescription = null,
-                        tint = contentColor,
+                        tint = iconTint,
                         modifier = Modifier.size(TileIconSize),
                     )
                 }
@@ -373,7 +380,7 @@ private fun SplitHalf(
                     Icon(
                         painter = painterResource(it),
                         contentDescription = null,
-                        tint = contentColor,
+                        tint = iconTint,
                         modifier = Modifier.size(NovaPanelMetrics.IconSize),
                     )
                 }

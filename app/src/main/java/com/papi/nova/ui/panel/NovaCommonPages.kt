@@ -303,10 +303,13 @@ private fun NovaPageScope.ConfirmPage(page: NovaCommonPage.Confirm, exit: NovaPa
         NovaPanelButtonPair(
             first = { NovaPanelButton(text = page.stayLabel, onClick = stay, modifier = Modifier.novaInitialFocus()) },
             second = {
+                // A destructive answer looks as the armed half of a split does: the destructive
+                // fill, its own label colour and the close mark, so one action has one look.
                 NovaPanelButton(
                     text = page.actionLabel,
                     destructive = page.destructive,
-                    primary = !page.destructive,
+                    primary = true,
+                    icon = if (page.destructive) R.drawable.ic_close else null,
                     onClick = { exit.leaveThen(page.onConfirm) },
                 )
             },
