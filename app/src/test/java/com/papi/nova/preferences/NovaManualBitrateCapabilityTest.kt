@@ -24,7 +24,7 @@ class NovaManualBitrateCapabilityTest {
     }
     @Test fun manualMaximumIsANumberAndInvalidOrAbsentValuesUseTheLegacyLimit() {
         // This is also the named UI integration contract; it must be present on Features.
-        fun maximum(features:PolarisCapabilities.Features)=features.javaClass.getMethod("getManualBitrateMaxKbps").invoke(features)
+        fun maximum(features:PolarisCapabilities.Features)=features.manualBitrateMaxKbps
         assertEquals(300000,maximum(PolarisCapabilities.Features()))
         for(value in listOf(null,JSONObject.NULL,true,false,"500000",500000.5,-1,0,Long.MAX_VALUE))
             assertEquals("value=$value",300000,maximum(caps(value).features))
@@ -117,9 +117,8 @@ class NovaManualBitrateCapabilityTest {
     }
     @Test fun hostPlanCapabilityAdapterKeepsOtherLimitsAndHandlesUnavailablePlans() {
         val base=NovaHostTierLimits(maxFps=60,bitrateCapKbps=420000)
-        val adapter=base.javaClass.getMethod("withCapabilities",PolarisCapabilities::class.java)
         for((cap,expected) in listOf(caps() to 300000,caps(500000) to 420000)) {
-            val host=adapter.invoke(base,cap) as NovaHostTierLimits
+            val host=base.withCapabilities(cap)
             assertEquals(60,host.maxFps)
             for(available in listOf(true,false)) {
                 val input=input().copy(host=host,capabilities=if(available) input().capabilities else NovaDeviceCapabilities(emptyList()))

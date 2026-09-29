@@ -53,7 +53,12 @@ data class NovaHostTierLimits(val maxFps: Int = 0, val bitrateCapKbps: Int = 0,
     val mirroredDesktop: NovaSize? = null, val space: Boolean = false,
     val pyrowaveRaiseGoalKbps: Int? = null, val pyrowaveFourKCapKbps: Int? = null,
     val pyrowaveAdviceSize: NovaSize? = null, val pyrowaveAdviceFps: Int? = null,
-    val pyrowaveFourKCapLimited: Boolean = false)
+    val pyrowaveFourKCapLimited: Boolean = false,
+    val manualBitrateMaxKbps: Int = NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS) {
+    /** Attach the connected host's numeric limit without replacing its other constraints. */
+    fun withCapabilities(capabilities: com.papi.nova.api.PolarisCapabilities?) = copy(
+        manualBitrateMaxKbps=NovaBitrateAdvice.manualMaximum(capabilities?.features?.manualBitrateMaxKbps))
+}
 data class NovaTierInputs(val panel: NovaSize, val refreshRates: List<Int>, val distance: NovaDistance,
     val capabilities: NovaDeviceCapabilities, val link: NovaLink = NovaLink.OTHER,
     val codec: NovaCodecChoice = NovaCodecChoice.AUTO, val host: NovaHostTierLimits? = null,
@@ -127,7 +132,7 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
                 else -> NovaFourK.Unavailable(fourKFailure(inputs,max))
             }
             val hash=MessageDigest.getInstance("SHA-256").digest(inputs.toString().toByteArray()).joinToString("") { "%02x".format(it) }
-            return NovaStreamTiers(saver,recommended,max,fourK,custom,hash)
+            return NovaStreamTiers(saver,recommended,max,fourK,custom?.let { applyHostBitrateLimits(inputs,it) },hash)
         }
 
         fun resolve(inputs: NovaTierInputs, tier: NovaTier, custom: NovaStreamPlan? = null,
@@ -204,9 +209,9 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             }
             if(selected==null) {
                 val reason=if(choice==NovaCodecChoice.PYROWAVE) input.pyrowave.unavailable else null
-                return NovaStreamPlan(requested.width,requested.height,top,choices.first(),bitratePin?.coerceIn(500,NovaBitrateAdvice.MANUAL_MAX_KBPS) ?: NovaBitrateAdvice.recommend(
+                return applyHostBitrateLimits(input,NovaStreamPlan(requested.width,requested.height,top,choices.first(),bitratePin?.coerceIn(500,NovaBitrateAdvice.MANUAL_MAX_KBPS) ?: NovaBitrateAdvice.recommend(
                     requested.width,requested.height,top.coerceAtLeast(1),choices.first(),input.distance,hostAdvice(input,requested,top)).kbps,
-                    limits=limits+(reason ?: NovaLimit("decoder_unavailable","No usable decoder point for this stream")),available=false)
+                    limits=limits+(reason ?: NovaLimit("decoder_unavailable","No usable decoder point for this stream")),available=false))
             }
             val (size,fps,codec)=selected
             val sizeTop=displayTop(input,size)
@@ -225,12 +230,20 @@ data class NovaStreamTiers(val saver: NovaStreamPlan, val recommended: NovaStrea
             if(size==input.panel && fps==displayTop(input,input.panel)) reasons+=NovaReason("native_panel","Fills this ${size.label} screen at its full $fps Hz")
             if(codec==NovaCodecChoice.PYROWAVE && hostAdvice(input,size,fps)!=null) reasons+=NovaReason("pyrowave_advice","The host's PyroWave figure for this screen")
             val advice=NovaBitrateAdvice.recommend(size.width,size.height,fps,codec,input.distance,hostAdvice(input,size,fps))
-            var bitrate=bitratePin?.coerceIn(500,NovaBitrateAdvice.MANUAL_MAX_KBPS) ?: advice.kbps
-            if(host!=null && host.bitrateCapKbps in 1 until bitrate) {
-                bitrate=host.bitrateCapKbps;limits+=NovaLimit("host_bitrate","The host caps bitrate at ${bitrate/1000} Mbps")
-            }
-            if(host?.space==true) { bitrate=min(bitrate,8000);limits+=NovaLimit("space","This Space streams H.264 at up to 8 Mbps") }
-            return NovaStreamPlan(size.width,size.height,fps,codec,bitrate,if(bitratePin==null) advice.basis else NovaBitrateBasis.CUSTOM,reasons,limits)
+            val bitrate=bitratePin?.coerceIn(500,NovaBitrateAdvice.MANUAL_MAX_KBPS) ?: advice.kbps
+            return applyHostBitrateLimits(input,NovaStreamPlan(size.width,size.height,fps,codec,bitrate,
+                if(bitratePin==null) advice.basis else NovaBitrateBasis.CUSTOM,reasons,limits))
+        }
+
+        private fun applyHostBitrateLimits(input: NovaTierInputs, plan: NovaStreamPlan): NovaStreamPlan {
+            val host=input.host ?: return plan
+            val cap=minOf(NovaBitrateAdvice.manualMaximum(host.manualBitrateMaxKbps),
+                host.bitrateCapKbps.takeIf { it>0 } ?: NovaBitrateAdvice.MANUAL_MAX_KBPS)
+            var result=if(plan.bitrateKbps>cap) plan.copy(bitrateKbps=cap,
+                limits=plan.limits+NovaLimit("host_bitrate","The host caps bitrate at ${NovaBitrateAdvice.text(cap,false)}")) else plan
+            if(host.space) result=result.copy(bitrateKbps=min(result.bitrateKbps,8000),
+                limits=result.limits+NovaLimit("space","This Space streams H.264 at up to 8 Mbps"))
+            return result
         }
 
         private fun fourKFailure(input:NovaTierInputs,max:NovaStreamPlan):NovaLimit {

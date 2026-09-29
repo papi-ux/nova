@@ -8,6 +8,10 @@ data class NovaBitrateRecommendation(val kbps: Int, val basis: NovaBitrateBasis)
 /** Recommendations use requested stream kbps. Encoder helpers explicitly name their units. */
 object NovaBitrateAdvice {
     const val MANUAL_MAX_KBPS = 500000
+    const val LEGACY_MANUAL_MAX_KBPS = 300000
+    /** Hosts must explicitly advertise a larger manual range; malformed metadata is legacy. */
+    fun manualMaximum(advertisedKbps: Int?): Int =
+        advertisedKbps?.takeIf { it in 1000..MANUAL_MAX_KBPS } ?: LEGACY_MANUAL_MAX_KBPS
     const val AUTOMATIC_MAX_KBPS = 300000
     /** Mirrors Polaris pyrowave_advice::k_far_target_db and k_target_db (#218). */
     const val HANDHELD_PYROWAVE_TARGET_DB = 31

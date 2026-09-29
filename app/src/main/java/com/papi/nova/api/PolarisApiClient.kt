@@ -1204,7 +1204,9 @@ class PolarisApiClient @JvmOverloads constructor(
                     doctorTrialsEnabled = features?.optBoolean("doctor_trials_enabled") ?: false,
                     hostSleep = features?.optBoolean("host_sleep_v1") ?: false,
                     pyrowaveAdviceV1 = strictBoolean(features, "pyrowave_advice_v1"),
-                    bitrateUnitsV1 = strictBoolean(features, "bitrate_units_v1")
+                    bitrateUnitsV1 = strictBoolean(features, "bitrate_units_v1"),
+                    manualBitrateMaxKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
+                        strictIntOrNull(features, "manual_bitrate_max_kbps"))
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",

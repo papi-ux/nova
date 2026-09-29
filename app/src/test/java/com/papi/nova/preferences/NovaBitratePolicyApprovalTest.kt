@@ -66,7 +66,7 @@ class NovaBitratePolicyApprovalTest {
                 assertEquals(codec.name,expected,NovaStreamTiers.resolve(input,NovaTier.RECOMMENDED,
                     pins=NovaStreamPins(bitrateKbps=pin)).bitrateKbps)
             }
-            assertEquals(420000,NovaStreamTiers.resolve(input.copy(host=NovaHostTierLimits(bitrateCapKbps=420000)),
+            assertEquals(420000,NovaStreamTiers.resolve(input.copy(host=NovaHostTierLimits(bitrateCapKbps=420000,manualBitrateMaxKbps=500000)),
                 NovaTier.RECOMMENDED,pins=NovaStreamPins(bitrateKbps=500000)).bitrateKbps)
             if(codec==NovaCodecChoice.AVC) assertEquals(8000,NovaStreamTiers.resolve(
                 input.copy(host=NovaHostTierLimits(space=true)),NovaTier.RECOMMENDED,
@@ -111,7 +111,7 @@ class NovaBitratePolicyApprovalTest {
             return PolarisBitrateWriteResult.Applied(actual,observed)
         }
     }
-    private fun controller(fake:Fake,units:Boolean=true)=NovaLiveBitrateController(fake,"approved",4,true,units)
+    private fun controller(fake:Fake,units:Boolean=true)=NovaLiveBitrateController(fake,"approved",4,true,units,manualBitrateMaxKbps=500000)
         .also { it.observe(fake.current,tableRecommendedKbps=450000) }
 
     @Test fun manualWritesAndStepsCrossAutomaticCapForEveryCodec()=runBlocking {

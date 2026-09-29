@@ -24,7 +24,7 @@ interface NovaLiveBitrateTransport {
 /** VIDEO is the encoder target; REQUEST is the split budget, including actual audio and FEC. */
 enum class NovaBitrateUnits { VIDEO, REQUEST, UNKNOWN }
 data class NovaLiveBitrateState(val requestedKbps:Int?=null,val recommendedKbps:Int?=null,val receivedKbps:Int?=null,
-    val codec:String="",val maximumKbps:Int=NovaBitrateAdvice.MANUAL_MAX_KBPS,val canChange:Boolean=false,val busy:Boolean=false,
+    val codec:String="",val maximumKbps:Int=NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS,val canChange:Boolean=false,val busy:Boolean=false,
     val minimumKbps:Int=1000,val units:NovaBitrateUnits=NovaBitrateUnits.UNKNOWN,
     val negotiatedUnits:PolarisBitrateUnits?=null)
 enum class NovaBitrateChange { APPLIED, UNAVAILABLE, SESSION_CHANGED, FAILED, AT_LIMIT }
@@ -32,18 +32,21 @@ enum class NovaBitrateChange { APPLIED, UNAVAILABLE, SESSION_CHANGED, FAILED, AT
 /** Converts only with advertised session inputs. Released hosts remain read-only. */
 class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,private val sessionId:String,
     private val generation:Long,private val streamScopedWritesSupported:Boolean=false,
-    private val bitrateUnitsSupported:Boolean=false) {
+    private val bitrateUnitsSupported:Boolean=false,
+    manualBitrateMaxKbps:Int=NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS) {
     constructor(api:PolarisApiClient,observed:PolarisSessionStatus,capabilities:PolarisCapabilities?=null):this(object:NovaLiveBitrateTransport {
         override fun status()=api.getSessionStatus()
         override fun setBitrate(kbps:Int,observed:PolarisSessionStatus)=api.setBitrate(kbps,observed)
         override fun write(encoderKbps:Int,observed:PolarisSessionStatus)=api.setBitrateResult(encoderKbps,observed)
     },observed.appSessionId,observed.sessionGeneration,
         capabilities?.features?.let { it.pyrowaveAdviceV1 || it.bitrateUnitsV1 }==true,
-        capabilities?.features?.bitrateUnitsV1==true)
+        capabilities?.features?.bitrateUnitsV1==true,
+        capabilities?.features?.manualBitrateMaxKbps ?: NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS)
 
+    private val manualMaximum=NovaBitrateAdvice.manualMaximum(manualBitrateMaxKbps)
     private val mutex=Mutex()
     private val observationLock=Any()
-    private val mutableState=MutableStateFlow(NovaLiveBitrateState())
+    private val mutableState=MutableStateFlow(NovaLiveBitrateState(maximumKbps=manualMaximum))
     val state=mutableState.asStateFlow()
     private var hostMaximum:Int?=null // request units from preflight
     private var learnedMaximum:Int?=null // current row units, learned from acknowledgements
@@ -70,7 +73,7 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
     private fun allowed(s:PolarisSessionStatus)=streamScopedWritesSupported && same(s) && s.streamingActive && !s.shutdownRequested &&
         !s.isViewer && s.canAdjustHostTuning && !s.liveTuningUnavailable && s.liveTuning?.supported==true && units(s)!=NovaBitrateUnits.UNKNOWN
     private fun maximum(s:PolarisSessionStatus):Int {
-        val ceiling=NovaBitrateAdvice.MANUAL_MAX_KBPS
+        val ceiling=manualMaximum
         // PyroWave cap_kbps limits automatic advice, not a player's manual choice.
         val requestCap=if(units(s)==NovaBitrateUnits.REQUEST) minOf(hostMaximum ?: ceiling,
             s.pyrowaveBitrate?.hostMaximumKbps ?: ceiling) else ceiling
