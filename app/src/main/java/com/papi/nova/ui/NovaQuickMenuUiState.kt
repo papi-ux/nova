@@ -89,7 +89,9 @@ data class NovaQuickMenuStabilityState(
 data class NovaQuickMenuHudOpacityState(
     val percent: Int,
     val presets: List<Int>,
-    val enabled: Boolean
+    val enabled: Boolean,
+    /** The HUD is in its own corner, the top start, which an edge panel at the start covers. */
+    val atItsCorner: Boolean = false
 ) {
     val percentLabel: String = "$percent%"
 }
@@ -105,7 +107,9 @@ data class NovaQuickMenuMenuOpacityState(
 data class NovaQuickMenuHudModeState(
     val options: List<NovaQuickMenuPreferenceOption>,
     val selected: NovaHudMode,
-    val enabled: Boolean
+    val enabled: Boolean,
+    /** The HUD is in its own corner, the top start, which an edge panel at the start covers. */
+    val atItsCorner: Boolean = false
 )
 
 enum class NovaQuickMenuDoctorCapability {
@@ -196,6 +200,8 @@ data class NovaQuickMenuUiState(
             currentGameUuid: String?,
             profilePreference: String,
             hudShowing: Boolean,
+            /** The HUD has not been dragged from its own corner, the top start. */
+            hudAtItsCorner: Boolean = false,
             hudMode: NovaHudMode = NovaHudMode.MINIMAL,
             hudOpacityPercent: Int = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
             menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
@@ -349,7 +355,8 @@ data class NovaQuickMenuUiState(
             val hudOpacity = NovaQuickMenuHudOpacityState(
                 percent = NovaHudPreferences.coerceOpacityPercent(hudOpacityPercent),
                 presets = NovaHudPreferences.OPACITY_PRESETS,
-                enabled = hudShowing
+                enabled = hudShowing,
+                atItsCorner = hudAtItsCorner
             )
             val menuOpacity = NovaQuickMenuMenuOpacityState(
                 percent = NovaMenuPreferences.coerceOpacityPercent(menuOpacityPercent),
@@ -367,7 +374,8 @@ data class NovaQuickMenuUiState(
                     )
                 },
                 selected = hudMode,
-                enabled = hudShowing
+                enabled = hudShowing,
+                atItsCorner = hudAtItsCorner
             )
             val doctorReceiptAction = doctorReceiptAction(
                 context = context,

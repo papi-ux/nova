@@ -55,12 +55,14 @@ class NovaCommandCenterPagesComposeTest {
     private val quickKeys = mutableListOf<NovaQuickMenuActionId>()
     private var liveTuningToggles = 0
     private val localCursor = mutableListOf<Boolean>()
+    private val hudPreviews = mutableListOf<Boolean>()
 
     private val callbacks = NovaQuickMenuCallbacks(
         onDismiss = { dismissed++ },
         onEndStream = { ended++ },
         onQuickKey = { quickKeys += it },
         onLiveTuning = { liveTuningToggles++ },
+        onHudPreview = { hudPreviews += it },
         onControlAction = { id ->
             if (id == NovaQuickMenuActionId.MOUSE_MODE) {
                 panel.push(
@@ -267,6 +269,27 @@ class NovaCommandCenterPagesComposeTest {
         keys.press(NovaTestKeys.CENTER)
         rule.frames(4)
         assertEquals("A, Right, A after the guard switches it once", 1, liveTuningToggles)
+    }
+
+    /**
+     * In-game #4 with XR2: the panel dims the HUD, so a HUD Mode change could not be seen. While
+     * a row that changes the HUD has focus the HUD shows at full strength, and a HUD in its own
+     * corner, under the panel, is named in the row's caption.
+     */
+    @Test
+    fun theHudShowsAtFullStrengthWhileItsRowsHaveFocus() {
+        val keys = open { state ->
+            state.copy(
+                hudMode = state.hudMode.copy(enabled = true, atItsCorner = true),
+                hudOpacity = state.hudOpacity.copy(enabled = true, atItsCorner = true),
+            )
+        }
+        rule.onNodeWithText("Pick a layout. The HUD is under this panel, so close it to see the change.").assertExists()
+        focus("HUD Mode")
+        assertEquals("focus on HUD Mode shows the HUD", listOf(true), hudPreviews)
+        keys.press(NovaTestKeys.DOWN)
+        rule.frames(4)
+        assertEquals("and moving on dims it again", listOf(true, false), hudPreviews)
     }
 
     @Test

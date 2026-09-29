@@ -993,6 +993,19 @@ class NovaCommandCenterSourceGuardTest {
         )
     }
 
+    /** In-game #4: Game shows the HUD undimmed while a HUD row previews it, and a closing panel ends that. */
+    @Test
+    fun aPreviewingHudRowOutranksTheDimmingPanel() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        assertTrue(
+            "covered and previewing are one rule: dimmed only while covered and nothing previews it",
+            game.contains("novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)"),
+        )
+        val covered = game.section("fun setNovaHudCovered(covered:Boolean) {", "private var novaHudCovered")
+        assertTrue("a closing panel takes its focused rows with it", covered.contains("if (!covered) novaHudPreviewing = false"))
+        assertTrue(readNovaQuickMenu().contains("onHudPreview = { previewing -> game.setNovaHudPreviewing(previewing) }"))
+    }
+
     @Test
     fun companionDeckSkipsUnchangedPerfIntervals() {
         val deck = readSource("src/main/java/com/papi/nova/ui/NovaCompanionCommandDeckView.kt")

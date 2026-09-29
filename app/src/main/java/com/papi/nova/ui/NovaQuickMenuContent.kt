@@ -23,6 +23,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -91,6 +92,8 @@ data class NovaQuickMenuCallbacks(
     val onQuickKey: (NovaQuickMenuActionId) -> Unit = {},
     val onOverlayAction: (NovaQuickMenuActionId) -> Unit = {},
     val onHudModeSelect: (NovaHudMode) -> Unit = {},
+    /** True while a row that changes the HUD has focus, so the HUD shows at full strength. */
+    val onHudPreview: (Boolean) -> Unit = {},
     val onDoctorUndo: () -> Unit = {},
     val onHudOpacityChange: (Int) -> Unit = {},
     val onMenuOpacityChange: (Int) -> Unit = {},
@@ -171,6 +174,8 @@ fun NovaPageScope.NovaQuickMenuContent(
     val showReport by ui.slice { it.advancedExpanded && it.postSessionReport.visible }
 
     val sections = rememberScrollState()
+    val hudPreview = remember(callbacks) { NovaHudPreviewFocus(callbacks.onHudPreview) }
+    DisposableEffect(hudPreview) { onDispose { hudPreview.clear() } }
     Column(modifier = modifier.fillMaxSize()) {
         // The header stays put. Close, Disconnect and End Session are under the thumb however
         // far the sections have been scrolled; they used to scroll away on a Retroid.
@@ -200,9 +205,9 @@ fun NovaPageScope.NovaQuickMenuContent(
 
             // Overlays first because the HUD switch is the frequent tap.
             NovaSectionLabel(overlaysTitle)
-            NovaQuickMenuOverlayRows(ui, callbacks)
+            NovaQuickMenuOverlayRows(ui, callbacks, hudPreview)
             NovaQuickMenuMenuOpacityControl(ui, callbacks)
-            NovaQuickMenuHudOpacityControl(ui, callbacks)
+            NovaQuickMenuHudOpacityControl(ui, callbacks, hudPreview)
 
             NovaSectionLabel(controlsTitle)
             NovaQuickMenuRows(ui, { it.controlRows }, callbacks)
@@ -653,15 +658,50 @@ private fun NovaQuickKeys(
 private fun NovaPageScope.NovaQuickMenuOverlayRows(
     ui: State<NovaQuickMenuUiState>,
     callbacks: NovaQuickMenuCallbacks,
+    hudPreview: NovaHudPreviewFocus,
 ) {
     val rows by ui.slice { it.overlayRows }
     rows.forEach { row ->
         NovaQuickMenuRow(row, callbacks, Modifier.novaRestorableFocus(row.id))
         if (row.id == NovaQuickMenuActionId.NOVA_HUD) {
-            NovaQuickMenuHudModePicker(ui, callbacks, Modifier.novaRestorableFocus("hud-mode"))
+            NovaQuickMenuHudModePicker(
+                ui,
+                callbacks,
+                Modifier.novaRestorableFocus("hud-mode").onFocusChanged { hudPreview.update("hud-mode", it.hasFocus) },
+            )
         }
     }
 }
+
+/**
+ * Which of the rows that change the HUD have focus. While one does, the HUD shows at full strength
+ * instead of dimmed under the panel, so a new layout or opacity can be seen as it is picked
+ * (in-game #4); it dims again when focus moves on.
+ */
+private class NovaHudPreviewFocus(private val report: (Boolean) -> Unit) {
+    private val focused = mutableSetOf<String>()
+
+    fun update(key: String, hasFocus: Boolean) {
+        val before = focused.isNotEmpty()
+        if (hasFocus) focused += key else focused -= key
+        if (focused.isNotEmpty() != before) report(focused.isNotEmpty())
+    }
+
+    fun clear() {
+        if (focused.isEmpty()) return
+        focused.clear()
+        report(false)
+    }
+}
+
+/**
+ * The HUD's own corner is the top start, where the Command Center's edge panel lies: a HUD that was
+ * never dragged is under the panel, and its rows say so rather than change something out of sight.
+ * A portrait sheet leaves the top clear. A dragged HUD is shown at full strength wherever it is.
+ */
+@Composable
+private fun novaHudUnderPanel(atItsCorner: Boolean, enabled: Boolean): Boolean =
+    enabled && atItsCorner && com.papi.nova.ui.panel.LocalNovaPanelFillsHeight.current
 
 @Composable
 private fun NovaPageScope.NovaQuickMenuRows(
@@ -784,16 +824,17 @@ private fun NovaPageScope.NovaQuickMenuMenuOpacityControl(
 private fun NovaPageScope.NovaQuickMenuHudOpacityControl(
     ui: State<NovaQuickMenuUiState>,
     callbacks: NovaQuickMenuCallbacks,
+    hudPreview: NovaHudPreviewFocus,
 ) {
     val hudOpacity by ui.slice { it.hudOpacity }
     val options = remember(hudOpacity.presets) { hudOpacity.presets.map { NovaOption(it, "$it%") } }
     NovaValueRow(
         title = stringResource(R.string.nova_quick_menu_hud_opacity),
         caption = stringResource(
-            if (hudOpacity.enabled) {
-                R.string.nova_quick_menu_hud_opacity_caption
-            } else {
-                R.string.nova_quick_menu_hud_opacity_disabled_caption
+            when {
+                !hudOpacity.enabled -> R.string.nova_quick_menu_hud_opacity_disabled_caption
+                novaHudUnderPanel(hudOpacity.atItsCorner, hudOpacity.enabled) -> R.string.nova_cc_hud_opacity_under_panel
+                else -> R.string.nova_quick_menu_hud_opacity_caption
             }
         ),
         options = options,
@@ -801,7 +842,7 @@ private fun NovaPageScope.NovaQuickMenuHudOpacityControl(
         onChange = callbacks.onHudOpacityChange,
         ordered = true,
         enabled = hudOpacity.enabled,
-        modifier = Modifier.novaRestorableFocus("hud-opacity"),
+        modifier = Modifier.novaRestorableFocus("hud-opacity").onFocusChanged { hudPreview.update("hud-opacity", it.hasFocus) },
     )
 }
 
@@ -820,10 +861,10 @@ private fun NovaQuickMenuHudModePicker(
     NovaValueRow(
         title = stringResource(R.string.nova_quick_menu_hud_mode),
         caption = stringResource(
-            if (hudMode.enabled) {
-                R.string.nova_quick_menu_hud_mode_caption
-            } else {
-                R.string.nova_quick_menu_hud_mode_disabled_caption
+            when {
+                !hudMode.enabled -> R.string.nova_quick_menu_hud_mode_disabled_caption
+                novaHudUnderPanel(hudMode.atItsCorner, hudMode.enabled) -> R.string.nova_cc_hud_mode_under_panel
+                else -> R.string.nova_quick_menu_hud_mode_caption
             }
         ),
         options = options,

@@ -7090,14 +7090,34 @@ schedulePolarisLiveSessionStatusRefresh(true)
  */
 fun setNovaHudCovered(covered:Boolean) {
 novaHudCovered = covered
+// A panel that closes takes its focused rows with it.
+if (!covered) novaHudPreviewing = false
 applyNovaHudCovered()
 }
 
 private var novaHudCovered:Boolean = false
 
-private fun applyNovaHudCovered() {
-novaHud?.setCovered(novaHudCovered)
+/**
+ * While a Command Center row that changes the HUD has focus (HUD Mode, HUD Opacity), the HUD shows
+ * at full strength, so the change can be seen as it is made (in-game #4).
+ */
+fun setNovaHudPreviewing(previewing:Boolean) {
+novaHudPreviewing = previewing
+applyNovaHudCovered()
 }
+
+private var novaHudPreviewing:Boolean = false
+
+private fun applyNovaHudCovered() {
+novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)
+}
+
+/**
+ * Whether the HUD is in its own corner, the top start, where it has been unless the player dragged
+ * it. The Command Center's edge panel covers that corner.
+ */
+val isNovaHudAtItsCorner:Boolean
+get() = !PreferenceManager.getDefaultSharedPreferences(this).contains("nova_polaris_hud_x")
 
 override fun cycleNovaHudFromController() {
 runOnUiThread {

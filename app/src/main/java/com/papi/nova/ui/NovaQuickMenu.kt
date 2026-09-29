@@ -455,6 +455,7 @@ class NovaQuickMenu(
                 currentGameUuid = currentGameUuid(),
                 profilePreference = currentProfilePreference(gameName),
                 hudShowing = game.isNovaHudShowing(),
+                hudAtItsCorner = game.isNovaHudAtItsCorner,
                 hudMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal")),
                 hudOpacityPercent = pendingHudOpacity ?: NovaHudPreferences.readOpacityPercent(prefs),
                 menuOpacityPercent = pendingMenuOpacity ?: NovaMenuPreferences.readOpacityPercent(prefs),
@@ -1008,6 +1009,7 @@ class NovaQuickMenu(
                     refreshState()
                 }
             },
+            onHudPreview = { previewing -> game.setNovaHudPreviewing(previewing) },
             onDoctorUndo = {
                 haptic {
                     DoctorActionReceiptStore.visibleReceipt(
