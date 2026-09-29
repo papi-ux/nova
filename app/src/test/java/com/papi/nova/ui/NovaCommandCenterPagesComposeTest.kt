@@ -360,7 +360,10 @@ class NovaCommandCenterPagesComposeTest {
         )
     }
 
-    /** N26: the Doctor card's chip said what A does; it says only a state, and the action is a line. */
+    /**
+     * N26: the Doctor card's chip said what A does; it says only a state, and the action is a line.
+     * A reading the strip warns about, so the line is what A does alone, with no "Nothing to fix".
+     */
     @Test
     fun theDoctorCardSaysWhatItDoesInALineNotInItsChip() {
         open { state ->
@@ -371,6 +374,7 @@ class NovaCommandCenterPagesComposeTest {
                     visible = true,
                     capability = NovaQuickMenuDoctorCapability.MANUAL,
                     actionExecutable = false,
+                    informational = false,
                 ),
             )
         }

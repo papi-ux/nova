@@ -63,8 +63,6 @@ class NovaQuickMenu(
      * stream's focus, and a view in the panel window for snackbars).
      */
     private class MenuSession(val device: GameInputDevice?, val rootKey: String) {
-        /** Where the Doctor card sits until this opening closes. */
-        val doctorSlot = NovaQuickMenuDoctorSlot()
         var scope: NovaPageScope? = null
         var anchorRef: WeakReference<View>? = null
         val anchor: View? get() = anchorRef?.get()
@@ -1158,7 +1156,7 @@ class NovaQuickMenu(
                 menu.anchorRef = WeakReference(view)
             }
             when (page) {
-                is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace, doctorSlot = menu.doctorSlot)
+                is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace)
                 is CommandCenterPage.Listing -> CommandCenterListingPage(page)
                 is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                 else -> Unit

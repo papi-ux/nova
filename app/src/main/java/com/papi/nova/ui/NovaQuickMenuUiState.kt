@@ -142,14 +142,9 @@ data class NovaQuickMenuDiagnosisState(
     val copied: Boolean = false,
     /**
      * Nothing to run, and nothing the session strip warns about: an observation, or a reading of
-     * a healthy stream. It ranks after the sections a player adjusts, not right under the strip.
+     * a healthy stream. The card keeps its one place under the strip and reads quieter (N28).
      */
-    val informational: Boolean = false,
-    /**
-     * The host has answered, so this is its reading and not the placeholder shown before it did.
-     * The Command Center picks the card's slot from the first reading of each opening.
-     */
-    val fromHost: Boolean = false
+    val informational: Boolean = false
 )
 
 data class NovaQuickMenuUiState(
@@ -729,8 +724,8 @@ data class NovaQuickMenuUiState(
             // already the card's title. Keep only the advice that follows it.
             val tryFirst = doctor?.firstTry.orEmpty().withoutLeadingSentence(likelyCause)
             // An observation ("control-channel retries, but no confirmed loss") or a healthy
-            // reading, with nothing Nova can run, informs; a reading the strip warns about, or one
-            // with an action, is what the player came for (N28).
+            // reading, with nothing Nova can run, informs and reads quieter; a reading the strip
+            // warns about, or one with an action, is what the player came for (N28).
             val observationOnly = doctor?.primaryIssue.orEmpty().lowercase() in
                 setOf("network_observation", "control_channel_observation")
             val informational = !actionExecutable && (observationOnly || status?.hasHealthConcerns != true)
@@ -753,7 +748,6 @@ data class NovaQuickMenuUiState(
                 actionExecutable = actionExecutable,
                 capability = capability,
                 informational = informational,
-                fromHost = status != null,
                 targetBitrateKbps = doctor?.targetBitrateKbps ?: 0,
                 verificationDelaySeconds = doctor?.verificationDelaySeconds ?: 0,
                 undoSupported = doctor?.undoSupported == true,

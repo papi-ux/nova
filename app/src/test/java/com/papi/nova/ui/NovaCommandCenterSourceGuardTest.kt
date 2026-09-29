@@ -487,7 +487,7 @@ class NovaCommandCenterSourceGuardTest {
         val controlsPanel = body.indexOf("NovaSectionLabel(controlsTitle)")
         val sessionPanel = body.indexOf("NovaSectionLabel(sessionTitle)")
         val overlaysPanel = body.indexOf("NovaSectionLabel(overlaysTitle)")
-        val diagnosisCard = body.indexOf("NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)")
+        val diagnosisCard = body.indexOf("NovaQuickMenuDiagnosisCard(ui, callbacks)")
         val stabilityCard = body.indexOf("NovaQuickMenuStabilityCard(ui, callbacks)")
         val syncCard = body.indexOf("{ it.sync }")
         val advancedToggleCard = body.indexOf("{ it.advancedToggle }")
@@ -513,12 +513,10 @@ class NovaCommandCenterSourceGuardTest {
             "sync and Advanced stay at the end",
             syncCard in 0 until advancedToggleCard
         )
-        val actionableDoctor = body.indexOf("if (showDiagnosis && !diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)")
-        val informationalDoctor = body.indexOf("if (showDiagnosis && diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)")
         assertTrue(
-            "a Doctor reading that only informs ranks after the sections a player adjusts, and before Sync and Advanced; one that explains the strip or can act stays under it (N28)",
-            actionableDoctor in (pinnedKeys + 1) until stabilityCard &&
-                informationalDoctor in (quickKeysPanel + 1) until syncCard
+            "the Doctor card has one place, under the strip, whatever the reading says: a reading that only informs reads quieter there instead of moving (review finding 1, N28)",
+            body.split("NovaQuickMenuDiagnosisCard(").size == 2 &&
+                body.contains("if (showDiagnosis) NovaQuickMenuDiagnosisCard(ui, callbacks)")
         )
         assertTrue(
             "the host safe profile is observational history and lives inside the expanded Advanced section, not in the first paint",
@@ -898,7 +896,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "the diagnosis card takes callbacks and passes them to the card it draws",
-            quickMenu.contains("NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)") &&
+            quickMenu.contains("NovaQuickMenuDiagnosisCard(ui, callbacks)") &&
                 quickMenu.contains("callbacks: NovaQuickMenuCallbacks,")
         )
     }

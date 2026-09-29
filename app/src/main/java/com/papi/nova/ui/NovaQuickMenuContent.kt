@@ -170,7 +170,6 @@ fun NovaPageScope.NovaQuickMenuContent(
     callbacks: NovaQuickMenuCallbacks,
     modifier: Modifier = Modifier,
     place: NovaQuickMenuPlace? = null,
-    doctorSlot: NovaQuickMenuDoctorSlot = remember { NovaQuickMenuDoctorSlot() },
 ) {
     val ui = state.collectAsState()
     val endSplit = rememberNovaSplitConfirmState()
@@ -180,13 +179,6 @@ fun NovaPageScope.NovaQuickMenuContent(
     val quickKeysTitle = stringResource(R.string.nova_quick_menu_quick_keys)
     val showPinnedKeys by ui.slice { it.pinnedQuickKeys.isNotEmpty() }
     val showDiagnosis by ui.slice { it.diagnosis.visible }
-    val informationalNow by ui.slice { it.diagnosis.informational }
-    val diagnosisFromHost by ui.slice { it.diagnosis.fromHost }
-    // The card keeps one slot for the whole opening, whatever the live verdict does next.
-    val diagnosisInformational = doctorSlot.ranksLast(
-        informational = informationalNow,
-        reading = showDiagnosis && diagnosisFromHost,
-    )
     val showReceipt by ui.slice { it.doctorReceiptAction.visible }
     val advancedExpanded by ui.slice { it.advancedExpanded }
     val showReport by ui.slice { it.advancedExpanded && it.postSessionReport.visible }
@@ -223,10 +215,12 @@ fun NovaPageScope.NovaQuickMenuContent(
                 // full grid lives further down with the rest of the sections.
                 if (showPinnedKeys) NovaQuickKeys(ui, { it.pinnedQuickKeys }, callbacks)
                 // The strip is a one-line verdict. What explains it, the Doctor's reading and what
-                // Auto is running, comes next instead of three screens down. A reading that only
-                // informs, with nothing to run and nothing the strip warns about, ranks last (N28).
-                // Which of the two it is was decided once for this opening: see NovaQuickMenuDoctorSlot.
-                if (showDiagnosis && !diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)
+                // Auto is running, comes next instead of three screens down. The card keeps this one
+                // place whatever the reading says, the host's first answer included: a reading that
+                // only informs reads quieter inside it (N28). Ranked last, it moved between two
+                // places as the verdict flipped every second or two, and every row between them
+                // jumped under the player.
+                if (showDiagnosis) NovaQuickMenuDiagnosisCard(ui, callbacks)
                 if (showReceipt) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
                 NovaQuickMenuStabilityCard(ui, callbacks)
 
@@ -245,8 +239,6 @@ fun NovaPageScope.NovaQuickMenuContent(
                 // The full grid last of the daily sections, since its top three are pinned above.
                 NovaSectionLabel(quickKeysTitle)
                 NovaQuickKeys(ui, { it.gridQuickKeys }, callbacks)
-
-                if (showDiagnosis && diagnosisInformational) NovaQuickMenuDiagnosisCard(ui, callbacks, doctorSlot)
 
                 NovaQuickMenuInfoCard(ui, { it.sync }, callbacks)
                 NovaQuickMenuInfoCard(ui, { it.advancedToggle }, callbacks)
@@ -271,37 +263,6 @@ class NovaQuickMenuPlace {
 }
 
 private val LocalNovaQuickMenuPlace = staticCompositionLocalOf<NovaQuickMenuPlace?> { null }
-
-/**
- * Where the Doctor card sits for one opening of the Command Center: under the session strip, or
- * after the sections a player adjusts when its reading only informs (N28).
- *
- * The live verdict can flip every second or two (a control channel observation, then PyroWave
- * advice, then sustained pressure), and each flip moved the card between the two slots: every
- * row between them shifted by a card's height under the player, and a card that had focus was
- * rebuilt in the other slot without it. The slot is taken from the first reading this opening
- * shows, or from where the card was when it first took focus, and kept until the panel closes.
- * The next opening picks again. The host holds one per opening; pages pushed on top of the root
- * and popped again find the card where they left it.
- */
-class NovaQuickMenuDoctorSlot {
-    private var pinned: Boolean? = null
-    private var shown = false
-
-    /**
-     * Whether the card ranks last. The first call with a [reading] pins [informational]; before
-     * that the card goes where the verdict puts it, since the placeholder has nothing to act on.
-     */
-    fun ranksLast(informational: Boolean, reading: Boolean): Boolean {
-        if (pinned == null && reading) pinned = informational
-        return (pinned ?: informational).also { shown = it }
-    }
-
-    /** The card took focus where it is: it stays there, even before a reading pins it. */
-    fun hold() {
-        if (pinned == null) pinned = shown
-    }
-}
 
 /**
  * [NovaPageScope.novaRestorableFocus], also recorded as where the Command Center next opens. A
@@ -438,7 +399,6 @@ private fun NovaQuickMenuCloseButton(
 private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
     ui: State<NovaQuickMenuUiState>,
     callbacks: NovaQuickMenuCallbacks,
-    slot: NovaQuickMenuDoctorSlot,
 ) {
     val diagnosis by ui.slice { it.diagnosis }
     // What pressing the card does, on its own line. The chip says only a state, Copied, as every
@@ -471,8 +431,13 @@ private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
     val sourceSupportingLine = diagnosis.informationalSource
         .takeIf { it.isNotBlank() }
         ?.let { stringResource(R.string.nova_cc_doctor_source, it) }
+    // A reading that only informs, with nothing to run and nothing the strip warns about, reads
+    // quieter in the card's one place: its finding in the secondary text, and "Nothing to fix"
+    // ahead of what A does (N28).
+    val quiet = diagnosis.informational
     val doesLine = (diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() } ?: capabilityLabel)
         .takeIf { diagnosis.available }
+        ?.let { if (quiet) stringResource(R.string.nova_cc_doctor_nothing_to_fix, it) else it }
     val supportingLine = listOfNotNull(doesLine, aiSupportingLine, sourceSupportingLine).joinToString("\n")
     // The finding is the title and what A does is the line under it, so "Recheck" no longer
     // shows up as title, chip, and button at once.
@@ -487,8 +452,9 @@ private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
     }
     NovaQuickMenuCard(
         action = action,
-        modifier = novaPlaceFocus(NovaQuickMenuActionId.DIAGNOSE_STREAM).onFocusChanged { if (it.hasFocus) slot.hold() },
+        modifier = novaPlaceFocus(NovaQuickMenuActionId.DIAGNOSE_STREAM),
         supportingLine = supportingLine,
+        quiet = quiet,
         // The real callbacks. A fresh default instance renders enabled and does nothing when
         // pressed, and looks no different from one that works; the guard forbids the
         // constructor by name, so this comment deliberately does not spell it.
@@ -655,9 +621,12 @@ private fun NovaQuickMenuCard(
     callbacks: NovaQuickMenuCallbacks,
     modifier: Modifier = Modifier,
     supportingLine: String = "",
+    /** Only informs: the title and the line under it in the secondary text, neither in bold. */
+    quiet: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
+    val titleWeight = if (quiet) FontWeight.Normal else FontWeight.SemiBold
     NovaQuickMenuClickableSurface(
         enabled = action.enabled,
         onClick = { callbacks.perform(action) },
@@ -669,11 +638,23 @@ private fun NovaQuickMenuCard(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
             NovaQuickMenuTitleAndChip(
-                title = { Text(text = action.label, style = type.rowTitle, fontWeight = FontWeight.SemiBold, color = colors.textPrimary) },
+                title = {
+                    Text(
+                        text = action.label,
+                        style = type.rowTitle,
+                        fontWeight = titleWeight,
+                        color = if (quiet) colors.textSecondary else colors.textPrimary,
+                    )
+                },
                 chip = action.chip,
             )
             if (supportingLine.isNotBlank()) {
-                Text(text = supportingLine, style = type.caption, fontWeight = FontWeight.SemiBold, color = colors.accent)
+                Text(
+                    text = supportingLine,
+                    style = type.caption,
+                    fontWeight = titleWeight,
+                    color = if (quiet) colors.textSecondary else colors.accent,
+                )
             }
             if (action.caption.isNotBlank()) {
                 Text(text = action.caption, style = type.caption, color = colors.textSecondary)

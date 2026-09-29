@@ -494,7 +494,7 @@ class NovaQuickMenuUiStateTest {
         assertTrue(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
         assertEquals(16000, state.diagnosis.targetBitrateKbps)
-        assertFalse("a reading Nova can act on keeps its place under the strip", state.diagnosis.informational)
+        assertFalse("a reading Nova can act on is not the quiet kind", state.diagnosis.informational)
     }
 
     @Test
@@ -1106,9 +1106,9 @@ class NovaQuickMenuUiStateTest {
     }
 
     /**
-     * N28 (rest): Doctor's card sat right under the strip whatever it said. "Streaming telemetry
-     * looks ready" and "control-channel retries, but no confirmed loss" inform; they rank after
-     * the sections a player adjusts. A reading the strip warns about, or one Nova can act on, stays.
+     * N28 (rest): Doctor's card read the same whatever it said. "Streaming telemetry looks ready"
+     * and "control-channel retries, but no confirmed loss" inform, and read quieter in the card's
+     * one place under the strip. A reading the strip warns about, or one Nova can act on, does not.
      */
     @Test
     fun doctorRanksWhatOnlyInformsAfterWhatThePlayerCanActOn() {
@@ -1139,7 +1139,7 @@ class NovaQuickMenuUiStateTest {
 
         assertTrue("a healthy reading with nothing to run informs", healthy.diagnosis.informational)
         assertTrue("an observation with nothing to run informs", observation.diagnosis.informational)
-        assertFalse("a reading the strip warns about explains it, right under it", hostRender.diagnosis.informational)
+        assertFalse("a reading the strip warns about explains it at full strength", hostRender.diagnosis.informational)
     }
 
     @Test
