@@ -51,6 +51,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MultiContentMeasurePolicy
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
@@ -64,8 +65,11 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -201,10 +205,12 @@ internal fun NovaPlaySetupPlanCard(
                     { Text(text = title, style = type.rowTitle, color = colors.textPrimary) },
                     {
                         if (limit.isNotBlank()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                NovaPlaySetupWarningGlyph(Modifier.padding(end = NovaPanelMetrics.SpaceXs))
-                                Text(text = limit, style = valueStyle, color = colors.warning)
-                            }
+                            NovaPlaySetupMarkedText(
+                                text = AnnotatedString(limit),
+                                style = valueStyle,
+                                color = colors.warning,
+                                marked = true,
+                            )
                         } else if (value.isNotBlank()) {
                             Text(text = value, style = valueStyle, color = colors.textSecondary, textAlign = TextAlign.End)
                         }
@@ -679,6 +685,42 @@ private fun NovaPlaySetupSetHereDot(modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * [text], after the warning mark when it is [marked]. The mark is centred on the first line of the
+ * words however many lines they take: centred on the whole block, a warning that wrapped onto a
+ * second line had its mark between the two lines.
+ */
+@Composable
+private fun NovaPlaySetupMarkedText(
+    text: AnnotatedString,
+    style: TextStyle,
+    color: Color,
+    marked: Boolean,
+) {
+    if (!marked) {
+        Text(text = text, style = style, color = color)
+        return
+    }
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    // One line of this type, as tall as the first line of the words beside it.
+    val firstLine = remember(style, measurer, density) {
+        with(density) { measurer.measure(AnnotatedString(NovaPlaySetupLineProbe), style).getLineBottom(0).toDp() }
+    }
+    Row(verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier.padding(end = NovaPanelMetrics.SpaceXs).heightIn(min = firstLine),
+            contentAlignment = Alignment.Center,
+        ) {
+            NovaPlaySetupWarningGlyph(Modifier.testTag(NOVA_PLAY_SETUP_WARNING_MARK_TAG))
+        }
+        Text(text = text, style = style, color = color)
+    }
+}
+
+/** A line of text to measure a line's height with. */
+private const val NovaPlaySetupLineProbe = "A"
+
 @Composable
 private fun NovaPlaySetupWarningGlyph(modifier: Modifier = Modifier) {
     Icon(
@@ -781,28 +823,24 @@ internal fun NovaPlaySetupOptionRow(
             else -> option.consequence
         }
         if (note.isNotBlank() || option.recommended) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (option.warning && option.enabled) {
-                    NovaPlaySetupWarningGlyph(Modifier.padding(end = NovaPanelMetrics.SpaceXs))
-                }
-                val accent = colors.accent
-                val lead = if (option.recommended && option.enabled) recommended else ""
-                Text(
-                    text = buildAnnotatedString {
-                        if (lead.isNotBlank()) {
-                            withStyle(SpanStyle(color = accent, fontWeight = FontWeight.Medium)) { append(lead) }
-                            if (note.isNotBlank()) append(" · ")
-                        }
-                        append(note)
-                    },
-                    style = type.caption,
-                    color = when {
-                        !option.enabled -> colors.textMuted
-                        option.warning -> colors.warning
-                        else -> colors.textSecondary
-                    },
-                )
-            }
+            val accent = colors.accent
+            val lead = if (option.recommended && option.enabled) recommended else ""
+            NovaPlaySetupMarkedText(
+                text = buildAnnotatedString {
+                    if (lead.isNotBlank()) {
+                        withStyle(SpanStyle(color = accent, fontWeight = FontWeight.Medium)) { append(lead) }
+                        if (note.isNotBlank()) append(" · ")
+                    }
+                    append(note)
+                },
+                style = type.caption,
+                color = when {
+                    !option.enabled -> colors.textMuted
+                    option.warning -> colors.warning
+                    else -> colors.textSecondary
+                },
+                marked = option.warning && option.enabled,
+            )
         }
     }
 }
@@ -1047,6 +1085,9 @@ internal const val NOVA_PLAY_SETUP_ROWS_TAG = "nova-play-setup-rows"
 
 /** The plan card, at the root and pinned on a page. */
 internal const val NOVA_PLAY_SETUP_PLAN_CARD_TAG = "nova-play-setup-plan-card"
+
+/** A warning's mark, beside the first line of its words. */
+internal const val NOVA_PLAY_SETUP_WARNING_MARK_TAG = "nova-play-setup-warning-mark"
 
 /** The scope pill in the header. */
 internal const val NOVA_PLAY_SETUP_SCOPE_PILL_TAG = "nova-play-setup-scope-pill"
