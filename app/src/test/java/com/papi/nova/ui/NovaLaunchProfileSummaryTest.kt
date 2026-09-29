@@ -22,17 +22,17 @@ class NovaLaunchProfileSummaryTest {
             }}
         }""")
         val original = optimization.toString()
-        val summary = buildNovaLaunchProfileSummary(optimization, clientCodecLabel = "PyroWave")!!
+        val summary = buildTestLaunchProfileSummary(optimization, clientCodecLabel = "PyroWave")!!
         assertTrue(summary.selectedLine.contains("PyroWave (client choice)"))
         assertFalse(summary.selectedLine.contains("HEVC"))
         assertEquals(original, optimization.toString())
-        assertTrue(buildNovaLaunchProfileSummary(optimization)!!.selectedLine.contains("HEVC"))
+        assertTrue(buildTestLaunchProfileSummary(optimization)!!.selectedLine.contains("HEVC"))
 
         // An assigned Space keeps the host's exact media contract and its displayed codec.
         optimization.put("source", "worker_profile_v1")
         optimization.getJSONObject("resolved_profile").getJSONObject("fields")
             .getJSONObject("preferred_codec").put("value", "h264")
-        val worker = buildNovaLaunchProfileSummary(optimization, spaceName = "Space", clientCodecLabel = "PyroWave")!!
+        val worker = buildTestLaunchProfileSummary(optimization, spaceName = "Space", clientCodecLabel = "PyroWave")!!
         assertTrue(worker.selectedLine.contains("H264"))
         assertFalse(worker.selectedLine.contains("PyroWave"))
     }
@@ -46,14 +46,14 @@ class NovaLaunchProfileSummaryTest {
                 "display_mode":{"value":"1920x1080x120"},"target_fps":{"value":120}
             }}
         }""")
-        assertEquals("Launch at 120 FPS", buildNovaLaunchProfileSummary(blob("auto"))!!.primaryLaunchLabel)
+        assertEquals("Launch at 120 FPS", buildTestLaunchProfileSummary(blob("auto"))!!.primaryLaunchLabel)
         assertEquals("a preset a player chose keeps its name", true,
-            buildNovaLaunchProfileSummary(blob("quality"))!!.primaryLaunchLabel.let { it.startsWith("Launch ") && it.endsWith(" · 120 FPS") && !it.startsWith("Launch at") })
+            buildTestLaunchProfileSummary(blob("quality"))!!.primaryLaunchLabel.let { it.startsWith("Launch ") && it.endsWith(" · 120 FPS") && !it.startsWith("Launch at") })
     }
 
     @Test
     fun highFpsRecoverySummaryNamesEffectiveLaunchAndRetry() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"source\":\"history_safe\"," +
@@ -107,7 +107,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun hostRenderLimitNoticeExplainsEvidenceImpactAndRecoveryTarget() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"display_mode\":\"1920x1080x30\"," +
@@ -144,7 +144,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun unknownIssueReportsSourceTruthWithoutInventingAnFpsMiss() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":60," +
@@ -171,7 +171,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun lowerNonRecoveryProfileUsesNeutralSelectionCopy() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":60," +
@@ -197,7 +197,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun equalTargetRecoveryExplainsReleaseWithoutPromisingPacing() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":60," +
@@ -227,7 +227,7 @@ class NovaLaunchProfileSummaryTest {
         )
 
         expected.forEach { (issue, detail) ->
-            val summary = buildNovaLaunchProfileSummary(
+            val summary = buildTestLaunchProfileSummary(
                 JSONObject("{\"limiting_factor\":\"$issue\",\"profile_state\":{\"state\":\"stable\"}}")
             )
 
@@ -238,7 +238,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun highFpsTrialSummaryNamesOneLaunchTrial() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"source\":\"device_db\"," +
@@ -275,7 +275,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun highFpsSatisfiedSummaryDoesNotOfferRetry() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"display_mode\":\"1920x1080x120\"," +
@@ -309,7 +309,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun healthyNearTargetResultOverridesStaleHostLimitWithPositiveEvidence() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"display_mode\":\"1920x1080x120\"," +
@@ -347,7 +347,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun missingDetailedPacingEvidenceDoesNotOverrideHostWarning() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"display_mode\":\"1920x1080x120\"," +
@@ -372,7 +372,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun nearTargetAverageWithBadPacingKeepsWarning() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":120," +
@@ -395,7 +395,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun malformedPacingEvidenceDoesNotOverrideHostWarning() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":120," +
@@ -417,7 +417,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun conflictingNetworkIssueOverridesStaleHostFactor() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":120," +
@@ -440,7 +440,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun absentIssueDoesNotManufactureHealthyStatus() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":120," +
@@ -460,7 +460,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun limitingFactorWithoutPrimaryIssueDoesNotRenderHealthy() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":120,\"limiting_factor\":\"host_render_limited\"," +
@@ -478,7 +478,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun primaryIssueWithoutLimitingFactorDoesNotRenderHealthy() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":120," +
@@ -497,7 +497,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun missingRiskEvidenceDoesNotRenderHealthy() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":120,\"limiting_factor\":\"host_render_limited\"," +
@@ -514,7 +514,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun unknownRiskEvidenceDoesNotRenderHealthy() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":120,\"limiting_factor\":\"host_render_limited\"," +
@@ -532,7 +532,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun activeRecoveryNeverRendersAsHealthyNearTarget() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":60," +
@@ -556,7 +556,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun targetMetResultOverridesStaleHostWarning() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"effective_target_fps\":120," +
@@ -582,7 +582,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun steadyLastResultDoesNotRenderAsLimited() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"display_mode\":\"1920x1080x120\"," +
@@ -611,7 +611,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun highFpsRecommendationNamesStreamTargetInsteadOfGameRenderPromise() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             JSONObject(
                 "{" +
                     "\"display_mode\":\"1920x1080x120\"," +
@@ -669,7 +669,7 @@ class NovaLaunchProfileSummaryTest {
         cases.forEach { (label, mutate) ->
             val input = healthyNearTargetOptimization()
             mutate(input)
-            val summary = buildNovaLaunchProfileSummary(input)
+            val summary = buildTestLaunchProfileSummary(input)
 
             requireNotNull(summary)
             assertEquals(label, NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
@@ -683,7 +683,7 @@ class NovaLaunchProfileSummaryTest {
         input.put("trial_profile", true)
         input.getJSONObject("profile_state").put("state", "trial")
 
-        val summary = buildNovaLaunchProfileSummary(input)
+        val summary = buildTestLaunchProfileSummary(input)
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
@@ -697,7 +697,7 @@ class NovaLaunchProfileSummaryTest {
         input.getJSONObject("profile_state").getJSONObject("last_result")
             .put("primary_issue", "frame_pacing")
 
-        val summary = buildNovaLaunchProfileSummary(input)
+        val summary = buildTestLaunchProfileSummary(input)
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
@@ -716,7 +716,7 @@ class NovaLaunchProfileSummaryTest {
             val input = healthyNearTargetOptimization()
             input.getJSONObject("profile_state").getJSONObject("last_result")
                 .put("frame_pacing_bad_pct", pacing)
-            val summary = buildNovaLaunchProfileSummary(input)
+            val summary = buildTestLaunchProfileSummary(input)
 
             requireNotNull(summary)
             assertEquals(label, NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
@@ -730,7 +730,7 @@ class NovaLaunchProfileSummaryTest {
             .put("state", "recovering")
             .put("label", "Recovery")
 
-        val summary = buildNovaLaunchProfileSummary(input)
+        val summary = buildTestLaunchProfileSummary(input)
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
@@ -746,7 +746,7 @@ class NovaLaunchProfileSummaryTest {
             .put("primary_issue", "network")
             .put("delivered_fps", "Infinity")
 
-        val summary = buildNovaLaunchProfileSummary(input)
+        val summary = buildTestLaunchProfileSummary(input)
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
@@ -763,7 +763,7 @@ class NovaLaunchProfileSummaryTest {
             .put("low_1_percent_fps", 58)
             .put("min_fps", 55)
 
-        val summary = buildNovaLaunchProfileSummary(input)
+        val summary = buildTestLaunchProfileSummary(input)
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
@@ -776,7 +776,7 @@ class NovaLaunchProfileSummaryTest {
         input.getJSONObject("profile_state").getJSONObject("last_result")
             .put("target_fps", 119.5)
 
-        val summary = buildNovaLaunchProfileSummary(input)
+        val summary = buildTestLaunchProfileSummary(input)
 
         requireNotNull(summary)
         assertEquals(NovaLaunchProfileNoticeTone.HEALTHY, summary.noticeTone)
@@ -790,7 +790,7 @@ class NovaLaunchProfileSummaryTest {
             input.put("preference", "high_fps")
             input.getJSONObject("profile_state").put("label", label)
 
-            val summary = buildNovaLaunchProfileSummary(input)
+            val summary = buildTestLaunchProfileSummary(input)
 
             requireNotNull(summary)
             assertEquals(label, NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
@@ -810,7 +810,7 @@ class NovaLaunchProfileSummaryTest {
                 profileState.put("state", state)
             }
 
-            val summary = buildNovaLaunchProfileSummary(input)
+            val summary = buildTestLaunchProfileSummary(input)
 
             requireNotNull(summary)
             assertEquals(state ?: "missing", NovaLaunchProfileNoticeTone.WARNING, summary.noticeTone)
@@ -855,7 +855,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun recoveryHoldWithHigherClientAskStatesTheGapAndItsReason() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             recoveryHoldOptimization(),
             nowSeconds = 1780000060L,
             clientAskedFps = 120.0
@@ -868,7 +868,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun clientFpsPinOwnsTheHeadlineAndRetiresTheTrial() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             recoveryHoldOptimization(),
             nowSeconds = 1780000060L,
             clientAskedFps = 120.0,
@@ -888,7 +888,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun matchingClientAskAddsNoGapSuffix() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             recoveryHoldOptimization(),
             nowSeconds = 1780000060L,
             clientAskedFps = 30.0
@@ -930,7 +930,7 @@ class NovaLaunchProfileSummaryTest {
                     .put("fields", fields),
             )
 
-        val summary = requireNotNull(buildNovaLaunchProfileSummary(optimization, clientAskedFps = 120.0))
+        val summary = requireNotNull(buildTestLaunchProfileSummary(optimization, clientAskedFps = 120.0))
 
         assertTrue(summary.selectedLine.contains("1920×1080 @ 120 FPS"))
         assertEquals("High FPS", summary.profileLabel)
@@ -977,7 +977,7 @@ class NovaLaunchProfileSummaryTest {
     // client's own Request HDR toggle was off. That was the last gate nobody could see.
     @Test
     fun resolvedLineSaysWhenThisClientNeverAskedForHdr() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             deterministicPreset(hdr = false, source = "client_launch_request", reason = "requested_hdr_setting"),
             clientAskedHdr = false,
         )
@@ -989,7 +989,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun hostReasonAloneIsEnoughWhenTheClientDoesNotKnowItsOwnToggle() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             deterministicPreset(hdr = false, source = "client_launch_request", reason = "requested_hdr_setting"),
         )
         requireNotNull(summary)
@@ -998,7 +998,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun resolvedLineBlamesTheHostWhenTheHostTurnedHdrOff() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             deterministicPreset(hdr = false, source = "capability_validation", reason = "paired_device_hdr_unsupported"),
             clientAskedHdr = true,
         )
@@ -1009,7 +1009,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun resolvedLineSaysHdrPlainlyWhenItIsOn() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             deterministicPreset(hdr = true, source = "client_launch_request", reason = "requested_hdr_setting"),
             clientAskedHdr = true,
         )
@@ -1070,7 +1070,7 @@ class NovaLaunchProfileSummaryTest {
         // The host answers a Space launch with its Space contract and no profile state. That fell
         // through to the generic path, where the missing state became "Profile", and Play Setup
         // printed "Granted: Profile" under a Space's Steam Big Picture.
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             spaceLaunch(),
             clientAskedFps = 120.0,
             clientAskedHdr = true,
@@ -1102,7 +1102,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun aSpaceLaunchSaysWhatWasAskedOnlyWhenTheSpaceGrantedLess() {
-        val summary = buildNovaLaunchProfileSummary(
+        val summary = buildTestLaunchProfileSummary(
             spaceLaunch(),
             clientAskedFps = 240.0,
             clientAskedHdr = false,
@@ -1133,7 +1133,7 @@ class NovaLaunchProfileSummaryTest {
 
     @Test
     fun aSpaceLaunchWithoutItsNameStillNamesASpace() {
-        val summary = requireNotNull(buildNovaLaunchProfileSummary(spaceLaunch(), clientAskedFps = 120.0))
+        val summary = requireNotNull(buildTestLaunchProfileSummary(spaceLaunch(), clientAskedFps = 120.0))
         assertEquals("Launch in your Space · 120 FPS", summary.primaryLaunchLabel)
     }
 }

@@ -29,12 +29,12 @@ class NovaLaunchProfileNoHalfLabelTest {
             fallbackHeight = 2160,
             fallbackFps = 60,
         )
-        assertNull(buildNovaLaunchProfileSummary(composed, clientAskedFps = 120.0))
+        assertNull(buildTestLaunchProfileSummary(composed, clientAskedFps = 120.0))
     }
 
     @Test
     fun whileTheHostRechecksThePlanTheLastOneStandsInAndLaunchKeepsItsPreset() {
-        val settled = buildNovaLaunchProfileSummary(
+        val settled = buildTestLaunchProfileSummary(
             org.json.JSONObject(
                 """{"source":"deterministic_preset_v1","resolved_profile":{"policy_version":1,"preset":"quality","preset_label":"Quality","fields":{
                     "display_mode":{"value":"3840x2160x120"},"display_width":{"value":3840},"display_height":{"value":2160},

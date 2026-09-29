@@ -1,9 +1,20 @@
 package com.papi.nova.ui
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
+import com.papi.nova.R
 import org.json.JSONObject
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.round
+
+/**
+ * The words the launch summary says, from string resources, in the player's language (N22). They
+ * were written into the builder in English, the last of them the Auto preset's Launch label.
+ */
+internal class NovaLaunchProfileText(private val resources: Resources) {
+    fun get(@StringRes id: Int, vararg args: Any): String = resources.getString(id, *args)
+}
 
 enum class NovaLaunchProfileNoticeTone {
     WARNING,
@@ -14,6 +25,7 @@ private const val HEALTHY_PROFILE_TARGET_TOLERANCE_FPS = 0.5
 
 /** Refresh presentation after a local choice without changing host preflight authority. */
 internal fun NovaGameDetailOptimizationState.withLaunchProfileSummary(
+    text: NovaLaunchProfileText,
     launchOptimization: JSONObject?,
     clientAskedFps: Double,
     clientAskedHdr: Boolean? = null,
@@ -21,6 +33,7 @@ internal fun NovaGameDetailOptimizationState.withLaunchProfileSummary(
     clientCodecLabel: String? = null,
 ): NovaGameDetailOptimizationState = copy(
     profileSummary = buildNovaLaunchProfileSummary(
+        text,
         launchOptimization,
         clientAskedFps = clientAskedFps,
         clientAskedHdr = clientAskedHdr,
@@ -45,7 +58,7 @@ data class NovaLaunchProfileSummary(
     val retryHighFpsLabel: String,
     /**
      * What is holding the granted rate below the client's ask, prettified for display
-     * ("Held by History Safe Profile"). Blank when nothing is, or when a pin outranks
+     * (Held by History Safe Profile). Blank when nothing is, or when a pin outranks
      * the hold anyway.
      */
     val grantHoldReason: String = "",
@@ -60,10 +73,13 @@ data class NovaLaunchProfileSummary(
     val resolvedTopologyLabel: String = "",
     /** Resolved preset name and plain-language origin shown by Play Setup. */
     val profileLabel: String = "",
-    val profileDescription: String = ""
+    val profileDescription: String = "",
+    /** How the last session went, the first of [historyLines] when there was one. */
+    val lastSessionLine: String = "",
 )
 
 internal fun buildNovaLaunchProfileSummary(
+    text: NovaLaunchProfileText,
     optimization: JSONObject?,
     nowSeconds: Long = System.currentTimeMillis() / 1000L,
     /** The fps this client actually asked for (its Settings frame rate); 0 = unknown. */
@@ -87,10 +103,10 @@ internal fun buildNovaLaunchProfileSummary(
     if (optimization.optString("source", "") == NovaLaunchStreamOverride.UNVERIFIED_SOURCE) return null
     val pinnedFps = if (clientFpsPinned && clientAskedFps > 0.0) clientAskedFps else 0.0
     if (optimization.optString("source", "").equals("deterministic_preset_v1", ignoreCase = true)) {
-        return buildDeterministicLaunchPresetSummary(optimization, pinnedFps, clientAskedFps, clientAskedHdr, clientCodecLabel)
+        return buildDeterministicLaunchPresetSummary(text, optimization, pinnedFps, clientAskedFps, clientAskedHdr, clientCodecLabel)
     }
     if (optimization.optString("source", "").equals(SPACE_LAUNCH_SOURCE, ignoreCase = true)) {
-        return buildSpaceLaunchSummary(optimization, spaceName, clientAskedFps, clientAskedHdr)
+        return buildSpaceLaunchSummary(text, optimization, spaceName, clientAskedFps, clientAskedHdr)
     }
 
     val profileState = optimization.optJSONObject("profile_state")
@@ -102,17 +118,20 @@ internal fun buildNovaLaunchProfileSummary(
     val actions = profileState?.optJSONObject("actions")
 
     val preference = normalized(optimization.optString("preference", profileState?.optString("preference", "auto") ?: "auto"))
-    val preferenceLabel = launchProfileDisplayLabel(
+    val preferenceLabel = (
         profileState
             ?.optString("preference_label", "")
             ?.takeIf { it.isNotBlank() }
-            ?: preferenceLabel(preference)
-    )
+            ?.let(::hostProfileName)
+            ?: ProfileName.Known(preferenceKind(preference))
+        ).say(text)
     val state = normalized(profileState?.optString("state", "") ?: "")
-    val rawSelectedLabel = profileState
-        ?.optString("label", "")
-        ?.takeIf { it.isNotBlank() }
-        ?: selectedLabelFromState(state)
+    // The host's own label when it gave one, else what its state means; each is who the profile
+    // is, and only [ProfileName.say] turns it into words.
+    val hostLabel = profileState?.optString("label", "")?.takeIf { it.isNotBlank() }
+    val rawSelected = hostLabel?.let(::hostProfileName) ?: ProfileName.Known(stateKind(state))
+    val rawIsRecovery = hostLabel?.contains("recovery", ignoreCase = true) ?: (state == "recovering")
+    val rawIsTrial = hostLabel?.contains("trial", ignoreCase = true) ?: (state == "trial")
     val trialProfile = optimization.optBoolean("trial_profile", false) ||
         profileState?.optBoolean("trial_profile", false) == true
 
@@ -134,30 +153,33 @@ internal fun buildNovaLaunchProfileSummary(
         requestedFps > 0.0 &&
         effectiveFps > 0.0 &&
         effectiveFps + 0.5 >= requestedFps
-    val selectedLabel = when {
-        trialProfile -> "High FPS trial"
-        highFpsRequestSatisfied -> "High FPS stream"
-        else -> launchProfileDisplayLabel(rawSelectedLabel)
+    val selected = when {
+        trialProfile -> ProfileName.Known(ProfileKind.HIGH_FPS_TRIAL)
+        highFpsRequestSatisfied -> ProfileName.Known(ProfileKind.HIGH_FPS_STREAM)
+        else -> rawSelected
     }
+    val selectedLabel = selected.say(text)
+    val selectedIsRecovery = selected.isRecovery()
+    val selectedIsTrial = selected.isTrial()
 
     val primaryLabel = when {
         // A pin outranks whatever the host planned, so the verb states the pin --
         // promising a recovery launch that will not happen is worse than saying less.
-        pinnedFps > 0.0 -> "Launch ${formatFps(pinnedFps)} FPS · your pick"
-        trialProfile && effectiveFps > 0.0 -> "Try High FPS stream ${formatFps(effectiveFps)} FPS"
-        selectedLabel.equals("High FPS stream", ignoreCase = true) && effectiveFps > 0.0 ->
-            "Launch High FPS stream ${formatFps(effectiveFps)} FPS"
-        selectedLabel.equals("Recovery profile", ignoreCase = true) && effectiveFps > 0.0 ->
-            "Launch Recovery profile ${formatFps(effectiveFps)} FPS"
-        effectiveFps > 0.0 -> "Launch ${formatFps(effectiveFps)} FPS"
-        selectedLabel.isNotBlank() -> "Launch $selectedLabel"
+        pinnedFps > 0.0 -> text.get(R.string.nova_launch_plan_label_pinned, formatFps(pinnedFps))
+        trialProfile && effectiveFps > 0.0 -> text.get(R.string.nova_launch_plan_label_trial, formatFps(effectiveFps))
+        selected == ProfileName.Known(ProfileKind.HIGH_FPS_STREAM) && effectiveFps > 0.0 ->
+            text.get(R.string.nova_launch_plan_label_high_fps, formatFps(effectiveFps))
+        selected == ProfileName.Known(ProfileKind.RECOVERY) && effectiveFps > 0.0 ->
+            text.get(R.string.nova_launch_plan_label_recovery, formatFps(effectiveFps))
+        effectiveFps > 0.0 -> text.get(R.string.nova_launch_plan_label_fps, formatFps(effectiveFps))
+        selectedLabel.isNotBlank() -> text.get(R.string.nova_launch_plan_label_named, selectedLabel)
         else -> ""
     }
 
     val requestedLine = if (requestedFps > 0.0) {
-        "Requested: $preferenceLabel / ${formatFps(requestedFps)} FPS"
+        text.get(R.string.nova_launch_plan_requested_fps, preferenceLabel, formatFps(requestedFps))
     } else {
-        "Requested: $preferenceLabel"
+        text.get(R.string.nova_launch_plan_requested, preferenceLabel)
     }
     // The ask-vs-grant gap, stated where the grant is stated. The client ask is this
     // client's Settings frame rate -- the host's own requested_* fields cannot be
@@ -168,13 +190,21 @@ internal fun buildNovaLaunchProfileSummary(
         effectiveFps > 0.0 &&
         clientAskedFps > effectiveFps + 0.5
     val selectedLine = when {
-        pinnedFps > 0.0 && effectiveFps > 0.0 && pinnedFps > effectiveFps + 0.5 ->
-            "Selected: ${formatFps(pinnedFps)} FPS pinned (host offered $selectedLabel / ${formatFps(effectiveFps)} FPS)"
-        pinnedFps > 0.0 -> "Selected: ${formatFps(pinnedFps)} FPS pinned"
-        askedGap && effectiveFps > 0.0 ->
-            "Selected: $selectedLabel / ${formatFps(effectiveFps)} FPS · you asked ${formatFps(clientAskedFps)}"
-        effectiveFps > 0.0 -> "Selected: $selectedLabel / ${formatFps(effectiveFps)} FPS"
-        else -> "Selected: $selectedLabel"
+        pinnedFps > 0.0 && effectiveFps > 0.0 && pinnedFps > effectiveFps + 0.5 -> text.get(
+            R.string.nova_launch_plan_selected_pinned_over,
+            formatFps(pinnedFps),
+            selectedLabel,
+            formatFps(effectiveFps),
+        )
+        pinnedFps > 0.0 -> text.get(R.string.nova_launch_plan_selected_pinned, formatFps(pinnedFps))
+        askedGap && effectiveFps > 0.0 -> text.get(
+            R.string.nova_launch_plan_selected_asked_gap,
+            selectedLabel,
+            formatFps(effectiveFps),
+            formatFps(clientAskedFps),
+        )
+        effectiveFps > 0.0 -> text.get(R.string.nova_launch_plan_selected_fps, selectedLabel, formatFps(effectiveFps))
+        else -> text.get(R.string.nova_launch_plan_selected, selectedLabel)
     }
 
     val reasonText = profileState
@@ -190,32 +220,36 @@ internal fun buildNovaLaunchProfileSummary(
         state = state,
         requestedFps = requestedFps,
         effectiveFps = effectiveFps,
-        selectedLabel = selectedLabel,
-        rawSelectedLabel = rawSelectedLabel,
+        selectedIsRecovery = selectedIsRecovery,
+        selectedIsTrial = selectedIsTrial,
+        rawIsRecovery = rawIsRecovery,
+        rawIsTrial = rawIsTrial,
         trialProfile = trialProfile,
         hasAuthoritativeProfileFps = requestedProfileFps != null && selectedProfileFps != null
     )
     val healthyPerformance = healthyPerformanceStatus != null
-    val reasonLine = if (healthyPerformance) {
-        "Performance: $healthyPerformanceStatus"
+    val healthyStatusLabel = healthyPerformanceStatus?.say(text)
+    val reasonLine = if (healthyStatusLabel != null) {
+        text.get(R.string.nova_launch_plan_performance, healthyStatusLabel)
     } else {
-        reasonText.takeIf { it.isNotBlank() }?.let { "Reason: $it" }.orEmpty()
+        reasonText.takeIf { it.isNotBlank() }?.let { text.get(R.string.nova_launch_plan_reason, it) }.orEmpty()
     }
 
     val issue = if (healthyPerformance) "" else reportedIssue
-    val limitingLine = issue.takeIf { it.isNotBlank() }?.let { "Limited by: ${novaLaunchIssueLabel(it)}" }.orEmpty()
+    val limitingLine = issue.takeIf { it.isNotBlank() }
+        ?.let { text.get(R.string.nova_launch_plan_limited_by, novaLaunchIssueLabel(it, text)) }
+        .orEmpty()
 
     val updatedAt = lastResult?.optLong("updated_at", 0L) ?: 0L
     val freshnessLine = when {
-        trialProfile -> "One-launch trial; learned recovery remains active unless this launch grades cleanly."
-        selectedLabel.startsWith("Recovery", ignoreCase = true) && updatedAt > 0L ->
-            "Recovery active from last session · ${relativeAge(updatedAt, nowSeconds)}"
-        selectedLabel.startsWith("Recovery", ignoreCase = true) ->
-            "Recovery active from last session"
+        trialProfile -> text.get(R.string.nova_launch_plan_trial_freshness)
+        selectedIsRecovery && updatedAt > 0L ->
+            text.get(R.string.nova_launch_plan_recovery_active_age, relativeAge(text, updatedAt, nowSeconds))
+        selectedIsRecovery -> text.get(R.string.nova_launch_plan_recovery_active)
         else -> ""
     }
 
-    val historyLines = buildHistoryLines(lastResult, issue, selectedLabel, healthyPerformanceStatus)
+    val historyLines = buildHistoryLines(text, lastResult, issue, selectedIsRecovery, healthyStatusLabel)
     val highFpsHeldBelowRequest = preference == "high_fps" &&
         requestedFps > 0.0 &&
         effectiveFps > 0.0 &&
@@ -238,25 +272,26 @@ internal fun buildNovaLaunchProfileSummary(
     )
     val grantHoldReason = when {
         !askedGap -> ""
-        blockedReason.isNotBlank() -> "Held by ${novaLaunchIssueLabel(blockedReason)}"
-        issue.isNotBlank() -> "Held by ${novaLaunchIssueLabel(issue)}"
-        selectedLabel.startsWith("Recovery", ignoreCase = true) -> "Held by the recovery profile"
+        blockedReason.isNotBlank() -> text.get(R.string.nova_launch_plan_held_by, novaLaunchIssueLabel(blockedReason, text))
+        issue.isNotBlank() -> text.get(R.string.nova_launch_plan_held_by, novaLaunchIssueLabel(issue, text))
+        selectedIsRecovery -> text.get(R.string.nova_launch_plan_held_by_recovery)
         else -> ""
     }
     val retryLabel = if (requestedFps > effectiveFps + 0.5) {
-        "Try ${formatFps(requestedFps)} FPS once"
+        text.get(R.string.nova_launch_plan_retry_fps, formatFps(requestedFps))
     } else {
-        "Try High FPS once"
+        text.get(R.string.nova_launch_plan_retry_high_fps)
     }
     val noticeDetail = if (healthyPerformance) {
-        buildHealthyPerformanceNoticeDetail(lastResult, requireNotNull(healthyPerformanceStatus))
+        buildHealthyPerformanceNoticeDetail(text, lastResult, requireNotNull(healthyPerformanceStatus))
     } else {
-        buildNoticeDetail(lastResult, issue)
+        buildNoticeDetail(text, lastResult, issue)
     }
     val noticeRecommendation = if (healthyPerformance) {
-        "No recovery adjustment is needed."
+        text.get(R.string.nova_launch_plan_no_recovery_needed)
     } else {
         buildNoticeRecommendation(
+            text = text,
             state = state,
             requestedFps = requestedFps,
             effectiveFps = effectiveFps,
@@ -278,16 +313,18 @@ internal fun buildNovaLaunchProfileSummary(
         noticeDetail = noticeDetail,
         noticeRecommendation = noticeRecommendation,
         noticeTone = noticeTone,
-        noticeLabel = healthyPerformanceStatus ?: "Heads up",
+        noticeLabel = healthyStatusLabel ?: text.get(R.string.nova_launch_plan_heads_up),
         freshnessLine = freshnessLine,
-        historyLines = historyLines,
+        historyLines = historyLines.lines,
         showRetryHighFps = showRetryHighFps,
         retryHighFpsLabel = retryLabel,
-        grantHoldReason = grantHoldReason
+        grantHoldReason = grantHoldReason,
+        lastSessionLine = historyLines.lastSession,
     )
 }
 
 private fun buildDeterministicLaunchPresetSummary(
+    text: NovaLaunchProfileText,
     optimization: JSONObject,
     pinnedFps: Double,
     clientAskedFps: Double,
@@ -300,8 +337,8 @@ private fun buildDeterministicLaunchPresetSummary(
 
     val preset = normalized(resolved.optString("preset", optimization.optString("preset", "auto")))
     val presetLabel = resolved.optString("preset_label", "").takeIf { it.isNotBlank() }
-        ?: preferenceLabel(preset)
-    val resolvedFields = resolvedLaunchFields(fields, clientAskedHdr, clientCodecLabel)
+        ?: ProfileName.Known(preferenceKind(preset)).say(text)
+    val resolvedFields = resolvedLaunchFields(text, fields, clientAskedHdr, clientCodecLabel)
     val resolvedFps = resolvedFields.fps
     val effectiveFps = if (pinnedFps > 0.0) pinnedFps else resolvedFps
     val selectedParts = resolvedFields.parts
@@ -320,31 +357,33 @@ private fun buildDeterministicLaunchPresetSummary(
         ""
     }
 
-    val asked = if (clientAskedFps > 0.0) " · ${formatFps(clientAskedFps)} FPS" else ""
-    val profileDescription =
-        "Polaris resolved this from the launch request, paired-device settings, and current host capabilities."
+    val profileDescription = text.get(R.string.nova_launch_plan_preset_description)
     return NovaLaunchProfileSummary(
         // Auto names no preset a player chose, and "Launch Auto · 120 FPS" read as launching
         // something called Auto (N22): it says the rate alone.
         primaryLaunchLabel = when {
-            preset == "auto" && effectiveFps > 0.0 -> "Launch at ${formatFps(effectiveFps)} FPS"
-            preset == "auto" -> "Launch"
-            effectiveFps > 0.0 -> "Launch $presetLabel · ${formatFps(effectiveFps)} FPS"
-            else -> "Launch $presetLabel"
+            preset == "auto" && effectiveFps > 0.0 -> text.get(R.string.nova_launch_plan_label_at_fps, formatFps(effectiveFps))
+            preset == "auto" -> text.get(R.string.nova_launch_plan_label_plain)
+            effectiveFps > 0.0 -> text.get(R.string.nova_launch_plan_label_preset_fps, presetLabel, formatFps(effectiveFps))
+            else -> text.get(R.string.nova_launch_plan_label_named, presetLabel)
         },
-        requestedLine = "Requested: $presetLabel$asked",
-        selectedLine = "Resolved: ${selectedParts.joinToString(" · ").ifBlank { presetLabel }}",
-        reasonLine = "Deterministic preset v1; Doctor history and AI output cannot change these fields.",
+        requestedLine = if (clientAskedFps > 0.0) {
+            text.get(R.string.nova_launch_plan_requested_asked, presetLabel, formatFps(clientAskedFps))
+        } else {
+            text.get(R.string.nova_launch_plan_requested, presetLabel)
+        },
+        selectedLine = text.get(R.string.nova_launch_plan_resolved, selectedParts.joinToString(" · ").ifBlank { presetLabel }),
+        reasonLine = text.get(R.string.nova_launch_plan_preset_reason),
         limitingLine = "",
         noticeDetail = profileDescription,
         noticeRecommendation = if (hdrNotRequested) {
-            "HDR is off in this client's Settings (Request HDR when host supports it). Turn it on to ask; Polaris decides from there."
+            text.get(R.string.nova_launch_plan_preset_hdr_off)
         } else {
-            "Doctor observations do not change launch settings."
+            text.get(R.string.nova_launch_plan_preset_doctor)
         },
         noticeTone = NovaLaunchProfileNoticeTone.HEALTHY,
-        noticeLabel = "Launch preset",
-        freshnessLine = "Resolved for this launch",
+        noticeLabel = text.get(R.string.nova_launch_plan_preset_label),
+        freshnessLine = text.get(R.string.nova_launch_plan_preset_freshness),
         historyLines = emptyList(),
         showRetryHighFps = false,
         retryHighFpsLabel = "",
@@ -369,30 +408,35 @@ private const val SPACE_LAUNCH_SOURCE = "worker_profile_v1"
  * Play Setup draws a profile label under a Profile key.
  */
 private fun buildSpaceLaunchSummary(
+    text: NovaLaunchProfileText,
     optimization: JSONObject,
     spaceName: String,
     clientAskedFps: Double,
     clientAskedHdr: Boolean?,
 ): NovaLaunchProfileSummary {
-    val space = spaceName.trim().ifBlank { "your Space" }
+    val space = spaceName.trim().ifBlank { text.get(R.string.nova_launch_plan_your_space) }
     val fields = optimization.optJSONObject("resolved_profile")
         ?.takeIf { it.optInt("policy_version", 0) == 1 }
         ?.optJSONObject("fields")
-    val resolved = fields?.let { resolvedLaunchFields(it, clientAskedHdr) }
+    val resolved = fields?.let { resolvedLaunchFields(text, it, clientAskedHdr) }
     val fps = resolved?.fps ?: 0.0
     val parts = resolved?.parts.orEmpty()
     val reasoning = optimization.optString("reasoning", "").trim()
     val askedMore = clientAskedFps > 0.0 && fps > 0.0 && clientAskedFps > fps + 0.5
     return NovaLaunchProfileSummary(
-        primaryLaunchLabel = if (fps > 0.0) "Launch in $space · ${formatFps(fps)} FPS" else "Launch in $space",
-        requestedLine = if (askedMore) "Requested: ${formatFps(clientAskedFps)} FPS" else "",
-        selectedLine = if (parts.isNotEmpty()) "Resolved: ${parts.joinToString(" · ")}" else "",
-        reasonLine = reasoning.takeIf { it.isNotBlank() }?.let { "Reason: $it" }.orEmpty(),
+        primaryLaunchLabel = if (fps > 0.0) {
+            text.get(R.string.nova_launch_plan_label_space_fps, space, formatFps(fps))
+        } else {
+            text.get(R.string.nova_launch_plan_label_space, space)
+        },
+        requestedLine = if (askedMore) text.get(R.string.nova_launch_plan_requested_space, formatFps(clientAskedFps)) else "",
+        selectedLine = if (parts.isNotEmpty()) text.get(R.string.nova_launch_plan_resolved, parts.joinToString(" · ")) else "",
+        reasonLine = reasoning.takeIf { it.isNotBlank() }?.let { text.get(R.string.nova_launch_plan_reason, it) }.orEmpty(),
         limitingLine = "",
         noticeDetail = reasoning,
         noticeRecommendation = "",
         noticeTone = NovaLaunchProfileNoticeTone.HEALTHY,
-        noticeLabel = "Space stream",
+        noticeLabel = text.get(R.string.nova_launch_plan_space_label),
         freshnessLine = "",
         historyLines = emptyList(),
         showRetryHighFps = false,
@@ -410,7 +454,12 @@ private data class ResolvedLaunchFields(
     val hdrNotRequested: Boolean,
 )
 
-private fun resolvedLaunchFields(fields: JSONObject, clientAskedHdr: Boolean?, clientCodecLabel: String? = null): ResolvedLaunchFields {
+private fun resolvedLaunchFields(
+    text: NovaLaunchProfileText,
+    fields: JSONObject,
+    clientAskedHdr: Boolean?,
+    clientCodecLabel: String? = null,
+): ResolvedLaunchFields {
     fun detail(name: String): JSONObject? = fields.optJSONObject(name)
     fun value(name: String): Any? = detail(name)?.opt("value")?.takeUnless { it === JSONObject.NULL }
 
@@ -422,16 +471,16 @@ private fun resolvedLaunchFields(fields: JSONObject, clientAskedHdr: Boolean?, c
     val width = (value("display_width") as? Number)?.toInt()?.takeIf { it > 0 }
     val height = (value("display_height") as? Number)?.toInt()?.takeIf { it > 0 }
     if (width != null && height != null && resolvedFps > 0.0) {
-        selectedParts += "${width}×${height} @ ${formatFps(resolvedFps)} FPS"
+        selectedParts += text.get(R.string.nova_launch_plan_size_at_fps, width, height, formatFps(resolvedFps))
     } else if (displayMode.isNotBlank()) {
         selectedParts += displayMode
     }
     (value("target_bitrate_kbps") as? Number)?.toInt()?.takeIf { it > 0 }?.let {
         // "300 Mbps", not "300.0 Mbps": a tenth shows only where there is one.
-        selectedParts += if (it % 1000 == 0) "${it / 1000} Mbps" else "${it / 1000.0} Mbps"
+        selectedParts += text.get(R.string.nova_launch_plan_mbps, if (it % 1000 == 0) "${it / 1000}" else "${it / 1000.0}")
     }
     if (!clientCodecLabel.isNullOrBlank()) {
-        selectedParts += "$clientCodecLabel (client choice)"
+        selectedParts += text.get(R.string.nova_launch_plan_client_choice, clientCodecLabel)
     } else {
         (value("preferred_codec") as? String)?.takeIf { it.isNotBlank() }?.let {
             selectedParts += it.uppercase(Locale.US)
@@ -446,69 +495,73 @@ private fun resolvedLaunchFields(fields: JSONObject, clientAskedHdr: Boolean?, c
     val hdrNotRequested = hdrValue == false &&
         (clientAskedHdr == false || hdrReason == "requested_hdr_setting")
     hdrValue?.let { hdr ->
-        selectedParts += when {
-            hdr -> "HDR"
-            hdrNotRequested -> "SDR (HDR not requested)"
-            hdrReason == "paired_device_hdr_unsupported" || hdrReason == "client_profile_hdr_lock" ->
-                "SDR (host turned HDR off)"
-            hdrReason == "host_encoder_hdr_unsupported" -> "SDR (host encoder)"
-            else -> "SDR"
-        }
+        selectedParts += text.get(
+            when {
+                hdr -> R.string.nova_launch_plan_hdr
+                hdrNotRequested -> R.string.nova_launch_plan_sdr_not_requested
+                hdrReason == "paired_device_hdr_unsupported" || hdrReason == "client_profile_hdr_lock" ->
+                    R.string.nova_launch_plan_sdr_host_off
+                hdrReason == "host_encoder_hdr_unsupported" -> R.string.nova_launch_plan_sdr_host_encoder
+                else -> R.string.nova_launch_plan_sdr
+            },
+        )
     }
     return ResolvedLaunchFields(selectedParts, resolvedFps, hdrNotRequested)
 }
 
-private fun buildHealthyPerformanceNoticeDetail(lastResult: JSONObject?, performanceStatus: String): String {
+private fun buildHealthyPerformanceNoticeDetail(
+    text: NovaLaunchProfileText,
+    lastResult: JSONObject?,
+    performanceStatus: HealthyStatus,
+): String {
     if (lastResult == null) return ""
     val deliveredFps = strictFiniteNumber(lastResult, "delivered_fps") ?: return ""
     val targetFps = strictFiniteNumber(lastResult, "target_fps") ?: return ""
     if (deliveredFps <= 0.0 || targetFps <= 0.0) return ""
 
     val evidence = mutableListOf(
-        "Last stream: ${formatFps(deliveredFps)}/${formatFps(targetFps)} FPS."
+        text.get(R.string.nova_launch_plan_last_stream, formatFps(deliveredFps), formatFps(targetFps))
     )
     val lowOnePercentFps = strictFiniteNumber(lastResult, "low_1_percent_fps")
     if (lowOnePercentFps != null && lowOnePercentFps > 0.0) {
-        evidence += "1% low: ${formatFps(lowOnePercentFps)} FPS."
+        evidence += text.get(R.string.nova_launch_plan_one_percent_low, formatFps(lowOnePercentFps))
     }
     val badPacingPct = strictFiniteNumber(lastResult, "frame_pacing_bad_pct")
     if (badPacingPct != null) {
-        evidence += "Bad pacing: ${formatFps(badPacingPct)}%."
+        evidence += text.get(R.string.nova_launch_plan_bad_pacing, formatFps(badPacingPct))
     }
-    evidence += if (performanceStatus == "Target met") {
-        "Stream target met."
-    } else {
-        "Normal gameplay variation."
-    }
+    evidence += text.get(
+        if (performanceStatus == HealthyStatus.TARGET_MET) {
+            R.string.nova_launch_plan_stream_target_met
+        } else {
+            R.string.nova_launch_plan_normal_variation
+        },
+    )
     return evidence.joinToString(" ")
 }
 
-private fun buildNoticeDetail(lastResult: JSONObject?, issue: String): String {
+private fun buildNoticeDetail(text: NovaLaunchProfileText, lastResult: JSONObject?, issue: String): String {
     val deliveredFps = strictFiniteNumber(lastResult, "delivered_fps") ?: 0.0
     val targetFps = strictFiniteNumber(lastResult, "target_fps") ?: 0.0
     val evidence = if (deliveredFps > 0.0 && targetFps > 0.0) {
-        "Last stream: ${formatFps(deliveredFps)}/${formatFps(targetFps)} FPS."
+        text.get(R.string.nova_launch_plan_last_stream, formatFps(deliveredFps), formatFps(targetFps))
     } else {
         ""
     }
     val impact = when (normalized(issue)) {
-        "host_render", "host_render_limited" ->
-            "The host missed the stream target, which can cause repeated frames or uneven motion."
-        "decoder", "decoder_path" ->
-            "The client decoder missed frames, which can cause stutter or uneven motion."
-        "network" ->
-            "The network path was unstable, which can cause hitching or dropped frames."
-        "encoder" ->
-            "The host encoder missed frames, which can cause uneven frame delivery."
-        "pacing", "frame_pacing" ->
-            "Frames arrived unevenly, which can look like judder even when average FPS is high."
+        "host_render", "host_render_limited" -> text.get(R.string.nova_launch_plan_impact_host_render)
+        "decoder", "decoder_path" -> text.get(R.string.nova_launch_plan_impact_decoder)
+        "network" -> text.get(R.string.nova_launch_plan_impact_network)
+        "encoder" -> text.get(R.string.nova_launch_plan_impact_encoder)
+        "pacing", "frame_pacing" -> text.get(R.string.nova_launch_plan_impact_pacing)
         "" -> ""
-        else -> "Polaris reported ${novaLaunchIssueLabel(issue)} for the last session."
+        else -> text.get(R.string.nova_launch_plan_impact_other, novaLaunchIssueLabel(issue, text))
     }
     return listOf(evidence, impact).filter { it.isNotBlank() }.joinToString(" ")
 }
 
 private fun buildNoticeRecommendation(
+    text: NovaLaunchProfileText,
     state: String,
     requestedFps: Double,
     effectiveFps: Double,
@@ -516,49 +569,61 @@ private fun buildNoticeRecommendation(
 ): String {
     val recoveryActive = state == "recovering"
     val retry = if (showRetryHighFps && requestedFps > 0.0) {
-        " Try ${formatFps(requestedFps)} FPS once remains available below."
+        text.get(R.string.nova_launch_plan_retry_remains, formatFps(requestedFps))
     } else {
         ""
     }
     if (requestedFps > effectiveFps + 0.5 && effectiveFps > 0.0) {
-        return if (recoveryActive) {
-            "Next launch: ${formatFps(effectiveFps)} FPS Recovery instead of your requested ${formatFps(requestedFps)} FPS because the learned recovery profile is active.$retry"
+        val next = if (recoveryActive) {
+            text.get(R.string.nova_launch_plan_next_recovery_instead, formatFps(effectiveFps), formatFps(requestedFps))
         } else {
-            "Next launch: Nova selected ${formatFps(effectiveFps)} FPS instead of your requested ${formatFps(requestedFps)} FPS.$retry"
+            text.get(R.string.nova_launch_plan_next_selected_instead, formatFps(effectiveFps), formatFps(requestedFps))
         }
+        return listOf(next, retry).filter { it.isNotBlank() }.joinToString(" ")
     }
     if (recoveryActive && effectiveFps > 0.0) {
-        return "Next launch: ${formatFps(effectiveFps)} FPS Recovery remains active. One clean launch can release it, or reset this game profile below."
+        return text.get(R.string.nova_launch_plan_next_recovery_remains, formatFps(effectiveFps))
     }
     return ""
 }
 
+/** How the last session went, and the lines that follow from it, the first said on its own too. */
+private data class HistoryLines(val lines: List<String>, val lastSession: String)
+
 private fun buildHistoryLines(
+    text: NovaLaunchProfileText,
     lastResult: JSONObject?,
     issue: String,
-    selectedLabel: String,
+    selectedIsRecovery: Boolean,
     healthyPerformanceStatus: String?
-): List<String> {
-    if (lastResult == null) return emptyList()
+): HistoryLines {
+    if (lastResult == null) return HistoryLines(emptyList(), "")
 
-    val lines = mutableListOf<String>()
     val grade = lastResult.optString("grade", "").takeIf { it.isNotBlank() }
     val deliveredFps = strictFiniteNumber(lastResult, "delivered_fps") ?: 0.0
     val targetFps = strictFiniteNumber(lastResult, "target_fps") ?: 0.0
-    if (healthyPerformanceStatus != null && grade != null && deliveredFps > 0.0 && targetFps > 0.0) {
-        lines += "Last: grade $grade · $healthyPerformanceStatus at ${formatFps(deliveredFps)}/${formatFps(targetFps)} FPS"
-    } else if (grade != null && deliveredFps > 0.0 && targetFps > 0.0) {
-        lines += "Last: grade $grade at ${formatFps(deliveredFps)}/${formatFps(targetFps)} FPS"
-    } else if (grade != null) {
-        lines += "Last: grade $grade"
+    val lastSession = when {
+        healthyPerformanceStatus != null && grade != null && deliveredFps > 0.0 && targetFps > 0.0 -> text.get(
+            R.string.nova_launch_plan_last_grade_status,
+            grade,
+            healthyPerformanceStatus,
+            formatFps(deliveredFps),
+            formatFps(targetFps),
+        )
+        grade != null && deliveredFps > 0.0 && targetFps > 0.0 ->
+            text.get(R.string.nova_launch_plan_last_grade_fps, grade, formatFps(deliveredFps), formatFps(targetFps))
+        grade != null -> text.get(R.string.nova_launch_plan_last_grade, grade)
+        else -> ""
     }
+    val lines = mutableListOf<String>()
+    if (lastSession.isNotBlank()) lines += lastSession
     if (issue.isNotBlank()) {
-        lines += "Issue: ${novaLaunchIssueLabel(issue)}"
+        lines += text.get(R.string.nova_launch_plan_issue, novaLaunchIssueLabel(issue, text))
     }
-    if (selectedLabel.startsWith("Recovery", ignoreCase = true)) {
-        lines += "Next: one clean launch can release recovery, or reset this game profile."
+    if (selectedIsRecovery) {
+        lines += text.get(R.string.nova_launch_plan_next_release)
     }
-    return lines
+    return HistoryLines(lines, lastSession)
 }
 
 private val healthyContradictionIssues = setOf(
@@ -575,20 +640,18 @@ private fun healthyPerformanceStatus(
     state: String,
     requestedFps: Double,
     effectiveFps: Double,
-    selectedLabel: String,
-    rawSelectedLabel: String,
+    selectedIsRecovery: Boolean,
+    selectedIsTrial: Boolean,
+    rawIsRecovery: Boolean,
+    rawIsTrial: Boolean,
     trialProfile: Boolean,
     hasAuthoritativeProfileFps: Boolean
-): String? {
+): HealthyStatus? {
     if (lastResult == null || !completeIssueEvidence || reportedIssues.isEmpty()) return null
     val issueClasses = reportedIssues.map(::healthyIssueClass)
     if (issueClasses.any { it == null } || issueClasses.distinct().size != 1) return null
     if (trialProfile || state !in setOf("stable", "blocked")) return null
-    if (rawSelectedLabel.contains("recovery", ignoreCase = true) ||
-        rawSelectedLabel.contains("trial", ignoreCase = true) ||
-        selectedLabel.startsWith("Recovery", ignoreCase = true) ||
-        selectedLabel.contains("trial", ignoreCase = true)
-    ) {
+    if (rawIsRecovery || rawIsTrial || selectedIsRecovery || selectedIsTrial) {
         return null
     }
     if (!hasAuthoritativeProfileFps || !requestedFps.isFinite() || requestedFps <= 0.0 ||
@@ -623,8 +686,18 @@ private fun healthyPerformanceStatus(
         if (normalized(risk) !in normalRiskValues) return null
     }
 
-    return if (deliveredFps >= targetFps) "Target met" else "Near target"
+    return if (deliveredFps >= targetFps) HealthyStatus.TARGET_MET else HealthyStatus.NEAR_TARGET
 }
+
+/** A last session that met its target, or came near it, with nothing to recover from. */
+private enum class HealthyStatus { TARGET_MET, NEAR_TARGET }
+
+private fun HealthyStatus.say(text: NovaLaunchProfileText): String = text.get(
+    when (this) {
+        HealthyStatus.TARGET_MET -> R.string.nova_launch_plan_target_met
+        HealthyStatus.NEAR_TARGET -> R.string.nova_launch_plan_near_target
+    },
+)
 
 private fun strictFiniteNumber(source: JSONObject?, key: String): Double? {
     val value = source?.opt(key) as? Number ?: return null
@@ -677,47 +750,96 @@ private fun meaningfulIssue(value: String): String {
     }
 }
 
-private fun preferenceLabel(preference: String): String {
-    return when (preference) {
-        "quality" -> "Quality profile"
-        "high_fps" -> "High FPS stream"
-        "stability" -> "Stability profile"
-        else -> "Auto"
-    }
+/** The profiles Nova names in its own words. */
+private enum class ProfileKind {
+    HIGH_FPS_STREAM,
+    HIGH_FPS_TRIAL,
+    RECOVERY,
+    QUALITY,
+    STABILITY,
+    AUTO,
+    HOLDING,
+    LEARNING,
+    GENERIC,
 }
 
-private fun launchProfileDisplayLabel(label: String): String {
+/**
+ * A profile's name: one Nova knows, said in the player's language, or the host's own words for
+ * one it does not. What the plan decides turns on which profile it is, never on how it is said.
+ */
+private sealed interface ProfileName {
+    data class Known(val kind: ProfileKind) : ProfileName
+    data class Host(val words: String) : ProfileName
+}
+
+private fun ProfileName.say(text: NovaLaunchProfileText): String = when (this) {
+    is ProfileName.Host -> words
+    is ProfileName.Known -> text.get(
+        when (kind) {
+            ProfileKind.HIGH_FPS_STREAM -> R.string.nova_launch_plan_profile_high_fps_stream
+            ProfileKind.HIGH_FPS_TRIAL -> R.string.nova_launch_plan_profile_high_fps_trial
+            ProfileKind.RECOVERY -> R.string.nova_launch_plan_profile_recovery
+            ProfileKind.QUALITY -> R.string.nova_launch_plan_profile_quality
+            ProfileKind.STABILITY -> R.string.nova_launch_plan_profile_stability
+            ProfileKind.AUTO -> R.string.nova_launch_plan_profile_auto
+            ProfileKind.HOLDING -> R.string.nova_launch_plan_profile_holding
+            ProfileKind.LEARNING -> R.string.nova_launch_plan_profile_learning
+            ProfileKind.GENERIC -> R.string.nova_launch_plan_profile_generic
+        },
+    )
+}
+
+private fun ProfileName.isRecovery(): Boolean = when (this) {
+    is ProfileName.Known -> kind == ProfileKind.RECOVERY
+    is ProfileName.Host -> words.startsWith("Recovery", ignoreCase = true)
+}
+
+private fun ProfileName.isTrial(): Boolean = when (this) {
+    is ProfileName.Known -> kind == ProfileKind.HIGH_FPS_TRIAL
+    is ProfileName.Host -> words.contains("trial", ignoreCase = true)
+}
+
+/** The profile a Tuning preference asks for. */
+private fun preferenceKind(preference: String): ProfileKind = when (preference) {
+    "quality" -> ProfileKind.QUALITY
+    "high_fps" -> ProfileKind.HIGH_FPS_STREAM
+    "stability" -> ProfileKind.STABILITY
+    else -> ProfileKind.AUTO
+}
+
+/** The profile the host's state means, when the host gave no label of its own. */
+private fun stateKind(state: String): ProfileKind = when (state) {
+    "recovering" -> ProfileKind.RECOVERY
+    "trial" -> ProfileKind.HIGH_FPS_TRIAL
+    "blocked" -> ProfileKind.HOLDING
+    "learning" -> ProfileKind.LEARNING
+    "stable" -> ProfileKind.QUALITY
+    else -> ProfileKind.GENERIC
+}
+
+/**
+ * A label from the host, which speaks English, read as the profile Nova knows it as where it is
+ * one, so it is said in the player's language; any other label is the host's own words.
+ */
+private fun hostProfileName(label: String): ProfileName {
+    fun isAny(vararg names: String) = names.any { label.equals(it, ignoreCase = true) }
     return when {
-        label.equals("High FPS", ignoreCase = true) -> "High FPS stream"
-        label.equals("Prefer High FPS", ignoreCase = true) -> "High FPS stream"
-        label.equals("High FPS profile", ignoreCase = true) -> "High FPS stream"
-        label.equals("High FPS Trial", ignoreCase = true) -> "High FPS trial"
-        label.equals("Recovery", ignoreCase = true) -> "Recovery profile"
-        label.equals("Prefer Quality", ignoreCase = true) -> "Quality profile"
-        label.equals("Quality", ignoreCase = true) -> "Quality profile"
-        label.equals("Prefer Stability", ignoreCase = true) -> "Stability profile"
-        else -> label
+        isAny("High FPS", "Prefer High FPS", "High FPS profile", "High FPS stream") -> ProfileName.Known(ProfileKind.HIGH_FPS_STREAM)
+        isAny("High FPS Trial") -> ProfileName.Known(ProfileKind.HIGH_FPS_TRIAL)
+        isAny("Recovery", "Recovery profile") -> ProfileName.Known(ProfileKind.RECOVERY)
+        isAny("Prefer Quality", "Quality", "Quality profile") -> ProfileName.Known(ProfileKind.QUALITY)
+        isAny("Prefer Stability", "Stability profile") -> ProfileName.Known(ProfileKind.STABILITY)
+        else -> ProfileName.Host(label)
     }
 }
 
-private fun selectedLabelFromState(state: String): String {
-    return when (state) {
-        "recovering" -> "Recovery profile"
-        "trial" -> "High FPS trial"
-        "blocked" -> "Holding"
-        "learning" -> "Learning"
-        "stable" -> "Quality"
-        else -> "Profile"
-    }
-}
-
-internal fun novaLaunchIssueLabel(issue: String): String {
+internal fun novaLaunchIssueLabel(issue: String, text: NovaLaunchProfileText): String {
     return when (normalized(issue)) {
-        "host_render", "host_render_limited" -> "Host Render"
-        "decoder", "decoder_path" -> "Decoder Path"
-        "network" -> "Network"
-        "encoder" -> "Encoder"
-        "pacing", "frame_pacing" -> "Frame Pacing"
+        "host_render", "host_render_limited" -> text.get(R.string.nova_launch_plan_issue_host_render)
+        "decoder", "decoder_path" -> text.get(R.string.nova_launch_plan_issue_decoder)
+        "network" -> text.get(R.string.nova_launch_plan_issue_network)
+        "encoder" -> text.get(R.string.nova_launch_plan_issue_encoder)
+        "pacing", "frame_pacing" -> text.get(R.string.nova_launch_plan_issue_pacing)
         // These are names of a limiting factor, not sentences about one, so an issue
         // Polaris starts reporting tomorrow should read like the five above rather than
         // capitalising only its first word and sitting oddly beside them.
@@ -727,22 +849,13 @@ internal fun novaLaunchIssueLabel(issue: String): String {
     }
 }
 
-private fun relativeAge(updatedAtSeconds: Long, nowSeconds: Long): String {
+private fun relativeAge(text: NovaLaunchProfileText, updatedAtSeconds: Long, nowSeconds: Long): String {
     val deltaSeconds = (nowSeconds - updatedAtSeconds).coerceAtLeast(0L)
     return when {
-        deltaSeconds < 60L -> "just now"
-        deltaSeconds < 3600L -> {
-            val minutes = deltaSeconds / 60L
-            "$minutes min ago"
-        }
-        deltaSeconds < 86_400L -> {
-            val hours = deltaSeconds / 3600L
-            "$hours hr ago"
-        }
-        else -> {
-            val days = deltaSeconds / 86_400L
-            "$days d ago"
-        }
+        deltaSeconds < 60L -> text.get(R.string.nova_launch_plan_age_now)
+        deltaSeconds < 3600L -> text.get(R.string.nova_launch_plan_age_minutes, (deltaSeconds / 60L).toInt())
+        deltaSeconds < 86_400L -> text.get(R.string.nova_launch_plan_age_hours, (deltaSeconds / 3600L).toInt())
+        else -> text.get(R.string.nova_launch_plan_age_days, (deltaSeconds / 86_400L).toInt())
     }
 }
 

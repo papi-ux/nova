@@ -1193,7 +1193,8 @@ internal fun novaPlaySetupPlan(
     val facts = mutableListOf<NovaPlaySetupFact>()
     if (summary != null) {
         val healthy = summary.noticeTone == NovaLaunchProfileNoticeTone.HEALTHY
-        summary.historyLines.firstOrNull { it.startsWith("Last:") }
+        // How the last session went, whatever language says it: this matched "Last:" (N22).
+        summary.lastSessionLine.takeIf { it.isNotBlank() }
             ?.let { novaStripLabel(it) }
             ?.takeIf { it.isNotBlank() }
             ?.let {

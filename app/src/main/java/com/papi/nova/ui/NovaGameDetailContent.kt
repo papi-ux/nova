@@ -621,7 +621,7 @@ internal sealed class NovaTuningOutcome {
     data class Declined(val reason: String) : NovaTuningOutcome()
 }
 
-internal fun novaTuningOutcome(optimization: JSONObject?, preference: String): NovaTuningOutcome {
+internal fun novaTuningOutcome(optimization: JSONObject?, preference: String, text: NovaLaunchProfileText): NovaTuningOutcome {
     if (optimization == null) return NovaTuningOutcome.Default
     val normalized = preference.trim().lowercase()
     if (normalized == "auto" || normalized == "high_fps") return NovaTuningOutcome.Default
@@ -638,7 +638,7 @@ internal fun novaTuningOutcome(optimization: JSONObject?, preference: String): N
         "preference_blocked_reason",
         profileState?.optString("preference_blocked_reason", "") ?: ""
     )
-    return NovaTuningOutcome.Declined(if (reason.isBlank()) "" else novaLaunchIssueLabel(reason))
+    return NovaTuningOutcome.Declined(if (reason.isBlank()) "" else novaLaunchIssueLabel(reason, text))
 }
 
 /** The same, for the two ways Steam can be handed the game. */

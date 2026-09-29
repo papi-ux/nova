@@ -638,6 +638,7 @@ class NovaGameDetailActivity : NovaActivity() {
         fun launchPreview(): NovaGameDetailOptimizationState {
             val launchPreferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
             return optimizationState.withLaunchProfileSummary(
+                NovaLaunchProfileText(resources),
                 launchOptimization(),
                 clientAskedFps = (effectiveFpsPin(chosenFps, profilePreference, launchPreferences.fps)
                     ?: launchPreferences.fps.toInt()).toDouble(),
@@ -1826,7 +1827,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     chosenFps == null && fpsPin != null -> getString(R.string.nova_play_setup_tuning_pins, fpsPin)
                     // For the asks the host owns, the outcome; otherwise what the preset does.
                     else -> when (
-                        val outcome = novaTuningOutcome(optimizationState.rawOptimization, profilePreference)
+                        val outcome = novaTuningOutcome(optimizationState.rawOptimization, profilePreference, NovaLaunchProfileText(resources))
                     ) {
                         is NovaTuningOutcome.Applied -> getString(R.string.nova_play_setup_tuning_applied)
                         is NovaTuningOutcome.Declined -> if (outcome.reason.isNotBlank()) {
@@ -2951,6 +2952,7 @@ class NovaGameDetailActivity : NovaActivity() {
             ai = aiCard,
             stability = stabilityCard,
             profileSummary = buildNovaLaunchProfileSummary(
+                NovaLaunchProfileText(resources),
                 opt,
                 clientAskedFps = clientPreferences.fps.toDouble(),
                 clientFpsPinned = NovaLaunchStreamOverride.highFpsPin(profilePreference, clientPreferences.fps) != null,
