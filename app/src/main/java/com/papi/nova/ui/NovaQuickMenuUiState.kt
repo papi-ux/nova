@@ -172,8 +172,6 @@ data class NovaQuickMenuUiState(
     // Esc, Meta and Alt + Enter, under the session strip so a handheld reaches Esc without
     // scrolling. Same instances as [quickKeys], which stays the whole keyboard.
     val pinnedQuickKeys: List<NovaQuickMenuAction> = emptyList(),
-    // The Quick Keys grid: the keys the pinned strip lacks, so each key shows once (N26).
-    val gridQuickKeys: List<NovaQuickMenuAction> = quickKeys.filterNot { key -> pinnedQuickKeys.any { it.id == key.id } },
     val diagnosis: NovaQuickMenuDiagnosisState,
     val diagnosisAction: NovaQuickMenuAction,
     val doctorReceiptAction: NovaQuickMenuAction,
@@ -185,6 +183,13 @@ data class NovaQuickMenuUiState(
     val controlRows: List<NovaQuickMenuAction>,
     val sessionRows: List<NovaQuickMenuAction>
 ) {
+    /**
+     * The Quick Keys grid: the keys the pinned strip lacks, so each key shows once (N26). Derived
+     * here rather than a constructor default, which a copy with other keys or other pinned keys
+     * kept from the state it was copied from.
+     */
+    val gridQuickKeys: List<NovaQuickMenuAction> = quickKeys.filterNot { key -> pinnedQuickKeys.any { it.id == key.id } }
+
     companion object {
         private val autoFixActionIds = setOf(
             "lower_bitrate",
