@@ -112,8 +112,11 @@ fun NovaRowContextScrolling(content: @Composable () -> Unit) {
     val labelPx = with(density) {
         type.sectionLabel.fontSize.toPx() * NovaLabelLineFactor + (NovaPanelMetrics.SpaceSm + NovaPanelMetrics.SpaceXs).toPx()
     }
+    val fadePx = with(density) { NovaPanelMetrics.EdgeFade.toPx() }
     val tracker = remember { NovaRowTracker() }
-    val spec = remember(contextPx, labelPx, gapPx, tracker) { NovaContextBringIntoViewSpec(contextPx, labelPx, gapPx, tracker) }
+    val spec = remember(contextPx, labelPx, gapPx, tracker, fadePx) {
+        NovaContextBringIntoViewSpec(contextPx, labelPx, gapPx, tracker, fadePx)
+    }
     CompositionLocalProvider(
         LocalBringIntoViewSpec provides spec,
         LocalNovaRowTracker provides tracker,
@@ -126,7 +129,8 @@ private const val NovaLabelLineFactor = 1.5f
 
 /**
  * Scrolls a focused row into view together with a row of context on the side it scrolls toward: the
- * row before or after it as [tracker] last saw them placed, with any label between. Where that row
+ * row before or after it as [tracker] last saw them placed, with any label between, and [fadePx]
+ * past it, so the edge fade falls beyond that row rather than across its last line. Where that row
  * is not known, [contextPx] or the focused row's own height and [gapPx], whichever is more, and
  * [labelPx] for a label that may stand between. Never more than half the room the row leaves.
  */
@@ -136,13 +140,14 @@ internal class NovaContextBringIntoViewSpec(
     private val labelPx: Float = 0f,
     private val gapPx: Float = 0f,
     private val tracker: NovaRowTracker? = null,
+    private val fadePx: Float = 0f,
 ) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val guess = maxOf(contextPx, size + gapPx) + labelPx
-        val around = tracker?.contextAround(size)
+        val around = tracker?.contextAround(offset, size, containerSize)
         val cap = ((containerSize - size) / 2f).coerceAtLeast(0f)
-        val leading = offset - minOf(around?.before ?: guess, cap)
-        val trailing = offset + size + minOf(around?.after ?: guess, cap)
+        val leading = offset - minOf(around?.before?.plus(fadePx) ?: guess, cap)
+        val trailing = offset + size + minOf(around?.after?.plus(fadePx) ?: guess, cap)
         return when {
             leading >= 0f && trailing <= containerSize -> 0f
             leading < 0f -> leading
@@ -164,13 +169,32 @@ internal class NovaRowTracker {
 
     val rows = HashMap<Any, Entry>()
 
+    /** The viewports of the lists that rest on whole rows, where they were last placed. */
+    val viewports = HashMap<Any, Rect>()
+
     /**
-     * The context around the focused row, [size] tall: from the top of the row before it, and to
-     * the bottom of the row after it, labels between included. Null where no focused row that tall
-     * is tracked, and either side null where no row is placed there yet.
+     * The context around the row being brought into view, [size] tall at [offset] in a viewport
+     * [containerSize] tall: from the top of the row before it, and to the bottom of the row after
+     * it, labels between included. The row is found where it stands in a tracked viewport of that
+     * height, since the scroll is asked for as focus arrives, before the row itself hears of it;
+     * failing that, it is the focused row that tall. Null where no such row is tracked, and either
+     * side null where no row is placed there yet.
      */
-    fun contextAround(size: Float): Context? {
-        val focused = rows.values
+    fun contextAround(offset: Float, size: Float, containerSize: Float): Context? {
+        val placed = viewports.values
+            .filter { kotlin.math.abs(it.height - containerSize) <= 1f }
+            .firstNotNullOfOrNull { view ->
+                val top = view.top + offset
+                rows.values
+                    .filter {
+                        !it.label && kotlin.math.abs(it.bounds.top - top) <= 1.5f &&
+                            kotlin.math.abs(it.bounds.height - size) <= 1.5f &&
+                            it.bounds.left < view.right && it.bounds.right > view.left
+                    }
+                    .minByOrNull { it.bounds.width * it.bounds.height }
+                    ?.bounds
+            }
+        val focused = placed ?: rows.values
             .filter { it.focused && !it.label && kotlin.math.abs(it.bounds.height - size) <= 2f }
             .minByOrNull { it.bounds.width * it.bounds.height }
             ?.bounds ?: return null
@@ -294,8 +318,18 @@ private class NovaScrollRestNode(
         watch()
     }
 
+    private var registeredWith: NovaRowTracker? = null
+
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-        viewport = coordinates.uncutBoundsInWindow()
+        val placed = coordinates.uncutBoundsInWindow()
+        viewport = placed
+        val tracker = registeredWith ?: currentValueOf(LocalNovaRowTracker)?.also { registeredWith = it }
+        tracker?.viewports?.set(this, placed)
+    }
+
+    override fun onDetach() {
+        registeredWith?.viewports?.remove(this)
+        registeredWith = null
     }
 
     private var watching: kotlinx.coroutines.Job? = null
