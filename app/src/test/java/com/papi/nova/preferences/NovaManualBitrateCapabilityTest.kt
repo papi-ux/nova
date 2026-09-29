@@ -31,6 +31,22 @@ class NovaManualBitrateCapabilityTest {
         for(value in listOf(200000,300000,500000,500000.0))
             assertEquals((value as Number).toInt(),maximum(caps(value).features))
     }
+    @Test fun futureLargerNumericCeilingClampsToClientMaximum() {
+        for (limit in listOf(500001, 750000, Int.MAX_VALUE)) assertEquals(500000, caps(limit).features.manualBitrateMaxKbps)
+    }
+    @Test fun losingStatusKeepsAdvertisedManualCeiling() {
+        val controller=Live(caps(500000)).controller()
+        controller.observe(null)
+        assertEquals(500000, controller.state.value.maximumKbps)
+    }
+    @Test fun calibratedAutoDoesNotWarnAtEitherHandheldCadence() {
+        for (fps in listOf(60,120)) {
+            val request=NovaBitrateAdvice.recommend(1920,1080,fps,NovaCodecChoice.PYROWAVE,NovaDistance.HAND).kbps
+            val advice=com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateAdvice(1920,1080,fps,true,15)
+            assertNull("fps=$fps request=$request advice=$advice",
+                com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateWarning(request,1920,1080,fps,advice))
+        }
+    }
     private class Live(val capabilities:PolarisCapabilities) {
         val audio=1536;val fec=20
         val units=capabilities.features.bitrateUnitsV1

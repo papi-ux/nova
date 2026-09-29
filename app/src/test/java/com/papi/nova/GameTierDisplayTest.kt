@@ -72,6 +72,32 @@ class GameTierDisplayTest {
             else assertTrue("The valid external-display preflight must be reused",requestedFps.isEmpty())
         }
     }
+    @Test fun launchClampsCustomPinToThisHostsAdvertisedLimitWithoutChangingThePin() {
+        ShadowDisplayManager.setSupportedModes(0,mode(120f))
+        for (maximum in listOf(null,200000,500000)) {
+            val expected=minOf(450000,maximum ?: 300000)
+            val payload=response()
+            payload.getJSONObject("resolved_profile").getJSONObject("fields")
+                .getJSONObject("target_bitrate_kbps").put("value",expected).put("locked",true)
+            val game=Robolectric.buildActivity(Game::class.java).get()
+            game.prefConfig=PreferenceConfiguration().apply { bitrate=450000; videoFormat=PreferenceConfiguration.FormatOption.FORCE_PYROWAVE }
+            ReflectionHelpers.setField(game,"appUUID","fixture-game")
+            val calls=mutableListOf<Int>()
+            val features=JSONObject();maximum?.let { features.put("manual_bitrate_max_kbps",it) }
+            game.novaApiClient=Mockito.mock(PolarisApiClient::class.java) { invocation -> when(invocation.method.name) {
+                "identifyLaunchHost" -> PolarisLaunchHostKind.CURRENT_POLARIS
+                "getCapabilities" -> PolarisApiClient.parseCapabilitiesResponse(JSONObject().put("features",features))
+                "getOptimization" -> { calls+=invocation.arguments[11] as Int;payload }
+                else -> Mockito.RETURNS_DEFAULTS.answer(invocation)
+            } }
+            val load=Game::class.java.declaredMethods.single { it.name=="loadLaunchOptimization" }.apply { isAccessible=true }
+            val result=load.invoke(game,"Fixture",false,1920,1080,120f,false,false,false,"auto")
+            assertEquals("limit=$maximum",listOf(expected),calls)
+            assertFalse("limit=$maximum",ReflectionHelpers.getField<Boolean>(result,"policyBlocked"))
+            assertEquals(450000,game.prefConfig.bitrate)
+        }
+    }
+
     @Test fun pyrowaveLaunchPassesItsBitrateLockToTheApi() {
         val payload=response()
         val fields=payload.getJSONObject("resolved_profile").getJSONObject("fields")

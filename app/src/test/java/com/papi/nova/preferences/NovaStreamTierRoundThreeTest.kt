@@ -60,11 +60,23 @@ class NovaStreamTierRoundThreeTest {
         try {
             val host=activity.get()
             val fragment=host.supportFragmentManager.fragments.filterIsInstance<StreamSettings.SettingsFragment>().single()
-            // Keep only the setup's actual overrides, as a sparse imported setup does.
-            host.getInMemoryPrefs().edit().clear().commit()
-            NovaSettingsMigration.writeDifference(host.getInMemoryPrefs(),profile.getOptions()!!)
             block(host,fragment,profile)
         } finally { activity.pause().stop().destroy() }
+    }
+    @Test fun openingAndSavingNonStreamSetupDoesNotPinStreamDefaults() {
+        edit(mapOf("checkbox_touchscreen_trackpad" to true)) { activity, _, profile ->
+            EditProfileActivity::class.java.getDeclaredMethod("saveProfile").apply { isAccessible=true }.invoke(activity)
+            assertFalse(profile.getOptions()!!.containsKey("list_resolution"))
+            assertFalse(profile.getOptions()!!.containsKey("list_fps"))
+            assertFalse(profile.getOptions()!!.containsKey("seekbar_bitrate_kbps"))
+        }
+    }
+    @Test fun classicPyrowaveAutoUsesCalibratedHandheldRequest() {
+        edit(mapOf("list_resolution" to "1920x1080", "video_format" to "forcepyrowave")) { activity, fragment, _ ->
+            NovaTierRuntime.installForTest(screen().copy(distance=NovaDistance.HAND))
+            resetRate(fragment, activity.getInMemoryPrefs(), null, "120")
+            assertEquals(214898, activity.getInMemoryPrefs().getInt("seekbar_bitrate_kbps", 0))
+        }
     }
     @Test fun classicFpsChangeDoesNotPinInheritedResolutionAndUsesEffectiveBase() {
         edit(mapOf("list_fps" to "60")) { activity,fragment,profile ->
@@ -74,10 +86,10 @@ class NovaStreamTierRoundThreeTest {
             assertFalse(profile.getOptions()!!.containsKey("list_resolution"))
             assertEquals(true,profile.getOptions()!![NovaSettingsMigration.CUSTOM_AUTO])
             assertEquals("120",profile.getOptions()!!["list_fps"])
-            assertEquals(PreferenceConfiguration.getDefaultBitrate("2560x1440","120"),profile.getOptions()!!["seekbar_bitrate_kbps"])
+            assertEquals(60000,profile.getOptions()!!["seekbar_bitrate_kbps"])
         }
     }
-    @Test fun classicSparseEditInheritsTheEffectiveGeneratedBase() {
+    @Test fun classicSparseEditInheritsRawCustomBase() {
         edit(mapOf("list_fps" to "60")) { activity,fragment,profile ->
             NovaTierRuntime.installForTest(screen())
             NovaStreamSettings.select(context,NovaTier.RECOMMENDED)
@@ -85,7 +97,7 @@ class NovaStreamTierRoundThreeTest {
             resetRate(fragment,memory,null,"120")
             profile.setOptions(memory.all.mapValues { it.value!! })
             assertFalse(profile.getOptions()!!.containsKey("list_resolution"))
-            assertEquals(PreferenceConfiguration.getDefaultBitrate("3840x2160","120"),profile.getOptions()!!["seekbar_bitrate_kbps"])
+            assertEquals(60000,profile.getOptions()!!["seekbar_bitrate_kbps"])
         }
     }
     @Test fun modeOnlyPyrowaveHostImportUsesTheRoomDistance() {
@@ -103,7 +115,7 @@ class NovaStreamTierRoundThreeTest {
             profile.setOptions(memory.all.mapValues { it.value!! })
             assertFalse(profile.getOptions()!!.containsKey("list_fps"))
             assertEquals(true,profile.getOptions()!![NovaSettingsMigration.CUSTOM_AUTO])
-            assertEquals(PreferenceConfiguration.getDefaultBitrate("1920x1080","90"),profile.getOptions()!!["seekbar_bitrate_kbps"])
+            assertEquals(25000,profile.getOptions()!!["seekbar_bitrate_kbps"])
         }
     }
     @Test fun classicManualBitrateAfterFpsEditClearsAutoForBothWriters() {
