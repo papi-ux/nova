@@ -230,18 +230,26 @@ private fun ProblemContent(page: NovaStatePage.Problem, focusTarget: FocusReques
     }
     Text(text = page.title, style = type.stateTitle, color = colors.textPrimary, textAlign = TextAlign.Center)
     Text(text = page.message, style = type.rowTitle, color = colors.textSecondary, textAlign = TextAlign.Center)
-    page.detail?.let { detail ->
-        NovaRow(
-            title = stringResource(if (detailShown) R.string.nova_panel_hide_details else R.string.nova_panel_details),
-            onClick = { detailShown = !detailShown },
-        )
-        if (detailShown) {
-            Text(text = detail, style = type.caption, color = colors.textMuted)
+    // The actions as one stack, a row gap apart as rows are, with Details last among them as a
+    // button like Help: it sat above the recovery as a left-aligned row of another kind.
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
+    ) {
+        StateAction(page.primary, act, primary = true, modifier = Modifier.focusRequester(focusTarget))
+        page.secondary.forEach { StateAction(it, act, primary = false) }
+        page.help?.let { StateAction(it, act, primary = false) }
+        page.detail?.let { detail ->
+            NovaPanelButton(
+                text = stringResource(if (detailShown) R.string.nova_panel_hide_details else R.string.nova_panel_details),
+                onClick = { detailShown = !detailShown },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (detailShown) {
+                Text(text = detail, style = type.caption, color = colors.textMuted)
+            }
         }
     }
-    StateAction(page.primary, act, primary = true, modifier = Modifier.focusRequester(focusTarget))
-    page.secondary.forEach { StateAction(it, act, primary = false) }
-    page.help?.let { StateAction(it, act, primary = false) }
 }
 
 @Composable
