@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -212,17 +215,26 @@ fun NovaActionButton(
  * Focus has one look everywhere: a fill plus a 3dp ring inside the shape, with no scale and no
  * halo ([novaFocusRing]). A [primary] takes the accent fill under focus. At rest it is a tile like
  * any other, with its label and icon in the accent, so only focus is loud (R9): Resume, Close and
- * Save rested as solid accent beside the focused button and read as a second focus. A primary
- * destructive, the armed half of a split confirm, keeps its fill at rest, and so does a
- * full-screen state page's recovery action, which passes [fillAtRest] because it is the one thing
- * on the page. The ring contrasts with the fill it sits on: `onAccent` on a primary,
- * `onDestructiveFill` on a primary destructive (the armed half of a split confirm), whose fill is
- * the destructive fill, a red on every theme, never the text colour the destructive text falls
- * back to. A destructive action at rest has destructive text and a hairline in the destructive
- * fill: the text colour falls back to the ordinary text colour on a theme whose red does not read
- * as words, and a hairline in that colour read as a second focus ring. A line needs only 3:1,
- * which the fill always has. Activation goes through [novaClickable], so A acts on release and
- * only on the surface that took the press.
+ * Save rested as solid accent beside the focused button and read as a second focus. A fill at rest
+ * is kept for the confirm half of an armed split, in its tone's fill: red for a destructive split,
+ * as for any primary destructive (a confirm page's destructive answer looks the same), and the
+ * accent for a neutral one, which passes [fillAtRest]. A full-screen state page's recovery action
+ * passes it too, because it is the one thing on its page. The destructive fill is a red on every
+ * theme, never the text colour the destructive text falls back to.
+ *
+ * The ring is the accent ring every control has, on every surface but one: a primary that fills
+ * only under focus rings in its label colour, `onAccent`, where an accent ring would vanish on
+ * its own fill. A surface filled at rest cannot show focus by filling, so it takes the accent
+ * ring too, in either tone (in-game #14, review finding 4), and under focus its fill stands off
+ * the ring by [NovaPanelMetrics.FocusRingGap], so the accent ring reads on the accent fill. Beside
+ * such a half, Stay passes [fillsUnderFocus] false: it rests under focus as at rest and takes only
+ * the ring, so an armed split shows one filled half, never two, and one ring.
+ *
+ * A destructive action at rest has destructive text and a hairline in the destructive fill: the
+ * text colour falls back to the ordinary text colour on a theme whose red does not read as words,
+ * and a hairline in that colour read as a second focus ring. A line needs only 3:1, which the
+ * fill always has. Activation goes through [novaClickable], so A acts on release and only on the
+ * surface that took the press.
  *
  * [selected] marks the current value the one way R9 allows: the check ([NovaCurrentMark]) after the
  * content, selected semantics and the state description Current. It never fills the surface,
@@ -230,6 +242,7 @@ fun NovaActionButton(
  *
  * At rest an unfilled surface draws the control fill, or [restFill] where it stands among rows,
  * such as a destructive row that splits in place, so it rests as the tile the rows around it do.
+ * The surface publishes what it shows ([NovaSurfaceLook]).
  */
 @Composable
 fun NovaActionSurface(
@@ -247,6 +260,7 @@ fun NovaActionSurface(
     contentAlignment: Alignment = Alignment.Center,
     restFill: Color = Color.Unspecified,
     fillAtRest: Boolean = false,
+    fillsUnderFocus: Boolean = true,
     content: @Composable BoxScope.(contentColor: Color, focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -269,8 +283,14 @@ fun NovaActionSurface(
         filledAtRest -> fill
         else -> restFill.takeOrElse { surfaces.control }
     }
-    // A primary takes its fill under focus; everything else takes the focused control fill.
-    val focusedContainer = if (fills) (if (pressed) pressedFill else fill) else surfaces.selectedControl
+    // A primary takes its fill under focus. Stay beside an armed split's filled half keeps its
+    // rest and takes only the ring; everything else takes the focused control fill.
+    val focusedContainer = when {
+        fills -> if (pressed) pressedFill else fill
+        !fillsUnderFocus -> restContainer
+        else -> surfaces.selectedControl
+    }
+    val ring = novaActionRing(fills = fills, filledAtRest = filledAtRest, onFill = onFill, focusRing = surfaces.focusRing)
     val contentColor = when {
         filled -> onFill
         fills -> colors.accentText
@@ -293,13 +313,20 @@ fun NovaActionSurface(
             .clip(shape)
             .novaFocusRing(
                 shape = shape,
-                ring = novaActionRing(fills = fills, destructive = destructive, onFill = onFill, focusRing = surfaces.focusRing),
+                ring = ring,
                 focusedFill = focusedContainer.copy(alpha = focusedContainer.alpha * alpha),
                 restFill = restContainer.copy(alpha = restContainer.alpha * alpha),
                 restBorder = restBorder,
                 restBorderWidth = if (filledAtRest) 0.dp else NovaPanelMetrics.Hairline,
+                ringStandsOff = filledAtRest,
             )
             .semantics {
+                val shown = if (focused) focusedContainer else restContainer
+                novaSurfaceLook = NovaSurfaceLook(
+                    fill = shown.copy(alpha = shown.alpha * alpha),
+                    ring = if (focused) ring else Color.Unspecified,
+                    ringStandsOff = focused && filledAtRest,
+                )
                 contentDescription?.let { this.contentDescription = it }
                 if (selected) {
                     this.selected = true
@@ -341,10 +368,25 @@ fun NovaActionSurface(
 }
 
 /**
- * A [NovaActionSurface]'s focus ring. On the accent fill an accent ring would vanish, so a filled
- * primary rings in its label colour. Every other surface, a destructive fill included, takes the
- * accent ring every control has: the armed End Session drew a black ring where Stay beside it drew
- * the accent (in-game #14).
+ * A [NovaActionSurface]'s focus ring. A primary that fills only under focus rings in its label
+ * colour, since an accent ring would vanish on its own accent fill. Every other surface takes the
+ * accent ring every control has, and so does a surface filled at rest in either tone, whose fill
+ * stands off the ring: the armed End Session drew a black ring where Stay beside it drew the
+ * accent (in-game #14), and the armed Live Tuning's confirm drew its label colour (review
+ * finding 4).
  */
-internal fun novaActionRing(fills: Boolean, destructive: Boolean, onFill: Color, focusRing: Color): Color =
-    if (fills && !destructive) onFill else focusRing
+internal fun novaActionRing(fills: Boolean, filledAtRest: Boolean, onFill: Color, focusRing: Color): Color =
+    if (fills && !filledAtRest) onFill else focusRing
+
+/**
+ * What a [NovaActionSurface] shows now: the [fill] behind its content, the [ring] focus draws or
+ * [Color.Unspecified] without focus, and whether its fill stands off that ring. The surface
+ * publishes it in its semantics, as the panel frame publishes its placement, so a check reads the
+ * look that is drawn rather than a copy of the rule.
+ */
+@Immutable
+data class NovaSurfaceLook(val fill: Color, val ring: Color, val ringStandsOff: Boolean)
+
+/** The [NovaSurfaceLook] of a [NovaActionSurface]. */
+val NovaSurfaceLookKey = SemanticsPropertyKey<NovaSurfaceLook>("NovaSurfaceLook")
+var SemanticsPropertyReceiver.novaSurfaceLook by NovaSurfaceLookKey

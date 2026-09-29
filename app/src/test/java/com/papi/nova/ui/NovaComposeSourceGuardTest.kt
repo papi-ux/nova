@@ -31,7 +31,7 @@ class NovaComposeSourceGuardTest {
         )
         assertTrue(
             "action buttons should use the focused control surface on D-pad focus",
-            actionButton.contains("else surfaces.selectedControl") &&
+            actionButton.contains("else -> surfaces.selectedControl") &&
                 actionButton.contains("focusedFill = focusedContainer")
         )
         assertTrue(

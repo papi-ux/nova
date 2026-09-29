@@ -56,11 +56,14 @@ class NovaInGameSmokeFixesSourceGuardTest {
         assertTrue("and handed to the rows", read("ui/NovaQuickMenu.kt").contains("hudLeftPx = game.novaHudLeftPx"))
     }
 
-    /** In-game #14: the action surface takes its focus ring from the one rule, not its label colour. */
+    /**
+     * In-game #14 and review finding 4: the action surface takes its focus ring from the one rule,
+     * not its label colour. NovaSplitConfirmToneComposeTest reads the ring it draws.
+     */
     @Test
     fun theActionSurfaceTakesItsRingFromTheOneRule() {
         val surface = read("ui/compose/NovaFocusComponents.kt").substringAfter("fun NovaActionSurface(").substringBefore(".semantics {")
-        assertTrue(surface.contains("ring = novaActionRing(fills = fills, destructive = destructive"))
+        assertTrue(surface.contains("val ring = novaActionRing(fills = fills, filledAtRest = filledAtRest"))
         assertTrue("a filled surface no longer rings in its label colour", !surface.contains("ring = if (fills) onFill else surfaces.focusRing"))
     }
 

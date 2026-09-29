@@ -19,7 +19,11 @@ import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import com.papi.nova.ui.compose.LocalNovaComposeColors
+import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaComposeColors
+import com.papi.nova.ui.compose.NovaLibrarySurfaces
+import com.papi.nova.ui.compose.NovaSurfaceLook
+import com.papi.nova.ui.compose.NovaSurfaceLookKey
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -29,8 +33,12 @@ import org.robolectric.annotation.Config
 
 /**
  * A split confirm's two tones (review finding 4). A destructive one rests in the destructive words
- * and confirms in red; a neutral one, for a setting such as Live Tuning, rests as a row and confirms
- * in the accent. Both keep the guard: one A never confirms.
+ * and confirms in red; a neutral one, for a setting such as Live Tuning, rests as a row and
+ * confirms in the accent. Armed, both show one filled half, the confirm, and Stay rests beside it;
+ * focus on either half takes the one accent ring every control has, and on the filled half the
+ * fill stands off the ring so the ring reads on the accent too (in-game #14). Round 2 filled the
+ * neutral confirm beside a Stay that filled under focus as well, two accent surfaces, and ringed
+ * the focused confirm in its label colour. Both keep the guard: one A never confirms.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -39,6 +47,7 @@ class NovaSplitConfirmToneComposeTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     private lateinit var colors: NovaComposeColors
+    private lateinit var surfaces: NovaLibrarySurfaces
     private var confirmed = 0
     private val state = NovaSplitConfirmState()
 
@@ -46,6 +55,7 @@ class NovaSplitConfirmToneComposeTest {
         val keys = rule.setPanelContent {
             CompositionLocalProvider(LocalNovaComposeColors provides LocalNovaComposeColors.current.withDistinctRoles()) {
                 colors = LocalNovaComposeColors.current
+                surfaces = LocalNovaLibrarySurfaces.current
                 Column {
                     Box(Modifier.size(48.dp).testTag("other").focusable())
                     NovaSplitConfirm(
@@ -73,11 +83,28 @@ class NovaSplitConfirmToneComposeTest {
         return results.first().layoutInput.style.color
     }
 
+    private fun look(text: String): NovaSurfaceLook = rule.onNodeWithText(text).fetchSemanticsNode().config[NovaSurfaceLookKey]
+
     private fun arm(keys: NovaTestKeys) {
         rule.onNodeWithText("Live Tuning").requestFocus()
         rule.waitForIdle()
         keys.press(NovaTestKeys.CENTER)
         rule.waitForIdle()
+    }
+
+    /** The armed pair, Stay focused and then the confirm: one fill, one accent ring, in [fill]. */
+    private fun assertArmedPair(keys: NovaTestKeys, fill: Color, onFill: Color) {
+        rule.onNodeWithText("Stay").assertIsFocused()
+        assertEquals("Stay focused keeps its rest and takes the accent ring", NovaSurfaceLook(surfaces.control, surfaces.focusRing, false), look("Stay"))
+        assertEquals("the confirm beside it is the one filled half, with no ring", NovaSurfaceLook(fill, Color.Unspecified, false), look("Turn Off"))
+        assertEquals("in the fill's label colour", onFill, labelColour("Turn Off"))
+
+        keys.press(NovaTestKeys.RIGHT)
+        rule.waitForIdle()
+        rule.onNodeWithText("Turn Off").assertIsFocused()
+        assertEquals("the focused confirm keeps its fill and takes the same accent ring, stood off the fill", NovaSurfaceLook(fill, surfaces.focusRing, true), look("Turn Off"))
+        assertEquals("Stay rests, unfilled and with no ring", NovaSurfaceLook(surfaces.control, Color.Unspecified, false), look("Stay"))
+        assertEquals("one A never confirms", 0, confirmed)
     }
 
     @Test
@@ -86,19 +113,16 @@ class NovaSplitConfirmToneComposeTest {
         assertEquals("at rest its label is a row's", colors.textPrimary, labelColour("Live Tuning"))
 
         arm(keys)
-        rule.onNodeWithText("Stay").assertIsFocused()
-        assertEquals("its confirm wears the accent fill's label", colors.onAccent, labelColour("Turn Off"))
-        assertEquals("one A never confirms", 0, confirmed)
+        assertArmedPair(keys, fill = colors.accent, onFill = colors.onAccent)
     }
 
     @Test
-    fun aDestructiveSplitKeepsItsRed() {
+    fun aDestructiveSplitKeepsItsRedAndTheSameRing() {
         val keys = setUp(NovaSplitTone.Destructive)
         assertEquals(colors.destructive, labelColour("Live Tuning"))
 
         arm(keys)
-        assertEquals("its confirm wears the destructive fill's label", colors.onDestructiveFill, labelColour("Turn Off"))
-        assertEquals(0, confirmed)
+        assertArmedPair(keys, fill = colors.destructiveFill, onFill = colors.onDestructiveFill)
     }
 
     @Test
