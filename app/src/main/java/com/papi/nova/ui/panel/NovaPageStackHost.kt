@@ -489,8 +489,13 @@ fun NovaPanelHintBar(hints: List<NovaControllerHint>, modifier: Modifier = Modif
             ) {
                 Text(
                     text = hint.key,
-                    // A key of several characters, such as L1/R1, reads as one word, not spaced out.
-                    style = if (hint.key.length > 1) type.hintKey.copy(letterSpacing = 0.sp) else type.hintKey,
+                    // A key named in letters and digits, such as L1/R1, reads as one word, not spaced
+                    // out; the ◂▸ arrows keep their spacing, which unspaced ran into one diamond.
+                    style = if (hint.key.length > 1 && hint.key.any { it.isLetterOrDigit() }) {
+                        type.hintKey.copy(letterSpacing = 0.sp)
+                    } else {
+                        type.hintKey
+                    },
                     color = colors.onAccent,
                     modifier = Modifier
                         .clip(chip)
