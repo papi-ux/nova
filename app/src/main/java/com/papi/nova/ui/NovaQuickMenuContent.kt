@@ -71,6 +71,7 @@ import com.papi.nova.ui.panel.NovaSectionLabel
 import com.papi.nova.ui.panel.NovaSplitConfirm
 import com.papi.nova.ui.panel.NovaSplitConfirmState
 import com.papi.nova.ui.panel.NovaSplitShape
+import com.papi.nova.ui.panel.NovaSplitTone
 import androidx.compose.ui.platform.testTag
 import com.papi.nova.ui.panel.NovaTitleAndValueMeasurePolicy
 import com.papi.nova.ui.panel.NovaValueRow
@@ -831,7 +832,8 @@ private fun NovaPageScope.NovaQuickMenuRows(
  * Live Tuning is a host setting: switching it rewrites polaris.conf for every device that streams
  * from the host, so one A never changes it (M11). It splits in its row as End Session does, into
  * Stay and Turn Off (or Turn On), with what it changes written under the pair. At rest it is a row
- * among rows, its state on the chip at its end.
+ * among rows, its state on the chip at its end, in the rows' own look rather than End Session's
+ * red: it changes a setting and ends nothing, so its confirm takes the accent.
  */
 @Composable
 private fun NovaPageScope.NovaQuickMenuLiveTuningRow(
@@ -850,6 +852,7 @@ private fun NovaPageScope.NovaQuickMenuLiveTuningRow(
         enabled = row.enabled,
         caption = row.caption,
         trailing = row.chip?.let { chip -> { NovaQuickMenuChipView(chip) } },
+        tone = NovaSplitTone.Neutral,
         modifier = novaPlaceFocus(row.id).testTag("nova-cc-live-tuning"),
     )
 }
