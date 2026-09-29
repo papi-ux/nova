@@ -84,6 +84,8 @@ data class NovaGameDetailOptimizationState(
     val preflightInFlight: Boolean = false,
     /** The host capability preflight failed, so Play must retry it before launching. */
     val preflightFailed: Boolean = false,
+    /** Why it failed, in the host's words where it gave some, for the status line to say. */
+    val preflightMessage: String? = null,
     val aiRecommendedMode: String = ""
 )
 
@@ -133,6 +135,8 @@ internal fun NovaGameDetailContent(
     /** Host-scope rows and plan; empty and null while This Game is showing. */
     hostPlaySetupRows: List<NovaPlaySetupRowState>,
     hostPlaySetupPlan: NovaPlaySetupPlan?,
+    /** The host scope's last result, said under its plan until the next one; null says nothing. */
+    hostPlaySetupNotice: NovaPolarisSyncNotice? = null,
     /** Play Setup's page stack; open while the panel is. Where It Runs is pushed onto it. */
     playSetupPanel: NovaPanelState,
     playLabel: String,
@@ -499,6 +503,15 @@ internal fun NovaGameDetailContent(
                                 onOpen = { if (isTop) playSetupPanel.push(PlaySetupPage.Plan(planTitle, shownPlan)) },
                                 modifier = Modifier.novaRestorableFocus("plan"),
                             )
+                            // Every Game's last result, in place under its plan and announced, as
+                            // Polaris Sync says it in the library: it floated in a snackbar (X2).
+                            hostPlaySetupNotice?.takeIf { everyGame }?.let { notice ->
+                                NovaPanelStatusText(
+                                    caption = notice.message,
+                                    captionColor = if (notice.isError) LocalNovaComposeColors.current.warning else null,
+                                    announce = true,
+                                )
+                            }
                         },
                     )
                 }

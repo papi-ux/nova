@@ -1179,8 +1179,9 @@ class NovaLibrarySourceGuardTest {
             // Pinned the English sentence itself until it became a string resource. The
             // resource name says which branch this is without depending on its wording, and
             // the sentence was doing double duty as on-screen error state, so it had to move.
-            source.contains("launchErrorMessage = message") &&
-                source.contains("R.string.nova_library_launch_missing_session") &&
+            // The snackbar that said it again is gone (audit X2), so the state is set directly.
+            source.contains("launchErrorMessage = e.localizedMessage ?: e.javaClass.simpleName") &&
+                source.contains("launchErrorMessage = getString(R.string.nova_library_launch_missing_session)") &&
                 source.contains("Failed to launch ${'$'}{game.name}")
         )
         assertTrue(

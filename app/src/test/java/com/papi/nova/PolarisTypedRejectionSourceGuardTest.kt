@@ -21,7 +21,8 @@ class PolarisTypedRejectionSourceGuardTest {
         assertTrue(game.contains("LaunchRefusalReason.HOST_REFUSED, e.rejection.error)"))
         assertTrue(game.contains("policyMessage ?: getString("))
         assertTrue(game.contains("policyReason?.messageRes() ?: R.string.nova_launch_deterministic_host_required"))
-        assertTrue(detail.contains("NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)"))
+        // The game page says the host's words on its status line now, not in a snackbar (audit X2).
+        assertTrue(detail.contains("NovaGameDetailOptimizationState(preflightFailed = true, preflightMessage = e.rejection.error)"))
         assertTrue(sync.contains("rejectionMessage = e.rejection.error"))
         assertTrue(sync.contains("onTextMessage.invoke(exactRejection, true)"))
     }

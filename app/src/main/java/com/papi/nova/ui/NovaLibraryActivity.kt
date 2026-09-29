@@ -840,7 +840,10 @@ class NovaLibraryActivity : NovaActivity() {
                     val message = e.localizedMessage ?: e.javaClass.simpleName
                     loadErrorMessage = message
                     LimeLog.severe("Nova: Failed to load games: ${e.message}")
-                    NovaSnackbar.showError(this@NovaLibraryActivity, message)
+                    // An empty library says it in place on its recovery page. A refresh over a
+                    // library still showing its games says it on a Notice with Try Again: it
+                    // floated in a snackbar and was gone before it could be read (audit X2).
+                    if (allGames.isNotEmpty() || activeSession != null) showRefreshFailed(message)
                 }
             } finally {
                 if (ownsVisibleRefreshState) {
@@ -1168,19 +1171,17 @@ class NovaLibraryActivity : NovaActivity() {
         encoderBackend: String = "",
         preflightOptimization: org.json.JSONObject? = null
     ) {
+        // A launch that cannot start says so in place, on the library's recovery page, which
+        // launchErrorMessage puts where the games were: a snackbar said it again over it (X2).
         if (game.appId <= 0) {
-            val message = getString(R.string.nova_library_launch_missing_id)
-            launchErrorMessage = message
-            NovaSnackbar.showError(this, message)
+            launchErrorMessage = getString(R.string.nova_library_launch_missing_id)
             return
         }
         val uniqueId = streamUniqueId
         val pcUuid = streamPcUuid
         val serverCert = streamServerCert
         if (uniqueId.isNullOrBlank() || pcUuid.isNullOrBlank() || serverCert == null) {
-            val message = getString(R.string.nova_library_launch_missing_session)
-            launchErrorMessage = message
-            NovaSnackbar.showError(this, message)
+            launchErrorMessage = getString(R.string.nova_library_launch_missing_session)
             LimeLog.warning("Nova: Cannot launch from library; missing uniqueId, pcUuid, or server cert")
             return
         }
@@ -1300,10 +1301,9 @@ class NovaLibraryActivity : NovaActivity() {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val message = e.localizedMessage ?: e.javaClass.simpleName
-                launchErrorMessage = message
+                // Said in place on the recovery page, as launchErrorMessage always is.
+                launchErrorMessage = e.localizedMessage ?: e.javaClass.simpleName
                 LimeLog.severe("Nova: Failed to launch ${game.name}: ${e.message}")
-                NovaSnackbar.showError(this@NovaLibraryActivity, message)
             }
         }
     }
@@ -1315,9 +1315,8 @@ class NovaLibraryActivity : NovaActivity() {
         val pcUuid = streamPcUuid
         val serverCert = streamServerCert
         if (uniqueId.isNullOrBlank() || pcUuid.isNullOrBlank() || serverCert == null) {
-            val message = getString(R.string.nova_library_resume_missing_session)
-            launchErrorMessage = message
-            NovaSnackbar.showError(this, message)
+            // Said in place on the recovery page, as launchErrorMessage always is (X2).
+            launchErrorMessage = getString(R.string.nova_library_resume_missing_session)
             LimeLog.warning("Nova: Cannot resume from library; missing uniqueId, pcUuid, or server cert")
             return
         }
@@ -1473,6 +1472,22 @@ class NovaLibraryActivity : NovaActivity() {
 
     private fun openHelpDiagnostics() {
         HelpLauncher.launchTroubleshooting(this)
+    }
+
+    /**
+     * A refresh that failed while the library still shows its games, on a Notice in the edge
+     * panel with Try Again: the games stay, and the reason can be read (audit X2).
+     */
+    private fun showRefreshFailed(message: String) {
+        novaSurfaces.present(
+            NovaCommonPage.Notice(
+                key = REFRESH_FAILED_NOTICE_KEY,
+                title = getString(R.string.nova_library_refresh_failed_title),
+                message = message,
+                primary = NovaAction(getString(R.string.nova_panel_try_again)) { loadGames(forceRefresh = true) },
+                closeLabel = getString(R.string.nova_panel_close),
+            ),
+        )
     }
 
     /** About Nova, pushed over System: its version, read in place, and B back to System. */
@@ -3077,6 +3092,7 @@ class NovaLibraryActivity : NovaActivity() {
         private const val CONTROLLER_HINT_IDLE_REVEAL_MS = 4_000L
         private const val ABOUT_NOTICE_KEY = "nova-library-about"
         private const val MANAGE_FAILED_NOTICE_KEY = "nova-library-manage-failed"
+        private const val REFRESH_FAILED_NOTICE_KEY = "nova-library-refresh-failed"
         private const val SPACES_POLL_OPEN_MS = 5_000L
         private const val SPACES_POLL_CLOSED_MS = 15_000L
         private const val SPACES_POLL_SLOW_MS = 30_000L

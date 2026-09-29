@@ -562,7 +562,10 @@ private fun NovaGameDetailStatusLine(
 ) {
     val colors = LocalNovaComposeColors.current
     val summary = optimizationState.profileSummary
-    val limited = optimizationState.reviewRequired ||
+    // A host check that failed says why here, where what Launch will do is read, with the lamp
+    // warning: the reason floated in a snackbar and was gone before it could be read (X2).
+    val failure = optimizationState.preflightMessage?.takeIf { optimizationState.preflightFailed && it.isNotBlank() }
+    val limited = failure != null || optimizationState.reviewRequired ||
         summary?.noticeTone == NovaLaunchProfileNoticeTone.WARNING
     val lamp = when {
         limited -> colors.warning
@@ -594,7 +597,7 @@ private fun NovaGameDetailStatusLine(
         // rest shows while Launch holds the cursor.
         BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
             val widthPx = constraints.maxWidth
-            val line = novaInstrumentCase(novaGameDetailStatusText(uiState, summary))
+            val line = novaInstrumentCase(failure ?: novaGameDetailStatusText(uiState, summary))
             // Whole parts to a line, and a line never ends in a dot (N22).
             val packed = remember(line, widthPx, style) {
                 novaPackAtDots(novaDottedParts(line), NOVA_GAME_DETAIL_STATUS_SEPARATOR) { candidate ->

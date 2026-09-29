@@ -260,6 +260,15 @@ class NovaGameDetailActivity : NovaActivity() {
      */
     private var hostSyncEngine: NovaPolarisSyncEngine? = null
 
+    /**
+     * The host scope's last result, said under Every Game's plan until the next one replaces it:
+     * every one floated in a snackbar over the panel (audit X2). Cleared as the scope opens.
+     */
+    private var hostSyncNotice by mutableStateOf<NovaPolarisSyncNotice?>(null)
+
+    /** The host did not take the Steam launch mode last asked for; its row says so (X2). */
+    private var steamLaunchModeFailed by mutableStateOf(false)
+
     /** One icon-resolution/pin request at a time; lifecycle cancellation reaches OkHttp. */
     private var pinShortcutJob: Job? = null
 
@@ -487,6 +496,8 @@ class NovaGameDetailActivity : NovaActivity() {
             return
         }
         playSetupScope = scope
+        // A result belongs to the visit it came in: the scope opens without the last one's.
+        hostSyncNotice = null
         // Every page belongs to the scope it was opened from: the Every Game rows are different
         // rows, so no page stays open across the flip. Y on a page pops to the root first.
         while (playSetupPanel.depth > 1) playSetupPanel.pop()
@@ -725,20 +736,8 @@ class NovaGameDetailActivity : NovaActivity() {
                 clientSettings = settings
                 refreshUiState()
             },
-            onMessage = { messageRes, isError ->
-                if (isError) {
-                    NovaSnackbar.showError(this, getString(messageRes))
-                } else {
-                    NovaSnackbar.showSuccess(this, getString(messageRes))
-                }
-            },
-            onTextMessage = { message, isError ->
-                if (isError) {
-                    NovaSnackbar.showError(this, message)
-                } else {
-                    NovaSnackbar.showSuccess(this, message)
-                }
-            },
+            onMessage = { messageRes, isError -> hostSyncNotice = NovaPolarisSyncNotice(getString(messageRes), isError) },
+            onTextMessage = { message, isError -> hostSyncNotice = NovaPolarisSyncNotice(message, isError) },
         )
 
         fun acceptArtwork(manifest: PolarisGame.ArtworkManifest) {
@@ -932,7 +931,6 @@ class NovaGameDetailActivity : NovaActivity() {
             optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)
             preflightJob = lifecycleScope.launch {
                 var launchCanReplay = false
-                var failureMessageShown = false
                 val nextOptimizationState = try {
                     awaitLatestSteamLaunchModeWrite()
                     if (!preflightRequestFence.owns(requestGeneration)) {
@@ -984,13 +982,16 @@ class NovaGameDetailActivity : NovaActivity() {
                 } catch (e: PolarisApiRejectedException) {
                     if (!preflightRequestFence.owns(requestGeneration)) return@launch
                     LimeLog.warning("Nova: Preflight optimization rejected: ${e.rejection.code}")
-                    NovaSnackbar.showError(this@NovaGameDetailActivity, e.rejection.error)
-                    failureMessageShown = true
-                    NovaGameDetailOptimizationState(preflightFailed = true)
+                    // The host's own words, on the status line where what Launch will do is read:
+                    // they floated in a snackbar and were gone before they could be read (X2).
+                    NovaGameDetailOptimizationState(preflightFailed = true, preflightMessage = e.rejection.error)
                 } catch (e: Exception) {
                     if (!preflightRequestFence.owns(requestGeneration)) return@launch
                     LimeLog.warning("Nova: Preflight optimization failed: ${e.message}")
-                    NovaGameDetailOptimizationState(preflightFailed = true)
+                    NovaGameDetailOptimizationState(
+                        preflightFailed = true,
+                        preflightMessage = getString(R.string.nova_game_detail_launch_preflight_unavailable),
+                    )
                 }
                 if (!preflightRequestFence.owns(requestGeneration)) return@launch
                 optimizationState = nextOptimizationState
@@ -998,13 +999,8 @@ class NovaGameDetailActivity : NovaActivity() {
                     if (launchCanReplay) {
                         attemptLaunch()
                     } else {
+                        // The status line already says why, and Launch reads Retry Host Check.
                         pendingLaunch = false
-                        if (!failureMessageShown) {
-                            NovaSnackbar.showError(
-                                this@NovaGameDetailActivity,
-                                getString(R.string.nova_game_detail_launch_preflight_unavailable),
-                            )
-                        }
                     }
                 }
             }
@@ -1270,16 +1266,13 @@ class NovaGameDetailActivity : NovaActivity() {
             pendingSettledWork = null
 
             val intentGeneration = launchViewModel.selectSteamLaunchMode(requestedMode)
+            steamLaunchModeFailed = false
             steamLaunchModeJob?.cancel()
             steamLaunchModeJob = lifecycleScope.launch {
                 val resolution = awaitLatestSteamLaunchModeWrite()
                 if (resolution.generation != intentGeneration) return@launch
-                if (resolution.failed) {
-                    NovaSnackbar.showError(
-                        this@NovaGameDetailActivity,
-                        getString(R.string.nova_steam_launch_mode_failed),
-                    )
-                }
+                // Said in the row's own caption, where the mode was changed (X2).
+                steamLaunchModeFailed = resolution.failed
                 loadOptimization(profilePreference)
             }
         }
@@ -2066,7 +2059,8 @@ class NovaGameDetailActivity : NovaActivity() {
                                 constraint.width, constraint.height, constraint.fps)
                             reviewExpanded -> launchPreview.profileSummary?.noticeDetail
                                 ?.takeIf { it.isNotBlank() } ?: getString(R.string.nova_library_preflight_review_message, optimizationState.reviewReason)
-                            optimizationState.preflightFailed -> getString(R.string.nova_game_detail_launch_preflight_unavailable)
+                            optimizationState.preflightFailed -> optimizationState.preflightMessage
+                                ?: getString(R.string.nova_game_detail_launch_preflight_unavailable)
                             !uiState.playEnabled -> uiState.hostStreamDisplayModeUnavailableReason.takeIf { it.isNotBlank() }
                             else -> null
                         },
@@ -2111,6 +2105,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     } else {
                         null
                     },
+                    hostPlaySetupNotice = hostSyncNotice.takeIf { playSetupScope == NovaPlaySetupScope.EVERY_GAME },
                     playSetupPanel = playSetupPanel,
                     playLabel = if (environmentChanging) {
                         getString(R.string.nova_space_changing)
@@ -2637,7 +2632,9 @@ class NovaGameDetailActivity : NovaActivity() {
     }
 
     private fun steamLaunchCaption(uiState: NovaGameDetailUiState): String {
-        return if (uiState.steamLaunchWarning) {
+        return if (steamLaunchModeFailed) {
+            getString(R.string.nova_steam_launch_mode_failed)
+        } else if (uiState.steamLaunchWarning) {
             getString(R.string.nova_steam_launch_caption_big_picture)
         } else {
             getString(R.string.nova_steam_launch_caption_direct)

@@ -5,6 +5,8 @@
     <!-- Where End Session was pressed in the library, in the eyebrow's line beside Try Again, when
          the host did not end the session or this device lacks what the host needs to end it. -->
     <string name="nova_library_end_failed">Could not end the session</string>
+    <!-- A refresh that failed while the library still shows its games: the title of its Notice. -->
+    <string name="nova_library_refresh_failed_title">Could not refresh the library</string>
     <!-- Beside an armed End Session in the library's top strip, which has no room for a longer line. -->
     <string name="nova_library_end_strip_consequence">Unsaved progress on the host is lost.</string>
     <!-- The library strip right after End Session is confirmed, until the host answers. -->
