@@ -55,14 +55,13 @@ import com.papi.nova.ui.NovaCompanionCommandDeckState
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudUiState
 import com.papi.nova.ui.NovaLaunchStreamOverride
+import com.papi.nova.ui.novaLaunchIssuePage
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.StreamContainer
 import com.papi.nova.ui.NovaMouseModeChoices
-import com.papi.nova.ui.panel.NovaAction
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaOption
-import com.papi.nova.ui.panel.NovaStatePage
 import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
@@ -5651,10 +5650,9 @@ return false
 }
 
 /**
- * A launch the host refused or Nova gave up on, as a full-screen state page over the stream. The
- * stream never started, so there is nothing to go back to: Try Again is focused, and Back (which
- * is also what B does) returns to Nova. In a Space the retry is the library's, which checks the
- * Space again before it starts anything, and the technical reason sits behind Details.
+ * A launch the host refused or Nova gave up on, as a full-screen state page over the stream
+ * ([novaLaunchIssuePage]): Try Again is focused, and B returns to Nova without retrying. In a
+ * Space the retry is the library's, which checks the Space again before it starts anything.
  */
 private fun showNovaLaunchIssueSheet(message: String) {
 runOnUiThread {
@@ -5664,33 +5662,23 @@ spinner!!.dismiss()
 spinner = null
 }
 val surfaces = novaSurfaces
-fun leaving(label: String, run: () -> Unit) = NovaAction(label) {
-surfaces.dismiss(LAUNCH_ISSUE_PAGE)
-run()
-}
-val page = if (spaceSession) {
-val refusal = conn?.lastHostRefusal
-NovaStatePage.Problem(
+val page = novaLaunchIssuePage(
+context = this,
 key = LAUNCH_ISSUE_PAGE,
-title = getString(R.string.nova_space_launch_issue_title),
-message = listOfNotNull(refusal?.message, refusal?.action ?: getString(R.string.nova_space_launch_issue_default))
-.joinToString("\n\n"),
-primary = leaving(getString(R.string.nova_space_launch_issue_retry)) {
+message = message,
+space = spaceSession,
+refusal = if (spaceSession) conn?.lastHostRefusal else null,
+retry = if (spaceSession) {
+{
 NovaSpaceRetrySignal.mark(this@Game, this@Game.getIntent().getStringExtra(EXTRA_PC_UUID), host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST))
 finish()
-},
-secondary = listOf(leaving(getString(R.string.nova_space_launch_issue_back)) { finish() }),
-detail = message,
-)
-} else {
-NovaStatePage.Problem(
-key = LAUNCH_ISSUE_PAGE,
-title = getString(R.string.nova_launch_issue_title),
-message = message,
-primary = leaving(getString(R.string.nova_stream_launch_retry)) { relaunchStream() },
-secondary = listOf(leaving(getString(R.string.nova_launch_issue_dismiss)) { finish() }),
-)
 }
+} else {
+{ relaunchStream() }
+},
+leave = { finish() },
+takeDown = { surfaces.dismiss(LAUNCH_ISSUE_PAGE) },
+)
 surfaces.show(page)
 }
 }

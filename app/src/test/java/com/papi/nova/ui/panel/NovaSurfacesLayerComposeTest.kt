@@ -32,17 +32,18 @@ class NovaSurfacesLayerComposeTest {
     private var retries = 0
     private var stateBacks = 0
 
+    private val closeLost = NovaAction("Close") {
+        stateBacks++
+        states = emptyList()
+    }
+
     private val lost = NovaStatePage.Problem(
         key = "lost",
         title = "Connection lost",
         message = "The host stopped answering.",
         primary = NovaAction("Reconnect") { retries++ },
-        secondary = listOf(
-            NovaAction("Close") {
-                stateBacks++
-                states = emptyList()
-            },
-        ),
+        back = NovaProblemBack.Close(closeLost),
+        secondary = listOf(closeLost),
     )
 
     private fun setUp(

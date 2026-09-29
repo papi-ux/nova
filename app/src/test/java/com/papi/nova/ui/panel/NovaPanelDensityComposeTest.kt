@@ -145,6 +145,7 @@ class NovaPanelDensityComposeTest {
                     title = "Connection Lost",
                     message = "The host stopped answering.",
                     primary = NovaAction("Reconnect") {},
+                    back = NovaProblemBack.Absorb,
                 ),
             )
         }

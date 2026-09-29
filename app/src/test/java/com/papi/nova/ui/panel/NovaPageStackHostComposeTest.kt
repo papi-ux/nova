@@ -95,6 +95,7 @@ class NovaPageStackHostComposeTest {
                         title = "Connection lost",
                         message = "The host stopped answering.",
                         primary = NovaAction("Reconnect") { stateRetries++ },
+                        back = NovaProblemBack.Close(NovaAction("Close") { stateBacks++; stateShown = false }),
                         secondary = listOf(NovaAction("Close") { stateBacks++; stateShown = false }),
                     ),
                 )

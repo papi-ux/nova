@@ -1373,7 +1373,7 @@ class NovaLibrarySourceGuardTest {
         )
         assertTrue(
             "B leaves the library rather than running the recovery action",
-            recoveryState.contains("back = NovaAction(getString(R.string.nova_panel_back)) { finishWithTransition() }")
+            recoveryState.contains("back = NovaProblemBack.Close(NovaAction(getString(R.string.nova_panel_back)) { finishWithTransition() })")
         )
         assertFalse(
             "no centred card around the recovery state (R6)",

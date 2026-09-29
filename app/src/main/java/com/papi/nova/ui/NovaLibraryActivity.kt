@@ -155,6 +155,7 @@ import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageScope
+import com.papi.nova.ui.panel.NovaProblemBack
 import com.papi.nova.ui.panel.NovaShoulder
 import com.papi.nova.ui.panel.NovaSplitConfirm
 import com.papi.nova.ui.panel.NovaStatePage
@@ -2665,7 +2666,7 @@ class NovaLibraryActivity : NovaActivity() {
                     emptyList()
                 },
                 // Leaving the library is the way out that changes nothing; it is what B did here before.
-                back = NovaAction(getString(R.string.nova_panel_back)) { finishWithTransition() },
+                back = NovaProblemBack.Close(NovaAction(getString(R.string.nova_panel_back)) { finishWithTransition() }),
             ),
         )
     }

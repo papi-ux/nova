@@ -71,7 +71,7 @@ class NovaSurfacesHelpersTest {
         assertEquals(NovaStateOwner.LegacyDialog, page.owner)
         assertEquals("Reconnect", page.primary.label)
         assertEquals(listOf("Close"), page.secondary.map { it.label })
-        assertEquals("B is Close, the least destructive way out", "Close", page.back.label)
+        assertEquals("B is Close, the least destructive way out", NovaProblemBack.Close(page.secondary.single()), page.back)
 
         page.primary.run()
         assertEquals(1, reconnects)
@@ -87,8 +87,9 @@ class NovaSurfacesHelpersTest {
         val page = activity.states().single() as NovaStatePage.Problem
         assertEquals("with no action, Close is the primary", "Close", page.primary.label)
         assertTrue(page.secondary.isEmpty())
+        assertEquals("and Close is B too, as the page says so", NovaProblemBack.Close(page.primary), page.back)
 
-        page.back.run()
+        page.back.action!!.run()
         assertTrue(activity.isFinishing)
         assertTrue(activity.states().isEmpty())
     }

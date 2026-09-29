@@ -4,6 +4,7 @@ import android.app.Activity
 import com.papi.nova.R
 import com.papi.nova.ui.panel.NovaAction
 import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaProblemBack
 import com.papi.nova.ui.panel.NovaStateOwner
 import com.papi.nova.ui.panel.NovaStatePage
 import com.papi.nova.ui.panel.NovaSurfaces
@@ -13,7 +14,9 @@ import java.util.concurrent.atomic.AtomicLong
  * Nova's message helper, drawn on the activity's [NovaSurfaces].
  *
  * A message the screen cannot go on from (`endAfterDismiss`) is a full-screen Problem page: its
- * action, when there is one, is focused, and Close (also what B does) finishes the screen. Any
+ * action, when there is one, is focused, and Close, which is also what B does and never the
+ * action (a Reconnect), finishes the screen. Without an action Close is the one choice, so it is
+ * both the primary and B. Any
  * other message is a Notice page in the right-edge panel. Help shows only when a caller asks for
  * it. Every entry point may be called from any thread.
  */
@@ -90,6 +93,7 @@ object Dialog {
                     title = title,
                     message = message,
                     primary = primary ?: close,
+                    back = NovaProblemBack.Close(close),
                     secondary = if (primary != null) listOf(close) else emptyList(),
                     help = if (help) leaving(helpLabel, troubleshoot) else null,
                     owner = NovaStateOwner.LegacyDialog,

@@ -8,6 +8,7 @@ import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaProblemBack
 import com.papi.nova.ui.panel.NovaStatePage
 import com.papi.nova.ui.panel.NovaSurfaces
 import kotlinx.coroutines.CoroutineName
@@ -23,6 +24,7 @@ import kotlinx.coroutines.withContext
  * The host's screen is locked: a full-screen state page over the stream. Unlock is focused and
  * asks Polaris to unlock the host, so A does it; Not Now, which is also what B does, leaves the
  * lock screen on the stream to sign in there, and the page stays away until the host locks again.
+ * B never unlocks: it carries on with the stream ([NovaProblemBack.Continue]).
  * The page goes by itself when the host reports it unlocked.
  */
 class LockScreenOverlay(
@@ -47,15 +49,19 @@ class LockScreenOverlay(
         }
     }
 
-    private fun page(unlocking: Boolean) = NovaStatePage.Problem(
-        key = PAGE_KEY,
-        title = activity.getString(R.string.nova_stream_lock_title),
-        message = activity.getString(R.string.nova_stream_lock_message),
-        primary = NovaAction(
-            activity.getString(if (unlocking) R.string.nova_lock_overlay_unlocking else R.string.nova_lock_overlay_unlock),
-        ) { requestUnlock() },
-        secondary = listOf(NovaAction(activity.getString(R.string.nova_stream_lock_not_now)) { setAside() }),
-    )
+    private fun page(unlocking: Boolean): NovaStatePage.Problem {
+        val notNow = NovaAction(activity.getString(R.string.nova_stream_lock_not_now)) { setAside() }
+        return NovaStatePage.Problem(
+            key = PAGE_KEY,
+            title = activity.getString(R.string.nova_stream_lock_title),
+            message = activity.getString(R.string.nova_stream_lock_message),
+            primary = NovaAction(
+                activity.getString(if (unlocking) R.string.nova_lock_overlay_unlocking else R.string.nova_lock_overlay_unlock),
+            ) { requestUnlock() },
+            back = NovaProblemBack.Continue(notNow),
+            secondary = listOf(notNow),
+        )
+    }
 
     private fun requestUnlock() {
         if (unlockInProgress) return

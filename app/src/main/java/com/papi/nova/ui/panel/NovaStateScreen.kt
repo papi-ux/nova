@@ -57,25 +57,50 @@ import kotlinx.coroutines.flow.first
 /** Who posted a state page, so the legacy helpers can clear their own. */
 enum class NovaStateOwner { App, LegacyDialog, LegacySpinner }
 
+/**
+ * What B, Back and Escape do on a [NovaStatePage.Problem]. Every caller says which: it is never
+ * taken from the order of the page's actions, and it is never a recovery such as Retry, Reconnect
+ * or Unlock, which only A on the focused primary runs (R5).
+ */
+sealed interface NovaProblemBack {
+    /** What B runs, or null when B is absorbed. */
+    val action: NovaAction?
+
+    /** Runs [action], which takes the page down and lets the screen under it carry on, as Not Now does. */
+    data class Continue(override val action: NovaAction) : NovaProblemBack
+
+    /**
+     * Runs [action], which takes the page down and closes the screen under it, as Close or Back
+     * does. A page whose only way on is closing passes its Close as both the primary and this.
+     */
+    data class Close(override val action: NovaAction) : NovaProblemBack
+
+    /** Does nothing: the screen can neither carry on nor close until the player picks an action. */
+    data object Absorb : NovaProblemBack {
+        override val action: NovaAction? get() = null
+    }
+}
+
 /** A blocking state, drawn full screen above everything else in the window. */
 sealed interface NovaStatePage {
     val key: String
     val owner: NovaStateOwner
 
     /**
-     * Something went wrong and the player chooses what next. [primary] is focused; B runs [back],
-     * the least destructive way out, which is the last secondary action if there is one.
+     * Something went wrong and the player chooses what next. [primary] is focused, so A runs it.
+     * B, Back and Escape do what [back] says, which the caller states: there is no default, so a
+     * page that offers only a recovery never runs it on B.
      */
     data class Problem(
         override val key: String,
         val title: String,
         val message: String,
         val primary: NovaAction,
+        val back: NovaProblemBack,
         val secondary: List<NovaAction> = emptyList(),
         val eyebrow: String? = null,
         val detail: String? = null,
         val help: NovaAction? = null,
-        val back: NovaAction = secondary.lastOrNull() ?: primary,
         override val owner: NovaStateOwner = NovaStateOwner.App,
     ) : NovaStatePage
 
@@ -198,7 +223,8 @@ private fun ProblemContent(page: NovaStatePage.Problem, focusTarget: FocusReques
     val type = novaPanelType
     var detailShown by rememberSaveable(page.key) { mutableStateOf(false) }
     val back by rememberUpdatedState(page.back)
-    NovaBackHandler(active = true) { act.run(back) }
+    // Always enabled, so an absorbed B stops here rather than reaching whatever is underneath.
+    NovaBackHandler(active = true) { back.action?.let(act::run) }
     page.eyebrow?.let {
         Text(text = it.uppercase(Locale.getDefault()), style = type.sectionLabel, color = colors.accent, textAlign = TextAlign.Center)
     }

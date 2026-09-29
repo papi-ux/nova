@@ -160,12 +160,19 @@ class NovaLaunchSourceGuardTest {
         // The launch issue is a full-screen state page now: no sheet, so no theme background
         // to peek out as a clipped bump and no handle to drag it away.
         val launchIssue = game.section("private fun showNovaLaunchIssueSheet(", "private fun finishSecondScreen(")
+        val launchIssuePage = readSource("src/main/java/com/papi/nova/ui/NovaLaunchIssuePage.kt")
         assertTrue(
             "Launch issue must be a full-screen Nova state page, not a sheet whose theme background can peek out as a clipped bump",
-            launchIssue.contains("NovaStatePage.Problem(") &&
+            launchIssue.contains("novaLaunchIssuePage(") &&
+                launchIssuePage.contains("NovaStatePage.Problem(") &&
                 launchIssue.contains("surfaces.show(page)") &&
                 !launchIssue.contains("BottomSheetDialog") &&
                 !game.contains("setBackgroundColor(Color.rgb(18, 22, 28))")
+        )
+        assertTrue(
+            "B on a failed launch returns to Nova and never retries: each page states its back as the way out (R5)",
+            launchIssuePage.split("NovaStatePage.Problem(").size == 3 &&
+                launchIssuePage.split("back = NovaProblemBack.Close(").size == 3
         )
         // Group 3: game detail and Polaris Sync host no bottom sheet any more (Play Setup is a panel
         // in the detail window, Polaris Sync a page of the library's System panel), so there is no

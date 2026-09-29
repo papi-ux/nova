@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.ui.panel.NovaProblemBack
 import com.papi.nova.ui.panel.NovaStatePage
 import com.papi.nova.ui.panel.NovaSurfaces
 import java.util.concurrent.CountDownLatch
@@ -50,7 +51,8 @@ class LockScreenOverlayTest {
         val page = lockPage(activity)
         assertEquals("Host screen is locked", page.title)
         assertEquals("the primary action is the one the page focuses, so A unlocks", "Unlock host", page.primary.label)
-        assertEquals("B runs the least destructive way out, never the unlock", "Not Now", page.back.label)
+        assertTrue("B carries on with the stream, never the unlock", page.back is NovaProblemBack.Continue)
+        assertEquals("B runs the least destructive way out, never the unlock", "Not Now", page.back.action?.label)
 
         page.primary.run()
         idle()
@@ -103,7 +105,7 @@ class LockScreenOverlayTest {
         overlay.show()
         idle()
 
-        lockPage(activity).back.run()
+        lockPage(activity).back.action!!.run()
         idle()
         assertFalse(overlay.isShowing)
         assertNull(findLockPage(activity))

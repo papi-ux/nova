@@ -50,6 +50,22 @@ internal class NovaTestKeys(private val rule: NovaTestRule) {
         rule.waitForIdle()
     }
 
+    private val gate = NovaKeyGate()
+
+    /**
+     * A whole press of [code] through the [NovaKeyGate] a Nova window puts in front of its content,
+     * so B and Escape become Back on release, as they do on a device.
+     */
+    fun gatedPress(code: Int) {
+        rule.runOnUiThread {
+            for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+                gate.dispatch(event(action, code, 0, 0), onBack = rule.activity.onBackPressedDispatcher::onBackPressed, deliver = view::dispatchKeyEvent)
+            }
+        }
+        rule.waitForIdle()
+        if (!rule.mainClock.autoAdvance) rule.frames(1)
+    }
+
     /** Two whole presses with no frame between them, as input queued during a hitch arrives. */
     fun pressTwiceInOneFrame(code: Int) {
         rule.runOnUiThread {

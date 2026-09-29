@@ -1,6 +1,7 @@
 package com.papi.nova.ui.panel
 
 import android.os.Looper
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,17 +34,20 @@ class NovaStateScreenComposeTest {
     private var retries = 0
     private var closes = 0
 
+    private val close = NovaAction("Close") { closes++ }
+
     private fun problem(withSecondary: Boolean) = NovaStatePage.Problem(
         key = "lost",
         title = "Connection lost",
         message = "The host stopped answering.",
         eyebrow = "Stream",
         primary = NovaAction("Reconnect") { retries++ },
-        secondary = if (withSecondary) listOf(NovaAction("Close") { closes++ }) else emptyList(),
+        back = if (withSecondary) NovaProblemBack.Close(close) else NovaProblemBack.Absorb,
+        secondary = if (withSecondary) listOf(close) else emptyList(),
     )
 
     @Test
-    fun theProblemPrimaryIsFocusedAndBRunsTheSecondaryNeverThePrimary() {
+    fun theProblemPrimaryIsFocusedAndBRunsItsStatedBackNeverThePrimary() {
         val keys = rule.setPanelContent { NovaStateScreen(problem(withSecondary = true)) }
         rule.onNodeWithText("Reconnect").assertIsFocused()
         keys.back()
@@ -52,10 +56,36 @@ class NovaStateScreenComposeTest {
     }
 
     @Test
-    fun withNoSecondaryBRunsThePrimary() {
+    fun aProblemWithOnlyARecoveryNeverRunsItOnBBackOrEscape() {
         val keys = rule.setPanelContent { NovaStateScreen(problem(withSecondary = false)) }
+        rule.onNodeWithText("Reconnect").assertIsFocused()
+
+        keys.gatedPress(KeyEvent.KEYCODE_BUTTON_B)
         keys.back()
-        assertEquals(1, retries)
+        keys.gatedPress(KeyEvent.KEYCODE_ESCAPE)
+
+        assertEquals("B, Back and Escape never reconnect (R5)", 0, retries)
+        rule.onNodeWithText("Reconnect").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals("A still does", 1, retries)
+    }
+
+    @Test
+    fun aPageWhoseOnlyWayOnIsClosingNamesCloseForBoth() {
+        val keys = rule.setPanelContent {
+            NovaStateScreen(
+                NovaStatePage.Problem(
+                    key = "not-found",
+                    title = "PC not found",
+                    message = "Nova could not find that PC.",
+                    primary = close,
+                    back = NovaProblemBack.Close(close),
+                ),
+            )
+        }
+        rule.onNodeWithText("Close").assertIsFocused()
+        keys.gatedPress(KeyEvent.KEYCODE_BUTTON_B)
+        assertEquals(1, closes)
     }
 
     @Test
@@ -83,6 +113,7 @@ class NovaStateScreenComposeTest {
                 pages = posted
                 reconnects++
             },
+            back = NovaProblemBack.Absorb,
         )
         posted = listOf(page)
         pages = posted
