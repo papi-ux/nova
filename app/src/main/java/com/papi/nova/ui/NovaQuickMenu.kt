@@ -1104,7 +1104,7 @@ class NovaQuickMenu(
                         }
                         NovaQuickMenuActionId.MORE_KEYS -> {
                             // The key list itself, pushed in this panel; B comes back here.
-                            surfaces.panel.push(keysPage(menu))
+                            surfaces.panel.push(keysPage(menu, besideTheRoot = true))
                         }
                         NovaQuickMenuActionId.MORE_CONTROLS -> {
                             // The legacy Quick Menu's extras, pushed in this panel.
@@ -1116,7 +1116,7 @@ class NovaQuickMenu(
             }
         )
 
-        val root: NovaPage = if (keysAsRoot) keysPage(menu) else CommandCenterPage.Root(uiState.value.title)
+        val root: NovaPage = if (keysAsRoot) keysPage(menu, besideTheRoot = false) else CommandCenterPage.Root(uiState.value.title)
         surfaces.open(root, NovaEdge.Start) { page ->
             // Every page lends its scope, for closing and then waiting on the stream's focus, and
             // a view in the panel window, where snackbars about the menu belong.
@@ -1245,12 +1245,16 @@ class NovaQuickMenu(
         ),
     )
 
-    /** The Keys page: the default special keys and the imported custom ones. */
-    private fun keysPage(menu: MenuSession): CommandCenterPage.Keys {
+    /**
+     * The Keys page: the default special keys and the imported custom ones. Pushed from the
+     * Command Center, [besideTheRoot], it leaves out the keys the root already offers, so each key
+     * shows once; as the companion deck's own page it is the whole list.
+     */
+    private fun keysPage(menu: MenuSession, besideTheRoot: Boolean): CommandCenterPage.Keys {
         val defaults = if (PreferenceConfiguration.readPreferences(game).disableDefaultExtraKeys) {
             emptyList()
         } else {
-            NovaCommandCenterKeys.defaults(game)
+            NovaCommandCenterKeys.defaults(game).filterNot { besideTheRoot && it.key in NovaCommandCenterKeys.OnTheRoot }
         }
         val custom = NovaCommandCenterKeys.custom(game) { error ->
             LimeLog.warning("Nova: Custom keys could not be read: ${error.message}")

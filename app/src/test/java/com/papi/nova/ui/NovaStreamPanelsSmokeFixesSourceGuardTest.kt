@@ -25,7 +25,10 @@ class NovaStreamPanelsSmokeFixesSourceGuardTest {
         )
         val menu = read("ui/NovaQuickMenu.kt")
         assertTrue(menu.contains("state.copy(diagnosis = state.diagnosis.copy(copied = true))"))
-        assertTrue(read("ui/NovaQuickMenuContent.kt").contains("if (diagnosis.copied) stringResource(R.string.nova_quick_menu_doctor_copied)"))
+        // The card's chip says Copied in place; since N26 it says nothing else, only a state.
+        val content = read("ui/NovaQuickMenuContent.kt")
+        assertTrue(content.contains("val copiedLabel = stringResource(R.string.nova_quick_menu_doctor_copied)"))
+        assertTrue(content.contains("chip = if (diagnosis.copied) NovaQuickMenuChip(copiedLabel, NovaQuickMenuTone.INFO) else null"))
     }
 
     @Test

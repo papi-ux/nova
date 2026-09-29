@@ -1006,6 +1006,38 @@ class NovaCommandCenterSourceGuardTest {
         assertTrue(readNovaQuickMenu().contains("onHudPreview = { previewing -> game.setNovaHudPreviewing(previewing) }"))
     }
 
+    /**
+     * N26: the opacity values sat mid row, an arrow's width in from where every other value ends,
+     * and the Stream card's Launch Preset row sat a second inset deeper than every other row.
+     */
+    @Test
+    fun opacityShowsItsPresetsInTheRowAndLaunchPresetKeepsTheRowInset() {
+        val content = readNovaQuickMenuContent()
+        val menuOpacity = content.section(
+            "private fun NovaPageScope.NovaQuickMenuMenuOpacityControl(",
+            "@Composable\nprivate fun NovaPageScope.NovaQuickMenuHudOpacityControl(",
+        )
+        val hudOpacity = content.section("private fun NovaPageScope.NovaQuickMenuHudOpacityControl(", "// Four layouts in one row")
+        assertTrue(
+            "both opacity rows show every preset in the row with the current one checked, as HUD Mode does",
+            menuOpacity.contains("style = NovaValueStyle.Segmented") && hudOpacity.contains("style = NovaValueStyle.Segmented"),
+        )
+        val stream = content.section("private fun NovaQuickMenuStabilityCard(", "private fun NovaQuickMenuStaticCard(")
+        assertTrue(
+            "the Stream card insets its text as a row does and leaves its nested row its own inset",
+            stream.contains("NovaQuickMenuStaticCard(contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceMd))"),
+        )
+    }
+
+    /** N26: More Keys pushed from the root leaves out the keys the root offers, so each key shows once. */
+    @Test
+    fun moreKeysBesideTheRootLeavesOutTheRootsKeys() {
+        val menu = readNovaQuickMenu()
+        assertTrue(menu.contains("surfaces.panel.push(keysPage(menu, besideTheRoot = true))"))
+        assertTrue(menu.contains("filterNot { besideTheRoot && it.key in NovaCommandCenterKeys.OnTheRoot }"))
+        assertTrue("the companion deck's own Keys page stays the whole list", menu.contains("keysPage(menu, besideTheRoot = false)"))
+    }
+
     @Test
     fun companionDeckSkipsUnchangedPerfIntervals() {
         val deck = readSource("src/main/java/com/papi/nova/ui/NovaCompanionCommandDeckView.kt")

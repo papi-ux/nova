@@ -77,6 +77,14 @@
     <!-- HUD Mode and HUD Opacity when the HUD sits in its own corner, under the Command Center. -->
     <string name="nova_cc_hud_mode_under_panel">Pick a layout. The HUD is under this panel, so close it to see the change.</string>
     <string name="nova_cc_hud_opacity_under_panel">The HUD is under this panel, so close it to see the change.</string>
+    <!-- Command Center rows that had no caption, and a state chip word. -->
+    <string name="nova_cc_paste_caption">Copies this device\'s clipboard to the host.</string>
+    <string name="nova_cc_rotate_caption">Turns the stream between landscape and portrait.</string>
+    <string name="nova_cc_shown">Shown</string>
+    <!-- The session strip's detail line, in plain words, with the technical term where a player needs it. -->
+    <string name="nova_cc_capture_gpu">GPU capture (DMA-BUF)</string>
+    <string name="nova_cc_capture_cpu">CPU capture (SHM)</string>
+    <string name="nova_cc_capture_gpu_encoder">GPU encoding</string>
 
     <!-- Launch failure and stream errors, as full-screen state pages. -->
     <string name="nova_stream_launch_retry">Try Again</string>

@@ -368,11 +368,11 @@ class NovaQuickMenuUiStateTest {
         assertFalse(state.sessionMode.label.contains("Headless"))
         // The capture path belongs to the detail line, not the pill, so the health summary
         // beside the pill keeps its room.
-        assertFalse(state.sessionMode.label.contains("GPU-native DMA-BUF"))
+        assertFalse(state.sessionMode.label.contains("GPU capture"))
         assertFalse(state.sessionMode.label.contains("owner"))
-        assertTrue(state.sessionDetail.contains("GPU-native DMA-BUF"))
-        assertTrue(state.sessionDetail.contains("Explicit choice"))
-        assertTrue(state.sessionDetail.contains("Owner"))
+        // N26: plain words, with the technical term a player may need kept in brackets. It read
+        // "GPU-native DMA-BUF · Explicit choice · Owner".
+        assertEquals("GPU capture (DMA-BUF) · Mode you picked · Your session", state.sessionDetail)
     }
 
     @Test
@@ -851,7 +851,7 @@ class NovaQuickMenuUiStateTest {
         // its chip and target line and drops the duplicate.
         assertEquals("Stream", state.stability.title)
         assertEquals("", state.stability.caption)
-        assertEquals("Launch preset", state.stability.profileTitle)
+        assertEquals("Launch Preset", state.stability.profileTitle)
     }
 
     @Test
@@ -885,8 +885,32 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Copy HUD Diagnostics", diagnostics.label)
         assertEquals("Privacy-safe stream summary for bug reports.", diagnostics.caption)
-        assertEquals("Safe", diagnostics.chip!!.label)
-        assertEquals(NovaQuickMenuTone.INFO, diagnostics.chip.tone)
+        // Privacy-safe is said in the caption; a chip says only a state, and Safe was a category.
+        assertEquals(null, diagnostics.chip)
+    }
+
+    /**
+     * N26: the trailing chips meant a state, a category or an action from row to row. Each says a
+     * state now, and Paste and Rotate say what they do.
+     */
+    @Test
+    fun commandCenterChipsSayAStateAndEveryActionSaysWhatItDoes() {
+        val collapsed = quickState(status = status(), advancedExpanded = false)
+        val expanded = quickState(status = status(), advancedExpanded = true)
+
+        assertEquals(null, collapsed.overlayRows.first { it.id == NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS }.chip)
+        assertEquals("Reassign is what the row does, not a state", null, collapsed.controlRows.first { it.id == NovaQuickMenuActionId.PLAYERS }.chip)
+        assertEquals("Hidden", collapsed.controlRows.first { it.id == NovaQuickMenuActionId.KEYBOARD }.chip?.label)
+        assertEquals("Hidden", collapsed.advancedToggle.chip?.label)
+        assertEquals("Shown", expanded.advancedToggle.chip?.label)
+        assertEquals(
+            "Copies this device's clipboard to the host.",
+            collapsed.sessionRows.first { it.id == NovaQuickMenuActionId.PASTE_CLIPBOARD }.caption,
+        )
+        assertEquals(
+            "Turns the stream between landscape and portrait.",
+            collapsed.sessionRows.first { it.id == NovaQuickMenuActionId.ROTATE_SCREEN }.caption,
+        )
     }
 
     @Test

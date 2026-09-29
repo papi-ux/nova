@@ -159,9 +159,11 @@ data class NovaQuickMenuUiState(
     val advancedExpanded: Boolean,
     val advancedRows: List<NovaQuickMenuAction>,
     val quickKeys: List<NovaQuickMenuAction>,
-    // The grid's own top three, repeated under the session strip so a handheld reaches
-    // Esc without scrolling. Same instances, so both rows fire the same key.
+    // Esc, Meta and Alt + Enter, under the session strip so a handheld reaches Esc without
+    // scrolling. Same instances as [quickKeys], which stays the whole keyboard.
     val pinnedQuickKeys: List<NovaQuickMenuAction> = emptyList(),
+    // The Quick Keys grid: the keys the pinned strip lacks, so each key shows once (N26).
+    val gridQuickKeys: List<NovaQuickMenuAction> = quickKeys.filterNot { key -> pinnedQuickKeys.any { it.id == key.id } },
     val diagnosis: NovaQuickMenuDiagnosisState,
     val diagnosisAction: NovaQuickMenuAction,
     val doctorReceiptAction: NovaQuickMenuAction,
@@ -319,11 +321,12 @@ data class NovaQuickMenuUiState(
                 id = NovaQuickMenuActionId.ADVANCED_TUNING,
                 label = context.getString(R.string.nova_quick_menu_advanced_tuning),
                 caption = context.getString(R.string.nova_quick_menu_advanced_caption),
+                // Its state, as the Keyboard row says its own: Show and Hide named what A would do.
                 chip = chip(
                     if (advancedExpanded) {
-                        context.getString(R.string.nova_quick_menu_hide)
+                        context.getString(R.string.nova_cc_shown)
                     } else {
-                        context.getString(R.string.nova_quick_menu_show)
+                        context.getString(R.string.nova_quick_menu_hidden)
                     },
                     if (advancedExpanded) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE
                 )
@@ -403,7 +406,6 @@ data class NovaQuickMenuUiState(
                     id = NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS,
                     label = context.getString(R.string.nova_quick_menu_copy_hud_diagnostics),
                     caption = context.getString(R.string.nova_quick_menu_copy_hud_diagnostics_caption),
-                    chip = chip(context.getString(R.string.nova_quick_menu_safe), NovaQuickMenuTone.INFO),
                     enabled = true
                 )
             )
@@ -436,8 +438,9 @@ data class NovaQuickMenuUiState(
                         nobodyYet = context.getString(R.string.nova_quick_menu_players_nobody),
                         onePlayer = context.getString(R.string.nova_quick_menu_players_one_player),
                     ),
+                    // A chip says a state, never an action: Reassign is what the row does.
                     chip = if (multiController) {
-                        chip(context.getString(R.string.nova_quick_menu_players_reassign), NovaQuickMenuTone.INFO)
+                        null
                     } else {
                         chip(context.getString(R.string.nova_quick_menu_players_one_chip), NovaQuickMenuTone.INACTIVE)
                     },
@@ -447,7 +450,7 @@ data class NovaQuickMenuUiState(
                     id = NovaQuickMenuActionId.KEYBOARD,
                     label = context.getString(R.string.nova_quick_menu_keyboard),
                     chip = chip(
-                        if (keyboardVisible) "Shown" else context.getString(R.string.nova_quick_menu_hidden),
+                        if (keyboardVisible) context.getString(R.string.nova_cc_shown) else context.getString(R.string.nova_quick_menu_hidden),
                         if (keyboardVisible) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE
                     ),
                     enabled = ownerInputAllowed
@@ -457,11 +460,13 @@ data class NovaQuickMenuUiState(
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.PASTE_CLIPBOARD,
                     label = context.getString(R.string.nova_quick_menu_paste_clipboard),
+                    caption = context.getString(R.string.nova_cc_paste_caption),
                     enabled = ownerInputAllowed
                 ),
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.ROTATE_SCREEN,
                     label = context.getString(R.string.nova_quick_menu_rotate_screen),
+                    caption = context.getString(R.string.nova_cc_rotate_caption),
                     enabled = true,
                     visible = !isOnExternalDisplay
                 ),
@@ -1069,7 +1074,14 @@ data class NovaQuickMenuUiState(
             } else {
                 ""
             }
-            return listOf(status.capturePathLabel, source, role)
+            // Plain words for the capture path, with its technical name where a player needs it.
+            val capture = when {
+                status.isGpuNativeCapture -> context.getString(R.string.nova_cc_capture_gpu)
+                status.capturePathLabel.isBlank() -> ""
+                status.isGpuPath && !status.capturePathLabel.contains("SHM") -> context.getString(R.string.nova_cc_capture_gpu_encoder)
+                else -> context.getString(R.string.nova_cc_capture_cpu)
+            }
+            return listOf(capture, source, role)
                 .filter { it.isNotBlank() }
                 .joinToString(" · ")
         }

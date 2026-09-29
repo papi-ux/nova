@@ -70,6 +70,7 @@ import com.papi.nova.ui.panel.NovaSplitShape
 import androidx.compose.ui.platform.testTag
 import com.papi.nova.ui.panel.NovaTitleAndValueMeasurePolicy
 import com.papi.nova.ui.panel.NovaValueRow
+import com.papi.nova.ui.panel.NovaValueStyle
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
@@ -217,7 +218,7 @@ fun NovaPageScope.NovaQuickMenuContent(
 
             // The full grid last of the daily sections, since its top three are pinned above.
             NovaSectionLabel(quickKeysTitle)
-            NovaQuickKeys(ui, { it.quickKeys }, callbacks)
+            NovaQuickKeys(ui, { it.gridQuickKeys }, callbacks)
 
             NovaQuickMenuInfoCard(ui, { it.sync }, callbacks)
             NovaQuickMenuInfoCard(ui, { it.advancedToggle }, callbacks)
@@ -354,12 +355,15 @@ private fun NovaQuickMenuDiagnosisCard(
     callbacks: NovaQuickMenuCallbacks,
 ) {
     val diagnosis by ui.slice { it.diagnosis }
-    val capabilityLabel = if (diagnosis.copied) stringResource(R.string.nova_quick_menu_doctor_copied) else when (diagnosis.capability) {
+    // What pressing the card does, on its own line. The chip says only a state, Copied, as every
+    // chip in the Command Center does; it had named the action, or the host's action label.
+    val capabilityLabel = when (diagnosis.capability) {
         NovaQuickMenuDoctorCapability.AUTO_FIX -> stringResource(R.string.nova_quick_menu_doctor_capability_auto_fix)
         NovaQuickMenuDoctorCapability.RUN_TRIAL -> stringResource(R.string.nova_quick_menu_doctor_capability_run_trial)
         NovaQuickMenuDoctorCapability.RECHECK -> stringResource(R.string.nova_quick_menu_doctor_capability_recheck)
         NovaQuickMenuDoctorCapability.MANUAL -> stringResource(R.string.nova_quick_menu_doctor_capability_manual)
     }
+    val copiedLabel = stringResource(R.string.nova_quick_menu_doctor_copied)
     val context = LocalContext.current
     // Built once per diagnosis, not once per recomposition of the page.
     val detail = remember(diagnosis, context) {
@@ -381,19 +385,17 @@ private fun NovaQuickMenuDiagnosisCard(
     val sourceSupportingLine = diagnosis.informationalSource
         .takeIf { it.isNotBlank() }
         ?.let { stringResource(R.string.nova_cc_doctor_source, it) }
-    val supportingLine = listOfNotNull(aiSupportingLine, sourceSupportingLine).joinToString("\n")
-    // The finding is the title and the action lives in the chip, so "Recheck" no longer
+    val doesLine = (diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() } ?: capabilityLabel)
+        .takeIf { diagnosis.available }
+    val supportingLine = listOfNotNull(doesLine, aiSupportingLine, sourceSupportingLine).joinToString("\n")
+    // The finding is the title and what A does is the line under it, so "Recheck" no longer
     // shows up as title, chip, and button at once.
-    val action = remember(diagnosis, detail, capabilityLabel, diagnoseTitle) {
+    val action = remember(diagnosis, detail, copiedLabel, diagnoseTitle) {
         NovaQuickMenuAction(
             id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
             label = diagnosis.likelyCause.trim().trimEnd('.').ifBlank { diagnoseTitle },
             caption = detail,
-            chip = NovaQuickMenuChip(
-                label = diagnosis.actionLabel.takeIf { diagnosis.actionExecutable && it.isNotBlank() }
-                    ?: capabilityLabel,
-                tone = if (diagnosis.available) NovaQuickMenuTone.INFO else NovaQuickMenuTone.MUTED
-            ),
+            chip = if (diagnosis.copied) NovaQuickMenuChip(copiedLabel, NovaQuickMenuTone.INFO) else null,
             enabled = diagnosis.available
         )
     }
@@ -499,15 +501,20 @@ private fun NovaQuickMenuStabilityCard(
     val current = stability.profileOptions.firstOrNull { it.selected }?.value ?: options.firstOrNull()?.value.orEmpty()
     val enabled = stability.profileOptions.all { it.enabled }
 
-    NovaQuickMenuStaticCard {
-        NovaQuickMenuTitleAndChip(
-            title = { Text(text = stability.title, style = type.rowTitle, fontWeight = FontWeight.SemiBold, color = colors.textPrimary) },
-            chip = stability.chip,
-        )
-        if (stability.caption.isNotBlank()) {
-            Text(text = stability.caption, style = type.caption, color = colors.textPrimary)
+    // The card's text is inset as a row's; the Launch Preset row brings its own inset, so it sits
+    // at the card's edges rather than a second inset deeper than every other row.
+    val inset = Modifier.padding(horizontal = NovaPanelMetrics.SpaceMd)
+    NovaQuickMenuStaticCard(contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceMd)) {
+        Box(inset) {
+            NovaQuickMenuTitleAndChip(
+                title = { Text(text = stability.title, style = type.rowTitle, fontWeight = FontWeight.SemiBold, color = colors.textPrimary) },
+                chip = stability.chip,
+            )
         }
-        Text(text = stability.targetSummary, style = type.caption, color = colors.textSecondary)
+        if (stability.caption.isNotBlank()) {
+            Text(text = stability.caption, style = type.caption, color = colors.textPrimary, modifier = inset)
+        }
+        Text(text = stability.targetSummary, style = type.caption, color = colors.textSecondary, modifier = inset)
         if (options.isNotEmpty()) {
             NovaValueRow(
                 title = stability.profileTitle,
@@ -526,7 +533,10 @@ private fun NovaQuickMenuStabilityCard(
  * tile, so the rows inside it rest bare rather than as a tile inside a tile.
  */
 @Composable
-private fun NovaQuickMenuStaticCard(content: @Composable () -> Unit) {
+private fun NovaQuickMenuStaticCard(
+    contentPadding: PaddingValues = PaddingValues(NovaPanelMetrics.SpaceMd),
+    content: @Composable () -> Unit,
+) {
     val rest = novaRowRest
     val shape = RoundedCornerShape(NovaRadius.row)
     Column(
@@ -535,7 +545,7 @@ private fun NovaQuickMenuStaticCard(content: @Composable () -> Unit) {
             .clip(shape)
             .background(rest.fill, shape)
             .border(rest.borderWidth, rest.border, shape)
-            .padding(NovaPanelMetrics.SpaceMd),
+            .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs),
     ) { NovaNestedRows(content) }
 }
@@ -814,6 +824,9 @@ private fun NovaPageScope.NovaQuickMenuMenuOpacityControl(
         options = options,
         current = menuOpacity.percent,
         onChange = callbacks.onMenuOpacityChange,
+        // Every preset in the row with the current one checked, as HUD Mode shows its layouts. As a
+        // cycler its value sat mid row, an arrow's width in from where every other row's value ends.
+        style = NovaValueStyle.Segmented,
         ordered = true,
         modifier = Modifier.novaRestorableFocus("menu-opacity"),
     )
@@ -840,6 +853,7 @@ private fun NovaPageScope.NovaQuickMenuHudOpacityControl(
         options = options,
         current = hudOpacity.percent,
         onChange = callbacks.onHudOpacityChange,
+        style = NovaValueStyle.Segmented,
         ordered = true,
         enabled = hudOpacity.enabled,
         modifier = Modifier.novaRestorableFocus("hud-opacity").onFocusChanged { hudPreview.update("hud-opacity", it.hasFocus) },

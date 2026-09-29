@@ -309,6 +309,12 @@ object NovaCommandCenterKeys {
     /** Alt + F4, which closes the host's focused window, usually the game; the Keys page splits it (R3). */
     const val CLOSE_APP_KEY: String = "alt-f4"
 
+    /**
+     * The default keys the Command Center's root already offers, pinned under the session strip or
+     * in its Quick Keys grid. More Keys pushed from the root leaves them out, so each key shows once.
+     */
+    val OnTheRoot: Set<String> = setOf("esc", "win", "alt-enter", CLOSE_APP_KEY, "f11", "insert", "ctrl-v", "ctrl-1", "ctrl-2")
+
     fun defaults(context: Context): List<NovaCommandCenterKey> = listOf(
         key(context, "esc", R.string.game_menu_send_keys_esc, KeyboardTranslator.VK_ESCAPE),
         key(context, "f11", R.string.game_menu_send_keys_f11, KeyboardTranslator.VK_F11),

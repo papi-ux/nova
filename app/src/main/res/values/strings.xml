@@ -1046,9 +1046,9 @@
     <string name="nova_quick_menu_host_controls_unavailable_caption">host controls unavailable</string>
     <string name="nova_quick_menu_session_ending_caption">session ending</string>
     <string name="nova_quick_menu_mode_unknown">Checking stream mode</string>
-    <string name="nova_quick_menu_mode_source_auto">Auto choice</string>
-    <string name="nova_quick_menu_mode_source_explicit">Explicit choice</string>
-    <string name="nova_quick_menu_mode_role_owner">Owner</string>
+    <string name="nova_quick_menu_mode_source_auto">Mode picked automatically</string>
+    <string name="nova_quick_menu_mode_source_explicit">Mode you picked</string>
+    <string name="nova_quick_menu_mode_role_owner">Your session</string>
     <string name="nova_quick_menu_command_center_title">Command Center</string>
     <string name="nova_quick_menu_command_center_subtitle">Stream health, tuning, and session controls</string>
     <string name="nova_quick_menu_headless_subtitle">Session controls for Private Stream</string>
@@ -1063,12 +1063,12 @@
     <string name="nova_quick_menu_health_hdr_headless_downgrade">HDR requested, but Private Stream is 10-bit SDR.</string>
     <string name="nova_quick_menu_health_attention">Session needs attention.</string>
     <string name="nova_quick_menu_health_steady">Session looks steady.</string>
-    <string name="nova_quick_menu_ai_auto_quality">Launch preset</string>
+    <string name="nova_quick_menu_ai_auto_quality">Launch Preset</string>
     <string name="nova_quick_menu_stream_card">Stream</string>
     <string name="nova_quick_menu_auto_quality_caption_default">Watching stream quality</string>
     <string name="nova_quick_menu_ai_caption_default">balancing FPS, bitrate, and smoothness</string>
     <string name="nova_quick_menu_target_checking">Waiting for stream target</string>
-    <string name="nova_quick_menu_profile_preference">Launch preset</string>
+    <string name="nova_quick_menu_profile_preference">Launch Preset</string>
     <string name="nova_quick_menu_profile_preference_checking">Waiting for running game</string>
     <string name="nova_quick_menu_profile_preference_next_launch">Applies next launch for %1$s</string>
     <string name="nova_quick_menu_profile_preference_saved">Launch preset saved for next launch</string>
@@ -1096,18 +1096,19 @@
     <string name="nova_quick_menu_hud_mode_performance">Performance</string>
     <string name="nova_quick_menu_hud_mode_debug">Debug</string>
     <string name="nova_quick_menu_menu_opacity">Menu Opacity</string>
-    <string name="nova_quick_menu_menu_opacity_caption">Adjust Nova menus, drawers, options, and session glass without dimming text or focus cues.</string>
+    <string name="nova_quick_menu_menu_opacity_caption">How much of the screen shows through Nova\'s menus.</string>
     <string name="nova_quick_menu_hud_opacity">HUD Opacity</string>
-    <string name="nova_quick_menu_hud_opacity_caption">Adjust Nova HUD glass without dimming telemetry text.</string>
+    <string name="nova_quick_menu_hud_opacity_caption">How much of the game shows behind the HUD\'s numbers.</string>
     <string name="nova_quick_menu_hud_opacity_disabled_caption">Enable Nova HUD first to change glass opacity.</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
     <string name="nova_quick_menu_perf_stats_caption">Legacy Moonlight stats text. Replaces Nova HUD while it is on.</string>
     <string name="nova_quick_menu_diagnose_stream">Diagnose This Stream</string>
-    <string name="nova_quick_menu_doctor_capability_auto_fix">Auto Fix</string>
-    <string name="nova_quick_menu_doctor_capability_run_trial">Run a trial</string>
-    <string name="nova_quick_menu_doctor_capability_recheck">Recheck</string>
+    <!-- What pressing the Doctor card does, on its own line: the chip says only a state. -->
+    <string name="nova_quick_menu_doctor_capability_auto_fix">Applies one safe fix, then checks it</string>
+    <string name="nova_quick_menu_doctor_capability_run_trial">Runs a short trial</string>
+    <string name="nova_quick_menu_doctor_capability_recheck">Checks again</string>
     <!-- A Doctor card with nothing to run: A copies its details. -->
-    <string name="nova_quick_menu_doctor_capability_manual">Copy details</string>
+    <string name="nova_quick_menu_doctor_capability_manual">Copies the details</string>
     <string name="nova_quick_menu_doctor_copied">Copied</string>
     <string name="nova_quick_menu_doctor_ai_explanation">AI explanation (informational): %1$s</string>
     <string name="nova_quick_menu_doctor_stable">Doctor verified the network is stable. Bitrate was left unchanged.</string>

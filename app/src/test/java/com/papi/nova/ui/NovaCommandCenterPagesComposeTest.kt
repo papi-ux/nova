@@ -292,6 +292,53 @@ class NovaCommandCenterPagesComposeTest {
         assertEquals("and moving on dims it again", listOf(true, false), hudPreviews)
     }
 
+    /**
+     * In-game #17 and N26: ESC, Meta and Alt + Enter showed under the strip and again in the Quick
+     * Keys grid. The grid holds the keys the pinned strip lacks, so each key shows once.
+     */
+    @Test
+    fun eachQuickKeyShowsOnceOnTheRoot() {
+        open()
+        listOf(
+            com.papi.nova.R.string.game_menu_send_keys_esc,
+            com.papi.nova.R.string.nova_quick_menu_key_meta,
+            com.papi.nova.R.string.game_menu_send_keys_alt_enter,
+            com.papi.nova.R.string.game_menu_send_keys_f11,
+        ).forEach { key ->
+            val label = rule.activity.getString(key)
+            rule.onAllNodesWithText(label).assertCountEquals(1)
+        }
+    }
+
+    @Test
+    fun theKeysMoreKeysLeavesOutAreTheRootsOwn() {
+        val defaults = NovaCommandCenterKeys.defaults(rule.activity).map { it.key }
+        assertTrue("every key the root offers is a real default key", defaults.containsAll(NovaCommandCenterKeys.OnTheRoot))
+        assertEquals(
+            "one for each key on the root, pinned or in the grid",
+            NovaQuickMenuUiState.quickKeyActions(rule.activity).size,
+            NovaCommandCenterKeys.OnTheRoot.size,
+        )
+    }
+
+    /** N26: the Doctor card's chip said what A does; it says only a state, and the action is a line. */
+    @Test
+    fun theDoctorCardSaysWhatItDoesInALineNotInItsChip() {
+        open { state ->
+            state.copy(
+                diagnosis = state.diagnosis.copy(
+                    likelyCause = "Streaming telemetry looks ready",
+                    available = true,
+                    visible = true,
+                    capability = NovaQuickMenuDoctorCapability.MANUAL,
+                    actionExecutable = false,
+                ),
+            )
+        }
+        rule.onNodeWithText("Copies the details").assertExists()
+        rule.onNodeWithText("Copy details").assertDoesNotExist()
+    }
+
     @Test
     fun mouseModeIsAChoicePageOnTheCurrentModeAndReturnsToItsRow() {
         val keys = open()
@@ -454,6 +501,7 @@ class NovaCommandCenterPagesComposeTest {
         rule.onNodeWithText("Stay").assertIsFocused()
         rule.onNodeWithText(rule.activity.getString(com.papi.nova.R.string.nova_cc_alt_f4_consequence)).assertExists()
         // Armed, the pair takes its row: the keys beside Alt + F4 step aside, the rows around it stay.
+        rule.onAllNodesWithText(rule.activity.getString(com.papi.nova.R.string.game_menu_send_keys_f11)).assertCountEquals(0)
         rule.onAllNodesWithText(esc).assertCountEquals(1)
         keys.press(NovaTestKeys.RIGHT)
         rule.advance(450)
