@@ -580,7 +580,7 @@
     <string name="summary_performance_link">查看其他设备的性能数据</string>
     <string name="email_chooser_title">分享性能日志...</string>
     <string name="toast_no_email_clients">找不到可分享的应用</string>
-    <string name="email_subject">Nova - 性能日志</string>
+    <string name="email_subject">Nova 性能日志</string>
     <string name="summary_share_performance_logs">在问题反馈或支持讨论中分享性能日志</string>
     <string name="email_prefix_message">"\n        请将此日志文件附加到 GitHub issue 或其他支持渠道。\n\n        其中可能包含设备型号、解码器信息、串流设置和会话时间数据。\n\n        如果你不想公开这些信息，请在分享前先检查内容。\n\n        问题跟踪: https://github.com/papi-ux/nova/issues\n\n    "</string>
 

@@ -134,7 +134,7 @@
 	</string>
 
 	<string name="email_recipient"></string>
-	<string name="email_subject">Nova - 效能日誌</string>
+	<string name="email_subject">Nova 效能日誌</string>
 	<string name="email_chooser_title">分享效能日誌...</string>
 	<string name="toast_no_email_clients">未安裝可分享的應用程式。</string>
 	<string name="toast_no_logs">尚未儲存任何效能數據。</string>

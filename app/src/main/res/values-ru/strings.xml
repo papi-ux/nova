@@ -306,7 +306,7 @@
     <string name="pair_pc_confirm_title">Сопряжение с ПК</string>
     <string name="pair_passphrase_hint">Пароль</string>
     <string name="pair_pin_length_msg">PIN должен состоять из 4 цифр</string>
-    <string name="email_subject">Novatics - журнал производительности</string>
+    <string name="email_subject">Журнал производительности Nova</string>
     <string name="email_chooser_title">Отправить журнал производительности...</string>
     <string name="toast_no_email_clients">Почтовые клиенты не установлены.</string>
     <string name="applist_menu_start_vdisplay">Запустить в виртуальном дисплее</string>
