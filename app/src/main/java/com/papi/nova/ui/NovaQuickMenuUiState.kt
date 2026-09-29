@@ -1162,10 +1162,11 @@ data class NovaQuickMenuUiState(
         }
 
         /**
-         * The session pill's mode, in plain words from resources. The host status's own English
-         * label brackets a technical note, "Private Stream (GPU-native)", and the detail line
-         * under the pill already says what the capture is, GPU or CPU. A label Nova has no name
-         * for, such as a Space's, is the host's own.
+         * The session pill's mode, in plain words from resources, by the names the library uses.
+         * The host status's own English label brackets a technical note, "Private Stream
+         * (GPU-native)"; the detail line under the pill says the capture when the host reports
+         * one: GPU capture, GPU encoding or CPU capture. A label Nova has no name for, such as a
+         * Space's, is the host's own.
          */
         private fun sessionModeName(context: Context, status: PolarisSessionStatus): String = when (status.sessionMode) {
             PolarisSessionStatus.SessionMode.PRIVATE_STREAM,
@@ -1173,6 +1174,8 @@ data class NovaQuickMenuUiState(
             PolarisSessionStatus.SessionMode.MIRROR_DESKTOP -> context.getString(R.string.nova_session_mode_host_display)
             PolarisSessionStatus.SessionMode.DESKTOP_TAKEOVER -> context.getString(R.string.nova_session_mode_desktop_takeover)
             PolarisSessionStatus.SessionMode.HOST_VIRTUAL_DISPLAY -> context.getString(R.string.nova_session_mode_virtual_display)
+            PolarisSessionStatus.SessionMode.GAMESCOPE_STREAM -> context.getString(R.string.nova_library_launch_gamescope)
+            PolarisSessionStatus.SessionMode.HEADLESS_DONGLE -> context.getString(R.string.nova_library_launch_dongle)
             PolarisSessionStatus.SessionMode.HOST_LABEL -> status.displayMode.label.trim()
         }
 
@@ -1191,7 +1194,9 @@ data class NovaQuickMenuUiState(
             } else {
                 ""
             }
-            // Plain words for the capture path: GPU or CPU capture.
+            // Plain words for the capture path: GPU capture when frames stay on the GPU, GPU encoding
+            // when only the encoder is on it, CPU capture otherwise, and nothing when the host
+            // reports no capture path.
             val capture = when {
                 status.isGpuNativeCapture -> context.getString(R.string.nova_cc_capture_gpu)
                 status.capturePathLabel.isBlank() -> ""

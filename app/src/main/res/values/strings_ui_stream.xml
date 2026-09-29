@@ -93,7 +93,8 @@
     <string name="nova_cc_paste_caption">Copies this device\'s clipboard to the host.</string>
     <string name="nova_cc_rotate_caption">Turns the stream between landscape and portrait.</string>
     <string name="nova_cc_shown">Shown</string>
-    <!-- The session strip's detail line, in plain words: GPU or CPU capture. -->
+    <!-- The session strip's detail line, in plain words: GPU capture, GPU encoding or CPU capture.
+         It says nothing of the capture when the host reports no capture path. -->
     <string name="nova_cc_capture_gpu">GPU capture</string>
     <string name="nova_cc_capture_cpu">CPU capture</string>
     <string name="nova_cc_capture_gpu_encoder">GPU encoding</string>

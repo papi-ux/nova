@@ -634,6 +634,11 @@ data class PolarisSessionStatus(
         displayMode.selection.equals("desktop_takeover", ignoreCase = true) ||
             displayMode.requested.equals("desktop_takeover", ignoreCase = true) -> SessionMode.DESKTOP_TAKEOVER
         displayMode.label.isNotBlank() -> sessionModeOfLabel(displayMode.label)
+        // After the label: a Space runs in gamescope_stream under its own name.
+        displayMode.selection.equals("gamescope_stream", ignoreCase = true) ||
+            displayMode.requested.equals("gamescope_stream", ignoreCase = true) -> SessionMode.GAMESCOPE_STREAM
+        displayMode.selection.equals("headless_dongle", ignoreCase = true) ||
+            displayMode.requested.equals("headless_dongle", ignoreCase = true) -> SessionMode.HEADLESS_DONGLE
         displayMode.effectiveHeadless -> SessionMode.PRIVATE_STREAM
         displayMode.virtualDisplay -> SessionMode.HOST_VIRTUAL_DISPLAY
         else -> SessionMode.MIRROR_DESKTOP
@@ -645,6 +650,8 @@ data class PolarisSessionStatus(
         SessionMode.MIRROR_DESKTOP -> "Mirror Desktop"
         SessionMode.DESKTOP_TAKEOVER -> "Desktop Takeover"
         SessionMode.HOST_VIRTUAL_DISPLAY -> "Host Virtual Display"
+        SessionMode.GAMESCOPE_STREAM -> "Gamescope Stream"
+        SessionMode.HEADLESS_DONGLE -> "Headless Dongle"
         SessionMode.HOST_LABEL -> displayMode.label
     }
     val sessionModeWithCaptureLabel: String
@@ -680,6 +687,8 @@ data class PolarisSessionStatus(
         "gpu-native stream", "gpu-native test", "windowed stream", "private stream (gpu-native)" -> SessionMode.PRIVATE_STREAM_GPU_NATIVE
         "desktop display", "host display", "desktop", "mirror desktop" -> SessionMode.MIRROR_DESKTOP
         "virtual display", "host virtual display" -> SessionMode.HOST_VIRTUAL_DISPLAY
+        "gamescope stream" -> SessionMode.GAMESCOPE_STREAM
+        "headless dongle" -> SessionMode.HEADLESS_DONGLE
         else -> SessionMode.HOST_LABEL
     }
 
@@ -690,6 +699,8 @@ data class PolarisSessionStatus(
         MIRROR_DESKTOP,
         DESKTOP_TAKEOVER,
         HOST_VIRTUAL_DISPLAY,
+        GAMESCOPE_STREAM,
+        HEADLESS_DONGLE,
         HOST_LABEL,
     }
 

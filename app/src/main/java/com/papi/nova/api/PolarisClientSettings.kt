@@ -107,7 +107,9 @@ data class PolarisClientSettings(
         fun labelForMode(mode: String): String = when (mode) {
             MODE_HEADLESS_STREAM -> "Private Stream"
             MODE_HOST_VIRTUAL_DISPLAY -> "Host Virtual Display"
-            MODE_GPU_NATIVE_TEST -> "Private Stream (GPU-native)"
+            // A Private Stream that keeps frames on the GPU. The Command Center's detail line says
+            // the capture, so its name carries no note.
+            MODE_GPU_NATIVE_TEST -> "Private Stream"
             MODE_DESKTOP_DISPLAY -> "Mirror Desktop"
             MODE_DESKTOP_TAKEOVER -> "Desktop Takeover"
             MODE_GAMESCOPE_STREAM -> "Gamescope Stream"
@@ -115,7 +117,7 @@ data class PolarisClientSettings(
             "headless" -> "Private Stream"
             "virtual_display" -> "Host Virtual Display"
             "desktop_display", "host_display" -> "Mirror Desktop"
-            "windowed_stream", "gpu_native", "gpu-native" -> "Private Stream (GPU-native)"
+            "windowed_stream", "gpu_native", "gpu-native" -> "Private Stream"
             else -> ""
         }
 

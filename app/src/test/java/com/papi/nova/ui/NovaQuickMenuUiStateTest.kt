@@ -418,6 +418,43 @@ class NovaQuickMenuUiStateTest {
         )
     }
 
+    /**
+     * Review finding 8's follow up: the pill called windowed_stream Private Stream while the
+     * library's picker, the game page's Play badge, the launch snackbar and the settings named it
+     * Private Stream (GPU-native), so a player who picked that saw another name in the Command
+     * Center. Nova names it Private Stream everywhere; the detail line says the capture.
+     */
+    @Test
+    fun windowedStreamIsPrivateStreamWhereverNovaNamesIt() {
+        val privateStream = context.getString(com.papi.nova.R.string.nova_library_launch_headless)
+        assertEquals(
+            "the picker, the Play badge and the launch snackbar",
+            privateStream,
+            context.getString(com.papi.nova.R.string.nova_library_launch_gpu_native_test),
+        )
+        val settings = com.papi.nova.api.PolarisClientSettings
+        assertEquals("the settings", privateStream, settings.labelForMode(settings.MODE_GPU_NATIVE_TEST))
+        assertEquals(privateStream, settings.labelForMode("gpu_native"))
+        assertEquals("the pill", context.getString(com.papi.nova.R.string.nova_session_mode_headless), pill("windowed_stream"))
+    }
+
+    /**
+     * gamescope_stream and headless_dongle, which the library names in resources, had no session
+     * mode: the pill showed the host's English label, or by its flags Private Stream. They are
+     * named from the library's resources now, and a Space's own label still wins.
+     */
+    @Test
+    fun theSessionPillNamesGamescopeAndTheDongleAsTheLibraryDoes() {
+        val named = contextNaming(
+            com.papi.nova.R.string.nova_library_launch_gamescope to "Gamescope Übertragung",
+            com.papi.nova.R.string.nova_library_launch_dongle to "Kopfloser Dongle",
+        )
+        assertEquals("Gamescope Übertragung", pill("gamescope_stream", headless = true, context = named))
+        assertEquals("Kopfloser Dongle", pill("headless_dongle", headless = true, context = named))
+        assertEquals("the host's own plain name for it too", "Gamescope Übertragung", pill("", label = "Gamescope Stream", context = named))
+        assertEquals("a Space's own label still wins", "Living Room Space", pill("gamescope_stream", label = "Living Room Space", context = named))
+    }
+
     private fun pill(
         requested: String,
         label: String = "",
