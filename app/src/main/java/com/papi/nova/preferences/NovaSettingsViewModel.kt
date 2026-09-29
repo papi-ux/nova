@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal val NOVA_STREAM_UI_DEFAULT_UPDATES = listOf(
     "nova_polaris_hud" to NovaSettingValue.BooleanValue(false),
@@ -54,6 +56,7 @@ class NovaSettingsViewModel(
     private val resetDefinitions: NovaSettingsDefinitionSet = definitions,
     initialCategoryKey: String = definitions.categories.firstOrNull()?.key.orEmpty()
 ) : ViewModel() {
+    private val stateMutex = Mutex()
     private var selectedCategoryKey = initialCategoryKey
     private var searchQuery = ""
     private var values: Map<String, NovaSettingValue> = emptyMap()
@@ -71,7 +74,7 @@ class NovaSettingsViewModel(
     val bitrateText: String get() {
         val plan = mutableTiers.value?.plan(pictureTier) ?: NovaStreamSettings.custom(rawValues())
         return plan?.let { NovaBitrateAdvice.text(it.bitrateKbps,
-            pictureTier != NovaTier.CUSTOM || rawValues()[NovaSettingsMigration.AUTO] != false) }.orEmpty()
+            pictureTier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues())) }.orEmpty()
     }
 
     fun selectPictureTier(tier: NovaTier) = setValue(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)),
@@ -89,6 +92,7 @@ class NovaSettingsViewModel(
 
     init {
         refresh()
+        viewModelScope.launch { store.tierUpdates?.collect { stateMutex.withLock { loadStoreState(); emit() } } }
     }
 
     fun selectCategory(categoryKey: String) {
@@ -113,15 +117,17 @@ class NovaSettingsViewModel(
     ) {
         viewModelScope.launch {
             try {
-                if (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO) {
-                    persistStreamEdit(definition, value)
-                } else {
-                    store.set(definition, value)
-                    values = values + (definition.key to value)
-                    applyPresetIfNeeded(definition, value)
+                stateMutex.withLock {
+                    if (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO) {
+                        persistStreamEdit(definition, value)
+                    } else {
+                        store.set(definition, value)
+                        values = values + (definition.key to value)
+                        applyPresetIfNeeded(definition, value)
+                    }
+                    loadStoreState()
+                    emit()
                 }
-                loadStoreState()
-                emit()
             } finally {
                 onCompleted()
             }
@@ -130,36 +136,46 @@ class NovaSettingsViewModel(
 
     fun resetValue(definition: NovaSettingDefinition) {
         viewModelScope.launch {
-            store.reset(definition)
-            loadStoreState()
-            emit()
+            stateMutex.withLock {
+                store.reset(definition)
+                loadStoreState()
+                emit()
+            }
         }
     }
 
     fun resetStreamUiDefaults() {
         viewModelScope.launch {
-            persistNovaStreamUiDefaults(store, resetDefinitions)
-            loadStoreState()
-            emit()
+            stateMutex.withLock {
+                persistNovaStreamUiDefaults(store, resetDefinitions)
+                loadStoreState()
+                emit()
+            }
         }
     }
 
     fun refresh() {
         viewModelScope.launch {
-            loadStoreState()
-            emit()
+            stateMutex.withLock {
+                loadStoreState()
+                emit()
+            }
         }
     }
 
     private suspend fun loadStoreState() {
         values = store.snapshot(definitions)
+        values = values + (NovaSettingsMigration.AUTO to NovaSettingValue.BooleanValue(
+            pictureTier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues())))
         overrideKeys = store.overrideKeys(definitions)
         resettableKeys = store.resettableKeys(definitions)
         store.deviceTierInputs()?.let { inputs ->
             tierInputs = inputs
             val storedKeys = store.storedStreamKeys()
             val customValues = rawValues().filterKeys { storedKeys == null || it !in NovaSettingsMigration.STREAM_KEYS || it in storedKeys }
-            mutableTiers.value = NovaStreamTiers.forDevice(inputs, NovaStreamSettings.custom(customValues))
+            mutableTiers.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                NovaStreamTiers.forDevice(inputs, NovaStreamSettings.custom(customValues))
+            }
         }
     }
 
@@ -176,14 +192,12 @@ class NovaSettingsViewModel(
         val automatic = when (definition.key) {
             "seekbar_bitrate_kbps" -> false
             NovaSettingsMigration.AUTO -> (value as? NovaSettingValue.BooleanValue)?.value == true
-            else -> pictureTier != NovaTier.CUSTOM || rawValues()[NovaSettingsMigration.AUTO] != false
+            else -> pictureTier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues())
         }
         updates[NovaSettingsMigration.AUTO] = NovaSettingValue.BooleanValue(automatic)
-        val remove = mutableSetOf<String>()
-        if (pictureTier != NovaTier.CUSTOM) remove += setOf("edit_diy_w_h", "custom_refresh_rate")
-        if (definition.key == "list_resolution") remove += "edit_diy_w_h"
-        if (definition.key == "list_fps") remove += "custom_refresh_rate"
-        remove -= definition.key
+        updates[NovaSettingsMigration.CUSTOM_AUTO] = NovaSettingValue.BooleanValue(automatic)
+        val remove = emptySet<String>()
+        updates[NovaSettingsMigration.CUSTOM_EXISTS] = NovaSettingValue.BooleanValue(true)
         val previous = values
         values = (values - remove) + updates
         if (automatic) NovaStreamSettings.custom(rawValues())?.let { plan ->
@@ -212,7 +226,9 @@ class NovaSettingsViewModel(
         }
         store.updateAtomically(listOf(
             requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)) to NovaSettingValue.StringValue("custom"),
-            requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.AUTO)) to NovaSettingValue.BooleanValue(false)
+            requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.AUTO)) to NovaSettingValue.BooleanValue(false),
+            requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.CUSTOM_AUTO)) to NovaSettingValue.BooleanValue(false),
+            requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.CUSTOM_EXISTS)) to NovaSettingValue.BooleanValue(true)
         ))
         values = values + updates
     }

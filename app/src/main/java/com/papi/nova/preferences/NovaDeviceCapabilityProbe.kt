@@ -7,12 +7,12 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.view.Display
 import com.papi.nova.BuildConfig
-import com.papi.nova.binding.video.MediaCodecHelper
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.roundToInt
@@ -36,14 +36,38 @@ object NovaCapabilityProbe {
     @Synchronized
     fun inspect(context: Context, panel: NovaSize, topFps: Int): NovaDeviceCapabilities {
         val sizes = NovaStreamTiers.candidateSizes(panel)
+        val bypassSoftware = com.papi.nova.binding.video.MediaCodecHelper.SHOULD_BYPASS_SOFTWARE_BLOCK
+        val glRenderer = GlPreferences.readPreferences(context).glRenderer
+        val adreno = if (glRenderer.contains("adreno",true)) Regex("[0-9]{3}").find(glRenderer)?.value?.toIntOrNull() ?: -1 else -1
+        val glVersion = (context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager)
+            ?.deviceConfigurationInfo?.reqGlEsVersion ?: android.content.pm.ConfigurationInfo.GL_ES_VERSION_UNDEFINED
+        val blocked = buildList {
+            if (!bypassSoftware) {
+                add("omx.google");add("avcdecoder")
+                if (Build.VERSION.SDK_INT < 29) add("omx.ffmpeg")
+            }
+            add("omx.qcom.video.decoder.hevcswvdec");add("omx.sec.hevc.sw.dec")
+            if (glVersion != android.content.pm.ConfigurationInfo.GL_ES_VERSION_UNDEFINED && adreno < 400)
+                add("omx.qcom.video.decoder.hevc")
+        }
+        // Match the renderer's alias, software and broken-decoder exclusions without mutating
+        // MediaCodecHelper's process-wide initialization or depending on its GL startup order.
+        val codecs = runCatching { MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.toList() }.getOrDefault(emptyList())
+        val eligible = codecs.filter { info -> runCatching {
+            !info.isEncoder && (Build.VERSION.SDK_INT < 29 || (!info.isAlias && (bypassSoftware || !info.isSoftwareOnly))) &&
+                blocked.none { info.name.startsWith(it,true) }
+        }.getOrDefault(false) }
         val decoders = listOf(NovaCodecChoice.AVC to "video/avc", NovaCodecChoice.HEVC to "video/hevc",
             NovaCodecChoice.AV1 to "video/av01").mapNotNull { (codec, mime) ->
-            val decoder = runCatching {
-                MediaCodecHelper.findProbableSafeDecoder(mime,
-                    if (codec == NovaCodecChoice.AVC) MediaCodecInfo.CodecProfileLevel.AVCProfileHigh else -1)
-                    ?: MediaCodecHelper.findFirstDecoder(mime)
-            }.getOrNull()?.takeIf { it.supportedTypes.any { type -> type.equals(mime, true) } }
-            decoder?.let { Triple(codec, mime, it) }
+            val candidates = eligible.filter { info -> runCatching {
+                info.supportedTypes.any { type -> type.equals(mime,true) }
+            }.getOrDefault(false) }
+            val preferred = candidates.filter { info -> codec != NovaCodecChoice.AVC || runCatching {
+                info.getCapabilitiesForType(mime).profileLevels.any { it.profile == MediaCodecInfo.CodecProfileLevel.AVCProfileHigh }
+            }.getOrDefault(false) }.sortedByDescending { info -> Build.VERSION.SDK_INT >= 30 && runCatching {
+                info.getCapabilitiesForType(mime).isFeatureSupported(MediaCodecInfo.CodecCapabilities.FEATURE_LowLatency)
+            }.getOrDefault(false) }
+            (preferred.firstOrNull() ?: candidates.firstOrNull())?.let { Triple(codec, mime, it) }
         }
         val key = "${Build.FINGERPRINT}:${BuildConfig.VERSION_CODE}:$panel:$topFps:" + decoders.joinToString { it.third.name }
         val prefs = context.getSharedPreferences(STORE, Context.MODE_PRIVATE)
@@ -51,7 +75,7 @@ object NovaCapabilityProbe {
         return cachedCapabilities(prefs, key, failed) { decoders.map { (codec, mime, decoder) ->
             val caps = runCatching { decoder.getCapabilitiesForType(mime).videoCapabilities }.getOrNull()
             val points = if (caps == null) emptyList() else sizes.flatMap { size ->
-                rates.filter { it <= topFps + 2 }.mapNotNull { fps -> runCatching {
+                (rates + topFps).distinct().filter { it <= topFps + 2 }.mapNotNull { fps -> runCatching {
                     val performance = if (Build.VERSION.SDK_INT >= 29) caps.supportedPerformancePoints?.takeIf { it.isNotEmpty() } else null
                     classify(size, fps, Report(caps.isSizeSupported(size.width, size.height), performance != null,
                         if (Build.VERSION.SDK_INT >= 29) performance?.any {
@@ -74,17 +98,19 @@ object NovaCapabilityProbe {
             return NovaDeviceCapabilities(it, failed)
         }
         val codecs = query()
-        prefs.edit().putString("key", key).putString("points", encode(codecs)).apply()
+        if (codecs.isNotEmpty()) prefs.edit().putString("key", key).putString("points", encode(codecs)).apply()
         return NovaDeviceCapabilities(codecs, failed)
     }
 
     fun deviceInputs(context: Context): NovaTierInputs {
         val display = (context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
-        val mode = if (Build.VERSION.SDK_INT >= 23) display?.mode else null
+        val mode = if (Build.VERSION.SDK_INT >= 23) display?.supportedModes?.maxByOrNull { it.physicalWidth.toLong()*it.physicalHeight } else null
         val size = if (mode != null) NovaSize(maxOf(mode.physicalWidth, mode.physicalHeight), minOf(mode.physicalWidth, mode.physicalHeight))
             else NovaSize(1920, 1080)
-        val top = display?.let { NovaDisplayFpsCapability.maxSupportedFps(it).roundToInt().coerceIn(1, 240) } ?: 60
-        val panelRates = (rates.filter { it <= top + 2 } + top).distinct().sorted()
+        val panelRates = if (Build.VERSION.SDK_INT >= 23 && mode != null) display!!.supportedModes.filter {
+            maxOf(it.physicalWidth,it.physicalHeight)==size.width && minOf(it.physicalWidth,it.physicalHeight)==size.height
+        }.map { it.refreshRate.roundToInt().coerceIn(1,240) }.distinct().sorted() else listOf(display?.refreshRate?.roundToInt() ?: 60)
+        val top = panelRates.maxOrNull() ?: 60
         val room = (context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager)?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
         val distance = if (room) NovaDistance.ROOM else if (context.resources.configuration.smallestScreenWidthDp >= 600)

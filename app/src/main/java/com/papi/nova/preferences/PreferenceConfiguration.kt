@@ -613,18 +613,33 @@ class PreferenceConfiguration {
             }
 
             NovaSettingsMigration.apply(context)
+            val effective = readPreferences(context)
+            val stored = ProfilesManager.getInstance().getOverlayingSharedPreferences(context).all
+            val automatic = NovaStreamSettings.selected(stored) != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(stored)
             val editor = ProfilesManager.getInstance()
                 .getOverlayingSharedPreferences(context)
                 .edit()
                 .putString(NovaSettingsMigration.TIER, "custom")
+                .putBoolean(NovaSettingsMigration.CUSTOM_EXISTS, true)
+                .putBoolean(NovaSettingsMigration.CUSTOM_AUTO, automatic)
+                .putBoolean(NovaSettingsMigration.AUTO, automatic)
+            editor.putString(RESOLUTION_PREF_STRING, "${effective.width}x${effective.height}")
+                .putString(FPS_PREF_STRING, formatFpsValue(effective.fps)).putInt(BITRATE_PREF_STRING, effective.bitrate)
+                .putString("video_format", when (effective.videoFormat) {
+                    FormatOption.FORCE_H264 -> "neverh265"
+                    FormatOption.FORCE_HEVC -> "forceh265"
+                    FormatOption.FORCE_AV1 -> "forceav1"
+                    FormatOption.FORCE_PYROWAVE -> "forcepyrowave"
+                    else -> "auto"
+                })
+            NovaStreamSettings.selectActiveSetupTier(NovaTier.CUSTOM)
             if (mode != null) {
-                editor.remove(CUSTOM_RESOLUTION_PREF_STRING).remove(CUSTOM_REFRESH_RATE_PREF_STRING)
                 editor.putString(RESOLUTION_PREF_STRING, mode.width.toString() + "x" + mode.height)
                 editor.putString(FPS_PREF_STRING, formatFpsValue(mode.fps))
             }
             if (bitrateKbps > 0) {
                 editor.putInt(BITRATE_PREF_STRING, bitrateKbps)
-                editor.putBoolean(NovaSettingsMigration.AUTO, false)
+                editor.putBoolean(NovaSettingsMigration.AUTO, false).putBoolean(NovaSettingsMigration.CUSTOM_AUTO, false)
             }
             editor.apply()
             return true
@@ -685,7 +700,7 @@ class PreferenceConfiguration {
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val before = prefs.all
             val migrated = NovaSettingsMigration.legacyBalanced(before)
-            NovaSettingsMigration.writeDifference(prefs, migrated)
+            NovaSettingsMigration.writeDifference(prefs, migrated, before)
             return before[RESOLUTION_PREF_STRING] != migrated[RESOLUTION_PREF_STRING] ||
                 before[LEGACY_RES_FPS_PREF_STRING] != migrated[LEGACY_RES_FPS_PREF_STRING]
         }

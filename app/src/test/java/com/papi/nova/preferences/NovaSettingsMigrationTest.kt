@@ -42,7 +42,8 @@ class NovaSettingsMigrationTest {
         val result = NovaSettingsMigration.migrate(mapOf("list_resolution_fps" to "1080p30"))
         assertEquals("1920x1080", result["list_resolution"])
         assertEquals("30", result["list_fps"])
-        assertEquals(PreferenceConfiguration.getDefaultBitrate("1920x1080", "30"), result["seekbar_bitrate_kbps"])
+        assertFalse(result.containsKey("seekbar_bitrate_kbps"))
+        assertEquals(PreferenceConfiguration.getDefaultBitrate("1920x1080", "30"), NovaStreamSettings.custom(result)!!.bitrateKbps)
         assertEquals(true, result[NovaSettingsMigration.AUTO])
     }
 

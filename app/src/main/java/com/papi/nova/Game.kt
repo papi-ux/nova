@@ -794,6 +794,7 @@ UiHelper.setLocale(this)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
 
  // Read the stream preferences
+        val tierSnapshotAtRead = com.papi.nova.preferences.NovaTierRuntime.snapshot()
         prefConfig = PreferenceConfiguration.readPreferences(this)
         com.papi.nova.ui.NovaVideoCodecOverrides.applyToLaunch(this, intent, prefConfig)
         // A per-game face-button choice from Play Setup outranks the Settings flip for this
@@ -1170,6 +1171,39 @@ finish()
 return
 }
 
+// A cold shortcut can arrive before the application worker finishes the metadata probe.
+// Reuse the existing lifecycle-bound launch handoff instead of probing in readPreferences.
+val tierPreferences = ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
+val needsGeneratedTier = !watchOnlyRequested && com.papi.nova.preferences.NovaStreamSettings.selected(tierPreferences.all) !=
+    com.papi.nova.preferences.NovaTier.CUSTOM
+if (needsGeneratedTier && (!com.papi.nova.preferences.NovaTierRuntime.isPrepared() ||
+        com.papi.nova.preferences.NovaTierRuntime.snapshot() !== tierSnapshotAtRead)) {
+    val gateIntent = intent
+    val gateGeneration = launchPolicyGateGeneration.incrementAndGet()
+    launchPolicyGatePending.set(true)
+    launchRuntimeIo("NovaLaunchPolicyGate") {
+        com.papi.nova.preferences.NovaTierRuntime.prepare(applicationContext)
+        runOnMainIfRuntimeActive {
+            if (launchPolicyGateGeneration.get() == gateGeneration && intent === gateIntent) {
+                launchPolicyGatePending.set(false)
+                launchPolicyHandoffRecreation = true
+                recreate()
+            }
+        }
+    }
+    return
+}
+
+if (needsGeneratedTier) {
+    val plan = com.papi.nova.preferences.NovaStreamSettings.generatedPlan(tierPreferences)
+    if (plan == null || !plan.available) {
+        Toast.makeText(this, getString(R.string.nova_tier_unavailable,
+            plan?.limits?.firstOrNull()?.message ?: getString(R.string.nova_tier_no_decoder)), Toast.LENGTH_LONG).show()
+        finish()
+        return
+    }
+}
+
 var launchOptimization:JSONObject? = null
 var forceFreshLaunch:Boolean = false
 
@@ -1313,7 +1347,7 @@ bitrateLocked = isMetered,
 requestedWidth = displayWidth,
 requestedHeight = displayHeight,
 requestedFps = optimizationRequestedFps,
-displayLocked = watchStreamWidth > 0 && watchStreamHeight > 0,
+displayLocked = watchOnlyRequested && watchStreamWidth > 0 && watchStreamHeight > 0,
 displayModeExplicit = displayModeExplicit,
 resumeExistingOnly = resumeExistingRequested,
 requestedHdr = willStreamHdr
@@ -1345,7 +1379,7 @@ isMetered,
 displayWidth,
 displayHeight,
 optimizationRequestedFps,
-watchStreamWidth > 0 && watchStreamHeight > 0,
+watchOnlyRequested && watchStreamWidth > 0 && watchStreamHeight > 0,
 topologyLocked = displayModeExplicit,
 requestedHdr = willStreamHdr,
 requestedProfilePreference = launchProfilePreference
@@ -2929,7 +2963,7 @@ try
 val preflight = JSONObject(launchOptimizationJson!!)
 if (com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(preflight))
 {
-val clientMaximumFps = getMaxSupportedRefreshRate(ServerHelper.getActiveDisplay(this, prefConfig))
+val clientMaximumFps = getMaxSupportedRefreshRate(streamingDisplay)
 val containsNovaLaunchOverride = preflight.optString("normalization_reason", "") ==
 NovaLaunchStreamOverride.NORMALIZATION_REASON
 val preflightTopologyHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
@@ -3033,7 +3067,7 @@ displayLocked = resolverRequest.displayLocked,
 bitrateKbps = resolverRequest.bitrateKbps,
 bitrateLocked = resolverRequest.bitrateLocked,
 hdr = requestedHdr,
-clientMaxFps = getMaxSupportedRefreshRate(ServerHelper.getActiveDisplay(this, prefConfig)),
+clientMaxFps = getMaxSupportedRefreshRate(streamingDisplay),
 launchBounded = true,
 encoderBackend = encoderBackend)
 }
@@ -3053,7 +3087,7 @@ if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimizat
 {
 return blocked(com.papi.nova.manager.LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC)
 }
-val currentClientMaximumFps = getMaxSupportedRefreshRate(ServerHelper.getActiveDisplay(this, prefConfig))
+val currentClientMaximumFps = getMaxSupportedRefreshRate(streamingDisplay)
 val envelopeViolation = launchEnvelopeViolation(
 optimizationResult,
 requestedHdr,

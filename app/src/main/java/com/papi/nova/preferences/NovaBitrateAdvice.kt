@@ -14,6 +14,14 @@ object NovaBitrateAdvice {
         return (((raw + 4999L) / 5000L) * 5000L).toInt().coerceIn(5000, 300000)
     }
 
+    fun encoderForRequest(requestKbps: Int, audioKbps: Int = 512, fecPercent: Int = 10): Int {
+        require(requestKbps > 0 && audioKbps >= 0 && fecPercent in 0..100)
+        var rate = if (fecPercent <= 80) (requestKbps.toFloat() / (100f / (100 - fecPercent))).toInt() else requestKbps
+        rate -= minOf(audioKbps, rate / 5)
+        rate -= minOf(500, rate / 10)
+        return rate
+    }
+
     /** Exact inverse of Polaris stream_bitrate, including its single-precision FEC rounding. */
     fun requestForEncoder(encoderKbps: Int, audioKbps: Int = 512, fecPercent: Int = 10): Int {
         require(encoderKbps > 0 && audioKbps >= 0 && fecPercent in 0..100)

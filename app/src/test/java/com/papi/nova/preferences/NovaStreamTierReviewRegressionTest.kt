@@ -19,7 +19,7 @@ import org.robolectric.shadows.ShadowMediaCodecList
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk=[33])
+@Config(sdk=[33],application=android.app.Application::class,shadows=[com.papi.nova.shadows.ShadowMoonBridge::class])
 class NovaStreamTierReviewRegressionTest {
     private val context: Context=ApplicationProvider.getApplicationContext()
     private val prefs get()=PreferenceManager.getDefaultSharedPreferences(context)
@@ -28,6 +28,7 @@ class NovaStreamTierReviewRegressionTest {
         context.getSharedPreferences(NovaCapabilityProbe.STORE,0).edit().clear().commit()
         ProfilesManager.instance=null
         ShadowMediaCodecList.reset()
+        NovaTierRuntime.installForTest(null)
     }
     private fun input(failed: List<NovaFailedDecodePoint> = emptyList()): NovaTierInputs {
         val points=listOf(NovaDecodePoint(NovaSize(1280,720),120),NovaDecodePoint(NovaSize(1920,1080),120),
@@ -47,8 +48,17 @@ class NovaStreamTierReviewRegressionTest {
         val codec=org.robolectric.shadows.MediaCodecInfoBuilder.newBuilder().setName("c2.qti.hevc.decoder")
             .setIsEncoder(false).setIsVendor(true).setIsHardwareAccelerated(true).setIsSoftwareOnly(false)
             .setCapabilities(caps).build()
+        val encoder=org.robolectric.shadows.MediaCodecInfoBuilder.newBuilder().setName("fixture.hevc.encoder")
+            .setIsEncoder(true).setIsVendor(true).setIsHardwareAccelerated(true).setIsSoftwareOnly(false)
+            .setCapabilities(caps).build()
+        val broken=org.robolectric.shadows.MediaCodecInfoBuilder.newBuilder().setName("OMX.qcom.video.decoder.hevcswvdec")
+            .setIsEncoder(false).setIsVendor(true).setIsHardwareAccelerated(true).setIsSoftwareOnly(false)
+            .setCapabilities(caps).build()
+        ShadowMediaCodecList.addCodec(encoder)
+        ShadowMediaCodecList.addCodec(broken)
         ShadowMediaCodecList.addCodec(codec)
         assertEquals("c2.qti.hevc.decoder",NovaCapabilityProbe.inspect(context,NovaSize(1920,1080),120).codecs.single().decoder)
+        assertTrue(NovaCapabilityProbe.inspect(context,NovaSize(1920,1080),50).codecs.single().points.any { it.fps==50 })
     }
     @Test fun emptyProbeCannotDestroyGoodCache() {
         val cache=context.getSharedPreferences(NovaCapabilityProbe.STORE,0)
@@ -120,5 +130,109 @@ class NovaStreamTierReviewRegressionTest {
     @Test fun fourKClaimAgreesWithGeneratedPlanAfterHevcFailure() {
         val tiers=NovaStreamTiers.forDevice(input(listOf(NovaFailedDecodePoint(NovaCodecChoice.HEVC,NovaSize(3840,2160),60))))
         if(tiers.fourK==NovaFourK.IsMax) assertEquals(NovaSize(3840,2160),tiers.max.size)
+    }
+
+    @Test fun memoizedRecommendedReachesActualPreferenceReaderWithoutReprobing() {
+        NovaSettingsMigration.apply(context)
+        NovaTierRuntime.installForTest(input())
+        val actual=PreferenceConfiguration.readPreferences(context)
+        assertEquals(1920,actual.width);assertEquals(1080,actual.height)
+        assertEquals(120f,actual.fps,0.0f);assertEquals(30000,actual.bitrate)
+        assertEquals(PreferenceConfiguration.FormatOption.AUTO,actual.videoFormat)
+    }
+    @Test fun runtimePreparesMetadataOffMainAndReusesTheSnapshot()=kotlinx.coroutines.runBlocking {
+        var services=0
+        val watched=object:android.content.ContextWrapper(context) {
+            override fun getApplicationContext():Context=this
+            override fun getSystemService(name:String):Any? {
+                assertNotEquals(android.os.Looper.getMainLooper(),android.os.Looper.myLooper())
+                services++
+                return super.getSystemService(name)
+            }
+        }
+        val first=NovaTierRuntime.prepare(watched);val calls=services
+        assertTrue(calls>0)
+        assertSame(first,NovaTierRuntime.prepare(watched));assertEquals(calls,services)
+    }
+    @Test fun savedSizeOnlySetupKeepsItsDerivedBitrateAcrossMigration() {
+        prefs.edit().putString("list_resolution","1920x1080").putString("list_fps","60").commit()
+        val profile=SettingsProfile(UUID.randomUUID(),"4K",0,0,mapOf("list_resolution" to "3840x2160"))
+        val manager=ProfilesManager.getInstance();manager.add(profile);manager.setActive(profile.getUuid())
+        NovaSettingsMigration.apply(context)
+        assertEquals(80000,PreferenceConfiguration.readPreferences(context).bitrate)
+        assertFalse(prefs.contains("seekbar_bitrate_kbps"))
+    }
+    @Test fun profileEditorChangesMarkCustomAndManualBitrateDoesNotStayAutomatic() {
+        val profile=SettingsProfile(UUID.randomUUID(),"Custom",0,0,mapOf("list_resolution" to "1920x1080"))
+        profile.selectStreamTier(NovaTier.RECOMMENDED,true)
+        profile.setOptions(profile.getOptions()!! + mapOf("seekbar_bitrate_kbps" to 37000))
+        assertEquals("custom",profile.getOptions()!![NovaSettingsMigration.TIER])
+        assertEquals(false,profile.getOptions()!![NovaSettingsMigration.AUTO])
+    }
+    @Test fun classicDefaultBitrateKeepsAutoAndActiveSetupSelectionTracksEdit() {
+        NovaSettingsMigration.apply(context)
+        val profile=SettingsProfile(UUID.randomUUID(),"Stream",0,0,mapOf("list_fps" to "60"))
+        val manager=ProfilesManager.getInstance();manager.add(profile);manager.setActive(profile.getUuid())
+        NovaStreamSettings.select(context,NovaTier.MAX)
+        prefs.edit().putString("list_resolution","1280x720").putString("list_fps","60").putInt("seekbar_bitrate_kbps",10000).commit()
+        NovaStreamSettings.classicWrite(prefs,"seekbar_bitrate_kbps")
+        assertTrue(prefs.getBoolean(NovaSettingsMigration.AUTO,false))
+        assertEquals("custom",profile.getOptions()!![NovaSettingsMigration.TIER])
+    }
+    @Test fun partialHostImportSeedsTheCurrentlySelectedTierBeforeApplyingOverride() {
+        NovaSettingsMigration.apply(context);NovaTierRuntime.installForTest(input())
+        prefs.edit().putString("list_resolution","1280x720").putString("list_fps","30").putString("video_format","forcepyrowave").commit()
+        assertTrue(PreferenceConfiguration.applyPolarisStreamingProfile(context,null,37000))
+        val actual=PreferenceConfiguration.readPreferences(context)
+        assertEquals(1920,actual.width);assertEquals(120f,actual.fps,0.0f)
+        assertEquals(37000,actual.bitrate)
+        assertEquals(PreferenceConfiguration.FormatOption.AUTO,actual.videoFormat)
+    }
+    @Test fun migrationDoesNotUndoAConcurrentUnrelatedWrite() {
+        val before=mapOf<String,Any>("list_resolution" to "1920x1080")
+        prefs.edit().putString("list_resolution","1920x1080").putBoolean("another_writer",true).commit()
+        NovaSettingsMigration.writeDifference(prefs,NovaSettingsMigration.migrate(before),before)
+        assertTrue(prefs.getBoolean("another_writer",false))
+    }
+
+    @Test fun generatedLaunchCannotPretendUnavailableMetadataIsCustom() {
+        NovaSettingsMigration.apply(context)
+        NovaTierRuntime.installForTest(input().copy(capabilities=NovaDeviceCapabilities(emptyList())))
+        val refused=NovaStreamSettings.generatedPlan(prefs)!!
+        assertFalse(refused.available)
+        assertTrue(refused.bitrateKbps>0)
+        assertEquals("decoder_unavailable",refused.limits.first().code)
+        NovaStreamSettings.select(context,NovaTier.CUSTOM)
+        assertNull(NovaStreamSettings.generatedPlan(prefs))
+    }
+
+    @Test fun pinCrashSwitchBackPreservesCustomBitrateAndItsOwnAutoFlag() {
+        for (savedSetup in listOf(false,true)) {
+            prefs.edit().clear().commit();ProfilesManager.instance=null
+            NovaSettingsMigration.apply(context)
+            val pinned=mapOf<String,Any>("list_resolution" to "1920x1080","list_fps" to "120",
+                "video_format" to "auto","seekbar_bitrate_kbps" to 37000,NovaSettingsMigration.TIER to "custom",
+                NovaSettingsMigration.CUSTOM_EXISTS to true,NovaSettingsMigration.AUTO to false)
+            if(savedSetup) {
+                val manager=ProfilesManager.getInstance()
+                val profile=SettingsProfile(UUID.randomUUID(),"Pinned",0,0,pinned)
+                manager.add(profile);manager.setActive(profile.getUuid())
+            } else {
+                NovaSettingsMigration.writeDifference(prefs,prefs.all+pinned)
+                NovaStreamSettings.classicWrite(prefs,"seekbar_bitrate_kbps")
+            }
+            NovaCapabilityProbe.recordCrashCandidate(context,NovaFailedDecodePoint(NovaCodecChoice.HEVC,NovaSize(3840,2160),60))
+            PreferenceConfiguration.resetStreamingSettings(context)
+            kotlinx.coroutines.runBlocking { NovaTierRuntime.prepare(context) }
+            NovaTierRuntime.installForTest(input())
+            val overlay=ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
+            assertEquals("recommended",overlay.getString(NovaSettingsMigration.TIER,null))
+            assertEquals(30000,PreferenceConfiguration.readPreferences(context).bitrate)
+            NovaStreamSettings.select(context,NovaTier.CUSTOM)
+            val custom=ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
+            assertEquals(37000,PreferenceConfiguration.readPreferences(context).bitrate)
+            assertFalse(custom.getBoolean("nova_custom_bitrate_auto",true))
+            assertFalse(NovaStreamSettings.custom(custom.all)!!.bitrateBasis==NovaBitrateBasis.TABLE_V1)
+        }
     }
 }

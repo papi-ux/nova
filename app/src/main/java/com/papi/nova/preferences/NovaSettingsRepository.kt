@@ -17,6 +17,8 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -101,6 +103,7 @@ class NovaSharedPreferencesSettingsStore(
 }
 
 interface NovaSettingsStore {
+    val tierUpdates: kotlinx.coroutines.flow.Flow<NovaTierInputs>? get() = null
     suspend fun storedStreamKeys(): Set<String>? = null
     suspend fun deviceTierInputs(): NovaTierInputs? = null
     suspend fun snapshot(definitions: NovaSettingsDefinitionSet): Map<String, NovaSettingValue>
@@ -120,6 +123,7 @@ class NovaSettingsRepository private constructor(
     private val canonicalDefinitions: NovaSettingsDefinitionSet,
     private val context: Context? = null
 ) : NovaSettingsStore {
+    override val tierUpdates get() = NovaTierRuntime.updates.filterNotNull().map { it.inputs }
     override suspend fun storedStreamKeys() = mirrorPrefs.all.keys
 
     /**
@@ -161,6 +165,10 @@ class NovaSettingsRepository private constructor(
                 editor.putSettingValue(definition.key, value)
             }
             check(editor.commit()) { "Failed to persist Nova settings batch" }
+            updates.firstOrNull { it.first.key == NovaSettingsMigration.TIER }?.second?.let { value ->
+                if (value is NovaSettingValue.StringValue) NovaTier.entries.firstOrNull { it.name.equals(value.value, true) }
+                    ?.let { NovaStreamSettings.selectActiveSetupTier(it) }
+            }
 
             mirrorDataStoreBestEffort { preferences ->
                 removeKeys.forEach(preferences::removeRawSettingKey)
@@ -186,7 +194,7 @@ class NovaSettingsRepository private constructor(
 
     override suspend fun resettableKeys(definitions: NovaSettingsDefinitionSet): Set<String> = emptySet()
 
-    override suspend fun deviceTierInputs(): NovaTierInputs? = context?.let(NovaCapabilityProbe::deviceInputs)
+    override suspend fun deviceTierInputs(): NovaTierInputs? = withContext(Dispatchers.IO) { context?.let { NovaTierRuntime.prepare(it).inputs } }
 
     private suspend fun reconcileDataStoreMirror() {
         val current = runCatching { dataStore.data.first() }.getOrElse {

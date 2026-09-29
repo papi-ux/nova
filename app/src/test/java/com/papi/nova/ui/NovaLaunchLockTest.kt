@@ -16,4 +16,14 @@ class NovaLaunchLockTest {
         assertEquals(3,Regex("getMaxSupportedRefreshRate\\(streamingDisplay\\)").findAll(game).count())
         assertFalse(game.contains("displayLocked = watchStreamWidth > 0 && watchStreamHeight > 0"))
     }
+
+    @Test fun coldGeneratedLaunchWaitsForMetadataAndRefusesAnUnavailableTier() {
+        val game=File("src/main/java/com/papi/nova/Game.kt").readText()
+        val gate=game.indexOf("NovaTierRuntime.prepare(applicationContext)")
+        val refusal=game.indexOf("R.string.nova_tier_unavailable")
+        val decoder=game.indexOf("MediaCodecHelper.initialize(this")
+        assertTrue(gate>0 && gate<refusal && refusal<decoder)
+        assertTrue(game.contains("if (plan == null || !plan.available)"))
+        assertTrue(game.contains("NovaTierRuntime.snapshot() !== tierSnapshotAtRead"))
+    }
 }

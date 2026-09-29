@@ -37,13 +37,24 @@ class NovaStreamTiersTest {
         assertNull(tiers.custom)
     }
 
-    @Test fun ethernetMergesDuplicateMaxButWifiHoldDoesNot() {
-        val room = inputs(NovaStreamTiers.FOUR_K, 60, NovaDistance.ROOM, NovaLink.ETHERNET)
-        assertTrue(NovaStreamTiers.generate(room).mergedMax)
-        val wifi = NovaStreamTiers.generate(room.copy(link = NovaLink.WIFI))
+    @Test fun shieldWifiKeepsFourKMaxSeparateWhileRecommendedIsHeld() {
+        // Papi's 21:10 decision: the Wi-Fi hold must never collapse the 4K Max choice.
+        val wifi=NovaStreamTiers.forDevice(inputs(NovaStreamTiers.FOUR_K,60,NovaDistance.ROOM,NovaLink.WIFI))
         assertFalse(wifi.mergedMax)
-        assertEquals(50000, wifi.recommended.bitrateKbps)
-        assertEquals(80000, wifi.max.bitrateKbps)
+        assertEquals(listOf(NovaTier.SAVER,NovaTier.RECOMMENDED,NovaTier.MAX),wifi.availableTiers)
+        assertEquals(NovaStreamTiers.FOUR_K,wifi.max.size)
+        assertEquals(60,wifi.max.fps)
+        assertEquals(50000,wifi.recommended.bitrateKbps)
+        assertTrue(wifi.recommended.limits.any { it.code=="wifi_hold" })
+        assertEquals(80000,wifi.max.bitrateKbps)
+    }
+    @Test fun shieldEthernetUsesNormalDuplicateMerging() {
+        val ethernet=NovaStreamTiers.forDevice(inputs(NovaStreamTiers.FOUR_K,60,NovaDistance.ROOM,NovaLink.ETHERNET))
+        assertTrue(ethernet.mergedMax)
+        assertEquals(listOf(NovaTier.SAVER,NovaTier.RECOMMENDED),ethernet.availableTiers)
+        assertEquals(NovaStreamTiers.FOUR_K,ethernet.recommended.size)
+        assertEquals(80000,ethernet.recommended.bitrateKbps)
+        assertFalse(ethernet.recommended.limits.any { it.code=="wifi_hold" })
     }
 
     @Test fun settingsIgnoreHostWhileGameUsesHostAndSpaceLimits() {
@@ -94,9 +105,58 @@ class NovaStreamTiersTest {
     @Test fun claimedDecoderNeverBecomesCoveredAndAv1IsOptIn() {
         val input = inputs()
         val claimed = input.capabilities.codecs.map { it.copy(points = it.points.map { p -> p.copy(covered = false) }) }
-        assertFalse(NovaStreamTiers.generate(input.copy(capabilities = NovaDeviceCapabilities(claimed))).recommended.available)
+        val unmeasured=NovaStreamTiers.generate(input.copy(capabilities = NovaDeviceCapabilities(claimed))).recommended
+        assertTrue(unmeasured.available)
+        assertTrue(unmeasured.reasons.any { it.code=="decoder_claimed" })
+        assertFalse(NovaDeviceCapabilities(claimed).covered(NovaCodecChoice.HEVC,NovaSize(1920,1080),120))
         assertEquals(NovaCodecChoice.HEVC, NovaStreamTiers.generate(input).recommended.codec)
         assertTrue(NovaStreamTiers.customDelta(NovaStreamPlan(3840, 2160, 60, NovaCodecChoice.AV1, 250000),
             NovaStreamTiers.generate(input).recommended).length <= 56)
+    }
+
+    @Test fun fourKMetadataMatchesFiftyHzAndIgnoresUnchosenAv1() {
+        val fifty=inputs(NovaStreamTiers.FOUR_K,50,NovaDistance.ROOM,NovaLink.ETHERNET).copy(refreshRates=listOf(50))
+        val result=NovaStreamTiers.forDevice(fifty)
+        assertEquals(NovaStreamTiers.FOUR_K,result.recommended.size)
+        assertEquals(50,result.recommended.fps);assertEquals(NovaFourK.IsRecommended,result.fourK)
+        val av1=inputs().copy(capabilities=NovaDeviceCapabilities(listOf(
+            NovaCodecCapability(NovaCodecChoice.AVC,"avc",listOf(NovaDecodePoint(NovaSize(1920,1080),120))),
+            NovaCodecCapability(NovaCodecChoice.AV1,"av1",listOf(NovaDecodePoint(NovaStreamTiers.FOUR_K,120))))))
+        val auto=NovaStreamTiers.forDevice(av1)
+        assertEquals(NovaCodecChoice.AVC,auto.recommended.codec)
+        assertTrue(auto.fourK is NovaFourK.Unavailable)
+        assertTrue(auto.max.height<=1080)
+    }
+    @Test fun mirrorAndPyrowaveUseTheirOwnLimits() {
+        val mirror=NovaStreamTiers.generate(inputs().copy(host=NovaHostTierLimits(mirroredDesktop=NovaSize(2560,1440))))
+        assertEquals(NovaSize(2560,1440),mirror.max.size)
+        assertEquals("host_desktop",(mirror.fourK as NovaFourK.Unavailable).because.code)
+        val pyro=inputs().copy(codec=NovaCodecChoice.PYROWAVE,capabilities=NovaDeviceCapabilities(emptyList()),
+            pyrowave=NovaPyrowaveSupport(available=true))
+        assertTrue(NovaStreamTiers.generate(pyro).recommended.available)
+        assertEquals(NovaCodecChoice.PYROWAVE,NovaStreamTiers.generate(pyro).max.codec)
+        val capped=NovaStreamTiers.generate(pyro.copy(host=NovaHostTierLimits(pyrowaveFourKCapKbps=200000)))
+        assertEquals("pyrowave_cap",(capped.fourK as NovaFourK.Unavailable).because.code)
+        assertTrue(capped.max.height<2160)
+        assertFalse(NovaStreamTiers.generate(pyro.copy(pyrowave=NovaPyrowaveSupport())).recommended.available)
+    }
+    @Test fun reasonsDescribeOnlyRulesThatChangedEachRung() {
+        val hand=NovaStreamTiers.forDevice(inputs(NovaSize(3200,1440)))
+        assertEquals("hand_cap",hand.recommended.reasons.first().code)
+        assertFalse(hand.max.reasons.any { it.code=="native_panel" })
+        val rp6=NovaStreamTiers.forDevice(inputs())
+        assertEquals("Fills this 1080p screen at its full 120 Hz",rp6.recommended.reasons.first().message)
+        assertFalse(rp6.max.reasons.any { it.code=="native_panel" })
+        val failed=inputs().let { it.copy(capabilities=it.capabilities.copy(failed=listOf(
+            NovaFailedDecodePoint(NovaCodecChoice.HEVC,NovaSize(1920,1080),120)))) }
+        assertFalse(NovaStreamTiers.forDevice(failed).max.limits.any { it.code=="decoder_failed" })
+        assertTrue(NovaStreamTiers.resolve(inputs(),NovaTier.MAX,pins=NovaStreamPins(fps=60)).reasons.any { it.code=="above_native" })
+    }
+    @Test fun customDeltaNamesTheRecommendedBaselineAndIgnoresAutoNegotiation() {
+        val rec=NovaStreamTiers.forDevice(inputs()).recommended
+        assertEquals("Custom · same as Recommended",NovaStreamTiers.customDelta(rec.copy(codec=NovaCodecChoice.AUTO),rec))
+        assertEquals("Custom · 37 Mbps (Recommended 30)",NovaStreamTiers.customDelta(rec.copy(bitrateKbps=37000),rec))
+        assertEquals("Custom · 1440p, 60 fps +1 (Recommended 1080p, 120 fps)",
+            NovaStreamTiers.customDelta(rec.copy(width=2560,height=1440,fps=60,bitrateKbps=40000),rec))
     }
 }

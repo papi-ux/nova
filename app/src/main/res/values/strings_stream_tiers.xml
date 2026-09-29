@@ -8,4 +8,6 @@
     <string name="nova_tier_auto_bitrate">Auto · %1$s Mbps</string>
     <string name="nova_tier_received_bitrate">Received · %1$s Mbps</string>
     <string name="nova_tier_received_unavailable">Received bitrate unavailable</string>
+    <string name="nova_tier_unavailable">Cannot start this picture tier: %1$s</string>
+    <string name="nova_tier_no_decoder">No usable decoder was reported by this device</string>
 </resources>

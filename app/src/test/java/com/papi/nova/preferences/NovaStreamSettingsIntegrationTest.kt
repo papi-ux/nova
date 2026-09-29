@@ -31,7 +31,7 @@ class NovaStreamSettingsIntegrationTest {
     private class FixtureStore(initial: Map<String, NovaSettingValue>) : NovaSettingsStore {
         var values = initial
         override suspend fun storedStreamKeys() = values.keys
-        override suspend fun snapshot(definitions: NovaSettingsDefinitionSet) = values
+        override suspend fun snapshot(definitions: NovaSettingsDefinitionSet) = definitions.settings.mapNotNull { d -> d.defaultValue?.let { d.key to it } }.toMap() + values
         override suspend fun set(definition: NovaSettingDefinition, value: NovaSettingValue) { values = values + (definition.key to value) }
         override suspend fun updateAtomically(updates: List<Pair<NovaSettingDefinition,NovaSettingValue>>, removeKeys: Set<String>) {
             values = (values - removeKeys) + updates.associate { it.first.key to it.second }
@@ -45,39 +45,49 @@ class NovaStreamSettingsIntegrationTest {
                 NovaDecodePoint(NovaSize(3840,2160),60))))))
     }
     private fun defaults() = mapOf(NovaSettingsMigration.TIER to NovaSettingValue.StringValue("recommended"),
-        NovaSettingsMigration.AUTO to NovaSettingValue.BooleanValue(true))
-    private fun idle() = shadowOf(Looper.getMainLooper()).idle()
+        NovaSettingsMigration.AUTO to NovaSettingValue.BooleanValue(true),
+        NovaSettingsMigration.CUSTOM_EXISTS to NovaSettingValue.BooleanValue(false))
+    private fun awaitUi(done: () -> Boolean) {
+        val deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
+        while(!done() && System.nanoTime()<deadline) { shadowOf(Looper.getMainLooper()).idle();Thread.sleep(5) }
+        assertTrue("Asynchronous settings operation did not finish",done())
+    }
+    private fun edit(vm:NovaSettingsViewModel,definition:NovaSettingDefinition,value:NovaSettingValue) {
+        var done=false
+        vm.setValue(definition,value) { done=true }
+        awaitUi { done }
+    }
 
     @Test fun freshHasNoCustomAndAutoFollowsEditsUntilBitrateIsMoved() {
         val store = FixtureStore(defaults())
         val definitions = NovaSettingDefinitions.load(context)
-        val vm = NovaSettingsViewModel(definitions,store); idle()
+        val vm = NovaSettingsViewModel(definitions,store); awaitUi { vm.streamTiers.value!=null }
         assertNull(vm.streamTiers.value!!.custom)
         assertEquals("Auto · 30 Mbps",vm.bitrateText)
-        vm.setValue(definitions.require("list_fps"),NovaSettingValue.StringValue("60"));idle()
+        edit(vm,definitions.require("list_fps"),NovaSettingValue.StringValue("60"))
         assertEquals(NovaTier.CUSTOM,vm.pictureTier)
         assertEquals(NovaSettingValue.IntValue(20000),store.values["seekbar_bitrate_kbps"])
-        vm.setValue(definitions.require("seekbar_bitrate_kbps"),NovaSettingValue.IntValue(37000));idle()
-        vm.setValue(definitions.require("list_resolution"),NovaSettingValue.StringValue("1280x720"));idle()
+        edit(vm,definitions.require("seekbar_bitrate_kbps"),NovaSettingValue.IntValue(37000))
+        edit(vm,definitions.require("list_resolution"),NovaSettingValue.StringValue("1280x720"))
         assertEquals(NovaSettingValue.IntValue(37000),store.values["seekbar_bitrate_kbps"])
         assertEquals("37 Mbps",vm.bitrateText)
-        vm.setValue(NovaStreamSettings.definition(NovaSettingsMigration.AUTO)!!,NovaSettingValue.BooleanValue(true));idle()
+        edit(vm,NovaStreamSettings.definition(NovaSettingsMigration.AUTO)!!,NovaSettingValue.BooleanValue(true))
         assertEquals(NovaSettingValue.IntValue(10000),store.values["seekbar_bitrate_kbps"])
     }
 
-    @Test fun tierSwitchKeepsSixCustomKeysAndAStandardEditClearsItsDiyOverride() {
+    @Test fun tierSwitchAndStandardEditsKeepDiyEditorValuesSeparate() {
         val custom = defaults() + mapOf("list_resolution" to NovaSettingValue.StringValue("1920x1080"),
             "list_fps" to NovaSettingValue.StringValue("60"),"video_format" to NovaSettingValue.StringValue("forceh265"),
             "seekbar_bitrate_kbps" to NovaSettingValue.IntValue(47000),"edit_diy_w_h" to NovaSettingValue.StringValue("2400x1080"),
             "custom_refresh_rate" to NovaSettingValue.StringValue("90"))
         val store = FixtureStore(custom)
         val defs = NovaSettingDefinitions.load(context)
-        val vm = NovaSettingsViewModel(defs,store);idle()
-        vm.selectPictureTier(NovaTier.MAX);idle()
+        val vm = NovaSettingsViewModel(defs,store);awaitUi { vm.streamTiers.value!=null }
+        edit(vm,NovaStreamSettings.definition(NovaSettingsMigration.TIER)!!,NovaSettingValue.StringValue("max"))
         for (key in NovaSettingsMigration.STREAM_KEYS) assertEquals(custom[key],store.values[key])
-        vm.setValue(defs.require("list_resolution"),NovaSettingValue.StringValue("1280x720"));idle()
-        assertFalse(store.values.containsKey("edit_diy_w_h"))
-        assertFalse(store.values.containsKey("custom_refresh_rate"))
+        edit(vm,defs.require("list_resolution"),NovaSettingValue.StringValue("1280x720"))
+        assertEquals(custom["edit_diy_w_h"],store.values["edit_diy_w_h"])
+        assertEquals(custom["custom_refresh_rate"],store.values["custom_refresh_rate"])
         assertEquals(NovaSettingValue.IntValue(10000),store.values["seekbar_bitrate_kbps"])
     }
 

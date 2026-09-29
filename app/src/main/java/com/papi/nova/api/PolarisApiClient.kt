@@ -3243,40 +3243,41 @@ class PolarisApiClient @JvmOverloads constructor(
      */
     fun setBitrate(bitrateKbps: Int): Boolean = setBitrate(bitrateKbps, null)
 
-    /** An observed identity pins a Command Center operation to the stream it was opened for. */
+    /** This route consumes encoder kbps. The stream-tier controller converts request units. */
     fun setBitrate(bitrateKbps: Int, observed: PolarisSessionStatus?, acknowledged: ((Int) -> Unit)? = null): Boolean {
-        if (bitrateKbps !in 1000..300000) return false
+        val result = setBitrateResult(bitrateKbps, observed)
+        if (result is PolarisBitrateWriteResult.Applied) {
+            acknowledged?.invoke(result.encoderKbps)
+            return true
+        }
+        return false
+    }
+
+    fun setBitrateResult(encoderKbps: Int, observed: PolarisSessionStatus?): PolarisBitrateWriteResult {
+        if (encoderKbps !in 1000..300000) return PolarisBitrateWriteResult.Failed
         return try {
             val status = getSessionStatus()?.takeIf {
                 it.canAdjustHostTuning && it.appSessionId.isNotBlank() && it.sessionGeneration > 0L
-            } ?: return false
+            } ?: return PolarisBitrateWriteResult.SessionChanged
             if (observed != null && (status.appSessionId != observed.appSessionId ||
                     status.sessionGeneration != observed.sessionGeneration || !status.streamingActive ||
-                    status.shutdownRequested || status.isViewer)) return false
-            val body = org.json.JSONObject().apply {
-                put("bitrate_kbps", bitrateKbps)
-                put("app_session_id", status.appSessionId)
-                put("session_generation", status.sessionGeneration)
-            }
-            val request = Request.Builder()
-                .url("$baseUrl/session/bitrate")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
+                    status.shutdownRequested || status.isViewer)) return PolarisBitrateWriteResult.SessionChanged
+            val body = JSONObject().put("bitrate_kbps",encoderKbps).put("app_session_id",status.appSessionId)
+                .put("session_generation",status.sessionGeneration)
+            val request = Request.Builder().url("$baseUrl/session/bitrate")
+                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(),body.toString())).build()
             executeNonRetryable(request).use { response ->
-                if (response.code != 200) return false
-                val receipt = JSONObject(response.body?.string().orEmpty())
-                val actual = receipt.opt("bitrate_kbps") as? Number ?: return false
-                if (receipt.opt("status") != true || actual.toDouble() % 1.0 != 0.0 ||
-                    actual.toDouble() !in 1000.0..300000.0) return false
-                acknowledged?.invoke(actual.toInt())
-                true
+                if (response.code == 409) return PolarisBitrateWriteResult.SessionChanged
+                if (response.code != 200) return PolarisBitrateWriteResult.Failed
+                val receipt=JSONObject(response.body?.string().orEmpty())
+                val actual=receipt.opt("bitrate_kbps") as? Number ?: return PolarisBitrateWriteResult.Failed
+                if (receipt.opt("status") != true || actual.toDouble()%1.0 != 0.0 || actual.toDouble() !in 1000.0..300000.0)
+                    return PolarisBitrateWriteResult.Failed
+                PolarisBitrateWriteResult.Applied(actual.toInt(),status)
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Bitrate change failed: ${errorMessage(e)}")
-            false
+            PolarisBitrateWriteResult.Failed
         }
     }
 

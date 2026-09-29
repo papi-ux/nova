@@ -66,4 +66,17 @@ class PolarisLiveBitrateScopeTest {
         assertFalse(rejected.setBitrate(180000,PolarisApiClient.parseSessionStatusResponse(status())))
     }
 
+
+    @Test fun replacementAndConflictReturnTypedSessionChange() {
+        val replaced=client { reply(it,status(8).toString()) }
+        assertEquals(PolarisBitrateWriteResult.SessionChanged,
+            replaced.setBitrateResult(40000,PolarisApiClient.parseSessionStatusResponse(status())))
+        var posts=0
+        val conflict=client { request -> if(request.method=="GET") reply(request,status().toString()) else {
+            posts++;reply(request,"{}",409)
+        } }
+        assertEquals(PolarisBitrateWriteResult.SessionChanged,
+            conflict.setBitrateResult(40000,PolarisApiClient.parseSessionStatusResponse(status())))
+        assertEquals(1,posts)
+    }
 }
