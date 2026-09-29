@@ -54,13 +54,14 @@ class NovaWelcomeRefreshTest {
         val copy = welcomeCopy(portrait + landscape)
 
         assertTrue("welcome should mention Polaris", copy.contains("Polaris"))
-        assertTrue("welcome should mention Moonlight compatibility", copy.contains("Moonlight-compatible") || copy.contains("Moonlight pairing"))
+        // A PIN pairs any host, which the copy says without naming a host type (audit C27).
+        assertTrue("welcome should say a PIN pairs any host", copy.contains("Pair any host with a PIN"))
         assertTrue("welcome should include Android TV players", copy.contains("Android TVs"))
         assertTrue("welcome should include handheld players", copy.contains("handhelds"))
         assertTrue("welcome should include tablet players", copy.contains("tablets"))
         assertTrue("welcome should include phone players", copy.contains("phones"))
         assertFalse("welcome should not position Nova as a handheld-only product", copy.contains("Polaris, handhelds, TV"))
-        assertTrue("welcome should frame QR as Polaris pairing only", copy.contains("Polaris pairing QR"))
+        assertTrue("welcome should frame QR as Polaris pairing only", copy.contains("the pairing QR code Polaris shows"))
         assertFalse("welcome should not overclaim automatic QR or TOFU pairing", copy.contains("TOFU auto-pair"))
         assertFalse("welcome should not overclaim AI tuning", copy.contains("AI-optimized"))
     }
@@ -92,6 +93,27 @@ class NovaWelcomeRefreshTest {
         val copy = welcomeCopy(layouts.joinToString("\n") { readFile(it) })
         assertFalse(copy.contains("standard Moonlight pairing"))
         assertFalse(copy.contains("HUD"))
+    }
+
+    // The Welcome copy named Moonlight as the host type, and "Scan QR Code" sat in a fixed 50dp
+    // button a third of the row wide, where a landscape phone wrapped and clipped it (audit C27).
+    @Test
+    fun welcomeNamesNoHostTypeAndItsOneRowButtonsKeepOneLine() {
+        val layouts = listOf(
+            "src/main/res/layout/activity_nova_welcome.xml",
+            "src/main/res/layout-land/activity_nova_welcome.xml",
+        ).joinToString("\n") { readFile(it) }
+        val strings = readFile("src/main/res/values/strings_ui_hosts.xml")
+        val noCamera = Regex("<string name=\"nova_welcome_step_pair_body_no_camera\">(.*?)</string>").find(strings)!!.groupValues[1]
+        val copy = welcomeCopy(layouts) + "\n" + noCamera
+        assertFalse(copy, copy.contains("Moonlight"))
+
+        val row = readFile("src/main/res/layout/nova_welcome_actions.xml")
+        for (id in listOf("welcome_discover_btn", "welcome_add_manual_btn", "welcome_scan_qr_btn")) {
+            val button = buttonBlock(row, id)
+            assertTrue("$id keeps its label on one line", button.contains("android:maxLines=\"1\""))
+            assertTrue("$id sizes its label to fit a third of the row", button.contains("app:autoSizeTextType=\"uniform\""))
+        }
     }
 
     /** The values of the welcome strings the layouts name. */
