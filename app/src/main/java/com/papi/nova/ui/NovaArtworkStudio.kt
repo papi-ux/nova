@@ -35,7 +35,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
@@ -463,11 +465,16 @@ fun NovaArtworkStudio(
                     }
 
                     state.error?.let {
+                        // Announced as it appears, as the game page's own notices are: it was
+                        // plain text a screen reader never said (C26).
                         Text(
                             text = it,
                             color = colors.warning,
                             fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 8.dp),
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .semantics { liveRegion = LiveRegionMode.Polite }
+                                .testTag(NOVA_ARTWORK_STUDIO_ERROR_TAG),
                         )
                     }
 
@@ -1061,6 +1068,9 @@ private val NOVA_STUDIO_CHOICE_GAP = 8.dp
 private const val NOVA_STUDIO_POSTER_ASPECT = 112f / 132f
 private const val NOVA_STUDIO_WIDE_ASPECT = 112f / 76f
 internal const val NOVA_STUDIO_CHOICES_TAG = "nova-artwork-choices"
+
+/** The studio's error line, for a test to find it. */
+internal const val NOVA_ARTWORK_STUDIO_ERROR_TAG = "nova-artwork-studio-error"
 internal const val NOVA_STUDIO_KIND_ROW_TAG = "nova-artwork-kind"
 
 @Composable

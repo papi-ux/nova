@@ -119,9 +119,11 @@ class NovaGameDetailOverviewLayoutTest {
         val overview = read("NovaGameDetailOverview.kt")
         val action = overview.section("private fun NovaGameDetailAction(", "private fun LaunchProfileReviewNotice(")
         assertTrue(
-            "two actions share a row upright, and \"Reset Game Profile\" did not fit its half",
-            action.contains("overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis,") &&
-                action.contains("modifier = if (focused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier,")
+            "two actions share a row upright, and \"Reset Game Profile\" did not fit its half; the label " +
+                "is whole on the lines it needs, at rest as well as under the cursor (C25)",
+            action.contains("textAlign = TextAlign.Center,") &&
+                !action.contains("TextOverflow.Ellipsis") &&
+                !action.contains("maxLines = 1")
         )
         val gauge = overview.section("private fun NovaGameDetailBeatGauge(", "private fun novaSameTitle(")
         assertTrue(

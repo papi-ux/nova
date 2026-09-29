@@ -197,8 +197,8 @@ fun NovaActionButton(
             fontWeight = FontWeight.SemiBold,
             fontSize = fontSize,
             textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            // Whole words on as many lines as they need, never an ellipsis: Artwork Studio's
+            // buttons cut their labels to one line (C25). The button grows to hold them.
         )
     }
 }

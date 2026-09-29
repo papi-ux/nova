@@ -200,15 +200,20 @@ internal fun NovaGameDetailContent(
     // B from Artwork Studio put focus on nothing, and the first Right then found the How Long To
     // Beat chip. Closing the studio hands focus back to the button that opened it (R7).
     val artworkFocusRequester = remember { FocusRequester() }
+    var artworkHoldsFocus by remember { mutableStateOf(false) }
     var shownDestination by remember { mutableStateOf(destination) }
     LaunchedEffect(destination) {
         val from = shownDestination
         shownDestination = destination
         if (from == NovaGameDetailDestination.ARTWORK && destination == NovaGameDetailDestination.OVERVIEW) {
-            // The Overview turns focusable again in this frame; ask once it has.
+            // The Overview turns focusable again a frame or more after this, so ask a frame at a
+            // time until the button holds focus, as the first focus does for Launch. A request that
+            // did not throw ended the loop before, even while the Overview could not take it (M5).
             repeat(ARTWORK_RETURN_FOCUS_FRAMES) {
                 withFrameNanos { }
-                if (runCatching { artworkFocusRequester.requestFocus() }.isSuccess) return@LaunchedEffect
+                runCatching { artworkFocusRequester.requestFocus() }
+                withFrameNanos { }
+                if (artworkHoldsFocus) return@LaunchedEffect
             }
         }
     }
@@ -240,6 +245,7 @@ internal fun NovaGameDetailContent(
             resetProfileLabel = resetProfileLabel,
             resetProfileWorking = resetProfileWorking,
             artworkFocusRequester = artworkFocusRequester,
+            onArtworkFocus = { artworkHoldsFocus = it },
             shortcutPinState = shortcutPinState,
             shortcutPinRequestPending = shortcutPinRequestPending,
             onPinShortcut = onPinShortcut,

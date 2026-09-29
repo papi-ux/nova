@@ -70,6 +70,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -180,6 +181,8 @@ internal fun NovaGameDetailOverview(
     shortcutPinResult: String? = null,
     /** Artwork's button, where focus goes back when the studio it opened closes (R7). */
     artworkFocusRequester: FocusRequester? = null,
+    /** Whether Artwork's button holds focus, so the return from the studio knows it landed. */
+    onArtworkFocus: (Boolean) -> Unit = {},
     /**
      * How strongly the chrome reads while something is open over it.
      *
@@ -232,6 +235,43 @@ internal fun NovaGameDetailOverview(
             )
         } else {
             NovaLibraryCinematicBackdrop(game = game, apiClient = apiClient, strength = 1f)
+        }
+
+        // With no hero art the top of the page was bare: 55 to 60% of the Desktop page (N23).
+        // The game's own card stands where the hero would be, framed, never stretched full-bleed.
+        if (novaLibraryCinematicBackdropTarget(game) == null) {
+            // Upright it stays above the column, which starts 176dp down; beside it, it keeps to the
+            // upper end, clear of the bottom-anchored title and actions.
+            val posterHeight = if (portrait) minOf(maxWidth * (9f / 16f) * 0.72f, 150.dp) else maxHeight * 0.46f
+            val shape = RoundedCornerShape(NovaRadius.hero)
+            Box(
+                modifier = Modifier
+                    .align(if (portrait) Alignment.TopCenter else Alignment.TopEnd)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(top = if (portrait) 16.dp else floorGap + 8.dp, end = if (portrait) 0.dp else inset * 2)
+                    .height(posterHeight)
+                    .aspectRatio(NOVA_GAME_DETAIL_POSTER_ASPECT)
+                    .graphicsLayer { alpha = chromeAlpha }
+                    .clip(shape)
+                    .background(LocalNovaLibrarySurfaces.current.mediaPlaceholder)
+                    .border(1.dp, LocalNovaLibrarySurfaces.current.tileBorder, shape)
+                    .testTag(NOVA_GAME_DETAIL_POSTER_STAND_IN_TAG),
+            ) {
+                key(PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER)) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            ImageView(context).apply {
+                                scaleType = ImageView.ScaleType.CENTER_CROP
+                                // The title under it already names the game.
+                                importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                                isFocusable = false
+                                apiClient.loadCoverInto(this, game)
+                            }
+                        },
+                    )
+                }
+            }
         }
 
         Column(
@@ -364,6 +404,7 @@ internal fun NovaGameDetailOverview(
                 shortcutPinResult = shortcutPinResult,
                 resetSplit = resetSplit,
                 artworkFocusRequester = artworkFocusRequester,
+                onArtworkFocus = onArtworkFocus,
                 modifier = Modifier.padding(top = 16.dp),
             )
 
@@ -617,6 +658,7 @@ private fun NovaGameDetailActions(
     shortcutPinResult: String? = null,
     resetSplit: NovaSplitConfirmState,
     artworkFocusRequester: FocusRequester?,
+    onArtworkFocus: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val playFocusable = uiState.playEnabled || activeSession != null
@@ -744,6 +786,7 @@ private fun NovaGameDetailActions(
             iconOnly = true,
             modifier = actionModifier
                 .then(artworkFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                .onFocusChanged { onArtworkFocus(it.isFocused) }
                 .testTag("nova-game-detail-artwork"),
         )
     }
@@ -1137,14 +1180,14 @@ private fun NovaGameDetailAction(
                     )
                 }
                 if (!iconOnly) {
+                    // Whole words on as many lines as they need, at rest and under the cursor: an
+                    // ellipsis at rest cut "Reset Game Profile" in a phone's half row (C25).
                     Text(
                         text = text,
                         color = contentColor,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis,
-                        modifier = if (focused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier,
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
@@ -1234,12 +1277,10 @@ private fun NovaGameDetailAction(
                 color = label,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
                 // Two actions share a row on a phone held upright, and "Reset Game Profile" did
-                // not fit its half. Under the cursor a label runs past rather than ending in an
-                // ellipsis, the way a Play Setup row's does; it moves only when it does not fit.
-                overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis,
-                modifier = if (focused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier,
+                // not fit its half. It wraps between words, whole at rest and under the cursor,
+                // rather than ending in an ellipsis or running past (C25).
+                textAlign = TextAlign.Center,
             )
         }
     }
@@ -1288,6 +1329,12 @@ private fun LaunchProfileReviewNotice(
 }
 
 private val NOVA_GAME_DETAIL_STATUS_LINE = 16.sp
+
+/** A poster's shape, as the library grid draws it, for the card that stands in for a hero. */
+private const val NOVA_GAME_DETAIL_POSTER_ASPECT = 108f / 152f
+
+/** The card standing where a game with no hero art would have one, for a test to find it. */
+internal const val NOVA_GAME_DETAIL_POSTER_STAND_IN_TAG = "nova-game-detail-poster-stand-in"
 
 /** The status line's widest: the title's column, clear of the key art. */
 private val NOVA_GAME_DETAIL_STATUS_MAX = 440.dp
