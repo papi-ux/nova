@@ -136,8 +136,8 @@ enum class NovaSplitTone { Destructive, Neutral }
  * An action that confirms in its own slot: a destructive one, or, with [tone] [NovaSplitTone.Neutral],
  * a setting that only needs a second look.
  *
- * A (on release) or a tap arms it: the button splits into Stay (resting, focused) and
- * [confirmLabel] (the tone's fill, with [icon]) over 160ms, with [consequence] announced
+ * A (on release) or a tap arms it: the button splits into Stay (focused) and
+ * [confirmLabel] (with [icon]) over 160ms, with [consequence] announced
  * underneath and brought into view once it has grown in, so a split that is the last row of a
  * scrolling page never arms with its warning below the edge. B, focus leaving both halves, a
  * touch outside the pair, or the page changing cancels. The action's half ignores activation
@@ -146,11 +146,12 @@ enum class NovaSplitTone { Destructive, Neutral }
  *
  * At rest a [NovaSplitShape.Row] is a row among rows: the row tile, its icon and label at the
  * start in the row title type. A destructive one has the destructive text, and its icon and
- * hairline in the destructive fill; a neutral one is drawn exactly as the rows around it, and its
- * confirm takes the accent fill. Every split carries its [icon] at rest and armed, the close mark
- * unless it names another, so a destructive action reads as one before it is pressed. Armed, the
- * confirm is the one filled half and Stay rests; focus on either takes the accent ring every
- * control has ([NovaActionSurface]). A split that sits in a row of buttons is a
+ * hairline in the destructive fill; a neutral one is drawn exactly as the rows around it. Every
+ * split carries its [icon] at rest and armed, the close mark unless it names another, so a
+ * destructive action reads as one before it is pressed. Armed, a destructive split's confirm is
+ * red and Stay beside it is a control like any other; a neutral split's halves both rest as
+ * tiles, the confirm's label in the accent, and the half with focus fills in the accent inside
+ * the one accent ring ([NovaActionSurface]). A split that sits in a row of buttons is a
  * [NovaSplitShape.Button], as tall as they are with their 8dp corners; with
  * [fillSlot] it spans the slot it is given, as a button sharing its row by weight does, and so
  * does its armed pair. Otherwise a button keeps its own width at rest, and armed its pair grows
@@ -318,9 +319,9 @@ fun NovaSplitConfirm(
                             enabled = true,
                             minHeight = minHeight,
                             rowCorner = false,
-                            // One filled half: beside the confirm's fill, Stay rests under focus
-                            // and takes only the ring.
-                            fillsUnderFocus = false,
+                            // A neutral split's halves both rest as tiles and the one with focus
+                            // fills; a destructive split's Stay is a control like any other.
+                            accentUnderFocus = !destructive,
                             modifier = Modifier
                                 .focusRequester(state.stayRequester)
                                 // Stood over the action, Stay still hands Right to it, so A,
@@ -339,6 +340,7 @@ fun NovaSplitConfirm(
                             enabled = true,
                             minHeight = minHeight,
                             rowCorner = false,
+                            accentUnderFocus = !destructive,
                             modifier = Modifier
                                 .focusRequester(state.actionRequester)
                                 .focusProperties { if (pair.stacked) left = state.stayRequester },
@@ -389,7 +391,7 @@ private fun SplitHalf(
     trailing: (@Composable () -> Unit)? = null,
     stateDescription: String? = null,
     buttonStyle: NovaSplitButtonStyle? = null,
-    fillsUnderFocus: Boolean = true,
+    accentUnderFocus: Boolean = false,
     onClick: () -> Unit,
 ) {
     NovaActionSurface(
@@ -398,10 +400,9 @@ private fun SplitHalf(
         enabled = enabled,
         primary = filled,
         destructive = destructive,
-        // The confirm half is filled at rest in either tone, red or the accent, and takes the
-        // accent ring with its fill stood off it under focus, as every armed half does.
-        fillAtRest = filled,
-        fillsUnderFocus = fillsUnderFocus,
+        // A destructive confirm half is red at rest, as any primary destructive is; the halves of
+        // an armed neutral split rest as tiles and fill in the accent only under focus.
+        accentUnderFocus = accentUnderFocus,
         // The caption is part of what the row says: a description of the label alone hid it, and a
         // result in it, from a screen reader.
         contentDescription = listOfNotNull(text, caption).joinToString(". "),

@@ -27,10 +27,13 @@ import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.SemanticsModifierNode
 import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.invalidateSemantics
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
@@ -44,6 +47,8 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaFormFactor
 import com.papi.nova.ui.compose.NovaInGameOverlayAlpha
+import com.papi.nova.ui.compose.NovaSurfaceLook
+import com.papi.nova.ui.compose.novaSurfaceLook
 import kotlinx.coroutines.launch
 
 /**
@@ -433,8 +438,9 @@ fun Modifier.novaFocusRing(
  * It follows the focus of whatever focus target comes after it in the chain, so it goes before
  * `focusable()` or [novaClickable]. At rest it draws [restFill] and an optional hairline.
  * Unspecified colours come from the theme: `focusRing` and `selectedControl`. With
- * [ringStandsOff], a fill that is there at rest too steps in from the ring under focus by the
- * ring and [NovaPanelMetrics.FocusRingGap], so the accent ring reads on an accent fill.
+ * [ringStandsOff], the fill steps in from the ring under focus by the ring and
+ * [NovaPanelMetrics.FocusRingGap], so the accent ring reads on an accent fill. It publishes what it
+ * shows once focus has settled ([NovaSurfaceLook]), for a check to read from what draws it.
  */
 fun Modifier.novaFocusRing(
     shape: Shape,
@@ -476,7 +482,7 @@ private class NovaFocusRingNode(
     private var restBorder: Color,
     private var restBorderWidth: Dp,
     private var ringStandsOff: Boolean,
-) : Modifier.Node(), DrawModifierNode, FocusEventModifierNode, CompositionLocalConsumerModifierNode {
+) : Modifier.Node(), DrawModifierNode, FocusEventModifierNode, CompositionLocalConsumerModifierNode, SemanticsModifierNode {
     private val progress = Animatable(0f)
     private var focused = false
     private var cachedSize = Size.Unspecified
@@ -495,15 +501,26 @@ private class NovaFocusRingNode(
         this.restBorderWidth = restBorderWidth
         this.ringStandsOff = ringStandsOff
         invalidateDraw()
+        invalidateSemantics()
     }
 
     override fun onFocusEvent(focusState: FocusState) {
         val now = focusState.hasFocus
         if (now == focused) return
         focused = now
+        invalidateSemantics()
         coroutineScope.launch {
             progress.animateTo(if (now) 1f else 0f, tween(NovaPanelMetrics.FocusMillis))
         }
+    }
+
+    override fun SemanticsPropertyReceiver.applySemantics() {
+        val surfaces = currentValueOf(LocalNovaLibrarySurfaces)
+        novaSurfaceLook = NovaSurfaceLook(
+            fill = if (focused) focusedFill.takeOrElse { surfaces.selectedControl } else restFill,
+            ring = if (focused) ring.takeOrElse { surfaces.focusRing } else Color.Unspecified,
+            ringStandsOff = focused && ringStandsOff,
+        )
     }
 
     override fun ContentDrawScope.draw() {

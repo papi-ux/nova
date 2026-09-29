@@ -63,7 +63,7 @@ class NovaInGameSmokeFixesSourceGuardTest {
     @Test
     fun theActionSurfaceTakesItsRingFromTheOneRule() {
         val surface = read("ui/compose/NovaFocusComponents.kt").substringAfter("fun NovaActionSurface(").substringBefore(".semantics {")
-        assertTrue(surface.contains("val ring = novaActionRing(fills = fills, filledAtRest = filledAtRest"))
+        assertTrue(surface.contains("val ring = novaActionRing(fills = fills, destructive = destructive, standsOff = ringStandsOff"))
         assertTrue("a filled surface no longer rings in its label colour", !surface.contains("ring = if (fills) onFill else surfaces.focusRing"))
     }
 

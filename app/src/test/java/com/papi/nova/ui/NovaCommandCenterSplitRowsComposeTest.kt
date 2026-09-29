@@ -102,8 +102,8 @@ class NovaCommandCenterSplitRowsComposeTest {
 
     /**
      * Review finding 4: Live Tuning is a host setting, second on the page, and it rested in End
-     * Session's red. It rests as the rows around it and its confirm takes the accent; ending a
-     * session and clearing a game's profile stay destructive.
+     * Session's red. It rests as the rows around it; armed, only the half with focus fills, in the
+     * accent. Ending a session and clearing a game's profile stay destructive.
      */
     @Test
     fun liveTuningRestsAsARowWhileEndingAndClearingStayDestructive() {
@@ -115,7 +115,8 @@ class NovaCommandCenterSplitRowsComposeTest {
         focus("Live Tuning")
         keys.press(NovaTestKeys.CENTER)
         rule.frames(16)
-        assertEquals("its confirm is the accent fill", colors.onAccent, labelColour("Turn Off"))
+        assertEquals("Stay has focus and fills in the accent", colors.onAccent, labelColour("Stay"))
+        assertEquals("its confirm rests as a tile, its label in the accent", colors.accentText, labelColour("Turn Off"))
     }
 
     /**
