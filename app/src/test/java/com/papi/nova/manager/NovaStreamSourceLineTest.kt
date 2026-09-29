@@ -66,7 +66,7 @@ class NovaStreamSourceLineTest {
         val preflight=JSONObject().put("resolved_profile",JSONObject().put("policy_version",1).put("fields",fields))
         val line=NovaStreamSourceLine.fromPreflight(preflight,NovaStreamSourceRequest(1920,1080,120.0,30000))
         assertEquals(NovaStreamSource.HOST_POLICY,line.source)
-        assertEquals("Host device profile",line.text)
+        assertEquals("Host device profile · 45 Mbps",line.text)
     }
 
     @Test fun missingRequestAndMultipleLimitsKeepSourceAndConciseCopy() {
