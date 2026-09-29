@@ -166,6 +166,8 @@ fun NovaSplitConfirm(
     state: NovaSplitConfirmState = rememberNovaSplitConfirmState(),
     fillSlot: Boolean = false,
     buttonStyle: NovaSplitButtonStyle? = null,
+    /** A [NovaSplitShape.Row]'s caption at rest, under its label, as the rows around it carry theirs. */
+    caption: String? = null,
 ) {
     val confirm by rememberUpdatedState(onConfirm)
     val mark = icon ?: R.drawable.ic_close
@@ -259,6 +261,7 @@ fun NovaSplitConfirm(
                     tile = shape == NovaSplitShape.Tile,
                     // A row at rest reads as the rows around it: the tile, its label at the start.
                     row = shape == NovaSplitShape.Row,
+                    caption = caption?.takeIf { shape == NovaSplitShape.Row && it.isNotBlank() },
                     buttonStyle = buttonStyle,
                     modifier = Modifier
                         .then(if (fills) Modifier.fillMaxWidth() else Modifier.onSizeChanged { slotWidth = it.width })
@@ -349,6 +352,7 @@ private fun SplitHalf(
     modifier: Modifier,
     tile: Boolean = false,
     row: Boolean = false,
+    caption: String? = null,
     buttonStyle: NovaSplitButtonStyle? = null,
     onClick: () -> Unit,
 ) {
@@ -405,7 +409,14 @@ private fun SplitHalf(
                         modifier = Modifier.size(NovaPanelMetrics.IconSize),
                     )
                 }
-                Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
+                if (caption == null) {
+                    Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
+                        Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
+                        Text(text = caption, style = novaPanelType.caption, color = colors.textSecondary, maxLines = 2)
+                    }
+                }
             }
         } else {
             val style = buttonStyle?.text ?: novaPanelType.value

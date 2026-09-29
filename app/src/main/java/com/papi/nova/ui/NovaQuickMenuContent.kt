@@ -66,6 +66,7 @@ import com.papi.nova.ui.panel.NovaSectionLabel
 import com.papi.nova.ui.panel.NovaSplitConfirm
 import com.papi.nova.ui.panel.NovaSplitConfirmState
 import com.papi.nova.ui.panel.NovaSplitShape
+import androidx.compose.ui.platform.testTag
 import com.papi.nova.ui.panel.NovaTitleAndValueMeasurePolicy
 import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.panel.novaClickable
@@ -670,8 +671,25 @@ private fun NovaPageScope.NovaQuickMenuRows(
 ) {
     val rows by ui.slice(select)
     rows.forEach { row ->
-        // A row that pushed a page is where focus lands when that page pops.
-        NovaQuickMenuRow(row, callbacks, Modifier.novaRestorableFocus(row.id), opens = row.id in OpensPage)
+        if (row.id == NovaQuickMenuActionId.CLEAR_GAME_PROFILE) {
+            // The host's learned profile cannot be brought back, so clearing it splits in its own
+            // row (R3) rather than going on one A. Its caption carries the reason it is locked,
+            // or what the last clear did.
+            NovaSplitConfirm(
+                label = row.label,
+                confirmLabel = stringResource(R.string.nova_game_detail_clear_profile_confirm),
+                onConfirm = { if (row.enabled) callbacks.perform(row) },
+                consequence = stringResource(R.string.nova_game_detail_clear_profile_consequence),
+                icon = R.drawable.ic_update,
+                shape = NovaSplitShape.Row,
+                enabled = row.enabled,
+                caption = row.caption,
+                modifier = Modifier.novaRestorableFocus(row.id).testTag("nova-cc-clear-game-profile"),
+            )
+        } else {
+            // A row that pushed a page is where focus lands when that page pops.
+            NovaQuickMenuRow(row, callbacks, Modifier.novaRestorableFocus(row.id), opens = row.id in OpensPage)
+        }
     }
 }
 

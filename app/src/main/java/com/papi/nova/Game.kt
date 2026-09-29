@@ -1365,14 +1365,12 @@ if (policyMessage != null) {
 (policyReason?.name ?: "unproven deterministic launch authority")
 }
 )
-Toast.makeText(
-this@Game,
+// A state page with Retry and Back, not a Toast cut off by its ellipsis as the page closed.
+showNovaLaunchIssueSheet(
 policyMessage ?: getString(
 policyReason?.messageRes() ?: R.string.nova_launch_deterministic_host_required
-),
-Toast.LENGTH_LONG
-).show()
-finish()
+)
+)
 }
 return@launchRuntimeIo
 }
@@ -5616,6 +5614,14 @@ var dialogText:String = getResources().getString(R.string.conn_error_msg) + " " 
 {
 dialogText = getResources().getString(R.string.nova_pyrowave_profile_unavailable)
 }
+// A 503 is the host answering and refusing, so the network reached it. "Failed to start RTSP
+// handshake (error 503)" and a list of firewall ports sent someone to fix a network that worked;
+// Mirror Desktop with PyroWave on pc-papi was refused because KDE's HDR desktop could not be read.
+val hostAnswered = errorCode == RTSP_SERVICE_UNAVAILABLE
+if (hostAnswered)
+{
+dialogText = getResources().getString(R.string.nova_launch_host_refused_stream)
+}
  // A Polaris host says why it refused; that beats "error 503" and a generic sentence.
 val hostRefusal = conn?.lastHostRefusal
 if (hostRefusal != null && errorCode != 0)
@@ -5645,7 +5651,7 @@ else -> {
  // Not when the refusal was about the codec. The ports are reported for whatever the handshake
                     // happened to be using, and listing them under a sentence that just said the network is
                     // fine sends someone to open ports that are already open.
-                    if (portFlags != 0 && errorCode != MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE)
+                    if (portFlags != 0 && errorCode != MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE && !hostAnswered)
 {
 dialogText += ("\n\n" + getResources().getString(R.string.check_ports_msg) + "\n" +
 MoonBridge.stringifyPortFlags(portFlags, "\n"))
@@ -5677,6 +5683,8 @@ if (spinner != null) {
 spinner!!.dismiss()
 spinner = null
 }
+// The startup card stayed up behind the page and ghosted through it.
+novaProgressOverlay?.dismiss()
 val surfaces = novaSurfaces
 val page = novaLaunchIssuePage(
 context = this,
@@ -7497,6 +7505,8 @@ return null
 }
 
 companion object {
+/** The RTSP answer of a host that reached the launch and refused to start the stream. */
+private const val RTSP_SERVICE_UNAVAILABLE = 503
  @JvmField var instance:Game? = null
  @JvmField @Volatile var isStreamActive:Boolean = false
 

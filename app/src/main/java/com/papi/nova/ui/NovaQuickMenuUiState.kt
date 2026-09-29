@@ -188,6 +188,8 @@ data class NovaQuickMenuUiState(
             stabilityApplied: Boolean,
             advancedExpanded: Boolean,
             profileClearInProgress: Boolean,
+            /** What the last Clear Game Profile did, shown as its caption for a while. */
+            profileClearResult: String? = null,
             currentGameName: String?,
             currentGameUuid: String?,
             profilePreference: String,
@@ -327,7 +329,8 @@ data class NovaQuickMenuUiState(
                 canAdjustHostTuning,
                 viewerSession,
                 shutdownInProgress,
-                profileClearInProgress
+                profileClearInProgress,
+                profileClearResult
             )
             val mangoRow = mangoAction(
                 context,
@@ -855,7 +858,8 @@ data class NovaQuickMenuUiState(
             canAdjustHostTuning: Boolean,
             viewerSession: Boolean,
             shutdownInProgress: Boolean,
-            inProgress: Boolean
+            inProgress: Boolean,
+            result: String? = null
         ): NovaQuickMenuAction {
             val enabled = apiAvailable &&
                 !hostStateUnavailable &&
@@ -869,6 +873,8 @@ data class NovaQuickMenuUiState(
                 currentGame.isNullOrBlank() -> context.getString(R.string.nova_quick_menu_clear_game_profile_unavailable)
                 !canAdjustHostTuning && viewerSession -> context.getString(R.string.nova_quick_menu_owner_only_caption)
                 !canAdjustHostTuning -> context.getString(R.string.nova_quick_menu_host_controls_unavailable_caption)
+                // The result of the last clear, in place of a floating snackbar (R6).
+                result != null && !inProgress -> result
                 else -> context.getString(
                     R.string.nova_quick_menu_clear_game_profile_for_game,
                     compactGameName(currentGame)

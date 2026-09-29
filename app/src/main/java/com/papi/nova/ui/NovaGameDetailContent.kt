@@ -197,6 +197,21 @@ internal fun NovaGameDetailContent(
 ) {
     val verticalScroll = rememberScrollState()
     val detailsFocusRequester = remember { FocusRequester() }
+    // B from Artwork Studio put focus on nothing, and the first Right then found the How Long To
+    // Beat chip. Closing the studio hands focus back to the button that opened it (R7).
+    val artworkFocusRequester = remember { FocusRequester() }
+    var shownDestination by remember { mutableStateOf(destination) }
+    LaunchedEffect(destination) {
+        val from = shownDestination
+        shownDestination = destination
+        if (from == NovaGameDetailDestination.ARTWORK && destination == NovaGameDetailDestination.OVERVIEW) {
+            // The Overview turns focusable again in this frame; ask once it has.
+            repeat(ARTWORK_RETURN_FOCUS_FRAMES) {
+                withFrameNanos { }
+                if (runCatching { artworkFocusRequester.requestFocus() }.isSuccess) return@LaunchedEffect
+            }
+        }
+    }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         // Where Play Setup's panel covers the page, the page's chrome is not drawn at all: at 16% it
@@ -222,6 +237,9 @@ internal fun NovaGameDetailContent(
             onPrimaryLaunch = onPrimaryLaunch,
             onRetryHighFps = onRetryHighFps,
             onResetProfile = onResetProfile,
+            resetProfileLabel = resetProfileLabel,
+            resetProfileWorking = resetProfileWorking,
+            artworkFocusRequester = artworkFocusRequester,
             shortcutPinState = shortcutPinState,
             shortcutPinRequestPending = shortcutPinRequestPending,
             onPinShortcut = onPinShortcut,
@@ -497,6 +515,9 @@ internal fun NovaGameDetailContent(
 
 /** Enough to read as texture behind a translucent destination, not as text. */
 private const val NOVA_DETAIL_SCENERY_CHROME_ALPHA = 0.16f
+
+/** Frames the return to Artwork's button is asked for, while the Overview turns focusable again. */
+private const val ARTWORK_RETURN_FOCUS_FRAMES = 10
 
 /**
  * @brief What choosing this tuning preference would mean.

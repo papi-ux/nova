@@ -88,7 +88,7 @@ class NovaGameDetailOverviewLayoutTest {
         assertTrue(
             "it was one line ending in an ellipsis, and what it lost is the part that says what limited the launch",
             status.contains("NovaRevealingText(") &&
-                status.contains("text = novaBreakAtDots(novaGameDetailStatusText(uiState, summary).uppercase()),") &&
+                status.contains("text = novaBreakAtDots(novaInstrumentCase(novaGameDetailStatusText(uiState, summary))),") &&
                 status.contains("maxLines = maxLines,") &&
                 !status.contains("maxLines = 1,")
         )
@@ -99,7 +99,7 @@ class NovaGameDetailOverviewLayoutTest {
                 status.contains("passes = 2,") &&
                 overview.contains("revealing = primaryFocused,") &&
                 overview.contains("onPrimaryFocus = { primaryFocused = it },") &&
-                overview.contains(".onFocusChanged { onPrimaryFocus(it.isFocused) }")
+                overview.contains("onPrimaryFocus(it.isFocused)")
         )
         assertTrue(
             "upright there is room under the hero for a third line, and a finger has no cursor to reveal with",

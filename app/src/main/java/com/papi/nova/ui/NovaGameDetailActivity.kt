@@ -526,6 +526,8 @@ class NovaGameDetailActivity : NovaActivity() {
         var uiState by mutableStateOf(buildUiState(currentGame, profilePreference))
         var mangoHudEnabled by mutableStateOf(game.mangohud)
         var resetWorking by mutableStateOf(false)
+        // The result of the last clear, shown in the button's own label for a few seconds.
+        var resetResult by mutableStateOf<Int?>(null)
         var optimizationState by mutableStateOf(NovaGameDetailOptimizationState())
         var artworkState by mutableStateOf(loadArtworkState(game))
         // An explicit resolution, held until launch rather than launching on the spot.
@@ -2036,10 +2038,9 @@ class NovaGameDetailActivity : NovaActivity() {
                     profilePreferenceLabel = currentGame.space?.let { getString(R.string.nova_space_profile_label_format, it.name) }
                         ?: getString(AutoQualityProfilePreferences.labelRes(profilePreference)),
                     resetProfileLabel = getString(
-                        if (resetWorking) {
-                            R.string.nova_library_reset_game_profile_working
-                        } else {
-                            R.string.nova_library_reset_game_profile
+                        when {
+                            resetWorking -> R.string.nova_library_reset_game_profile_working
+                            else -> resetResult ?: R.string.nova_library_reset_game_profile
                         }
                     ),
                     resetProfileWorking = resetWorking,
@@ -2156,17 +2157,18 @@ class NovaGameDetailActivity : NovaActivity() {
                             val cleared = withContext(Dispatchers.IO) {
                                 apiClient.clearOptimizerProfile(deviceName, currentGame.name)
                             }
-                            val sheetContext = this@NovaGameDetailActivity
                             if (cleared == true) {
                                 optimizationState = NovaGameDetailOptimizationState()
                             }
-                            val message = when (cleared) {
+                            // In place, in the button's own label: a floating Toast broke R6.
+                            resetResult = when (cleared) {
                                 true -> R.string.nova_library_reset_game_profile_cleared
                                 false -> R.string.nova_library_reset_game_profile_empty
                                 null -> R.string.nova_library_reset_game_profile_failed
                             }
-                            Toast.makeText(sheetContext, message, Toast.LENGTH_SHORT).show()
                             resetWorking = false
+                            delay(RESET_RESULT_SHOWN_MS)
+                            resetResult = null
                         }
                     },
                     shortcutPinState = shortcutPinState,
@@ -2924,6 +2926,8 @@ class NovaGameDetailActivity : NovaActivity() {
 
 
     companion object {
+        /** How long Clear Game Profile's button says what the clear did. */
+        private const val RESET_RESULT_SHOWN_MS = 4_000L
         const val EXTRA_HOST = "nova.detail.host"
         const val EXTRA_HTTPS_PORT = "nova.detail.httpsPort"
         const val EXTRA_SERVER_CERT = "nova.detail.serverCert"

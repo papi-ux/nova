@@ -516,11 +516,14 @@
     <string name="nova_library_profile_preference_high_fps">Launch preset: High FPS</string>
     <string name="nova_library_profile_preference_stability">Launch preset: Stability</string>
     <string name="nova_library_profile_preference_title">Launch preset</string>
-    <string name="nova_library_reset_game_profile">Reset Game Profile</string>
-    <string name="nova_library_reset_game_profile_working">Resetting profile</string>
-    <string name="nova_library_reset_game_profile_cleared">Game profile reset</string>
+    <string name="nova_library_reset_game_profile">Clear Game Profile</string>
+    <string name="nova_library_reset_game_profile_working">Clearing profile</string>
+    <string name="nova_library_reset_game_profile_cleared">Game profile cleared</string>
     <string name="nova_library_reset_game_profile_empty">No saved game profile</string>
-    <string name="nova_library_reset_game_profile_failed">Profile reset failed</string>
+    <string name="nova_library_reset_game_profile_failed">Could not clear the profile</string>
+    <!-- The destructive half of Clear Game Profile's split, and the line under it. -->
+    <string name="nova_game_detail_clear_profile_confirm">Clear Profile</string>
+    <string name="nova_game_detail_clear_profile_consequence">Polaris forgets what it learned about this game on this device. This cannot be undone.</string>
     <string name="nova_library_pin_shortcut">Pin to Home Screen</string>
     <string name="nova_library_pin_shortcut_pending">Waiting for launcher</string>
     <string name="nova_library_pin_shortcut_pinned">Pinned to Home Screen</string>
@@ -1041,9 +1044,9 @@
     <string name="nova_quick_menu_advanced_tuning">Advanced</string>
     <string name="nova_quick_menu_advanced_caption">Manual overrides and diagnostics</string>
     <string name="nova_quick_menu_clear_game_profile">Clear Game Profile</string>
-    <string name="nova_quick_menu_clear_game_profile_caption">remove deprecated optimizer history; launch settings are unchanged</string>
-    <string name="nova_quick_menu_clear_game_profile_for_game">reset learned profile for %1$s</string>
-    <string name="nova_quick_menu_clear_game_profile_unavailable">available after Polaris reports the running game</string>
+    <string name="nova_quick_menu_clear_game_profile_caption">Clears learned history. Launch settings stay as they are.</string>
+    <string name="nova_quick_menu_clear_game_profile_for_game">Clears what Polaris learned about %1$s</string>
+    <string name="nova_quick_menu_clear_game_profile_unavailable">Available once Polaris reports the running game</string>
     <string name="nova_quick_menu_end_stream">End Session</string>
     <string name="nova_quick_menu_key_meta">Meta</string>
     <string name="nova_quick_menu_quick_keys">Quick Keys</string>
@@ -1119,6 +1122,24 @@
     <string name="nova_pairing_auto_fallback_pin">Automatic pairing failed, switching to PIN</string>
     <string name="nova_pairing_auto_unsupported">This host doesn\'t support automatic pairing. Update Polaris or pair with OTP/PIN</string>
     <string name="nova_launch_deterministic_host_required">Update Polaris before launching. This Nova version requires deterministic launch profiles and will not use legacy recovery or AI launch settings.</string>
+    <!-- A reset row in Settings, split in place: the half that keeps things, the half that resets, and the line under them. -->
+    <string name="nova_settings_keep">Keep</string>
+    <string name="nova_settings_reset_confirm">Reset</string>
+    <string name="nova_settings_clear_confirm">Clear</string>
+    <string name="nova_settings_reset_stream_ui_consequence">The HUD, overlays, touch controls and in-stream settings go back to their defaults.</string>
+    <string name="nova_settings_reset_osc_consequence">Every on-screen control goes back to its default size and place.</string>
+    <!-- A host that answered the stream setup and refused it (RTSP 503): the network is fine. -->
+    <string name="nova_launch_host_refused_stream">The host answered but could not start this stream. It could not capture or encode the launch as asked, so try another display mode or video codec in Play Setup.</string>
+    <!-- Scan Pair's state page when there is no camera, or camera access was refused. -->
+    <string name="nova_scan_pair_no_camera_title">No camera to scan with</string>
+    <string name="nova_scan_pair_no_camera_message">This device has no camera for a pairing code. Add the server by its address instead.</string>
+    <string name="nova_scan_pair_camera_denied_title">Camera access is off</string>
+    <string name="nova_scan_pair_camera_denied_message">Nova needs the camera to scan a pairing code. Allow it and try again, or add the server by its address.</string>
+    <string name="nova_scan_pair_try_again">Try Again</string>
+    <!-- The exact bitrate page's number field, typed in the unit its title shows. -->
+    <string name="nova_settings_bitrate_exact_mbps">Exact value in Mbps</string>
+    <!-- A current Polaris answered the launch without settings Nova can hold it to, as it did once right after a game profile was cleared. -->
+    <string name="nova_launch_profile_not_settled">Polaris did not settle this launch\'s settings, so Nova did not start it. Try the launch again.</string>
     <string name="nova_launch_host_unreachable">Nova could not reach Polaris to set this launch up. Check that the host is awake and on the network, then try again.</string>
     <string name="nova_launch_retry">Nova could not finish setting this launch up. Go back to the library and try again.</string>
     <string name="nova_launch_envelope_topology">Polaris resolved a display topology this launch did not ask for. Change the display mode in Play Setup, then try again.</string>

@@ -78,7 +78,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.R
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import com.papi.nova.ui.compose.NovaActionSurface
 import com.papi.nova.ui.panel.NovaSplitConfirm
+import com.papi.nova.ui.panel.NovaSplitConfirmState
 import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
@@ -119,6 +124,9 @@ internal val NovaGameDetailFloor = 58.dp
 
 /** Every focusable control clears the accessible target floor. */
 internal val NovaGameDetailActionHeight = 48.dp
+
+/** Frames the first focus request is repeated for, until the primary action is placed. */
+private const val NOVA_GAME_DETAIL_FIRST_FOCUS_ATTEMPTS = 30
 
 /** Matches the library's surface radius; the sharp edge was a deliberate choice there. */
 /**
@@ -163,6 +171,11 @@ internal fun NovaGameDetailOverview(
     activeSession: NovaLibraryActiveSessionUiState?,
     onResumeSession: () -> Unit,
     onEndSession: () -> Unit,
+    /** Clear Game Profile's label: its name, the work in progress, or the result in place. */
+    resetProfileLabel: String? = null,
+    resetProfileWorking: Boolean = false,
+    /** Artwork's button, where focus goes back when the studio it opened closes (R7). */
+    artworkFocusRequester: FocusRequester? = null,
     /**
      * How strongly the chrome reads while something is open over it.
      *
@@ -185,6 +198,15 @@ internal fun NovaGameDetailOverview(
     val inset = novaGameDetailWindowInset()
     // The status line says what Launch will do, so it is Launch that shows the rest of it.
     var primaryFocused by remember { mutableStateOf(false) }
+    // Hoisted so the floor under the actions can say what B does, and what the armed split
+    // will do, while either is armed.
+    val endSplit = rememberNovaSplitConfirmState()
+    val resetSplit = rememberNovaSplitConfirmState()
+    val armedConsequence = when {
+        endSplit.armed -> stringResource(R.string.nova_panel_end_session_message)
+        resetSplit.armed -> stringResource(R.string.nova_game_detail_clear_profile_consequence)
+        else -> null
+    }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize().testTag("nova-game-detail-overview")) {
         val portrait = maxHeight > maxWidth
@@ -323,6 +345,8 @@ internal fun NovaGameDetailOverview(
                 onPrimaryLaunch = onPrimaryLaunch,
                 onRetryHighFps = onRetryHighFps,
                 onResetProfile = onResetProfile,
+                resetProfileLabel = resetProfileLabel,
+                resetProfileWorking = resetProfileWorking,
                 shortcutPinState = shortcutPinState,
                 shortcutPinRequestPending = shortcutPinRequestPending,
                 onPinShortcut = onPinShortcut,
@@ -330,17 +354,28 @@ internal fun NovaGameDetailOverview(
                 activeSession = activeSession,
                 onResumeSession = onResumeSession,
                 onEndSession = onEndSession,
+                endSplit = endSplit,
+                resetSplit = resetSplit,
+                artworkFocusRequester = artworkFocusRequester,
                 modifier = Modifier.padding(top = 16.dp),
             )
 
             if (!portrait) {
-                NovaGameDetailFooter(modifier = Modifier.fillMaxWidth().padding(top = 14.dp))
+                // In a row the armed split's line is drawn here, in place of the floor's hints,
+                // so arming never grows the bottom-anchored block and pushes the page up.
+                NovaGameDetailFooter(
+                    armed = armedConsequence != null,
+                    consequence = armedConsequence,
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                )
             }
         }
 
         // On a tall screen the floor belongs at the bottom, not trailing the actions.
         if (portrait) {
             NovaGameDetailFooter(
+                armed = armedConsequence != null,
+                consequence = null,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
@@ -358,7 +393,11 @@ internal fun NovaGameDetailOverview(
  * nothing sits on the artwork in a box.
  */
 @Composable
-private fun NovaGameDetailFooter(modifier: Modifier = Modifier) {
+private fun NovaGameDetailFooter(
+    armed: Boolean,
+    consequence: String?,
+    modifier: Modifier = Modifier,
+) {
     val colors = LocalNovaComposeColors.current
     // The chip holds a letter, so it grows with the letter: at a large font scale a fixed
     // 20dp circle cut the B in half.
@@ -367,7 +406,7 @@ private fun NovaGameDetailFooter(modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.testTag("nova-game-detail-footer"),
     ) {
-        novaGameDetailOverviewHints().forEach { hint ->
+        novaGameDetailOverviewHints(armed).forEach { hint ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -385,7 +424,20 @@ private fun NovaGameDetailFooter(modifier: Modifier = Modifier) {
                 Text(hint.label, color = colors.textSecondary, fontSize = 11.sp)
             }
         }
-        Spacer(modifier = Modifier.weight(1f))
+        if (consequence != null) {
+            Text(
+                text = consequence,
+                color = colors.textSecondary,
+                fontSize = 11.sp,
+                maxLines = 2,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { liveRegion = LiveRegionMode.Polite }
+                    .testTag("nova-game-detail-armed-consequence"),
+            )
+        } else {
+            Spacer(modifier = Modifier.weight(1f))
+        }
         Text(
             text = stringResource(R.string.nova_polaris_wordmark),
             color = colors.textMuted,
@@ -489,7 +541,7 @@ private fun NovaGameDetailStatusLine(
         // the edge. It takes the lines it needs, breaking only at a dot, and past that the
         // rest shows while Launch holds the cursor.
         NovaRevealingText(
-            text = novaBreakAtDots(novaGameDetailStatusText(uiState, summary).uppercase()),
+            text = novaBreakAtDots(novaInstrumentCase(novaGameDetailStatusText(uiState, summary))),
             highlighted = revealing,
             // Launch holds the cursor from the moment the page opens and may hold it for as
             // long as the page is left open, so the line plays twice and rests. Coming back
@@ -525,6 +577,8 @@ private fun NovaGameDetailActions(
     onPrimaryLaunch: () -> Unit,
     onRetryHighFps: () -> Unit,
     onResetProfile: () -> Unit,
+    resetProfileLabel: String?,
+    resetProfileWorking: Boolean,
     shortcutPinState: GameShortcutPinState,
     shortcutPinRequestPending: Boolean,
     onPinShortcut: () -> Unit,
@@ -532,13 +586,25 @@ private fun NovaGameDetailActions(
     activeSession: NovaLibraryActiveSessionUiState?,
     onResumeSession: () -> Unit,
     onEndSession: () -> Unit,
+    endSplit: NovaSplitConfirmState,
+    resetSplit: NovaSplitConfirmState,
+    artworkFocusRequester: FocusRequester?,
     modifier: Modifier = Modifier,
 ) {
     val playFocusable = uiState.playEnabled || activeSession != null
+    var primaryHoldsFocus by remember { mutableStateOf(false) }
     LaunchedEffect(playFocusable) {
         if (playFocusable) {
             delay(NOVA_FIRST_FOCUS_SETTLE_MS)
-            runCatching { playFocusRequester.requestFocus() }
+            // Reopened after a stream or a refused launch, the button could still be unplaced
+            // when the one request went out, and the page stood with no ring: the first Right
+            // then found the How Long To Beat chip and A left Nova for the browser. Ask again,
+            // a frame at a time, until the primary holds focus.
+            repeat(NOVA_GAME_DETAIL_FIRST_FOCUS_ATTEMPTS) {
+                runCatching { playFocusRequester.requestFocus() }
+                withFrameNanos { }
+                if (primaryHoldsFocus) return@LaunchedEffect
+            }
         }
     }
 
@@ -554,21 +620,24 @@ private fun NovaGameDetailActions(
             primary = activeSession?.watchOnly != true,
             modifier = actionModifier
                 .focusRequester(playFocusRequester)
-                .onFocusChanged { onPrimaryFocus(it.isFocused) }
+                .onFocusChanged {
+                    primaryHoldsFocus = it.isFocused
+                    onPrimaryFocus(it.isFocused)
+                }
                 .testTag("nova-game-detail-primary"),
         )
     }
 
     // End splits in its own slot into Stay and End Session (R3). The library ends the session
     // without asking again. While it is armed the other actions step aside, so the pair keeps
-    // its room and nothing else can be pressed by accident beside it.
-    val endSplit = rememberNovaSplitConfirmState()
+    // its room and nothing else can be pressed by accident beside it. In a row its line is drawn
+    // on the floor below, so arming does not push the page up; in the column it grows downward.
     val endAction: @Composable (Modifier) -> Unit = { actionModifier ->
         NovaSplitConfirm(
             label = stringResource(R.string.nova_game_detail_end_session),
             confirmLabel = stringResource(R.string.game_dialog_action_end_session),
             onConfirm = onEndSession,
-            consequence = stringResource(R.string.nova_panel_end_session_message),
+            consequence = if (stacked) stringResource(R.string.nova_panel_end_session_message) else null,
             state = endSplit,
             // In the portrait column it is as wide as Resume above it, at rest and armed; in a row
             // it keeps its own width and, armed, grows into the room the others leave.
@@ -597,11 +666,18 @@ private fun NovaGameDetailActions(
         )
     }
 
+    // Clearing the host's learned profile cannot be undone, so it splits like End (R3): one A
+    // had wiped Control's history on the RP6. Its result then shows in its own label.
     val resetAction: @Composable (Modifier) -> Unit = { actionModifier ->
-        NovaGameDetailAction(
-            text = stringResource(R.string.nova_library_reset_game_profile),
-            onClick = onResetProfile,
-            iconRes = R.drawable.ic_update,
+        NovaSplitConfirm(
+            label = resetProfileLabel ?: stringResource(R.string.nova_library_reset_game_profile),
+            confirmLabel = stringResource(R.string.nova_game_detail_clear_profile_confirm),
+            onConfirm = onResetProfile,
+            consequence = if (stacked) stringResource(R.string.nova_game_detail_clear_profile_consequence) else null,
+            icon = R.drawable.ic_update,
+            enabled = !resetProfileWorking,
+            state = resetSplit,
+            fillSlot = stacked,
             modifier = actionModifier.testTag("nova-game-detail-reset"),
         )
     }
@@ -636,36 +712,40 @@ private fun NovaGameDetailActions(
             onClick = { onDestination(NovaGameDetailDestination.ARTWORK) },
             iconRes = R.drawable.ic_nova_artwork,
             iconOnly = true,
-            modifier = actionModifier.testTag("nova-game-detail-artwork"),
+            modifier = actionModifier
+                .then(artworkFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                .testTag("nova-game-detail-artwork"),
         )
     }
 
     val showEnd = activeSession != null && !activeSession.watchOnly
     val showRetry = reviewExpanded && optimizationState.profileSummary?.showRetryHighFps == true
 
-    // The split stays at its own place in each layout while the others step aside, so arming it
+    // A split stays at its own place in each layout while the others step aside, so arming it
     // never moves it to a new slot, which would dispose and so disarm it.
     val endArmed = showEnd && endSplit.armed
+    val resetArmed = supportsHostCustomization && resetSplit.armed
+    val anyArmed = endArmed || resetArmed
 
     if (stacked) {
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = modifier.fillMaxWidth(),
         ) {
-            if (!endArmed) primaryAction(Modifier.fillMaxWidth())
-            if (showEnd) endAction(Modifier.fillMaxWidth())
-            if (showRetry && !endArmed) retryAction(Modifier.fillMaxWidth())
+            if (!anyArmed) primaryAction(Modifier.fillMaxWidth())
+            if (showEnd && !resetArmed) endAction(Modifier.fillMaxWidth())
+            if (showRetry && !anyArmed) retryAction(Modifier.fillMaxWidth())
 
             if (!endArmed) Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                if (!reviewExpanded) playSetupAction(Modifier.weight(1f))
+                if (!reviewExpanded && !resetArmed) playSetupAction(Modifier.weight(1f))
                 if (supportsHostCustomization) resetAction(Modifier.weight(1f))
             }
 
-            if (!endArmed && (pinVisible || (!reviewExpanded && supportsHostCustomization))) {
+            if (!anyArmed && (pinVisible || (!reviewExpanded && supportsHostCustomization))) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -685,7 +765,7 @@ private fun NovaGameDetailActions(
                 // row wrap stranded it alone on a second line. Launch keeps the two quick icons
                 // beside it, and the setup actions take the row below.
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (!endArmed) Row(
+                    if (!anyArmed) Row(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -698,9 +778,9 @@ private fun NovaGameDetailActions(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (showEnd) endAction(Modifier)
-                        if (showRetry && !endArmed) retryAction(Modifier)
-                        if (!reviewExpanded && !endArmed) playSetupAction(Modifier)
+                        if (showEnd && !resetArmed) endAction(Modifier)
+                        if (showRetry && !anyArmed) retryAction(Modifier)
+                        if (!reviewExpanded && !anyArmed) playSetupAction(Modifier)
                         if (supportsHostCustomization && !endArmed) resetAction(Modifier)
                     }
                 }
@@ -709,13 +789,13 @@ private fun NovaGameDetailActions(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (!endArmed) primaryAction(Modifier)
-                    if (showEnd) endAction(Modifier)
-                    if (showRetry && !endArmed) retryAction(Modifier)
-                    if (!reviewExpanded && !endArmed) playSetupAction(Modifier)
+                    if (!anyArmed) primaryAction(Modifier)
+                    if (showEnd && !resetArmed) endAction(Modifier)
+                    if (showRetry && !anyArmed) retryAction(Modifier)
+                    if (!reviewExpanded && !anyArmed) playSetupAction(Modifier)
                     if (supportsHostCustomization && !endArmed) resetAction(Modifier)
-                    if (pinVisible && !endArmed) pinAction(Modifier)
-                    if (showArtwork && !endArmed) artworkAction(Modifier)
+                    if (pinVisible && !anyArmed) pinAction(Modifier)
+                    if (showArtwork && !anyArmed) artworkAction(Modifier)
                 }
             }
         }
@@ -1000,6 +1080,49 @@ private fun NovaGameDetailAction(
     iconRes: Int? = null,
     iconOnly: Boolean = false,
 ) {
+    if (!(primary && enabled)) {
+        // Every other action is the one action surface the panels use: the control fill at rest,
+        // the focused fill and the 3dp ring under focus. A solid accent with a light label had
+        // read at about 2.5:1 and looked like a third focus style.
+        NovaActionSurface(
+            onClick = onClick,
+            enabled = enabled,
+            contentDescription = text,
+            minHeight = NovaGameDetailActionHeight,
+            cornerRadius = NovaRadius.hero,
+            contentPadding = PaddingValues(horizontal = if (iconOnly) 11.dp else 14.dp, vertical = 10.dp),
+            modifier = if (iconOnly) modifier.size(NovaGameDetailActionHeight) else modifier,
+        ) { contentColor, focused ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = if (iconOnly) Arrangement.Center else Arrangement.spacedBy(9.dp),
+            ) {
+                if (mark != null) {
+                    Text(text = mark, color = contentColor.copy(alpha = 0.62f), fontSize = 13.sp)
+                }
+                if (iconRes != null) {
+                    Icon(
+                        painter = painterResource(iconRes),
+                        contentDescription = null,
+                        tint = contentColor.copy(alpha = if (iconOnly) 0.82f else 0.72f),
+                        modifier = Modifier.size(if (iconOnly) 22.dp else 18.dp),
+                    )
+                }
+                if (!iconOnly) {
+                    Text(
+                        text = text,
+                        color = contentColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis,
+                        modifier = if (focused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier,
+                    )
+                }
+            }
+        }
+        return
+    }
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -1166,18 +1289,29 @@ private fun novaGameDetailStatusText(
         summary?.resolvedTopologyLabel?.takeIf { it.isNotBlank() }
             ?: PolarisStreamDisplayMode.labelForMode(uiState.playMode).takeIf { uiState.playUsesVirtualDisplay },
         summary?.selectedLine,
-        summary?.limitingLine?.takeIf { it.isNotBlank() } ?: summary?.freshnessLine,
+        // "Resolved: ..." followed by "Resolved for this launch" said the same thing twice.
+        summary?.limitingLine?.takeIf { it.isNotBlank() }
+            ?: summary?.freshnessLine?.takeIf { summary.selectedLine.isNullOrBlank() },
     ).filter { !it.isNullOrBlank() }.joinToString("  ·  ")
 }
+
+/**
+ * The instrument line's capitals, with the units left as units: "300 Mbps" had read "300 MBPS".
+ */
+internal fun novaInstrumentCase(line: String): String = line.uppercase()
+    .replace(Regex("(?<=\\d|\\s)MBPS\\b"), "Mbps")
+    .replace(Regex("(?<=\\d|\\s)KBPS\\b"), "kbps")
+    .replace(Regex("(?<=\\d|\\s)GBPS\\b"), "Gbps")
 
 /**
  * B unwinds a level, X reaches Tune. A is not repeated here: the primary action already
  * carries it, and this window exists to remove duplication.
  */
 @Composable
-private fun novaGameDetailOverviewHints(): List<NovaControllerHint> = listOf(
+private fun novaGameDetailOverviewHints(armed: Boolean): List<NovaControllerHint> = listOf(
     NovaControllerHint(
         key = stringResource(R.string.nova_controller_hint_b),
-        label = stringResource(R.string.nova_controller_hint_close),
+        // While a split is armed, B puts the button back; it does not close the page.
+        label = stringResource(if (armed) R.string.nova_panel_stay else R.string.nova_controller_hint_close),
     ),
 )

@@ -121,6 +121,7 @@ class NovaQuickMenu(
         var stabilityApplied = false
         var advancedTuningVisible = false
         var profileClearInProgress = false
+        var profileClearResult: String? = null
         var hostStateUnavailable = false
         var liveTuningPending = false
         lateinit var scheduleDoctorVerification: (DoctorActionReceipt?) -> Unit
@@ -445,6 +446,7 @@ class NovaQuickMenu(
                 stabilityApplied = stabilityApplied,
                 advancedExpanded = advancedTuningVisible,
                 profileClearInProgress = profileClearInProgress,
+                profileClearResult = profileClearResult,
                 currentGameName = gameName,
                 currentGameUuid = currentGameUuid(),
                 profilePreference = currentProfilePreference(gameName),
@@ -893,8 +895,16 @@ class NovaQuickMenu(
                                 false -> R.string.nova_library_reset_game_profile_empty
                                 null -> R.string.nova_library_reset_game_profile_failed
                             }
-                            NovaSnackbar.show(game, game.getString(message), anchor = menu.anchor)
+                            // Said in the row's own caption, where the clear was asked for.
+                            val result = game.getString(message)
+                            profileClearResult = result
                             refreshState()
+                            game.window.decorView.postDelayed({
+                                if (profileClearResult == result) {
+                                    profileClearResult = null
+                                    refreshState()
+                                }
+                            }, PROFILE_CLEAR_RESULT_SHOWN_MS)
                         }
                     }
                 }
@@ -1394,6 +1404,8 @@ class NovaQuickMenu(
         private const val KEY_UP_DELAY = 25L
         // A held Left or Right steps through presets faster than this; only the last one is written.
         private const val SETTING_WRITE_DEBOUNCE_MS = 250L
+        /** How long Clear Game Profile's caption says what the clear did. */
+        private const val PROFILE_CLEAR_RESULT_SHOWN_MS = 4_000L
         private const val HUD_OPACITY_WRITE = "hud-opacity"
         private const val MENU_OPACITY_WRITE = "menu-opacity"
     }
