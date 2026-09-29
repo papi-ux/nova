@@ -55,6 +55,14 @@ class NovaQuickMenu(
     private val doctorMenuRefreshRegistry = DoctorMenuRefreshRegistry()
     private val doctorActionPendingRegistry = DoctorActionPendingRegistry()
     private var doctorVerificationRunnable: Runnable? = null
+    /** The stream's runtime, where the Command Center's work runs. */
+    private val runtime = object : NovaCommandCenterRuntime {
+        override fun launchIo(name: String, block: suspend () -> Unit) = game.launchRuntimeIo(name) { block() }
+        override suspend fun onMain(block: () -> Unit) = game.runOnMainIfRuntimeActive(block)
+        override fun postDelayed(delayMs: Long, block: () -> Unit) {
+            game.window.decorView.postDelayed(block, delayMs)
+        }
+    }
 
     /**
      * One opening of the Command Center: the controller that opened it, for More Controls, and
@@ -502,14 +510,13 @@ class NovaQuickMenu(
         }
 
         liveTuningSave = apiClient?.let { api ->
-            NovaLiveTuningSave(
-                launch = { block -> game.launchRuntimeIo("NovaLiveTuningSave") { block() } },
-                onMain = { block -> game.runOnMainIfRuntimeActive { if (menuValidationIsCurrent()) block() } },
-                later = { delayMs, block -> game.window.decorView.postDelayed(block, delayMs) },
-                save = { enable, observed -> api.setLiveTuningEnabled(enable, observed) },
-                fetch = { api.getSessionStatus() },
-                publish = { hostStateUnavailable = !publishCurrentSessionStatus() },
-                changed = { refreshState() },
+            liveTuningSave(
+                runtime = runtime,
+                api = api,
+                current = ::menuValidationIsCurrent,
+                publish = ::publishCurrentSessionStatus,
+                answered = { hostStateUnavailable = !it },
+                changed = ::refreshState,
             )
         }
 
@@ -1464,5 +1471,39 @@ class NovaQuickMenu(
         private const val PROFILE_CLEAR_RESULT_SHOWN_MS = 4_000L
         private const val HUD_OPACITY_WRITE = "hud-opacity"
         private const val MENU_OPACITY_WRITE = "menu-opacity"
+
+        /**
+         * Live Tuning's switch as the Command Center wires it for one opening (review findings 5
+         * and 7): the save asks [api] for exactly the state the split offered, the host's status
+         * is fetched again and [publish]ed to the page, which says whether the host answered for
+         * [answered] to hear, and a result leaves the row after its time. Work runs on [runtime]
+         * while [current] says this opening still stands; [changed] redraws the page.
+         */
+        internal fun liveTuningSave(
+            runtime: NovaCommandCenterRuntime,
+            api: PolarisApiClient,
+            current: () -> Boolean,
+            publish: () -> Boolean,
+            answered: (Boolean) -> Unit,
+            changed: () -> Unit,
+        ): NovaLiveTuningSave = NovaLiveTuningSave(
+            launch = { block -> runtime.launchIo("NovaLiveTuningSave") { block() } },
+            onMain = { block -> runtime.onMain { if (current()) block() } },
+            later = { delayMs, block -> runtime.postDelayed(delayMs, block) },
+            save = { enable, observed -> api.setLiveTuningEnabled(enable, observed) },
+            fetch = { api.getSessionStatus() },
+            publish = { answered(publish()) },
+            changed = changed,
+        )
     }
+}
+
+/**
+ * Where the Command Center's work runs: off the main thread, back on it while the stream stands,
+ * and on it after a delay. The stream's own runtime in the app; a test's own in a test.
+ */
+internal interface NovaCommandCenterRuntime {
+    fun launchIo(name: String, block: suspend () -> Unit)
+    suspend fun onMain(block: () -> Unit)
+    fun postDelayed(delayMs: Long, block: () -> Unit)
 }

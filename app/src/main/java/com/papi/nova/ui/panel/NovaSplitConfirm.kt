@@ -403,9 +403,9 @@ private fun SplitHalf(
         // A destructive confirm half is red at rest, as any primary destructive is; the halves of
         // an armed neutral split rest as tiles and fill in the accent only under focus.
         accentUnderFocus = accentUnderFocus,
-        // The caption is part of what the row says: a description of the label alone hid it, and a
-        // result in it, from a screen reader.
-        contentDescription = listOfNotNull(text, caption).joinToString(". "),
+        // No description of its own: a screen reader hears the label and caption Texts inside. On
+        // a node that merges its children a description is read as well as them, so the label,
+        // and a result in the caption, were said twice.
         stateDescription = stateDescription,
         minHeight = minHeight,
         cornerRadius = if (rowCorner) NovaRadius.row else NovaRadius.hero,

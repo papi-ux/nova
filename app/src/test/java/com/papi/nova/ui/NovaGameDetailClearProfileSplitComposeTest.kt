@@ -4,8 +4,9 @@ import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.requestFocus
 import androidx.test.core.app.ApplicationProvider
@@ -93,11 +94,13 @@ class NovaGameDetailClearProfileSplitComposeTest {
         }
         rule.mainClock.advanceTimeBy(NOVA_FIRST_FOCUS_SETTLE_MS * 2)
         rule.waitForIdle()
-        rule.onNodeWithContentDescription(label()).requestFocus()
+        half(label()).requestFocus()
         rule.mainClock.autoAdvance = false
         return keys
     }
 
+    // A split half by its label: a Text measuring the pair's labels says it too, and only the half is clickable.
+    private fun half(label: String) = rule.onNode(hasText(label) and hasClickAction())
     private fun label() = context.getString(R.string.nova_library_reset_game_profile)
     private fun stay() = context.getString(R.string.nova_panel_stay)
     private fun confirm() = context.getString(R.string.nova_game_detail_clear_profile_confirm)
@@ -107,7 +110,7 @@ class NovaGameDetailClearProfileSplitComposeTest {
         val keys = page()
         keys.press(NovaTestKeys.A)
         rule.advance(ARM_SETTLE_MS)
-        rule.onNodeWithContentDescription(stay()).assertIsFocused()
+        half(stay()).assertIsFocused()
         rule.onNodeWithText(context.getString(R.string.nova_game_detail_clear_profile_consequence)).assertExists()
         assertEquals(0, clears)
     }
@@ -121,7 +124,7 @@ class NovaGameDetailClearProfileSplitComposeTest {
         rule.onNodeWithText(context.getString(R.string.nova_controller_hint_close)).assertDoesNotExist()
         keys.back()
         rule.advance(NovaPanelMetrics.SplitMillis * 2L)
-        rule.onNodeWithContentDescription(label()).assertIsFocused()
+        half(label()).assertIsFocused()
         rule.onNodeWithText(context.getString(R.string.nova_controller_hint_close)).assertExists()
         assertEquals(0, clears)
     }
@@ -132,7 +135,7 @@ class NovaGameDetailClearProfileSplitComposeTest {
         keys.press(NovaTestKeys.A)
         rule.advance(ARM_SETTLE_MS)
         keys.press(NovaTestKeys.RIGHT)
-        rule.onNodeWithContentDescription(confirm()).assertIsFocused()
+        half(confirm()).assertIsFocused()
         keys.press(NovaTestKeys.A)
         assertEquals("a press inside the guard clears nothing", 0, clears)
         rule.advance(NovaPanelMetrics.SplitGuardMillis)

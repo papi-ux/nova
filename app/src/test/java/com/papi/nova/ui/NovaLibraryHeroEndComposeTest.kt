@@ -96,7 +96,7 @@ class NovaLibraryHeroEndComposeTest {
         rule.mainClock.autoAdvance = false
         keys.press(NovaTestKeys.A)
         rule.advance(ARM_SETTLE_MS)
-        rule.onNodeWithContentDescription(stay()).assertIsFocused()
+        rule.onNodeWithText(stay()).assertIsFocused()
     }
 
     private fun stay() = context.getString(R.string.nova_panel_stay)
@@ -104,7 +104,7 @@ class NovaLibraryHeroEndComposeTest {
     @Test
     fun theHomeHerosEndArmsInPlaceAndBPutsItBackEndingNothing() {
         val keys = homeHero()
-        armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
+        armFrom({ rule.onNodeWithText("End Session").requestFocus() }, keys)
         rule.onNodeWithText("Resume Stream").assertDoesNotExist()
         rule.onNodeWithText(context.getString(R.string.nova_panel_end_session_message)).assertExists()
 
@@ -112,15 +112,15 @@ class NovaLibraryHeroEndComposeTest {
         rule.advance(NovaPanelMetrics.SplitMillis * 2L)
 
         assertEquals("B cancels; nothing ends", 0, ends)
-        rule.onNodeWithContentDescription(stay()).assertDoesNotExist()
+        rule.onNodeWithText(stay()).assertDoesNotExist()
         rule.onNodeWithText("Resume Stream").assertExists()
-        rule.onNodeWithContentDescription("End Session").assertIsFocused()
+        rule.onNodeWithText("End Session").assertIsFocused()
     }
 
     @Test
     fun theHomeHerosEndIgnoresTheGuardThenEndsOnceOnARight() {
         val keys = homeHero()
-        armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
+        armFrom({ rule.onNodeWithText("End Session").requestFocus() }, keys)
 
         keys.press(NovaTestKeys.RIGHT)
         keys.press(NovaTestKeys.A)
@@ -137,7 +137,7 @@ class NovaLibraryHeroEndComposeTest {
     @Test
     fun aOnStayDisarmsTheHomeHero() {
         val keys = homeHero()
-        armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
+        armFrom({ rule.onNodeWithText("End Session").requestFocus() }, keys)
         rule.advance(NovaPanelMetrics.SplitGuardMillis)
 
         keys.press(NovaTestKeys.A)
@@ -164,7 +164,7 @@ class NovaLibraryHeroEndComposeTest {
     @Test
     fun theStripsEndArmsInPlaceAndItsNeighboursStepAside() {
         val keys = strip()
-        armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
+        armFrom({ rule.onNodeWithText("End Session").requestFocus() }, keys)
         // The title stays, so the player sees which game is ending; only Resume steps aside.
         rule.onNodeWithText("Control Ultimate Edition").assertExists()
         rule.onNodeWithContentDescription("Resume Stream").assertDoesNotExist()
@@ -175,13 +175,13 @@ class NovaLibraryHeroEndComposeTest {
 
         assertEquals(0, ends)
         rule.onNodeWithText("Control Ultimate Edition").assertExists()
-        rule.onNodeWithContentDescription(stay()).assertDoesNotExist()
+        rule.onNodeWithText(stay()).assertDoesNotExist()
     }
 
     @Test
     fun mashingAOnTheStripsEndNeverEndsIt() {
         val keys = strip()
-        rule.onNodeWithContentDescription("End Session").requestFocus()
+        rule.onNodeWithText("End Session").requestFocus()
         rule.mainClock.autoAdvance = false
         repeat(3) {
             keys.press(NovaTestKeys.A)
@@ -194,7 +194,7 @@ class NovaLibraryHeroEndComposeTest {
     @Test
     fun theStripsEndEndsOnceAfterTheGuard() {
         val keys = strip()
-        armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
+        armFrom({ rule.onNodeWithText("End Session").requestFocus() }, keys)
         rule.advance(NovaPanelMetrics.SplitGuardMillis)
         keys.press(NovaTestKeys.RIGHT)
         keys.press(NovaTestKeys.A)
@@ -207,7 +207,7 @@ class NovaLibraryHeroEndComposeTest {
     @Test
     fun oncePressedTheStripSaysEndingInsteadOfOfferingItAgain() {
         val keys = strip()
-        armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
+        armFrom({ rule.onNodeWithText("End Session").requestFocus() }, keys)
         rule.advance(NovaPanelMetrics.SplitGuardMillis)
         keys.press(NovaTestKeys.RIGHT)
         keys.press(NovaTestKeys.A)
@@ -215,14 +215,14 @@ class NovaLibraryHeroEndComposeTest {
         assertEquals(1, ends)
         rule.onNodeWithText(context.getString(R.string.nova_library_ending_session)).assertExists()
         rule.onNodeWithContentDescription("Resume Stream").assertDoesNotExist()
-        rule.onNodeWithContentDescription("End Session").assertDoesNotExist()
+        rule.onNodeWithText("End Session").assertDoesNotExist()
     }
 
     @Test
     fun aTapArmsTheStripsEndToo() {
         strip()
-        rule.onNodeWithContentDescription("End Session").performClick()
-        rule.onNodeWithContentDescription(stay()).assertExists()
+        rule.onNodeWithText("End Session").performClick()
+        rule.onNodeWithText(stay()).assertExists()
         assertEquals(0, ends)
     }
 

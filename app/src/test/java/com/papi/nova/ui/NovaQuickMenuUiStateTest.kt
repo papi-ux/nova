@@ -1257,6 +1257,11 @@ class NovaQuickMenuUiStateTest {
         val unanswered = quickState(status = on, hostStateUnavailable = true, liveTuningUnconfirmed = false)
         assertEquals("a failed refresh still says the save failed", "The host did not answer, so the change is not confirmed.", unanswered.liveTuningAction.caption)
         assertEquals("Unknown", unanswered.liveTuningAction.chip?.label)
+        assertTrue("and its row stays enabled, so focus stays on it", unanswered.liveTuningAction.enabled)
+        assertFalse(
+            "a host it cannot read, with no result to show, leaves the row disabled",
+            quickState(status = on, hostStateUnavailable = true).liveTuningAction.enabled,
+        )
 
         val again = quickState(status = on, liveTuningPending = true, liveTuningUnconfirmed = false)
         assertEquals("a new save says Saving", "Saving…", again.liveTuningAction.caption)

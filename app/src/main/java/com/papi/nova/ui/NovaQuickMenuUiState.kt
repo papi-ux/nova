@@ -883,11 +883,14 @@ data class NovaQuickMenuUiState(
                     if (enabledNow) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE,
                 ),
                 announce = result != null,
-                // The row stays enabled while a save is pending: the caption already says
-                // Saving, onLiveTuning ignores a second press, and disabling the row under a
-                // controller cursor drops focus mid-press.
-                enabled = !hostStateUnavailable && canAdjustHostTuning &&
-                    (status?.liveTuning != null || (status?.liveTuningPresent != true && adaptiveSupported)),
+                // The row stays enabled while a save is pending, and while its result shows even
+                // when the host's state could not be read: the caption says so, onLiveTuning asks
+                // nothing of a host it cannot read, and disabling the row under a controller cursor
+                // drops focus off it mid-press or as the result arrives.
+                enabled = result != null || (
+                    !hostStateUnavailable && canAdjustHostTuning &&
+                        (status?.liveTuning != null || (status?.liveTuningPresent != true && adaptiveSupported))
+                    ),
             )
         }
 
