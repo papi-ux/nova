@@ -976,9 +976,6 @@ class NovaLibraryActivity : NovaActivity() {
             NovaLibraryPrimaryFilter.RECENT -> updateLibraryFilterState(
                 NovaLibraryFilterState(primary = filter)
             )
-            NovaLibraryPrimaryFilter.HDR -> updateLibraryFilterState(
-                NovaLibraryFilterState(primary = filter)
-            )
             // Chosen on their own pages, never stepped to in the filter row.
             NovaLibraryPrimaryFilter.SOURCES,
             NovaLibraryPrimaryFilter.MORE -> Unit
@@ -2818,7 +2815,6 @@ class NovaLibraryActivity : NovaActivity() {
             NovaLibrarySortMode.NAME_ASC -> R.string.nova_library_options_sort_name_asc
             NovaLibrarySortMode.NAME_DESC -> R.string.nova_library_options_sort_name_desc
             NovaLibrarySortMode.SOURCE -> R.string.nova_library_options_sort_source
-            NovaLibrarySortMode.HDR_FIRST -> R.string.nova_library_options_sort_hdr_first
         },
     )
 
@@ -2829,7 +2825,6 @@ class NovaLibraryActivity : NovaActivity() {
             NovaLibrarySortMode.NAME_ASC -> R.string.nova_library_options_sort_name_asc_hint
             NovaLibrarySortMode.NAME_DESC -> R.string.nova_library_options_sort_name_desc_hint
             NovaLibrarySortMode.SOURCE -> R.string.nova_library_options_sort_source_hint
-            NovaLibrarySortMode.HDR_FIRST -> R.string.nova_library_options_sort_hdr_first_hint
         },
     )
 
@@ -2890,7 +2885,6 @@ class NovaLibraryActivity : NovaActivity() {
                         R.string.nova_library_panel_filter_counts,
                         model.summary.totalCount,
                         model.summary.recentCount,
-                        model.summary.hdrCount,
                     ),
                     narrowedLabel = narrowedFilterLabel(filterState),
                     sourceValue = filterState.source
@@ -3077,7 +3071,7 @@ class NovaLibraryActivity : NovaActivity() {
         )
     }
 
-    /** Sort: six orders, each saying what it does, opening on the current one. */
+    /** Sort: five orders, each saying what it does, opening on the current one. */
     private fun librarySortPage(): NovaPage = NovaCommonPage.Choice(
         key = LibraryPage.KEY_SORT,
         title = getString(R.string.nova_library_options_sort_title),

@@ -160,8 +160,10 @@ class NovaLibraryPanelsComposeTest {
         keys.press(NovaTestKeys.RIGHT)
         keys.press(NovaTestKeys.LEFT)
 
+        // All and Recent: HDR is gone until Polaris knows HDR per title (N14). The quick filters
+        // are not a scale, so Right from Recent wraps to All and Left from All wraps to Recent.
         assertEquals(
-            listOf(NovaLibraryPrimaryFilter.RECENT, NovaLibraryPrimaryFilter.HDR, NovaLibraryPrimaryFilter.RECENT),
+            listOf(NovaLibraryPrimaryFilter.RECENT, NovaLibraryPrimaryFilter.ALL, NovaLibraryPrimaryFilter.RECENT),
             filterChanges,
         )
         // Focus never leaves the row sideways, and nothing opened: the old drawer sent Right to System.

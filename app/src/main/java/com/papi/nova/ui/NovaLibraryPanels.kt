@@ -173,13 +173,12 @@ internal class NovaLibraryOptionsActions(
 private val QuickFilters = listOf(
     NovaLibraryPrimaryFilter.ALL,
     NovaLibraryPrimaryFilter.RECENT,
-    NovaLibraryPrimaryFilter.HDR,
 )
 
 /**
  * Library Options. Every choice changes in its own row or on a page of its own, and the grid behind
  * the panel follows at once. The filter row is one focus stop whose Left and Right step through
- * All, Recent and HDR, so the D-pad never leaves the panel sideways; a source or a category set on
+ * All and Recent, so the D-pad never leaves the panel sideways; a source or a category set on
  * its own page shows there as the current value, and stepping away from it goes back to a quick
  * filter. Focus opens on the filter row.
  */
@@ -188,7 +187,6 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
     val filterLabels = mapOf(
         NovaLibraryPrimaryFilter.ALL to stringResource(R.string.nova_library_filter_all),
         NovaLibraryPrimaryFilter.RECENT to stringResource(R.string.nova_library_filter_recent),
-        NovaLibraryPrimaryFilter.HDR to stringResource(R.string.nova_library_filter_hdr),
     )
     val narrowedReason = stringResource(
         if (ui.filter == NovaLibraryPrimaryFilter.MORE) {

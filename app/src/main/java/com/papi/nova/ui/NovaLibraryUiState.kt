@@ -5,11 +5,15 @@ import com.papi.nova.api.PolarisSessionStatus
 import kotlin.math.abs
 import kotlin.math.ceil
 
+/**
+ * The library's filters. There is no HDR filter until Polaris knows HDR per title (N14): it sets
+ * hdr_supported for every app from the host's HEVC Main10 mode, so the filter matched every title,
+ * launchers included. A filter saved as HDR reads back as All.
+ */
 enum class NovaLibraryPrimaryFilter {
     ALL,
     RECENT,
     SOURCES,
-    HDR,
     MORE
 }
 
@@ -23,13 +27,13 @@ data class NovaLibraryFilterState(
         get() = primary != NovaLibraryPrimaryFilter.ALL
 }
 
+/** The library's orders. HDR First went with the HDR filter (N14); saved, it reads back as Library Order. */
 enum class NovaLibrarySortMode {
     LIBRARY_ORDER,
     RECENT,
     NAME_ASC,
     NAME_DESC,
     SOURCE,
-    HDR_FIRST
 }
 
 enum class NovaLibraryLayoutMode {
@@ -108,7 +112,6 @@ enum class NovaLibraryEmptyState {
 data class NovaLibrarySummary(
     val totalCount: Int,
     val recentCount: Int,
-    val hdrCount: Int
 )
 
 enum class NovaLibraryHeroReason {
@@ -784,9 +787,6 @@ object NovaLibraryUiStateMapper {
             NovaLibraryPrimaryFilter.SOURCES -> searched
                 .filter { it.source == filterState.source }
                 .toList()
-            NovaLibraryPrimaryFilter.HDR -> searched
-                .filter { it.hdrSupported }
-                .toList()
             NovaLibraryPrimaryFilter.MORE -> when {
                 filterState.category.isNotBlank() -> searched
                     .filter { it.category == filterState.category }
@@ -823,10 +823,6 @@ object NovaLibraryUiStateMapper {
                         .thenBy { it.index }
                 )
                 .map { it.value }
-            NovaLibrarySortMode.HDR_FIRST -> games.sortedWith(
-                compareByDescending<PolarisGame> { it.hdrSupported }
-                    .thenBy { it.name.lowercase() }
-            )
         }
     }
 
@@ -841,7 +837,6 @@ object NovaLibraryUiStateMapper {
         return NovaLibrarySummary(
             totalCount = games.size,
             recentCount = games.count { it.lastLaunched > 0 },
-            hdrCount = games.count { it.hdrSupported }
         )
     }
 
@@ -1588,7 +1583,6 @@ object NovaLibraryUiStateMapper {
             NovaLibraryPrimaryFilter.ALL -> 112
             NovaLibraryPrimaryFilter.RECENT -> 132
             NovaLibraryPrimaryFilter.SOURCES -> 144
-            NovaLibraryPrimaryFilter.HDR -> 112
             NovaLibraryPrimaryFilter.MORE -> 120
         }
     }

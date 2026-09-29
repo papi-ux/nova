@@ -77,7 +77,7 @@ class NovaLibraryActivityComposeTest {
             val optionsTitle = context.getString(R.string.nova_library_options_title)
             val systemTitle = context.getString(R.string.nova_system_menu_title)
             val filterAll = context.getString(R.string.nova_library_filter_all)
-            val filterHdr = context.getString(R.string.nova_library_filter_hdr)
+            val filterRecent = context.getString(R.string.nova_library_filter_recent)
             val searchRow = context.getString(R.string.nova_library_panel_search)
 
             // The toolbar leads with the host. "Library" is deliberately not drawn in the
@@ -102,7 +102,7 @@ class NovaLibraryActivityComposeTest {
 
             // The quick filters are the values of one row, which changes in place on Left and
             // Right, so the whole row is the one thing to press.
-            composeRule.onNode(hasText(filterAll) and hasText(filterHdr) and hasClickAction())
+            composeRule.onNode(hasText(filterAll) and hasText(filterRecent) and hasClickAction())
                 .assertIsDisplayed()
             composeRule.onNodeWithText(searchRow, substring = false)
                 .performScrollTo()

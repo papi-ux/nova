@@ -228,7 +228,6 @@
     <string name="nova_library_filter_steam">Steam</string>
     <string name="nova_library_filter_action">Action</string>
     <string name="nova_library_filter_cinematic">Cinematic</string>
-    <string name="nova_library_filter_hdr">HDR</string>
     <string name="nova_library_filter_more">More</string>
     <string name="nova_library_filter_desktop">Desktop</string>
     <string name="nova_library_filter_vr">VR</string>
@@ -258,8 +257,6 @@
     <string name="nova_library_options_sort_name_desc_hint">Alphabetical from Z to A.</string>
     <string name="nova_library_options_sort_source">Source</string>
     <string name="nova_library_options_sort_source_hint">Group by launcher or store.</string>
-    <string name="nova_library_options_sort_hdr_first">HDR First</string>
-    <string name="nova_library_options_sort_hdr_first_hint">Prioritize HDR-ready games.</string>
     <string name="nova_library_options_layout_title">Layout</string>
     <string name="nova_library_options_layout_stage">Stage</string>
     <string name="nova_library_options_layout_stage_hint">One game large, with its artwork and actions, over a row of the rest.</string>

@@ -15,7 +15,7 @@
     <!-- Library Options. -->
     <string name="nova_library_panel_filter">Filter</string>
     <!-- Under the filter row: how many games each quick filter shows. -->
-    <string name="nova_library_panel_filter_counts">%1$d in all · %2$d recent · %3$d HDR</string>
+    <string name="nova_library_panel_filter_counts">%1$d in all · %2$d recent</string>
     <!-- Why a source filter cannot be stepped to in the filter row. -->
     <string name="nova_library_panel_filter_set_in_sources">Chosen in Sources</string>
     <!-- Why a category or genre filter cannot be stepped to in the filter row. -->

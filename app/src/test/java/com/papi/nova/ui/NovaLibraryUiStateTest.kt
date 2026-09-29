@@ -173,10 +173,6 @@ class NovaLibraryUiStateTest {
             listOf("Portal 2", "Hades", "Desktop", "Black Myth: Wukong"),
             sortedNames(NovaLibrarySortMode.SOURCE)
         )
-        assertEquals(
-            listOf("Black Myth: Wukong", "Desktop", "Hades", "Portal 2"),
-            sortedNames(NovaLibrarySortMode.HDR_FIRST)
-        )
     }
 
     @Test
@@ -229,7 +225,6 @@ class NovaLibraryUiStateTest {
 
         assertEquals(3, model.summary.totalCount)
         assertEquals(2, model.summary.recentCount)
-        assertEquals(1, model.summary.hdrCount)
         assertEquals(listOf("Portal", "Hades"), model.recentGames.map { it.name })
         assertEquals("No matching games", model.hero.title)
         assertEquals(NovaLibraryHeroReason.EMPTY, model.hero.reason)
@@ -901,9 +896,10 @@ class NovaLibraryUiStateTest {
         val filterCount = NovaLibraryPrimaryFilter.entries.size
 
         assertEquals(2, NovaLibraryUiStateMapper.railFilterColumns(retroidRailWidth))
-        assertEquals(3, NovaLibraryUiStateMapper.railFilterRows(filterCount, retroidRailWidth))
+        // All, Recent, Sources and More: two rows of two since the HDR filter went (N14).
+        assertEquals(2, NovaLibraryUiStateMapper.railFilterRows(filterCount, retroidRailWidth))
         assertTrue(
-            "Retroid landscape rail should show every primary filter in roughly three compact rows instead of clipping the bottom filter below the fold",
+            "Retroid landscape rail should show every primary filter in compact rows instead of clipping the bottom filter below the fold",
             NovaLibraryUiStateMapper.railFilterGridHeightDp(filterCount, retroidRailWidth) <= 124
         )
     }
@@ -920,7 +916,7 @@ class NovaLibraryUiStateTest {
         assertEquals(3, NovaLibraryUiStateMapper.railActionColumns(retroidRailWidth))
         assertEquals(2, NovaLibraryUiStateMapper.railActionRows(actionCount, retroidRailWidth))
         assertTrue(
-            "Retroid landscape rail should keep Refresh/Options/System/Switch plus All/Recent/Sources/HDR/More compact enough for the initial rail viewport",
+            "Retroid landscape rail should keep Refresh/Options/System/Switch plus All/Recent/Sources/More compact enough for the initial rail viewport",
             actionAndFilterStackHeight <= 206
         )
     }
@@ -933,7 +929,7 @@ class NovaLibraryUiStateTest {
 
         assertTrue(widths.values.all { it >= 112 })
         assertTrue(widths.getValue(NovaLibraryPrimaryFilter.SOURCES) > widths.getValue(NovaLibraryPrimaryFilter.ALL))
-        assertTrue(widths.getValue(NovaLibraryPrimaryFilter.RECENT) > widths.getValue(NovaLibraryPrimaryFilter.HDR))
+        assertTrue(widths.getValue(NovaLibraryPrimaryFilter.RECENT) > widths.getValue(NovaLibraryPrimaryFilter.ALL))
     }
 
     @Test

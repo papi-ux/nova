@@ -410,7 +410,7 @@ internal object NovaVisualFixtures {
         resultCount = if (narrowed == null) 1_586 else 58,
         searchQuery = "",
         filter = if (narrowed == null) NovaLibraryPrimaryFilter.ALL else NovaLibraryPrimaryFilter.SOURCES,
-        filterCaption = context.getString(R.string.nova_library_panel_filter_counts, 1_586, 14, 212),
+        filterCaption = context.getString(R.string.nova_library_panel_filter_counts, 1_586, 14),
         narrowedLabel = narrowed,
         sourceValue = narrowed ?: context.getString(R.string.nova_library_filter_all_sources),
         moreValue = context.getString(R.string.nova_library_panel_more_none),

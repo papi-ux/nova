@@ -114,7 +114,6 @@ class NovaLibrarySourceGuardTest {
                 strings.contains("name=\"nova_library_options_sort_name_asc\">Name A-Z") &&
                 strings.contains("name=\"nova_library_options_sort_name_desc\">Name Z-A") &&
                 strings.contains("name=\"nova_library_options_sort_source\">Source") &&
-                strings.contains("name=\"nova_library_options_sort_hdr_first\">HDR First") &&
                 strings.contains("name=\"nova_library_options_layout_stage\">Stage") &&
                 strings.contains("name=\"nova_library_options_layout_grid\">Grid") &&
                 strings.contains("name=\"nova_library_options_layout_compact\">Compact") &&
