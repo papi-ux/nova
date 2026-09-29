@@ -65,7 +65,6 @@
     <string name="ip_hint">Adresa IP a PC-ului cu GFE</string>
     <string name="searching_pc">Se caută PC-uri cu GameStream activat…\n\n
         Asigură-te ca GameStream este activat în setările Geforce Experience SHIELD.</string>
-    <string name="lost_connection">S-a pierdut conexiunea catre PC</string>
     <string name="title_details">Detalii</string>
     <string name="slow_connection_msg">Conexiune inceată catre PC\nRedu rata de biți</string>
     <string name="poor_connection_msg">Conexiune slabă catre PC</string>
@@ -87,7 +86,6 @@
     <string name="applist_refresh_msg">Reîmprospătare aplicații…</string>
     <string name="applist_refresh_error_title">Eroare</string>
     <string name="applist_refresh_error_msg">Nu s-a putut obține lista de aplicații</string>
-    <string name="applist_quit_app">Închidere în curs</string>
     <string name="applist_quit_success">Închis cu succes</string>
     <string name="applist_quit_fail">Nu s-a putut închide lista</string>
     <string name="applist_details_id">ID-ul aplicației:</string>
@@ -95,9 +93,7 @@
     <string name="title_add_pc">Adaugă PC manual</string>
     <string name="msg_add_pc">Conectare în curs…</string>
     <string name="addpc_fail">Nu s-a putut efectua conectarea la adresa introdusă. Asigurăte ca porturile nu sunt blocate in firewall.</string>
-    <string name="addpc_success">PC adăugat cu succes</string>
     <string name="addpc_unknown_host">Nu am putut identifica adresa PC-ului. Asigură-te că ai introdus-o corect.</string>
-    <string name="addpc_enter_ip">Trebuie să introduci o adresa IP</string>
     <string name="addpc_wrong_sitelocal">Adresa introdusă nu pare corectă. Pentru conectare prin Internet, este nevoie de adresa publică a routerului.</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Setări de bază</string>

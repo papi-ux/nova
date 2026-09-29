@@ -50,7 +50,6 @@
     <string name="searching_pc">Buscando el hostal del PC en tu red local...
 \n
 \n Asegúrate de que Sunshine se está ejecutando en el PC anfitrión o de que GameStream está activado en los ajustes de GeForce Experience SHIELD.</string>
-    <string name="lost_connection">Conexión perdida</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">Reanudar sesión</string>
     <string name="applist_menu_quit">Cerrar sesión</string>
@@ -60,16 +59,13 @@
     <string name="applist_refresh_msg">Actualizando lista de aplicaciones…</string>
     <string name="applist_refresh_error_title">Error</string>
     <string name="applist_refresh_error_msg">Error al cargar lista de aplicaciones</string>
-    <string name="applist_quit_app">Cerrando</string>
     <string name="applist_quit_success">Cerrado satisfactoriamente</string>
     <string name="applist_quit_fail">Error al cerrar</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Añadir PC manualmente</string>
     <string name="msg_add_pc">Conectando al PC…</string>
     <string name="addpc_fail">Imposible conectar al ordenador indicado. Asegurate que los puertos necesarios están permitidos a través del firewall.</string>
-    <string name="addpc_success">Ordenador añadido satisfactoriamente</string>
     <string name="addpc_unknown_host">Imposible resolver la dirección del PC. Asegúrate que no hay ningún error en la dirección.</string>
-    <string name="addpc_enter_ip">Debes introducir una dirección IP</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Configuración básica</string>
     <string name="title_resolution_list">Seleccionar resolución</string>

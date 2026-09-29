@@ -46,7 +46,6 @@
     <string name="searching_pc">ローカルネットワーク上のホストPCを検索中…
 \n
 \nホストPCでSunshineが実行中であるか、GeForce ExperienceのSHIELD設定でGameStreamが有効になっていることを確認してください。</string>
-    <string name="lost_connection">コンピュータとの接続が失われました</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">セッションを続ける</string>
     <string name="applist_menu_quit">セッションを終了する</string>
@@ -56,16 +55,13 @@
     <string name="applist_refresh_msg">ゲームリストを更新中</string>
     <string name="applist_refresh_error_title">エラー</string>
     <string name="applist_refresh_error_msg">ゲームリストの取得に失敗しました</string>
-    <string name="applist_quit_app">終了中</string>
     <string name="applist_quit_success">ゲームを終了しました</string>
     <string name="applist_quit_fail">ゲームが終了できませんでした</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">手動でコンピュータを追加する</string>
     <string name="msg_add_pc">コンピュータに接続中</string>
     <string name="addpc_fail">指定されたコンピュータに接続できませんでした。ファイアーウォールの設定を確認してください</string>
-    <string name="addpc_success">コンピュータの追加に成功しました</string>
     <string name="addpc_unknown_host">コンピュータのアドレスが解決できません。コンピュータのアドレスを確認してください</string>
-    <string name="addpc_enter_ip">IPアドレスを入力してください</string>
     <!-- Preferences -->
     <string name="category_basic_settings">基本的な設定</string>
     <string name="title_resolution_list">解像度とフレームレート</string>

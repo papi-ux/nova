@@ -15,6 +15,7 @@ import com.papi.nova.shadows.ShadowMoonBridge
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import java.util.UUID
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -75,6 +76,8 @@ class ProfilesDeleteSplitComposeTest {
             rule.onNodeWithText(delete).performClick()
             frames()
             assertTrue("a deliberate second press deletes", profiles.getProfiles().isEmpty())
+            // The row leaving is the answer: "Deleted preset" floated over the list (audit X2).
+            assertNull("no Toast floats", org.robolectric.shadows.ShadowToast.getLatestToast())
         }
     }
 

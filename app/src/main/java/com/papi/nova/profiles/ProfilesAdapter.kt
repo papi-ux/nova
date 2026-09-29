@@ -13,7 +13,6 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.ComposeView
@@ -59,18 +58,10 @@ class ProfilesAdapter(private val context: Context) : RecyclerView.Adapter<Profi
             context.getString(if (isActive) R.string.nova_profiles_stop_using else R.string.nova_profiles_use),
             null,
         )
+        // The current mark moving is the answer, in the row that was pressed: a Toast said it again
+        // over the list (audit X2).
         holder.itemView.setOnClickListener {
-            if (isActive) {
-                profilesManager.setActive(null)
-                Toast.makeText(context, R.string.profile_manager_deactivated_profile, Toast.LENGTH_SHORT).show()
-            } else {
-                profilesManager.setActive(profile.getUuid())
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.profile_manager_activated_profile, profile.getName()),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
+            profilesManager.setActive(if (isActive) null else profile.getUuid())
             profilesManager.save(context)
         }
 
@@ -107,14 +98,10 @@ class ProfilesAdapter(private val context: Context) : RecyclerView.Adapter<Profi
         }
     }
 
+    /** The row leaving the list is the answer; the split already said what Delete loses (X2). */
     private fun delete(profile: SettingsProfile) {
         profilesManager.delete(profile.getUuid())
         profilesManager.save(context)
-        Toast.makeText(
-            context,
-            context.getString(R.string.profile_manager_profile_deleted, profile.getName()),
-            Toast.LENGTH_SHORT,
-        ).show()
     }
 
     override fun getItemCount(): Int = profilesManager.getProfiles().size

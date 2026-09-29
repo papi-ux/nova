@@ -457,7 +457,10 @@ class NovaUpdateRecoveryTest {
             onRetry = { retriedRelease = it },
             onViewReleases = {},
         )
-        assertEquals(activity.getString(com.papi.nova.R.string.nova_update_installer_started), ShadowToast.getTextOfLatestToast())
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        // Android's own install prompt is the answer: a Toast floated over it (audit X2).
+        assertEquals("nothing floats over the install prompt", null, ShadowToast.getLatestToast())
+        assertFalse("and no page is put up under it", NovaSurfaces.of(activity).panel.isOpen)
 
         NovaUpdateInstaller.showInstallResult(
             activity,

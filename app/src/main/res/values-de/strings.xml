@@ -82,7 +82,6 @@
     <string name="searching_pc">Suche nach Host PCs in deinem lokalen Netzwerk…
 \n
 \nStelle sicher, dass Sunshine läuft oder GameStream in den GeForce Experience SHIELD-Einstellungen aktiviert ist.</string>
-    <string name="lost_connection">Verbindung zum Host verloren</string>
     <string name="title_details">Details</string>
     <string name="slow_connection_msg">Langsame Verbindung zum Host
 \nReduziere die Bitrate</string>
@@ -106,7 +105,6 @@
     <string name="applist_refresh_msg">Apps aktualisieren…</string>
     <string name="applist_refresh_error_title">Fehler</string>
     <string name="applist_refresh_error_msg">Die App-Liste konnte nicht geladen werden</string>
-    <string name="applist_quit_app">Beenden</string>
     <string name="applist_quit_success">Erfolgreich beendet</string>
     <string name="applist_quit_fail">Beenden fehlgeschlagen</string>
     <string name="applist_details_id">App ID:</string>
@@ -114,9 +112,7 @@
     <string name="title_add_pc">Host manuell hinzufügen</string>
     <string name="msg_add_pc">Verbinde zum Host…</string>
     <string name="addpc_fail">Verbindung fehlgeschlagen. Stelle sicher, dass die benötigten Ports von deiner Firewall nicht gesperrt sind.</string>
-    <string name="addpc_success">Host erfolgreich hinzugefügt</string>
     <string name="addpc_unknown_host">Auflösen der Hostadresse fehlgeschlagen. Stelle sicher, dass die Adresse keine Tippfehler beinhaltet.</string>
-    <string name="addpc_enter_ip">Du musst eine IP-Adresse eingeben</string>
     <string name="addpc_wrong_sitelocal">Diese Adresse sieht falsch aus. Du musst die öffentliche IP-Adresse deines Routers benutzen, um übers Internet zu Streamen.</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Allgemeine Einstellungen</string>

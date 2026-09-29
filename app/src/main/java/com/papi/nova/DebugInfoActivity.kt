@@ -13,7 +13,6 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
-import android.widget.Toast
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaFocusReturn
@@ -132,7 +131,17 @@ class DebugInfoActivity : NovaActivity(), View.OnClickListener {
 
     private fun showGamepadRumblePages(opener: View) {
         if (inputDevices.isEmpty()) {
-            Toast.makeText(this, getString(R.string.debug_info_no_gamepad_detected), Toast.LENGTH_LONG).show()
+            // Said on a page in the panel the gamepads open in, and B goes back to the button: a
+            // Toast floated over the screen and was gone before it could be read (audit X2).
+            novaSurfaces.open(
+                NovaCommonPage.Notice(
+                    key = DebugInfoPages.NO_GAMEPAD_PAGE,
+                    title = getString(R.string.debug_info_test_gamepad_rumble),
+                    message = getString(R.string.debug_info_no_gamepad_detected),
+                    closeLabel = getString(R.string.nova_panel_close),
+                ),
+                returnFocus = NovaFocusReturn.View(opener),
+            )
             return
         }
         showGamepadRumblePages(inputDevices.map(::debugGamepad), opener, picked = null)
@@ -303,6 +312,9 @@ internal object DebugInfoPages {
     const val AMPLITUDE_PAGE = "debug-amplitude"
     const val DEVICE_VIBRATION_PAGE = "debug-device-vibration"
     const val GAMEPADS_PAGE = "debug-gamepads"
+
+    /** Said in place of the gamepad list when none is connected. */
+    const val NO_GAMEPAD_PAGE = "debug-no-gamepad"
     const val GAMEPAD_VIBRATION_PAGE = "debug-gamepad-vibration"
 
     fun amplitude(context: Context, value: Int, onSave: (Int) -> Unit) = NovaCommonPage.Slider(

@@ -62,7 +62,6 @@
     <string name="searching_pc">Ricerca di PC nella rete locale…
 \n
 \n Assicurati che Sunshine sia avviato o che GameStream sia abilitato nelle impostazioni SHIELD di GeForce Experience.</string>
-    <string name="lost_connection">Connessione con il PC persa</string>
     <!-- AppList activity -->
     <string name="applist_connect_msg">Connessione al PC in corso…</string>
     <string name="applist_menu_resume">Riprendi sessione</string>
@@ -73,16 +72,13 @@
     <string name="applist_refresh_msg">Aggiornamento lista in corso…</string>
     <string name="applist_refresh_error_title">Errore</string>
     <string name="applist_refresh_error_msg">Ricezione lista applicazioni fallita</string>
-    <string name="applist_quit_app">Chiusura in corso</string>
     <string name="applist_quit_success">Sessione chiusa con successo</string>
     <string name="applist_quit_fail">Chiusura sessione fallita</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Aggiungi PC manualmente</string>
     <string name="msg_add_pc">Connessione al PC in corso…</string>
     <string name="addpc_fail">Impossibile connettersi al PC specificato. Assicurati che le porte nel firewall del PC siano configurate correttamente.</string>
-    <string name="addpc_success">PC aggiunto con successo</string>
     <string name="addpc_unknown_host">Impossibile risovere l\'indirizzo del PC. Assicurati di aver scritto correttamente l\'indirizzo.</string>
-    <string name="addpc_enter_ip">Devi inserire un indirizzo IP</string>
     <string name="addpc_wrong_sitelocal">Quell\'indirizzo non sembra corretto. È necessario utilizzare l\'indirizzo IP pubblico del router per lo streaming su Internet.</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Impostazioni generali</string>

@@ -60,11 +60,9 @@
     <string name="applist_menu_quit_and_start">סגור משחק נוכחי והתחל</string>
     <string name="applist_menu_details">הראה פרטים</string>
     <string name="applist_menu_scut">צור קיצור דרך</string>
-    <string name="applist_quit_app">יוצא</string>
     <string name="applist_quit_success">יציאה הושלמה בהצלחה</string>
     <string name="applist_details_id">מספר אפליקציה:</string>
     <string name="title_add_pc">הוספת מחשב ידנית</string>
-    <string name="addpc_enter_ip">חייב להכניס כתובת IP</string>
     <string name="category_basic_settings">הגדרות בסיסיות</string>
     <string name="title_resolution_list">רזולוציית וידיאו</string>
     <string name="title_native_res_dialog">אזהרת רזולוצייה טבעית</string>
@@ -87,7 +85,6 @@
     <string name="no_frame_received_error">חיבור הרשת של אינו מתפקד כראוי. הורד את הגדרות ה-Bitrate או נסה חיבור מהיר יותר.</string>
     <string name="check_ports_msg">בדוק את חומת האש וניהול פורטים עבור הפורטים הבאים:</string>
     <string name="conn_establishing_title">מתחיל חיבור</string>
-    <string name="addpc_success">מחשב נוסף בהצלחה</string>
     <string name="early_termination_error">מששהו קרה במחשב המארח כשהחלה הזרמה.
 \n
 \nאנא וודא שאין תוכן מוגן DRM פתוח במחשב. אפשר לנסות להפעיל מחדש את המחשב.</string>
@@ -100,7 +97,6 @@
     <string name="conn_starting">מתחיל</string>
     <string name="conn_metered">אזהרה: החיבור הנוכחי הוא נמדד!</string>
     <string name="conn_terminated_title">החיבור הופסק</string>
-    <string name="lost_connection">נאבד החיבור למחשב</string>
     <string name="conn_client_latency_hw">מהירות פענוח חומרתי:</string>
     <string name="conn_error_msg">נכשל להפעיל</string>
     <string name="searching_pc">מחפש מחשבים ברשת המקומית שלך...

@@ -103,7 +103,6 @@
     <!-- General strings -->
     <string name="ip_hint">Adresse IP du PC hôte</string>
     <string name="searching_pc">Recherche de PC hôtes sur votre réseau local…\n\nAssurez-vous que Sunshine est en cours d\'exécution ou que GameStream est activé dans les paramètres GeForce Experience SHIELD.</string>
-    <string name="lost_connection">Connexion perdue avec le PC</string>
     <string name="title_details">Détails</string>
     <string name="slow_connection_msg">Connexion lente au PC\nRéduisez votre débit</string>
     <string name="poor_connection_msg">Mauvaise connexion au PC</string>
@@ -134,7 +133,6 @@
     <string name="applist_refresh_msg">Actualisation des applications…</string>
     <string name="applist_refresh_error_title">Erreur</string>
     <string name="applist_refresh_error_msg">Impossible d\'obtenir la liste des applications</string>
-    <string name="applist_quit_app">Fermeture de</string>
     <string name="applist_quit_success">Application fermée avec succès</string>
     <string name="applist_quit_fail">Échec de la fermeture</string>
     <string name="applist_details_id">ID de l\'appli :</string>
@@ -143,9 +141,7 @@
     <string name="title_add_pc">Ajouter un PC manuellement</string>
     <string name="msg_add_pc">Connexion au PC…</string>
     <string name="addpc_fail">Impossible de se connecter à l\'ordinateur spécifié. Assurez-vous que les ports requis sont autorisés via le pare-feu.</string>
-    <string name="addpc_success">Ordinateur ajouté avec succès</string>
     <string name="addpc_unknown_host">Impossible de résoudre l\'adresse du PC. Assurez-vous que vous n\'avez pas fait de faute de frappe dans l\'adresse.</string>
-    <string name="addpc_enter_ip">Vous devez entrer une adresse IP</string>
     <string name="addpc_wrong_sitelocal">Cette adresse ne semble pas correcte. Vous devez utiliser l\'adresse IP publique de votre routeur pour le streaming depuis Internet.</string>
 
     <!-- Preferences -->

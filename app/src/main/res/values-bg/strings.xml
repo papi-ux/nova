@@ -87,7 +87,6 @@
     <string name="conn_error_msg">Неуспешно стартиране</string>
     <string name="conn_terminated_msg">Връзката беше прекратена</string>
     <string name="conn_error_title">Грешка при свързване</string>
-    <string name="lost_connection">Загубена връзка с компютър</string>
     <string name="title_details">Подробности</string>
     <string name="poor_connection_msg">Лоша връзка с компютъра</string>
     <string name="perf_overlay_streamdetails">Видео поток: %1$s %2$.2f FPS</string>
@@ -109,14 +108,11 @@
     <string name="applist_menu_tv_channel">Добавяне към канал</string>
     <string name="applist_refresh_error_msg">Неуспешно получаване на списък с приложения</string>
     <string name="applist_quit_success">Успешно изключване</string>
-    <string name="applist_quit_app">Изключване</string>
     <string name="applist_quit_fail">Неуспешно изключване</string>
     <string name="applist_details_id">ID на приложението:</string>
     <string name="title_add_pc">Ръчно добавяне на компютър</string>
     <string name="addpc_fail">Неуспешна връзка с посочения компютър. Уверете се, че необходимите портове са разрешени през защитната стена.</string>
     <string name="category_basic_settings">Основни настройки</string>
-    <string name="addpc_success">Успешно добавен компютър</string>
-    <string name="addpc_enter_ip">Трябва да въведете IP адрес</string>
     <string name="addpc_wrong_sitelocal">Този адрес не изглежда правилен. Трябва да използвате публичния IP адрес на вашия рутер за стриймване през интернет.</string>
     <string name="title_resolution_list">Видео резолюция</string>
     <string name="summary_fps_list">Увеличете за по-плавен видео поток. Намалете за по-добра производителност на устройства от по-нисък клас.</string>

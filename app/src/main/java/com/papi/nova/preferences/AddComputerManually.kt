@@ -13,8 +13,8 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
-import android.widget.Toast
 import androidx.compose.ui.text.AnnotatedString
+import androidx.core.widget.doAfterTextChanged
 import com.papi.nova.NovaActivity
 import com.papi.nova.ui.compose.novaInPlaceImeOptions
 import com.papi.nova.AppView
@@ -58,6 +58,7 @@ internal fun novaPairLinkConfirmPage(context: Context, hostName: String, onPair:
 
 class AddComputerManually : NovaActivity() {
     private lateinit var hostText: TextView
+    private lateinit var addressError: TextView
     private var managerBinder: ComputerManagerService.ComputerManagerBinder? = null
     private var serviceBound = false
     private val computersToAdd = LinkedBlockingQueue<String>()
@@ -230,12 +231,7 @@ class AddComputerManually : NovaActivity() {
                     help = true,
                 )
             } else {
-                Toast.makeText(
-                    this@AddComputerManually,
-                    resources.getString(R.string.addpc_success),
-                    Toast.LENGTH_LONG
-                ).show()
-
+                // The host joining the list on Hosts is the answer: a Toast floated over it (X2).
                 if (!isFinishing) {
                     finish()
                 }
@@ -348,6 +344,9 @@ class AddComputerManually : NovaActivity() {
         UiHelper.notifyNewRootView(this)
 
         hostText = findViewById(R.id.hostTextView)
+        addressError = findViewById(R.id.addPcError)
+        // Typing answers the line under the field, so it goes.
+        hostText.doAfterTextChanged { addressError.visibility = View.GONE }
         // Typed where it stands: in landscape a keyboard would otherwise swap the whole screen for
         // a blank page with a copy of the field, on a screen that is only this field and its button.
         hostText.imeOptions = novaInPlaceImeOptions(EditorInfo.IME_ACTION_DONE)
@@ -406,11 +405,10 @@ class AddComputerManually : NovaActivity() {
     private fun handleDoneEvent(): Boolean {
         val hostAddress = hostText.text.toString().trim()
         if (hostAddress.isEmpty()) {
-            Toast.makeText(
-                this,
-                resources.getString(R.string.addpc_enter_ip),
-                Toast.LENGTH_LONG
-            ).show()
+            // Said under the field it is about, where it stays until typing answers it: a Toast
+            // floated over the keyboard and was gone before it could be read (audit X2).
+            addressError.text = getString(R.string.hosts_add_enter_address)
+            addressError.visibility = View.VISIBLE
             return true
         }
 

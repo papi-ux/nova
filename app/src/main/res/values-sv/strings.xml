@@ -58,7 +58,6 @@
     <string name="conn_error_msg">Misslyckades att börja</string>
     <string name="conn_terminated_title">Fogning förstörd</string>
     <string name="conn_terminated_msg">Förbindelsen avbröts.</string>
-    <string name="lost_connection">Tappade fogning till dator</string>
     <string name="title_details">Detaljer</string>
     <string name="slow_connection_msg">Långsam anslutning till datorn
 \nMinska din bithastighet</string>
@@ -82,15 +81,12 @@
     <string name="applist_refresh_msg">Friskar upp appar…</string>
     <string name="applist_refresh_error_title">Fel</string>
     <string name="applist_refresh_error_msg">Misslyckades att få app lista</string>
-    <string name="applist_quit_app">Avslutar</string>
     <string name="applist_quit_success">Framgångsrikt avslutad</string>
     <string name="title_add_pc">Lägg till en dator manuellt</string>
     <string name="msg_add_pc">Fogar till datorn…</string>
     <string name="addpc_fail">Det går inte att foga till den angivna datorn. Kontrollera att de nödvändiga portarna tillåts genom brandväggen.</string>
-    <string name="addpc_success">Lyckades lägga till dator</string>
     <string name="addpc_unknown_host">Det går inte att lösa PC-adressen. Kontrollera att du inte har skrivit fel i adressen.</string>
     <string name="applist_details_id">Applikations identitet:</string>
-    <string name="addpc_enter_ip">Du måste ange en IP-adress</string>
     <string name="addpc_wrong_sitelocal">Den adressen ser inte rätt ut. Du måste använda routerns offentliga IP-adress för att streama via Internet.</string>
     <string name="category_basic_settings">Grundinställningar</string>
     <string name="title_resolution_list">Videoupplösning</string>

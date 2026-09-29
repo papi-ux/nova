@@ -100,7 +100,6 @@
     <string name="searching_pc">在你的本地网络中搜索串流主机PC...
 \n
 \n 请确保 Apollo 正在主机上运行。</string>
-    <string name="lost_connection"> 与电脑失去连接 </string>
     <string name="title_details"> 详情 </string>
     <string name="slow_connection_msg"> 与电脑连接过慢 \n 请降低码率 </string>
     <string name="poor_connection_msg"> 与电脑连接不佳 </string>
@@ -128,7 +127,6 @@
     <string name="applist_refresh_msg"> 刷新中…… </string>
     <string name="applist_refresh_error_title"> 错误 </string>
     <string name="applist_refresh_error_msg"> 获取列表失败 </string>
-    <string name="applist_quit_app"> 退出中 </string>
     <string name="applist_quit_success"> 成功退出串流 </string>
     <string name="applist_quit_fail"> 退出串流失败 </string>
     <string name="applist_details_id">App ID：</string>
@@ -136,9 +134,7 @@
     <string name="title_add_pc"> 手动添加电脑 </string>
     <string name="msg_add_pc"> 正在连接电脑…… </string>
     <string name="addpc_fail">无法连接至指定电脑。请确保所需端口没有被防火墙阻止。</string>
-    <string name="addpc_success"> 成功添加电脑 </string>
     <string name="addpc_unknown_host">无法解析电脑的IP地址，请确保IP地址输入无误。</string>
-    <string name="addpc_enter_ip">请输入一个IP地址</string>
     <string name="addpc_wrong_sitelocal"> 该地址似乎不正确。 您必须使用路由器的公共IP地址通过Internet进行串流。 </string>
     <!-- Preferences -->
     <string name="category_general_settings"> 通用设置 </string>
@@ -613,7 +609,6 @@
     <string name="unexpected_error_during_file_export">文件导出期间发生意外错误。</string>
 
     <!-- AppView Toast Messages -->
-    <string name="file_export_cancelled">文件导出已取消。</string>
     <string name="app_removed_from_pc">应用已从电脑上移除</string>
 
     <string name="title_export_sunshine_launcher_file">为 Sunshine 导出启动文件</string>
@@ -639,10 +634,7 @@
     <string name="profile_manager_profiles_description">配置文件允许您创建并保存不同的串流配置。每个配置文件都存储各自的设置，可以快速切换。</string>
     <string name="profile_manager_tap_create_profile">点击 + 以创建您的第一个配置文件</string>
     <string name="profile_manager_choose_profile">选择配置</string>
-    <string name="profile_manager_deactivated_profile">配置已停用</string>
-    <string name="profile_manager_activated_profile">已激活配置 %s</string>
     <string name="profile_manager_delete">删除</string>
-    <string name="profile_manager_profile_deleted">配置 %s 已删除</string>
     <string name="profile_manager_failed_to_save">配置保存失败，请检查 logcat 以获取详细信息。</string>
     <string name="profile_manager_failed_to_load">配置加载失败，请检查 logcat 以获取详细信息。</string>
     <string name="profile_manager_active_profile">当前配置：%s</string>

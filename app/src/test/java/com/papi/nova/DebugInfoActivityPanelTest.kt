@@ -126,12 +126,17 @@ class DebugInfoActivityPanelTest {
         assertFalse("Stop Vibration still stops it", vibrator.isVibrating)
     }
 
+    // With no gamepad it says so, and opens no gamepad list. It said so in a Toast that floated
+    // and was gone before it could be read (audit X2); it is a Notice in the panel the list opens in.
     @Test
-    fun gamepadRumbleWithNoGamepadSaysSoAndOpensNothing() {
+    fun gamepadRumbleWithNoGamepadSaysSoInThePanelAndOpensNoList() {
         click(R.id.bt_vibrator_gamepad)
 
-        assertEquals(activity.getString(R.string.debug_info_no_gamepad_detected), ShadowToast.getTextOfLatestToast())
-        assertFalse(panel().isOpen)
+        val notice = panel().top as NovaCommonPage.Notice
+        assertEquals(activity.getString(R.string.debug_info_test_gamepad_rumble), notice.title)
+        assertEquals(activity.getString(R.string.debug_info_no_gamepad_detected), notice.message)
+        assertFalse("no gamepad list opens", panel().contains(DebugInfoPages.GAMEPADS_PAGE))
+        assertNull("nothing floats", ShadowToast.getLatestToast())
     }
 
     @Test

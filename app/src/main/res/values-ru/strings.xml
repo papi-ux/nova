@@ -60,7 +60,6 @@
     <string name="searching_pc">Поиск хост-ПК в вашей локальной сети…
 \n
 \n Убедитесь, что Sunshine работает на вашем хост-компьютере или GameStream включен в настройках GeForce Experience SHIELD.</string>
-    <string name="lost_connection">Потеряно соединение с ПК</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">Возобновить сессию</string>
     <string name="applist_menu_start_primarydisplay">Запустить на основном дисплее</string>
@@ -74,16 +73,13 @@
     <string name="applist_refresh_msg">Обновление приложений…</string>
     <string name="applist_refresh_error_title">Ошибка</string>
     <string name="applist_refresh_error_msg">Ошибка при получении списка приложений</string>
-    <string name="applist_quit_app">Выход из</string>
     <string name="applist_quit_success">Выход произошёл успешно из</string>
     <string name="applist_quit_fail">Ошибка при выходе</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Добавление ПК вручную</string>
     <string name="msg_add_pc">Соединение с ПК…</string>
     <string name="addpc_fail">Не удалось подключиться к выбранному компьютеру. Удостоверьтесь, что необходимые порты разрешены в настройках брандмауэра.</string>
-    <string name="addpc_success">Компьютер добавлен успешно</string>
     <string name="addpc_unknown_host">Не удалось найти ПК по указанному адресу. Убедитесь, что Вы не совершили ошибок во время его написания.</string>
-    <string name="addpc_enter_ip">Вы должны ввести IP адрес</string>
     <!-- Preferences -->
     <string name="keyboard_key_custom">%s (польз.)</string>
     <string name="category_basic_settings">Основные настройки</string>
@@ -575,7 +571,6 @@
     <string name="failed_to_open_file_for_writing">Не удалось открыть файл для записи.</string>
     <string name="error_writing_file">Ошибка записи файла: %s</string>
     <string name="unexpected_error_during_file_export">При экспорте произошла непредвиденная ошибка.</string>
-    <string name="file_export_cancelled">Экспорт отменён.</string>
     <string name="app_removed_from_pc">Приложение удалено с ПК</string>
     <string name="title_export_sunshine_launcher_file">Экспорт файла запуска для Sunshine</string>
     <string name="title_checkbox_remember_zoom_pan">Запоминать прокрутку/масш.</string>
@@ -596,10 +591,7 @@
     <string name="profile_manager_profiles_description">Профили позволяют создавать и сохранять разные конфигурации стриминга. Каждый профиль хранит свои настройки, между которыми можно быстро переключаться.</string>
     <string name="profile_manager_tap_create_profile">Нажмите + чтобы создать первый профиль</string>
     <string name="profile_manager_choose_profile">Выбрать профиль</string>
-    <string name="profile_manager_deactivated_profile">Деактивированный профиль</string>
-    <string name="profile_manager_activated_profile">Профиль \'%s\' активирован</string>
     <string name="profile_manager_delete">Удалить</string>
-    <string name="profile_manager_profile_deleted">Профиль \'%s\' удалён</string>
     <string name="profile_manager_failed_to_save">Не удалось сохранить профиль. Проверьте logcat.</string>
     <string name="profile_manager_failed_to_load">Не удалось загрузить профили. Проверьте logcat.</string>
     <string name="profile_manager_active_profile">Активный профиль: %s</string>

@@ -113,7 +113,6 @@
 	<string name="ip_hint">主機電腦的 IP 位址</string>
 	<string name="searching_pc">正在搜尋您區域網路中的主機電腦…\n\n
 		請確認 Apollo 已在主機電腦上執行。</string>
-	<string name="lost_connection">與電腦的連線中斷</string>
 	<string name="title_details">詳細資訊</string>
 	<string name="slow_connection_msg">與電腦連線速度緩慢\n請降低位元率</string>
 	<string name="poor_connection_msg">與電腦的連線品質不佳</string>
@@ -160,7 +159,6 @@
 	<string name="applist_refresh_msg">正在重新整理應用程式…</string>
 	<string name="applist_refresh_error_title">錯誤</string>
 	<string name="applist_refresh_error_msg">無法取得應用程式清單</string>
-	<string name="applist_quit_app">正在結束</string>
 	<string name="applist_quit_success">已成功結束</string>
 	<string name="applist_quit_fail">結束失敗</string>
 	<string name="applist_details_id">應用程式 ID：</string>
@@ -169,9 +167,7 @@
 	<string name="title_add_pc">手動新增電腦</string>
 	<string name="msg_add_pc">正在連線至電腦…</string>
 	<string name="addpc_fail">無法連線至指定的電腦。請確認防火牆允許所需的連接埠。</string>
-	<string name="addpc_success">已成功新增電腦</string>
 	<string name="addpc_unknown_host">無法解析電腦位址。請確認輸入的位址沒有拼寫錯誤。</string>
-	<string name="addpc_enter_ip">您必須輸入 IP 位址</string>
 	<string name="addpc_wrong_sitelocal">該位址看起來不正確。若要透過網際網路進行串流，您必須使用路由器的公開 IP 位址。</string>
 
 	<!-- Preferences -->
@@ -703,7 +699,6 @@
 	<string name="unexpected_error_during_file_export">匯出期間發生未預期的錯誤。</string>
 
 	<!-- AppView Toast Messages -->
-	<string name="file_export_cancelled">已取消匯出。</string>
 	<string name="app_removed_from_pc">已自電腦移除應用程式</string>
 	<string name="title_export_sunshine_launcher_file">為 Sunshine 匯出啟動檔</string>
 	<string name="message_export_sunshine_launcher_file">為 Sunshine 匯出啟動檔不夠穩定，可能隨時失效。每次變更應用程式名稱或圖片後都需要重新匯出。\n欲獲得更穩定體驗，請使用 Apollo。</string>
@@ -729,10 +724,7 @@
 	<string name="profile_manager_profiles_description">設定檔可讓你建立並儲存不同的串流組態。每個設定檔都有自己的設定，並可快速切換。</string>
 	<string name="profile_manager_tap_create_profile">點選 + 以建立第一個設定檔</string>
 	<string name="profile_manager_choose_profile">選擇設定檔</string>
-	<string name="profile_manager_deactivated_profile">已停用的設定檔</string>
-	<string name="profile_manager_activated_profile">已啟用設定檔『%s』</string>
 	<string name="profile_manager_delete">刪除</string>
-	<string name="profile_manager_profile_deleted">已刪除設定檔『%s』</string>
 	<string name="profile_manager_failed_to_save">無法儲存設定檔。請查看 logcat 以取得詳細資訊。</string>
 	<string name="profile_manager_failed_to_load">無法載入設定檔。請查看 logcat 以取得詳細資訊。</string>
 	<string name="profile_manager_active_profile">使用中的設定檔：%s</string>

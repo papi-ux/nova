@@ -50,7 +50,6 @@
     <string name="searching_pc">Zoeken naar PCs met GeForce Experience actief…
 \n
 \n Controleer dat GameStream is ingeschakeld in de GeForce Experience SHIELD instellingen.</string>
-    <string name="lost_connection">Verbinding met PC verloren</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">Hervat Sessie</string>
     <string name="applist_menu_quit">Stop Sessie</string>
@@ -60,16 +59,13 @@
     <string name="applist_refresh_msg">Apps Verversen…</string>
     <string name="applist_refresh_error_title">Fout</string>
     <string name="applist_refresh_error_msg">App lijst ophalen mislukt</string>
-    <string name="applist_quit_app">Stoppen</string>
     <string name="applist_quit_success">Succesvol gestopt</string>
     <string name="applist_quit_fail">Stoppen mislukt</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Voeg handmatig PC toe</string>
     <string name="msg_add_pc">Verbinding maken met PC…</string>
     <string name="addpc_fail">Verbinden mislukt. Controleer of de benodigde poorten openstaan in de firewall.</string>
-    <string name="addpc_success">Computer toevoegen succesvol</string>
     <string name="addpc_unknown_host">Adres achterhalen is mislukt. Controleer het ingevoerde adres op typfouten.</string>
-    <string name="addpc_enter_ip">IP-adres invoeren is verplicht</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Algemene Instellingen</string>
     <string name="title_resolution_list">Selecteer resolutie en FPS doel</string>

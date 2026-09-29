@@ -51,10 +51,8 @@
     <string name="applist_menu_resume">Pokračovat</string>
     <string name="applist_menu_details">Zobrazit detaily</string>
     <string name="applist_menu_scut">Vytvořit zkratku</string>
-    <string name="addpc_success">Počítač přidán úspěšně</string>
     <string name="applist_details_id">ID aplikace:</string>
     <string name="addpc_fail">K zadanému počítači se nepodařilo připojit. Ujistěte se, že jsou ve firewallu povoleny nezbytné porty.</string>
-    <string name="addpc_enter_ip">Musíte zadat IP adresu</string>
     <string name="title_native_res_dialog">Varování pro nativní rozlišení</string>
     <string name="title_checkbox_vibrate_fallback">Emulovat podporu vibrací</string>
     <string name="title_seekbar_deadzone">Upravit deadzone analogových páček</string>
@@ -148,14 +146,12 @@
     <string name="frame_conversion_error">Hostitelský počítač hlásí fatální chybu enkódování videa.
 \n
 \nZkuste vypnout HDR, změňte rozlišení streamu nebo rozlišení displeje hostitelského PC.</string>
-    <string name="lost_connection">Připojení k PC bylo ztraceno</string>
     <string name="title_details">Detaily</string>
     <string name="perf_overlay_renderingfps">Vykreslovací snímková frekvence: %1$.2f FPS</string>
     <string name="perf_overlay_netdrops">Snímky zahozeny vašim připojením: %1$.2f%%</string>
     <string name="applist_refresh_msg">Obnovování aplikací…</string>
     <string name="applist_refresh_error_title">Chyba</string>
     <string name="applist_refresh_error_msg">Nezdařilo se získat seznam aplikací</string>
-    <string name="applist_quit_app">Ukončování</string>
     <string name="applist_quit_success">Úspěšně ukončeno</string>
     <string name="applist_quit_fail">Ukončení se nezdařilo</string>
     <string name="msg_add_pc">Připojování k PC…</string>

@@ -85,7 +85,6 @@
     <string name="conn_establishing_title">Bağlantı Kuruluyor</string>
     <string name="conn_terminated_title">Bağlantı sonlandırıldı</string>
     <string name="conn_terminated_msg">Bağlantı sonlandırıldı.</string>
-    <string name="lost_connection">Bilgisayar ile bağlantı kesildi</string>
     <string name="slow_connection_msg">Bilgisayara yavaş bağlantı
 \nBit hızınızı düşürün</string>
     <string name="poor_connection_msg">Bilgisayar ile zayıf bağlantı</string>
@@ -106,14 +105,11 @@
     <string name="applist_refresh_title">Uygulama Listesi</string>
     <string name="applist_quit_success">Başarıyla çıkıldı</string>
     <string name="applist_refresh_error_msg">Uygulama listesi alınamadı</string>
-    <string name="applist_quit_app">Çıkılıyor</string>
     <string name="applist_quit_fail">Çıkılamadı</string>
     <string name="applist_details_id">Uygulama kimliği:</string>
     <string name="msg_add_pc">Bilgisayara bağlanıyor…</string>
-    <string name="addpc_success">Bilgisayar başarıyla eklendi</string>
     <string name="addpc_fail">Belirtilen bilgisayara bağlanılamıyor. Gerekli bağlantı noktalarına güvenlik duvarı üzerinden izin verildiğinden emin olun.</string>
     <string name="addpc_unknown_host">Bilgisayar adresi çözümlenemiyor. Adreste yazım hatası yapmadığınızdan emin olun.</string>
-    <string name="addpc_enter_ip">Bir IP adresi girmelisiniz</string>
     <string name="category_basic_settings">Temel Ayarlar</string>
     <string name="summary_resolution_list">Görüntü netliğini artırmak için yükseltin. Düşük güçteki cihazlarda ve daha yavaş ağlarda daha iyi performans için azaltın.</string>
     <string name="title_native_res_dialog">Yerel çözünürlük uyarısı</string>

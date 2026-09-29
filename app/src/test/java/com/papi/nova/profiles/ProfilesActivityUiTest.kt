@@ -156,6 +156,18 @@ class ProfilesActivityUiTest {
         other.performClick()
 
         assertEquals(p2.getUuid(), pm.getActive()!!.getUuid())
+        // The mark moving is the answer: "Activated preset" floated over the list (audit X2).
+        assertNull("no Toast floats", org.robolectric.shadows.ShadowToast.getLatestToast())
+
+        Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        val exactly = View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY)
+        rv.measure(exactly, exactly)
+        rv.layout(0, 0, 1000, 1000)
+        val nowCurrent = rv.findViewHolderForAdapterPosition(1)!!.itemView
+        assertEquals("the mark moved to the row pressed", View.VISIBLE, nowCurrent.findViewById<View>(R.id.profileCurrent).visibility)
+        nowCurrent.performClick()
+        assertNull("the same row again stops using it", pm.getActive())
+        assertNull("still no Toast", org.robolectric.shadows.ShadowToast.getLatestToast())
     }
 
     // Delete was a stock AlertDialog; it is a split confirm in the row now, driven through its

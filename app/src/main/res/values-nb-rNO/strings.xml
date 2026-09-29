@@ -11,7 +11,6 @@
     <string name="perf_overlay_renderingfps">Opptegningsbilderammetakt: %1$.2f BPS</string>
     <string name="perf_overlay_netdrops">Bilderammer droppet av din nettverkstilknytning: %1$.2f%%</string>
     <string name="perf_overlay_dectime">Gjennomsnittlig dekodingstid: %1$.2f ms</string>
-    <string name="lost_connection">Mistet tilknytning til PC</string>
     <string name="searching_pc">Søker etter PC-er med GameStream kjørende …
 \n
 \nForsikre deg om at GameStream er påslått i GeForce Experience SHEILD-innstillingene.</string>
@@ -69,14 +68,11 @@
     <string name="category_audio_settings">Lydinnstillinger</string>
     <string name="title_resolution_list">Videooppløsning</string>
     <string name="category_basic_settings">Grunnleggende innstillinger</string>
-    <string name="addpc_enter_ip">Du må skrive inn en IP-adresse</string>
-    <string name="addpc_success">Datamaskin tillagt</string>
     <string name="msg_add_pc">Kobler til PC-en …</string>
     <string name="title_add_pc">Legg til PC manuelt</string>
     <string name="applist_details_id">Program-ID:</string>
     <string name="applist_quit_fail">Klarte ikke å avslutte</string>
     <string name="applist_quit_success">Avsluttet</string>
-    <string name="applist_quit_app">Avslutter …</string>
     <string name="applist_refresh_error_msg">Klarte ikke å hente programliste</string>
     <string name="applist_refresh_error_title">Feil</string>
     <string name="applist_refresh_title">Programliste</string>

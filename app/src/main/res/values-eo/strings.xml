@@ -22,7 +22,6 @@
     <string name="title_language_list">Lingvo</string>
     <string name="applist_menu_cancel">Nuligi</string>
     <string name="applist_refresh_error_title">Eraro</string>
-    <string name="applist_quit_app">Forlasante</string>
     <string name="resolution_prefix_native">Indiĝena</string>
     <string name="suffix_seekbar_vibrate_fallback_strength">%</string>
     <string name="suffix_seekbar_deadzone">%</string>

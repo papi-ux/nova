@@ -98,7 +98,6 @@
     <string name="error_manager_not_running">O serviço ComputerManager não está em execução. Aguarde alguns segundos ou reinicie o aplicativo.</string>
     <string name="error_unknown_host">Falha ao encontrar o host</string>
     <string name="conn_terminated_msg">A conexão foi encerrada.</string>
-    <string name="lost_connection">Conexão perdida com o PC</string>
     <string name="title_details">Detalhes</string>
     <string name="slow_connection_msg">Conexão lenta com o PC
 \nReduza sua taxa de bits</string>
@@ -129,7 +128,6 @@
     <string name="applist_menu_hide_app">Esconder Jogo</string>
     <string name="applist_refresh_title">Lista de Aplicativos</string>
     <string name="perf_overlay_netdrops">Quadros dropados pela rede: %1$.2f%%</string>
-    <string name="applist_quit_app">Saindo</string>
     <string name="applist_quit_success">Saiu com sucesso</string>
     <string name="applist_quit_fail">Falha ao sair</string>
     <string name="applist_refresh_msg">Recarregando aplicativos…</string>
@@ -138,9 +136,7 @@
     <string name="applist_details_id">ID do App:</string>
     <string name="title_add_pc">Adicionar PC Manualmente</string>
     <string name="msg_add_pc">Conectando ao PC…</string>
-    <string name="addpc_success">Computador adicionado com sucesso</string>
     <string name="addpc_unknown_host">Não foi possível encontrar o PC. Certifique-se de que não cometeu um erro de digitação no endereço.</string>
-    <string name="addpc_enter_ip">Você deve inserir um endereço de IP</string>
     <string name="category_input_settings">Configurações de Controles</string>
     <string name="category_basic_settings">Configurações Básicas</string>
     <string name="title_resolution_list">Resolução</string>

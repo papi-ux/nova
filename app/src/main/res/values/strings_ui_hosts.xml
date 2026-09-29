@@ -21,6 +21,21 @@
     <string name="hosts_pairing_failed_title">Pairing did not finish</string>
     <string name="hosts_not_ready_title">Hosts Not Ready</string>
 
+    <!-- The App list's host went away while it was open: a Problem page whose Close goes back to Hosts. -->
+    <string name="hosts_app_list_lost_title">Connection Lost</string>
+    <string name="hosts_app_list_lost_message">This host stopped answering. Hosts shows it as offline until it answers again.</string>
+    <string name="hosts_app_list_unpaired_title">Not Paired</string>
+    <string name="hosts_app_list_unpaired_message">This host no longer lists this device. Pair it again from Hosts to see its apps.</string>
+
+    <!-- A start refused because the host is not answering, on a Notice page. -->
+    <string name="hosts_offline_title">Host Offline</string>
+    <string name="hosts_offline_message">The host is not answering. Check that it is on and awake, then try again.</string>
+    <!-- An End the host refused without a reason of its own. %1$s is the game. -->
+    <string name="hosts_end_failed_message">The host did not end %1$s.</string>
+
+    <!-- Add a host by address: said under the field when OK is pressed with it empty. -->
+    <string name="hosts_add_enter_address">Enter the host\'s IP address or name first.</string>
+
     <!-- OTP pairing, a form in the host panel. -->
     <string name="hosts_otp_pin">PIN</string>
     <string name="hosts_pair">Pair</string>

@@ -83,16 +83,13 @@
     <string name="title_resolution_list">Videó felbontás</string>
     <string name="category_basic_settings">Alapbeállítások</string>
     <string name="addpc_wrong_sitelocal">Ez a cím nem tűnik megfelelőnek. Az interneten történő streaminghez az PCnyilvános IP-címét kell használnia.</string>
-    <string name="addpc_enter_ip">Meg kell adnia egy IP-címet</string>
     <string name="addpc_unknown_host">Nem sikerült feloldani a PC-címet. Győződjön meg arról, hogy nem hibázott a címben.</string>
-    <string name="addpc_success">A számítógép sikeresen hozzáadva</string>
     <string name="addpc_fail">Nem sikerült csatlakozni a megadott számítógéphez. Győződjön meg arról, hogy a szükséges portok engedélyezve vannak a tűzfalon keresztül.</string>
     <string name="msg_add_pc">Csatlakozás a számítógéphez…</string>
     <string name="title_add_pc">Számítógép hozzáadása manuálisan</string>
     <string name="applist_details_id">Alkalmazásazonosító:</string>
     <string name="applist_quit_fail">Nem sikerült kilépni</string>
     <string name="applist_quit_success">Sikeresen kiléptél</string>
-    <string name="applist_quit_app">Kilépés</string>
     <string name="applist_refresh_error_msg">Nem sikerült betölteni az alkalmazások listáját</string>
     <string name="applist_refresh_error_title">Hiba</string>
     <string name="applist_refresh_msg">Alkalmazás lista frissítése…</string>
@@ -117,7 +114,6 @@
     <string name="slow_connection_msg">Lassú kapcsolat a PC-vel
 \nCsökkentse a bitrátát</string>
     <string name="title_details">Részletek</string>
-    <string name="lost_connection">Megszakadt a kapcsolat a PC-vel</string>
     <string name="searching_pc">A helyi hálózaton lévő PC-k keresése...
 \n
 \nGyőződj meg róla, hogy a Sunshine fut a gazdaszámítógépen, vagy a GameStream engedélyezve van a GeForce Experience SHIELD beállításaiban.</string>

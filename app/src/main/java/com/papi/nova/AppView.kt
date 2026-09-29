@@ -19,7 +19,7 @@ import android.view.View
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.ui.platform.ComposeView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -207,6 +207,8 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
     private var lastRawAppList: String? = null
     private var lastRunningAppId = 0
     private var suspendGridUpdates = false
+    /** Set once the list has said its host went away; read by the poll thread. */
+    @Volatile private var hostGoneShown = false
     private var inForeground = false
     private val runtimeTasks = NovaRuntimeTasks(this, "Nova app list")
     private var showHiddenApps = false
@@ -326,7 +328,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
         binder.startPolling(
             object : ComputerManagerListener {
                 override fun notifyComputerUpdated(details: ComputerDetails) {
-                    if (suspendGridUpdates) {
+                    if (suspendGridUpdates || hostGoneShown) {
                         return
                     }
                     if (!details.uuid.equals(uuidString, ignoreCase = true)) {
@@ -335,8 +337,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
 
                     if (details.state == ComputerDetails.State.OFFLINE) {
                         runOnUiThread {
-                            Toast.makeText(this@AppView, R.string.lost_connection, Toast.LENGTH_SHORT).show()
-                            finish()
+                            showHostGone(R.string.hosts_app_list_lost_title, R.string.hosts_app_list_lost_message)
                         }
                         return
                     }
@@ -346,8 +347,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                     ) {
                         runOnUiThread {
                             shortcutHelper.disableComputerShortcut(details, resources.getString(R.string.scut_not_paired))
-                            Toast.makeText(this@AppView, R.string.scut_not_paired, Toast.LENGTH_SHORT).show()
-                            finish()
+                            showHostGone(R.string.hosts_app_list_unpaired_title, R.string.hosts_app_list_unpaired_message)
                         }
                         return
                     }
@@ -394,6 +394,20 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
             poller = binder.createAppListPoller(activeComputer)
         }
         poller?.start()
+    }
+
+    /**
+     * The host went offline, or stopped listing this device, while its list was open. It is said
+     * on a Problem page whose Close, which B also does, goes back to Hosts: a Toast floated over
+     * Hosts once the list had already closed, and was gone before it could be read (audit X2).
+     * Once only, and the polls after it change nothing. Main thread.
+     */
+    internal fun showHostGone(@StringRes title: Int, @StringRes message: Int) {
+        if (hostGoneShown || isFinishing || isDestroyed) return
+        hostGoneShown = true
+        stopComputerUpdates()
+        dismissBlockingLoadSpinner()
+        Dialog.displayDialog(this, getString(title), getString(message), true)
     }
 
     private fun stopComputerUpdates() {
@@ -645,10 +659,8 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                 val uri: Uri = data.data!!
                 ShortcutHelper.writeArtFileToUri(this, uri)
             } else {
+                // A cancelled save was the player's own choice, so nothing is said about it.
                 ShortcutHelper.artFileContentToExport = null
-                if (resultCode == Activity.RESULT_CANCELED) {
-                    Toast.makeText(this, R.string.file_export_cancelled, Toast.LENGTH_SHORT).show()
-                }
             }
         }
     }

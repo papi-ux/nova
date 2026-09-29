@@ -7,7 +7,6 @@ import android.content.res.Resources
 import android.hardware.display.DisplayManager
 import android.os.Build
 import android.view.Display
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.AppView
@@ -387,7 +386,13 @@ object ServerHelper {
         watchOnly: Boolean,
     ) {
         if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
-            Toast.makeText(parent, parent.getString(R.string.pair_pc_offline), Toast.LENGTH_SHORT).show()
+            // On a Notice in the screen's right edge panel, where it can be read (audit X2).
+            Dialog.displayDialog(
+                parent,
+                parent.getString(R.string.hosts_offline_title),
+                parent.getString(R.string.hosts_offline_message),
+                false,
+            )
             return
         }
 
@@ -620,6 +625,12 @@ object ServerHelper {
         }
     }
 
+    /**
+     * Quits the running app, then runs [onComplete] or [onFail] on the main thread. Nothing floats
+     * (audit X2): the caller's own list shows a quit that worked once it refreshes, as the running
+     * mark goes, and a refusal is said on a Notice in the screen's right edge panel, where it can be
+     * read. It floated as a Toast, as did a "Quitting" Toast before it.
+     */
     @JvmStatic
     fun doQuit(
         parent: Activity,
@@ -628,27 +639,24 @@ object ServerHelper {
         onComplete: Runnable?,
         onFail: Runnable?,
     ) {
-        parent.runOnUiThread {
-            Toast.makeText(
-                parent,
-                parent.resources.getString(R.string.applist_quit_app) + " " + appName + "...",
-                Toast.LENGTH_SHORT,
-            ).show()
-        }
-
-        Thread {
-            val (failed, message) = quitOnHost(parent, httpConn, appName)
-            if (failed) {
-                onFail?.run()
-            } else {
+        doQuit(parent, httpConn, appName) { failure ->
+            if (failure == null) {
                 onComplete?.run()
+            } else {
+                showQuitRefused(parent, appName, failure)
+                onFail?.run()
             }
+        }
+    }
 
-            val toastMessage = message
-            parent.runOnUiThread {
-                Toast.makeText(parent, toastMessage, Toast.LENGTH_LONG).show()
-            }
-        }.start()
+    /** Why the host did not quit [appName], on a Notice page; [reason] may be blank. Any thread. */
+    private fun showQuitRefused(parent: Activity, appName: String, reason: String?) {
+        Dialog.displayDialog(
+            parent,
+            parent.getString(R.string.nova_library_end_failed),
+            reason?.takeIf { it.isNotBlank() } ?: parent.getString(R.string.hosts_end_failed_message, appName),
+            false,
+        )
     }
 
     /**
@@ -754,11 +762,7 @@ object ServerHelper {
         } catch (e: Exception) {
             e.printStackTrace()
             onFail?.run()
-
-            val toastMessage = e.message
-            parent.runOnUiThread {
-                Toast.makeText(parent, toastMessage, Toast.LENGTH_LONG).show()
-            }
+            showQuitRefused(parent, app.appName, e.message)
         }
     }
 }

@@ -46,7 +46,6 @@
     <string name="searching_pc">Пошук головного ПК у локальній мережі…
 \n
 \nПереконайтеся, що Sunshine запущено на вашому головному ПК або GameStream увімкнено в налаштуваннях GeForce Experience SHIELD.</string>
-    <string name="lost_connection">З\'єднання з пристроєм втрачено</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">Відновити сесію</string>
     <string name="applist_menu_quit">Вийти з сесії</string>
@@ -57,16 +56,13 @@
     <string name="applist_refresh_msg">Оновлення застосунків…</string>
     <string name="applist_refresh_error_title">Помилка</string>
     <string name="applist_refresh_error_msg">Помилка отримання переліку застосунків</string>
-    <string name="applist_quit_app">Виходимо з</string>
     <string name="applist_quit_success">Успішний вихід з</string>
     <string name="applist_quit_fail">Помилка при виході</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Додати пристрій вручну</string>
     <string name="msg_add_pc">З\'єднання з пристроєм…</string>
     <string name="addpc_fail">Неможливо під\'єднатися до вибраного пристрою. Переконайтеся, що необхідні порти дозволені в налаштуваннях брандмауера.</string>
-    <string name="addpc_success">Пристрій додано успішно</string>
     <string name="addpc_unknown_host">Неможливо знайти пристрій за вказаною адресою. Переконайтеся, що ви не зробили помилок під час його написання.</string>
-    <string name="addpc_enter_ip">Ви повинні ввести IP адресу</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Загальні налаштування</string>
     <string name="title_resolution_list">Роздільна здатність</string>

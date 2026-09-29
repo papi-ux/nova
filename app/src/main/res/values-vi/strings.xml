@@ -109,7 +109,6 @@
     <string name="ip_hint">Địa chỉ IP của PC máy chủ</string>
     <string name="searching_pc">Đang tìm kiếm PC máy chủ trên mạng cục bộ của bạn…\n\n
         Đảm bảo Sunshine đang chạy trên PC máy chủ của bạn hoặc GameStream được bật trong cài đặt SHIELD của GeForce Experience.</string>
-    <string name="lost_connection">Mất kết nối với PC</string>
     <string name="title_details">Chi tiết</string>
     <string name="slow_connection_msg">Kết nối chậm với PC\nGiảm tốc độ bit của bạn</string>
     <string name="poor_connection_msg">Kết nối kém với PC</string>
@@ -140,7 +139,6 @@
     <string name="applist_refresh_msg">Đang làm mới ứng dụng…</string>
     <string name="applist_refresh_error_title">Lỗi</string>
     <string name="applist_refresh_error_msg">Không thể lấy danh sách ứng dụng</string>
-    <string name="applist_quit_app">Đang thoát</string>
     <string name="applist_quit_success">Thoát thành công</string>
     <string name="applist_quit_fail">Thoát thất bại</string>
     <string name="applist_details_id">ID ứng dụng:</string>
@@ -149,9 +147,7 @@
     <string name="title_add_pc">Thêm PC thủ công</string>
     <string name="msg_add_pc">Đang kết nối với PC…</string>
     <string name="addpc_fail">Không thể kết nối với máy tính được chỉ định. Đảm bảo rằng các cổng cần thiết được phép thông qua tường lửa.</string>
-    <string name="addpc_success">Thêm máy tính thành công</string>
     <string name="addpc_unknown_host">Không thể giải quyết địa chỉ PC. Đảm bảo rằng bạn không mắc lỗi chính tả trong địa chỉ.</string>
-    <string name="addpc_enter_ip">Bạn phải nhập địa chỉ IP</string>
     <string name="addpc_wrong_sitelocal">Địa chỉ đó không đúng. Bạn phải sử dụng địa chỉ IP công cộng của bộ định tuyến của mình để phát trực tuyến qua Internet.</string>
 
     <!-- Preferences -->

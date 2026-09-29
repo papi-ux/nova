@@ -1,7 +1,6 @@
 package com.papi.nova.preferences
 
 import android.app.Activity
-import android.widget.Toast
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
@@ -104,11 +103,9 @@ internal object NovaUpdateInstaller {
     ) {
         if (activity.isFinishing || activity.isDestroyed) return
         when (result) {
-            NovaUpdateInstallResult.StartedInstaller -> Toast.makeText(
-                activity,
-                R.string.nova_update_installer_started,
-                Toast.LENGTH_LONG,
-            ).show()
+            // Android's own install prompt is the answer, over the screen: a Toast said it again
+            // on top of the prompt (audit X2).
+            NovaUpdateInstallResult.StartedInstaller -> Unit
             NovaUpdateInstallResult.PermissionRequired -> Unit
             is NovaUpdateInstallResult.Blocked -> showInstallProblem(
                 activity,

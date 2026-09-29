@@ -68,7 +68,6 @@
     <string name="applist_menu_cancel">Ακύρωση</string>
     <string name="applist_menu_tv_channel">Προσθήκη στο κανάλι</string>
     <string name="applist_refresh_msg">Ανανέωση εφαρμογών…</string>
-    <string name="addpc_success">Ο υπολογιστής προστέθηκε με επιτυχία</string>
     <string name="addpc_unknown_host">Αδυναμία επίλυσης διεύθυνσης υπολογιστή. Βεβαιωθείτε ότι δεν κάνατε τυπογραφικό λάθος στη διεύθυνση.</string>
     <string name="title_fps_list">Ρυθμός καρέ βίντεο</string>
     <string name="summary_fps_list">Αύξηση για πιο ομαλή ροή βίντεο. Μειώστε για καλύτερες επιδόσεις σε συσκευές χαμηλότερων προδιαγραφών.</string>
@@ -138,13 +137,11 @@
 \nΑν το πρόβλημα παραμένει, δοκιμάστε να επανεγκαταστήσετε τα προγράμματα οδήγησης της κάρτας γραφικών και το GeForce Experience.</string>
     <string name="conn_terminated_title">Η σύνδεση τερματίστηκε</string>
     <string name="perf_overlay_netdrops">Πλαίσια που απορρίπτονται από τη σύνδεση δικτύου σας: %1$.2f%%</string>
-    <string name="applist_quit_app">Εγκατάλειψη</string>
     <string name="msg_add_pc">Σύνδεση στον υπολογιστή…</string>
     <string name="error_404">Το GFE επέστρεψε ένα σφάλμα HTTP 404. Βεβαιωθείτε ότι ο υπολογιστής σας χρησιμοποιεί μια υποστηριζόμενη κάρτα γραφικών. Η χρήση λογισμικού απομακρυσμένης επιφάνειας εργασίας μπορεί επίσης να προκαλέσει αυτό το σφάλμα. Δοκιμάστε την επανεκκίνηση του υπολογιστή σας ή την επανεγκατάσταση του GFE.</string>
     <string name="video_decoder_init_failed">Απέτυχε η προετοιμασία του αποκωδικοποιητή βίντεο. Η συσκευή σας ενδέχεται να μην υποστηρίζει την επιλεγμένη ανάλυση ή ρυθμό καρέ.</string>
     <string name="perf_overlay_dectime">Μέσος χρόνος αποκωδικοποίησης: %1$.2f ms</string>
     <string name="title_add_pc">Προσθήκη υπολογιστή χειροκίνητα</string>
-    <string name="lost_connection">Χάθηκε η σύνδεση με τον υπολογιστή</string>
     <string name="title_details">Λεπτομέρειες</string>
     <string name="applist_menu_resume">Συνέχιση περιόδου λειτουργίας</string>
     <string name="applist_menu_quit">Έξοδος από τη συνεδρία</string>
@@ -166,7 +163,6 @@
     <string name="applist_menu_scut">Δημιουργία συντόμευσης</string>
     <string name="applist_details_id">Αναγνωριστικό εφαρμογής:</string>
     <string name="addpc_fail">Αδυναμία σύνδεσης με τον καθορισμένο υπολογιστή. Βεβαιωθείτε ότι οι απαιτούμενες θύρες επιτρέπονται μέσω του τείχους προστασίας.</string>
-    <string name="addpc_enter_ip">Πρέπει να εισαγάγετε μια διεύθυνση IP</string>
     <string name="title_resolution_list">Ανάλυση βίντεο</string>
     <string name="summary_audio_config_list">Ενεργοποίηση ήχου surround 5.1 ή 7.1 για συστήματα οικιακού κινηματογράφου</string>
     <string name="category_input_settings">Ρυθμίσεις εισόδου</string>
