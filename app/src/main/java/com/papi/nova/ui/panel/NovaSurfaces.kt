@@ -15,7 +15,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.Lifecycle
@@ -26,8 +25,10 @@ import com.papi.nova.utils.ExternalDisplayControlHost
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,7 +77,9 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
     // Main thread only: which owner presented each page key still on the stack.
     private val presented = HashMap<String, NovaStateOwner>()
     private var window: NovaPanelWindow? = null
-    private var disposed = false
+
+    // Written on the main thread; read by confirm() and busy() from wherever they are called.
+    @Volatile private var disposed = false
 
     /**
      * Opens the panel with [root] at [edge]. [hints] join A and B in the hint bar, such as L1/R1
@@ -142,11 +145,32 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
     }
 
     /**
-     * Presents [page] and suspends until it is answered: true for its action, false for Stay, B,
-     * or the panel closing any other way, which runs the page's onStay as Stay does.
+     * Presents [page] and suspends until it is settled, exactly once, however the page goes:
+     *
+     *  - its action: true, after the page's onConfirm;
+     *  - the player leaving it, by Stay, B, the header, Start or Menu, the scrim, a drag, or a new
+     *    root or top page replacing it: false, after the page's onStay;
+     *  - the page removed quietly, by [clear], [dispose] or the screen going: false, and neither
+     *    callback runs;
+     *  - the caller cancelled: the page goes quietly and neither callback runs.
+     *
+     * The first of these wins. A press that lands after it, such as a release racing the panel's
+     * close, or a stale tap on the page on its way out, does nothing. A disposed instance answers
+     * false at once.
      */
     suspend fun confirm(page: NovaCommonPage.Confirm): Boolean = withContext(Dispatchers.Main.immediate) {
+        if (disposed) return@withContext false
         val answer = CompletableDeferred<Boolean>()
+        var settled = false
+        fun settle(confirmed: Boolean, callback: () -> Unit) {
+            if (settled) return
+            settled = true
+            try {
+                callback()
+            } finally {
+                answer.complete(confirmed)
+            }
+        }
         val asked = NovaCommonPage.Confirm(
             key = page.key,
             title = page.title,
@@ -154,57 +178,67 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
             stayLabel = page.stayLabel,
             actionLabel = page.actionLabel,
             destructive = page.destructive,
-            onConfirm = {
-                page.onConfirm()
-                answer.complete(true)
-            },
-            onStay = {
-                page.onStay()
-                answer.complete(false)
-            },
+            onConfirm = { settle(true, page.onConfirm) },
+            onStay = { settle(false, page.onStay) },
         )
         present(asked)
-        // Leaving the page any way runs its onStay; a quiet removal (clear, dispose) answers false.
-        val closedElsewhere = launch {
-            snapshotFlow { panel.contains(asked.key) }.first { !it }
-            answer.complete(false)
-        }
+        // Taken down quietly (clear, dispose): no callback runs. Every other way off the stack runs
+        // the page's onConfirm or onStay, which settle it.
+        val unwatch = panel.watchQuietRemoval(asked) { settle(false) {} }
         try {
             answer.await()
         } finally {
-            closedElsewhere.cancel()
+            unwatch()
+            // A caller that stops waiting settles it too, and its page goes without a callback.
+            settled = true
             panel.removeWhere { it === asked }
         }
     }
 
     /**
-     * Runs [block] under a full-screen Busy page titled [title]. With [cancelLabel], Cancel and B
-     * cancel the block, and this throws its CancellationException; without it the page cannot be
-     * left until the block ends.
+     * Runs [block] under a full-screen Busy page titled [title], and takes the page down when the
+     * block ends, however it ends.
+     *
+     * With [cancelLabel], Cancel and B cancel the block, once the page has been visible for the
+     * split guard, and this throws its CancellationException. Without it the page absorbs A and
+     * B, and nothing on the panel under it can leave it either: the panel is covered from the
+     * moment the page is posted, so its B, Start, Menu, scrim and drag do nothing.
+     *
+     * The page belongs to the block. Taken down by anything else, [clear] or [dispose], nobody can
+     * see the work or stop it any more, so the block is cancelled as a caller's cancellation would
+     * cancel it. A disposed instance runs nothing and throws CancellationException.
      */
     suspend fun <T> busy(
         title: String,
         message: String = "",
         cancelLabel: String? = null,
         block: suspend NovaBusyScope.() -> T,
-    ): T = coroutineScope {
-        val key = "nova-busy-" + busySerial.incrementAndGet()
-        val text = MutableStateFlow(message)
-        val fraction = MutableStateFlow<Float?>(null)
-        val job = coroutineContext.job
-        show(
-            NovaStatePage.Busy(
-                key = key,
-                title = title,
-                message = text,
-                progress = fraction,
-                cancel = cancelLabel?.let { NovaAction(it) { job.cancel() } },
-            ),
-        )
-        try {
-            BusyScope(this, text, fraction).block()
-        } finally {
-            dismiss(key)
+    ): T {
+        if (disposed) throw CancellationException("NovaSurfaces is disposed")
+        return coroutineScope {
+            val key = "nova-busy-" + busySerial.incrementAndGet()
+            val text = MutableStateFlow(message)
+            val fraction = MutableStateFlow<Float?>(null)
+            val job = coroutineContext.job
+            show(
+                NovaStatePage.Busy(
+                    key = key,
+                    title = title,
+                    message = text,
+                    progress = fraction,
+                    cancel = cancelLabel?.let { NovaAction(it) { job.cancel() } },
+                ),
+            )
+            val takenDown = launch(start = CoroutineStart.UNDISPATCHED) {
+                stateList.first { pages -> pages.none { it.key == key } }
+                job.cancel(CancellationException("Busy page $key was taken down"))
+            }
+            try {
+                BusyScope(this, text, fraction).block()
+            } finally {
+                takenDown.cancel()
+                dismiss(key)
+            }
         }
     }
 

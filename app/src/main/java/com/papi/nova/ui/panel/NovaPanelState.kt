@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import java.lang.ref.WeakReference
+import java.util.IdentityHashMap
 
 /** Where focus goes when a panel closes: a Compose element, a View (held weakly), or nowhere. */
 sealed interface NovaFocusReturn {
@@ -79,12 +80,16 @@ internal class NovaStackEntry(val id: Long, val page: NovaPage) {
  *
  * A [NovaCommonPage.Confirm] or [NovaCommonPage.Notice] that leaves the stack without being
  * answered, by the header, the scrim, Start, a close, a pop or a new root, runs its Stay or its
- * Close, after it has gone, exactly as if the player had chosen it.
+ * Close, after it has gone, exactly as if the player had chosen it. A page removed quietly
+ * ([removeWhere]: an owner clearing its pages, or the screen going) runs neither.
  */
 @Stable
 class NovaPanelState {
     private var nextId = 0L
     private val entries = mutableStateListOf<NovaStackEntry>()
+
+    // Told once when their page is removed quietly. Keyed by the page itself.
+    private val quietRemovals = IdentityHashMap<NovaPage, () -> Unit>()
 
     /** The edge the panel is attached to. */
     var edge: NovaEdge by mutableStateOf(NovaEdge.End)
@@ -169,10 +174,26 @@ class NovaPanelState {
 
     /**
      * Removes every page [predicate] matches, wherever it is in the stack, and quietly: an owner
-     * taking its own pages down (closeDialogs, a settled confirm) runs none of their callbacks.
+     * taking its own pages down (closeDialogs, a settled confirm) runs none of their callbacks,
+     * and only their [watchQuietRemoval] watchers hear of it.
      */
     internal fun removeWhere(predicate: (NovaPage) -> Boolean) {
-        entries.removeAll { predicate(it.page) }
+        val removed = entries.filter { predicate(it.page) }
+        if (removed.isEmpty()) return
+        entries.removeAll(removed)
+        removed.asReversed()
+            .filter { gone -> entries.none { it.page === gone.page } }
+            .forEach { quietRemovals.remove(it.page)?.invoke() }
+    }
+
+    /**
+     * Runs [onRemoved] once if [page] is removed quietly ([removeWhere]). Every other way off the
+     * stack runs a callback of the page's own: its answer, or the Stay or Close of
+     * [dismissUnanswered]. Returns what stops the watch.
+     */
+    internal fun watchQuietRemoval(page: NovaPage, onRemoved: () -> Unit): () -> Unit {
+        quietRemovals[page] = onRemoved
+        return { quietRemovals.remove(page) }
     }
 
     /** Runs Stay or Close for the pages in [removed] nobody answered, top first. */
