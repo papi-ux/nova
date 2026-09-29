@@ -1,5 +1,7 @@
 package com.papi.nova.ui.panel
 
+import android.content.Context
+import android.content.pm.PackageManager
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.View
@@ -89,6 +91,14 @@ object NovaRemoteInput {
 
     /** Whether [event], one that [tellsTheInput], came from a remote. */
     fun isRemote(event: KeyEvent): Boolean = isRemote(event.device?.sources ?: event.source)
+
+    /**
+     * Whether a screen names a remote's keys before any key is pressed: on a television, whose
+     * remote is what it is browsed with, the hint bar had named A, X and L1/R1 until the first
+     * press of the D-pad (C04).
+     */
+    fun startsOnRemote(context: Context): Boolean =
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
 }
 
 /** Remembers which key started a press, so only that key's release can finish it. */

@@ -279,8 +279,8 @@ internal fun NovaSettingsContent(
     opener.pyroWave = pyroWave
 
     // Whether the last key came from a remote, which has neither X nor shoulders: the hint bar then
-    // names its OK and Back, as the Library's does (C04).
-    var remoteKeys by remember { mutableStateOf(false) }
+    // names its OK and Back, as the Library's does (C04). A television starts there, before any key.
+    var remoteKeys by remember { mutableStateOf(NovaRemoteInput.startsOnRemote(context)) }
     // The row with focus, so the hint bar can say a hold resets it (C02).
     var focusedRow by remember { mutableStateOf<String?>(null) }
     val holdReset = focusedRow

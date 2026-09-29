@@ -235,6 +235,8 @@ class NovaLibraryActivity : NovaActivity() {
         NovaThemeManager.applyTheme(this)
         appliedTheme = NovaThemeManager.getTheme(this)
         super.onCreate(savedInstanceState)
+        // A television's hint bar names its remote's keys from the start, not after the first press (C04).
+        lastInputRemote = com.papi.nova.ui.panel.NovaRemoteInput.startsOnRemote(this)
 
         streamHost = intent.getStringExtra(EXTRA_HOST).orEmpty()
         streamPcName = intent.getStringExtra(EXTRA_SERVER_NAME).orEmpty()
