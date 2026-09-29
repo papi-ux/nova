@@ -639,11 +639,11 @@ object ServerHelper {
         onComplete: Runnable?,
         onFail: Runnable?,
     ) {
-        doQuit(parent, httpConn, appName) { failure ->
-            if (failure == null) {
+        doQuit(parent, httpConn, appName) { refusal ->
+            if (refusal == null) {
                 onComplete?.run()
             } else {
-                showQuitRefused(parent, appName, failure)
+                showQuitRefused(parent, appName, refusal.reason)
                 onFail?.run()
             }
         }
@@ -660,27 +660,35 @@ object ServerHelper {
     }
 
     /**
+     * Why the host did not quit a session: its [reason] in its own words, possibly blank, and
+     * whether the session was [startedElsewhere], by another device, which this one can never quit
+     * however often it asks.
+     */
+    data class QuitRefusal(val reason: String, val startedElsewhere: Boolean = false)
+
+    /**
      * Quits the running app as the doQuit above does, but floats nothing: [onResult] runs on the
-     * main thread with null once the host has quit it, or with the host's reason, possibly blank,
-     * when it did not, for the caller to say in place. The library strip says it where End was
-     * pressed, with Try Again.
+     * main thread with null once the host has quit it, or with the host's refusal when it did not,
+     * for the caller to say in place. The library strip says it where End was pressed, and offers
+     * Try Again only where asking again could work.
      */
     fun doQuit(
         parent: Activity,
         httpConn: NvHTTP,
         appName: String,
-        onResult: (failure: String?) -> Unit,
+        onResult: (refusal: QuitRefusal?) -> Unit,
     ) {
         Thread {
-            val (failed, message) = quitOnHost(parent, httpConn, appName)
-            parent.runOnUiThread { onResult(if (failed) message.orEmpty() else null) }
+            val refusal = quitOnHost(parent, httpConn, appName)
+            parent.runOnUiThread { onResult(refusal) }
         }.start()
     }
 
-    /** Asks the host to quit, on the calling thread: whether it failed, and what to say about it. */
-    private fun quitOnHost(parent: Activity, httpConn: NvHTTP, appName: String): Pair<Boolean, String?> {
+    /** Asks the host to quit, on the calling thread: null once it has, or why it did not. */
+    private fun quitOnHost(parent: Activity, httpConn: NvHTTP, appName: String): QuitRefusal? {
         var message: String? = null
         var failed = false
+        var startedElsewhere = false
         try {
             val serverInfo = httpConn.getServerInfo(true)
             val owned = httpConn.getCurrentGameOwned(serverInfo)
@@ -699,10 +707,9 @@ object ServerHelper {
             }
         } catch (e: HostHttpResponseException) {
             failed = true
+            startedElsewhere = e.getErrorCode() == 599
             message = if (e.getErrorCode() == 599) {
-                "This session wasn't started by this device," +
-                    " so it cannot be quit. End streaming on the original " +
-                    "device or the host itself. (Error code: " + e.getErrorCode() + ")"
+                parent.resources.getString(R.string.nova_library_end_started_elsewhere)
             } else {
                 e.message
             }
@@ -721,7 +728,7 @@ object ServerHelper {
             message = e.message
             e.printStackTrace()
         }
-        return failed to message
+        return if (failed) QuitRefusal(message.orEmpty(), startedElsewhere) else null
     }
 
     @JvmStatic

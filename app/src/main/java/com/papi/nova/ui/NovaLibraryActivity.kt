@@ -1355,14 +1355,19 @@ class NovaLibraryActivity : NovaActivity() {
      * Ends the running session on the host. Every End that reaches this, in the library and in
      * game detail, has already been confirmed in its own slot by a split, so this asks nothing more.
      * What happens is said where End was pressed, never in a Toast: Ending while the host is
-     * asked, and a refusal with Try Again, so the strip never stays on Ending (XR3).
+     * asked, and a refusal in the host's words, so the strip never stays on Ending (XR3). Try Again
+     * follows only a refusal that asking again could turn around: a session another device started,
+     * or one this device no longer holds the details of, says so and offers none.
      */
     private fun endActiveSession(session: NovaLibraryActiveSessionUiState) {
         val uniqueId = streamUniqueId
         val serverCert = streamServerCert
-        val refused = getString(R.string.nova_library_end_failed)
         if (uniqueId.isNullOrBlank() || serverCert == null) {
-            endStatus = NovaLibraryEndStatus.Failed(session.gameId, refused)
+            endStatus = NovaLibraryEndStatus.Failed(
+                session.gameId,
+                getString(R.string.nova_library_end_missing_session),
+                canRetry = false,
+            )
             LimeLog.warning("Nova: Cannot end session from library; missing uniqueId or server cert")
             return
         }
@@ -1376,8 +1381,8 @@ class NovaLibraryActivity : NovaActivity() {
             PolarisApiClient.decodeCertificate(serverCert),
             PlatformBinding.getCryptoProvider(this)
         )
-        ServerHelper.doQuit(this, httpConn, gameName) { failure ->
-            if (failure == null) {
+        ServerHelper.doQuit(this, httpConn, gameName) { refusal ->
+            if (refusal == null) {
                 val generation = beginActiveSessionRefresh()
                 activeSession = null
                 endStatus = null
@@ -1386,8 +1391,8 @@ class NovaLibraryActivity : NovaActivity() {
                     generation = generation,
                 )
             } else {
-                LimeLog.warning("Nova: The host did not end the session: $failure")
-                endStatus = NovaLibraryEndStatus.Failed(session.gameId, refused)
+                LimeLog.warning("Nova: The host did not end the session: ${refusal.reason}")
+                endStatus = novaLibraryEndRefused(session.gameId, refusal, getString(R.string.nova_library_end_failed))
                 refreshActiveSession(scheduleFollowUps = true)
             }
         }

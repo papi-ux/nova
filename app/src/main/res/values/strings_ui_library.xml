@@ -5,6 +5,12 @@
     <!-- Where End Session was pressed in the library, in the eyebrow's line beside Try Again, when
          the host did not end the session or this device lacks what the host needs to end it. -->
     <string name="nova_library_end_failed">Could not end the session</string>
+    <!-- In the same place, when another device started the session: this one can never end it, so
+         there is no Try Again. -->
+    <string name="nova_library_end_started_elsewhere">Another device started this session. End it there or on the host.</string>
+    <!-- In the same place, when Nova no longer holds what the host needs to end the session, so
+         asking again cannot work. -->
+    <string name="nova_library_end_missing_session">Nova lost this session\'s details. End it on the host.</string>
     <!-- A refresh that failed while the library still shows its games: the title of its Notice. -->
     <string name="nova_library_refresh_failed_title">Could not refresh the library</string>
     <!-- Beside an armed End Session in the library's top strip, which has no room for a longer line. -->

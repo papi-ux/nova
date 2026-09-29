@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -819,15 +820,21 @@ private fun NovaLibraryStageSessionHero(
             }
             // End splits in its own slot; armed, Resume steps aside so the pair has its room.
             val endSplit = rememberNovaSplitConfirmState()
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val resumeFocus = remember { FocusRequester() }
+            val handoff = rememberNovaEndFocusHandoff(
+                endShown = secondaryActionLabel != null && onSecondaryAction != null,
+                resume = resumeFocus,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = handoff.group) {
                 if (!endSplit.armed) NovaStageHeroAction(
                     label = actionLabel,
                     emphasized = true,
                     testTag = "nova-stage-session-action",
                     onClick = onAction,
+                    modifier = Modifier.focusRequester(resumeFocus),
                 )
                 if (secondaryActionLabel != null && onSecondaryAction != null) {
-                    NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction)
+                    NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction, modifier = handoff.end)
                 }
             }
         }
@@ -958,8 +965,16 @@ private fun NovaLibraryStageHero(
                         .testTag("nova-stage-metadata"),
                 )
             }
+            // Where a refused End leaves no Try Again, focus goes to Resume, or to the primary when
+            // there is no session action (XR3).
+            val resumeFocus = remember { FocusRequester() }
+            val hasSessionAction = sessionActionLabel != null && onSessionAction != null
+            val handoff = rememberNovaEndFocusHandoff(
+                endShown = secondaryActionLabel != null && onSecondaryAction != null,
+                resume = resumeFocus,
+            )
             Row(
-                modifier = Modifier.padding(top = if (compact) 4.dp else 10.dp),
+                modifier = Modifier.padding(top = if (compact) 4.dp else 10.dp).then(handoff.group),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (!endArmed) NovaStageHeroAction(
@@ -967,6 +982,7 @@ private fun NovaLibraryStageHero(
                     emphasized = true,
                     testTag = "nova-stage-primary-action",
                     onClick = onPrimaryAction,
+                    modifier = if (hasSessionAction) Modifier else Modifier.focusRequester(resumeFocus),
                 )
                 if (sessionActionLabel != null && onSessionAction != null && !endArmed) {
                     NovaStageHeroAction(
@@ -974,10 +990,11 @@ private fun NovaLibraryStageHero(
                         emphasized = false,
                         testTag = "nova-stage-session-action",
                         onClick = onSessionAction,
+                        modifier = Modifier.focusRequester(resumeFocus),
                     )
                 }
                 if (secondaryActionLabel != null && onSecondaryAction != null) {
-                    NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction)
+                    NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction, modifier = handoff.end)
                 }
             }
         }
@@ -989,14 +1006,19 @@ private fun NovaLibraryStageHero(
  * costs said once under the pair. The library ends the session without asking again.
  */
 @Composable
-private fun NovaStageEndAction(label: String, state: NovaSplitConfirmState, onConfirm: () -> Unit) {
+private fun NovaStageEndAction(
+    label: String,
+    state: NovaSplitConfirmState,
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     NovaSplitConfirm(
         label = label,
         confirmLabel = stringResource(R.string.game_dialog_action_end_session),
         onConfirm = onConfirm,
         consequence = stringResource(R.string.nova_panel_end_session_message),
         state = state,
-        modifier = Modifier.testTag("nova-stage-secondary-action"),
+        modifier = modifier.testTag("nova-stage-secondary-action"),
     )
 }
 

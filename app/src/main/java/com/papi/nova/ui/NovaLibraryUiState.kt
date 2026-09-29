@@ -175,16 +175,33 @@ data class NovaLibraryHeroState(
 
 /**
  * An End the library asked the host for, for the session of [gameId]: still on the wire, or
- * refused with [line] to show in place of the eyebrow. A refused End offers Try Again in End's
- * slot; nothing floats, and the strip never stays on "Ending session" once the host has answered.
+ * refused with [line] to show in place of the eyebrow, in the host's words where it gave some. A
+ * refused End offers Try Again in End's slot only where asking again [canRetry]: a session another
+ * device started, or one whose details Nova no longer holds, keeps its reason and loses End
+ * instead of offering a button that cannot work (XR3). Nothing floats, and the strip never stays
+ * on "Ending session" once the host has answered.
  */
 sealed interface NovaLibraryEndStatus {
     val gameId: Int
 
     data class Ending(override val gameId: Int) : NovaLibraryEndStatus
 
-    data class Failed(override val gameId: Int, val line: String) : NovaLibraryEndStatus
+    data class Failed(override val gameId: Int, val line: String, val canRetry: Boolean = true) : NovaLibraryEndStatus
 }
+
+/**
+ * What a refused End says in the library: the host's own words, or [fallback] when it gave none,
+ * and Try Again only when the session is this device's to end.
+ */
+internal fun novaLibraryEndRefused(
+    gameId: Int,
+    refusal: com.papi.nova.utils.ServerHelper.QuitRefusal,
+    fallback: String,
+): NovaLibraryEndStatus.Failed = NovaLibraryEndStatus.Failed(
+    gameId = gameId,
+    line = refusal.reason.trim().ifBlank { fallback },
+    canRetry = !refusal.startedElsewhere,
+)
 
 data class NovaLibraryUiModel(
     val allGames: List<PolarisGame>,
@@ -482,8 +499,9 @@ object NovaLibraryUiStateMapper {
     /**
      * The session hero with [status] applied, when it is about [session]'s game: Ending while the
      * host is asked, and after a refusal the refusal as the eyebrow and [tryAgainLabel] on End, so
-     * the strip, the home hero and the stage all say what happened where it happened. Anything
-     * else, or a status about a session that has gone, leaves [model] as it is.
+     * the strip, the home hero and the stage all say what happened where it happened. A refusal
+     * asking again cannot fix takes End away and leaves Resume. Anything else, or a status about a
+     * session that has gone, leaves [model] as it is.
      */
     fun withEndStatus(
         model: NovaLibraryUiModel,
@@ -504,7 +522,8 @@ object NovaLibraryUiStateMapper {
                 is NovaLibraryEndStatus.Failed -> hero.copy(
                     endStatus = status,
                     eyebrow = status.line,
-                    secondaryActionLabel = tryAgainLabel,
+                    secondaryActionLabel = tryAgainLabel.takeIf { status.canRetry },
+                    secondaryAction = hero.secondaryAction.takeIf { status.canRetry },
                 )
             },
         )

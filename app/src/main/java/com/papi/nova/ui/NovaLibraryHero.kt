@@ -34,7 +34,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -47,6 +51,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,7 +62,8 @@ import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
-import com.papi.nova.ui.compose.NovaActionButton
+import com.papi.nova.ui.compose.NovaActionSurface
+import com.papi.nova.ui.compose.NovaRevealingText
 import com.papi.nova.ui.compose.NovaBadge
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaFocusMotionSpec
@@ -309,8 +315,13 @@ private fun NovaLibraryHeroActions(
     onSecondaryAction: (() -> Unit)?,
     modifier: Modifier,
 ) {
+    val resumeFocus = remember { FocusRequester() }
+    val handoff = rememberNovaEndFocusHandoff(
+        endShown = hero.secondaryActionLabel != null && onSecondaryAction != null,
+        resume = resumeFocus,
+    )
     Column(
-        modifier = modifier,
+        modifier = modifier.then(handoff.group),
         verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)
     ) {
         // The panel's button, as the End split's halves are, so the two stacked buttons
@@ -318,7 +329,7 @@ private fun NovaLibraryHeroActions(
         if (!endArmed) NovaPanelButton(
             text = hero.actionLabel,
             onClick = onPrimaryAction,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(resumeFocus),
         )
         if (hero.secondaryActionLabel != null && onSecondaryAction != null) {
             NovaSplitConfirm(
@@ -329,9 +340,38 @@ private fun NovaLibraryHeroActions(
                 state = endSplit,
                 // As wide as Resume above it, so the pair reads as one column of buttons.
                 fillSlot = true,
-                modifier = Modifier.fillMaxWidth().testTag("nova-library-hero-end"),
+                modifier = Modifier.fillMaxWidth().then(handoff.end).testTag("nova-library-hero-end"),
             )
         }
+    }
+}
+
+/** What [rememberNovaEndFocusHandoff] marks: the actions' [group], and [end], End's own slot. */
+internal class NovaEndFocusHandoff(val group: Modifier, val end: Modifier)
+
+/**
+ * Hands focus to [resume] when End's slot goes while End holds focus. A refused End that asking
+ * again cannot turn around, a session another device started or one whose details Nova lost,
+ * takes End away (XR3), and the focus it held would have gone with it, leaving no ring. Losing
+ * focus to anything else first, while End is still there, cancels the handoff.
+ */
+@Composable
+internal fun rememberNovaEndFocusHandoff(endShown: Boolean, resume: FocusRequester): NovaEndFocusHandoff {
+    val shownNow by rememberUpdatedState(endShown)
+    val endHeld = remember { mutableStateOf(false) }
+    LaunchedEffect(endShown) {
+        if (!endShown && endHeld.value) {
+            endHeld.value = false
+            withFrameNanos { }
+            runCatching { resume.requestFocus() }
+        }
+    }
+    return remember(resume) {
+        NovaEndFocusHandoff(
+            // Read when focus leaves: End going away is not the player moving on.
+            group = Modifier.onFocusChanged { if (!it.hasFocus && shownNow) endHeld.value = false },
+            end = Modifier.onFocusChanged { if (it.hasFocus) endHeld.value = true },
+        )
     }
 }
 
@@ -515,8 +555,17 @@ internal fun RowScope.NovaLibraryStripContinue(
     // leaves the strip on Ending with neither action (XR3).
     val endFailed = hero.endStatus is NovaLibraryEndStatus.Failed
     var confirmed by remember(hero.game?.id) { mutableStateOf(false) }
+    val resumeFocus = remember { FocusRequester() }
     LaunchedEffect(hero.endStatus, confirmed) {
-        if (confirmed && endFailed) confirmed = false
+        if (confirmed && endFailed) {
+            confirmed = false
+            // A refusal asking again cannot fix brings no Try Again back to take focus where End
+            // was (XR3), so Resume takes it, and the strip keeps a ring.
+            if (hero.secondaryActionLabel == null) {
+                withFrameNanos { }
+                runCatching { resumeFocus.requestFocus() }
+            }
+        }
     }
     val ending = !endFailed && (confirmed || hero.endStatus is NovaLibraryEndStatus.Ending)
     Row(
@@ -606,17 +655,31 @@ internal fun RowScope.NovaLibraryStripContinue(
                     .semantics { liveRegion = LiveRegionMode.Polite }
                     .testTag("nova-library-showcase-ending"),
             )
-        } else if (!endArmed) NovaActionButton(
-            text = hero.actionLabel,
+        } else if (!endArmed) NovaActionSurface(
             onClick = onPrimaryAction,
-            modifier = Modifier.widthIn(min = 88.dp),
+            modifier = Modifier.widthIn(min = 88.dp).focusRequester(resumeFocus),
             // The card's own action is the next step, so it carries the accent; End Session stays quiet.
             primary = true,
             // Without the title on screen the action still says what it continues.
             contentDescription = if (fit.showContinueText) hero.actionLabel else "${hero.actionLabel}, ${hero.title}",
             minHeight = NOVA_LIBRARY_STRIP_BUTTON_HEIGHT,
-            fontSize = 10.sp,
-        )
+        ) { contentColor, focused ->
+            // One line, whole at the width the strip's fit measured for it. The strip is one fixed
+            // height and the button only as tall, so a label that wrapped had its second line cut
+            // through (C25). Where a large font still overruns the line, the rest shows while the
+            // button has focus.
+            val label = MaterialTheme.typography.labelLarge
+            NovaRevealingText(
+                text = hero.actionLabel,
+                highlighted = focused,
+                maxLines = 1,
+                color = contentColor,
+                fontSize = 10.sp,
+                lineHeight = label.lineHeight,
+                fontWeight = FontWeight.SemiBold,
+                style = label.copy(textAlign = TextAlign.Center),
+            )
+        }
         val secondaryLabel = hero.secondaryActionLabel
         if (secondaryLabel != null && onSecondaryAction != null && fit.showContinueSecondary && !ending) {
             NovaSplitConfirm(
