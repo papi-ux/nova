@@ -436,7 +436,7 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPage
                 }
             },
             label = page.exactLabel ?: stringResource(R.string.nova_panel_exact_value),
-            kind = if (negatives) NovaFieldKind.SignedNumber else NovaFieldKind.Number,
+            kind = novaExactFieldKind(negatives, divisor),
             maxLength = if (divisor == 1) {
                 maxOf(page.range.first.toString().length, page.range.last.toString().length)
             } else {
@@ -461,6 +461,16 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPage
 internal fun novaExactValueText(text: String, negatives: Boolean): String {
     val digits = text.filter(Char::isDigit)
     return if (negatives && text.trimStart().startsWith("-")) "-$digits" else digits
+}
+
+/**
+ * The exact field's keyboard: a minus key for a range below zero, and a decimal point for a field
+ * in a larger unit than the value, which keeps one decimal (12.5 Mbps of a kbps bitrate).
+ */
+internal fun novaExactFieldKind(negatives: Boolean, divisor: Int): NovaFieldKind = when {
+    negatives -> NovaFieldKind.SignedNumber
+    divisor > 1 -> NovaFieldKind.Decimal
+    else -> NovaFieldKind.Number
 }
 
 /** [value] in the exact field's unit: whole where it divides evenly, otherwise to one decimal. */

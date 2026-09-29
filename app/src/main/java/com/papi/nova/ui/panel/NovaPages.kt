@@ -42,8 +42,11 @@ data class NovaOption<out T>(
 @Immutable
 data class NovaAction(val label: String, val destructive: Boolean = false, val run: () -> Unit)
 
-/** What a field takes. [SignedNumber] is a number that may go below zero, so it takes a minus sign. */
-enum class NovaFieldKind { Text, Number, SignedNumber, Password, Url }
+/**
+ * What a field takes. [SignedNumber] is a number that may go below zero, so it takes a minus sign;
+ * [Decimal] is a number with a fraction, such as 12.5 Mbps, so it takes a decimal point.
+ */
+enum class NovaFieldKind { Text, Number, SignedNumber, Decimal, Password, Url }
 
 /** One field of a [NovaCommonPage.Form]. */
 @Immutable

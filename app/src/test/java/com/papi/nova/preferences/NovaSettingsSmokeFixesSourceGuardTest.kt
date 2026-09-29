@@ -27,9 +27,10 @@ class NovaSettingsSmokeFixesSourceGuardTest {
         val action = settings.substringAfter("private fun handleComposeAction(").substringBefore("private fun checkForNovaUpdate")
         assertTrue(action.contains("\"option_reset_osc_preference\" ->"))
         assertFalse("no floating snackbar on the way to legacy", action.contains("NovaSnackbar"))
-        assertTrue(action.contains("legacyOpenedFromCompose = true"))
+        // The row that opened the legacy screen is remembered, and B goes back to Compose on that row.
+        assertTrue(action.contains("legacyFallbackRow = definition.key"))
         val back = settings.substringAfter("private val leaveCallback").substringBefore("fun reloadSettings")
-        assertTrue(back.contains("if (legacyMode && legacyOpenedFromCompose)") && back.contains("showComposeSettings()"))
+        assertTrue(back.contains("if (legacyMode && row != null)") && back.contains("showComposeSettings(returnToRow = row)"))
     }
 
     @Test

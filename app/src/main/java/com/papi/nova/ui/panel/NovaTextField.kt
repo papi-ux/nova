@@ -217,10 +217,12 @@ fun NovaTextField(
     }
 }
 
-private val NovaFieldKind.keyboardType: KeyboardType
+internal val NovaFieldKind.keyboardType: KeyboardType
     get() = when (this) {
         NovaFieldKind.Text -> KeyboardType.Text
         NovaFieldKind.Number, NovaFieldKind.SignedNumber -> KeyboardType.Number
+        // Most keyboards leave out a key the field does not ask for: 12.5 could not be typed.
+        NovaFieldKind.Decimal -> KeyboardType.Decimal
         NovaFieldKind.Password -> KeyboardType.Password
         NovaFieldKind.Url -> KeyboardType.Uri
     }

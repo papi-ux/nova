@@ -87,6 +87,7 @@ import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionSurface
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.NovaSearchTextField
 import com.papi.nova.ui.compose.novaHoldsFirstFocus
 import com.papi.nova.ui.panel.NovaCommonPage
@@ -112,6 +113,7 @@ import com.papi.nova.ui.panel.novaRowRest
 import com.papi.nova.ui.panel.novaScrollEdgeFade
 import com.papi.nova.ui.panel.NovaRowContextScrolling
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -122,7 +124,9 @@ fun NovaSettingsScreen(
     onBack: () -> Unit,
     onOpenLegacy: () -> Unit,
     onAction: (NovaSettingDefinition) -> Unit,
-    headerActions: List<NovaSettingsHeaderAction> = emptyList()
+    headerActions: List<NovaSettingsHeaderAction> = emptyList(),
+    /** The row to put focus back on, such as the one that opened the Legacy screen B just left. */
+    returnToRow: String? = null,
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -148,7 +152,8 @@ fun NovaSettingsScreen(
             } else {
                 onAction(definition)
             }
-        }
+        },
+        returnToRow = returnToRow,
     )
 }
 
@@ -196,6 +201,9 @@ private object NovaSettingsMetrics {
     fun quickStripToContentSpacingDp(): Int = 6
     fun quickPillMaxWidthDp(): Int = 280
     fun searchClearMinHeightDp(): Int = 32
+
+    /** The least a finger is given to hit, whatever a control looks like. */
+    fun touchTargetMinDp(): Int = 48
 }
 
 /**
@@ -220,7 +228,8 @@ internal fun NovaSettingsContent(
     headerActions: List<NovaSettingsHeaderAction>,
     onResetSetting: (NovaSettingDefinition) -> Unit,
     onValue: NovaSettingWrite,
-    onSetting: (NovaSettingDefinition) -> Unit
+    onSetting: (NovaSettingDefinition) -> Unit,
+    returnToRow: String? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     val context = LocalContext.current
@@ -237,6 +246,13 @@ internal fun NovaSettingsContent(
     }
     val pane = remember { NovaPanelState().apply { open(SettingsPage.Rows(paneKey, rootTitle)) } }
     val focus = rememberNovaSettingsFocus(pane)
+    // Back from the Legacy screen a row opened lands on that row again, not on the rail's first
+    // category with the row out of sight in the pane. It waits as the rail's first focus would.
+    LaunchedEffect(Unit) {
+        val row = returnToRow ?: return@LaunchedEffect
+        delay(NOVA_FIRST_FOCUS_SETTLE_MS)
+        focus.enterPane(latestState.paneKey(), row)
+    }
     // A new category or a search swaps the pane's root; that also drops any page pushed over it.
     LaunchedEffect(paneKey, rootTitle) {
         val root = SettingsPage.Rows(paneKey, rootTitle)
@@ -381,7 +397,8 @@ internal fun NovaSettingsContent(
                         focus = focus,
                         onCategory = onCategory,
                         modifier = Modifier
-                            .novaHoldsFirstFocus()
+                            // A return to a row takes first focus itself.
+                            .then(if (returnToRow == null) Modifier.novaHoldsFirstFocus() else Modifier.focusGroup())
                             .width(NovaSettingsMetrics.categoryRailWidthDp().dp)
                             .fillMaxHeight()
                             // Ends on the pane's last line, above its hint bar, not beside the bar.
@@ -1164,7 +1181,8 @@ private fun NovaSettingRow(
 
 /**
  * Reset, for touch. A pad resets with X, so the button is not a focus stop and never sits between
- * a value row and its Left and Right.
+ * a value row and its Left and Right. It looks the size of a header button, and a finger has the
+ * full 48dp to hit.
  */
 @Composable
 private fun NovaSettingResetButton(enabled: Boolean, onReset: () -> Unit) {
@@ -1173,11 +1191,9 @@ private fun NovaSettingResetButton(enabled: Boolean, onReset: () -> Unit) {
     val label = stringResource(R.string.nova_settings_reset)
     val shape = RoundedCornerShape(NovaRadius.hero)
     val reset by rememberUpdatedState(onReset)
+    // The tap and the button's meaning span the full target; the outline inside it keeps the look.
     Box(
         modifier = Modifier
-            .heightIn(min = NovaPanelMetrics.ButtonMinHeight)
-            .clip(shape)
-            .border(NovaPanelMetrics.Hairline, surfaces.tileBorder, shape)
             .focusProperties { canFocus = false }
             .pointerInput(enabled) { if (enabled) detectTapGestures(onTap = { reset() }) }
             .semantics(mergeDescendants = true) {
@@ -1189,10 +1205,19 @@ private fun NovaSettingResetButton(enabled: Boolean, onReset: () -> Unit) {
                     }
                 }
             }
-            .padding(horizontal = NovaPanelMetrics.SpaceMd),
+            .heightIn(min = NovaSettingsMetrics.touchTargetMinDp().dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = label, style = novaPanelType.value, color = if (enabled) colors.textPrimary else colors.textMuted)
+        Box(
+            modifier = Modifier
+                .heightIn(min = NovaPanelMetrics.ButtonMinHeight)
+                .clip(shape)
+                .border(NovaPanelMetrics.Hairline, surfaces.tileBorder, shape)
+                .padding(horizontal = NovaPanelMetrics.SpaceMd),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = label, style = novaPanelType.value, color = if (enabled) colors.textPrimary else colors.textMuted)
+        }
     }
 }
 
@@ -1288,11 +1313,11 @@ internal fun NovaSettingsUiState.isEnabled(definition: NovaSettingDefinition): B
     return (value as? NovaSettingValue.BooleanValue)?.value ?: true
 }
 
-/** A slider's value as the player reads it: bitrates in Mbps (0 is Auto), anything else with its suffix. */
 /** A bitrate stored in kbps and shown in Mbps. */
 private fun NovaSettingDefinition.isBitrateKbps(): Boolean =
     key == PreferenceConfiguration.BITRATE_PREF_STRING || key == "seekbar_metered_bitrate_kbps"
 
+/** A slider's value as the player reads it: bitrates in Mbps (0 is Auto), anything else with its suffix. */
 internal fun formatSettingInt(context: Context, definition: NovaSettingDefinition, value: Int): String {
     return when (definition.key) {
         PreferenceConfiguration.BITRATE_PREF_STRING,

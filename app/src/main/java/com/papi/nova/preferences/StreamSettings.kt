@@ -24,6 +24,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
@@ -81,8 +82,11 @@ class StreamSettings : NovaActivity() {
     private var previousDisplayPixelCount = 0
     private var prefsFragment: SettingsFragment? = null
     private var legacyMode = false
-    /** Set when a row Compose cannot handle opened the legacy screen, so B goes back to Compose. */
-    private var legacyOpenedFromCompose = false
+    /**
+     * The row whose setting only the legacy screen has, while that screen shows for it, so B goes
+     * back to that row in Compose.
+     */
+    private var legacyFallbackRow: String? = null
 
     /**
      * Back leaves Settings, from the legacy screen and from Compose Settings when its pane has
@@ -91,11 +95,12 @@ class StreamSettings : NovaActivity() {
      */
     private val leaveCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
-            if (legacyMode && legacyOpenedFromCompose) {
-                // B goes back one level, to the Compose category that opened the legacy screen,
-                // not out of Settings altogether.
-                legacyOpenedFromCompose = false
-                showComposeSettings()
+            val row = legacyFallbackRow
+            if (legacyMode && row != null) {
+                // B goes back one level, to the Compose row that opened the legacy screen, not out
+                // of Settings altogether, and focus lands on that row again.
+                legacyFallbackRow = null
+                showComposeSettings(returnToRow = row)
             } else {
                 leaveSettings()
             }
@@ -143,7 +148,8 @@ class StreamSettings : NovaActivity() {
         return NovaSettingsFeatureFlags.isComposeSettingsEnabled(this)
     }
 
-    private fun showComposeSettings() {
+    private fun showComposeSettings(returnToRow: String? = null) {
+        val fromLegacy = legacyMode
         legacyMode = false
         val maxPanelFps = NovaDisplayFpsCapability.maxSupportedFps(windowManager.defaultDisplay)
         coerceStoredFpsToPanel(maxPanelFps)
@@ -170,6 +176,8 @@ class StreamSettings : NovaActivity() {
                 resetDefinitions = canonicalDefinitions
             )
         )[NovaSettingsViewModel::class.java]
+        // The legacy screen wrote the same preferences, so the rows read them again on the way back.
+        if (fromLegacy) viewModel.refresh()
         val content = ComposeView(this).apply {
             setContent {
                 NovaComposeTheme {
@@ -185,7 +193,8 @@ class StreamSettings : NovaActivity() {
                             NovaSettingsFeatureFlags.setComposeSettingsEnabled(this@StreamSettings, false)
                             showLegacySettings()
                         },
-                        onAction = ::handleComposeAction
+                        onAction = ::handleComposeAction,
+                        returnToRow = returnToRow,
                     )
                 }
             }
@@ -218,13 +227,22 @@ class StreamSettings : NovaActivity() {
         }
     }
 
-    private fun showLegacySettings() {
+    /**
+     * The legacy screen. For a row Compose cannot handle ([fallbackFor]) it says which setting it is
+     * showing and that Back returns, and its list opens on that setting.
+     */
+    private fun showLegacySettings(fallbackFor: NovaSettingDefinition? = null) {
         legacyMode = true
         setContentView(R.layout.activity_stream_settings)
 
         findViewById<View>(R.id.modernSettingsButton)?.setOnClickListener {
             NovaSettingsFeatureFlags.setComposeSettingsEnabled(this@StreamSettings, true)
+            legacyFallbackRow = null
             showComposeSettings()
+        }
+        findViewById<TextView>(R.id.legacyFallbackNote)?.let { note ->
+            note.text = fallbackFor?.let { getString(R.string.nova_settings_legacy_fallback, it.title) }
+            note.visibility = if (fallbackFor != null) View.VISIBLE else View.GONE
         }
 
         findViewById<View>(R.id.settingsHeader)?.let { header ->
@@ -249,6 +267,7 @@ class StreamSettings : NovaActivity() {
             }
         }
         reloadSettings()
+        fallbackFor?.let { prefsFragment?.scrollToPreference(it.key) }
         UiHelper.notifyNewRootView(this)
     }
 
@@ -266,8 +285,8 @@ class StreamSettings : NovaActivity() {
             "option_reset_osc_preference" ->
                 com.papi.nova.binding.input.virtual_controller.VirtualControllerConfigurationLoader.clearProfile(this)
             else -> {
-                legacyOpenedFromCompose = true
-                showLegacySettings()
+                legacyFallbackRow = definition.key
+                showLegacySettings(fallbackFor = definition)
             }
         }
     }

@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -94,9 +95,11 @@ class NovaSettingsPaneComposeTest {
     private var backs = 0
     private var actions = mutableListOf<String>()
 
-    private fun state() = NovaSettingsUiStateFactory.build(definitions, values, selected, "")
+    private var resettable by mutableStateOf<Set<String>>(emptySet())
 
-    private fun show(widthDp: Int = 900): NovaTestKeys {
+    private fun state() = NovaSettingsUiStateFactory.build(definitions, values, selected, "", resettableKeys = resettable)
+
+    private fun show(widthDp: Int = 900, returnToRow: String? = null): NovaTestKeys {
         val keys = rule.setPanelContent {
             val config = Configuration(LocalConfiguration.current).apply { screenWidthDp = widthDp }
             CompositionLocalProvider(LocalConfiguration provides config) {
@@ -117,6 +120,7 @@ class NovaSettingsPaneComposeTest {
                         done()
                     },
                     onSetting = { actions += it.key },
+                    returnToRow = returnToRow,
                 )
             }
         }
@@ -149,6 +153,26 @@ class NovaSettingsPaneComposeTest {
         val empty = category("empty").getBoundsInRoot()
         assertTrue("a category is at least a compact row tall", (input.bottom - input.top) >= 44.dp)
         assertEquals("categories sit the pane's compact row gap apart", 4f, (empty.top - input.bottom).value, 0.5f)
+    }
+
+    // B from the Legacy screen a row opened came back on the rail's first category, with the row
+    // out of sight in the pane (audit M13).
+    @Test
+    fun aReturnToARowPutsFocusOnThatRowNotOnTheRail() {
+        show(returnToRow = "frame_pacing")
+        settle()
+        row("frame_pacing").assertIsFocused()
+        assertEquals("stream", selected)
+    }
+
+    // Reset was 40dp tall on a handheld and 44dp elsewhere (audit C24). It keeps that look, and a
+    // finger has 48dp to hit.
+    @Test
+    fun resetKeepsItsLookAndAFingerHasTheFull48dp() {
+        resettable = setOf("checkbox_enable_hdr")
+        show()
+        val reset = rule.onNode(hasText("Reset") and hasClickAction()).getBoundsInRoot()
+        assertTrue("Reset's touch target is at least 48dp tall: $reset", reset.bottom - reset.top >= 48.dp)
     }
 
     @Test

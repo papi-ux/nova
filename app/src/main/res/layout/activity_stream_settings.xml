@@ -53,6 +53,16 @@
             android:letterSpacing="0.12"
             android:textAllCaps="true"
             android:paddingTop="4dp" />
+
+        <!-- Shown when a Compose row opened this screen: which setting it is, and that Back returns. -->
+        <TextView
+            android:id="@+id/legacyFallbackNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:textSize="14sp"
+            android:textColor="?attr/colorOnSurface"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- Preferences container -->

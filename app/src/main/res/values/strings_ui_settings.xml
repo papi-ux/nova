@@ -45,6 +45,8 @@
     <string name="nova_profiles_edit">Edit preset</string>
     <string name="nova_profiles_use">Use this preset</string>
     <string name="nova_profiles_stop_using">Stop using this preset</string>
+    <!-- A row only the Legacy screen can show: which setting that screen is showing, and the way back. -->
+    <string name="nova_settings_legacy_fallback">%1$s is on the Legacy screen. Back returns to Settings.</string>
 
     <!-- Updates and support -->
     <string name="nova_update_unknown_error">Unknown error</string>
