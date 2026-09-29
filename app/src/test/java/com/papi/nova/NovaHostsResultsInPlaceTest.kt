@@ -16,8 +16,8 @@ import org.robolectric.annotation.Config
  * LAN results, the QR pairing errors, a host that cannot open its app list or library, and the
  * update check's failure. Each is a Notice in the right edge panel now, or the screen's own state:
  * the update pill says Retry, and pairing on its way is the Pairing page. Why pairing came to a PIN
- * is said on the PIN page. The Sleep Host snackbars wait on papi's call (M12), and "Waking" and
- * "Checking Library" are progress with no in-place home yet.
+ * is said on the PIN page. Sleep Host's countdown, its Keep Awake and every answer are Notices too
+ * (M12). "Waking" and "Checking Library" are progress with no in-place home yet.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -49,6 +49,41 @@ class NovaHostsResultsInPlaceTest {
         assertEquals("say these on a Notice or in the screen's own state", emptySet<String>(), floating)
         assertTrue(results.getValue("Wake Host's result").contains("showHostsNotice(getString(R.string.pcview_quick_start_polaris), getString(failure))"))
         assertTrue("a ready host's library opening is the answer", results.getValue("Wake Host's result").contains("doNovaLibrary(computer)"))
+    }
+
+    @Test
+    fun sleepHostResultsAreNoticesNotSnackbars() {
+        val results = mapOf(
+            "the rail's tap, hold and refusals" to section("private fun bindHostPowerAction(", "private fun widenHostPowerTouchTarget("),
+            "the countdown and its Keep Awake" to section("private fun beginHostSleep(", "private fun requestHostSleep("),
+            "the host's answer" to section("private fun requestHostSleep(", "private fun awaitHostAsleep("),
+            "coming back after leaving mid countdown" to section("override fun onResume() {", "override fun onPause() {"),
+            "leaving mid countdown" to section("override fun onPause() {", "override fun onStop() {"),
+        )
+        val floating = results.filterValues { it.contains("NovaSnackbar") }.keys
+        assertEquals("say these on a Notice in the right edge panel (M12)", emptySet<String>(), floating)
+        assertFalse(
+            "the host menu's Sleep Host is confirmed by its split, so it does not count down again",
+            pcView.contains("override fun sleep() = beginHostSleep()"),
+        )
+        assertTrue(pcView.contains("override fun sleep() = sleepHostNow()"))
+        val now = section("private fun sleepHostNow(", "private fun takeDownSleepCountdown(")
+        assertTrue(now.contains("hostSleepSequence.startRequest()") && !now.contains("startCountdown"))
+        val countdown = section("private fun beginHostSleep(", "private fun sleepHostNow(")
+        assertTrue(
+            "Keep Awake is the countdown's close, so every way off its page calls the sleep off",
+            countdown.contains("closeLabel = getString(R.string.pcview_sleep_keep_awake)") &&
+                countdown.contains("onClose = { cancelPendingHostSleep() }"),
+        )
+        assertTrue(
+            "the grace running out takes the page down quietly, so Keep Awake does not answer it",
+            countdown.contains("takeDownSleepCountdown()\n            requestHostSleep(details)") &&
+                pcView.contains("novaSurfaces.panel.removeWhere { it.key == SLEEP_COUNTDOWN_PAGE }"),
+        )
+        assertFalse(
+            "no snackbar with a timer is left to float",
+            File("src/main/java/com/papi/nova/ui/NovaSnackbar.kt").readText().contains("fun showPendingWithCancel("),
+        )
     }
 
     @Test

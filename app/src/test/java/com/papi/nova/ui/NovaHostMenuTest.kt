@@ -128,6 +128,23 @@ class NovaHostMenuTest {
     }
 
     @Test
+    fun sleepHostSplitsInItsRowAndOneANeverSleepsAHost() {
+        // One A put the host to sleep behind a snackbar with a timer (M12). Now it splits in its
+        // row, as ending a session and deleting do: A arms it, the safe half is focused, and only
+        // A, Right, A confirms. The split is the confirm, so what it runs is the request itself.
+        val sleep = menu(host(), sleepOffered = true).first { it.key == "sleep" }
+        assertTrue("Sleep Host splits in its row", sleep is NovaMenuItem.Destructive)
+        sleep as NovaMenuItem.Destructive
+        assertEquals(context.getString(R.string.pcview_quick_sleep_host), sleep.label)
+        assertEquals(context.getString(R.string.pcview_quick_sleep_host), sleep.confirmLabel)
+        assertEquals("the safe half says what it keeps", context.getString(R.string.pcview_sleep_keep_awake), sleep.stayLabel)
+        assertEquals("the line under the pair says what happens", context.getString(R.string.pcview_sleep_consequence), sleep.consequence)
+        assertEquals(R.drawable.ic_eye_closed, sleep.icon)
+        sleep.onConfirm()
+        assertEquals(listOf("sleep"), ran)
+    }
+
+    @Test
     fun theNetworkTestStaysInThePanelAndDetailsIsAReadableNotice() {
         val items = menu(host())
         val test = items.first { it.key == "test_network" } as NovaMenuItem.Action

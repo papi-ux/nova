@@ -219,9 +219,18 @@ internal class NovaHostSheetMenu(
         )
     }
 
-    /** Splits in its own row into Stay and [confirmLabel], with [consequence] under the pair. */
-    fun destructive(action: NovaHostSheetAction, confirmLabel: String, consequence: String, run: () -> Unit) {
-        rows += action.split(confirmLabel, consequence, run = run)
+    /**
+     * Splits in its own row into [stayLabel], Stay unless it has a better word, and [confirmLabel],
+     * with [consequence] under the pair.
+     */
+    fun destructive(
+        action: NovaHostSheetAction,
+        confirmLabel: String,
+        consequence: String,
+        stayLabel: String? = null,
+        run: () -> Unit,
+    ) {
+        rows += action.split(confirmLabel, consequence, stayLabel, run)
     }
 
     /** Removing the host: a split in the last row, apart from what manages it, whose safe half is [stayLabel]. */
@@ -360,11 +369,16 @@ internal fun novaHostMenuItems(
         if (!libraryFirst) offerLibrary()
 
         // Only where a hold on the dashboard would work. An awake host has nothing to be woken
-        // for, so the row that used to say Wake Host here is gone rather than renamed.
+        // for, so the row that used to say Wake Host here is gone rather than renamed. One A
+        // never puts a host to sleep: the row splits, as ending a session does, with Keep Awake
+        // focused, and the split is the confirm (M12).
         if (sleepOffered) {
-            menu.manage(action("sleep", R.string.pcview_quick_sleep_host, R.string.pcview_sheet_caption_sleep, R.drawable.ic_eye_closed)) {
-                actions.sleep()
-            }
+            menu.destructive(
+                action("sleep", R.string.pcview_quick_sleep_host, R.string.pcview_sheet_caption_sleep, R.drawable.ic_eye_closed),
+                confirmLabel = context.getString(R.string.pcview_quick_sleep_host),
+                consequence = context.getString(R.string.pcview_sleep_consequence),
+                stayLabel = context.getString(R.string.pcview_sleep_keep_awake),
+            ) { actions.sleep() }
         }
         menu.manage(action("app_list", R.string.pcview_menu_app_list, R.string.pcview_sheet_caption_app_list, R.drawable.ic_menu)) {
             actions.appList()

@@ -1912,7 +1912,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     public override fun onDestroy() {
         serverGridView?.adapter = null
         serverGridView = null
-        // The pending sleep's Cancel lives in a snackbar on this screen. Once
+        // The pending sleep's Keep Awake is a page on this screen's panel. Once
         // the screen is gone there is nothing left to stop it with, so a
         // request nobody can call off must not still be waiting to fire.
         cancelPendingHostSleep()
@@ -1947,7 +1947,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         startComputerUpdates()
         if (hostSleepCancelledByLeaving) {
             hostSleepCancelledByLeaving = false
-            NovaSnackbar.showQuiet(this, getString(R.string.pcview_sleep_cancelled_on_leave))
+            showSleepNotice(getString(R.string.pcview_sleep_cancelled_on_leave))
         }
     }
 
@@ -1957,12 +1957,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         inForeground = false
         spaceParticleView?.pause()
         stopComputerUpdates(false)
-        // The pending sleep's Cancel is a snackbar on this screen. A player who
+        // The pending sleep's Keep Awake is a page on this screen. A player who
         // has left the screen can no longer reach it, so leaving calls the sleep
         // off, and coming back says so.
         findViewById<View>(R.id.actionStartPolaris)?.let { cancelHostSleepHold(it) }
         if (cancelPendingHostSleep()) {
-            NovaSnackbar.dismissActive()
+            takeDownSleepCountdown()
             hostSleepCancelledByLeaving = true
         }
     }
@@ -1993,7 +1993,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             override fun openLibrary() = doNovaLibrary(details)
             override fun checkLibrary() = maybeProbeLibraryReadiness(computer)
             override fun resume() = resumeOrWatchRunningGame(details)
-            override fun sleep() = beginHostSleep()
+            // Its split is the confirm, so the request goes out without a countdown after it.
+            override fun sleep() = sleepHostNow()
             override fun appList() = doAppList(details, false, false)
             override fun testNetwork() = ServerHelper.doNetworkTest(this@PcView)
             override fun delete() = removeComputer(details)
@@ -2484,11 +2485,11 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 } else {
                     R.string.pcview_sleep_hold_hint
                 }
-                NovaSnackbar.showQuiet(this, getString(hint))
+                showSleepNotice(getString(hint))
             } else if (preferredHostIsReachable()) {
                 // Awake, and sleep is not on offer: waking it again would do nothing, so the
                 // press says why the control cannot do what it is named for.
-                NovaSnackbar.showQuiet(this, hostSleepRefusal())
+                showSleepNotice(hostSleepRefusal())
             } else {
                 launchPolarisStartupForPreferredHost()
             }
@@ -2503,7 +2504,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (!preferredHostIsReachable()) {
                 return@setOnLongClickListener false
             }
-            NovaSnackbar.showQuiet(this, hostSleepRefusal())
+            showSleepNotice(hostSleepRefusal())
             true
         }
         button.setOnTouchListener { view, event ->
@@ -2655,7 +2656,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     /**
      * TalkBack cannot perform a timed hold, so Sleep Host is also a named
      * action in its actions menu. It goes through the same countdown with
-     * Cancel as the hold does.
+     * Keep Awake as the hold does.
      */
     private fun updateHostSleepAccessibilityAction(button: View, offer: Boolean) {
         // The dashboard refreshes often; only an actual change is worth an
@@ -2818,11 +2819,16 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
      * The hold is done, so the request is coming. It does not go out yet: once
      * the host is down there is nothing on the couch that can wake it, so the
      * undo has to sit in front of the request rather than after it.
+     *
+     * The undo is a Notice in the right edge panel with Keep Awake focused. A or
+     * B there, or the panel closing any other way, calls the sleep off, and the
+     * page goes quietly when the grace runs out. It was a snackbar with a timer
+     * that floated over the rail (M12).
      */
     private fun beginHostSleep() {
         val details = preferredHostPowerComputer()
         if (details == null) {
-            NovaSnackbar.showError(this, getString(R.string.pcview_polaris_start_no_server))
+            showSleepNotice(getString(R.string.pcview_polaris_start_no_server))
             return
         }
         // One request at a time: a second hold, or the TalkBack action, while
@@ -2831,25 +2837,53 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             return
         }
         updateHostPowerAction()
-        NovaSnackbar.showPendingWithCancel(
-            this,
-            getString(R.string.pcview_sleep_pending),
-            getString(R.string.pcview_sleep_cancel),
-        ) {
-            if (cancelPendingHostSleep()) {
-                NovaSnackbar.showQuiet(this, getString(R.string.pcview_sleep_cancelled))
-            }
-        }
+        novaSurfaces.present(
+            NovaCommonPage.Notice(
+                key = SLEEP_COUNTDOWN_PAGE,
+                title = getString(R.string.pcview_quick_sleep_host),
+                message = getString(R.string.pcview_sleep_pending),
+                closeLabel = getString(R.string.pcview_sleep_keep_awake),
+                onClose = { cancelPendingHostSleep() },
+            ),
+        )
         val pending = Runnable {
             hostSleepPending = null
             if (!hostSleepSequence.countdownElapsed()) {
                 return@Runnable
             }
-            NovaSnackbar.dismissActive()
+            takeDownSleepCountdown()
             requestHostSleep(details)
         }
         hostSleepPending = pending
         hostSleepHandler.postDelayed(pending, HoldToConfirm.SLEEP_GRACE_MILLIS)
+    }
+
+    /**
+     * Sleep Host from the host menu. Its split was the confirm, A, Right and A
+     * with Keep Awake focused, so the request goes out now, with no countdown
+     * after it (M12).
+     */
+    private fun sleepHostNow() {
+        val details = preferredHostPowerComputer()
+        if (details == null) {
+            showSleepNotice(getString(R.string.pcview_polaris_start_no_server))
+            return
+        }
+        if (!hostSleepSequence.startRequest()) {
+            return
+        }
+        updateHostPowerAction()
+        requestHostSleep(details)
+    }
+
+    /** Takes the countdown's page down quietly: when the grace runs out, Keep Awake is not the answer. */
+    private fun takeDownSleepCountdown() {
+        novaSurfaces.panel.removeWhere { it.key == SLEEP_COUNTDOWN_PAGE }
+    }
+
+    /** What Sleep Host came to, or why it cannot, on a Notice in the right edge panel. */
+    private fun showSleepNotice(message: String) {
+        showHostsNotice(getString(R.string.pcview_quick_sleep_host), message)
     }
 
     /** @return true when a countdown was running and is now stopped. */
@@ -2869,7 +2903,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         if (activeAddress == null || serverCert == null) {
             hostSleepSequence.finish()
             updateHostPowerAction()
-            NovaSnackbar.showError(this, getString(R.string.pcview_sleep_failed))
+            showSleepNotice(getString(R.string.pcview_sleep_failed))
             return
         }
         val httpsPort = if (computer.httpsPort > 0) computer.httpsPort else 47984
@@ -2896,20 +2930,15 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 }
                 hostSleepSequence.finish()
                 updateHostPowerAction()
+                // On a Notice, where it can be read: each of these floated as a snackbar (M12).
                 if (result.accepted && !wentDown) {
-                    NovaSnackbar.showError(
-                        this@PcView,
-                        stillAwakeReason.ifBlank { getString(R.string.pcview_sleep_did_not_sleep) },
-                    )
+                    showSleepNotice(stillAwakeReason.ifBlank { getString(R.string.pcview_sleep_did_not_sleep) })
                 } else if (result.accepted) {
-                    NovaSnackbar.show(this@PcView, getString(R.string.pcview_sleep_requested))
+                    showSleepNotice(getString(R.string.pcview_sleep_requested))
                 } else {
                     // The host knows whether this was polkit, a running stream
                     // or a setting nobody turned on. Prefer its sentence.
-                    NovaSnackbar.showError(
-                        this@PcView,
-                        result.message.ifBlank { getString(R.string.pcview_sleep_failed) },
-                    )
+                    showSleepNotice(result.message.ifBlank { getString(R.string.pcview_sleep_failed) })
                 }
             }
         }
@@ -3290,6 +3319,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             },
         )
         private const val SCAN_PAIR_CAMERA_PAGE = "scan-pair-camera"
+        private const val SLEEP_COUNTDOWN_PAGE = "host-sleep-countdown"
         private const val STATE_AUTO_NAVIGATED = "nova.pcview.autoNavigated"
         private const val STATE_FOCUS_THEME = "nova.pcview.focusTheme"
         private val SERVER_FILTER_IDS = intArrayOf(

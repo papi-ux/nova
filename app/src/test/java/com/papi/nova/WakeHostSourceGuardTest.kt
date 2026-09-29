@@ -49,9 +49,12 @@ class WakeHostSourceGuardTest {
             "wake and sleep share one button in one spot, so a stray tap on the way into the library must not be able to complete sleep",
             pcView.contains("startHostSleepHold(") && pcView.contains("hostSleepHold.isComplete(")
         )
+        // The undo was a snackbar with a timer; it is a Notice in the edge panel since M12, whose
+        // Keep Awake is focused and answers every way off the page.
         assertTrue(
             "the undo sits in front of the request, because a host that is already down cannot be woken from the couch",
-            pcView.contains("HoldToConfirm.SLEEP_GRACE_MILLIS") && pcView.contains("showPendingWithCancel(")
+            pcView.contains("HoldToConfirm.SLEEP_GRACE_MILLIS") && pcView.contains("key = SLEEP_COUNTDOWN_PAGE,") &&
+                pcView.contains("onClose = { cancelPendingHostSleep() }")
         )
         assertTrue(
             "a host that accepted the request but stayed awake must not leave 'going to sleep' on screen; the host is asked why",
@@ -125,7 +128,7 @@ class WakeHostSourceGuardTest {
         assertTrue(
             "a press on an awake host that will not sleep says why, instead of waking what is awake",
             pcView.contains("} else if (preferredHostIsReachable()) {") &&
-                pcView.contains("NovaSnackbar.showQuiet(this, hostSleepRefusal())") &&
+                pcView.contains("showSleepNotice(hostSleepRefusal())") &&
                 strings.contains("name=\"pcview_sleep_unavailable_not_offered\"")
         )
         assertTrue(

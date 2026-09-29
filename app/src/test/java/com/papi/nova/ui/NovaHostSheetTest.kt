@@ -144,7 +144,7 @@ class NovaHostSheetTest {
         assertTrue(
             "the same host the dashboard's control answers for, and its own word that this device may",
             pcView.contains("val sleepOffered = details.uuid == preferredHostPowerComputer()?.uuid && currentHostPowerAction() == HostPowerAction.SLEEP") &&
-                pcView.contains("override fun sleep() = beginHostSleep()")
+                pcView.contains("override fun sleep() = sleepHostNow()")
         )
         val online = menu.substringAfter("if (details.runningGameId != 0) {").substringBefore("menu.inPlace(action(\"test_network\"")
         assertTrue(online.contains("if (sleepOffered) {"))
