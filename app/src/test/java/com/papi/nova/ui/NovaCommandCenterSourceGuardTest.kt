@@ -971,6 +971,28 @@ class NovaCommandCenterSourceGuardTest {
         )
     }
 
+    /**
+     * XR2: the Command Center dimmed only a HUD that already existed. Choosing a HUD mode with the
+     * HUD off builds a new one, which started at full strength under the open panel.
+     */
+    @Test
+    fun aHudMadeWhileThePanelIsOpenStartsDimmed() {
+        val game = readSource("src/main/java/com/papi/nova/Game.kt")
+        val covered = game.section("fun setNovaHudCovered(covered:Boolean) {", "override fun cycleNovaHudFromController()")
+        assertTrue(
+            "Game keeps the covered state, so it outlives the HUD it was first given to",
+            covered.contains("novaHudCovered = covered") && covered.contains("novaHud?.setCovered(novaHudCovered"),
+        )
+        val show = game.section("fun showNovaHud():com.papi.nova.ui.NovaStreamHud {", "private fun configureNovaHud(")
+        val made = show.indexOf("novaHud = hud")
+        val applied = show.indexOf("applyNovaHudCovered()")
+        val shown = show.indexOf("hud!!.show()")
+        assertTrue(
+            "a new HUD takes the covered state before it shows, so it never flashes at full strength",
+            made in 0 until applied && applied in 0 until shown,
+        )
+    }
+
     @Test
     fun companionDeckSkipsUnchangedPerfIntervals() {
         val deck = readSource("src/main/java/com/papi/nova/ui/NovaCompanionCommandDeckView.kt")

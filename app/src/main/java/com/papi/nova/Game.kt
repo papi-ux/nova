@@ -7065,6 +7065,8 @@ hud = com.papi.nova.ui.NovaStreamHud(this@Game) {
 showGameMenu(null)
 }
 novaHud = hud
+// A HUD turned on from the Command Center starts as dim as the panel keeps the one it replaces (XR2).
+applyNovaHudCovered()
 hud!!.show()
 syncPerfTextWanted()
 configureNovaHud(hud!!)
@@ -7082,9 +7084,19 @@ hud.applySessionStatus(lastPolarisSessionStatus)
 schedulePolarisLiveSessionStatusRefresh(true)
 }
 
-/** Hides the HUD while a panel over the stream covers it, and brings it back after. */
+/**
+ * Dims the HUD while a panel over the stream covers it, and brings it back after. Kept here, not
+ * only in the HUD, so a HUD made while the panel is open is dimmed as well (XR2).
+ */
 fun setNovaHudCovered(covered:Boolean) {
-novaHud?.setCovered(covered)
+novaHudCovered = covered
+applyNovaHudCovered()
+}
+
+private var novaHudCovered:Boolean = false
+
+private fun applyNovaHudCovered() {
+novaHud?.setCovered(novaHudCovered)
 }
 
 override fun cycleNovaHudFromController() {
