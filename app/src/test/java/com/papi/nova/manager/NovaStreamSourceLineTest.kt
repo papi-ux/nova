@@ -56,9 +56,17 @@ class NovaStreamSourceLineTest {
     @Test fun savedBitrateOnlyDifferenceNamesBitrateWithTheRealHostSource() {
         val fields=JSONObject()
         for((key,value) in listOf("display_width" to 1920,"display_height" to 1080,"target_fps" to 120,"target_bitrate_kbps" to 45000))
-            fields.put(key,JSONObject().put("source","device_profile_v1").put("value",value))
+            fields.put(key,JSONObject().put("source","paired_client").put("value",value))
         val preflight=JSONObject().put("resolved_profile",JSONObject().put("policy_version",1).put("fields",fields))
         assertEquals("Host's saved copy · 45 Mbps",NovaStreamSourceLine.fromPreflight(preflight,NovaStreamSourceRequest(1920,1080,120.0,30000)).text)
+    }
+
+    @Test fun devicePolicyCannotMasqueradeAsThePairedClientsSavedCopy() {
+        val fields=JSONObject().put("target_bitrate_kbps",JSONObject().put("source","device_profile_v1").put("value",45000))
+        val preflight=JSONObject().put("resolved_profile",JSONObject().put("policy_version",1).put("fields",fields))
+        val line=NovaStreamSourceLine.fromPreflight(preflight,NovaStreamSourceRequest(1920,1080,120.0,30000))
+        assertEquals(NovaStreamSource.HOST_POLICY,line.source)
+        assertEquals("Host device profile",line.text)
     }
 
     @Test fun missingRequestAndMultipleLimitsKeepSourceAndConciseCopy() {

@@ -77,6 +77,26 @@ class NovaStreamTierRoundThreeTest {
             assertEquals(PreferenceConfiguration.getDefaultBitrate("2560x1440","120"),profile.getOptions()!!["seekbar_bitrate_kbps"])
         }
     }
+    @Test fun classicSparseEditInheritsTheEffectiveGeneratedBase() {
+        edit(mapOf("list_fps" to "60")) { activity,fragment,profile ->
+            NovaTierRuntime.installForTest(screen())
+            NovaStreamSettings.select(context,NovaTier.RECOMMENDED)
+            val memory=activity.getInMemoryPrefs()
+            resetRate(fragment,memory,null,"120")
+            profile.setOptions(memory.all.mapValues { it.value!! })
+            assertFalse(profile.getOptions()!!.containsKey("list_resolution"))
+            assertEquals(PreferenceConfiguration.getDefaultBitrate("3840x2160","120"),profile.getOptions()!!["seekbar_bitrate_kbps"])
+        }
+    }
+    @Test fun modeOnlyPyrowaveHostImportUsesTheRoomDistance() {
+        NovaTierRuntime.installForTest(screen())
+        prefs.edit().putString("list_resolution","1920x1080").putString("list_fps","60")
+            .putString("video_format","forcepyrowave").commit()
+        NovaSettingsMigration.apply(context)
+        assertTrue(PreferenceConfiguration.applyPolarisStreamingProfile(context,"1920x1080x120",0))
+        assertEquals(NovaBitrateAdvice.recommend(1920,1080,120,NovaCodecChoice.PYROWAVE,NovaDistance.ROOM).kbps,
+            prefs.getInt("seekbar_bitrate_kbps",0))
+    }
     @Test fun classicSizeChangeDoesNotPinInheritedFps() {
         edit(mapOf("list_resolution" to "1280x720")) { activity,fragment,profile ->
             val memory=activity.getInMemoryPrefs();resetRate(fragment,memory,"1920x1080",null)
