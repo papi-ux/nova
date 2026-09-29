@@ -525,8 +525,17 @@ object NovaThemeManager {
         }
     }
 
-    /** Returns the correct text muted color for the current theme */
-    fun getTextMutedColor(context: Context): Int {
+    /**
+     * Returns the muted text colour for the current theme: its own where that reads at 4.5:1 on the
+     * panel and a tile, each over the window, and otherwise that colour lifted toward the text colour
+     * until it does, as [getAccentTextColor] lifts an accent. A caption is text; Polaris's muted grey
+     * read at 3.7:1 on its card and OLED's at 3.0:1 (C23).
+     */
+    fun getTextMutedColor(context: Context): Int =
+        readableAccentFor(themeTextMutedColor(context), getTextPrimaryColor(context), fillSurfaces(context))
+
+    /** The theme's own muted text colour, before any contrast check. */
+    private fun themeTextMutedColor(context: Context): Int {
         return when {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_text_muted)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_text_muted)

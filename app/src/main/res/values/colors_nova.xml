@@ -31,7 +31,8 @@
     <color name="nova_oled_divider">#FF1a1a22</color>
     <color name="nova_oled_text_primary">#FFe0e6ed</color>
     <color name="nova_oled_text_secondary">#FFa8b0b8</color>
-    <color name="nova_oled_text_muted">#FF555e66</color>
+    <!-- 5.4:1 on the card and the panel. The #555E66 it replaces read at 3.0:1, too dim for a caption. -->
+    <color name="nova_oled_text_muted">#FF7F878E</color>
     <color name="nova_oled_accent">#FF8b80ff</color>
     <color name="nova_oled_accent_surface">#148b80ff</color>
 
@@ -79,7 +80,8 @@
     <!-- 01 Light Cyan -->
     <color name="nova_text_primary">#FFC8D6E5</color>
     <color name="nova_text_secondary">#FFa8b0b8</color>
-    <color name="nova_text_muted">#FF7a8e95</color>
+    <!-- 4.9:1 on the card and 5.7:1 on the panel; the #7A8E95 it replaces read at 3.7:1 on the card. -->
+    <color name="nova_text_muted">#FF91A4AD</color>
 
     <!-- 04 Medium Purple. The blue this replaces was never the brand accent, and the
          detail window had ended up drawing both at once. -->

@@ -326,6 +326,51 @@ class NovaThemeManagerTest {
         assertTrue("still violet", Color.blue(aurora) > Color.green(aurora) && Color.blue(aurora) > Color.red(aurora))
     }
 
+    // Muted captions read at 3.71:1 on the Polaris card and 3.03:1 on the OLED card (audit C23).
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun everyThemesMutedCaptionReadsOnItsPanelAndTilesInDarkMode() {
+        assertMutedCaptionsRead()
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "notnight")
+    fun everyThemesMutedCaptionReadsOnItsPanelAndTilesInLightMode() {
+        assertMutedCaptionsRead()
+    }
+
+    private fun assertMutedCaptionsRead() {
+        listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+            NovaThemeManager.THEME_MATERIAL_YOU,
+        ).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val muted = NovaThemeManager.getTextMutedColor(context)
+            NovaThemeManager.fillSurfaces(context).forEach { surface ->
+                val ratio = ColorUtils.calculateContrast(muted, ColorUtils.setAlphaComponent(surface, 255))
+                assertTrue("$theme muted caption reads at 4.5:1, not $ratio", ratio >= 4.5)
+            }
+        }
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun aMutedCaptionStaysQuieterThanASecondaryLine() {
+        listOf(NovaThemeManager.THEME_POLARIS, NovaThemeManager.THEME_OLED).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val card = ColorUtils.setAlphaComponent(NovaThemeManager.fillSurfaces(context).last(), 255)
+            assertTrue(
+                "$theme keeps muted below secondary",
+                ColorUtils.calculateContrast(NovaThemeManager.getTextMutedColor(context), card) <
+                    ColorUtils.calculateContrast(NovaThemeManager.getTextSecondaryColor(context), card),
+            )
+        }
+    }
+
     @Test
     fun anAccentThatAlreadyReadsIsKept() {
         val dark = listOf(Color.rgb(20, 20, 30))
