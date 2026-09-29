@@ -286,7 +286,8 @@ val policyBlocked:Boolean,
 val profilePreference:String,
 val resolvedProfileTrusted:Boolean,
 val policyMessage:String = "",
-val policyReason:com.papi.nova.manager.LaunchRefusalReason? = null
+val policyReason:com.papi.nova.manager.LaunchRefusalReason? = null,
+val manualBitrateMaximumKbps:Int = com.papi.nova.preferences.NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS
 )
 private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
@@ -1407,7 +1408,7 @@ com.papi.nova.manager.NovaLaunchPolicyGateStore.Decision(
 optimizationJson = launchDecision.optimization?.toString(),
 profilePreference = launchDecision.profilePreference,
 resolvedProfileTrusted = launchDecision.resolvedProfileTrusted,
-manualBitrateMaximumKbps = launchManualBitrateMaximumKbps
+manualBitrateMaximumKbps = launchDecision.manualBitrateMaximumKbps
 )
 )
 runOnMainIfRuntimeActive {
@@ -2966,7 +2967,6 @@ if (novaApiClient == null)
 return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
 }
 
-launchManualBitrateMaximumKbps = com.papi.nova.preferences.NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS
 val hostKind = try
 {
 novaApiClient!!.identifyLaunchHost()
@@ -2986,7 +2986,7 @@ if (hostKind != com.papi.nova.api.PolarisLaunchHostKind.CURRENT_POLARIS)
 LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch authority")
 return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_TOO_OLD)
 }
-launchManualBitrateMaximumKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
+val observedManualMaximumKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
 novaApiClient!!.getLaunchCapabilities()?.features?.manualBitrateMaxKbps)
 val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(
 width = requestedWidth,
@@ -2994,7 +2994,7 @@ height = requestedHeight,
 fps = requestedFps,
 displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(displayLocked,
     com.papi.nova.manager.WorkerLaunchContract.isProfileApp(safeAppIdentity)),
-bitrateKbps = (if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate).coerceAtMost(launchManualBitrateMaximumKbps),
+bitrateKbps = (if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate).coerceAtMost(observedManualMaximumKbps),
 bitrateLocked = com.papi.nova.manager.NovaTierLaunchPolicy.bitrateLocked(prefConfig.videoFormat,
     com.papi.nova.manager.WorkerLaunchContract.isProfileApp(safeAppIdentity), bitrateLocked)
 )
@@ -3137,7 +3137,8 @@ LimeLog.severe("Nova: Rejecting resolved profile outside the launch envelope: " 
 return blocked(envelopeViolation)
 }
 }
-return LaunchOptimizationDecision(optimizationResult, false, preference, true)
+return LaunchOptimizationDecision(optimizationResult, false, preference, true,
+manualBitrateMaximumKbps = observedManualMaximumKbps)
 }
 
 private fun getMaxSupportedRefreshRate(display:Display?):Float {

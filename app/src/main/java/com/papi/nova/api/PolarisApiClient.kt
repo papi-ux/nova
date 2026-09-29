@@ -3542,7 +3542,7 @@ class PolarisApiClient @JvmOverloads constructor(
         return try {
             // This API object belongs to one paired host. Shortcut and game-page preflights
             // may arrive before any feature probe; never borrow another host's ceiling.
-            if (latestCapabilities == null) getLaunchCapabilities()
+            val launchCapabilities = getLaunchCapabilities()
             val url = "$baseUrl${buildOptimizationPath(
                 device = device,
                 game = game,
@@ -3556,7 +3556,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 fps = fps,
                 displayLocked = displayLocked,
                 bitrateKbps = bitrateKbps.coerceAtMost(com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
-                    latestCapabilities?.features?.manualBitrateMaxKbps)),
+                    launchCapabilities?.features?.manualBitrateMaxKbps)),
                 bitrateLocked = bitrateLocked,
                 hdr = hdr,
                 clientMaxFps = clientMaxFps,
