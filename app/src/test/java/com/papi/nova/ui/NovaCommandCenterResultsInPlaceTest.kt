@@ -20,11 +20,13 @@ class NovaCommandCenterResultsInPlaceTest {
         return substringAfter(start).substringBefore(end)
     }
 
+    /** NovaCommandCenterLiveTuningResultComposeTest runs the save through to the row. */
     @Test
     fun aFailedLiveTuningSaveIsSaidOnItsRow() {
         val save = menu.section("onLiveTuning = {", "onToggleAdvanced = {")
         assertFalse("nothing about the save floats", save.contains("NovaSnackbar"))
-        assertTrue("the failure is the row's caption", save.contains("liveTuningResult = game.getString(R.string.nova_cc_live_tuning_unconfirmed)"))
+        assertTrue("the save goes through the one that says its result on the row", save.contains("liveTuningSave?.request(enable, observed)"))
+        assertFalse(File("src/main/java/com/papi/nova/ui/NovaLiveTuningSave.kt").readText().contains("NovaSnackbar"))
         assertTrue(state.section("private fun liveTuningAction(", "private fun liveTuningCaption(").contains("result != null -> result"))
     }
 

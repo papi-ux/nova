@@ -129,10 +129,9 @@ class NovaQuickMenu(
         var profileClearResult: String? = null
         var diagnosticsCopied = false
         var hostStateUnavailable = false
-        var liveTuningPending = false
         // Results said in their rows' own captions for a moment, where snackbars had floated.
-        var liveTuningResult: String? = null
-        var liveTuningResults = 0
+        // Live Tuning's switch and its result, set once the page can be refreshed.
+        var liveTuningSave: NovaLiveTuningSave? = null
         var launchPresetSaved = false
         var launchPresetSaves = 0
         lateinit var scheduleDoctorVerification: (DoctorActionReceipt?) -> Unit
@@ -448,8 +447,8 @@ class NovaQuickMenu(
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
                 hostStateUnavailable = hostStateUnavailable,
-                liveTuningPending = liveTuningPending,
-                liveTuningResult = liveTuningResult,
+                liveTuningPending = liveTuningSave?.pending == true,
+                liveTuningUnconfirmed = liveTuningSave?.unconfirmed,
                 adaptiveSupported = adaptiveSupported,
                 aiSupported = aiSupported,
                 adaptiveEnabled = adaptiveEnabled,
@@ -500,6 +499,18 @@ class NovaQuickMenu(
                 syncDoctorReceiptScope()
                 uiState.value = buildState()
             } else uiState.value = buildState()
+        }
+
+        liveTuningSave = apiClient?.let { api ->
+            NovaLiveTuningSave(
+                launch = { block -> game.launchRuntimeIo("NovaLiveTuningSave") { block() } },
+                onMain = { block -> game.runOnMainIfRuntimeActive { if (menuValidationIsCurrent()) block() } },
+                later = { delayMs, block -> game.window.decorView.postDelayed(block, delayMs) },
+                save = { enable, observed -> api.setLiveTuningEnabled(enable, observed) },
+                fetch = { api.getSessionStatus() },
+                publish = { hostStateUnavailable = !publishCurrentSessionStatus() },
+                changed = { refreshState() },
+            )
         }
 
         fun sendQuickKey(actionId: NovaQuickMenuActionId) {
@@ -879,34 +890,10 @@ class NovaQuickMenu(
             },
             onLiveTuning = { enable ->
                 val observed = sessionStatus
-                if (apiClient != null && observed?.canAdjustHostTuning == true && !hostStateUnavailable && !liveTuningPending) {
-                    // The state the split offered, not a flip of whatever the host says now.
-                    val desired = enable
-                    liveTuningPending = true
-                    liveTuningResult = null
-                    refreshState()
-                    game.launchRuntimeIo("NovaLiveTuningSave") {
-                        val success = apiClient.setLiveTuningEnabled(desired, observed)
-                        apiClient.getSessionStatus()
-                        game.runOnMainIfRuntimeActive {
-                            if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
-                            liveTuningPending = false
-                            hostStateUnavailable = !publishCurrentSessionStatus()
-                            if (!success) {
-                                // Said in the row's own caption, where the switch was asked for.
-                                // Counted, so an earlier failure's timer never cuts a later one short.
-                                liveTuningResult = game.getString(R.string.nova_cc_live_tuning_unconfirmed)
-                                val shown = ++liveTuningResults
-                                game.window.decorView.postDelayed({
-                                    if (liveTuningResults == shown) {
-                                        liveTuningResult = null
-                                        refreshState()
-                                    }
-                                }, PROFILE_CLEAR_RESULT_SHOWN_MS)
-                            }
-                            refreshState()
-                        }
-                    }
+                if (observed?.canAdjustHostTuning == true && !hostStateUnavailable) {
+                    // The state the split offered, not a flip of whatever the host says now; the
+                    // result is said in the row's own caption (NovaLiveTuningSave).
+                    liveTuningSave?.request(enable, observed)
                 }
             },
             onToggleAdvanced = {

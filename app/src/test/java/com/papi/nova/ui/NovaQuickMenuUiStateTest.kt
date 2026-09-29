@@ -1156,13 +1156,36 @@ class NovaQuickMenuUiStateTest {
     /**
      * Review finding 5: a Live Tuning save the host did not confirm floated an error snackbar, and
      * a Launch Preset pick floated "Launch preset saved for next launch". Each is its row's caption.
+     * Live Tuning's says the state the host reports now, as its chip does, and never "Try again",
+     * which from that state would undo the change; it is announced, and a failed refresh of the
+     * host's state does not hide it behind Reconnecting.
      */
     @Test
     fun liveTuningAndLaunchPresetSayTheirResultsOnTheirRows() {
-        val failed = quickState(status = status(), liveTuningResult = "The host did not confirm the change. Try again.")
-        assertEquals("The host did not confirm the change. Try again.", failed.liveTuningAction.caption)
-        val again = quickState(status = status(), liveTuningPending = true, liveTuningResult = "The host did not confirm the change. Try again.")
+        val fixtures = org.json.JSONArray(javaClass.getResource("/live-tuning-v1.json")!!.readText())
+        fun live(name: String) = (0 until fixtures.length()).map { fixtures.getJSONObject(it) }
+            .first { it.getString("name") == name }
+            .let { com.papi.nova.api.LiveTuningStatus.parse(it.getJSONObject("live_tuning"))!! }
+        val on = status().copy(liveTuning = live("stable"), liveTuningPresent = true)
+        val off = status().copy(liveTuning = live("off"), liveTuningPresent = true)
+
+        val kept = quickState(status = on, liveTuningUnconfirmed = false)
+        assertEquals("asked for Off, the host kept On", "The host kept Live Tuning On.", kept.liveTuningAction.caption)
+        assertEquals("as its chip says", "On", kept.liveTuningAction.chip?.label)
+        assertTrue("said to TalkBack", kept.liveTuningAction.announce)
+        assertEquals("The host kept Live Tuning Off.", quickState(status = off, liveTuningUnconfirmed = true).liveTuningAction.caption)
+
+        val applied = quickState(status = off, liveTuningUnconfirmed = false)
+        assertEquals("applied with its answer lost: nothing went wrong", "The bitrate stays where the stream started.", applied.liveTuningAction.caption)
+        assertFalse(applied.liveTuningAction.announce)
+
+        val unanswered = quickState(status = on, hostStateUnavailable = true, liveTuningUnconfirmed = false)
+        assertEquals("a failed refresh still says the save failed", "The host did not answer, so the change is not confirmed.", unanswered.liveTuningAction.caption)
+        assertEquals("Unknown", unanswered.liveTuningAction.chip?.label)
+
+        val again = quickState(status = on, liveTuningPending = true, liveTuningUnconfirmed = false)
         assertEquals("a new save says Saving", "Saving…", again.liveTuningAction.caption)
+        assertFalse(again.liveTuningAction.announce)
 
         assertEquals("Applies next launch for Portal", quickState(status = status()).stability.profileCaption)
         assertEquals("Saved. Applies next launch for Portal", quickState(status = status(), launchPresetSaved = true).stability.profileCaption)
@@ -1223,7 +1246,8 @@ class NovaQuickMenuUiStateTest {
         status: PolarisSessionStatus?,
         apiAvailable: Boolean = true,
         liveTuningPending: Boolean = false,
-        liveTuningResult: String? = null,
+        liveTuningUnconfirmed: Boolean? = null,
+        hostStateUnavailable: Boolean = false,
         launchPresetSaved: Boolean = false,
         adaptiveSupported: Boolean = true,
         aiSupported: Boolean = true,
@@ -1246,7 +1270,8 @@ class NovaQuickMenuUiStateTest {
         status = status,
         apiAvailable = apiAvailable,
         liveTuningPending = liveTuningPending,
-        liveTuningResult = liveTuningResult,
+        liveTuningUnconfirmed = liveTuningUnconfirmed,
+        hostStateUnavailable = hostStateUnavailable,
         launchPresetSaved = launchPresetSaved,
         adaptiveSupported = adaptiveSupported,
         aiSupported = aiSupported,

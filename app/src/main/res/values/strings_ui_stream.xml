@@ -20,8 +20,11 @@
     <string name="nova_cc_doctor_ai_only">AI explanation only</string>
     <!-- The Doctor card's line for a reading that only informs, before what pressing it does. -->
     <string name="nova_cc_doctor_nothing_to_fix">Nothing to fix · %1$s</string>
-    <!-- Command Center: Live Tuning's caption when the host did not confirm a switch. -->
-    <string name="nova_cc_live_tuning_unconfirmed">The host did not confirm the change. Try again.</string>
+    <!-- Command Center: Live Tuning's caption for a moment after a switch the host did not confirm:
+         the state the host reports now, which the row's chip shows, or that it did not answer. -->
+    <string name="nova_cc_live_tuning_kept_on">The host kept Live Tuning On.</string>
+    <string name="nova_cc_live_tuning_kept_off">The host kept Live Tuning Off.</string>
+    <string name="nova_cc_live_tuning_unconfirmed">The host did not answer, so the change is not confirmed.</string>
     <!-- Command Center: Alt + F4 splits in place; the confirming half and the line under the pair. -->
     <string name="nova_cc_close_app">Close App</string>
     <string name="nova_cc_alt_f4_consequence">Sends Alt + F4, which closes the focused window on the host, usually the game.</string>

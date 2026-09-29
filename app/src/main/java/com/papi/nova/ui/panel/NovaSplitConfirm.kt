@@ -186,6 +186,13 @@ fun NovaSplitConfirm(
      */
     trailing: (@Composable () -> Unit)? = null,
     tone: NovaSplitTone = NovaSplitTone.Destructive,
+    /** What [trailing] shows, for a screen reader, which hears the row's state from it. */
+    stateDescription: String? = null,
+    /**
+     * [caption] holds a result a screen reader should hear as it arrives, such as a switch the
+     * host did not confirm: it is a polite live region while this is true.
+     */
+    announceCaption: Boolean = false,
 ) {
     val confirm by rememberUpdatedState(onConfirm)
     val destructive = tone == NovaSplitTone.Destructive
@@ -281,7 +288,9 @@ fun NovaSplitConfirm(
                     // A row at rest reads as the rows around it: the tile, its label at the start.
                     row = shape == NovaSplitShape.Row,
                     caption = caption?.takeIf { shape == NovaSplitShape.Row && it.isNotBlank() },
+                    announceCaption = announceCaption,
                     trailing = trailing?.takeIf { shape == NovaSplitShape.Row },
+                    stateDescription = stateDescription?.takeIf { shape == NovaSplitShape.Row },
                     buttonStyle = buttonStyle,
                     modifier = Modifier
                         .then(if (fills) Modifier.fillMaxWidth() else Modifier.onSizeChanged { slotWidth = it.width })
@@ -376,7 +385,9 @@ private fun SplitHalf(
     tile: Boolean = false,
     row: Boolean = false,
     caption: String? = null,
+    announceCaption: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
+    stateDescription: String? = null,
     buttonStyle: NovaSplitButtonStyle? = null,
     fillsUnderFocus: Boolean = true,
     onClick: () -> Unit,
@@ -391,7 +402,10 @@ private fun SplitHalf(
         // accent ring with its fill stood off it under focus, as every armed half does.
         fillAtRest = filled,
         fillsUnderFocus = fillsUnderFocus,
-        contentDescription = text,
+        // The caption is part of what the row says: a description of the label alone hid it, and a
+        // result in it, from a screen reader.
+        contentDescription = listOfNotNull(text, caption).joinToString(". "),
+        stateDescription = stateDescription,
         minHeight = minHeight,
         cornerRadius = if (rowCorner) NovaRadius.row else NovaRadius.hero,
         contentAlignment = if (row) Alignment.CenterStart else Alignment.Center,
@@ -445,7 +459,14 @@ private fun SplitHalf(
                 } else {
                     Column(modifier = label, verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
                         Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
-                        Text(text = caption, style = novaPanelType.caption, color = colors.textSecondary, maxLines = 2)
+                        // Every line of it: a result such as "The host did not answer, so the change is
+                        // not confirmed." was cut at two lines at a large font scale.
+                        Text(
+                            text = caption,
+                            style = novaPanelType.caption,
+                            color = colors.textSecondary,
+                            modifier = if (announceCaption) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
+                        )
                     }
                 }
                 trailing?.invoke()

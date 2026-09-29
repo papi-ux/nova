@@ -849,7 +849,10 @@ private fun NovaPageScope.NovaQuickMenuLiveTuningRow(
         shape = NovaSplitShape.Row,
         enabled = row.enabled,
         caption = row.caption,
+        // A result in the caption, such as a switch the host did not confirm, is said to TalkBack.
+        announceCaption = row.announce,
         trailing = row.chip?.let { chip -> { NovaQuickMenuChipView(chip) } },
+        stateDescription = row.chip?.label,
         tone = NovaSplitTone.Neutral,
         modifier = novaPlaceFocus(row.id, reopenHere = false).testTag("nova-cc-live-tuning"),
     )

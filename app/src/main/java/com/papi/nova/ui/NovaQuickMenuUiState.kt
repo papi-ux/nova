@@ -58,7 +58,12 @@ data class NovaQuickMenuAction(
     val chip: NovaQuickMenuChip? = null,
     val enabled: Boolean = true,
     val visible: Boolean = true,
-    val destructive: Boolean = false
+    val destructive: Boolean = false,
+    /**
+     * The caption is a result a screen reader should hear as it arrives, such as a switch the
+     * host did not confirm: the row announces it politely.
+     */
+    val announce: Boolean = false
 )
 
 data class NovaQuickMenuPreferenceOption(
@@ -198,8 +203,11 @@ data class NovaQuickMenuUiState(
             apiAvailable: Boolean,
             hostStateUnavailable: Boolean = false,
             liveTuningPending: Boolean = false,
-            /** Why the last Live Tuning switch did not take, shown as its caption for a while. */
-            liveTuningResult: String? = null,
+            /**
+             * What the last Live Tuning switch asked for when the host did not confirm it, while
+             * its row says so; null otherwise.
+             */
+            liveTuningUnconfirmed: Boolean? = null,
             adaptiveSupported: Boolean,
             aiSupported: Boolean,
             adaptiveEnabled: Boolean,
@@ -511,7 +519,7 @@ data class NovaQuickMenuUiState(
                     status = status,
                     enabledNow = autoQuality.enabled,
                     pending = liveTuningPending,
-                    result = liveTuningResult,
+                    unconfirmed = liveTuningUnconfirmed,
                     hostStateUnavailable = hostStateUnavailable,
                     canAdjustHostTuning = canAdjustHostTuning,
                     adaptiveSupported = adaptiveSupported,
@@ -830,25 +838,39 @@ data class NovaQuickMenuUiState(
             status: PolarisSessionStatus?,
             enabledNow: Boolean,
             pending: Boolean,
-            result: String?,
+            unconfirmed: Boolean?,
             hostStateUnavailable: Boolean,
             canAdjustHostTuning: Boolean,
             adaptiveSupported: Boolean,
         ): NovaQuickMenuAction {
             // A Space streams at the bitrate it started with and says so; that is not an unknown.
             val fixedForSpace = status?.liveTuningUnavailable == true && status.liveTuning == null
+            val unknown = hostStateUnavailable || status == null ||
+                (!fixedForSpace && status.liveTuningPresent && status.liveTuning == null)
             val chipLabel = when {
-                hostStateUnavailable || status == null -> R.string.nova_cc_live_tuning_unknown
+                unknown -> R.string.nova_cc_live_tuning_unknown
                 fixedForSpace -> R.string.nova_cc_live_tuning_fixed
-                status.liveTuningPresent && status.liveTuning == null -> R.string.nova_cc_live_tuning_unknown
                 enabledNow -> R.string.nova_quick_menu_on
                 else -> R.string.nova_quick_menu_off
             }
+            // A switch the host did not confirm is said here, where it was asked for, not in a
+            // snackbar: the state the host reports now, which the chip shows, and nothing that asks
+            // the player to try again, which from the chip's state would undo what they asked for.
+            // The host may have applied it and lost its answer; then there is nothing to say.
+            val result = unconfirmed?.let { asked ->
+                when {
+                    unknown -> context.getString(R.string.nova_cc_live_tuning_unconfirmed)
+                    enabledNow != asked -> context.getString(
+                        if (enabledNow) R.string.nova_cc_live_tuning_kept_on else R.string.nova_cc_live_tuning_kept_off,
+                    )
+                    else -> null
+                }
+            }?.takeIf { !pending }
             val caption = when {
                 pending -> context.getString(R.string.nova_cc_live_tuning_saving)
-                hostStateUnavailable -> context.getString(R.string.nova_cc_live_tuning_reconnecting)
-                // The last switch did not take: said here, where it was asked for, not in a snackbar.
+                // Ahead of Reconnecting: a status refresh that failed too must not hide the failure.
                 result != null -> result
+                hostStateUnavailable -> context.getString(R.string.nova_cc_live_tuning_reconnecting)
                 fixedForSpace -> context.getString(R.string.nova_cc_live_tuning_space)
                 else -> liveTuningCaption(context, status)
             }
@@ -860,6 +882,7 @@ data class NovaQuickMenuUiState(
                     context.getString(chipLabel),
                     if (enabledNow) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE,
                 ),
+                announce = result != null,
                 // The row stays enabled while a save is pending: the caption already says
                 // Saving, onLiveTuning ignores a second press, and disabling the row under a
                 // controller cursor drops focus mid-press.
