@@ -24,22 +24,24 @@
     <string name="nova_cc_close_app">Close App</string>
     <string name="nova_cc_alt_f4_consequence">Sends Alt + F4, which closes the focused window on the host, usually the game.</string>
     <!-- Command Center: More Controls. -->
-    <string name="nova_cc_android_keyboard">Android keyboard</string>
+    <!-- More Controls' rows in title case, as every other row name in the Command Center is. -->
+    <string name="nova_cc_android_keyboard">Android Keyboard</string>
     <string name="nova_cc_android_keyboard_caption">Types into the host with this device\'s keyboard.</string>
-    <string name="nova_cc_zoom">Pan and zoom</string>
-    <string name="nova_cc_floating_button">Floating button</string>
-    <string name="nova_cc_special_keys_layout">On-screen special keys</string>
-    <string name="nova_cc_touch_sensitivity">Touch sensitivity</string>
+    <string name="nova_cc_zoom">Pan and Zoom</string>
+    <string name="nova_cc_floating_button">Floating Button</string>
+    <string name="nova_cc_special_keys_layout">On-Screen Special Keys</string>
+    <!-- A switch: on, the stream uses the custom sensitivity set in Settings. -->
+    <string name="nova_cc_touch_sensitivity">Custom Touch Sensitivity</string>
     <string name="nova_cc_task_manager">Task Manager</string>
     <string name="nova_cc_task_manager_caption">Sends Ctrl + Shift + Esc to the host.</string>
-    <string name="nova_cc_fetch_clipboard">Fetch clipboard</string>
+    <string name="nova_cc_fetch_clipboard">Fetch Clipboard</string>
     <string name="nova_cc_fetch_clipboard_caption">Copies the host\'s clipboard to this device.</string>
     <string name="nova_cc_on">On</string>
     <string name="nova_cc_off">Off</string>
     <string name="nova_cc_controller_section">Controller</string>
-    <string name="nova_cc_controller_mouse">Controller as mouse</string>
+    <string name="nova_cc_controller_mouse">Controller as Mouse</string>
     <!-- Command Center: the Mouse Mode page, opened from the Controls row. -->
-    <string name="nova_cc_mouse_mode">Mouse mode</string>
+    <string name="nova_cc_mouse_mode">Mouse Mode</string>
     <string name="nova_cc_host_section">Host</string>
     <string name="nova_cc_touch_section">Touch and screen</string>
 

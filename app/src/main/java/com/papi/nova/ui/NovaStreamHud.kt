@@ -102,6 +102,8 @@ class NovaStreamHud(
             }
             setupTouchHandler(composeView)
             hudView = composeView
+            // Shown from the Command Center's own row, it starts as dim as the panel keeps it.
+            composeView.alpha = coveredAlpha()
 
             val margin = (12 * activity.resources.displayMetrics.density).toInt()
             val params = FrameLayout.LayoutParams(
@@ -233,11 +235,19 @@ class NovaStreamHud(
         pendingLongPress = null
     }
 
-    /** Fades the HUD out while a panel covers the stream, and back in when it closes. */
+    /**
+     * Dims the HUD while a panel covers the stream, and brings it back when it closes. Dimmed, not
+     * hidden: the Command Center's own Nova HUD rows change it, and the change should still show.
+     */
     fun setCovered(covered: Boolean) {
+        this.covered = covered
         hudView?.animate()?.cancel()
-        hudView?.animate()?.alpha(if (covered) 0f else 1f)?.setDuration(150L)?.start()
+        hudView?.animate()?.alpha(coveredAlpha())?.setDuration(150L)?.start()
     }
+
+    private var covered = false
+
+    private fun coveredAlpha(): Float = if (covered) COVERED_ALPHA else 1f
 
     fun cycleMode() {
         applyMode(currentMode.next())
@@ -524,6 +534,7 @@ class NovaStreamHud(
     companion object {
         private const val DRAG_THRESHOLD = 12f
         private const val HUD_SAFE_MARGIN_DP = 12f
+        private const val COVERED_ALPHA = 0.25f
         private const val PREF_HUD_X = "nova_polaris_hud_x"
         private const val PREF_HUD_Y = "nova_polaris_hud_y"
         fun isEnabled(activity: Activity): Boolean {

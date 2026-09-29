@@ -45,6 +45,21 @@ class NovaCopySmokeFixesTest {
     }
 
     @Test
+    fun commandCenterRowsAreInTitleCase() {
+        for (id in listOf(
+            R.string.nova_cc_mouse_mode,
+            R.string.nova_cc_android_keyboard,
+            R.string.nova_cc_zoom,
+            R.string.nova_cc_fetch_clipboard,
+            R.string.nova_cc_controller_mouse,
+        )) {
+            val words = context.getString(id).split(' ').filter { it.length > 3 }
+            assertTrue(context.getString(id), words.all { it.first().isUpperCase() })
+        }
+        assertEquals("Meta", context.getString(R.string.game_menu_send_keys_win))
+    }
+
+    @Test
     fun aPushedCommandCenterPageKeepsTheRootsWidth() {
         assertEquals(NovaPanelWidth.Wide, CommandCenterPage.Keys("Keys", emptyList()).width)
         assertEquals(NovaPanelWidth.Wide, CommandCenterPage.MoreControls("More Controls", emptyList()).width)

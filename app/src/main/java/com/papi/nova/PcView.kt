@@ -1362,9 +1362,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if ((computers == null || computers.isEmpty()) && runningPolling) View.VISIBLE else View.GONE
         // Down from the filter chips reaches the empty state's first action, not the grey box
         // around the chips.
+        // Once rows are listed the first row takes over again (setServerFilterNextFocusDown).
         val emptyShowing = computers.isNullOrEmpty() || pcGridAdapter.itemCount == 0
-        for (filterId in SERVER_FILTER_IDS) {
-            setNextFocusDown(filterId, if (emptyShowing) R.id.emptyRefresh else View.NO_ID)
+        if (emptyShowing) {
+            for (filterId in SERVER_FILTER_IDS) setNextFocusDown(filterId, R.id.emptyRefresh)
         }
 
         if (computers == null || computers.isEmpty()) {
