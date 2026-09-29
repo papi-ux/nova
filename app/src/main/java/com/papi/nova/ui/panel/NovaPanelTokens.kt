@@ -130,6 +130,12 @@ object NovaPanelMetrics {
     val TvSafeVertical: Dp = 27.dp
 
     val FocusRingWidth: Dp = 3.dp
+    /**
+     * How far a scrolling list's edge fades while more lies past it. Half a compact row: the
+     * focused row keeps a whole row of context between it and the edge, so the fade only ever
+     * covers the row beyond.
+     */
+    val EdgeFade: Dp = 24.dp
     /** The hint bar's tint over the panel, before the menu opacity setting. */
     const val HintBarAlpha = 0.86f
     /** Top and bottom padding of a hint's key chip. */

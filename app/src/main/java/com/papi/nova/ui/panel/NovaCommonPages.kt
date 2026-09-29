@@ -79,25 +79,30 @@ internal fun NovaPageScope.NovaCommonPageContent(page: NovaCommonPage, exit: Nov
     }
 }
 
-/** Rows in the page's own list, with content padding so no row is cut at rest. */
+/**
+ * Rows in the page's own list, with content padding so no row is cut at rest, and its edges
+ * faded while more lies past them.
+ */
 @Composable
 private fun NovaPageScope.PageList(content: LazyListScope.() -> Unit) {
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().novaScrollEdgeFade(listState),
         content = content,
     )
 }
 
-/** A short page that is not a list: scrolls if it must, padded like one. */
+/** A short page that is not a list: scrolls if it must, padded like one, its edges faded. */
 @Composable
 private fun PageColumn(content: @Composable () -> Unit) {
+    val scroll = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .novaScrollEdgeFade(scroll)
+            .verticalScroll(scroll)
             .padding(vertical = NovaPanelMetrics.SpaceSm),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
     ) { content() }

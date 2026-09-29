@@ -102,6 +102,8 @@ import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaRowRest
+import com.papi.nova.ui.panel.novaScrollEdgeFade
+import com.papi.nova.ui.panel.NovaRowContextScrolling
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -728,25 +730,29 @@ private fun NovaSettingsCategoryRail(
     modifier: Modifier = Modifier
 ) {
     val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
-    LazyColumn(
-        state = focus.railState,
-        modifier = modifier,
-        // The pane's own row gap, so the rail and the rows beside it read as one stack of tiles.
-        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
-        contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm)
-    ) {
-        itemsIndexed(state.categories, key = { _, category -> category.key }) { _, category ->
-            NovaCategoryRow(
-                category = category,
-                selected = category.key == state.selectedCategoryKey && state.searchQuery.isBlank(),
-                modifier = focus.categoryModifier(category, state, onCategory),
-                onClick = {
-                    focus.pane.popToRoot()
-                    onCategory(category.key)
-                    // A on a category enters its rows, as Right does; a tap only shows them.
-                    if (keyboard) focus.enterPane(category.key)
-                }
-            )
+    // It scrolls as the pane's rows do, a row of context past the focused category, so the edge
+    // fade only ever covers the category beyond it and the last one never runs into the screen.
+    NovaRowContextScrolling {
+        LazyColumn(
+            state = focus.railState,
+            modifier = modifier.novaScrollEdgeFade(focus.railState),
+            // The pane's own row gap, so the rail and the rows beside it read as one stack of tiles.
+            verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
+            contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm)
+        ) {
+            itemsIndexed(state.categories, key = { _, category -> category.key }) { _, category ->
+                NovaCategoryRow(
+                    category = category,
+                    selected = category.key == state.selectedCategoryKey && state.searchQuery.isBlank(),
+                    modifier = focus.categoryModifier(category, state, onCategory),
+                    onClick = {
+                        focus.pane.popToRoot()
+                        onCategory(category.key)
+                        // A on a category enters its rows, as Right does; a tap only shows them.
+                        if (keyboard) focus.enterPane(category.key)
+                    }
+                )
+            }
         }
     }
 }
@@ -858,6 +864,7 @@ private fun NovaPageScope.NovaSettingsRowsPage(
         state = listState,
         modifier = Modifier
             .fillMaxWidth()
+            .novaScrollEdgeFade(listState)
             .then(focus.rootGate)
             .focusGroup(),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),

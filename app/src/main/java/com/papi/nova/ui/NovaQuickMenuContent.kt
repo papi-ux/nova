@@ -70,6 +70,7 @@ import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaRowRest
+import com.papi.nova.ui.panel.novaScrollEdgeFade
 import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
 import kotlinx.coroutines.flow.StateFlow
 
@@ -166,6 +167,7 @@ fun NovaPageScope.NovaQuickMenuContent(
     val advancedExpanded by ui.slice { it.advancedExpanded }
     val showReport by ui.slice { it.advancedExpanded && it.postSessionReport.visible }
 
+    val sections = rememberScrollState()
     Column(modifier = modifier.fillMaxSize()) {
         // The header stays put. Close, Disconnect and End Session are under the thumb however
         // far the sections have been scrolled; they used to scroll away on a Retroid.
@@ -174,7 +176,9 @@ fun NovaPageScope.NovaQuickMenuContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
+                // A card cut by the edge under the header or above the hint bar dissolves there.
+                .novaScrollEdgeFade(sections)
+                .verticalScroll(sections)
                 .padding(vertical = NovaPanelMetrics.SpaceSm),
             verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
         ) {

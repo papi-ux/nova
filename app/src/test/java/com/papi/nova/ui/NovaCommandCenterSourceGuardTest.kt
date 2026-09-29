@@ -714,7 +714,7 @@ class NovaCommandCenterSourceGuardTest {
             "@Composable\nprivate fun NovaPageScope.NovaQuickMenuHeader("
         )
         val header = body.indexOf("NovaQuickMenuHeader(ui, callbacks, endSplit)")
-        val scroll = body.indexOf(".verticalScroll(rememberScrollState())")
+        val scroll = body.indexOf(".verticalScroll(sections)")
         val strip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier.novaInitialFocus())")
 
         assertTrue(

@@ -17,8 +17,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.gestures.BringIntoViewSpec
-import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -198,10 +196,6 @@ fun NovaPageStackHost(
     val formFactor = LocalNovaFormFactor.current
     val panelDensity = LocalNovaPanelDensity.current
     val padding = NovaPanelMetrics.panelPadding(formFactor)
-    val contextPx = with(LocalDensity.current) {
-        (NovaPanelMetrics.rowMinHeight(formFactor) + NovaPanelMetrics.RowGap).toPx()
-    }
-    val contextSpec = remember(contextPx) { NovaContextBringIntoViewSpec(contextPx) }
     val focusRefresh = LocalNovaFocusRefresh.current
 
     Column(
@@ -277,7 +271,7 @@ fun NovaPageStackHost(
                                 .padding(top = NovaPanelMetrics.headerTopPadding(formFactor, panelDensity)),
                         )
                         Box(modifier = Modifier.padding(horizontal = padding)) {
-                            CompositionLocalProvider(LocalBringIntoViewSpec provides contextSpec) {
+                            NovaRowContextScrolling {
                                 val page = shown.page
                                 if (page is NovaCommonPage) {
                                     scope.NovaCommonPageContent(page, scope.exit)
@@ -388,24 +382,6 @@ internal class NovaPageExit(
     /** Leaves without answering, as the header does: a Confirm left this way stays. */
     fun back() {
         if (mayAct()) leave()
-    }
-}
-
-/**
- * Scrolls a focused row into view together with one row of context on the side it scrolls
- * toward, so the row after the focused one is never cut at the list's edge.
- */
-@OptIn(ExperimentalFoundationApi::class)
-private class NovaContextBringIntoViewSpec(private val contextPx: Float) : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val margin = minOf(contextPx, ((containerSize - size) / 2f).coerceAtLeast(0f))
-        val leading = offset - margin
-        val trailing = offset + size + margin
-        return when {
-            leading >= 0f && trailing <= containerSize -> 0f
-            leading < 0f -> leading
-            else -> trailing - containerSize
-        }
     }
 }
 

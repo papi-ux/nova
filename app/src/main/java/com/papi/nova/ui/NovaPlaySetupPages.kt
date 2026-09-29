@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaFormFactor
@@ -43,6 +42,7 @@ import com.papi.nova.ui.panel.NovaScrim
 import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaRowRest
+import com.papi.nova.ui.panel.novaScrollEdgeFade
 
 /**
  * The pages of Play Setup's panel, at the end edge of the game detail window, all wide so the
@@ -156,10 +156,12 @@ internal fun NovaPlaySetupPanel(
 @Composable
 internal fun NovaPageScope.NovaPlayInPage(page: PlaySetupPage.PlayIn) {
     val state = page.picker() ?: return
+    val scroll = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .novaScrollEdgeFade(scroll)
+            .verticalScroll(scroll)
             .padding(vertical = NovaPanelMetrics.SpaceSm),
     ) {
         NovaPlaySetupModeList(
@@ -192,10 +194,12 @@ internal fun NovaPageScope.NovaSteamDecisionPage(
     decision: NovaDesktopSteamLaunchDecision,
     onChoice: (NovaSteamLaunchChoice) -> Unit,
 ) {
+    val scroll = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .novaScrollEdgeFade(scroll)
+            .verticalScroll(scroll)
             .padding(vertical = NovaPanelMetrics.SpaceSm),
     ) {
         NovaDesktopSteamLaunchDecisionRows(
@@ -217,8 +221,8 @@ internal fun NovaPageScope.NovaPlaySetupPlanPage(page: PlaySetupPage.Plan) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            // A part below the fold dissolves into the edge rather than ending in half a line.
-            .novaFadeAtCut(scroll.canScrollForward, band = NOVA_PLAY_SETUP_PLAN_FADE)
+            // A part past either edge dissolves into it rather than ending in half a line.
+            .novaScrollEdgeFade(scroll)
             .verticalScroll(scroll)
             .padding(vertical = NovaPanelMetrics.SpaceSm)
             .testTag(NOVA_PLAY_SETUP_PLAN_PAGE_TAG),
@@ -252,9 +256,6 @@ private fun NovaPlaySetupReadStop(modifier: Modifier = Modifier, content: @Compo
 
 /** The plan's page, for a test to find it. */
 internal const val NOVA_PLAY_SETUP_PLAN_PAGE_TAG = "nova-play-setup-plan-page"
-
-/** The dissolve at the foot of the plan's page: enough to say more follows. */
-private val NOVA_PLAY_SETUP_PLAN_FADE = 24.dp
 
 /**
  * This Game or Every Game, as one row whose Left and Right change it in place. Y flips it too,

@@ -38,14 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
@@ -53,8 +48,6 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
@@ -85,6 +78,7 @@ import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaTitleAndValueMeasurePolicy
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaPanelType
+import com.papi.nova.ui.panel.novaEdgeFade
 import com.papi.nova.ui.panel.novaRowRest
 
 /** The three ways a launch can go when Polaris reports desktop Steam active. */
@@ -106,31 +100,7 @@ internal fun Modifier.novaFadeAtCut(
     band: Dp = NOVA_DETAIL_BOTTOM_FADE,
     /** The top band too, for a body scrolled down past a part that is now cut at its top edge. */
     atTop: Boolean = false,
-): Modifier = if (!active && !atTop) this else this
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        val fade = band.toPx().coerceAtMost(size.height)
-        if (active) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color.Black, Color.Transparent),
-                    startY = size.height - fade,
-                    endY = size.height,
-                ),
-                topLeft = Offset(0f, size.height - fade),
-                size = Size(size.width, fade),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-        if (atTop) {
-            drawRect(
-                brush = Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black), startY = 0f, endY = fade),
-                size = Size(size.width, fade),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-    }
+): Modifier = if (!active && !atTop) this else novaEdgeFade(top = { atTop }, bottom = { active }, band = band)
 
 /** A tap target that swallows the gesture, with no ripple to imply a button. */
 private fun Modifier.novaDismissOnTap(onDismiss: () -> Unit): Modifier = composed {

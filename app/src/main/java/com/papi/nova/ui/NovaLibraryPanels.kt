@@ -48,6 +48,7 @@ import com.papi.nova.ui.panel.NovaTextField
 import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.panel.NovaValueStyle
 import com.papi.nova.ui.panel.novaPanelType
+import com.papi.nova.ui.panel.novaScrollEdgeFade
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
@@ -201,7 +202,7 @@ internal fun NovaPageScope.NovaLibraryOptionsPage(ui: NovaLibraryOptionsUi, acti
         state = listState,
         contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().novaScrollEdgeFade(listState),
     ) {
         // Each row's place in the list, counted as the list is built. Clear is there only while
         // something narrows the library, so fixed numbers pointed every row below it at its
@@ -475,7 +476,7 @@ internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, action
         state = listState,
         contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().novaScrollEdgeFade(listState),
     ) {
         item(key = "header", contentType = "status") {
             NovaPanelStatusText(
@@ -565,10 +566,12 @@ internal fun NovaPageScope.NovaLibrarySearchPage(
     val colors = LocalNovaComposeColors.current
     val openedByTouch = LocalInputModeManager.current.inputMode == InputMode.Touch
     val showResults = { if (isTop) closeThen {} }
+    val scroll = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .novaScrollEdgeFade(scroll)
+            .verticalScroll(scroll)
             .padding(vertical = NovaPanelMetrics.SpaceSm),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
     ) {

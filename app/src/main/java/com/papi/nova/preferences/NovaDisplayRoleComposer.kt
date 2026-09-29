@@ -50,6 +50,7 @@ import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaRowRest
+import com.papi.nova.ui.panel.novaScrollEdgeFade
 import com.papi.nova.utils.AndroidDisplayCandidateAdapter
 import com.papi.nova.utils.AndroidDisplayRolePlan
 import com.papi.nova.utils.AndroidStreamDisplayTarget
@@ -83,7 +84,7 @@ internal fun NovaPageScope.NovaDisplayRolePage(page: SettingsPage.DisplayRole) {
         state = listState,
         contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().novaScrollEdgeFade(listState),
     ) {
         item(key = "summary") {
             Text(

@@ -27,6 +27,7 @@ import com.papi.nova.ui.panel.NovaSectionLabel
 import com.papi.nova.ui.panel.NovaSplitConfirm
 import com.papi.nova.ui.panel.NovaSplitShape
 import com.papi.nova.ui.panel.NovaValueRow
+import com.papi.nova.ui.panel.novaScrollEdgeFade
 import com.papi.nova.utils.KeyConfigHelper
 import com.papi.nova.utils.KeyMapper
 
@@ -89,7 +90,7 @@ internal fun NovaPageScope.CommandCenterListingPage(page: CommandCenterPage.List
         state = listState,
         contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().novaScrollEdgeFade(listState),
     ) {
         var itemIndex = 0
         var listIndex = 0
