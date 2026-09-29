@@ -106,6 +106,19 @@ class NovaStreamTierRoundSixTest {
             assertFalse(memory.contains("list_resolution")); assertFalse(memory.contains("list_fps"))
         }
     }
+    @Test fun classicKeepsAnIntentionalPanelCorrectionWithoutPinningInheritedSize() {
+        editDisk(mapOf("list_fps" to "240", "seekbar_bitrate_kbps" to 45000,
+            NovaSettingsMigration.CUSTOM_AUTO to false)) { activity,fragment,_ ->
+            val row=fragment.findPreference<androidx.preference.ListPreference>("list_fps")!!
+            assertEquals("60",row.value)
+            val saved=save(activity)
+            assertEquals("60",saved["list_fps"])
+            assertEquals(20000.0,(saved["seekbar_bitrate_kbps"] as Number).toDouble(),0.0)
+            assertEquals(true,saved[NovaSettingsMigration.CUSTOM_AUTO])
+            assertFalse(saved.containsKey("list_resolution"))
+        }
+    }
+
     @Test fun classicCodecChangeRetainsManualPinAndAutoFlag() {
         editDisk(mapOf("video_format" to "forceh265","seekbar_bitrate_kbps" to 45000,
             NovaSettingsMigration.CUSTOM_AUTO to false)) { activity,fragment,_ ->
