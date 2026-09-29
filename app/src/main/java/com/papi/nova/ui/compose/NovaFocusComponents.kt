@@ -293,7 +293,7 @@ fun NovaActionSurface(
             .clip(shape)
             .novaFocusRing(
                 shape = shape,
-                ring = if (fills) onFill else surfaces.focusRing,
+                ring = novaActionRing(fills = fills, destructive = destructive, onFill = onFill, focusRing = surfaces.focusRing),
                 focusedFill = focusedContainer.copy(alpha = focusedContainer.alpha * alpha),
                 restFill = restContainer.copy(alpha = restContainer.alpha * alpha),
                 restBorder = restBorder,
@@ -339,3 +339,12 @@ fun NovaActionSurface(
         }
     }
 }
+
+/**
+ * A [NovaActionSurface]'s focus ring. On the accent fill an accent ring would vanish, so a filled
+ * primary rings in its label colour. Every other surface, a destructive fill included, takes the
+ * accent ring every control has: the armed End Session drew a black ring where Stay beside it drew
+ * the accent (in-game #14).
+ */
+internal fun novaActionRing(fills: Boolean, destructive: Boolean, onFill: Color, focusRing: Color): Color =
+    if (fills && !destructive) onFill else focusRing
