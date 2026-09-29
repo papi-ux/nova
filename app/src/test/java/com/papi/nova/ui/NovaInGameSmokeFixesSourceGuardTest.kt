@@ -45,13 +45,15 @@ class NovaInGameSmokeFixesSourceGuardTest {
     /**
      * In-game #4, the caption half: the HUD stores its position on every mode change, so asking
      * only whether a position was stored hid "the HUD is under this panel" on the RP6, whose stored
-     * position is the corner itself.
+     * position is the corner itself. Game hands the rows where the HUD is, read with the HUD's own
+     * key (NovaCommandCenterHudCornerTest), and the rows compare it with what the panel covers.
      */
     @Test
     fun theHudCaptionComparesTheStoredPositionWithTheCorner() {
-        val corner = read("Game.kt").substringAfter("val isNovaHudAtItsCorner:Boolean").substringBefore("override fun cycleNovaHudFromController()")
-        assertTrue("the stored position is compared with the corner", corner.contains("NovaCommandCenterHudCorner.isAtItsCorner("))
-        assertTrue("not only whether one is stored", !corner.contains(".contains(\"nova_polaris_hud_x\")"))
+        val left = read("Game.kt").substringAfter("val novaHudLeftPx:Float").substringBefore("override fun cycleNovaHudFromController()")
+        assertTrue("the stored position, or the corner", left.contains("NovaCommandCenterHudCorner.leftPx("))
+        assertTrue("read with the HUD's own key", left.contains("prefs.getFloat(com.papi.nova.ui.NovaCommandCenterHudCorner.PREF_HUD_X, Float.NaN)"))
+        assertTrue("and handed to the rows", read("ui/NovaQuickMenu.kt").contains("hudLeftPx = game.novaHudLeftPx"))
     }
 
     /** In-game #14: the action surface takes its focus ring from the one rule, not its label colour. */

@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -102,6 +103,25 @@ class NovaPanelPlacement(val side: NovaPanelSide, val shape: Shape, val fill: Co
 /** The [NovaPanelPlacement] of a panel's surface. */
 val NovaPanelPlacementKey = SemanticsPropertyKey<NovaPanelPlacement>("NovaPanelPlacement")
 var SemanticsPropertyReceiver.novaPanelPlacement by NovaPanelPlacementKey
+
+/**
+ * The part of the stream an edge panel lies over, from the top of the window to the bottom: the
+ * span of its width between [startPx] and [endPx], in the window's pixels, which are the stream's
+ * on the display the stream is on. Rows that speak of what is under the panel, such as the HUD's,
+ * read it from [LocalNovaStreamCover].
+ */
+@Immutable
+data class NovaStreamCover(val startPx: Float, val endPx: Float) {
+    /** Whether a point [xPx] across the window lies under the panel. */
+    operator fun contains(xPx: Float): Boolean = xPx in startPx..endPx
+}
+
+/**
+ * What the panel covers of the stream, or null where it covers none: a panel on a screen or on a
+ * companion display, whose stream and HUD are on the other screen, and a portrait sheet, which
+ * leaves the top of the stream clear.
+ */
+val LocalNovaStreamCover = compositionLocalOf<NovaStreamCover?> { null }
 
 /**
  * The container every panel is drawn in.
@@ -210,16 +230,33 @@ fun NovaPanelFrame(
                     content = { NovaPanelDensityHost(content) },
                 )
             } else {
-                NovaEdgePanel(
-                    edge = edge,
-                    width = NovaPanelMetrics.panelWidth(width, maxWidth, density),
-                    progress = { progress.value },
-                    drag = drag,
-                    tvSafe = tvSafe,
-                    content = { NovaPanelDensityHost(content) },
-                )
+                val panelWidth = NovaPanelMetrics.panelWidth(width, maxWidth, density)
+                val cover = if (overStream) novaStreamCover(edge, panelWidth, maxWidth) else null
+                CompositionLocalProvider(LocalNovaStreamCover provides cover) {
+                    NovaEdgePanel(
+                        edge = edge,
+                        width = panelWidth,
+                        progress = { progress.value },
+                        drag = drag,
+                        tvSafe = tvSafe,
+                        content = { NovaPanelDensityHost(content) },
+                    )
+                }
             }
         }
+    }
+}
+
+/** The span of a [windowWidth] wide window that an edge panel [width] wide at [edge] covers. */
+@Composable
+private fun novaStreamCover(edge: NovaEdge, width: Dp, windowWidth: Dp): NovaStreamCover {
+    // The side of the screen the panel sits on, after the layout direction, as NovaEdgePanel reads it.
+    val onLeft = (edge == NovaEdge.Start) != (LocalLayoutDirection.current == LayoutDirection.Rtl)
+    val density = LocalDensity.current
+    val panel = with(density) { width.toPx() }
+    val window = with(density) { windowWidth.toPx() }
+    return remember(onLeft, panel, window) {
+        if (onLeft) NovaStreamCover(0f, panel) else NovaStreamCover(window - panel, window)
     }
 }
 

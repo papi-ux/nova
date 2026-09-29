@@ -60,6 +60,7 @@ import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaConfirm
 import com.papi.nova.ui.compose.novaFocusTick
 import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.LocalNovaStreamCover
 import com.papi.nova.ui.panel.NovaChevron
 import com.papi.nova.ui.panel.NovaFocusHint
 import com.papi.nova.ui.panel.novaFocusHint
@@ -775,13 +776,18 @@ private class NovaHudPreviewFocus(private val report: (Boolean) -> Unit) {
 }
 
 /**
- * The HUD's own corner is the top start, where the Command Center's edge panel lies: a HUD that was
- * never dragged is under the panel, and its rows say so rather than change something out of sight.
- * A portrait sheet leaves the top clear. A dragged HUD is shown at full strength wherever it is.
+ * Whether the panel lies over the HUD, so its rows say so rather than change something out of
+ * sight: an edge panel over the stream, on the display the HUD is on, whose width holds the HUD's
+ * left edge (review finding 2). That is the HUD's own corner, the top start, and a HUD dragged
+ * along the top or down the side within the panel's width. A HUD beyond the panel's edge, a
+ * portrait sheet, which leaves the top clear, and the companion display, whose stream and HUD are
+ * on the other screen, have nothing under the panel to name.
  */
 @Composable
-private fun novaHudUnderPanel(atItsCorner: Boolean, enabled: Boolean): Boolean =
-    enabled && atItsCorner && com.papi.nova.ui.panel.LocalNovaPanelFillsHeight.current
+private fun novaHudUnderPanel(hudLeftPx: Float, enabled: Boolean): Boolean {
+    val cover = LocalNovaStreamCover.current
+    return enabled && cover != null && !hudLeftPx.isNaN() && hudLeftPx in cover
+}
 
 @Composable
 private fun NovaPageScope.NovaQuickMenuRows(
@@ -925,7 +931,7 @@ private fun NovaPageScope.NovaQuickMenuHudOpacityControl(
         caption = stringResource(
             when {
                 !hudOpacity.enabled -> R.string.nova_quick_menu_hud_opacity_disabled_caption
-                novaHudUnderPanel(hudOpacity.atItsCorner, hudOpacity.enabled) -> R.string.nova_cc_hud_opacity_under_panel
+                novaHudUnderPanel(hudOpacity.hudLeftPx, hudOpacity.enabled) -> R.string.nova_cc_hud_opacity_under_panel
                 else -> R.string.nova_quick_menu_hud_opacity_caption
             }
         ),
@@ -956,7 +962,7 @@ private fun NovaQuickMenuHudModePicker(
         caption = stringResource(
             when {
                 !hudMode.enabled -> R.string.nova_quick_menu_hud_mode_disabled_caption
-                novaHudUnderPanel(hudMode.atItsCorner, hudMode.enabled) -> R.string.nova_cc_hud_mode_under_panel
+                novaHudUnderPanel(hudMode.hudLeftPx, hudMode.enabled) -> R.string.nova_cc_hud_mode_under_panel
                 else -> R.string.nova_quick_menu_hud_mode_caption
             }
         ),

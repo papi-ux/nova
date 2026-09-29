@@ -464,7 +464,7 @@ class NovaQuickMenu(
                 profilePreference = currentProfilePreference(gameName),
                 launchPresetSaved = launchPresetSaved,
                 hudShowing = game.isNovaHudShowing(),
-                hudAtItsCorner = game.isNovaHudAtItsCorner,
+                hudLeftPx = game.novaHudLeftPx,
                 hudMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal")),
                 hudOpacityPercent = pendingHudOpacity ?: NovaHudPreferences.readOpacityPercent(prefs),
                 menuOpacityPercent = pendingMenuOpacity ?: NovaMenuPreferences.readOpacityPercent(prefs),

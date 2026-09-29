@@ -7116,16 +7116,15 @@ novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)
 }
 
 /**
- * Whether the HUD is in its own corner, the top start, which the Command Center's edge panel
- * covers. The HUD stores its position on every mode change too, so the stored position is compared
- * with the corner rather than taken as a sign that the HUD was dragged.
+ * Where the HUD's left edge sits across the stream window, in pixels, for the Command Center's HUD
+ * rows to compare with the part of the stream the panel covers: the position the HUD stored, on a
+ * drag or a mode change, or its own corner when it never stored one.
  */
-val isNovaHudAtItsCorner:Boolean
+val novaHudLeftPx:Float
 get() {
 val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-return com.papi.nova.ui.NovaCommandCenterHudCorner.isAtItsCorner(
-x = prefs.getFloat("nova_polaris_hud_x", Float.NaN),
-y = prefs.getFloat("nova_polaris_hud_y", Float.NaN),
+return com.papi.nova.ui.NovaCommandCenterHudCorner.leftPx(
+storedX = prefs.getFloat(com.papi.nova.ui.NovaCommandCenterHudCorner.PREF_HUD_X, Float.NaN),
 density = resources.displayMetrics.density,
 television = UiHelper.isTvDevice(this))
 }

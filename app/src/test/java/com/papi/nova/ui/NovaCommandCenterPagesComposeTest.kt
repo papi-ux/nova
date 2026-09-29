@@ -312,18 +312,18 @@ class NovaCommandCenterPagesComposeTest {
 
     /**
      * In-game #4 with XR2: the panel dims the HUD, so a HUD Mode change could not be seen. While
-     * a row that changes the HUD has focus the HUD shows at full strength, and a HUD in its own
-     * corner, under the panel, is named in the row's caption.
+     * a row that changes the HUD has focus the HUD shows at full strength. Whether the row's
+     * caption names a HUD under the panel depends on the frame the panel is drawn in, so that half
+     * is NovaCommandCenterHudCaptionComposeTest's, over the stream and on a companion display.
      */
     @Test
     fun theHudShowsAtFullStrengthWhileItsRowsHaveFocus() {
         val keys = open { state ->
             state.copy(
-                hudMode = state.hudMode.copy(enabled = true, atItsCorner = true),
-                hudOpacity = state.hudOpacity.copy(enabled = true, atItsCorner = true),
+                hudMode = state.hudMode.copy(enabled = true, hudLeftPx = 27.675f),
+                hudOpacity = state.hudOpacity.copy(enabled = true, hudLeftPx = 27.675f),
             )
         }
-        rule.onNodeWithText("Pick a layout. The HUD is under this panel, so close it to see the change.").assertExists()
         focus("HUD Mode")
         assertEquals("focus on HUD Mode shows the HUD", listOf(true), hudPreviews)
         keys.press(NovaTestKeys.DOWN)

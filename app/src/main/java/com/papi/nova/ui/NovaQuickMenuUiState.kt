@@ -90,8 +90,8 @@ data class NovaQuickMenuHudOpacityState(
     val percent: Int,
     val presets: List<Int>,
     val enabled: Boolean,
-    /** The HUD is in its own corner, the top start, which an edge panel at the start covers. */
-    val atItsCorner: Boolean = false
+    /** Where the HUD's left edge sits across the stream window, in pixels; NaN when unknown. */
+    val hudLeftPx: Float = Float.NaN
 ) {
     val percentLabel: String = "$percent%"
 }
@@ -108,8 +108,8 @@ data class NovaQuickMenuHudModeState(
     val options: List<NovaQuickMenuPreferenceOption>,
     val selected: NovaHudMode,
     val enabled: Boolean,
-    /** The HUD is in its own corner, the top start, which an edge panel at the start covers. */
-    val atItsCorner: Boolean = false
+    /** Where the HUD's left edge sits across the stream window, in pixels; NaN when unknown. */
+    val hudLeftPx: Float = Float.NaN
 )
 
 enum class NovaQuickMenuDoctorCapability {
@@ -216,8 +216,11 @@ data class NovaQuickMenuUiState(
             /** The Launch Preset was just saved, which its caption says for a while. */
             launchPresetSaved: Boolean = false,
             hudShowing: Boolean,
-            /** The HUD has not been dragged from its own corner, the top start. */
-            hudAtItsCorner: Boolean = false,
+            /**
+             * Where the HUD's left edge sits across the stream window, in pixels, for its rows to
+             * say whether the panel covers it; NaN when unknown.
+             */
+            hudLeftPx: Float = Float.NaN,
             hudMode: NovaHudMode = NovaHudMode.MINIMAL,
             hudOpacityPercent: Int = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
             menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
@@ -377,7 +380,7 @@ data class NovaQuickMenuUiState(
                 percent = NovaHudPreferences.coerceOpacityPercent(hudOpacityPercent),
                 presets = NovaHudPreferences.OPACITY_PRESETS,
                 enabled = hudShowing,
-                atItsCorner = hudAtItsCorner
+                hudLeftPx = hudLeftPx
             )
             val menuOpacity = NovaQuickMenuMenuOpacityState(
                 percent = NovaMenuPreferences.coerceOpacityPercent(menuOpacityPercent),
@@ -396,7 +399,7 @@ data class NovaQuickMenuUiState(
                 },
                 selected = hudMode,
                 enabled = hudShowing,
-                atItsCorner = hudAtItsCorner
+                hudLeftPx = hudLeftPx
             )
             val doctorReceiptAction = doctorReceiptAction(
                 context = context,
