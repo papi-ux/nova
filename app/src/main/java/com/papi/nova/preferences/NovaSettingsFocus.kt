@@ -42,6 +42,9 @@ internal class NovaSettingsPaneEntry(val paneKey: String, val rowKey: String?, v
 internal class NovaSettingsFocus(val pane: NovaPanelState) {
     val railState = LazyListState()
     val firstQuick = FocusRequester()
+
+    /** Whether the quick strip is drawn: a short window leaves it out, and Up then has nowhere to go. */
+    var hasQuickStrip: Boolean = true
     private val categories = HashMap<String, FocusRequester>()
     private val rows = HashMap<String, FocusRequester>()
     private val lastRows = HashMap<String, String>()
@@ -138,7 +141,7 @@ internal fun NovaSettingsFocus.categoryModifier(
                         true
                     }
                     Key.DirectionUp ->
-                        if (category.key == latest.categories.firstOrNull()?.key && latest.quickSettings.isNotEmpty()) {
+                        if (category.key == latest.categories.firstOrNull()?.key && latest.quickSettings.isNotEmpty() && hasQuickStrip) {
                             firstQuick.requestFocus()
                             true
                         } else {

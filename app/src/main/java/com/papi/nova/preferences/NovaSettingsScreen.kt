@@ -89,7 +89,9 @@ import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPageScope
 import com.papi.nova.ui.panel.NovaPageStackHost
+import com.papi.nova.ui.panel.NovaPanelDensity
 import com.papi.nova.ui.panel.NovaPanelDensityHost
+import com.papi.nova.ui.panel.LocalNovaPanelDensity
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.panel.NovaPressLatch
@@ -255,8 +257,16 @@ internal fun NovaSettingsContent(
         }
     }
 
+    // The hint bar's block under the pane, so the rail beside it ends on the pane's last line.
+    var hintBlock by remember { mutableStateOf(0.dp) }
+
     // Settings is a panel host: its rail and pane are drawn at the panel density for the window.
     NovaPanelDensityHost {
+        // A short window gives its height to the rows: the quick strip, which repeats values the
+        // pane shows, and the subtitle go, so the pane shows whole rows rather than two and a half.
+        val compact = LocalNovaPanelDensity.current == NovaPanelDensity.Compact
+        val showQuickStrip = !compact && state.quickSettings.isNotEmpty()
+        focus.hasQuickStrip = showQuickStrip
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -279,7 +289,7 @@ internal fun NovaSettingsContent(
         ) {
             NovaSettingsCompactHeader(
                 title = title,
-                subtitle = subtitle,
+                subtitle = subtitle.takeIf { !compact },
                 query = state.searchQuery,
                 onQuery = onSearch,
                 onClear = onClearSearch,
@@ -288,6 +298,7 @@ internal fun NovaSettingsContent(
                 headerActions = headerActions,
                 wide = wide
             )
+            if (showQuickStrip) {
             Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
             NovaSettingsQuickStrip(
                 state = state,
@@ -306,6 +317,9 @@ internal fun NovaSettingsContent(
                 }
             )
             Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
+            } else {
+                Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+            }
 
             val paneHost: @Composable (Modifier) -> Unit = { modifier ->
                 NovaPageStackHost(
@@ -319,6 +333,7 @@ internal fun NovaSettingsContent(
                         if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
                     },
                     hints = hints,
+                    onHintBarBlock = { hintBlock = it },
                 ) { page ->
                     when (page) {
                         is SettingsPage.Rows -> NovaSettingsRowsPage(
@@ -356,6 +371,8 @@ internal fun NovaSettingsContent(
                             .novaHoldsFirstFocus()
                             .width(NovaSettingsMetrics.categoryRailWidthDp().dp)
                             .fillMaxHeight()
+                            // Ends on the pane's last line, above its hint bar, not beside the bar.
+                            .padding(bottom = hintBlock)
                     )
                     paneHost(Modifier.weight(1f).fillMaxHeight())
                 }
@@ -538,7 +555,7 @@ private class NovaSettingsPageOpener(
 @Composable
 private fun NovaSettingsCompactHeader(
     title: String,
-    subtitle: String,
+    subtitle: String?,
     query: String,
     onQuery: (String) -> Unit,
     onClear: () -> Unit,
@@ -561,7 +578,7 @@ private fun NovaSettingsCompactHeader(
             // Titles wrap rather than cut: a long preset name takes a second line.
             Column(Modifier.weight(1f)) {
                 Text(text = title, style = type.panelTitle, color = colors.textPrimary)
-                Text(text = subtitle, style = type.caption, color = colors.textMuted)
+                subtitle?.let { Text(text = it, style = type.caption, color = colors.textMuted) }
             }
             if (wide) {
                 NovaSettingsSearchField(

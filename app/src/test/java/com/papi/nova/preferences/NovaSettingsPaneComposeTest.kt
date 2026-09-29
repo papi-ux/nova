@@ -341,6 +341,16 @@ class NovaSettingsPaneComposeTest {
     }
 
     @Test
+    fun aShortWindowLeavesTheQuickStripOutAndGivesItsHeightToTheRows() {
+        // 520dp tall is the compact density: the strip repeats values the pane already shows, and on
+        // a 468dp handheld it took two lines above the rows.
+        show()
+        rule.onNodeWithTag("nova-settings-quick-${PreferenceConfiguration.FPS_PREF_STRING}").assertDoesNotExist()
+        category(selected).assertIsFocused()
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h720dp")
     fun aQuickPillTakesFocusToItsRowAndOpensItsPage() {
         val keys = show()
         keys.press(NovaTestKeys.UP)

@@ -64,6 +64,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.currentValueOf
@@ -292,6 +293,8 @@ fun NovaPageStackHost(
     leadingHints: List<NovaControllerHint> = emptyList(),
     selectHint: NovaControllerHint? = null,
     headerEnd: (@Composable () -> Unit)? = null,
+    /** Hears the height of the hint bar with its margins, for a screen that lines up beside the pages. */
+    onHintBarBlock: ((androidx.compose.ui.unit.Dp) -> Unit)? = null,
     content: NovaPageContent,
 ) {
     val closeRequest by rememberUpdatedState(onCloseRequest)
@@ -433,9 +436,18 @@ fun NovaPageStackHost(
                 }
             }
         }
+        val hintDensity = LocalDensity.current
         NovaPanelHintBar(
             hints = allHints,
-            modifier = Modifier.padding(horizontal = padding, vertical = NovaPanelMetrics.hintBarMargin(formFactor, panelDensity)),
+            modifier = Modifier
+                .then(
+                    if (onHintBarBlock != null) {
+                        Modifier.onSizeChanged { with(hintDensity) { onHintBarBlock(it.height.toDp()) } }
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(horizontal = padding, vertical = NovaPanelMetrics.hintBarMargin(formFactor, panelDensity)),
         )
     }
 }
