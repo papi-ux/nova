@@ -126,6 +126,7 @@ class NovaHudAuditRegressionTest {
     }
     @Test fun gpuCaptureCannotEraseAHostWarning() {
         val status = PolarisSessionStatus("streaming", streamingActive = true,
+            linuxGpuProfile = PolarisSessionStatus.LinuxGpuProfile(encoderApi = "vaapi", gpuNativeSucceeded = true),
             capture = PolarisSessionStatus.CaptureStatus(transport = "dmabuf", residency = "gpu"),
             encoder = PolarisSessionStatus.EncoderStatus(targetResidency = "gpu"),
             health = PolarisSessionStatus.HealthStatus(primaryIssue = "host_render_limited"))
@@ -135,7 +136,7 @@ class NovaHudAuditRegressionTest {
         assertFalse(ui(PolarisSessionStatus("streaming")).streamTruthLabel.contains("Auto profile"))
     }
     @Test fun tuningRatesRoundTheSameWayAsTheBitrateTile() {
-        val status = PolarisSessionStatus("streaming", liveTuning = com.papi.nova.api.LiveTuningStatus(
+        val status = PolarisSessionStatus("streaming", streamingActive = true, liveTuning = com.papi.nova.api.LiveTuningStatus(
             enabled = true, supported = true, state = "adjusting", appliedBitrateKbps = 193851, qualityLimitKbps = 268988,
             reason = "", requestedBitrateKbps = 193851, configurationRevision = "a".repeat(64),
             hostInstance = "test", sequence = 1, sessionGeneration = 1, appSessionId = "test"))
@@ -163,6 +164,22 @@ class NovaHudAuditRegressionTest {
         val view = view(); view.dispatchTouchEvent(down); down.recycle(); root.removeView(view)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
         assertEquals(0, requests)
+    }
+    @Test fun cutoutInsetsAreInsideTheHudSafeZone() {
+        hud.show()
+        val safeRoot = object : android.widget.FrameLayout(activity) {
+            override fun getRootWindowInsets(): android.view.WindowInsets = android.view.WindowInsets.Builder()
+                .setInsetsIgnoringVisibility(android.view.WindowInsets.Type.displayCutout(), android.graphics.Insets.of(80, 0, 0, 0))
+                .build()
+        }
+        activity.window.decorView.layout(0, 0, 1000, 600)
+        safeRoot.layout(0, 0, 1000, 600)
+        val view = view().apply { layout(0, 0, 100, 100) }
+        @Suppress("UNCHECKED_CAST")
+        val position = NovaStreamHud::class.java.getDeclaredMethod("clampHudPosition", View::class.java,
+            ViewGroup::class.java, Float::class.javaPrimitiveType, Float::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(hud, view, safeRoot, 0f, 0f) as Pair<Float, Float>
+        assertTrue("cutout plus margin, not the raw screen edge", position.first > 80f)
     }
     @Test fun savedPositionScalesWithTheAvailableSurface() {
         hud.show(); val view = view()

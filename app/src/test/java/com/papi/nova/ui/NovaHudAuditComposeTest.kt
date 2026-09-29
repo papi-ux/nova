@@ -46,6 +46,6 @@ class NovaHudAuditComposeTest {
     @Test fun textKeepsAReadabilityBackingAtZeroPanelOpacity() {
         draw()
         // The backing is a distinct surface; the adjustable glass can still become clear.
-        rule.onNodeWithTag("nova_hud_readability_backing", useUnmergedTree = true).assertExists()
+        assertTrue(rule.onAllNodesWithTag("nova_hud_readability_backing", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
     }
 }
