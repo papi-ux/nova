@@ -21,9 +21,11 @@ class NovaInGameSmokeFixesSourceGuardTest {
     }
 
     /**
-     * In-game #12: only the Command Center over the stream takes the solid floor; every other panel
-     * keeps its glass. Keyed on the light scrim, the floor also held Play Setup on the game page and
-     * the companion display's Command Center, which then ignored Menu Opacity.
+     * In-game #12: every panel in the stream's own window takes the solid floor, and every other
+     * panel keeps its glass. Keyed on the light scrim, the floor also held Play Setup on the game
+     * page and the companion display's Command Center; keyed on a flag the Command Center set, it
+     * left a notice, Add Keys and the Leave Space confirm as glass over the game (review finding 3).
+     * NovaPanelOverStreamComposeTest draws the window's content; this pins that the window draws it.
      */
     @Test
     fun thePanelOverTheStreamDrawsItsFillFromTheStreamSurfaces() {
@@ -31,11 +33,12 @@ class NovaInGameSmokeFixesSourceGuardTest {
         assertTrue(frame.contains("if (overStream) surfaces.overStream() else surfaces"))
         assertTrue(!frame.contains("if (scrim == NovaScrim.Stream) surfaces.overStream()"))
         assertTrue(frame.contains("CompositionLocalProvider(LocalNovaLibrarySurfaces provides panelSurfaces)"))
-        val menu = read("ui/NovaQuickMenu.kt")
+        val window = read("ui/panel/NovaPanelWindow.kt")
+        assertTrue("the window draws the content its placement keys", window.contains("NovaSurfacesWindowContent(surfaces"))
         assertTrue(
-            "the in-game Command Center asks for it, and only over the stream",
-            menu.contains("val overStream = surfaces.placement is NovaWindowPlacement.Stream") &&
-                menu.contains("surfaces.open(root, NovaEdge.Start, overStream = overStream)"),
+            "the floor follows the window's placement, not an opening's flag",
+            read("ui/panel/NovaSurfaces.kt").contains("overStream = surfaces.placement.overStream") &&
+                !read("ui/panel/NovaPanelState.kt").contains("overStream"),
         )
     }
 

@@ -212,6 +212,8 @@ internal class NovaVisualStage(val rule: NovaVisualRule) {
                 panel = panel,
                 states = emptyList(),
                 scrim = NovaScrim.Stream,
+                // The stream's own window, whose panels keep the solid floor.
+                overStream = true,
                 pageContent = content,
                 onIdle = {},
                 hints = hints,

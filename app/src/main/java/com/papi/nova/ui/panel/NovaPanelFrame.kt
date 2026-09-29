@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.addOutline
@@ -90,12 +91,13 @@ enum class NovaScrim { Screen, Stream, None }
 enum class NovaPanelSide { Left, Right, Bottom }
 
 /**
- * Where a panel's surface sits and the shape that cuts it. The frame publishes it in the panel's
- * semantics, so the visual gate checks R6 (attached to its edge, rounded on the inner edge only)
- * against the shape that is drawn rather than against a copy of the rule.
+ * Where a panel's surface sits, the shape that cuts it and the fill it is drawn in. The frame
+ * publishes it in the panel's semantics, so the visual gate checks R6 (attached to its edge,
+ * rounded on the inner edge only) against the shape that is drawn rather than against a copy of
+ * the rule, and a test reads the floor over the stream from the fill that is drawn.
  */
 @Immutable
-class NovaPanelPlacement(val side: NovaPanelSide, val shape: Shape)
+class NovaPanelPlacement(val side: NovaPanelSide, val shape: Shape, val fill: Color = Color.Unspecified)
 
 /** The [NovaPanelPlacement] of a panel's surface. */
 val NovaPanelPlacementKey = SemanticsPropertyKey<NovaPanelPlacement>("NovaPanelPlacement")
@@ -116,10 +118,11 @@ var SemanticsPropertyReceiver.novaPanelPlacement by NovaPanelPlacementKey
  * title-safe area, so nothing is cut by the screen. The frame is a panel host: its content is
  * drawn at the panel density for the window ([NovaPanelDensityHost]).
  *
- * [overStream] is for the in-game Command Center alone: nothing blurs the stream's video surface,
- * so its fill keeps a floor the game's own text cannot read through. Every other panel, Play Setup
- * over the game page and the Command Center on a companion display included, keeps the glass
- * Menu Opacity chose, even where its scrim is the light [NovaScrim.Stream].
+ * [overStream] is for a panel in the stream's own window ([NovaWindowPlacement.overStream]):
+ * nothing blurs the stream's video surface, so its fill keeps a floor the game's own text cannot
+ * read through, whoever opened it. A panel anywhere else, Play Setup over the game page and the
+ * Command Center on a companion display included, keeps the glass Menu Opacity chose, even where
+ * its scrim is the light [NovaScrim.Stream].
  */
 @Composable
 fun NovaPanelFrame(
@@ -193,8 +196,8 @@ fun NovaPanelFrame(
         val tvSafe = LocalNovaFormFactor.current == NovaFormFactor.Television
         // Over the stream nothing blurs what is behind the panel, so its fill keeps a floor the
         // game's own text cannot read through; the scrim beside it still follows menu opacity.
-        // Only the in-game Command Center asks for it: the light scrim alone also meant Play Setup
-        // on the game page and the companion display, which kept ignoring Menu Opacity.
+        // It follows the window, not the scrim: the light scrim alone also meant Play Setup on the
+        // game page and the companion display, which kept ignoring Menu Opacity.
         val surfaces = LocalNovaLibrarySurfaces.current
         val panelSurfaces = remember(surfaces, overStream) { if (overStream) surfaces.overStream() else surfaces }
         CompositionLocalProvider(LocalNovaLibrarySurfaces provides panelSurfaces) {
@@ -302,7 +305,7 @@ private fun BoxScope.NovaEdgePanel(
             }
             .fillMaxHeight()
             .width(animatedWidth)
-            .semantics { novaPanelPlacement = NovaPanelPlacement(if (onLeft) NovaPanelSide.Left else NovaPanelSide.Right, shape) }
+            .semantics { novaPanelPlacement = NovaPanelPlacement(if (onLeft) NovaPanelSide.Left else NovaPanelSide.Right, shape, surfaces.panel) }
             .clip(shape)
             .background(surfaces.panel)
             .drawWithCache {
@@ -365,7 +368,7 @@ private fun BoxScope.NovaPanelSheet(
                 IntOffset(0, ((1f - progress()) * height).roundToInt())
             }
             .onSizeChanged { heightPx.intValue = it.height }
-            .semantics { novaPanelPlacement = NovaPanelPlacement(NovaPanelSide.Bottom, shape) }
+            .semantics { novaPanelPlacement = NovaPanelPlacement(NovaPanelSide.Bottom, shape, surfaces.panel) }
             .clip(shape)
             .background(surfaces.panel)
             .drawWithCache {

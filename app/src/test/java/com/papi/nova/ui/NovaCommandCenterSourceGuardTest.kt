@@ -160,7 +160,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "the Command Center opens in the panel window, which holds focus in touch mode and translates A and B for every element through the key gate",
-            quickMenuHost.contains("surfaces.open(root, NovaEdge.Start, overStream = overStream)") &&
+            quickMenuHost.contains("surfaces.open(root, NovaEdge.Start)") &&
                 panelWindow.contains("prepareControllerWindow(window, content)") &&
                 panelWindow.contains("keyGate.dispatch(event")
         )
@@ -313,7 +313,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "the Command Center is the panel attached to the start edge, in the panel window, not a dialog of its own",
-            quickMenu.contains("surfaces.open(root, NovaEdge.Start, overStream = overStream)") && !quickMenu.contains("Dialog(game")
+            quickMenu.contains("surfaces.open(root, NovaEdge.Start)") && !quickMenu.contains("Dialog(game")
         )
         assertTrue(
             "its root is a Wide panel, today's proven width on the RP6 and 560dp on a television",
