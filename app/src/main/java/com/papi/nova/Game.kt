@@ -3949,7 +3949,19 @@ return modifier
 override fun onKeyDown(keyCode:Int, event:KeyEvent):Boolean {
 return handleKeyDown(event) || super.onKeyDown(keyCode, event)
 }
+/**
+ * The stream container gets its input callbacks in onCreate, long before the controller handler
+ * and the connection exist, and a refused launch calls finish() with both still unset. A key in
+ * either window must pass through instead of reaching a partial session.
+ */
+private fun isKeyInputReady():Boolean =
+    !isFinishing && !isDestroyed && ::prefConfig.isInitialized &&
+        controllerHandler != null && conn != null
 override fun handleKeyDown(event:KeyEvent):Boolean {
+if (!isKeyInputReady())
+{
+return false
+}
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
@@ -4071,6 +4083,10 @@ return true
 return handleKeyUp(event) || super.onKeyUp(keyCode, event)
 }
 override fun handleKeyUp(event:KeyEvent):Boolean {
+if (!isKeyInputReady())
+{
+return false
+}
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
