@@ -216,7 +216,8 @@ private fun NovaVisualStage.commandCenter(
 ) {
     val state = MutableStateFlow(NovaVisualFixtures.commandCenterState(activity))
     val panel = NovaPanelState()
-    panel.open(CommandCenterPage.Root(state.value.title), NovaEdge.Start)
+    // Over the stream the Command Center keeps its solid floor, as the in-game one asks for it.
+    panel.open(CommandCenterPage.Root(state.value.title), NovaEdge.Start, overStream = true)
     streamPanel(panel) { page ->
         when (page) {
             is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = NovaQuickMenuCallbacks())

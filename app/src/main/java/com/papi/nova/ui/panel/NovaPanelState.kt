@@ -99,6 +99,14 @@ class NovaPanelState {
     var returnFocus: NovaFocusReturn = NovaFocusReturn.None
         private set
 
+    /**
+     * Whether this opening is the in-game Command Center over the stream, whose fill keeps a solid
+     * floor ([NovaPanelFrame]). Set by [open] for the opening, kept through its pages and its exit
+     * motion, and false for any panel opened without asking.
+     */
+    var overStream: Boolean by mutableStateOf(false)
+        private set
+
     // The closed panel's return target, held until the window that showed it closes and takes it.
     private var closedReturnFocus: NovaFocusReturn = NovaFocusReturn.None
 
@@ -114,8 +122,14 @@ class NovaPanelState {
     internal fun contains(key: String): Boolean = entries.any { it.page.key == key }
 
     /** Opens the panel at [edge] with [root] as its only page, replacing anything it showed. */
-    fun open(root: NovaPage, edge: NovaEdge = NovaEdge.End, returnFocus: NovaFocusReturn = NovaFocusReturn.None) {
+    fun open(
+        root: NovaPage,
+        edge: NovaEdge = NovaEdge.End,
+        returnFocus: NovaFocusReturn = NovaFocusReturn.None,
+        overStream: Boolean = false,
+    ) {
         this.returnFocus = returnFocus
+        this.overStream = overStream
         switchRoot(root, edge)
     }
 

@@ -227,7 +227,7 @@ internal class NovaVisualStage(val rule: NovaVisualRule) {
         onShoulder: ((NovaShoulder) -> Unit)? = null,
         content: NovaPageContent = {},
     ) {
-        rule.runOnUiThread { surfaces.open(root, edge, NovaFocusReturn.None, hints, onShoulder, content) }
+        rule.runOnUiThread { surfaces.open(root, edge, NovaFocusReturn.None, hints, onShoulder, content = content) }
         windowShown()
     }
 

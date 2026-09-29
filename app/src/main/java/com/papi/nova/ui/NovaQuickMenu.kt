@@ -24,6 +24,7 @@ import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageScope
 import com.papi.nova.ui.panel.NovaSurfaces
+import com.papi.nova.ui.panel.NovaWindowPlacement
 import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.DeviceUtils
 import java.lang.ref.WeakReference
@@ -1121,7 +1122,9 @@ class NovaQuickMenu(
         )
 
         val root: NovaPage = if (keysAsRoot) keysPage(menu, besideTheRoot = false) else CommandCenterPage.Root(uiState.value.title)
-        surfaces.open(root, NovaEdge.Start) { page ->
+        // Solid over the stream (in-game #12); on a companion display it keeps Menu Opacity's glass.
+        val overStream = surfaces.placement is NovaWindowPlacement.Stream
+        surfaces.open(root, NovaEdge.Start, overStream = overStream) { page ->
             // Every page lends its scope, for closing and then waiting on the stream's focus, and
             // a view in the panel window, where snackbars about the menu belong.
             val view = LocalView.current

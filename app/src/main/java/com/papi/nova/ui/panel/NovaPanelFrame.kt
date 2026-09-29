@@ -115,6 +115,11 @@ var SemanticsPropertyReceiver.novaPanelPlacement by NovaPanelPlacementKey
  * lands. Content is padded by the safe drawing insets, the keyboard and, on a television, the
  * title-safe area, so nothing is cut by the screen. The frame is a panel host: its content is
  * drawn at the panel density for the window ([NovaPanelDensityHost]).
+ *
+ * [overStream] is for the in-game Command Center alone: nothing blurs the stream's video surface,
+ * so its fill keeps a floor the game's own text cannot read through. Every other panel, Play Setup
+ * over the game page and the Command Center on a companion display included, keeps the glass
+ * Menu Opacity chose, even where its scrim is the light [NovaScrim.Stream].
  */
 @Composable
 fun NovaPanelFrame(
@@ -125,6 +130,7 @@ fun NovaPanelFrame(
     onClosed: () -> Unit,
     modifier: Modifier = Modifier,
     scrim: NovaScrim = NovaScrim.Screen,
+    overStream: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     if (scrim == NovaScrim.Screen) NovaMenuBackdropBlur()
@@ -187,8 +193,10 @@ fun NovaPanelFrame(
         val tvSafe = LocalNovaFormFactor.current == NovaFormFactor.Television
         // Over the stream nothing blurs what is behind the panel, so its fill keeps a floor the
         // game's own text cannot read through; the scrim beside it still follows menu opacity.
+        // Only the in-game Command Center asks for it: the light scrim alone also meant Play Setup
+        // on the game page and the companion display, which kept ignoring Menu Opacity.
         val surfaces = LocalNovaLibrarySurfaces.current
-        val panelSurfaces = remember(surfaces, scrim) { if (scrim == NovaScrim.Stream) surfaces.overStream() else surfaces }
+        val panelSurfaces = remember(surfaces, overStream) { if (overStream) surfaces.overStream() else surfaces }
         CompositionLocalProvider(LocalNovaLibrarySurfaces provides panelSurfaces) {
             if (NovaPanelMetrics.usesSheet(maxWidth, maxHeight)) {
                 NovaPanelSheet(

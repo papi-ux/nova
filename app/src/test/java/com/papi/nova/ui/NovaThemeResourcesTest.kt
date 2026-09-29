@@ -534,7 +534,7 @@ class NovaThemeResourcesTest {
         // The Command Center opens in the panel window. Over the stream the frame draws only the
         // Command Center scrim; the backdrop blur is for screens (spec section 2).
         val panelFrame = File("src/main/java/com/papi/nova/ui/panel/NovaPanelFrame.kt").readText()
-        assertTrue("Command Center must live in the separate panel window", quickMenuHost.contains("surfaces.open(root, NovaEdge.Start)"))
+        assertTrue("Command Center must live in the separate panel window", quickMenuHost.contains("surfaces.open(root, NovaEdge.Start, overStream = overStream)"))
         assertTrue(
             "the panel frame blurs the backdrop over screens only, and the Command Center adds none of its own",
             panelFrame.contains("if (scrim == NovaScrim.Screen) NovaMenuBackdropBlur()") && !quickMenu.contains("NovaMenuBackdropBlur()")

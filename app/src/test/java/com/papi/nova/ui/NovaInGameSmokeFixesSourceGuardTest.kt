@@ -20,12 +20,23 @@ class NovaInGameSmokeFixesSourceGuardTest {
         assertTrue("the host's own reading is asked first, and the warning is only set without it", quiet in 0 until slow)
     }
 
-    /** In-game #12: only the panel over the stream takes the solid floor; every other panel keeps its glass. */
+    /**
+     * In-game #12: only the Command Center over the stream takes the solid floor; every other panel
+     * keeps its glass. Keyed on the light scrim, the floor also held Play Setup on the game page and
+     * the companion display's Command Center, which then ignored Menu Opacity.
+     */
     @Test
     fun thePanelOverTheStreamDrawsItsFillFromTheStreamSurfaces() {
         val frame = read("ui/panel/NovaPanelFrame.kt")
-        assertTrue(frame.contains("if (scrim == NovaScrim.Stream) surfaces.overStream() else surfaces"))
+        assertTrue(frame.contains("if (overStream) surfaces.overStream() else surfaces"))
+        assertTrue(!frame.contains("if (scrim == NovaScrim.Stream) surfaces.overStream()"))
         assertTrue(frame.contains("CompositionLocalProvider(LocalNovaLibrarySurfaces provides panelSurfaces)"))
+        val menu = read("ui/NovaQuickMenu.kt")
+        assertTrue(
+            "the in-game Command Center asks for it, and only over the stream",
+            menu.contains("val overStream = surfaces.placement is NovaWindowPlacement.Stream") &&
+                menu.contains("surfaces.open(root, NovaEdge.Start, overStream = overStream)"),
+        )
     }
 
     /**

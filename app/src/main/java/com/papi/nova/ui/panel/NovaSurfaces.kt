@@ -84,7 +84,8 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
     /**
      * Opens the panel with [root] at [edge]. [hints] join A and B in the hint bar, such as L1/R1
      * for peer panels, and [onShoulder] takes L1 and R1, such as a [NovaPanelState.switchRoot] to
-     * a peer. Main thread (posts if called elsewhere).
+     * a peer. [overStream] is the in-game Command Center's alone ([NovaPanelFrame]). Main thread
+     * (posts if called elsewhere).
      */
     fun open(
         root: NovaPage,
@@ -92,12 +93,13 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
         returnFocus: NovaFocusReturn = NovaFocusReturn.None,
         hints: List<NovaControllerHint> = emptyList(),
         onShoulder: ((NovaShoulder) -> Unit)? = null,
+        overStream: Boolean = false,
         content: NovaPageContent = {},
     ) = onMain {
         pageContent = content
         pageHints = hints
         pageShoulder = onShoulder
-        panel.open(root, edge, returnFocus)
+        panel.open(root, edge, returnFocus, overStream)
         ensureWindow()
     }
 
@@ -422,6 +424,7 @@ internal fun NovaSurfacesLayer(
                     onDismissRequest = panel::close,
                     onClosed = { framePresent = false },
                     scrim = scrim,
+                    overStream = panel.overStream,
                     // Nothing on a covered panel can be reached or acted on by accessibility.
                     modifier = if (covered) Modifier.clearAndSetSemantics { } else Modifier,
                 ) {
