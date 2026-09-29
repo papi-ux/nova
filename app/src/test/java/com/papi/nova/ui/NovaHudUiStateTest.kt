@@ -604,6 +604,27 @@ class NovaHudUiStateTest {
     }
 
     @Test
+    fun theClientDotFollowsThisDevicesOwnDecodeTime() {
+        // PyroWave at 4K120 on the RP6: DEC 15 ms against an 8.3 ms frame, and CLIENT stayed green.
+        fun client(decodeMs: Double) = NovaHudUiState.from(
+            mode = NovaHudMode.PERFORMANCE,
+            fps = 120.0,
+            targetFps = 120.0,
+            latencyMs = 8,
+            codec = "pyrowave",
+            bitrateKbps = 234_000,
+            width = 3840,
+            height = 2160,
+            status = null,
+            sparklineSamples = listOf(120f),
+            decodeTimeMs = decodeMs,
+        ).layerHealth.single { it.label == "CLIENT" }.tone
+        assertEquals(NovaHudTone.DANGER, client(15.0))
+        assertEquals(NovaHudTone.WARNING, client(6.0))
+        assertEquals(NovaHudTone.STABLE, client(2.0))
+    }
+
+    @Test
     fun lowRenderedFpsAloneDoesNotInventAStaticContentPacingFault() {
         val state = NovaHudUiState.from(
             mode = NovaHudMode.DEBUG,

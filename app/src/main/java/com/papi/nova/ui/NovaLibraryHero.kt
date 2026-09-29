@@ -35,6 +35,9 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -491,10 +494,14 @@ internal fun RowScope.NovaLibraryStripContinue(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     // End splits in its own slot (R3). The strip cannot grow a line under it, so while it is
-    // armed the cover, the words and Resume step aside: the pair takes their room and a short
-    // consequence takes the words' place.
+    // armed only Resume steps aside: the pair takes Resume's and End's room, the cover and the
+    // title stay so the player sees which game is ending, and the consequence takes the eyebrow's
+    // line. Hiding the title and putting the line ahead of the pair had made the pair jump right.
     val endSplit = rememberNovaSplitConfirmState()
     val endArmed = endSplit.armed && onSecondaryAction != null
+    // Confirmed: the strip says Ending at once instead of offering Resume and End again for the
+    // ten seconds the host takes to answer.
+    var ending by remember(hero.game?.id, hero.secondaryActionLabel) { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .weight(1f)
@@ -505,15 +512,7 @@ internal fun RowScope.NovaLibraryStripContinue(
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         val game = hero.game
-        if (endArmed) {
-            Text(
-                text = stringResource(R.string.nova_library_end_strip_consequence),
-                style = novaPanelType.caption,
-                color = colors.textSecondary,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        if (game != null && fit.showContinueCover && !endArmed) {
+        if (game != null && fit.showContinueCover) {
             val shape = RoundedCornerShape(NovaRadius.chip)
             Box(
                 modifier = Modifier
@@ -543,12 +542,19 @@ internal fun RowScope.NovaLibraryStripContinue(
                 }
             }
         }
-        if (fit.showContinueText && !endArmed) Column(
+        if (fit.showContinueText) Column(
             modifier = Modifier.weight(1f, fill = false).testTag("nova-library-showcase-words"),
             verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
             // Whole, on the lines the fit measured room for: never an ellipsis (R13).
-            if (fit.showContinueEyebrow) {
+            if (endArmed) {
+                Text(
+                    text = stringResource(R.string.nova_library_end_strip_consequence),
+                    style = NovaChromeType.label(fontSize = 8.sp),
+                    color = colors.textSecondary,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            } else if (fit.showContinueEyebrow) {
                 Text(
                     text = hero.eyebrow.uppercase(),
                     style = NovaChromeType.label(fontSize = 8.sp),
@@ -564,7 +570,16 @@ internal fun RowScope.NovaLibraryStripContinue(
                 maxLines = fit.continueTitleLines,
             )
         }
-        if (!endArmed) NovaActionButton(
+        if (ending) {
+            Text(
+                text = stringResource(R.string.nova_library_ending_session),
+                style = novaPanelType.caption,
+                color = colors.textSecondary,
+                modifier = Modifier
+                    .semantics { liveRegion = LiveRegionMode.Polite }
+                    .testTag("nova-library-showcase-ending"),
+            )
+        } else if (!endArmed) NovaActionButton(
             text = hero.actionLabel,
             onClick = onPrimaryAction,
             modifier = Modifier.widthIn(min = 88.dp),
@@ -576,11 +591,14 @@ internal fun RowScope.NovaLibraryStripContinue(
             fontSize = 10.sp,
         )
         val secondaryLabel = hero.secondaryActionLabel
-        if (secondaryLabel != null && onSecondaryAction != null && fit.showContinueSecondary) {
+        if (secondaryLabel != null && onSecondaryAction != null && fit.showContinueSecondary && !ending) {
             NovaSplitConfirm(
                 label = secondaryLabel,
                 confirmLabel = stringResource(R.string.game_dialog_action_end_session),
-                onConfirm = onSecondaryAction,
+                onConfirm = {
+                    ending = true
+                    onSecondaryAction()
+                },
                 state = endSplit,
                 // Resume's type and height, so the strip holds one size of button, not two.
                 buttonStyle = novaLibraryStripButtonStyle(),

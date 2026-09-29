@@ -204,7 +204,7 @@ data class NovaHudUiState(
                 healthReasonLabel = healthReason.first,
                 healthReasonTone = healthReason.second,
                 streamTruthLabel = buildStreamTruth(status, targetFps, codec, height),
-                layerHealth = buildLayerHealth(status, latencyMs),
+                layerHealth = buildLayerHealth(status, latencyMs, toneForDecode(decodeTimeMs, targetFps)),
                 eventBreadcrumbLabel = eventBreadcrumbLabel,
                 // The buffer already caps at the capacity; copying it again once a second
                 // bought nothing.
@@ -460,7 +460,11 @@ data class NovaHudUiState(
             }
         }
 
-        private fun buildLayerHealth(status: PolarisSessionStatus?, latencyMs: Int): List<NovaHudLayerHealth> {
+        private fun buildLayerHealth(
+            status: PolarisSessionStatus?,
+            latencyMs: Int,
+            decodeTone: NovaHudTone = NovaHudTone.MUTED,
+        ): List<NovaHudLayerHealth> {
             val primaryIssue = status?.effectivePrimaryIssue.orEmpty()
             val normalizedPrimaryIssue = primaryIssue.lowercase()
             val networkObservation = normalizedPrimaryIssue in
@@ -502,6 +506,10 @@ data class NovaHudUiState(
                 else -> NovaHudTone.STABLE
             }
             val clientTone = when {
+                // This device's own decode time says the most about it. A PyroWave stream decoding
+                // in 15 ms against an 8.3 ms frame showed DEC in red beside a green CLIENT dot.
+                decodeTone == NovaHudTone.DANGER -> NovaHudTone.DANGER
+                decodeTone == NovaHudTone.WARNING -> NovaHudTone.WARNING
                 normalizedPrimaryIssue.contains("decoder") || issues.any { it.contains("decoder") } ||
                     (status?.hasAuthoritativeDoctorResult != true && riskElevated(status?.health?.decoderRisk)) ||
                     clientDoctorWarning -> NovaHudTone.WARNING

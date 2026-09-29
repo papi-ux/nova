@@ -32,8 +32,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 object UiHelper {
-    private const val TV_VERTICAL_PADDING_DP = 15
-    private const val TV_HORIZONTAL_PADDING_DP = 15
+    // The television title-safe area, as the panels keep it: 15dp left the host list and Settings
+    // under a television's overscan.
+    private const val TV_VERTICAL_PADDING_DP = 27
+    private const val TV_HORIZONTAL_PADDING_DP = 48
     private val confirmSerial = AtomicLong()
     private val confirmationLinkStyles = TextLinkStyles(style = SpanStyle(textDecoration = TextDecoration.Underline))
 
@@ -188,7 +190,8 @@ object UiHelper {
             val verticalPaddingPixels = (TV_VERTICAL_PADDING_DP * scale + 0.5f).toInt()
             val horizontalPaddingPixels = (TV_HORIZONTAL_PADDING_DP * scale + 0.5f).toInt()
 
-            rootView.setPadding(
+            // The controls keep clear of the edge; a background under them still reaches it.
+            insetTarget.setPadding(
                 horizontalPaddingPixels,
                 verticalPaddingPixels,
                 horizontalPaddingPixels,

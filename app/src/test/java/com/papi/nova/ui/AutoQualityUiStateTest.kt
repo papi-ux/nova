@@ -45,7 +45,9 @@ class AutoQualityUiStateTest {
         val text = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
             .getString(com.papi.nova.R.string.summary_touchscreen_mode)
         assertFalse(text, text.contains("useing") || text.contains("Pad(Natural)"))
-        assertTrue(text, text.contains("Forced to Track pad (Natural) mode when using an external display."))
+        // Plain words that fit a caption's two lines: the three line list ran past them on the Shield.
+        assertTrue(text, text.contains("an external display always uses the trackpad."))
+        assertTrue(text, text.length <= 120)
     }
 
     @Test fun aiReadinessCannotEnableLiveTuning() {

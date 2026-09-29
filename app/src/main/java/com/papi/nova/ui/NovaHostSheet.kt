@@ -382,9 +382,8 @@ internal fun novaHostMenuItems(
         NovaCommonPage.Notice(
             key = "details",
             title = context.getString(R.string.title_details),
-            message = details.toString(),
+            message = novaHostDetailsText(context, details),
             closeLabel = context.getString(R.string.nova_panel_close),
-            monospace = true,
         )
     }
     menu.remove(

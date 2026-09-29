@@ -48,6 +48,18 @@ class NovaSettingsSmokeFixesSourceGuardTest {
     }
 
     @Test
+    fun theThemeRowOpensTheSamePickerAsHostsAndATelevisionKeepsTheStripToOneLine() {
+        val select = screen.substringAfter("private fun openSelect(").substringBefore("private fun openSlider(")
+        assertTrue(select.contains("com.papi.nova.novaThemePickerPage("))
+        assertTrue(screen.contains("maxLines = if (LocalNovaFormFactor.current == NovaFormFactor.Television) 1 else Int.MAX_VALUE,"))
+        val availability = File("src/main/java/com/papi/nova/preferences/NovaSettingsAvailability.kt").readText()
+        assertTrue(
+            "Touchscreen Mode is hidden where there is no touchscreen",
+            availability.substringAfter("private val touchOnlyKeys = setOf(").substringBefore(")").contains("\"mouse_mode_list\""),
+        )
+    }
+
+    @Test
     fun customBitrateIsLeftToTheExactBitratePage() {
         assertTrue(settings.contains("it.key == PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING"))
         assertTrue(screen.contains("exactDivisor = if (definition.isBitrateKbps()) 1000 else 1,"))

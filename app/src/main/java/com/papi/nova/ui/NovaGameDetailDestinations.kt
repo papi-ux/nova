@@ -305,7 +305,8 @@ private fun novaGameDetailSelfInset(selfInset: Boolean): Modifier = if (!selfIns
 internal fun novaGameDetailWindowInset(): Dp {
     val television = (LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
         Configuration.UI_MODE_TYPE_TELEVISION
-    return if (television) NovaGameDetailInset else NOVA_DETAIL_WINDOW_INSET
+    // A television keeps its title-safe 48dp, not the 28dp the page had there.
+    return if (television) com.papi.nova.ui.panel.NovaPanelMetrics.TvSafeHorizontal else NOVA_DETAIL_WINDOW_INSET
 }
 
 @Composable

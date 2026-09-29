@@ -278,7 +278,7 @@ class NovaSurfacesHelpersTest {
         assertEquals("End this Nova session?", confirm.title)
         assertEquals("Stay", confirm.stayLabel)
         assertEquals("End Session", confirm.actionLabel)
-        assertEquals("The game closes on the host, and anything it has not saved is lost.", confirm.message.text)
+        assertEquals("Unsaved progress on the host is lost.", confirm.message.text)
 
         idle()
         val window = ShadowDialog.getLatestDialog() as ComponentDialog

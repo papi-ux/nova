@@ -119,6 +119,10 @@
     <string name="pcview_quick_update_check">Check updates</string>
     <string name="pcview_quick_update_checking">Checking…</string>
     <string name="pcview_update_status_current">Current</string>
+    <!-- After a manual check that found nothing newer. -->
+    <string name="pcview_update_status_up_to_date">Up to date</string>
+    <string name="pcview_update_pill_latest_version">Nova %1$s is the latest</string>
+    <string name="pcview_update_pill_content_latest">Checked. Nova %1$s is the latest version.</string>
     <string name="pcview_update_status_available">Available</string>
     <string name="pcview_update_status_checking">Checking</string>
     <string name="pcview_update_status_retry">Retry</string>
@@ -258,16 +262,16 @@
     <string name="nova_library_options_sort_hdr_first_hint">Prioritize HDR-ready games.</string>
     <string name="nova_library_options_layout_title">Layout</string>
     <string name="nova_library_options_layout_stage">Stage</string>
-    <string name="nova_library_options_layout_stage_hint">Artwork-first home with hero environment, icon identity, and immediate actions.</string>
+    <string name="nova_library_options_layout_stage_hint">One game large, with its artwork and actions, over a row of the rest.</string>
     <string name="nova_library_options_layout_grid">Grid</string>
-    <string name="nova_library_options_layout_grid_hint">Broad browsing at the former compact-grid density.</string>
+    <string name="nova_library_options_layout_grid_hint">Posters in a grid, several rows at a time.</string>
     <string name="nova_library_options_layout_compact">Compact</string>
-    <string name="nova_library_options_layout_compact_hint">A materially denser readable browser for fast controller sweeps.</string>
+    <string name="nova_library_options_layout_compact_hint">Smaller posters, so more fit on screen.</string>
     <string name="nova_library_options_poster_titles_title">Poster Titles</string>
     <string name="nova_library_options_poster_titles_show">Show Titles</string>
-    <string name="nova_library_options_poster_titles_show_hint">Keep the readable title bar on poster cards.</string>
+    <string name="nova_library_options_poster_titles_show_hint">Each poster carries its title.</string>
     <string name="nova_library_options_poster_titles_hide">Plain Artwork</string>
-    <string name="nova_library_options_poster_titles_hide_hint">Hide the title bar so posters show as clean artwork.</string>
+    <string name="nova_library_options_poster_titles_hide_hint">Posters show their artwork alone.</string>
     <string name="nova_library_layout_toast_format">Layout: %1$s</string>
     <string name="nova_system_menu_title">System</string>
     <string name="nova_system_menu_host_format">Host: %1$s</string>
@@ -623,7 +627,22 @@
     <string name="nettest_title_waiting">Testing Network Connection</string>
     <string name="nettest_text_waiting">Nova is testing your network connection to determine if any required ports are blocked.\n\nThis may take a few seconds…</string>
     <string name="nettest_title_done">Network Test Complete</string>
-    <string name="nettest_text_success">Your network does not appear to be blocking Nova. If you still have trouble connecting, check your PC\'s firewall settings.\n\nIf you are trying to stream over the Internet, install the Nova Internet Hosting Tool on your PC and run the included Internet Streaming Tester to check your PC\'s Internet connection.</string>
+    <string name="nettest_text_success">Your network does not appear to be blocking Nova. If you still have trouble connecting, check the firewall on the host.\n\nTo stream away from home, reach the host through a VPN such as Tailscale, or forward its ports on your router.</string>
+    <!-- View Details on a host: one labelled line each, with what is unknown left out. -->
+    <string name="nova_host_details_name">Name: %1$s</string>
+    <string name="nova_host_details_status">Status: %1$s</string>
+    <string name="nova_host_details_address">Address: %1$s</string>
+    <string name="nova_host_details_other_addresses">Other addresses: %1$s</string>
+    <string name="nova_host_details_mac">MAC address: %1$s</string>
+    <string name="nova_host_details_paired">Paired: %1$s</string>
+    <string name="nova_host_details_playing">Playing now: %1$s</string>
+    <string name="nova_host_details_https_port">HTTPS port: %1$d</string>
+    <string name="nova_host_details_id">Host ID: %1$s</string>
+    <string name="nova_host_details_yes">Yes</string>
+    <string name="nova_host_details_no">No</string>
+    <string name="nova_host_details_online">Online</string>
+    <string name="nova_host_details_offline">Offline</string>
+    <string name="nova_host_details_checking">Checking</string>
     <string name="nettest_text_inconclusive">The network test could not be performed because none of Nova\'s connection testing servers were reachable. Check your Internet connection or try again later.</string>
     <string name="nettest_text_failure">Your device\'s current network connection seems to be blocking Nova. Streaming over the Internet may not work while connected to this network.\n\nThe following network ports were blocked:\n</string>
     <string name="nettest_text_blocked">Your device\'s current network connection is blocking Nova. Streaming over the Internet may not work while connected to this network.</string>
@@ -1235,7 +1254,7 @@
     <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
     <string name="pref_refresh_rate_exceeds_display_cap">This display supports up to %1$d Hz</string>
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
-    <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track pad (Natural) mode when using an external display.</string>
+    <string name="summary_touchscreen_mode">How touch controls the host. A pen still works when it is off, and an external display always uses the trackpad.</string>
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
     <string name="title_checkbox_multi_touch_gestures">Enable multi-touch gestures</string>

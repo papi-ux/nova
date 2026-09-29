@@ -81,6 +81,7 @@ import com.papi.nova.ui.NovaStreamHudContent
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
+import com.papi.nova.ui.compose.NovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionSurface
@@ -523,6 +524,21 @@ private class NovaSettingsPageOpener(
             )
             return
         }
+        if (definition.key == "nova_theme") {
+            // The same picker as the Hosts screen's Theme, with each theme's caption: Settings had
+            // a generic list of bare names beside it.
+            pane.push(
+                com.papi.nova.novaThemePickerPage(
+                    context = context,
+                    themes = definition.options.map { it.value }.filter { theme ->
+                        theme != NovaThemeManager.THEME_MATERIAL_YOU || NovaThemeManager.isMaterialYouAvailable()
+                    },
+                    current = current.ifEmpty { NovaThemeManager.getTheme(context) },
+                    onChoose = { value -> onValue(definition, NovaSettingValue.StringValue(value)) {} },
+                ),
+            )
+            return
+        }
         val status = if (needsPyroWaveCheck(definition.key, definition.options.map { it.value })) {
             pyroWave ?: PyroWaveAvailability.Status.CHECKING
         } else {
@@ -711,7 +727,10 @@ private fun NovaSettingsQuickStrip(
             .fillMaxWidth()
             .focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
-        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)
+        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+        // On a television the strip took a third of the screen and left room for two and a half
+        // rows; there it keeps the pills that fit on one line, whole, and the rows get the room.
+        maxLines = if (LocalNovaFormFactor.current == NovaFormFactor.Television) 1 else Int.MAX_VALUE,
     ) {
         for (definition in state.quickSettings) {
             NovaSettingPill(

@@ -109,8 +109,8 @@ class NovaStreamHud(
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                topMargin = margin
-                leftMargin = margin
+                topMargin = hudMarginPx(horizontal = false).toInt()
+                leftMargin = hudMarginPx(horizontal = true).toInt()
             }
             val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
             rootView.addView(composeView, params)
@@ -432,15 +432,14 @@ class NovaStreamHud(
         if (savedX.isNaN() || savedY.isNaN()) {
             return
         }
-        val clamped = clampHudPosition(view, rootView, savedX, savedY, fallbackMargin)
+        val clamped = clampHudPosition(view, rootView, savedX, savedY)
         view.x = clamped.first
         view.y = clamped.second
     }
 
     private fun clampAndSaveHudPosition(view: View) {
         val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content) ?: return
-        val margin = HUD_SAFE_MARGIN_DP * activity.resources.displayMetrics.density
-        val clamped = clampHudPosition(view, rootView, view.x, view.y, margin)
+        val clamped = clampHudPosition(view, rootView, view.x, view.y)
         view.x = clamped.first
         view.y = clamped.second
         saveHudPosition(clamped.first, clamped.second)
@@ -451,13 +450,28 @@ class NovaStreamHud(
         rootView: ViewGroup,
         desiredX: Float,
         desiredY: Float,
-        margin: Float
     ): Pair<Float, Float> {
+        val marginX = hudMarginPx(horizontal = true)
+        val marginY = hudMarginPx(horizontal = false)
         val viewWidth = view.width.takeIf { it > 0 } ?: view.measuredWidth.takeIf { it > 0 } ?: 1
         val viewHeight = view.height.takeIf { it > 0 } ?: view.measuredHeight.takeIf { it > 0 } ?: 1
-        val maxX = (rootView.width - viewWidth - margin).coerceAtLeast(margin)
-        val maxY = (rootView.height - viewHeight - margin).coerceAtLeast(margin)
-        return desiredX.coerceIn(margin, maxX) to desiredY.coerceIn(margin, maxY)
+        val maxX = (rootView.width - viewWidth - marginX).coerceAtLeast(marginX)
+        val maxY = (rootView.height - viewHeight - marginY).coerceAtLeast(marginY)
+        return desiredX.coerceIn(marginX, maxX) to desiredY.coerceIn(marginY, maxY)
+    }
+
+    /**
+     * How far the HUD keeps from the screen's edge: 12dp, or on a television its title-safe 48dp
+     * at the sides and 27dp at top and bottom, where overscan would cut the pill.
+     */
+    private fun hudMarginPx(horizontal: Boolean): Float {
+        val dp = if (com.papi.nova.utils.UiHelper.isTvDevice(activity)) {
+            if (horizontal) com.papi.nova.ui.panel.NovaPanelMetrics.TvSafeHorizontal.value
+            else com.papi.nova.ui.panel.NovaPanelMetrics.TvSafeVertical.value
+        } else {
+            HUD_SAFE_MARGIN_DP
+        }
+        return dp * activity.resources.displayMetrics.density
     }
 
     private fun saveHudPosition(x: Float, y: Float) {

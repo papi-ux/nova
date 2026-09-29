@@ -196,6 +196,8 @@ internal fun NovaGameDetailOverview(
     val colors = LocalNovaComposeColors.current
     val game = uiState.game
     val inset = novaGameDetailWindowInset()
+    // The floor keeps a television's 27dp title-safe margin at the bottom.
+    val floorGap = if (inset > NovaGameDetailInset) com.papi.nova.ui.panel.NovaPanelMetrics.TvSafeVertical else NOVA_GAME_DETAIL_FLOOR_GAP
     // The status line says what Launch will do, so it is Launch that shows the rest of it.
     var primaryFocused by remember { mutableStateOf(false) }
     // Hoisted so the floor under the actions can say what B does, and what the armed split
@@ -253,7 +255,7 @@ internal fun NovaGameDetailOverview(
                 // title 58dp in on a handheld, which cost the status line and the action row 80dp
                 // of width and put that much more of the artwork under text.
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(start = inset, end = inset, bottom = NOVA_GAME_DETAIL_FLOOR_GAP),
+                .padding(start = inset, end = inset, bottom = floorGap),
         ) {
             NovaGameDetailTitle(
                 game = game,
@@ -380,7 +382,7 @@ internal fun NovaGameDetailOverview(
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(horizontal = inset, vertical = NOVA_GAME_DETAIL_FLOOR_GAP),
+                    .padding(horizontal = inset, vertical = floorGap),
             )
         }
 

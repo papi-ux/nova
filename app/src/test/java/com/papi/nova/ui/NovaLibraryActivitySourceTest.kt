@@ -73,7 +73,7 @@ class NovaLibraryActivitySourceTest {
         assertFalse(rows.contains("TextOverflow.Ellipsis"))
         assertTrue(
             strings.contains(
-                "name=\"nova_library_options_layout_stage_hint\">Artwork-first home with hero environment, icon identity, and immediate actions."
+                "name=\"nova_library_options_layout_stage_hint\">One game large, with its artwork and actions, over a row of the rest."
             )
         )
     }
@@ -95,6 +95,8 @@ class NovaLibraryActivitySourceTest {
         assertTrue(source.contains("revealControllerHints(NovaControllerHintChromeEvent.LAYOUT_CHANGED)"))
         assertTrue(hints.contains("R.string.nova_controller_hint_y"))
         assertTrue(hints.contains("R.string.nova_controller_hint_layout"))
+        // The grid changing is the answer; a floating snackbar said it again (R6).
+        assertFalse(source.substringAfter("private fun cycleLibraryLayoutMode()").substringBefore("override fun onDestroy()").contains("NovaSnackbar"))
     }
 
     @Test

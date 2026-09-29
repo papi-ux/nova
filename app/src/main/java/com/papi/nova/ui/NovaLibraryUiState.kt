@@ -1579,3 +1579,13 @@ object NovaLibraryUiStateMapper {
         }
     }
 }
+
+/**
+ * The first item a library grid shows so that the card at [focusedIndex] stands with one row of
+ * context above it: the start of the row before its own, or the top when it is in the first two.
+ */
+internal fun novaLibraryGridContextIndex(focusedIndex: Int, columns: Int): Int {
+    if (focusedIndex < 0 || columns <= 0) return 0
+    val row = focusedIndex / columns
+    return ((row - 1).coerceAtLeast(0)) * columns
+}

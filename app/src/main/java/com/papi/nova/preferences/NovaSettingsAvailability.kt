@@ -98,6 +98,8 @@ object NovaSettingsAvailability {
         }
 
     private val touchOnlyKeys = setOf(
+        // Touchscreen Mode was the first Input row on the Shield, which has no touchscreen.
+        "mouse_mode_list",
         "list_onscreen_controls_layout_preset",
         "checkbox_hide_osc_when_has_gamepad",
         "checkbox_vibrate_osc",

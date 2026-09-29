@@ -165,7 +165,8 @@ class NovaLibraryHeroEndComposeTest {
     fun theStripsEndArmsInPlaceAndItsNeighboursStepAside() {
         val keys = strip()
         armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
-        rule.onNodeWithText("Control Ultimate Edition").assertDoesNotExist()
+        // The title stays, so the player sees which game is ending; only Resume steps aside.
+        rule.onNodeWithText("Control Ultimate Edition").assertExists()
         rule.onNodeWithContentDescription("Resume Stream").assertDoesNotExist()
         rule.onNodeWithText(context.getString(R.string.nova_library_end_strip_consequence)).assertExists()
 
@@ -201,6 +202,20 @@ class NovaLibraryHeroEndComposeTest {
 
         assertEquals(1, ends)
         assertEquals(0, resumes)
+    }
+
+    @Test
+    fun oncePressedTheStripSaysEndingInsteadOfOfferingItAgain() {
+        val keys = strip()
+        armFrom({ rule.onNodeWithContentDescription("End Session").requestFocus() }, keys)
+        rule.advance(NovaPanelMetrics.SplitGuardMillis)
+        keys.press(NovaTestKeys.RIGHT)
+        keys.press(NovaTestKeys.A)
+        rule.advance(ARM_SETTLE_MS)
+        assertEquals(1, ends)
+        rule.onNodeWithText(context.getString(R.string.nova_library_ending_session)).assertExists()
+        rule.onNodeWithContentDescription("Resume Stream").assertDoesNotExist()
+        rule.onNodeWithContentDescription("End Session").assertDoesNotExist()
     }
 
     @Test

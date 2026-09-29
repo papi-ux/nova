@@ -208,7 +208,7 @@ class NovaLibrarySourceGuardTest {
             "Options should open on the filter row, the primary browse task, with Refresh after search at the foot",
             options.indexOf("item(key = \"filter\"") in 0 until options.indexOf("item(key = \"search\"") &&
                 options.indexOf("item(key = \"search\"") < options.indexOf("item(key = \"refresh\"") &&
-                options.section("item(key = \"filter\"", "item(key = \"sources\"").contains("Modifier.novaInitialFocus()")
+                options.section("item(key = \"filter\"", "item(key = \"sources\"").contains(".novaInitialFocus()")
         )
         assertFalse(
             "Options should not spend first-paint height on prose hint copy",
@@ -1255,7 +1255,8 @@ class NovaLibrarySourceGuardTest {
         assertTrue(
             "global controller hints should name the spatial left/right zones instead of vague Panels/Options copy",
             hints.contains("key = stringResource(R.string.nova_controller_hint_x)") &&
-                hints.contains("label = stringResource(R.string.nova_controller_hint_library)") &&
+                // X names the panel it opens, Library Options (smoke test 2026-09-29).
+                hints.contains("label = stringResource(R.string.nova_controller_hint_options)") &&
                 hints.contains("key = stringResource(R.string.nova_controller_hint_lb_rb)") &&
                 hints.contains("label = stringResource(R.string.nova_controller_hint_library_system)") &&
                 strings.contains("name=\"nova_controller_hint_library\">Library") &&
@@ -1264,8 +1265,7 @@ class NovaLibrarySourceGuardTest {
         assertFalse(
             "the global controller hint should not call shoulders Panels, Filters, or generic Options after the two-zone split",
             hints.contains("label = stringResource(R.string.nova_controller_hint_panels)") ||
-                hints.contains("label = stringResource(R.string.nova_controller_hint_filters)") ||
-                hints.contains("label = stringResource(R.string.nova_controller_hint_options)")
+                hints.contains("label = stringResource(R.string.nova_controller_hint_filters)")
         )
         assertTrue(
             "closed-screen shoulders should open the spatial panels directly instead of cycling source/filter chips, and the open panels name them too",
@@ -1334,7 +1334,7 @@ class NovaLibrarySourceGuardTest {
         assertTrue(
             "the game detail window keeps the shared hint model; the Overview paints it borderless on the artwork while destinations keep the reusable bar",
             detail.contains("List<NovaControllerHint>") &&
-                detail.contains("novaGameDetailOverviewHints()") &&
+                detail.contains("novaGameDetailOverviewHints(armed)") &&
                 detail.contains("NovaPanelHintBar(") &&
                 detail.contains("nova_controller_hint_back")
         )

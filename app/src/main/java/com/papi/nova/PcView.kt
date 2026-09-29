@@ -992,10 +992,16 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         label ?: return
         for ((action, labelRes) in actions) {
             action?.setOnFocusChangeListener { view, hasFocus ->
-                if (hasFocus) {
-                    label.text = getString(labelRes)
+                // Only a button that shows no label of its own gets the caption, and it says what
+                // the button does now: a collapsed rail's toggle said "Collapse rail", Sleep Host
+                // said Wake Host, and an expanded rail repeated the labels on its buttons.
+                val ownLabelShown = !(view as? TextView)?.text.isNullOrBlank()
+                if (hasFocus && !ownLabelShown) {
+                    label.text = view.contentDescription?.takeIf { it.isNotBlank() }
+                        ?: dashboardRailButtonText[view.id]?.takeIf { it.isNotBlank() }
+                        ?: getString(labelRes)
                     label.visibility = View.VISIBLE
-                } else if (actions.none { it.first?.hasFocus() == true }) {
+                } else if (hasFocus || actions.none { it.first?.hasFocus() == true }) {
                     label.visibility = View.INVISIBLE
                 }
                 if (view.id == R.id.actionNovaUpdate) {
@@ -1674,8 +1680,15 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
 
     private fun showNovaUpdateDashboardCurrent(release: NovaUpdateRelease) {
-        // The dashboard pill already shows CURRENT plus the installed version.
-        // Keep the happy path inline instead of spawning a modal/snackbar surface.
+        // The pill read Current before the check and Current after it, so a check that found
+        // nothing newer said nothing at all. It says so in place, on the pill that was pressed.
+        val current = BuildConfig.VERSION_NAME
+        findViewById<TextView>(R.id.updateStatusLabel)?.text = getString(R.string.pcview_update_status_up_to_date)
+        findViewById<TextView>(R.id.updateVersionLabel)?.text = getString(R.string.pcview_update_pill_latest_version, current)
+        findViewById<View>(R.id.actionNovaUpdate)?.let { pill ->
+            pill.contentDescription = getString(R.string.pcview_update_pill_content_latest, current)
+            pill.announceForAccessibility(pill.contentDescription)
+        }
     }
 
     private fun showNovaUpdateDashboardError(error: Throwable) {

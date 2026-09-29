@@ -744,11 +744,8 @@ class NovaLibraryActivity : NovaActivity() {
             return false
         }
         val nextMode = optionsState.layoutMode.next()
+        // The grid changing is the answer; a floating "Layout: Grid" snackbar broke R6.
         selectLibraryLayoutMode(nextMode)
-        NovaSnackbar.show(
-            this,
-            getString(R.string.nova_library_layout_toast_format, getString(layoutModeLabelRes(nextMode)))
-        )
         return true
     }
 
@@ -1623,12 +1620,16 @@ class NovaLibraryActivity : NovaActivity() {
                 ?: model.recentGames.firstOrNull()
         }
         val controllerHints = novaLibraryControllerHints(isLandscape)
-        val visibleControllerHints = if (largeText) {
-            controllerHints.filterIndexed { index, _ -> index in LARGE_TEXT_HINT_INDICES }
-        } else {
-            // Only the primary verbs earn footer space; Layout/System/LB-RB stay reachable
-            // on their buttons and remain in the accessibility description below.
-            controllerHints.filterIndexed { index, _ -> index in PRIMARY_HINT_INDICES }
+        val visibleControllerHints = when {
+            largeText -> controllerHints.filterIndexed { index, _ -> index in LARGE_TEXT_HINT_INDICES }
+            // A landscape screen has the room for every key that does something here: the bar
+            // showed A, B and X, and Y, Start and the shoulders were left for the player to find.
+            // Below 720dp the bar scrolled its last hint under the edge, so a narrower screen
+            // keeps the primary verbs.
+            isLandscape && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 720 -> controllerHints
+            // Upright only the primary verbs earn footer space; the rest stay reachable on their
+            // buttons and remain in the accessibility description below.
+            else -> controllerHints.filterIndexed { index, _ -> index in PRIMARY_HINT_INDICES }
         }
         val controllerHintDescription = controllerHints.joinToString(separator = " · ") { hint ->
             "${hint.key} ${hint.label}"
@@ -1670,7 +1671,7 @@ class NovaLibraryActivity : NovaActivity() {
                     .fillMaxSize()
                     .background(surfaces.backgroundScrim)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(NovaLibraryUiStateMapper.screenPaddingDp(isLandscape).dp)
+                    .padding(com.papi.nova.ui.panel.novaScreenPadding(NovaLibraryUiStateMapper.screenPaddingDp(isLandscape).dp))
             ) {
                 val environments = spacesSnapshot?.takeIf { it.spaces.isNotEmpty() }
                 Box(
@@ -1924,9 +1925,10 @@ class NovaLibraryActivity : NovaActivity() {
                 key = stringResource(R.string.nova_controller_hint_b),
                 label = stringResource(R.string.nova_controller_hint_back)
             ),
+            // X opens Library Options, and the bar says so by that name.
             NovaControllerHint(
                 key = stringResource(R.string.nova_controller_hint_x),
-                label = stringResource(R.string.nova_controller_hint_library)
+                label = stringResource(R.string.nova_controller_hint_options)
             ),
             NovaControllerHint(
                 key = stringResource(R.string.nova_controller_hint_y),
@@ -2436,8 +2438,19 @@ class NovaLibraryActivity : NovaActivity() {
                         // A focus scroll keeps the same margin for rows it brings to the top.
                         val focusRisePx = with(LocalDensity.current) { viewportSpec.topInsetDp.dp.toPx() }
                         val focusScrollSpec = remember(focusRisePx) { NovaGridFocusRiseScrollSpec(focusRisePx) }
+                        val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+                        // A layout change, Compact from Grid, left the focused card under the header
+                        // and the Shield's grid cut its second row at rest. The card that has focus
+                        // comes into view with a row of context above it (R13).
+                        LaunchedEffect(layoutMode, viewportSpec.columns) {
+                            val focusedIndex = model.filteredGames.indexOfFirst { it.id == restoreFocusGameId }
+                            gridState.scrollToItem(
+                                novaLibraryGridContextIndex(focusedIndex, viewportSpec.columns),
+                            )
+                        }
                         CompositionLocalProvider(LocalBringIntoViewSpec provides focusScrollSpec) {
                         LazyVerticalGrid(
+                            state = gridState,
                             columns = GridCells.Fixed(viewportSpec.columns),
                             // The last visible row fades out on the grid's own layer; nothing is
                             // painted over the backdrop, so no box or seam appears where the grid ends.
@@ -2918,7 +2931,8 @@ class NovaLibraryActivity : NovaActivity() {
                     NovaOption<NovaLibraryMoreFilter>(
                         value = NovaLibraryMoreFilter.Category(category),
                         label = categoryLabelFor(category),
-                        caption = getString(R.string.nova_library_panel_category_caption, count),
+                        // "1 games" read as a typo; the count takes its plural.
+                        caption = resources.getQuantityString(R.plurals.nova_library_panel_category_caption, count, count),
                     ),
                 )
             }
@@ -2928,7 +2942,7 @@ class NovaLibraryActivity : NovaActivity() {
                     NovaOption<NovaLibraryMoreFilter>(
                         value = NovaLibraryMoreFilter.Genre(genre),
                         label = genreLabel(genre),
-                        caption = getString(R.string.nova_library_panel_genre_caption, count),
+                        caption = resources.getQuantityString(R.plurals.nova_library_panel_genre_caption, count, count),
                     ),
                 )
             }

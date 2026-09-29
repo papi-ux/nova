@@ -75,8 +75,8 @@ class NovaGameDetailOverviewLayoutTest {
         assertTrue(
             "one margin for the page and the panels that open over it, and a television keeps the wider one",
             page.contains("val inset = novaGameDetailWindowInset()") &&
-                page.contains(".padding(start = inset, end = inset, bottom = NOVA_GAME_DETAIL_FLOOR_GAP)") &&
-                page.contains(".padding(horizontal = inset, vertical = NOVA_GAME_DETAIL_FLOOR_GAP)") &&
+                page.contains(".padding(start = inset, end = inset, bottom = floorGap)") &&
+                page.contains(".padding(horizontal = inset, vertical = floorGap)") &&
                 read("NovaGameDetailDestinations.kt").contains("internal fun novaGameDetailWindowInset(): Dp {")
         )
     }

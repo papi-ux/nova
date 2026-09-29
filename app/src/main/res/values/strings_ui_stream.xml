@@ -6,7 +6,7 @@
     <string name="nova_cc_more_controls">More Controls</string>
     <string name="nova_cc_more_controls_caption">Clipboard, zoom, touch and server commands</string>
     <!-- Command Center: the header while the split is armed, under Stay and End Session. -->
-    <string name="nova_cc_end_session_consequence">The game closes on the host and the stream cannot be resumed.</string>
+    <string name="nova_cc_end_session_consequence">Unsaved progress on the host is lost.</string>
     <!-- Command Center: the Keys page when no key can be offered. -->
     <string name="nova_cc_keys_empty">No keys to send</string>
     <string name="nova_cc_keys_empty_reason">Default keys are turned off in Settings and no custom keys are imported.</string>

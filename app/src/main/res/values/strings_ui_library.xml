@@ -5,7 +5,9 @@
     <!-- End Session, from the library or game detail, when this device lacks what the host needs to end it. -->
     <string name="nova_library_end_missing_details">Missing Polaris session details for End</string>
     <!-- Beside an armed End Session in the library's top strip, which has no room for a longer line. -->
-    <string name="nova_library_end_strip_consequence">Unsaved progress is lost.</string>
+    <string name="nova_library_end_strip_consequence">Unsaved progress on the host is lost.</string>
+    <!-- The library strip right after End Session is confirmed, until the host answers. -->
+    <string name="nova_library_ending_session">Ending session</string>
 
     <!-- Library Options. -->
     <string name="nova_library_panel_filter">Filter</string>
@@ -26,9 +28,15 @@
     <string name="nova_library_panel_refresh_caption">Ask the host for its library again.</string>
     <string name="nova_library_panel_artwork_updating">Updating artwork</string>
     <!-- A category's row on the More Filters page: how many games it holds. -->
-    <string name="nova_library_panel_category_caption">Category · %1$d games</string>
+    <plurals name="nova_library_panel_category_caption">
+        <item quantity="one">Category · %1$d game</item>
+        <item quantity="other">Category · %1$d games</item>
+    </plurals>
     <!-- A genre's row on the More Filters page: how many games it holds. -->
-    <string name="nova_library_panel_genre_caption">Genre · %1$d games</string>
+    <plurals name="nova_library_panel_genre_caption">
+        <item quantity="one">Genre · %1$d game</item>
+        <item quantity="other">Genre · %1$d games</item>
+    </plurals>
 
     <!-- The hint bar's label for Y, which flips Play Setup between this game and every game. -->
     <string name="nova_play_setup_panel_scope_hint">This or Every Game</string>

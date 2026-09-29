@@ -121,7 +121,7 @@ class NovaPlaySetupLayoutTest {
         assertTrue(
             "a television keeps the wider margin: nothing reports its overscan",
             panels.contains("Configuration.UI_MODE_TYPE_TELEVISION") &&
-                panels.contains("return if (television) NovaGameDetailInset else NOVA_DETAIL_WINDOW_INSET")
+                panels.contains("return if (television) com.papi.nova.ui.panel.NovaPanelMetrics.TvSafeHorizontal else NOVA_DETAIL_WINDOW_INSET")
         )
         assertTrue(
             "Play Setup stands on the panel frame, attached to the end edge and clear of the screen's insets",
