@@ -1116,8 +1116,9 @@ private fun NovaSettingsUiState.stringSetting(key: String, defaultValue: String)
  * opens its page. In a profile, a setting the profile overrides can be reset with X or its Reset
  * button, and from the page it opens. A switch or a choice that changes in place opens no page, so
  * a remote resets it with a hold of OK (A on a controller): the row splits in place into Keep,
- * focused, and Use Preset Default (C02). [onFocus] hears the row take and lose focus, and
- * [onRefocus] puts focus back on it once the split is answered.
+ * focused, and Use Preset Default (C02). [onFocus] hears focus reach the row itself and leave it,
+ * which it does for Keep and Use Preset Default, and [onRefocus] puts focus back on it once the
+ * split is answered.
  */
 @Composable
 private fun NovaSettingRow(
@@ -1139,14 +1140,24 @@ private fun NovaSettingRow(
     val reset by rememberUpdatedState({ onReset(definition) })
     val resetLatch = remember { NovaPressLatch() }
     val (shown, write) = rememberSettingValue(definition, state.values[definition.key] ?: definition.defaultValue, onValue)
-    // The hold that splits an overridden switch or in-place choice (C02).
+    // The hold that splits an overridden switch or in-place choice (C02). Armed, the split is
+    // answered as any split is, on release: a hold on Keep or Use Preset Default is a press of it,
+    // and never arms the split again over itself.
     val holdable = canReset && enabled && definition.resetsByHold
-    val holdableNow by rememberUpdatedState(holdable)
     val split = rememberNovaSplitConfirmState()
+    val holdableNow by rememberUpdatedState(holdable && !split.armed)
     val hold = remember { NovaHoldToReset() }
     val holdScope = rememberCoroutineScope()
     var pairFocused by remember { mutableStateOf(false) }
     val refocus by rememberUpdatedState(onRefocus)
+    // Focus on the row itself, not on Keep or Use Preset Default: only there is a hold to name.
+    var rowFocused by remember { mutableStateOf(false) }
+    val ownFocus = rowFocused && !split.armed
+    val reportFocus by rememberUpdatedState(onFocus)
+    DisposableEffect(ownFocus) {
+        reportFocus(ownFocus)
+        onDispose { if (ownFocus) reportFocus(false) }
+    }
     // Keep, Use Preset Default and B hand focus back to the row, which the split stood over.
     LaunchedEffect(split.armed) {
         if (split.armed) return@LaunchedEffect
@@ -1162,7 +1173,7 @@ private fun NovaSettingRow(
         modifier = Modifier
             .fillMaxWidth()
             .onFocusChanged {
-                onFocus(it.hasFocus)
+                rowFocused = it.hasFocus
                 if (!it.hasFocus) hold.cancel()
             }
             // A held OK or A on an overridden switch or in-place choice splits the row instead of

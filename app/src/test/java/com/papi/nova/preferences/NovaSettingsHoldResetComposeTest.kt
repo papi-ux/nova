@@ -105,15 +105,20 @@ class NovaSettingsHoldResetComposeTest {
 
     private fun hints(): String = rule.onNode(hintBar).fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
 
-    /** Holds OK past the hold's half second, then lets it go. */
-    private fun hold(keys: NovaTestKeys) {
+    /** Holds OK past the hold's half second, or for [millis], then lets it go. */
+    private fun hold(keys: NovaTestKeys, millis: Long = NOVA_HOLD_MS) {
         rule.mainClock.autoAdvance = false
         keys.down(NovaTestKeys.CENTER)
-        rule.advance(NOVA_HOLD_MS)
+        rule.advance(millis)
         rule.frames(4)
         keys.up(NovaTestKeys.CENTER)
         rule.frames(4)
     }
+
+    /** Which half of the split has focus, for a message. */
+    private fun focusedHalf(): String = listOf("Keep", "Use Preset Default").firstOrNull { label ->
+        runCatching { button(label).assertIsFocused() }.isSuccess
+    } ?: "neither"
 
     private fun controllerKey(keys: NovaTestKeys, code: Int) {
         val now = SystemClock.uptimeMillis()
@@ -204,6 +209,105 @@ class NovaSettingsHoldResetComposeTest {
         hold(keys)
         button("Keep").assertDoesNotExist()
         assertEquals("the release of a plain press changes it, as ever", listOf("checkbox_enable_hdr" to NovaSettingValue.BooleanValue(true)), writes)
+    }
+
+    // A split's halves act on release, however long the key is held, as every other split's do.
+    // The hold had started again on Use Preset Default and armed the split over itself: focus went
+    // back to Keep and nothing was reset.
+    @Test
+    fun holdingOkOnUsePresetDefaultResetsItAsAPressDoes() {
+        val keys = show()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.waitForIdle()
+        hold(keys)
+        button("Keep").assertIsFocused()
+        rule.advance(NovaPanelMetrics.SplitGuardMillis + 100)
+        keys.press(NovaTestKeys.RIGHT)
+        rule.frames(4)
+        button("Use Preset Default").assertIsFocused()
+
+        hold(keys)
+        rule.frames(8)
+        assertEquals("focus after the hold: ${focusedHalf()}", listOf("checkbox_enable_hdr"), resets)
+        assertTrue(writes.isEmpty())
+        button("Use Preset Default").assertDoesNotExist()
+        row("checkbox_enable_hdr").assertIsFocused()
+    }
+
+    @Test
+    fun holdingOkOnKeepKeepsItAsAPressDoes() {
+        val keys = show()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.waitForIdle()
+        hold(keys)
+        button("Keep").assertIsFocused()
+
+        hold(keys)
+        rule.frames(8)
+        button("Keep").assertDoesNotExist()
+        row("checkbox_enable_hdr").assertIsFocused()
+        assertTrue(resets.isEmpty())
+        assertTrue(writes.isEmpty())
+    }
+
+    // The hint bar named the hold while focus was on Keep or Use Preset Default, where doing what
+    // it said put focus back on Keep and reset nothing. It names it on the row itself only.
+    @Test
+    fun theHintNamesTheHoldOnTheRowAndOnNeitherHalfOfItsSplit() {
+        val keys = show()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.waitForIdle()
+        hold(keys)
+        button("Keep").assertIsFocused()
+        assertFalse("on Keep: ${hints()}", hints().contains("Hold"))
+
+        rule.advance(NovaPanelMetrics.SplitGuardMillis + 100)
+        keys.press(NovaTestKeys.RIGHT)
+        rule.frames(4)
+        button("Use Preset Default").assertIsFocused()
+        assertFalse("on Use Preset Default: ${hints()}", hints().contains("Hold"))
+
+        keys.press(NovaTestKeys.LEFT)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(8)
+        row("checkbox_enable_hdr").assertIsFocused()
+        assertTrue("back on the row: ${hints()}", hints().contains("Hold OK Reset"))
+    }
+
+    // Focus that moves on while OK is still held takes the hold with it: the row it left never
+    // splits and pulls focus back to its Keep.
+    @Test
+    fun aHoldCutShortByFocusMovingOnSplitsNothing() {
+        val keys = show()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.waitForIdle()
+        row("checkbox_enable_hdr").assertIsFocused()
+        rule.mainClock.autoAdvance = false
+        keys.down(NovaTestKeys.CENTER)
+        rule.advance(100)
+        keys.press(NovaTestKeys.DOWN)
+        rule.advance(NOVA_HOLD_MS)
+        rule.frames(4)
+        button("Keep").assertDoesNotExist()
+        row(PreferenceConfiguration.FPS_PREF_STRING).assertIsFocused()
+        keys.up(NovaTestKeys.CENTER)
+        rule.frames(4)
+        assertTrue(writes.isEmpty())
+        assertTrue(resets.isEmpty())
+    }
+
+    // The hold's own release, however long after the split's guard it comes, answers nothing.
+    @Test
+    fun aLongHoldsReleaseLeavesTheSplitStanding() {
+        val keys = show()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.waitForIdle()
+        hold(keys, millis = 2_000L)
+        rule.frames(8)
+        button("Keep").assertIsFocused()
+        button("Use Preset Default").assertExists()
+        assertTrue(resets.isEmpty())
+        assertTrue(writes.isEmpty())
     }
 
     private companion object {
