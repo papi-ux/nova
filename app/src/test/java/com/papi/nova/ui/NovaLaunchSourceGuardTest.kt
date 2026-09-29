@@ -852,18 +852,21 @@ class NovaLaunchSourceGuardTest {
                 optimization.contains("check(StreamSyncManager.hasTrustedResolvedProfile(opt))") &&
                 optimization.contains("val optimizationMode = uiState.playMode") &&
                 optimization.contains("mode = optimizationMode") &&
-                optimization.contains("NovaGameDetailOptimizationState(preflightFailed = true)") &&
+                optimization.contains("NovaGameDetailOptimizationState(preflightFailed = true, preflightMessage = e.rejection.error)") &&
+                optimization.contains("preflightFailed = true,\n                        preflightMessage = getString(R.string.nova_game_detail_launch_preflight_unavailable),") &&
                 optimization.contains("pendingLaunch = false") &&
                 highFps.contains("loadOptimization(profilePreference)") &&
                 highFps.contains("pendingSettledWork = null") &&
                 !highFps.contains("lifecycleScope.launch")
         )
 
+        // The rejection's own words ride on the state the status line reads, not a snackbar (audit
+        // X2), and the held launch that cannot replay adds no message of its own over them.
         assertTrue(
             "a typed host rejection must remain visible instead of being replaced by the generic retry message",
-            optimization.contains("var failureMessageShown = false") &&
-                optimization.contains("failureMessageShown = true") &&
-                optimization.contains("if (!failureMessageShown)")
+            optimization.contains("preflightMessage = e.rejection.error") &&
+                Regex("nova_game_detail_launch_preflight_unavailable").findAll(optimization).count() == 1 &&
+                !optimization.substringAfter("pendingLaunch = false").substringBefore("}").contains("preflightMessage")
         )
 
         assertTrue(
