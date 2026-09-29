@@ -747,8 +747,8 @@
     <string name="delete_pc_host_unreachable">%1$s could not be reached, so it still lists this device as paired.</string>
     <string name="delete_pc_host_refused">%1$s would not forget this device. Remove it on that PC.</string>
     <string name="delete_pc_host_unsupported">%1$s cannot be asked to forget a device, so it still lists this one.</string>
-    <string name="slow_connection_msg">Slow connection to PC\nReduce your bitrate</string>
-    <string name="poor_connection_msg">Poor connection to PC</string>
+    <string name="slow_connection_msg">Slow connection to host\nReduce your bitrate</string>
+    <string name="poor_connection_msg">Poor connection to host</string>
     <string name="perf_overlay_streamdetails">Video stream: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Decoder: %1$s</string>
     <string name="perf_overlay_incomingfps">Incoming frame rate from network: %1$.2f FPS</string>

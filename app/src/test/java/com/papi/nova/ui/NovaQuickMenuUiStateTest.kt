@@ -370,9 +370,9 @@ class NovaQuickMenuUiStateTest {
         // beside the pill keeps its room.
         assertFalse(state.sessionMode.label.contains("GPU capture"))
         assertFalse(state.sessionMode.label.contains("owner"))
-        // N26: plain words, with the technical term a player may need kept in brackets. It read
-        // "GPU-native DMA-BUF · Explicit choice · Owner".
-        assertEquals("GPU capture (DMA-BUF) · Mode you picked · Your session", state.sessionDetail)
+        // N26 and review finding 10: plain words. It read "GPU-native DMA-BUF · Explicit choice ·
+        // Owner", then "GPU capture (DMA-BUF) · ...". The technical name is in the HUD's Debug layout.
+        assertEquals("GPU capture · Mode you picked · Your session", state.sessionDetail)
     }
 
     @Test
