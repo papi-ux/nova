@@ -580,7 +580,7 @@ class StreamSettings : NovaActivity() {
             pref.entryValues = entryValues.requireNoNulls()
         }
 
-        private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?) =
+        protected fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?) =
             resetBitrateToDefault(prefs, res, fps, null)
 
         private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?, codecValue: String?) {

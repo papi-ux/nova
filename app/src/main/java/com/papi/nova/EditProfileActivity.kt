@@ -346,14 +346,14 @@ class EditProfileActivity : NovaActivity() {
             correctedStreamKeys.clear()
             super.onCreatePreferences(savedInstanceState, rootKey)
             val migration = com.papi.nova.preferences.NovaSettingsMigration
-            // Keep deliberate panel corrections to existing overrides, including the Auto
-            // bitrate recalculation. Default-only writes must not pin inherited dimensions.
-            val corrections = if (correctedStreamKeys.any { it in overrides }) memPrefs.all.filterKeys {
-                (it in correctedStreamKeys && it in overrides) ||
-                    it in setOf(PreferenceConfiguration.BITRATE_PREF_STRING, migration.AUTO, migration.CUSTOM_AUTO)
-            } else emptyMap()
+            // Keep corrections to actual overrides, then discard XML-only defaults. A bitrate
+            // calculated during inflation saw those defaults instead of inherited stream values.
+            val corrections = memPrefs.all.filterKeys { it in correctedStreamKeys && it in overrides }
             memPrefs.edit().clear().apply()
             migration.writeDifference(memPrefs, overrides + corrections)
+            if (corrections.isNotEmpty()) {
+                resetBitrateToDefault(memPrefs, null, null)
+            }
 
             findPreference<Preference>("nova_ui_font_scale_percent")?.isVisible = false
             findPreference<Preference>("option_reset_osc_preference")?.isVisible = false
