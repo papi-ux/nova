@@ -176,17 +176,18 @@ private fun NovaPageScope.MenuPage(page: NovaCommonPage.Menu, exit: NovaPageExit
     val columns = novaPanelColumns(page.width)
     // Two to a line on a compact landscape panel, in the items' own order.
     val lines = remember(page.items, columns) { novaGridRows(page.items, columns) { it.standsAlone() } }
-    PageList {
-        page.header?.let { header ->
-            item(key = "header") { MenuHeader(header) }
-        }
-        itemsIndexed(lines, key = { _, cells -> cells.joinToString(GridKeySeparator) { it.key } }) { line, items ->
-            val listIndex = line + if (page.header != null) 1 else 0
-            NovaGridRow(items, if (items.singleOrNull()?.standsAlone() == true) 1 else columns) { item, cell ->
-                val focus = cell
-                    .then(if (item === firstFocusable) Modifier.novaInitialFocus() else Modifier)
-                    .novaRestorableFocus(item.key, listIndex)
-                MenuItem(item, focus, exit)
+    // The header stays above the list rather than scrolling with it: scrolled, its last line was
+    // left sliced under the title whenever a split armed at the list's end (Delete PC).
+    Column(modifier = Modifier.fillMaxWidth()) {
+        page.header?.let { header -> MenuHeader(header) }
+        PageList {
+            itemsIndexed(lines, key = { _, cells -> cells.joinToString(GridKeySeparator) { it.key } }) { line, items ->
+                NovaGridRow(items, if (items.singleOrNull()?.standsAlone() == true) 1 else columns) { item, cell ->
+                    val focus = cell
+                        .then(if (item === firstFocusable) Modifier.novaInitialFocus() else Modifier)
+                        .novaRestorableFocus(item.key, line)
+                    MenuItem(item, focus, exit)
+                }
             }
         }
     }
