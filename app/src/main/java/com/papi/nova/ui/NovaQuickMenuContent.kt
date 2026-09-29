@@ -188,7 +188,7 @@ fun NovaPageScope.NovaQuickMenuContent(
             // The page opens on Close, its safe action (R7); it opened on this strip, which acts
             // on nothing, so the first A did nothing and the ring sat on a status card.
             NovaQuickMenuSessionStrip(ui, Modifier)
-            NovaQuickMenuStateRow(ui, { it.liveTuningAction }, callbacks)
+            NovaQuickMenuLiveTuningRow(ui, callbacks)
             // The keys a handheld cannot press any other way stay one reach from the top; the
             // full grid lives further down with the rest of the sections.
             if (showPinnedKeys) NovaQuickKeys(ui, { it.pinnedQuickKeys }, callbacks)
@@ -693,14 +693,31 @@ private fun NovaPageScope.NovaQuickMenuRows(
     }
 }
 
+/**
+ * Live Tuning is a host setting: switching it rewrites polaris.conf for every device that streams
+ * from the host, so one A never changes it (M11). It splits in its row as End Session does, into
+ * Stay and Turn Off (or Turn On), with what it changes written under the pair. At rest it is a row
+ * among rows, its state on the chip at its end.
+ */
 @Composable
-private fun NovaPageScope.NovaQuickMenuStateRow(
+private fun NovaPageScope.NovaQuickMenuLiveTuningRow(
     ui: State<NovaQuickMenuUiState>,
-    select: (NovaQuickMenuUiState) -> NovaQuickMenuAction,
     callbacks: NovaQuickMenuCallbacks,
 ) {
-    val row by ui.slice(select)
-    NovaQuickMenuRow(row, callbacks, Modifier.novaRestorableFocus(row.id))
+    val row by ui.slice { it.liveTuningAction }
+    val on = row.chip?.tone == NovaQuickMenuTone.ACTIVE
+    NovaSplitConfirm(
+        label = row.label,
+        confirmLabel = stringResource(if (on) R.string.nova_cc_live_tuning_turn_off else R.string.nova_cc_live_tuning_turn_on),
+        onConfirm = { if (row.enabled) callbacks.perform(row) },
+        consequence = stringResource(R.string.nova_cc_live_tuning_consequence),
+        icon = R.drawable.ic_settings,
+        shape = NovaSplitShape.Row,
+        enabled = row.enabled,
+        caption = row.caption,
+        trailing = row.chip?.let { chip -> { NovaQuickMenuChipView(chip) } },
+        modifier = Modifier.novaRestorableFocus(row.id).testTag("nova-cc-live-tuning"),
+    )
 }
 
 @Composable

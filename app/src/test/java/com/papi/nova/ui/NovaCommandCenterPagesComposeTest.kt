@@ -52,11 +52,13 @@ class NovaCommandCenterPagesComposeTest {
     private val serverCommandRuns = mutableListOf<Int>()
     private val switches = mutableListOf<Boolean>()
     private val quickKeys = mutableListOf<NovaQuickMenuActionId>()
+    private var liveTuningToggles = 0
 
     private val callbacks = NovaQuickMenuCallbacks(
         onDismiss = { dismissed++ },
         onEndStream = { ended++ },
         onQuickKey = { quickKeys += it },
+        onLiveTuning = { liveTuningToggles++ },
         onControlAction = { id ->
             if (id == NovaQuickMenuActionId.MOUSE_MODE) {
                 panel.push(
@@ -130,8 +132,8 @@ class NovaCommandCenterPagesComposeTest {
         ),
     )
 
-    private fun open(): NovaTestKeys {
-        val state = MutableStateFlow(NovaQuickMenuUiState.preview(rule.activity))
+    private fun open(adjust: (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { it }): NovaTestKeys {
+        val state = MutableStateFlow(adjust(NovaQuickMenuUiState.preview(rule.activity)))
         panel.open(CommandCenterPage.Root("Command Center"))
         val keys = rule.setPanelContent {
             Box(Modifier.fillMaxSize()) {
@@ -221,6 +223,42 @@ class NovaCommandCenterPagesComposeTest {
         keys.press(NovaTestKeys.CENTER)
         rule.frames(4)
         assertEquals(1, ended)
+    }
+
+    /**
+     * M11: Live Tuning rewrites polaris.conf for every client of the host. One A used to switch it;
+     * now it splits in its row as End Session does, says what it changes, and only A, Right, A
+     * after the guard switches it.
+     */
+    @Test
+    fun liveTuningIsAHostSettingSoItSplitsBeforeItChanges() {
+        val keys = open { state ->
+            state.copy(
+                liveTuningAction = NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.LIVE_TUNING,
+                    label = "Live Tuning",
+                    caption = "Steady.",
+                    chip = NovaQuickMenuChip("On", NovaQuickMenuTone.ACTIVE),
+                    enabled = true,
+                ),
+                sync = state.sync.copy(chip = NovaQuickMenuChip("Synced", NovaQuickMenuTone.ACTIVE)),
+            )
+        }
+        rule.mainClock.autoAdvance = false
+        focus("Live Tuning")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+
+        assertEquals("one A never rewrites the host's setting", 0, liveTuningToggles)
+        rule.onNodeWithText("Stay").assertIsFocused()
+        rule.onNodeWithText("Turn Off").assertExists()
+        rule.onNodeWithText("Changes Polaris for every device.").assertExists()
+
+        keys.press(NovaTestKeys.RIGHT)
+        rule.advance(450)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+        assertEquals("A, Right, A after the guard switches it once", 1, liveTuningToggles)
     }
 
     @Test

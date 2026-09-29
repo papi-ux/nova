@@ -168,6 +168,11 @@ fun NovaSplitConfirm(
     buttonStyle: NovaSplitButtonStyle? = null,
     /** A [NovaSplitShape.Row]'s caption at rest, under its label, as the rows around it carry theirs. */
     caption: String? = null,
+    /**
+     * A [NovaSplitShape.Row]'s state at rest, at the row's end where the rows around it show theirs,
+     * such as a host setting's On or Off.
+     */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val confirm by rememberUpdatedState(onConfirm)
     val mark = icon ?: R.drawable.ic_close
@@ -262,6 +267,7 @@ fun NovaSplitConfirm(
                     // A row at rest reads as the rows around it: the tile, its label at the start.
                     row = shape == NovaSplitShape.Row,
                     caption = caption?.takeIf { shape == NovaSplitShape.Row && it.isNotBlank() },
+                    trailing = trailing?.takeIf { shape == NovaSplitShape.Row },
                     buttonStyle = buttonStyle,
                     modifier = Modifier
                         .then(if (fills) Modifier.fillMaxWidth() else Modifier.onSizeChanged { slotWidth = it.width })
@@ -353,6 +359,7 @@ private fun SplitHalf(
     tile: Boolean = false,
     row: Boolean = false,
     caption: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
     buttonStyle: NovaSplitButtonStyle? = null,
     onClick: () -> Unit,
 ) {
@@ -409,14 +416,16 @@ private fun SplitHalf(
                         modifier = Modifier.size(NovaPanelMetrics.IconSize),
                     )
                 }
+                val label = if (trailing != null) Modifier.weight(1f) else Modifier
                 if (caption == null) {
-                    Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
+                    Text(text = text, style = novaPanelType.rowTitle, color = contentColor, modifier = label)
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
+                    Column(modifier = label, verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
                         Text(text = text, style = novaPanelType.rowTitle, color = contentColor)
                         Text(text = caption, style = novaPanelType.caption, color = colors.textSecondary, maxLines = 2)
                     }
                 }
+                trailing?.invoke()
             }
         } else {
             val style = buttonStyle?.text ?: novaPanelType.value

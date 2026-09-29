@@ -1058,6 +1058,28 @@ class NovaQuickMenuUiStateTest {
         assertEquals(NovaMenuPreferences.OPACITY_PRESETS, state.menuOpacity.presets)
     }
 
+    /**
+     * The Command Center's Live Tuning caption says what it is doing and the bitrate it applied,
+     * in the player's words. It read "Live Tuning On, stable. Host setting. 20 Mbps applied /
+     * 20 Mbps limit": the title twice, and a slash. What it changes goes under its split now.
+     */
+    @Test
+    fun liveTuningSaysWhatItIsDoingInPlainWords() {
+        val fixtures = org.json.JSONArray(javaClass.getResource("/live-tuning-v1.json")!!.readText())
+        fun live(name: String) = (0 until fixtures.length()).map { fixtures.getJSONObject(it) }
+            .first { it.getString("name") == name }
+            .let { com.papi.nova.api.LiveTuningStatus.parse(it.getJSONObject("live_tuning"))!! }
+
+        val stable = quickState(status = status().copy(liveTuning = live("stable"), liveTuningPresent = true))
+        assertEquals("Live Tuning", stable.liveTuningAction.label)
+        assertEquals("On", stable.liveTuningAction.chip?.label)
+        assertEquals("Steady. 20 Mbps applied, 20 Mbps limit.", stable.liveTuningAction.caption)
+
+        val off = quickState(status = status().copy(liveTuning = live("off"), liveTuningPresent = true))
+        assertEquals("Off", off.liveTuningAction.chip?.label)
+        assertEquals("The bitrate stays where the stream started.", off.liveTuningAction.caption)
+    }
+
     @Test
     fun pendingLiveTuningSaveKeepsTheRowUnderTheCursor() {
         // Disabling the row while its save was pending dropped controller focus mid-press,

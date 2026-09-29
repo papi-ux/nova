@@ -936,6 +936,23 @@ class NovaCommandCenterSourceGuardTest {
         )
     }
 
+    /**
+     * C30, the Command Center half: Live Tuning's row was built from English in Kotlin, its title,
+     * its chip and its caption, "Host setting." included. Every word now comes from resources.
+     */
+    @Test
+    fun liveTuningWordsInTheCommandCenterComeFromResources() {
+        val state = readSource("src/main/java/com/papi/nova/ui/NovaQuickMenuUiState.kt")
+        listOf("\"Live Tuning\"", "\"Saving…\"", "Host setting", "\"Reconnecting, state not confirmed\"", "\"Unknown\"", "\"Fixed\"")
+            .forEach { literal ->
+                assertFalse("NovaQuickMenuUiState must not write $literal in Kotlin", state.contains(literal))
+            }
+        assertFalse(
+            "the row's caption is its own, not AutoQualityUiState's English label and detail",
+            state.contains("autoQuality.label") || state.contains("autoQuality.detail"),
+        )
+    }
+
     @Test
     fun companionDeckSkipsUnchangedPerfIntervals() {
         val deck = readSource("src/main/java/com/papi/nova/ui/NovaCompanionCommandDeckView.kt")

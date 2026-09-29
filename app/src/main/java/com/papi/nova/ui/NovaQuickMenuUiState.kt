@@ -149,7 +149,7 @@ data class NovaQuickMenuUiState(
     val disconnectAction: NovaQuickMenuAction,
     val endAction: NovaQuickMenuAction,
     val stability: NovaQuickMenuStabilityState,
-    val liveTuningAction: NovaQuickMenuAction = NovaQuickMenuAction(NovaQuickMenuActionId.LIVE_TUNING, "Live Tuning", enabled = false),
+    val liveTuningAction: NovaQuickMenuAction = NovaQuickMenuAction(NovaQuickMenuActionId.LIVE_TUNING, "", enabled = false),
     val sync: NovaQuickMenuAction,
     val advancedToggle: NovaQuickMenuAction,
     val advancedExpanded: Boolean,
@@ -471,19 +471,15 @@ data class NovaQuickMenuUiState(
                 )
             )
 
-            // A Space streams at the bitrate it started with and says so; that is not an unknown.
-            val fixedForSpace = status?.liveTuningUnavailable == true && status.liveTuning == null
             return NovaQuickMenuUiState(
-                liveTuningAction = NovaQuickMenuAction(
-                    NovaQuickMenuActionId.LIVE_TUNING, "Live Tuning",
-                    caption = if (liveTuningPending) "Saving…" else if (hostStateUnavailable) "Reconnecting, state not confirmed" else
-                        if (fixedForSpace) "${autoQuality.detail}." else "${autoQuality.label}. Host setting. ${autoQuality.detail}",
-                    chip = NovaQuickMenuChip(if (hostStateUnavailable || status == null) "Unknown" else if (fixedForSpace) "Fixed" else if (status.liveTuningPresent && status.liveTuning == null) "Unknown" else if (autoQuality.enabled) "On" else "Off", if (autoQuality.enabled) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE),
-                    // The row stays enabled while a save is pending: the caption already says
-                    // Saving, onLiveTuning ignores a second press, and disabling the row under a
-                    // controller cursor drops focus mid-press.
-                    enabled = !hostStateUnavailable && canAdjustHostTuning &&
-                        (status?.liveTuning != null || (status?.liveTuningPresent != true && adaptiveSupported))
+                liveTuningAction = liveTuningAction(
+                    context = context,
+                    status = status,
+                    enabledNow = autoQuality.enabled,
+                    pending = liveTuningPending,
+                    hostStateUnavailable = hostStateUnavailable,
+                    canAdjustHostTuning = canAdjustHostTuning,
+                    adaptiveSupported = adaptiveSupported,
                 ),
                 title = context.getString(R.string.nova_quick_menu_command_center_title),
                 subtitle = subtitle,
@@ -782,6 +778,84 @@ data class NovaQuickMenuUiState(
             )
         }
 
+        /**
+         * Live Tuning's row, every word from resources: its state on the chip, what it is doing and
+         * the bitrate it applied under the title. It is a host setting; the row splits in place
+         * before it changes, and the line under the split says so.
+         */
+        private fun liveTuningAction(
+            context: Context,
+            status: PolarisSessionStatus?,
+            enabledNow: Boolean,
+            pending: Boolean,
+            hostStateUnavailable: Boolean,
+            canAdjustHostTuning: Boolean,
+            adaptiveSupported: Boolean,
+        ): NovaQuickMenuAction {
+            // A Space streams at the bitrate it started with and says so; that is not an unknown.
+            val fixedForSpace = status?.liveTuningUnavailable == true && status.liveTuning == null
+            val chipLabel = when {
+                hostStateUnavailable || status == null -> R.string.nova_cc_live_tuning_unknown
+                fixedForSpace -> R.string.nova_cc_live_tuning_fixed
+                status.liveTuningPresent && status.liveTuning == null -> R.string.nova_cc_live_tuning_unknown
+                enabledNow -> R.string.nova_quick_menu_on
+                else -> R.string.nova_quick_menu_off
+            }
+            val caption = when {
+                pending -> context.getString(R.string.nova_cc_live_tuning_saving)
+                hostStateUnavailable -> context.getString(R.string.nova_cc_live_tuning_reconnecting)
+                fixedForSpace -> context.getString(R.string.nova_cc_live_tuning_space)
+                else -> liveTuningCaption(context, status)
+            }
+            return NovaQuickMenuAction(
+                id = NovaQuickMenuActionId.LIVE_TUNING,
+                label = context.getString(R.string.nova_cc_live_tuning),
+                caption = caption,
+                chip = chip(
+                    context.getString(chipLabel),
+                    if (enabledNow) NovaQuickMenuTone.ACTIVE else NovaQuickMenuTone.INACTIVE,
+                ),
+                // The row stays enabled while a save is pending: the caption already says
+                // Saving, onLiveTuning ignores a second press, and disabling the row under a
+                // controller cursor drops focus mid-press.
+                enabled = !hostStateUnavailable && canAdjustHostTuning &&
+                    (status?.liveTuning != null || (status?.liveTuningPresent != true && adaptiveSupported)),
+            )
+        }
+
+        /** What Live Tuning is doing, as AutoQualityUiState reads the host, in the player's words. */
+        private fun liveTuningCaption(context: Context, status: PolarisSessionStatus?): String {
+            val live = status?.liveTuning
+            if (status == null || (status.liveTuningPresent && live == null)) {
+                return context.getString(R.string.nova_cc_live_tuning_waiting_host)
+            }
+            val enabled = live?.enabled ?: (status.tuning.adaptiveBitrateEnabled || status.adaptiveBitrateEnabled)
+            if (!enabled) return context.getString(R.string.nova_cc_live_tuning_off_caption)
+            // Older hosts expose preference and target only. Never claim encoder acknowledgement.
+            if (live == null) return context.getString(R.string.nova_cc_live_tuning_on_unconfirmed)
+            val state = context.getString(
+                when (live.state) {
+                    "waiting" -> R.string.nova_cc_live_tuning_waiting_stream
+                    "unavailable" -> R.string.nova_cc_live_tuning_unavailable
+                    "applying" -> R.string.nova_cc_live_tuning_applying
+                    "measuring" -> R.string.nova_cc_live_tuning_measuring
+                    "adjusting" -> R.string.nova_cc_live_tuning_adjusting
+                    else -> R.string.nova_cc_live_tuning_steady
+                }
+            )
+            return when {
+                live.state == "unavailable" && live.reason.isNotBlank() ->
+                    context.getString(R.string.nova_cc_live_tuning_state_reason, state, live.reason.replace('_', ' '))
+                live.state != "unavailable" && live.appliedBitrateKbps > 0 -> context.getString(
+                    R.string.nova_cc_live_tuning_state_figures,
+                    state,
+                    StreamPolicyUiState.formatMbps(live.appliedBitrateKbps),
+                    StreamPolicyUiState.formatMbps(live.qualityLimitKbps),
+                )
+                else -> context.getString(R.string.nova_cc_live_tuning_state, state)
+            }
+        }
+
         private fun syncAction(
             context: Context,
             status: PolarisSessionStatus?,
@@ -809,6 +883,7 @@ data class NovaQuickMenuUiState(
             }
             val sync = status?.syncStatus
             val presentationStatus = status?.clientPresentation?.status.orEmpty().lowercase()
+            val liveTuning = context.getString(R.string.nova_cc_live_tuning)
             val label = when {
                 status == null -> "Checking"
                 sync?.isManualOverride == true -> "Manual"
@@ -817,14 +892,14 @@ data class NovaQuickMenuUiState(
                 sync?.isApplying == true -> "Applying"
                 presentationStatus == "blocked" -> "Blocked"
                 presentationStatus == "pending" -> "Pending"
-                policy.adaptiveTargetBitrateKbps > 0 -> "Live Tuning"
+                policy.adaptiveTargetBitrateKbps > 0 -> liveTuning
                 sync?.isSynced == true -> "Synced"
                 status.isClientPresentationSynced -> "Synced"
                 status.isStreaming -> "Live"
                 else -> "Ready"
             }
             val tone = when (label) {
-                "Synced", "Live Tuning", "Live" -> NovaQuickMenuTone.ACTIVE
+                "Synced", liveTuning, "Live" -> NovaQuickMenuTone.ACTIVE
                 "Pending", "Blocked", "Relaunch", "Attention", "Applying", "Manual" -> NovaQuickMenuTone.WARNING
                 "Ready" -> NovaQuickMenuTone.INACTIVE
                 else -> NovaQuickMenuTone.MUTED
@@ -832,6 +907,13 @@ data class NovaQuickMenuUiState(
             val syncState = sync?.state.orEmpty().lowercase()
             val caption = when {
                 status == null -> "checking host and client settings"
+                policy.hasAdaptiveCap -> context.getString(
+                    R.string.nova_cc_live_tuning_sync_capped,
+                    policy.adaptiveTargetLabel,
+                    policy.qualityLimitLabel,
+                )
+                policy.adaptiveTargetBitrateKbps > 0 && policy.adaptiveEnabled ->
+                    context.getString(R.string.nova_cc_live_tuning_sync_target, policy.adaptiveTargetLabel)
                 policy.adaptiveTargetBitrateKbps > 0 -> policy.statusCaption
                 sync?.message?.isNotBlank() == true -> sync.message
                 syncState == "manual_override" -> "manual client tuning is active"

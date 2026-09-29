@@ -44,6 +44,32 @@
     <string name="nova_cc_mouse_mode">Mouse Mode</string>
     <string name="nova_cc_host_section">Host</string>
     <string name="nova_cc_touch_section">Touch and screen</string>
+    <!-- Command Center: Live Tuning. It is a host setting, so it confirms in place and says what it changes. -->
+    <string name="nova_cc_live_tuning">Live Tuning</string>
+    <string name="nova_cc_live_tuning_turn_on">Turn On</string>
+    <string name="nova_cc_live_tuning_turn_off">Turn Off</string>
+    <string name="nova_cc_live_tuning_consequence">Changes Polaris for every device.</string>
+    <string name="nova_cc_live_tuning_unknown">Unknown</string>
+    <string name="nova_cc_live_tuning_fixed">Fixed</string>
+    <string name="nova_cc_live_tuning_saving">Saving…</string>
+    <string name="nova_cc_live_tuning_reconnecting">Reconnecting. The host has not confirmed the setting.</string>
+    <string name="nova_cc_live_tuning_space">This Space uses the bitrate selected when the stream starts.</string>
+    <string name="nova_cc_live_tuning_waiting_host">Waiting for the host to confirm the setting.</string>
+    <string name="nova_cc_live_tuning_off_caption">The bitrate stays where the stream started.</string>
+    <string name="nova_cc_live_tuning_on_unconfirmed">On. This host does not say what bitrate it applied.</string>
+    <string name="nova_cc_live_tuning_steady">Steady</string>
+    <string name="nova_cc_live_tuning_waiting_stream">Waiting for a stream</string>
+    <string name="nova_cc_live_tuning_unavailable">Unavailable for this stream</string>
+    <string name="nova_cc_live_tuning_applying">Applying a new bitrate</string>
+    <string name="nova_cc_live_tuning_measuring">Measuring the connection</string>
+    <string name="nova_cc_live_tuning_adjusting">Adjusting the bitrate</string>
+    <!-- Live Tuning's caption: what it is doing, then the bitrate it applied and the limit it keeps under. -->
+    <string name="nova_cc_live_tuning_state">%1$s.</string>
+    <string name="nova_cc_live_tuning_state_reason">%1$s: %2$s.</string>
+    <string name="nova_cc_live_tuning_state_figures">%1$s. %2$s applied, %3$s limit.</string>
+    <!-- Sync Status while Live Tuning holds the bitrate. -->
+    <string name="nova_cc_live_tuning_sync_capped">Live Tuning is at %1$s under your %2$s limit.</string>
+    <string name="nova_cc_live_tuning_sync_target">Live Tuning target is %1$s.</string>
 
     <!-- Launch failure and stream errors, as full-screen state pages. -->
     <string name="nova_stream_launch_retry">Try Again</string>
