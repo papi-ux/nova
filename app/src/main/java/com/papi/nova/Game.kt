@@ -7116,11 +7116,19 @@ novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)
 }
 
 /**
- * Whether the HUD is in its own corner, the top start, where it has been unless the player dragged
- * it. The Command Center's edge panel covers that corner.
+ * Whether the HUD is in its own corner, the top start, which the Command Center's edge panel
+ * covers. The HUD stores its position on every mode change too, so the stored position is compared
+ * with the corner rather than taken as a sign that the HUD was dragged.
  */
 val isNovaHudAtItsCorner:Boolean
-get() = !PreferenceManager.getDefaultSharedPreferences(this).contains("nova_polaris_hud_x")
+get() {
+val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+return com.papi.nova.ui.NovaCommandCenterHudCorner.isAtItsCorner(
+x = prefs.getFloat("nova_polaris_hud_x", Float.NaN),
+y = prefs.getFloat("nova_polaris_hud_y", Float.NaN),
+density = resources.displayMetrics.density,
+television = UiHelper.isTvDevice(this))
+}
 
 override fun cycleNovaHudFromController() {
 runOnUiThread {
