@@ -1,5 +1,7 @@
 package com.papi.nova.ui.panel
 
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -24,20 +26,27 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
+import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.currentValueOf
-import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.invalidatePlacement
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.toSize
 import com.papi.nova.ui.compose.LocalNovaFormFactor
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /**
@@ -51,19 +60,26 @@ import kotlinx.coroutines.launch
  * Inside [NovaRowContextScrolling] the list also comes to rest on whole rows: once a scroll
  * settles, a row the top edge cuts with more of it showing than a faint sliver is either shown
  * whole or scrolled away, so no sliced line of text is left under the edge. Where the list cannot
- * move that far, at its end, the cut remnant is cleared from the edge instead.
+ * move that far, at its end, it is lifted the rest of the way, so the room is left under its last
+ * row, where a list's end reads as its end. Clearing the remnant from the edge had left a blank
+ * band under the page's title (P1). The viewport clips touches as it clips drawing, so a row lifted
+ * past its top can never take a press meant for what stands above it.
  */
 fun Modifier.novaScrollEdgeFade(state: ScrollableState, band: Dp = NovaPanelMetrics.EdgeFade): Modifier =
-    novaEdgeFade(top = { state.canScrollBackward }, bottom = { state.canScrollForward }, band = band) then
+    novaEdgeFade(top = { state.canScrollBackward }, bottom = { state.canScrollForward }, band = band, clip = true) then
         NovaScrollRestElement(state, band)
 
 /**
  * Fades the top [band] of what this draws while [top] says so, and the bottom band while [bottom]
  * does. It erases alpha rather than painting a ground: a panel is translucent, and a solid band
- * would stripe window colour across whatever shows through it.
+ * would stripe window colour across whatever shows through it. [clip] also keeps touches inside
+ * it; drawing already stops at its edges, as the offscreen layer the fade needs is its own size.
  */
-fun Modifier.novaEdgeFade(top: () -> Boolean, bottom: () -> Boolean, band: Dp): Modifier = this
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+fun Modifier.novaEdgeFade(top: () -> Boolean, bottom: () -> Boolean, band: Dp, clip: Boolean = false): Modifier = this
+    .graphicsLayer {
+        compositingStrategy = CompositingStrategy.Offscreen
+        this.clip = clip
+    }
     .drawWithContent {
         drawContent()
         val fade = band.toPx().coerceAtMost(size.height / 2f)
@@ -266,7 +282,8 @@ private fun LayoutCoordinates.uncutBoundsInWindow(): Rect = Rect(positionInWindo
 /**
  * Brings a list to rest on whole rows once a scroll settles. A row the top edge cuts, with more of
  * it showing than the edge fade hides, is shown whole when the list last moved back and the
- * focused row still fits, and otherwise scrolled away, so the next row starts at the edge.
+ * focused row still fits, and otherwise scrolled away, so the next row starts at the edge. At the
+ * list's end, what it cannot scroll it lifts.
  */
 private data class NovaScrollRestElement(val state: ScrollableState, val band: Dp) :
     ModifierNodeElement<NovaScrollRestNode>() {
@@ -284,16 +301,42 @@ private data class NovaScrollRestElement(val state: ScrollableState, val band: D
 private class NovaScrollRestNode(
     private var state: ScrollableState,
     private var band: Dp,
-) : Modifier.Node(), GlobalPositionAwareModifierNode, CompositionLocalConsumerModifierNode, DrawModifierNode {
+) : Modifier.Node(), LayoutModifierNode, GlobalPositionAwareModifierNode, CompositionLocalConsumerModifierNode, DrawModifierNode {
     private var viewport: Rect? = null
 
-    /** What is left at the top edge of a cut row the list could not scroll past, cleared there. */
-    private var remnant = 0f
+    /**
+     * How far the list is lifted past its end: what is left at the top edge of a cut row it could
+     * not scroll away, which goes out of view with the rows under it following. The room it leaves
+     * is under the last row. That remnant was cleared where it stood, and the blank it left read as
+     * a band under the title (P1).
+     */
+    private var lift = 0f
         set(value) {
             if (field == value) return
             field = value
-            if (isAttached) invalidateDraw()
+            if (isAttached) invalidatePlacement()
         }
+    private var lifting: kotlinx.coroutines.Job? = null
+
+    /** Eases the lift to [target], so the list never jumps: up at rest, and back down as it moves. */
+    private fun liftTo(target: Float) {
+        lifting?.cancel()
+        lifting = null
+        if (lift == target || !isAttached) {
+            lift = target
+            return
+        }
+        lifting = coroutineScope.launch {
+            animate(lift, target, animationSpec = tween(LiftMillis)) { value, _ -> lift = value }
+        }
+    }
+
+    override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
+        val placeable = measurable.measure(constraints)
+        return layout(placeable.width, placeable.height) {
+            placeable.place(0, -lift.roundToInt())
+        }
+    }
 
     fun update(state: ScrollableState, band: Dp) {
         val changed = state !== this.state
@@ -302,16 +345,9 @@ private class NovaScrollRestNode(
         if (changed && isAttached) watch()
     }
 
-    // Inside the edge fade's layer, before its gradients: the remnant is cleared, then faded below.
+    // Lifted, the list stops at its own top edge rather than drawing over what stands above it.
     override fun ContentDrawScope.draw() {
-        drawContent()
-        if (remnant > 0f && state.canScrollBackward) {
-            drawRect(
-                color = Color.Transparent,
-                size = Size(size.width, remnant.coerceAtMost(size.height / 2f)),
-                blendMode = BlendMode.Clear,
-            )
-        }
+        if (lift > 0f) clipRect { this@draw.drawContent() } else drawContent()
     }
 
     override fun onAttach() {
@@ -342,8 +378,9 @@ private class NovaScrollRestNode(
             snapshotFlow { watched.isScrollInProgress }.collect { inProgress ->
                 if (inProgress) {
                     moved = true
-                    // Moving, the edge fades as it always does; what it cuts is judged at rest.
-                    remnant = 0f
+                    // Moving, the edge fades as it always does; what it cuts is judged at rest,
+                    // and a lifted list eases back down as it goes.
+                    liftTo(0f)
                 } else if (moved) {
                     moved = false
                     // The rows report where they landed on the frame after the scroll.
@@ -355,6 +392,11 @@ private class NovaScrollRestNode(
     }
 
     private suspend fun rest(watched: ScrollableState) {
+        // The rows are judged where they stand once a lift easing back down has settled.
+        lifting?.let {
+            it.join()
+            withFrameNanos { }
+        }
         val tracker = currentValueOf(LocalNovaRowTracker) ?: return
         val view = viewport ?: return
         if (!watched.canScrollBackward) return
@@ -390,8 +432,8 @@ private class NovaScrollRestNode(
         val revealFits = focus == null || focus.bottom + reveal <= view.bottom - Slack
         val delta = if (watched.lastScrolledBackward && revealFits) -reveal else showing
         val moved = watched.animateScrollBy(delta)
-        // At the list's end it cannot scroll the rest of the way: clear what is left of the row.
-        if (delta > 0f && moved < delta - Slack) remnant = delta - moved
+        // At the list's end it cannot scroll the rest of the way: it lifts by what is left.
+        if (delta > 0f && moved < delta - Slack) liftTo(delta - moved)
     }
 
     private companion object {
@@ -400,5 +442,8 @@ private class NovaScrollRestNode(
 
         /** The share of the edge fade a cut row may show at rest: its faintest quarter. */
         const val FaintShare = 0.25f
+
+        /** How long the lift takes, up or down: about as long as the rest's own short scroll. */
+        const val LiftMillis = 160
     }
 }

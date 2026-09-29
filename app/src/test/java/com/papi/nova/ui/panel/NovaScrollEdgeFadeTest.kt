@@ -23,6 +23,7 @@ import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.unit.dp
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -192,6 +193,69 @@ class NovaScrollEdgeFadeTest {
             index.takeIf { row.top < top - 0.5.dp && row.bottom > top + NovaPanelMetrics.EdgeFade / 4 + 0.5.dp }
         }
         assertEquals("rows sliced under the top edge at rest", emptyList<Int>(), sliced)
+    }
+
+    @Test
+    fun atItsEndAListLiftsACutRowAwayAndLeavesNoBandAtItsTop() {
+        // At a list's end a row cut at the top edge could not be scrolled away, so it was cleared
+        // where it stood, and the blank read as a band under the page's title (audit P1). It is
+        // lifted out of view now, the rows under it follow, and the room is left under the last row.
+        val state = LazyListState()
+        val keys = rule.setPanelContent {
+            NovaRowContextScrolling {
+                LazyColumn(
+                    state = state,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.height(230.dp).testTag("list").novaScrollEdgeFade(state),
+                ) {
+                    items((0 until 12).toList()) { index ->
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .requiredHeight(if (index % 3 == 0) 70.dp else 44.dp)
+                                .testTag("row-$index")
+                                .novaFocusRing(RectangleShape)
+                                .focusable(),
+                        )
+                    }
+                }
+            }
+        }
+        rule.onNodeWithTag("row-0").requestFocus()
+        rule.waitForIdle()
+        repeat(11) {
+            keys.press(NovaTestKeys.DOWN)
+            rule.waitForIdle()
+        }
+        rule.onNodeWithTag("row-11").assertIsFocused()
+        assertFalse("the list is at its end", state.canScrollForward)
+
+        val list = rule.onNodeWithTag("list").getUnclippedBoundsInRoot()
+        val shown = (0 until 12).mapNotNull { index ->
+            val nodes = rule.onAllNodes(androidx.compose.ui.test.hasTestTag("row-$index")).fetchSemanticsNodes()
+            if (nodes.isEmpty()) null else index to rule.onNodeWithTag("row-$index").getUnclippedBoundsInRoot()
+        }
+        val sliced = shown.filter { (_, row) ->
+            row.top < list.top - 0.5.dp && row.bottom > list.top + NovaPanelMetrics.EdgeFade / 4 + 0.5.dp
+        }
+        assertEquals("rows sliced under the top edge at the list's end", emptyList<Int>(), sliced.map { it.first })
+        val first = shown.map { it.second }.filter { it.top >= list.top - 0.5.dp }.minByOrNull { it.top }!!
+        assertTrue(
+            "the first whole row starts at the top edge, one gap below it, with no band above it: ${first.top - list.top}",
+            first.top - list.top <= 4.dp + 0.5.dp,
+        )
+        val last = rule.onNodeWithTag("row-11").getUnclippedBoundsInRoot()
+        assertTrue("the focused last row is whole: ${last.bottom} in ${list.bottom}", last.bottom <= list.bottom + 0.5.dp)
+    }
+
+    @Test
+    fun theScrollingListsClipTouchesToTheirViewport() {
+        // A row lifted past the top edge still stands above it, under the title: the viewport keeps
+        // presses inside it, so that row can never take a press meant for the title (P1).
+        val edges = File(MAIN, "ui/panel/NovaScrollEdges.kt").readText()
+        val fade = edges.substringAfter("fun Modifier.novaScrollEdgeFade(").substringBefore("\n\n")
+        assertTrue(fade.contains("band = band, clip = true)"))
+        assertTrue(edges.contains("this.clip = clip"))
     }
 
     private fun args(text: String, from: Int): String? {
