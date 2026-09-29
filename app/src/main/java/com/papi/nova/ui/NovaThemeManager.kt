@@ -250,18 +250,14 @@ object NovaThemeManager {
         return resolveThemeColor(dynamicContext, attr, systemFallback)
     }
 
-    /** Returns the semantic error/destructive color for the active Android/Nova theme. */
+    /**
+     * Returns the semantic error/destructive color for text: the theme's red where it reads at
+     * 4.5:1 against the card and the focused surface, and the text colour where it does not. It is
+     * for words. A destructive fill takes [getDestructiveFillColor], which never falls back to the
+     * text colour.
+     */
     fun getErrorColor(context: Context): Int {
-        val candidate =
-            if (isPortableChrome(context)) {
-                ContextCompat.getColor(context, R.color.nova_portable_error)
-            } else {
-                resolveThemeColor(
-                    context,
-                    android.R.attr.colorError,
-                    ContextCompat.getColor(context, R.color.nova_error),
-                )
-            }
+        val candidate = themeErrorColor(context)
         val window = getWindowBackgroundColor(context)
         val card = ColorUtils.compositeColors(getCardBackgroundColor(context), window)
         val focused = ColorUtils.compositeColors(getAccentSurfaceColor(context), card)
@@ -269,6 +265,51 @@ object NovaThemeManager {
             ColorUtils.calculateContrast(candidate, focused) >= 4.5
         return if (readable) candidate else getTextPrimaryColor(context)
     }
+
+    /**
+     * Returns the fill of an armed destructive action, such as the End or Delete half of a split
+     * confirm: the theme's own red, never the text colour [getErrorColor] falls back to. A fill
+     * does not have to read as text; its label reads on it (black or white, whichever contrasts
+     * more) and it must stand out from the panel and the tiles on it, at [MIN_FILL_CONTRAST] or
+     * more. Where the theme's red does not, on a light surface, it is the deep red
+     * nova_error_on_light.
+     */
+    fun getDestructiveFillColor(context: Context): Int =
+        destructiveFillFor(themeErrorColor(context), ContextCompat.getColor(context, R.color.nova_error_on_light), fillSurfaces(context))
+
+    /** What a destructive fill sits on: the panel and a tile, each over the window. */
+    internal fun fillSurfaces(context: Context): List<Int> {
+        val window = getWindowBackgroundColor(context)
+        return listOf(
+            ColorUtils.compositeColors(getDialogBackgroundColor(context), window),
+            ColorUtils.compositeColors(getCardBackgroundColor(context), window),
+        )
+    }
+
+    /** [candidate] where it stands out from every one of [surfaces], else [deep] where that does. */
+    internal fun destructiveFillFor(candidate: Int, deep: Int, surfaces: List<Int>): Int {
+        fun standsOut(fill: Int) = surfaces.all { ColorUtils.calculateContrast(fill, it) >= MIN_FILL_CONTRAST }
+        return when {
+            standsOut(candidate) -> candidate
+            standsOut(deep) -> deep
+            else -> candidate
+        }
+    }
+
+    /** The theme's own red, before any contrast check. */
+    private fun themeErrorColor(context: Context): Int =
+        if (isPortableChrome(context)) {
+            ContextCompat.getColor(context, R.color.nova_portable_error)
+        } else {
+            resolveThemeColor(
+                context,
+                android.R.attr.colorError,
+                ContextCompat.getColor(context, R.color.nova_error),
+            )
+        }
+
+    /** A fill stands out from the surface around it at this contrast: WCAG's 3:1 for controls. */
+    const val MIN_FILL_CONTRAST = 3.0
 
     /**
      * Returns the semantic positive colour, for something on or healthy: the light green on a dark

@@ -211,8 +211,9 @@ fun NovaActionButton(
  *
  * Focus has one look everywhere: a fill plus a 3dp ring inside the shape, with no scale and no
  * halo ([novaFocusRing]). The ring contrasts with the fill it sits on: `onAccent` on a primary,
- * `onDestructive` on a primary destructive (the armed half of a split confirm). A destructive
- * action at rest has destructive text and a destructive hairline. Activation goes through
+ * `onDestructiveFill` on a primary destructive (the armed half of a split confirm), whose fill is
+ * the destructive fill, a red on every theme, never the text colour the destructive text falls
+ * back to. A destructive action at rest has destructive text and a destructive hairline. Activation goes through
  * [novaClickable], so A acts on release and only on the surface that took the press.
  *
  * [selected] marks the current value the one way R9 allows: the check ([NovaCurrentMark]) after the
@@ -246,8 +247,8 @@ fun NovaActionSurface(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(cornerRadius)
-    val fill = if (destructive) colors.destructive else colors.accent
-    val onFill = if (destructive) colors.onDestructive else colors.onAccent
+    val fill = if (destructive) colors.destructiveFill else colors.accent
+    val onFill = if (destructive) colors.onDestructiveFill else colors.onAccent
     val filled = primary && enabled
     val restContainer = when {
         pressed && filled -> fill.copy(alpha = fill.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)

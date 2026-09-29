@@ -6,6 +6,7 @@ import android.util.TypedValue
 import android.view.ContextThemeWrapper
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
 import androidx.preference.PreferenceManager
@@ -220,6 +221,100 @@ class NovaThemeManagerTest {
             assertTrue("$theme positive on focus", ColorUtils.calculateContrast(positive, focused) >= 4.5)
             assertNotEquals("$theme positive is not the destructive colour", NovaThemeManager.getErrorColor(context), positive)
         }
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "notnight")
+    fun destructiveFillStandsOutOnEveryThemeInLightMode() {
+        assertDestructiveFillStandsOutOnEveryTheme()
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun destructiveFillStandsOutOnEveryThemeInDarkMode() {
+        assertDestructiveFillStandsOutOnEveryTheme()
+    }
+
+    /**
+     * The RP6 walk (2026-09-28): on Polaris Aurora the armed Delete PC and End Session halves were
+     * pale grey, the brightest and most neutral button on screen, because the split filled with the
+     * red text colour, which falls back to the text colour where red text is under 4.5:1. The fill
+     * has its own role: the theme's red, a label that reads on it at 4.5:1, and 3:1 or more against
+     * the panel and the card on every built-in theme, light and dark. Red text keeps its fallback.
+     */
+    private fun assertDestructiveFillStandsOutOnEveryTheme() {
+        listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+            NovaThemeManager.THEME_MATERIAL_YOU,
+        ).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val window = NovaThemeManager.getWindowBackgroundColor(context)
+            val panel = ColorUtils.compositeColors(NovaThemeManager.getDialogBackgroundColor(context), window)
+            val card = ColorUtils.compositeColors(NovaThemeManager.getCardBackgroundColor(context), window)
+            val colors = com.papi.nova.ui.compose.novaComposeColors(context)
+            val fill = colors.destructiveFill.toArgb()
+            val label = colors.onDestructiveFill.toArgb()
+            assertTrue("$theme fill is a red, not the text fallback", Color.red(fill) > Color.green(fill) && Color.red(fill) > Color.blue(fill))
+            assertNotEquals("$theme fill is not the text colour", NovaThemeManager.getTextPrimaryColor(context), fill)
+            assertTrue("$theme label reads on the fill", ColorUtils.calculateContrast(label, fill) >= 4.5)
+            assertTrue("$theme fill stands out from the panel", ColorUtils.calculateContrast(fill, panel) >= 3.0)
+            assertTrue("$theme fill stands out from the card", ColorUtils.calculateContrast(fill, card) >= 3.0)
+        }
+    }
+
+    /**
+     * On a device every Nova theme sets colorError to nova_error (Portable Chrome has its own), which
+     * the test context does not resolve, so the red a device fills with is checked here directly.
+     */
+    @Test
+    @Config(sdk = [33], qualifiers = "notnight")
+    fun theRedEveryThemeSetsFillsAndStandsOutInLightMode() {
+        assertTheThemesRedFills()
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun theRedEveryThemeSetsFillsAndStandsOutInDarkMode() {
+        assertTheThemesRedFills()
+    }
+
+    private fun assertTheThemesRedFills() {
+        val deep = context.getColor(R.color.nova_error_on_light)
+        listOf(
+            NovaThemeManager.THEME_POLARIS to R.color.nova_error,
+            NovaThemeManager.THEME_PORTABLE_CHROME to R.color.nova_portable_error,
+            NovaThemeManager.THEME_OLED to R.color.nova_error,
+            NovaThemeManager.THEME_MIAMI to R.color.nova_error,
+            NovaThemeManager.THEME_HIGH_CONTRAST to R.color.nova_error,
+            NovaThemeManager.THEME_MATERIAL_YOU to R.color.nova_error,
+        ).forEach { (theme, red) ->
+            NovaThemeManager.setTheme(context, theme)
+            val surfaces = NovaThemeManager.fillSurfaces(context)
+            val fill = NovaThemeManager.destructiveFillFor(context.getColor(red), deep, surfaces)
+            val label = if (ColorUtils.calculateLuminance(fill) > 0.179) Color.BLACK else Color.WHITE
+            assertTrue("$theme label reads on the fill", ColorUtils.calculateContrast(label, fill) >= 4.5)
+            surfaces.forEach { surface ->
+                assertTrue("$theme fill stands out", ColorUtils.calculateContrast(fill, surface) >= NovaThemeManager.MIN_FILL_CONTRAST)
+            }
+        }
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun polarisKeepsItsRedFillWhileRedTextFallsBack() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_POLARIS)
+        assertEquals(
+            "red text under 4.5:1 on the focused surface still falls back to the text colour",
+            NovaThemeManager.getTextPrimaryColor(context),
+            NovaThemeManager.getErrorColor(context),
+        )
+        val fill = NovaThemeManager.getDestructiveFillColor(context)
+        assertNotEquals("the fill keeps the theme's red", NovaThemeManager.getTextPrimaryColor(context), fill)
+        assertTrue("a red", Color.red(fill) > Color.green(fill) && Color.red(fill) > Color.blue(fill))
     }
 
     @Test

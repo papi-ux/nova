@@ -125,6 +125,9 @@
     <color name="nova_success_on_light">#FF166534</color>
     <color name="nova_warning">#FFfbbf24</color>
     <color name="nova_error">#FFf87171</color>
+    <!-- The destructive fill on a light surface, where the light red stands out from it at under
+         3:1. White reads on it at 6.5:1. -->
+    <color name="nova_error_on_light">#FFB3261E</color>
 
     <!-- 03 Dim Gray -->
     <color name="nova_divider">#FF4C5265</color>

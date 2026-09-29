@@ -37,6 +37,11 @@ import com.papi.nova.utils.UiHelper
  * [destructive], [onDestructive] and [positive] come last and default to [textPrimary], [window]
  * and [textPrimary], so a palette built by hand before they existed still compiles.
  * [novaComposeColors] fills them from the theme.
+ *
+ * [destructive] is for words and hairlines, and falls back to the text colour where red text
+ * would not read. [destructiveFill] is the armed destructive action's fill, always a red that
+ * stands out from the panel, with [onDestructiveFill] for its label; they default to the text
+ * roles for the same reason as the others.
  */
 @Immutable
 data class NovaComposeColors(
@@ -56,6 +61,8 @@ data class NovaComposeColors(
     val onDestructive: Color = window,
     /** Something on or healthy, such as an active status chip; checked for contrast like [destructive]. */
     val positive: Color = textPrimary,
+    val destructiveFill: Color = destructive,
+    val onDestructiveFill: Color = onDestructive,
 )
 
 /** Handhelds, phones and tablets share one scale; a television reads from further away. */
@@ -68,11 +75,13 @@ val LocalNovaFormFactor = staticCompositionLocalOf { NovaFormFactor.Handheld }
  * The theme's colour roles, read from [context] outside composition.
  *
  * [NovaComposeTheme] builds its palette here, and so does View code that draws the same look,
- * so the two cannot drift. Destructive is the theme's error colour, which already falls back to
- * the text colour where it would not read against the card and focused surfaces.
+ * so the two cannot drift. Destructive is the theme's error colour for text, which falls back to
+ * the text colour where it would not read against the card and focused surfaces; the destructive
+ * fill is the theme's red whatever that check says, with a label chosen to read on it.
  */
 fun novaComposeColors(context: Context): NovaComposeColors {
     val destructive = Color(NovaThemeManager.getErrorColor(context))
+    val destructiveFill = Color(NovaThemeManager.getDestructiveFillColor(context))
     return NovaComposeColors(
         window = Color(NovaThemeManager.getWindowBackgroundColor(context)),
         card = Color(NovaThemeManager.getCardBackgroundColor(context)),
@@ -89,6 +98,8 @@ fun novaComposeColors(context: Context): NovaComposeColors {
         destructive = destructive,
         onDestructive = readableOn(destructive),
         positive = Color(NovaThemeManager.getPositiveColor(context)),
+        destructiveFill = destructiveFill,
+        onDestructiveFill = readableOn(destructiveFill),
     )
 }
 
