@@ -52,7 +52,7 @@
     <string name="unpair_error">Gerät wurde nicht gekoppelt</string>
     <!-- Errors -->
     <string name="error_pc_offline">Host ist offline</string>
-    <string name="error_manager_not_running">Der ComputerManager Dienst läuft nicht. Bitte warte ein paar Sekunden oder starte die App neu.</string>
+    <string name="error_manager_not_running">Nova lädt die Liste der Hosts noch. Warte ein paar Sekunden und versuche es dann erneut.</string>
     <string name="error_unknown_host">Hostname konnte nicht aufgelöst werden</string>
     <string name="error_404">GFE ist auf einen HTTP 404 Fehler gestoßen. Stelle sicher, dass die GPU deines Hosts unterstützt wird. Die Verwendung von Remote-Desktop Software kann ebenso diesen Fehler verursachen. Starte deinen Host neu oder installiere GFE neu.</string>
     <string name="title_decoding_error">Video Dekodierer ist abgestürzt</string>
