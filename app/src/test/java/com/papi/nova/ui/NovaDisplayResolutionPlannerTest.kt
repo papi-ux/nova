@@ -73,7 +73,7 @@ class NovaDisplayResolutionPlannerTest {
 
         // Native is this device's own size, so This Device is that row and it is not offered twice.
         assertEquals(
-            listOf("This Device", "Balanced", "Sharp", "Performance"),
+            listOf("Saved Size", "Balanced", "Sharp", "Performance"),
             planner.visibleChoices.map { it.title },
         )
         assertEquals(
@@ -197,6 +197,10 @@ class NovaDisplayResolutionPlannerTest {
         )
         val twice = planner.visibleChoices.first { it.id == "scale_2x" }
         assertEquals("2x", twice.title)
+        // Shown with the multiplication sign; the id a saved choice is found by keeps the x.
+        assertEquals("2×", NovaDisplayResolutionPlanner.displayTitle(twice.title))
+        assertEquals("1.25×", NovaDisplayResolutionPlanner.displayTitle("1.25x"))
+        assertEquals("Sharp", NovaDisplayResolutionPlanner.displayTitle("Sharp"))
         assertEquals("3840x2160x120", twice.targetMode)
         assertTrue("a scale is never the default", !twice.recommended && twice.advanced)
         assertEquals("a saved 2x comes back on the next open", twice, resolveSavedResolutionChoice("scale_2x", planner.visibleChoices))

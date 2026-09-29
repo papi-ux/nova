@@ -598,7 +598,7 @@ internal object NovaVisualFixtures {
     fun gameRows(context: Context): List<NovaPlaySetupRowState> {
         val where = context.getString(R.string.nova_game_detail_where_it_runs)
         val standard = context.getString(R.string.nova_play_setup_codec_standard_detail)
-        val pyroWave = "PyroWave (experimental)"
+        val pyroWave = "PyroWave (Experimental)"
         val direct = context.getString(R.string.nova_steam_launch_direct)
         return listOf(
             NovaPlaySetupRowState(

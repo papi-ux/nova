@@ -421,7 +421,8 @@ private fun resolvedLaunchFields(fields: JSONObject, clientAskedHdr: Boolean?, c
         selectedParts += displayMode
     }
     (value("target_bitrate_kbps") as? Number)?.toInt()?.takeIf { it > 0 }?.let {
-        selectedParts += "${it / 1000.0} Mbps"
+        // "300 Mbps", not "300.0 Mbps": a tenth shows only where there is one.
+        selectedParts += if (it % 1000 == 0) "${it / 1000} Mbps" else "${it / 1000.0} Mbps"
     }
     if (!clientCodecLabel.isNullOrBlank()) {
         selectedParts += "$clientCodecLabel (client choice)"

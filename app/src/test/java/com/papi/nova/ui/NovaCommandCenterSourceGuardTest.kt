@@ -141,14 +141,21 @@ class NovaCommandCenterSourceGuardTest {
             "@Composable\nprivate fun NovaQuickMenuDiagnosisCard("
         )
 
+        // The smoke test of 2026-09-29 found the page opening on the strip, which acts on nothing:
+        // the first A did nothing and the ring sat on a status card. It opens on Close, the
+        // header's safe action (R7), which is always there however the Doctor data loads.
+        val header = quickMenuContent.section(
+            "private fun NovaPageScope.NovaQuickMenuHeader(",
+            "@Composable\nprivate fun NovaQuickMenuEndButton("
+        )
         assertTrue(
-            "Command Center should land on the always-present session strip while asynchronous Doctor data is loading, rather than requesting focus from a disabled card; the page host focuses it one frame after the page opens",
-            content.contains("NovaQuickMenuSessionStrip(ui, Modifier.novaInitialFocus())") &&
-                sessionStrip.contains("modifier: Modifier") &&
-                sessionStrip.contains(".focusable()")
+            "Command Center should open on Close, the header's safe action, while asynchronous Doctor data is loading; the page host focuses it one frame after the page opens",
+            header.contains("NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaInitialFocus().novaRestorableFocus(\"header-close\"))") &&
+                content.contains("NovaQuickMenuSessionStrip(ui, Modifier)") &&
+                sessionStrip.contains("modifier: Modifier")
         )
         assertFalse(
-            "the Close button must not carry the initial focus",
+            "the Close button takes first focus from its caller, not from inside itself",
             closeButton.contains("novaInitialFocus") || closeButton.contains("focusRequester")
         )
         assertTrue(
@@ -474,7 +481,7 @@ class NovaCommandCenterSourceGuardTest {
             "@Composable\nprivate fun NovaQuickMenuDiagnosisCard("
         )
 
-        val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier.novaInitialFocus())")
+        val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier)")
         val pinnedKeys = body.indexOf("NovaQuickKeys(ui, { it.pinnedQuickKeys }, callbacks)")
         val quickKeysPanel = body.indexOf("NovaSectionLabel(quickKeysTitle)")
         val controlsPanel = body.indexOf("NovaSectionLabel(controlsTitle)")
@@ -715,7 +722,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         val header = body.indexOf("NovaQuickMenuHeader(ui, callbacks, endSplit)")
         val scroll = body.indexOf(".verticalScroll(sections)")
-        val strip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier.novaInitialFocus())")
+        val strip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier)")
 
         assertTrue(
             "Close, Disconnect, and End Session must not scroll away: the header lives above the scrolling column, and only the sections scroll",

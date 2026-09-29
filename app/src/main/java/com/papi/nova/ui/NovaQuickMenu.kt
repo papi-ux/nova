@@ -89,7 +89,11 @@ class NovaQuickMenu(
         session = menu
         // The panel window keeps A, B and focus to itself and hands input back to the stream (or
         // the deck) when it closes; what is left here is the Command Center's own teardown.
+        // The HUD's figures read through the panel's glass and collided with its title and header
+        // buttons, so the HUD steps away while the Command Center is open.
+        game.setNovaHudCovered(true)
         fun onMenuClosed() {
+            game.setNovaHudCovered(false)
             game.cancelRuntimeTask("NovaQuickMenuLiveTuning")
             if (doctorMenuRefreshRegistry.close(menuValidationGeneration)) {
                 synchronized(doctorActionLock) {
@@ -122,6 +126,7 @@ class NovaQuickMenu(
         var advancedTuningVisible = false
         var profileClearInProgress = false
         var profileClearResult: String? = null
+        var diagnosticsCopied = false
         var hostStateUnavailable = false
         var liveTuningPending = false
         lateinit var scheduleDoctorVerification: (DoctorActionReceipt?) -> Unit
@@ -470,7 +475,9 @@ class NovaQuickMenu(
                     activeScopeId = doctorReceiptScopeId,
                     validatedScopeId = doctorReceiptValidatedScopeId
                 )
-            )
+            ).let { state ->
+                if (diagnosticsCopied) state.copy(diagnosis = state.diagnosis.copy(copied = true)) else state
+            }
         }
 
         // A flow, not one state read at the top: each part of the page collects the slice it
@@ -769,6 +776,18 @@ class NovaQuickMenu(
             }
         }
 
+        // The Doctor card's A copies the details when there is nothing to run; the card's chip
+        // says Copied for a moment, where a floating Toast had said it.
+        fun copyDiagnostics() {
+            game.copyNovaHudDiagnostics()
+            diagnosticsCopied = true
+            refreshState()
+            game.window.decorView.postDelayed({
+                diagnosticsCopied = false
+                refreshState()
+            }, PROFILE_CLEAR_RESULT_SHOWN_MS)
+        }
+
         fun runDoctorAction() {
             val status = sessionStatus
             val doctor = status?.doctor
@@ -777,14 +796,14 @@ class NovaQuickMenu(
                 !canExecuteDoctorAction(status, doctor) ||
                 doctorActionPendingRegistry.isPending()
             ) {
-                game.copyNovaHudDiagnostics()
+                copyDiagnostics()
                 return
             }
             if (doctor.requiresConfirmation) {
                 // Legacy next-launch recovery confirmations are intentionally
                 // non-executable. Current Auto Fix actions are reversible
                 // same-stream changes and do not use this confirmation path.
-                game.copyNovaHudDiagnostics()
+                copyDiagnostics()
                 return
             }
             executeConfirmedDoctorAction(doctor, client)
@@ -977,7 +996,7 @@ class NovaQuickMenu(
                             runDoctorAction()
                         }
                         NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> {
-                            game.copyNovaHudDiagnostics()
+                            copyDiagnostics()
                         }
                         else -> Unit
                     }

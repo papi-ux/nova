@@ -185,9 +185,9 @@ fun NovaPageScope.NovaQuickMenuContent(
                 .padding(vertical = NovaPanelMetrics.SpaceSm),
             verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
         ) {
-            // The strip is always there and acts on nothing, so it is where the page opens while
-            // the live Doctor and session data are still loading.
-            NovaQuickMenuSessionStrip(ui, Modifier.novaInitialFocus())
+            // The page opens on Close, its safe action (R7); it opened on this strip, which acts
+            // on nothing, so the first A did nothing and the ring sat on a status card.
+            NovaQuickMenuSessionStrip(ui, Modifier)
             NovaQuickMenuStateRow(ui, { it.liveTuningAction }, callbacks)
             // The keys a handheld cannot press any other way stay one reach from the top; the
             // full grid lives further down with the rest of the sections.
@@ -259,7 +259,7 @@ private fun NovaPageScope.NovaQuickMenuHeader(
             // Restorable, so focus comes back to the button it left when a state page such as
             // Connection Lost covers the panel and goes.
             if (!armed) {
-                NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaRestorableFocus("header-close"))
+                NovaQuickMenuCloseButton(callbacks, Modifier.weight(1f).novaInitialFocus().novaRestorableFocus("header-close"))
                 if (disconnect.visible) {
                     NovaQuickMenuHeaderButton(disconnect, callbacks, Modifier.weight(1f).novaRestorableFocus("header-disconnect"))
                 }
@@ -349,7 +349,7 @@ private fun NovaQuickMenuDiagnosisCard(
     callbacks: NovaQuickMenuCallbacks,
 ) {
     val diagnosis by ui.slice { it.diagnosis }
-    val capabilityLabel = when (diagnosis.capability) {
+    val capabilityLabel = if (diagnosis.copied) stringResource(R.string.nova_quick_menu_doctor_copied) else when (diagnosis.capability) {
         NovaQuickMenuDoctorCapability.AUTO_FIX -> stringResource(R.string.nova_quick_menu_doctor_capability_auto_fix)
         NovaQuickMenuDoctorCapability.RUN_TRIAL -> stringResource(R.string.nova_quick_menu_doctor_capability_run_trial)
         NovaQuickMenuDoctorCapability.RECHECK -> stringResource(R.string.nova_quick_menu_doctor_capability_recheck)

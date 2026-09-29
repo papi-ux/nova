@@ -297,7 +297,8 @@
     <string name="nova_system_menu_sponsor">♥ Sponsor</string>
     <string name="nova_system_menu_sponsor_hint">Support Polaris and Nova on GitHub Sponsors.</string>
     <string name="nova_controller_hint_system">System</string>
-    <string name="nova_game_detail_resume">Resume</string>
+    <!-- The same words as the library strip's button. -->
+    <string name="nova_game_detail_resume">Resume Stream</string>
     <string name="nova_game_detail_watch">Watch</string>
     <string name="nova_game_detail_end_session">End Session</string>
     <string name="nova_game_detail_tune">Tune</string>
@@ -414,6 +415,11 @@
     <string name="nova_play_setup_codec_caption">Applies at launch on this host</string>
     <string name="nova_play_setup_codec_inherit_detail">Follow the codec in Nova Settings. Other games keep their own choices.</string>
     <string name="nova_play_setup_codec_standard_detail">Use this codec preference for this game. Availability depends on both devices.</string>
+    <!-- One sentence for each codec on Play Setup's Video Codec page and in Settings. -->
+    <string name="nova_codec_detail_auto">Recommended. Nova and the host pick the best codec both can use.</string>
+    <string name="nova_codec_detail_av1">The sharpest picture for its bitrate, where both devices support it. Experimental.</string>
+    <string name="nova_codec_detail_hevc">HEVC, which most devices decode in hardware.</string>
+    <string name="nova_codec_detail_h264">H.264 works almost everywhere, at a higher bitrate for the same picture.</string>
     <string name="nova_play_setup_codec_pyrowave_detail">Experimental Vulkan codec. Requires matching host support and a fast network; never falls back to another codec.</string>
     <string name="nova_play_setup_encoder_pyrowave">PyroWave · Vulkan</string>
     <string name="nova_play_setup_encoder_pyrowave_detail">Selected by PyroWave. Your encoder choice stays saved for other codecs.</string>
@@ -978,7 +984,7 @@
     <string name="audioconf_51surround">5.1 Surround Sound</string>
     <string name="audioconf_71surround">7.1 Surround Sound</string>
 
-    <string name="videoformat_auto">Automatic (Recommended)</string>
+    <string name="videoformat_auto">Automatic</string>
     <string name="videoformat_av1always">Prefer AV1 (Experimental)</string>
     <string name="videoformat_hevcalways">Prefer HEVC</string>
     <string name="videoformat_h264always">Prefer H.264</string>
@@ -1092,7 +1098,9 @@
     <string name="nova_quick_menu_doctor_capability_auto_fix">Auto Fix</string>
     <string name="nova_quick_menu_doctor_capability_run_trial">Run a trial</string>
     <string name="nova_quick_menu_doctor_capability_recheck">Recheck</string>
-    <string name="nova_quick_menu_doctor_capability_manual">Manual</string>
+    <!-- A Doctor card with nothing to run: A copies its details. -->
+    <string name="nova_quick_menu_doctor_capability_manual">Copy details</string>
+    <string name="nova_quick_menu_doctor_copied">Copied</string>
     <string name="nova_quick_menu_doctor_ai_explanation">AI explanation (informational): %1$s</string>
     <string name="nova_quick_menu_doctor_stable">Doctor verified the network is stable. Bitrate was left unchanged.</string>
     <string name="nova_quick_menu_doctor_confirmed">Doctor now has enough live evidence. Press Fix and verify to apply one safe step.</string>

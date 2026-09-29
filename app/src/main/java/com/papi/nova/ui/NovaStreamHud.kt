@@ -233,6 +233,12 @@ class NovaStreamHud(
         pendingLongPress = null
     }
 
+    /** Fades the HUD out while a panel covers the stream, and back in when it closes. */
+    fun setCovered(covered: Boolean) {
+        hudView?.animate()?.cancel()
+        hudView?.animate()?.alpha(if (covered) 0f else 1f)?.setDuration(150L)?.start()
+    }
+
     fun cycleMode() {
         applyMode(currentMode.next())
     }

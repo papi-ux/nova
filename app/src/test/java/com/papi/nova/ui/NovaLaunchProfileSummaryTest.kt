@@ -1064,7 +1064,7 @@ class NovaLaunchProfileSummaryTest {
         )
 
         requireNotNull(summary)
-        assertEquals("Resolved: 1920×1080 @ 120 FPS · 8.0 Mbps · H264 · SDR", summary.selectedLine)
+        assertEquals("Resolved: 1920×1080 @ 120 FPS · 8 Mbps · H264 · SDR", summary.selectedLine)
         assertEquals("Launch in Living room · 120 FPS", summary.primaryLaunchLabel)
         assertEquals("", summary.requestedLine)
         assertEquals("Reason: Your Space uses H.264, SDR and stereo audio.", summary.reasonLine)
@@ -1082,7 +1082,7 @@ class NovaLaunchProfileSummaryTest {
             profileKey = "Profile",
             grantedFormat = "Granted: %1${'$'}s",
         )
-        assertEquals(listOf("1920×1080 @ 120 FPS · 8.0 Mbps · H264 · SDR"), plan.lines)
+        assertEquals(listOf("1920×1080 @ 120 FPS · 8 Mbps · H264 · SDR"), plan.lines)
         assertTrue("a Space launch earns no Profile fact and no repeat of what it resolved", plan.facts.isEmpty())
     }
 
@@ -1097,7 +1097,7 @@ class NovaLaunchProfileSummaryTest {
 
         requireNotNull(summary)
         assertEquals("Requested: 240 FPS", summary.requestedLine)
-        assertEquals("Resolved: 1920×1080 @ 120 FPS · 8.0 Mbps · H264 · SDR (HDR not requested)", summary.selectedLine)
+        assertEquals("Resolved: 1920×1080 @ 120 FPS · 8 Mbps · H264 · SDR (HDR not requested)", summary.selectedLine)
         val plan = novaPlaySetupPlan(
             modeLabel = "Gamescope Stream",
             lines = emptyList(),
@@ -1112,7 +1112,7 @@ class NovaLaunchProfileSummaryTest {
         assertEquals("Asked", plan.facts.single().key)
         assertEquals("240 FPS", plan.facts.single().value)
         assertEquals(
-            "Granted: 1920×1080 @ 120 FPS · 8.0 Mbps · H264 · SDR (HDR not requested)",
+            "Granted: 1920×1080 @ 120 FPS · 8 Mbps · H264 · SDR (HDR not requested)",
             plan.facts.single().detail,
         )
     }

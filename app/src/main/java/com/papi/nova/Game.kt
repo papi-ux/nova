@@ -7041,7 +7041,7 @@ val diagnosticText:String = novaHud?.getDiagnosticSummaryText()
     ?: "Nova stream diagnostics\nNo active Nova HUD sample yet. Enable Nova HUD during a stream and try again."
 val clipboard:ClipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 clipboard.setPrimaryClip(ClipData.newPlainText("Nova HUD diagnostics", diagnosticText))
-Toast.makeText(this, R.string.nova_quick_menu_hud_diagnostics_copied, Toast.LENGTH_SHORT).show()
+// The Command Center says Copied on the card that was pressed; a Toast floated over it (R6).
 }
 
 fun showNovaHud():com.papi.nova.ui.NovaStreamHud {
@@ -7076,6 +7076,11 @@ hud.applySessionStatus(lastPolarisSessionStatus)
 }
 
 schedulePolarisLiveSessionStatusRefresh(true)
+}
+
+/** Hides the HUD while a panel over the stream covers it, and brings it back after. */
+fun setNovaHudCovered(covered:Boolean) {
+novaHud?.setCovered(covered)
 }
 
 override fun cycleNovaHudFromController() {

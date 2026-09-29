@@ -1495,7 +1495,20 @@ class NovaGameDetailActivity : NovaActivity() {
                         NovaDisplayResolutionPlanner.resolutionLabel(effective?.targetMode.orEmpty()),
                     ).filter { it.isNotBlank() }.joinToString(" · "),
                     value = effective?.title.orEmpty(),
-                    options = planner.visibleChoices.map { choice ->
+                    // By size, smallest first, with the sizes this device cannot decode grouped
+                    // last: the widths had run 3840, 2880, 5760, 1920, 4800, 7680.
+                    options = planner.visibleChoices.sortedWith(
+                        compareBy<NovaDisplayResolutionChoice>(
+                            { choice ->
+                                NovaDisplayResolutionPlanner.resolutionSize(choice.targetMode)
+                                    ?.let { decode.decodes(it.first, it.second) } == false
+                            },
+                            { choice ->
+                                NovaDisplayResolutionPlanner.resolutionSize(choice.targetMode)
+                                    ?.let { it.first.toLong() * it.second } ?: Long.MAX_VALUE
+                            },
+                        ),
+                    ).map { choice ->
                         val size = NovaDisplayResolutionPlanner.resolutionSize(choice.targetMode)
                         val sizeLabel = NovaDisplayResolutionPlanner.resolutionLabel(choice.targetMode)
                         // Only a decoder's own answer greys a size; with none, nothing is greyed.
@@ -1505,7 +1518,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         val need = pyroWaveNeed(size)
                         val limited = need > 0 && need * 1000L > preferences.bitrate
                         NovaPlaySetupOption(
-                            label = choice.title,
+                            label = NovaDisplayResolutionPlanner.displayTitle(choice.title),
                             value = sizeLabel,
                             consequence = when {
                                 decodes == false -> getString(R.string.nova_play_setup_resolution_cannot_decode)

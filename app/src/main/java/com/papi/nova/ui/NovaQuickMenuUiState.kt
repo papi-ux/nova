@@ -133,7 +133,9 @@ data class NovaQuickMenuDiagnosisState(
     val aiExplanation: String,
     val informationalSource: String,
     // False when the card would only say again what the session strip already says.
-    val visible: Boolean = true
+    val visible: Boolean = true,
+    /** Set for a moment after A copied the details, so the chip can say so in place. */
+    val copied: Boolean = false
 )
 
 data class NovaQuickMenuUiState(

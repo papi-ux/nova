@@ -98,12 +98,12 @@ data class NovaDisplayResolutionPlanner(
         ): NovaDisplayResolutionPlanner {
             val deviceChoice = NovaDisplayResolutionChoice(
                 id = DEVICE_SETTINGS_ID,
-                // Eleven characters: what one line of a legend card holds with four cards
-                // across a handheld. "Device Settings" wrapped, and cost the legend a line.
-                title = "This Device",
+                // Short enough for one line of a card. It is the size saved in Nova's settings,
+                // which "This Device" did not say: on the Shield it was not the screen's size.
+                title = "Saved Size",
                 targetMode = device.mode,
                 badge = "",
-                reason = "Use this device's saved resolution.",
+                reason = "The resolution saved in Nova's settings.",
                 advanced = false,
                 custom = false,
                 safe = true,
@@ -180,6 +180,12 @@ data class NovaDisplayResolutionPlanner(
             val whole = kotlin.math.abs(scale - kotlin.math.round(scale)) < 0.01
             return if (whole) "${kotlin.math.round(scale).toInt()}x" else "${scale}x"
         }
+
+        /**
+         * A choice's title as shown, with the multiplication sign: a host labels its scales
+         * "1.25x". The title itself keeps the x, since a scale's saved id is made from it.
+         */
+        fun displayTitle(title: String): String = title.replace(Regex("(?<=\\d)x(?![A-Za-z])"), "×")
 
         /** The host's rounding, so a preset lands on the size the host would have planned. */
         private fun roundToEven(value: Double): Int {

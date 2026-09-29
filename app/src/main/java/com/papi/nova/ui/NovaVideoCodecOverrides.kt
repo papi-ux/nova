@@ -82,6 +82,21 @@ object NovaVideoCodecOverrides {
  * row. [preview] gives what the plan card shows while a codec has focus there, from the codec it
  * would launch with; null for one that leaves the choice to the app setting or the host.
  */
+/**
+ * One sentence for each codec, the same on Play Setup's page and in Settings: every standard codec
+ * had carried one shared sentence, and "Recommended" sat in the name instead of leading its note.
+ */
+internal fun novaCodecOptionDetail(context: Context, value: String): String = context.getString(
+    when (value) {
+        "auto" -> R.string.nova_codec_detail_auto
+        "forceav1" -> R.string.nova_codec_detail_av1
+        "forceh265" -> R.string.nova_codec_detail_hevc
+        "neverh265" -> R.string.nova_codec_detail_h264
+        "forcepyrowave" -> R.string.nova_play_setup_codec_pyrowave_detail
+        else -> R.string.nova_play_setup_codec_standard_detail
+    },
+)
+
 internal fun novaPlaySetupCodecRow(
     context: Context,
     selected: String?,
@@ -119,8 +134,7 @@ internal fun novaPlaySetupCodecRow(
             NovaPlaySetupOption(
                 label = label,
                 consequence = if (value == "forcepyrowave" && unavailableReason.isNotEmpty())
-                    unavailableReason else context.getString(if (value == "forcepyrowave")
-                        R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_standard_detail),
+                    unavailableReason else novaCodecOptionDetail(context, value),
                 current = value == selected,
                 enabled = PyroWaveAvailability.canSelect(value, availability),
                 onSelect = if (PyroWaveAvailability.canSelect(value, availability))

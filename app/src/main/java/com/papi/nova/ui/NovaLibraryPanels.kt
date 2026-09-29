@@ -792,7 +792,9 @@ internal fun NovaPageScope.NovaPolarisSyncPage(
                     line = novaPlaySetupPlanSummary(model.plan).orEmpty(),
                     // The plan opens whole on its own page, and focus comes back here (R7).
                     onOpen = { if (isTop) panel.push(PlaySetupPage.Plan(readTitle, model.plan)) },
-                    modifier = Modifier.novaRestorableFocus("plan"),
+                    // The page opens on this read-only summary: it opened on Screen To Add, where
+                    // one stray Left or Right changed the host's config for every device.
+                    modifier = Modifier.novaInitialFocus().novaRestorableFocus("plan"),
                 )
             },
         ) {
@@ -807,9 +809,7 @@ internal fun NovaPageScope.NovaPolarisSyncPage(
                         else -> advanceNovaPlaySetupHostRow(row = row, rows = model.rows, sync = uiState, actions = model.actions)
                     }
                 },
-                rowModifier = { row, first ->
-                    (if (first) Modifier.novaInitialFocus() else Modifier).novaRestorableFocus(row.name)
-                },
+                rowModifier = { row, _ -> Modifier.novaRestorableFocus(row.name) },
             )
         }
     }
