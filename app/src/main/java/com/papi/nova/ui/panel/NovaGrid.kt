@@ -10,20 +10,30 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 
 /**
  * How many columns a page of [width] lays its rows in: two for a [NovaPanelWidth.Grid] page on a
  * compact landscape panel, which is Wide for them, and one everywhere else, including the
- * portrait sheet and a television.
+ * portrait sheet and a television. At a large font scale it is one again: two columns at 1.3
+ * broke titles over lines and grew the tiles to 100dp, so one column showed as much, whole.
  */
 @Composable
 @ReadOnlyComposable
 internal fun novaPanelColumns(width: NovaPanelWidth): Int =
-    if (width == NovaPanelWidth.Grid && LocalNovaPanelDensity.current == NovaPanelDensity.Compact && LocalNovaPanelFillsHeight.current) {
+    if (
+        width == NovaPanelWidth.Grid &&
+        LocalNovaPanelDensity.current == NovaPanelDensity.Compact &&
+        LocalNovaPanelFillsHeight.current &&
+        LocalDensity.current.fontScale < NovaGridLargeFontScale
+    ) {
         2
     } else {
         1
     }
+
+/** From this font scale up, a grid page is one column. */
+internal const val NovaGridLargeFontScale = 1.15f
 
 /**
  * [items] in lines of [columns], in their own order, so reading and the D-pad go line by line.
