@@ -76,8 +76,10 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -456,24 +458,31 @@ private fun rememberNovaLibraryTopBarFit(
                 ?: 0f
             val titleLinesUnderEyebrow = novaTopBarTitleLines(stripInside - eyebrowHeight - NOVA_TOP_BAR_WORDS_GAP.dp.toPx(), titleLine)
             val titleLinesAlone = novaTopBarTitleLines(stripInside, titleLine).coerceAtLeast(1)
-            // The narrowest width at which the title takes no more than [lines] lines, never
-            // narrower than its longest word, which would be broken in two.
-            fun titleWidth(title: String, lines: Int): Float {
-                val single = width(title, titleStyle)
+            // A refused End's reason, in the eyebrow's type: the lines it has above one title line,
+            // and the lines it has alone once the title gives way (XR3).
+            val refusal = continueCard?.refusal == true
+            val eyebrowLine = measurer.measure("Ag", eyebrowStyle, softWrap = false, maxLines = 1).size.height.toFloat()
+            val refusalLinesOverTitle = novaTopBarRefusalLines(stripInside - titleLine - NOVA_TOP_BAR_WORDS_GAP.dp.toPx(), eyebrowLine)
+            val refusalLinesAlone = novaTopBarRefusalLines(stripInside, eyebrowLine).coerceAtLeast(1)
+            // The narrowest width at which [text] takes no more than [lines] lines, never narrower
+            // than its longest word, which would be broken in two.
+            fun wordsWidth(text: String, style: TextStyle, lines: Int): Float {
+                val single = width(text, style)
                 if (lines <= 1 || single == 0f) return single
-                var narrow = title.split(' ').maxOf { width(it, titleStyle) }
+                var narrow = text.split(' ').maxOf { width(it, style) }
                 var wide = single
                 repeat(NOVA_TOP_BAR_TITLE_SEARCH_STEPS) {
                     val middle = (narrow + wide) / 2f
                     val laid = measurer.measure(
-                        title,
-                        titleStyle,
+                        text,
+                        style,
                         constraints = Constraints(maxWidth = middle.dp.roundToPx().coerceAtLeast(1)),
                     )
                     if (laid.lineCount <= lines) wide = middle else narrow = middle
                 }
                 return wide
             }
+            fun titleWidth(title: String, lines: Int): Float = wordsWidth(title, titleStyle, lines)
             val fit = novaLibraryTopBarFit(
                 NovaTopBarWidths(
                     available = available.value,
@@ -503,10 +512,14 @@ private fun rememberNovaLibraryTopBarFit(
                         // as the strip's inside, 7 dp gaps, and actions at least 88 and 72 dp wide.
                         // Where no title line fits under the eyebrow, the words need more than any
                         // strip has, so the eyebrow is always the first to go.
-                        val text = if (titleLinesUnderEyebrow > 0) {
-                            maxOf(width(card.eyebrow.uppercase(), eyebrowStyle), titleWidth(card.title, titleLinesUnderEyebrow))
-                        } else {
-                            available.value * 2
+                        val text = when {
+                            // The reason over one title line, or, failing that, alone on every line.
+                            card.refusal && refusalLinesOverTitle > 0 ->
+                                maxOf(wordsWidth(card.eyebrow, eyebrowStyle, refusalLinesOverTitle), titleWidth(card.title, 1))
+                            card.refusal -> available.value * 2
+                            titleLinesUnderEyebrow > 0 ->
+                                maxOf(width(card.eyebrow.uppercase(), eyebrowStyle), titleWidth(card.title, titleLinesUnderEyebrow))
+                            else -> available.value * 2
                         }
                         NovaTopBarContinueWidths(
                             padding = 4f,
@@ -516,7 +529,12 @@ private fun rememberNovaLibraryTopBarFit(
                                 0f
                             },
                             textMin = text + NOVA_TOP_BAR_WORDS_ROOM,
-                            titleMin = titleWidth(card.title, titleLinesAlone) + NOVA_TOP_BAR_WORDS_ROOM,
+                            titleMin = if (card.refusal) {
+                                wordsWidth(card.eyebrow, eyebrowStyle, refusalLinesAlone)
+                            } else {
+                                titleWidth(card.title, titleLinesAlone)
+                            } + NOVA_TOP_BAR_WORDS_ROOM,
+                            keepsText = card.refusal,
                             gap = 7f,
                             primary = maxOf(88f, button(card.actionLabel, 10.sp)),
                             secondary = card.secondaryActionLabel?.let {
@@ -530,10 +548,15 @@ private fun rememberNovaLibraryTopBarFit(
                 ),
             )
             fit.copy(
-                continueTitleLines = if (fit.showContinueEyebrow) {
-                    titleLinesUnderEyebrow.coerceAtLeast(1)
-                } else {
-                    titleLinesAlone
+                continueTitleLines = when {
+                    refusal -> 1
+                    fit.showContinueEyebrow -> titleLinesUnderEyebrow.coerceAtLeast(1)
+                    else -> titleLinesAlone
+                },
+                continueEyebrowLines = when {
+                    !refusal -> 1
+                    fit.showContinueEyebrow -> refusalLinesOverTitle.coerceAtLeast(1)
+                    else -> refusalLinesAlone
                 },
             )
         }
@@ -550,6 +573,17 @@ internal fun novaTopBarTitleLines(roomPx: Float, linePx: Float): Int {
 }
 
 private const val NOVA_TOP_BAR_TITLE_LINES_MAX = 2
+
+/**
+ * How many lines of [linePx] a refused End's reason has in a room [roomPx] tall, at most three: it
+ * is a sentence, where the title is a name.
+ */
+internal fun novaTopBarRefusalLines(roomPx: Float, linePx: Float): Int {
+    if (linePx <= 0f || roomPx <= 0f) return 0
+    return (roomPx / linePx).toInt().coerceIn(0, NOVA_TOP_BAR_REFUSAL_LINES_MAX)
+}
+
+private const val NOVA_TOP_BAR_REFUSAL_LINES_MAX = 3
 /** The eyebrow and the title stand this far apart in the card, in dp. */
 private const val NOVA_TOP_BAR_WORDS_GAP = 1f
 /** Rounding room on the words' measured width, so what fits here also wraps the same way there. */
@@ -675,6 +709,8 @@ internal fun NovaLibraryStage(
     onPrimaryAction: () -> Unit,
     onSessionAction: (() -> Unit)? = null,
     onSecondaryAction: (() -> Unit)? = null,
+    /** Why the host refused an End, said under the hero's title until the End status clears (XR3). */
+    endRefusal: String? = null,
     onGameFocused: (PolarisGame) -> Unit,
     onOpenDetail: (PolarisGame) -> Unit,
     artworkLoader: (ImageView, PolarisGame, String) -> Unit = { view, game, artworkKind ->
@@ -716,6 +752,7 @@ internal fun NovaLibraryStage(
                 onPrimaryAction = onPrimaryAction,
                 onSessionAction = onSessionAction,
                 onSecondaryAction = onSecondaryAction,
+                endRefusal = endRefusal,
             )
         } else if (sessionTitle != null && sessionActionLabel != null && onSessionAction != null) {
             NovaLibraryStageSessionHero(
@@ -728,6 +765,7 @@ internal fun NovaLibraryStage(
                 secondaryActionLabel = secondaryActionLabel,
                 onAction = onSessionAction,
                 onSecondaryAction = onSecondaryAction,
+                endRefusal = endRefusal,
             )
         }
 
@@ -785,6 +823,7 @@ private fun NovaLibraryStageSessionHero(
     secondaryActionLabel: String?,
     onAction: () -> Unit,
     onSecondaryAction: (() -> Unit)?,
+    endRefusal: String? = null,
 ) {
     val surfaces = LocalNovaLibrarySurfaces.current
     Box(
@@ -810,7 +849,9 @@ private fun NovaLibraryStageSessionHero(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag("nova-stage-session-title"),
             )
-            if (!compact && !supportingLine.isNullOrBlank()) {
+            if (endRefusal != null) {
+                NovaStageEndRefusal(endRefusal, compact)
+            } else if (!compact && !supportingLine.isNullOrBlank()) {
                 Text(
                     text = supportingLine,
                     color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.78f),
@@ -892,6 +933,7 @@ private fun NovaLibraryStageHero(
     onPrimaryAction: () -> Unit,
     onSessionAction: (() -> Unit)? = null,
     onSecondaryAction: (() -> Unit)? = null,
+    endRefusal: String? = null,
 ) {
     val heroColors = LocalNovaComposeColors.current
     val hasIcon = game.iconArtwork != null
@@ -952,7 +994,10 @@ private fun NovaLibraryStageHero(
             val endSplit = rememberNovaSplitConfirmState()
             val endArmed = endSplit.armed && secondaryActionLabel != null && onSecondaryAction != null
             val heroMetadata = stageHeroMetadata(game)
-            if (heroMetadata.isNotBlank() && !largeText && !endArmed) {
+            if (endRefusal != null && !endArmed) {
+                // A refused End, in the metadata line's place under the title, and whole.
+                NovaStageEndRefusal(endRefusal, compact)
+            } else if (heroMetadata.isNotBlank() && !largeText && !endArmed) {
                 Text(
                     text = heroMetadata,
                     color = heroColors.textSecondary,
@@ -1000,6 +1045,27 @@ private fun NovaLibraryStageHero(
         }
     }
 }
+
+/**
+ * Why the host refused an End, under the Stage hero's title (XR3): whole, on as many lines as it
+ * takes, and announced. The Stage had said nothing, and End only went away.
+ */
+@Composable
+private fun NovaStageEndRefusal(line: String, compact: Boolean) {
+    Text(
+        text = line,
+        color = LocalNovaComposeColors.current.warning,
+        fontSize = if (compact) 11.sp else 12.sp,
+        lineHeight = if (compact) 13.sp else 15.sp,
+        modifier = Modifier
+            .padding(top = if (compact) 2.dp else 6.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite }
+            .testTag(NOVA_STAGE_END_REFUSED_TAG),
+    )
+}
+
+/** The Stage hero's line saying why an End was refused, for a test to find it. */
+internal const val NOVA_STAGE_END_REFUSED_TAG = "nova-stage-end-refused"
 
 /**
  * End Session on the stage, as a split in its own slot: Stay and End Session, with what ending

@@ -191,7 +191,9 @@ sealed interface NovaLibraryEndStatus {
 
 /**
  * What a refused End says in the library: the host's own words, or [fallback] when it gave none,
- * and Try Again only when the session is this device's to end.
+ * and Try Again only when the session is this device's to end. A game still closing gets its Try
+ * Again after a wait ([novaLibraryOfferRetryAfterWait]): asked at once, the host would only find it
+ * closing still.
  */
 internal fun novaLibraryEndRefused(
     gameId: Int,
@@ -200,8 +202,25 @@ internal fun novaLibraryEndRefused(
 ): NovaLibraryEndStatus.Failed = NovaLibraryEndStatus.Failed(
     gameId = gameId,
     line = refusal.reason.trim().ifBlank { fallback },
-    canRetry = !refusal.startedElsewhere,
+    canRetry = !refusal.startedElsewhere && !refusal.stillClosing,
 )
+
+/** How long a game still closing waits before its refused End offers Try Again. */
+internal const val NOVA_LIBRARY_END_RETRY_WAIT_MS = 3_000L
+
+/**
+ * Offers Try Again on [refused], an End refused while the game was still closing, once [waitMillis]
+ * has passed, if the library still shows that refusal then ([current]); [set] puts the new status.
+ */
+internal suspend fun novaLibraryOfferRetryAfterWait(
+    refused: NovaLibraryEndStatus.Failed,
+    current: () -> NovaLibraryEndStatus?,
+    set: (NovaLibraryEndStatus) -> Unit,
+    waitMillis: Long = NOVA_LIBRARY_END_RETRY_WAIT_MS,
+) {
+    kotlinx.coroutines.delay(waitMillis)
+    if (current() === refused) set(refused.copy(canRetry = true))
+}
 
 data class NovaLibraryUiModel(
     val allGames: List<PolarisGame>,

@@ -660,11 +660,16 @@ object ServerHelper {
     }
 
     /**
-     * Why the host did not quit a session: its [reason] in its own words, possibly blank, and
-     * whether the session was [startedElsewhere], by another device, which this one can never quit
-     * however often it asks.
+     * Why the host did not quit a session: its [reason], in the host's own words where it gave some
+     * and in Nova's plain words otherwise; whether the session was [startedElsewhere], by another
+     * device, which this one can never quit however often it asks; and whether the game is
+     * [stillClosing] after this device's own End, which asking again after a moment can finish.
      */
-    data class QuitRefusal(val reason: String, val startedElsewhere: Boolean = false)
+    data class QuitRefusal(
+        val reason: String,
+        val startedElsewhere: Boolean = false,
+        val stillClosing: Boolean = false,
+    )
 
     /**
      * Quits the running app as the doQuit above does, but floats nothing: [onResult] runs on the
@@ -684,51 +689,45 @@ object ServerHelper {
         }.start()
     }
 
-    /** Asks the host to quit, on the calling thread: null once it has, or why it did not. */
+    /**
+     * Asks the host to quit, on the calling thread: null once it has, or why it did not (XR3). The
+     * reason is the host's own status message where it sent one, and Nova's plain words otherwise:
+     * never "Host returned error: ... (Error code: N)". Only the host's own word that the session is
+     * not this device's says another device started it. A 599 after this device's own cancel is
+     * NvHTTP's, when the game still runs just after the host accepted the cancel: Polaris answers a
+     * cancel before it has closed the game, so the game is still closing.
+     */
     private fun quitOnHost(parent: Activity, httpConn: NvHTTP, appName: String): QuitRefusal? {
-        var message: String? = null
-        var failed = false
-        var startedElsewhere = false
-        try {
+        val resources = parent.resources
+        return try {
             val serverInfo = httpConn.getServerInfo(true)
-            val owned = httpConn.getCurrentGameOwned(serverInfo)
-            val sessionToken = httpConn.getCurrentGameSessionToken(serverInfo)
-
-            if (owned == false) {
-                throw HostHttpResponseException(599, "")
+            if (httpConn.getCurrentGameOwned(serverInfo) == false) {
+                return QuitRefusal(resources.getString(R.string.nova_library_end_started_elsewhere), startedElsewhere = true)
             }
-
-            val quitSucceeded = httpConn.quitApp(sessionToken)
-            failed = !quitSucceeded
-            message = if (quitSucceeded) {
-                parent.resources.getString(R.string.applist_quit_success) + " " + appName
+            val sessionToken = httpConn.getCurrentGameSessionToken(serverInfo)
+            if (httpConn.quitApp(sessionToken)) {
+                null
             } else {
-                parent.resources.getString(R.string.applist_quit_fail) + " " + appName
+                QuitRefusal(resources.getString(R.string.applist_quit_fail) + " " + appName)
             }
         } catch (e: HostHttpResponseException) {
-            failed = true
-            startedElsewhere = e.getErrorCode() == 599
-            message = if (e.getErrorCode() == 599) {
-                parent.resources.getString(R.string.nova_library_end_started_elsewhere)
-            } else {
-                e.message
+            val hostWords = e.getHostStatusMessage()
+            when {
+                hostWords != null -> QuitRefusal(hostWords)
+                e.getErrorCode() == 599 -> QuitRefusal(resources.getString(R.string.nova_library_end_still_closing), stillClosing = true)
+                else -> QuitRefusal(resources.getString(R.string.nova_library_end_failed))
             }
         } catch (_: UnknownHostException) {
-            failed = true
-            message = parent.resources.getString(R.string.error_unknown_host)
+            QuitRefusal(resources.getString(R.string.error_unknown_host))
         } catch (_: FileNotFoundException) {
-            failed = true
-            message = parent.resources.getString(R.string.error_404)
+            QuitRefusal(resources.getString(R.string.error_404))
         } catch (e: XmlPullParserException) {
-            failed = true
-            message = e.message
             e.printStackTrace()
+            QuitRefusal(resources.getString(R.string.nova_library_end_failed))
         } catch (e: IOException) {
-            failed = true
-            message = e.message
             e.printStackTrace()
+            QuitRefusal(resources.getString(R.string.nova_library_end_unreachable))
         }
-        return if (failed) QuitRefusal(message.orEmpty(), startedElsewhere) else null
     }
 
     @JvmStatic

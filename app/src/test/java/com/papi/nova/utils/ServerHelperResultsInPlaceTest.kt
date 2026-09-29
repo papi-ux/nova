@@ -6,11 +6,11 @@ import com.papi.nova.R
 import com.papi.nova.TestLogSuppressor
 import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.nvstream.http.ComputerDetails
+import com.papi.nova.nvstream.http.HostHttpResponseException
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaSurfaces
-import java.io.IOException
 import java.time.Duration
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -77,8 +77,14 @@ class ServerHelperResultsInPlaceTest {
 
     @Test
     fun aRefusedQuitIsANoticeWithTheHostsReasonAndNothingFloats() {
+        // The host refuses the quit in its own words, its response's status_message (XR3).
+        val refusal = runCatching {
+            NvHTTP.getXmlString("<root status_code=\"409\" status_message=\"The host is busy\"><cancel>0</cancel></root>", "cancel", true)
+        }.exceptionOrNull() as HostHttpResponseException
         val http = mock(NvHTTP::class.java)
-        `when`(http.getServerInfo(true)).thenThrow(IOException("The host is busy"))
+        `when`(http.getServerInfo(true)).thenReturn("<root/>")
+        `when`(http.getCurrentGameOwned("<root/>")).thenReturn(true)
+        `when`(http.quitApp(null)).thenThrow(refusal)
         var completed = false
         var failed = false
 

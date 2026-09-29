@@ -11,6 +11,11 @@
     <!-- In the same place, when Nova no longer holds what the host needs to end the session, so
          asking again cannot work. -->
     <string name="nova_library_end_missing_session">Nova lost this session\'s details. End it on the host.</string>
+    <!-- In the same place, when the host accepted this device's End and the game has not closed yet:
+         Try Again comes back after a moment. -->
+    <string name="nova_library_end_still_closing">The host is still closing this game.</string>
+    <!-- In the same place, when Nova could not reach the host to ask. -->
+    <string name="nova_library_end_unreachable">Nova could not reach the host to end the session.</string>
     <!-- A refresh that failed while the library still shows its games: the title of its Notice. -->
     <string name="nova_library_refresh_failed_title">Could not refresh the library</string>
     <!-- Beside an armed End Session in the library's top strip, which has no room for a longer line. -->

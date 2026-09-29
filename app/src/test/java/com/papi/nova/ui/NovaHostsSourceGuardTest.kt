@@ -48,9 +48,7 @@ class NovaHostsSourceGuardTest {
         assertTrue(
             "ServerHelper quit failure callbacks should run when the host reports quit failure",
             readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
-                .contains("val quitSucceeded = httpConn.quitApp(sessionToken)") &&
-                readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
-                    .contains("failed = !quitSucceeded")
+                .contains("if (httpConn.quitApp(sessionToken)) {\n                null\n            } else {\n                QuitRefusal(")
         )
     }
 

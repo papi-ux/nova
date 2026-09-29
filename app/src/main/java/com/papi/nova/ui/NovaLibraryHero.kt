@@ -620,12 +620,15 @@ internal fun RowScope.NovaLibraryStripContinue(
                     color = colors.textSecondary,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
-            } else if (endFailed && fit.showContinueEyebrow) {
-                // The refusal, in the eyebrow's line the fit measured it for, and announced.
+            } else if (endFailed) {
+                // The refusal, in the eyebrow's place on the lines the fit measured it for, and
+                // announced. Nothing else in the strip says why End went, so the fit never leaves
+                // it out: the title gives way first (XR3).
                 Text(
                     text = hero.eyebrow,
                     style = NovaChromeType.label(fontSize = 8.sp),
                     color = colors.warning,
+                    maxLines = fit.continueEyebrowLines,
                     modifier = Modifier
                         .semantics { liveRegion = LiveRegionMode.Polite }
                         .testTag(NOVA_LIBRARY_END_FAILED_TAG),
@@ -637,14 +640,16 @@ internal fun RowScope.NovaLibraryStripContinue(
                     color = colors.accent,
                 )
             }
-            Text(
-                text = hero.title,
-                color = colors.textPrimary,
-                fontSize = 14.sp,
-                lineHeight = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = fit.continueTitleLines,
-            )
+            if (!endFailed || endArmed || fit.showContinueEyebrow) {
+                Text(
+                    text = hero.title,
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = fit.continueTitleLines,
+                )
+            }
         }
         if (ending) {
             Text(

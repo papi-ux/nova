@@ -21,6 +21,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import com.papi.nova.TestLogSuppressor
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.nvstream.http.HostHttpResponseException
 import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.panel.NovaPanelMetrics
@@ -42,7 +43,9 @@ import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
+import java.io.IOException
 import java.time.Duration
+import kotlinx.coroutines.runBlocking
 
 /**
  * A refused End keeps the host's reason, and offers Try Again only where asking again can work
@@ -95,14 +98,74 @@ class NovaLibraryEndRefusedTest {
 
     @Test
     fun aSessionAnotherDeviceStartedComesBackAsStartedElsewhereInPlainWords() {
+        val refusal = quit(owned = false) { error("a session the host says is not ours is never asked to quit") }
+        assertTrue(refusal.startedElsewhere)
+        assertFalse(refusal.stillClosing)
+        assertEquals(context.getString(R.string.nova_library_end_started_elsewhere), refusal.reason)
+    }
+
+    // NvHTTP answers 599 itself when the game still runs just after the host took this device's
+    // cancel, and Polaris answers a cancel before it has closed the game. That is this device's own
+    // session, still closing: not another device's, and asking again after a moment can finish it.
+    @Test
+    fun a599AfterThisDevicesOwnEndSaysTheGameIsStillClosingAndTryAgainComesBackAfterAWait() {
+        val refusal = quit(owned = true) { throw HostHttpResponseException(599, "") }
+        assertFalse("the host said the session is ours", refusal.startedElsewhere)
+        assertTrue(refusal.stillClosing)
+        assertEquals("The host is still closing this game.", refusal.reason)
+
+        val refused = novaLibraryEndRefused(24, refusal, context.getString(R.string.nova_library_end_failed))
+        assertFalse("not at once: the host would find it closing still", refused.canRetry)
+        var shown: NovaLibraryEndStatus? = refused
+        runBlocking { novaLibraryOfferRetryAfterWait(refused, current = { shown }, set = { shown = it }, waitMillis = 20) }
+        assertTrue("after the wait, Try Again", (shown as NovaLibraryEndStatus.Failed).canRetry)
+        assertEquals(refused.line, (shown as NovaLibraryEndStatus.Failed).line)
+
+        // A refusal the library no longer shows is left alone.
+        var replaced: NovaLibraryEndStatus? = NovaLibraryEndStatus.Ending(24)
+        runBlocking { novaLibraryOfferRetryAfterWait(refused, current = { replaced }, set = { replaced = it }, waitMillis = 20) }
+        assertTrue(replaced is NovaLibraryEndStatus.Ending)
+    }
+
+    @Test
+    fun aHostThatRefusesInItsOwnWordsIsQuotedWithoutAnErrorCode() {
+        // The host's cancel answered with its own status_message, as Polaris does for a stale token.
+        val hostRefusal = runCatching {
+            NvHTTP.getXmlString(
+                "<root status_code=\"470\" status_message=\"The requested session token does not match the active session\"><cancel>0</cancel></root>",
+                "cancel",
+                true,
+            )
+        }.exceptionOrNull() as HostHttpResponseException
+        val refusal = quit(owned = true) { throw hostRefusal }
+        assertEquals("The requested session token does not match the active session", refusal.reason)
+        assertFalse(refusal.startedElsewhere)
+        assertFalse(refusal.stillClosing)
+        assertTrue(novaLibraryEndRefused(24, refusal, "fallback").canRetry)
+    }
+
+    @Test
+    fun aHostThatSaidNothingGetsNovasPlainWordsNeverARawError() {
+        val http503 = quit(owned = true) { throw HostHttpResponseException(503, "Service Unavailable") }
+        assertEquals(context.getString(R.string.nova_library_end_failed), http503.reason)
+        val unreachable = quit(owned = true) { throw IOException("Failed to connect to /10.0.0.232:47984") }
+        assertEquals("Nova could not reach the host to end the session.", unreachable.reason)
+        for (reason in listOf(http503.reason, unreachable.reason)) {
+            assertFalse(reason, reason.contains("Error code"))
+            assertFalse(reason, reason.contains("Host returned error"))
+            assertFalse(reason, reason.contains("10.0.0.232"))
+        }
+    }
+
+    /** Ends a session through ServerHelper as the library does, with a host that says [owned] and then [cancel]s. */
+    private fun quit(owned: Boolean?, cancel: () -> Boolean): ServerHelper.QuitRefusal {
         val http = mock(NvHTTP::class.java)
         `when`(http.getServerInfo(true)).thenReturn("<root/>")
-        `when`(http.getCurrentGameOwned("<root/>")).thenReturn(false)
-        val activity = rule.activity
+        `when`(http.getCurrentGameOwned("<root/>")).thenReturn(owned)
+        `when`(http.quitApp(null)).thenAnswer { cancel() }
         var refusal: ServerHelper.QuitRefusal? = null
         var answered = false
-
-        ServerHelper.doQuit(activity, http, "Control") {
+        ServerHelper.doQuit(rule.activity, http, "Control") {
             refusal = it
             answered = true
         }
@@ -111,10 +174,9 @@ class NovaLibraryEndRefusedTest {
             Thread.sleep(10)
             Shadows.shadowOf(Looper.getMainLooper()).idle()
         }
-
-        assertNotNull(refusal)
-        assertTrue(refusal!!.startedElsewhere)
-        assertEquals(context.getString(R.string.nova_library_end_started_elsewhere), refusal!!.reason)
+        assertTrue("the quit answered", answered)
+        assertNotNull("the host did not quit it", refusal)
+        return refusal!!
     }
 
     private var liveHero by mutableStateOf(

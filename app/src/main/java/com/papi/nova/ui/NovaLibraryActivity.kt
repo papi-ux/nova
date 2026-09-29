@@ -1392,7 +1392,14 @@ class NovaLibraryActivity : NovaActivity() {
                 )
             } else {
                 LimeLog.warning("Nova: The host did not end the session: ${refusal.reason}")
-                endStatus = novaLibraryEndRefused(session.gameId, refusal, getString(R.string.nova_library_end_failed))
+                val refused = novaLibraryEndRefused(session.gameId, refusal, getString(R.string.nova_library_end_failed))
+                endStatus = refused
+                // The host took the End and the game is still closing: Try Again after a moment.
+                if (refusal.stillClosing) {
+                    lifecycleScope.launch {
+                        novaLibraryOfferRetryAfterWait(refused, current = { endStatus }, set = { endStatus = it })
+                    }
+                }
                 refreshActiveSession(scheduleFollowUps = true)
             }
         }
@@ -2476,11 +2483,10 @@ class NovaLibraryActivity : NovaActivity() {
                             sessionTitle = model.hero.title.takeIf {
                                 model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION
                             },
-                            // A refused End says so where the session's line was, beside Try Again.
-                            sessionSupportingLine = (
-                                (model.hero.endStatus as? NovaLibraryEndStatus.Failed)?.line
-                                    ?: model.hero.supportingLine
-                                ).takeIf { model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION },
+                            sessionSupportingLine = model.hero.supportingLine
+                                .takeIf { model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION },
+                            // A refused End says why under the hero's title, whole (XR3).
+                            endRefusal = (model.hero.endStatus as? NovaLibraryEndStatus.Failed)?.line,
                             sessionActionLabel = if (
                                 model.hero.primaryAction == NovaLibraryHeroPrimaryAction.RESUME ||
                                 model.hero.primaryAction == NovaLibraryHeroPrimaryAction.WATCH

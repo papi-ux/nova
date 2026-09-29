@@ -118,6 +118,33 @@ class NovaLibraryTopBarFitTest {
         fits(widths, fit)
     }
 
+    // A refused End's reason is the card's words, and nothing else in the strip says it (XR3). The
+    // longest, "Another device started this session. End it there or on the host.", is 66
+    // characters: 367 dp on one line at 0.85, at the 5.56 dp a character "RESUME YOUR STREAM"
+    // measured. Over one title line it takes two lines, alone three, with room for a word that
+    // does not break. It is never left out; what gives way after it does instead.
+    @Test
+    fun aRefusedEndsReasonIsNeverLeftOutOnTheRetroid() {
+        for (fontScale in listOf(1f, 1.3f)) {
+            val k = fontScale / 0.85f
+            val oneLine = 367f * k
+            val word = 12f * k
+            val base = widths(fontScale = fontScale, playing = true, live = true)
+            val refused = base.copy(
+                continueCard = base.continueCard!!.copy(
+                    textMin = maxOf(oneLine / 2f + word, Retroid.TITLE * k),
+                    titleMin = oneLine / 3f + word,
+                    // Another device's session: End is gone, and no Try Again takes its place.
+                    secondary = 0f,
+                    keepsText = true,
+                ),
+            )
+            val fit = novaLibraryTopBarFit(refused)
+            assertTrue("the reason stays at $fontScale: $fit", fit.showContinueText)
+            fits(refused, fit)
+        }
+    }
+
     @Test
     fun theCardsTitleTakesTheLinesTheStripHasAndNeverAThird() {
         // The Retroid's 60 dp strip, 49 dp inside: two 16 dp title lines under an 11 dp eyebrow.
