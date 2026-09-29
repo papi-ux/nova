@@ -465,6 +465,8 @@ private fun NovaSliderTrack(value: Int, range: IntRange, step: Int, label: Strin
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)
+            // Left and Right move it; A has nothing to do on the track.
+            .novaFocusHint(NovaFocusHint.Change)
             .semantics(mergeDescendants = true) { stateDescription = label }
             .onPreviewKeyEvent { event ->
                 val direction = when (event.key) {

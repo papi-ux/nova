@@ -166,6 +166,7 @@ fun NovaTextField(
                         restBorder = if (error != null) colors.destructive else surfaces.tileBorder,
                         restBorderWidth = NovaPanelMetrics.Hairline,
                     )
+                    .novaFocusHint(NovaFocusHint.Type)
                     .focusRequester(requester)
                     .onPreviewKeyEvent { event ->
                         val native = event.nativeKeyEvent

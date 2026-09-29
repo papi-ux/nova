@@ -160,6 +160,8 @@ internal fun NovaRowLayout(
                 if (it.hasFocus && !focused) haptics.novaFocusTick()
                 focused = it.hasFocus
             }
+            // A row that cannot act swallows A, so the hint bar does not offer it.
+            .novaFocusHint(if (enabled) null else NovaFocusHint.Read)
             .then(
                 if (interactive) {
                     val role = if (checked != null) Role.Checkbox else Role.Button

@@ -18,12 +18,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.unit.Constraints
@@ -158,8 +161,9 @@ fun <T> NovaValueRow(
         onPrevious = { step(-1, wrap = !ordered) },
         onNext = { step(1, wrap = !ordered) },
         onActivate = { step(1, wrap = true) },
+        hint = if (isSwitch) NovaFocusHint.Toggle else NovaFocusHint.Next,
         modifier = modifier,
-    ) { available ->
+    ) { available, focused ->
         when {
             resolved == NovaValueStyle.Switch -> NovaSwitchControl(
                 on = options.getOrNull(index)?.value == true,
@@ -170,6 +174,7 @@ fun <T> NovaValueRow(
             else -> NovaCyclerControl(
                 label = options.getOrNull(index)?.label.orEmpty(),
                 widest = widest,
+                focused = focused,
                 onPrevious = { step(-1, wrap = !ordered) },
                 onNext = { step(1, wrap = !ordered) },
                 onValueTap = onOpenList,
@@ -253,11 +258,13 @@ fun NovaStepperRow(
         onPrevious = { repeats -> move(-1, repeats) },
         onNext = { repeats -> move(1, repeats) },
         onActivate = { exact?.invoke() },
+        hint = if (onExact != null) NovaFocusHint.TypeValue else NovaFocusHint.Change,
         modifier = modifier,
-    ) {
+    ) { _, focused ->
         NovaCyclerControl(
             label = format(value),
             widest = widest,
+            focused = focused,
             onPrevious = { move(-1, 0) },
             onNext = { move(1, 0) },
             onValueTap = onExact,
@@ -281,8 +288,9 @@ private fun NovaValueRowFrame(
     onPrevious: (repeats: Int) -> Unit,
     onNext: (repeats: Int) -> Unit,
     onActivate: () -> Unit,
+    hint: NovaFocusHint,
     modifier: Modifier = Modifier,
-    control: @Composable (available: Dp) -> Unit,
+    control: @Composable (available: Dp, focused: Boolean) -> Unit,
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
@@ -296,6 +304,7 @@ private fun NovaValueRowFrame(
     // layout lays the options out from the right, so Left moves on to the next one there.
     val leftKey = if (rtl) next else previous
     val rightKey = if (rtl) previous else next
+    var focused by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -303,6 +312,8 @@ private fun NovaValueRowFrame(
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)
+            .novaFocusHint(if (enabled) hint else NovaFocusHint.Read)
+            .onFocusChanged { focused = it.hasFocus }
             .semantics(mergeDescendants = true) {
                 stateDescription = stateLabel
                 role?.let { this.role = it }
@@ -347,7 +358,7 @@ private fun NovaValueRowFrame(
                             caption?.let { Text(text = it, style = type.caption, color = colors.textSecondary) }
                         }
                     },
-                    { control(available) },
+                    { control(available, focused) },
                 ),
                 measurePolicy = ValueRowMeasurePolicy,
             )
@@ -444,6 +455,7 @@ private val SegmentsMeasurePolicy = MeasurePolicy { measurables, constraints ->
 private fun NovaCyclerControl(
     label: String,
     widest: Dp,
+    focused: Boolean,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onValueTap: (() -> Unit)?,
@@ -454,7 +466,7 @@ private fun NovaCyclerControl(
     val next by rememberUpdatedState(onNext)
     val valueTap by rememberUpdatedState(onValueTap)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        NovaArrow(back = true) { previous() }
+        NovaArrow(back = true, focused = focused) { previous() }
         Text(
             text = label,
             style = type.value,
@@ -465,13 +477,17 @@ private fun NovaCyclerControl(
                 .widthIn(min = widest)
                 .pointerInput(Unit) { detectTapGestures(onTap = { valueTap?.invoke() }) },
         )
-        NovaArrow(back = false) { next() }
+        NovaArrow(back = false, focused = focused) { next() }
     }
 }
 
-/** A cycler's arrow: a 48dp target around the 18dp chevron, which keeps its size at every font scale. */
+/**
+ * A cycler's arrow: a 48dp target around the 18dp chevron, in accent while the row has focus and
+ * not drawn at rest, where the row shows only its value as Play Setup's rows do. It keeps its room
+ * at rest, so the value never moves as focus comes and goes.
+ */
 @Composable
-private fun NovaArrow(back: Boolean, onTap: () -> Unit) {
+private fun NovaArrow(back: Boolean, focused: Boolean, onTap: () -> Unit) {
     val tap by rememberUpdatedState(onTap)
     Box(
         modifier = Modifier
@@ -479,7 +495,10 @@ private fun NovaArrow(back: Boolean, onTap: () -> Unit) {
             .pointerInput(Unit) { detectTapGestures(onTap = { tap() }) },
         contentAlignment = Alignment.Center,
     ) {
-        NovaChevron(back = back, tint = LocalNovaComposeColors.current.textSecondary)
+        NovaChevron(
+            back = back,
+            tint = if (focused) LocalNovaComposeColors.current.accent else androidx.compose.ui.graphics.Color.Transparent,
+        )
     }
 }
 

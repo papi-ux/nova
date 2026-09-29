@@ -16,6 +16,9 @@
     <string name="nova_panel_next">Next</string>
     <!-- The hint bar's label for Left and Right on a row that changes in place. -->
     <string name="nova_panel_change">Change</string>
+    <string name="nova_panel_toggle">Toggle</string>
+    <string name="nova_panel_type_value">Type Value</string>
+    <string name="nova_panel_type">Type</string>
     <string name="nova_panel_exact_value">Exact value</string>
     <string name="nova_panel_working">Working</string>
     <string name="nova_panel_back_to">Back to %1$s</string>

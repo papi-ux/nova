@@ -34,6 +34,7 @@ import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaFocusHint
 import com.papi.nova.ui.panel.NovaFocusReturn
 import com.papi.nova.ui.panel.NovaPage
 import com.papi.nova.ui.panel.NovaPageContent
@@ -45,6 +46,7 @@ import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.NovaScrim
 import com.papi.nova.ui.panel.NovaSectionLabel
+import com.papi.nova.ui.panel.novaFocusHint
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaRowRest
@@ -130,7 +132,8 @@ internal sealed interface PlaySetupPage : NovaPage {
  *
  * [headerEnd] is drawn at the end of every page's header, where Play Setup keeps its scope pill,
  * so the pill stays in place as pages push. While a row that changes in place has focus, the hint
- * bar reads `◂▸ Change · A Next`, because A steps that row rather than selecting it.
+ * bar reads `◂▸ Change · A Next`, because A steps that row rather than selecting it; the row says
+ * so itself, through the page host's focus hint.
  *
  * The scrim is the light one with no backdrop blur. Blur is taken from the window under a panel,
  * and this panel is inside the window it would blur.
@@ -148,7 +151,6 @@ internal fun NovaPlaySetupPanel(
     // Where focus goes once the panel has left the tree. Its host keeps focus inside itself while
     // it is there, so the request waits for the frame after the panel is gone.
     var giveBack by remember { mutableStateOf<NovaFocusReturn?>(null) }
-    val changesInPlace = remember { mutableStateOf(false) }
     LaunchedEffect(open) { if (open) present = true }
     LaunchedEffect(giveBack) {
         val target = giveBack ?: return@LaunchedEffect
@@ -163,14 +165,6 @@ internal fun NovaPlaySetupPanel(
         }
     }
     if (!present && !open) return
-    val change = NovaControllerHint(
-        key = stringResource(R.string.nova_panel_key_left_right),
-        label = stringResource(R.string.nova_panel_change),
-    )
-    val next = NovaControllerHint(
-        key = stringResource(R.string.nova_panel_key_a),
-        label = stringResource(R.string.nova_panel_next),
-    )
     NovaPanelFrame(
         edge = NovaEdge.End,
         width = NovaPanelWidth.Wide,
@@ -183,18 +177,13 @@ internal fun NovaPlaySetupPanel(
         },
         scrim = NovaScrim.Stream,
     ) {
-        CompositionLocalProvider(LocalNovaPlaySetupChangesInPlace provides changesInPlace) {
-            val inPlace = changesInPlace.value
-            NovaPageStackHost(
-                state = panel,
-                onCloseRequest = onClose,
-                hints = hints,
-                leadingHints = if (inPlace) listOf(change) else emptyList(),
-                selectHint = if (inPlace) next else null,
-                headerEnd = headerEnd,
-                content = content,
-            )
-        }
+        NovaPageStackHost(
+            state = panel,
+            onCloseRequest = onClose,
+            hints = hints,
+            headerEnd = headerEnd,
+            content = content,
+        )
     }
 }
 
@@ -416,6 +405,8 @@ private fun NovaPlaySetupReadStop(modifier: Modifier = Modifier, content: @Compo
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)
+            // Only there to be read: the hint bar offers B and nothing on A.
+            .novaFocusHint(NovaFocusHint.Read)
             .semantics(mergeDescendants = true) {}
             .focusable()
             .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),

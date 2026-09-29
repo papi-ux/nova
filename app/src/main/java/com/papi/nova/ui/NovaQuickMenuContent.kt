@@ -56,6 +56,8 @@ import com.papi.nova.ui.compose.novaConfirm
 import com.papi.nova.ui.compose.novaFocusTick
 import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.ui.panel.NovaChevron
+import com.papi.nova.ui.panel.NovaFocusHint
+import com.papi.nova.ui.panel.novaFocusHint
 import com.papi.nova.ui.panel.NovaPageScope
 import com.papi.nova.ui.panel.NovaPanelButton
 import com.papi.nova.ui.panel.NovaNestedRows
@@ -425,6 +427,8 @@ private fun NovaQuickMenuSessionStrip(
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)
+            // It acts on nothing: the hint bar offers B and no A while it has focus.
+            .novaFocusHint(NovaFocusHint.Read)
             .semantics { contentDescription = description }
             .onFocusChanged {
                 if (it.hasFocus && !focused) haptics.novaFocusTick()

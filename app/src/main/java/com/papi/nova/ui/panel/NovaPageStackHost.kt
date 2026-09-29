@@ -39,15 +39,19 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusEventModifierNode
+import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -60,6 +64,10 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.currentValueOf
+import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
@@ -171,6 +179,89 @@ internal val LocalNovaPanelFillsHeight = staticCompositionLocalOf { true }
 internal val LocalNovaFocusRefresh = compositionLocalOf { 0 }
 
 /**
+ * What A does on the element that has focus, where it is not Select, so the hint bar says so. A
+ * value that changes in place steps on A ([Next]), flips ([Toggle]), takes an exact value
+ * ([TypeValue]) or does nothing more ([Change]); those lead the bar with `◂▸ Change`. A text field
+ * types on A ([Type]), and a stop that is only there to be read, or a row that cannot act, has
+ * nothing on A at all ([Read]), so the bar leaves A out rather than promise a Select.
+ */
+enum class NovaFocusHint(internal val changesInPlace: Boolean) {
+    Next(true),
+    Toggle(true),
+    TypeValue(true),
+    Change(true),
+    Type(false),
+    Read(false),
+}
+
+/** The hint of the element that has focus in a page host, claimed and released by [novaFocusHint]. */
+@Stable
+internal class NovaFocusHintState {
+    private var owner: Any? = null
+    var hint: NovaFocusHint? by mutableStateOf(null)
+        private set
+
+    fun claim(owner: Any, hint: NovaFocusHint?) {
+        this.owner = owner
+        this.hint = hint
+    }
+
+    fun release(owner: Any) {
+        if (this.owner !== owner) return
+        this.owner = null
+        hint = null
+    }
+}
+
+internal val LocalNovaFocusHint = staticCompositionLocalOf<NovaFocusHintState?> { null }
+
+/**
+ * While this element has focus, the page host's hint bar says [hint] for A, and leads with
+ * `◂▸ Change` where the element changes in place; null says Select. It follows the focus of the
+ * focus target after it in the chain, as [novaFocusRing] does. Outside a page host it does nothing.
+ */
+fun Modifier.novaFocusHint(hint: NovaFocusHint?): Modifier = this then NovaFocusHintElement(hint)
+
+private data class NovaFocusHintElement(val hint: NovaFocusHint?) : ModifierNodeElement<NovaFocusHintNode>() {
+    override fun create() = NovaFocusHintNode(hint)
+
+    override fun update(node: NovaFocusHintNode) {
+        node.update(hint)
+    }
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "novaFocusHint"
+    }
+}
+
+private class NovaFocusHintNode(private var hint: NovaFocusHint?) :
+    Modifier.Node(), FocusEventModifierNode, CompositionLocalConsumerModifierNode {
+    private var claimed: NovaFocusHintState? = null
+
+    fun update(hint: NovaFocusHint?) {
+        this.hint = hint
+        claimed?.claim(this, hint)
+    }
+
+    override fun onFocusEvent(focusState: FocusState) {
+        val state = currentValueOf(LocalNovaFocusHint) ?: return
+        if (focusState.hasFocus) {
+            state.claim(this, hint)
+            claimed = state
+        } else {
+            state.release(this)
+            claimed = null
+        }
+    }
+
+    override fun onDetach() {
+        // A row that leaves with focus, as when Play Setup's Y swaps every row, takes its hint along.
+        claimed?.release(this)
+        claimed = null
+    }
+}
+
+/**
  * Hosts a stack of pages: the page header, the back handler, the focus rules and the page motion.
  *
  * It draws every [NovaCommonPage] itself and hands other pages to [content]. B pops one page and
@@ -185,7 +276,8 @@ internal val LocalNovaFocusRefresh = compositionLocalOf { 0 }
  * [NovaPageScope.novaRestorableFocus] that last held focus, scrolling to it first.
  *
  * The hint bar reads [leadingHints], then A with [selectHint]'s label or Select, B Back, then
- * [hints]: a row that changes in place leads with its own keys and says what A does there.
+ * [hints]. The element with focus can change that through [novaFocusHint]: a value that changes in
+ * place leads with `◂▸ Change` and says what A does there, and a stop only there to be read drops A.
  * [headerEnd] is drawn at the end of every page's header line, such as Play Setup's scope pill.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -224,8 +316,23 @@ fun NovaPageStackHost(
     val back = stringResource(R.string.nova_panel_back)
     val keyA = stringResource(R.string.nova_panel_key_a)
     val keyB = stringResource(R.string.nova_panel_key_b)
-    val allHints = remember(hints, leadingHints, selectHint, select, back, keyA, keyB) {
-        leadingHints + listOf(selectHint ?: NovaControllerHint(keyA, select), NovaControllerHint(keyB, back)) + hints
+    val change = NovaControllerHint(stringResource(R.string.nova_panel_key_left_right), stringResource(R.string.nova_panel_change))
+    val aLabels = mapOf(
+        NovaFocusHint.Next to stringResource(R.string.nova_panel_next),
+        NovaFocusHint.Toggle to stringResource(R.string.nova_panel_toggle),
+        NovaFocusHint.TypeValue to stringResource(R.string.nova_panel_type_value),
+        NovaFocusHint.Type to stringResource(R.string.nova_panel_type),
+    )
+    val focusHints = remember { NovaFocusHintState() }
+    val focusHint = focusHints.hint
+    val allHints = remember(hints, leadingHints, selectHint, select, back, keyA, keyB, focusHint, change, aLabels) {
+        val a = when (focusHint) {
+            null -> selectHint ?: NovaControllerHint(keyA, select)
+            NovaFocusHint.Read, NovaFocusHint.Change -> null
+            else -> NovaControllerHint(keyA, aLabels.getValue(focusHint))
+        }
+        val lead = if (focusHint?.changesInPlace == true) listOf(change) else emptyList()
+        lead + leadingHints + listOfNotNull(a, NovaControllerHint(keyB, back)) + hints
     }
     val formFactor = LocalNovaFormFactor.current
     val panelDensity = LocalNovaPanelDensity.current
@@ -283,7 +390,11 @@ fun NovaPageStackHost(
                 NovaPageScopeImpl(state, shown, hostView, coveredNow, closeRequest = { closeRequest() }, leave = leave)
             }
             val isTop = scope.isTop
-            CompositionLocalProvider(LocalNovaPageIsTop provides isTop, LocalNovaPageMayAct provides scope.mayAct) {
+            CompositionLocalProvider(
+                LocalNovaPageIsTop provides isTop,
+                LocalNovaPageMayAct provides scope.mayAct,
+                LocalNovaFocusHint provides focusHints,
+            ) {
                 saveable.SaveableStateProvider(shown.id) {
                     Column(
                         modifier = Modifier

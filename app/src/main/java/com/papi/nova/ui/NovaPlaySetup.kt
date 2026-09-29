@@ -78,10 +78,12 @@ import com.papi.nova.ui.compose.novaFocusTick
 import com.papi.nova.ui.panel.BackGlyph
 import com.papi.nova.ui.panel.NovaChevron
 import com.papi.nova.ui.panel.NovaCurrentMark
+import com.papi.nova.ui.panel.NovaFocusHint
 import com.papi.nova.ui.panel.OpensGlyph
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaSectionLabel
 import com.papi.nova.ui.panel.novaClickable
+import com.papi.nova.ui.panel.novaFocusHint
 import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaRowRest
@@ -326,13 +328,6 @@ internal fun NovaPlaySetupScopePill(
     }
 }
 
-/**
- * Tells the panel's hint bar whether the focused row changes in place, so it says
- * `◂▸ Change · A Next` there instead of `A Select`. Provided by the panel; outside one it is null
- * and a row says nothing.
- */
-internal val LocalNovaPlaySetupChangesInPlace = staticCompositionLocalOf<MutableState<Boolean>?> { null }
-
 /** How a Play Setup row answers the d-pad. */
 internal enum class NovaPlaySetupRowKind {
     /** A opens the row's page, or asks the owner to act; its value carries `›`. */
@@ -413,7 +408,6 @@ internal fun NovaPlaySetupSettingRow(
     val advance by rememberUpdatedState(onAdvance)
     val row = state.row
     var focused by remember { mutableStateOf(false) }
-    val changesHint = LocalNovaPlaySetupChangesInPlace.current
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val previousLabel = stringResource(R.string.nova_panel_previous)
     val nextLabel = stringResource(R.string.nova_panel_next)
@@ -438,12 +432,6 @@ internal fun NovaPlaySetupSettingRow(
         option.onSelect?.invoke()
     }
 
-    val changesNow by rememberUpdatedState(changes)
-    DisposableEffect(changesHint) {
-        // A row that leaves with focus, as when Y swaps every row, takes its hint with it.
-        onDispose { if (focused && changesNow) changesHint?.value = false }
-    }
-
     val current = options.getOrNull(currentIndex)
     val shownValue = state.value.ifBlank { current?.label.orEmpty() }
     Column(
@@ -452,10 +440,18 @@ internal fun NovaPlaySetupSettingRow(
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)
+            // `◂▸ Change · A Next` where the row changes in place, since A steps it; nothing on A
+            // where the row cannot act; Select where A opens its page or asks the owner.
+            .novaFocusHint(
+                when {
+                    changes -> NovaFocusHint.Next
+                    acts -> null
+                    else -> NovaFocusHint.Read
+                },
+            )
             .onFocusChanged {
                 if (it.hasFocus && !focused) haptics.novaFocusTick()
                 focused = it.hasFocus
-                if (kind == NovaPlaySetupRowKind.IN_PLACE) changesHint?.value = it.hasFocus && changes
             }
             .semantics(mergeDescendants = true) {
                 stateDescription = shownValue
