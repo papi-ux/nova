@@ -36,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -323,10 +325,12 @@ internal fun NovaPlaySetupScopePill(
     val select by rememberUpdatedState(onSelected)
     val currentLabel = stringResource(R.string.nova_panel_current)
     val shape = RoundedCornerShape(NovaRadius.row)
+    val corner = with(LocalDensity.current) { NovaRadius.row.toPx() }
     Row(
         modifier = modifier
-            .clip(shape)
-            .background(surfaces.control, shape)
+            // Drawn rather than clipped: a clip would cut each half's touch target, which reaches
+            // past the pill above and below.
+            .drawBehind { drawRoundRect(color = surfaces.control, cornerRadius = CornerRadius(corner, corner)) }
             .focusProperties { canFocus = false }
             .testTag(NOVA_PLAY_SETUP_SCOPE_PILL_TAG),
         verticalAlignment = Alignment.CenterVertically,
@@ -346,8 +350,24 @@ internal fun NovaPlaySetupScopePill(
             }
             Row(
                 modifier = Modifier
-                    .heightIn(min = NovaPlaySetupPillHeight)
+                    // A finger gets 48dp: each half's target reaches 12dp past the 24dp pill above
+                    // and below, while the pill keeps its height in the header (C24).
+                    .layout { measurable, constraints ->
+                        val extra = NovaPlaySetupPillTargetExtra.roundToPx()
+                        val placeable = measurable.measure(
+                            if (constraints.hasBoundedHeight) {
+                                constraints.copy(maxHeight = constraints.maxHeight + extra * 2)
+                            } else {
+                                constraints
+                            },
+                        )
+                        layout(placeable.width, (placeable.height - extra * 2).coerceAtLeast(0)) {
+                            placeable.place(0, -extra)
+                        }
+                    }
                     .pointerInput(value) { detectTapGestures(onTap = { select(value) }) }
+                    .padding(vertical = NovaPlaySetupPillTargetExtra)
+                    .heightIn(min = NovaPlaySetupPillHeight)
                     .semantics(mergeDescendants = true) {
                         role = Role.Tab
                         selected = current
@@ -1100,6 +1120,9 @@ private val NovaPlaySetupDot = 6.dp
 private val NovaPlaySetupUnderline = 2.dp
 private val NovaPlaySetupWarningSize = 14.dp
 private val NovaPlaySetupPillHeight = 24.dp
+
+/** How far a scope half's touch target reaches past the pill above and below: 48dp in all. */
+private val NovaPlaySetupPillTargetExtra = 12.dp
 private val NovaPlaySetupPillMark = 14.dp
 
 /** The scrolling rows under the plan card. */
