@@ -268,8 +268,8 @@ fun NovaStepperRow(
 /**
  * The shared frame of value and stepper rows: one focus stop that owns Left, Right and A, with the
  * control beside the title while the title keeps 40% of the row, and under it otherwise. It rests
- * as the one row tile and sits on the row scale: the control gets 4dp above and below. [onPrevious] and [onNext] get
- * the key's repeat count, and [control] the width it may take.
+ * as the one row tile and sits on the row scale: the control gets 4dp above and below.
+ * [onPrevious] and [onNext] get the key's repeat count, and [control] the width it may take.
  */
 @Composable
 private fun NovaValueRowFrame(

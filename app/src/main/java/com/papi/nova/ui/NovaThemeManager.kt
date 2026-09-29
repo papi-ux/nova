@@ -274,8 +274,11 @@ object NovaThemeManager {
      * more. Where the theme's red does not, on a light surface, it is the deep red
      * nova_error_on_light.
      */
-    fun getDestructiveFillColor(context: Context): Int =
-        destructiveFillFor(themeErrorColor(context), ContextCompat.getColor(context, R.color.nova_error_on_light), fillSurfaces(context))
+    fun getDestructiveFillColor(context: Context): Int = destructiveFillFor(
+        candidate = themeErrorColor(context),
+        deep = ContextCompat.getColor(context, R.color.nova_error_on_light),
+        surfaces = fillSurfaces(context),
+    )
 
     /** What a destructive fill sits on: the panel and a tile, each over the window. */
     internal fun fillSurfaces(context: Context): List<Int> {
