@@ -407,6 +407,8 @@
     <string name="nova_play_setup_if_you_choose">If you choose %1$s</string>
     <!-- The plan card's warning when the bitrate setting is under what the choice needs. -->
     <string name="nova_play_setup_limited_by_bitrate">Limited by bitrate</string>
+    <!-- The game page's status line when the host reports a limit and the bitrate setting is under what the plan needs too. %1$s is the host's reason, such as Network. -->
+    <string name="nova_play_setup_limited_by_reason_and_bitrate">Limited by %1$s and bitrate</string>
     <!-- What Will Happen's Limited By fact when PyroWave asks for more than the bitrate setting. -->
     <string name="nova_play_setup_limit_bitrate">Bitrate</string>
     <!-- Leads the note of the option that suits this device. -->

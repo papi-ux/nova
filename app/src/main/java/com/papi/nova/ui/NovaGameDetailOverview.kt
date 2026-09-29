@@ -567,6 +567,7 @@ private fun NovaGameDetailStatusLine(
     // A host check that failed says why here, where what Launch will do is read, with the lamp
     // warning: the reason floated in a snackbar and was gone before it could be read (X2).
     val failure = optimizationState.preflightMessage?.takeIf { optimizationState.preflightFailed && it.isNotBlank() }
+    val limit = novaGameDetailLimit(summary, planLimit)
     val limited = failure != null || optimizationState.reviewRequired || planLimit.isNotBlank() ||
         summary?.noticeTone == NovaLaunchProfileNoticeTone.WARNING
     // The last plan, kept while the host rechecks it, reads dimmed until the answer comes (#18).
@@ -602,7 +603,7 @@ private fun NovaGameDetailStatusLine(
         // rest shows while Launch holds the cursor.
         BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
             val widthPx = constraints.maxWidth
-            val line = novaInstrumentCase(failure ?: novaGameDetailStatusText(uiState, summary, planLimit))
+            val line = novaInstrumentCase(failure ?: novaGameDetailStatusText(uiState, summary, limit))
             // Whole parts to a line, and a line never ends in a dot (N22).
             val packed = remember(line, widthPx, style) {
                 novaPackAtDots(novaDottedParts(line), NOVA_GAME_DETAIL_STATUS_SEPARATOR) { candidate ->
@@ -1275,8 +1276,8 @@ private fun novaGameDetailIdentityLine(
 private fun novaGameDetailStatusText(
     uiState: NovaGameDetailUiState,
     summary: NovaLaunchProfileSummary?,
-    /** What Play Setup's plan says would hold the launch back, said here too (#10). */
-    planLimit: String = "",
+    /** What holds the launch back, the host's reason and the plan's bitrate said once (#10). */
+    limit: String = "",
 ): String {
     return listOf(
         // A Host Virtual launch adds a screen to the desk, which is worth saying before Play.
@@ -1290,15 +1291,30 @@ private fun novaGameDetailStatusText(
         // The numbers themselves: the line is what Launch will do, so "Resolved:" in front of
         // them added a word and no meaning.
         summary?.selectedLine?.let(::novaPlaySetupValue),
-        // What holds the launch back: the host's own line first, then the bitrate the plan needs,
-        // both when both do; the bitrate verdict had dropped the host's line (#10). "Resolved: ..."
-        // followed by "Resolved for this launch" said the same thing twice.
-        listOfNotNull(
-            summary?.limitingLine?.takeIf { it.isNotBlank() },
-            planLimit.takeIf { it.isNotBlank() },
-        ).takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
+        // What holds the launch back ([novaGameDetailLimit]). "Resolved: ..." followed by
+        // "Resolved for this launch" said the same thing twice.
+        limit.takeIf { it.isNotBlank() }
             ?: summary?.freshnessLine?.takeIf { summary.selectedLine.isNullOrBlank() },
     ).filter { !it.isNullOrBlank() }.joinToString("  ·  ")
+}
+
+/**
+ * What holds the launch back, for the status line: the host's own limit, the bitrate the plan needs
+ * ([planLimit]), or both, first the host's. Both said "Limited by", so the line read "LIMITED BY:
+ * NETWORK · LIMITED BY BITRATE"; together they say it once, "Limited by Network and bitrate" (#10).
+ * The bitrate verdict had dropped the host's line before that.
+ */
+@Composable
+private fun novaGameDetailLimit(summary: NovaLaunchProfileSummary?, planLimit: String): String {
+    val hostLine = summary?.limitingLine.orEmpty()
+    val hostReason = summary?.limitingReason.orEmpty()
+    return when {
+        planLimit.isBlank() -> hostLine
+        hostReason.isNotBlank() -> stringResource(R.string.nova_play_setup_limited_by_reason_and_bitrate, hostReason)
+        // A host line with no reason of its own to join: both, the host's first.
+        hostLine.isNotBlank() -> "$hostLine  ·  $planLimit"
+        else -> planLimit
+    }
 }
 
 /**

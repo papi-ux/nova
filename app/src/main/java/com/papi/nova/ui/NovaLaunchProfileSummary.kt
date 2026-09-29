@@ -76,6 +76,11 @@ data class NovaLaunchProfileSummary(
     val profileDescription: String = "",
     /** How the last session went, the first of [historyLines] when there was one. */
     val lastSessionLine: String = "",
+    /**
+     * What [limitingLine] names, alone ("Network"), so a line that says what else limits the
+     * launch can say "Limited by" once for both (#10). Blank when [limitingLine] is.
+     */
+    val limitingReason: String = "",
 )
 
 internal fun buildNovaLaunchProfileSummary(
@@ -236,8 +241,9 @@ internal fun buildNovaLaunchProfileSummary(
     }
 
     val issue = if (healthyPerformance) "" else reportedIssue
-    val limitingLine = issue.takeIf { it.isNotBlank() }
-        ?.let { text.get(R.string.nova_launch_plan_limited_by, novaLaunchIssueLabel(it, text)) }
+    val limitingReason = issue.takeIf { it.isNotBlank() }?.let { novaLaunchIssueLabel(it, text) }.orEmpty()
+    val limitingLine = limitingReason.takeIf { it.isNotBlank() }
+        ?.let { text.get(R.string.nova_launch_plan_limited_by, it) }
         .orEmpty()
 
     val updatedAt = lastResult?.optLong("updated_at", 0L) ?: 0L
@@ -320,6 +326,7 @@ internal fun buildNovaLaunchProfileSummary(
         retryHighFpsLabel = retryLabel,
         grantHoldReason = grantHoldReason,
         lastSessionLine = historyLines.lastSession,
+        limitingReason = limitingReason,
     )
 }
 

@@ -90,8 +90,10 @@ class NovaGameDetailOverviewLayoutTest {
             status.contains("NovaRevealingText(") &&
                 // Packed whole parts to a line, so no line ends in a dangling dot (N22).
                 // A failed host check says why in the same line, packed the same way (audit X2).
-                // What Play Setup's plan says would hold the launch back is in it too (#10).
-                status.contains("val line = novaInstrumentCase(failure ?: novaGameDetailStatusText(uiState, summary, planLimit))") &&
+                // What Play Setup's plan says would hold the launch back is in it too, joined to
+                // the host's own limit so "Limited by" is said once (#10).
+                status.contains("val limit = novaGameDetailLimit(summary, planLimit)") &&
+                status.contains("val line = novaInstrumentCase(failure ?: novaGameDetailStatusText(uiState, summary, limit))") &&
                 status.contains("novaPackAtDots(novaDottedParts(line), NOVA_GAME_DETAIL_STATUS_SEPARATOR)") &&
                 status.contains("text = packed,") &&
                 status.contains("maxLines = maxLines,") &&
