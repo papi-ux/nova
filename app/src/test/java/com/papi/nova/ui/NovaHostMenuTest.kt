@@ -80,9 +80,12 @@ class NovaHostMenuTest {
 
     @Test
     fun anUnpairedHostOffersPairingAndOtpPairingIsAFormPage() {
-        // A host never paired has no certificate to check its console by, so it has no console row (N6).
+        // A host never paired has no certificate to check its console by. Its console is still
+        // offered, where its pairing code comes from: the console's page says Nova cannot check the
+        // host before it opens anything (N6).
         val items = menu(host { pairState = PairingManager.PairState.NOT_PAIRED }, needsPairing = true)
-        assertEquals(listOf("pair", "pair_otp", "scan_qr", "test_network", "details", "delete"), items.keys())
+        assertEquals(listOf("pair", "pair_otp", "scan_qr", "server_config", "test_network", "details", "delete"), items.keys())
+        assertTrue(items.first { it.key == "server_config" } is NovaMenuItem.Opens)
         val otp = items[1] as NovaMenuItem.Opens
         assertTrue("OTP pairing pushes its form in the host panel", otp.page() is NovaCommonPage.Form)
     }

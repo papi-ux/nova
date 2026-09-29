@@ -53,7 +53,8 @@ class NovaHostConsoleSourceGuardTest {
         )
         assertTrue(
             "a page shows only once the certificate it came with is the pin",
-            console.contains("if (trusted(url, view.certificate)) {\n            view.visibility = View.VISIBLE\n            onState(NovaHostConsoleState.Showing)"),
+            console.contains("if (trusted(url, certificateOf(view))) {\n            view.visibility = View.VISIBLE\n            onState(NovaHostConsoleState.Showing)") &&
+                console.contains("private val certificateOf: (WebView) -> SslCertificate? = { it.certificate },"),
         )
         assertTrue(console.contains("settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW"))
         assertFalse(

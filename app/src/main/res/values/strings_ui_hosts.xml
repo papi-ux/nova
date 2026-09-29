@@ -27,7 +27,16 @@
     <string name="nova_host_console_title">Host Console</string>
     <string name="nova_host_console_opening">Opening the host\'s console…</string>
     <string name="nova_host_console_refused">The console answered with a certificate Nova did not pair with, so Nova will not open it. If the host was set up again, pair with it again.</string>
-    <string name="nova_host_console_unpaired">Nova has no certificate from pairing with this host, so it cannot check that this is its console. Pair with the host first.</string>
+    <!-- The first page of a host Nova has not paired with, over Back and Open Anyway. -->
+    <string name="nova_host_console_unpaired">Nova cannot check this host until it is paired, so it cannot be sure this is the host\'s own console. Open it anyway only if this is your host, on your own network.</string>
+    <string name="nova_host_console_open_anyway">Open Anyway</string>
+    <!-- A console opened anyway that later showed a certificate other than the one it opened with. -->
+    <string name="nova_host_console_visit_refused">The console answered with a different certificate from the one it opened with, so Nova stopped it. Pair with the host so Nova can check it.</string>
+    <!-- The console's own questions, asked in its page: OK answers, and a prompt's field is its answer. -->
+    <string name="nova_host_console_ok">OK</string>
+    <string name="nova_host_console_answer">Answer</string>
+    <!-- The console asked whether to leave a page it has changes on. -->
+    <string name="nova_host_console_leave_page">Leave this page of the console? Changes not saved on it are lost.</string>
     <string name="nova_host_console_failed">The host\'s console did not load. Check that the host is awake and on this network, then try again.</string>
 
     <!-- The App list's host went away while it was open: a Problem page whose Close goes back to Hosts. -->

@@ -319,9 +319,9 @@ internal fun novaHostMenuItems(
         menu.manage(action("scan_qr", R.string.pcview_menu_scan_qr, R.string.pcview_sheet_caption_scan_qr, R.drawable.ic_qr_scan)) {
             actions.scanQr()
         }
-        // The console is trusted by the certificate Nova paired with, so a host Nova holds no
-        // certificate for has nothing to check it by, and it is not offered (N6).
-        if (!details.nvidiaServer && details.serverCert != null) {
+        // The host's console, where its pairing code comes from. With no certificate from pairing
+        // Nova cannot check it, and the console's page says so before it opens anything (N6).
+        if (!details.nvidiaServer) {
             menu.opens(serverConfig) { actions.hostConsolePage() }
         }
     } else {
