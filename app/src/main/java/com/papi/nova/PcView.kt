@@ -2257,6 +2257,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     )
 
                 val existingPairState = httpConn.getPairState()
+                val isNewPairing = existingPairState != PairState.PAIRED && !hasPinnedServerCert(computer)
                 if (existingPairState == PairState.PAIRED && hasPinnedServerCert(computer)) {
                     computer.pairState = PairState.PAIRED
                     binder.persistComputer(computer)
@@ -2278,7 +2279,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                             if (tofuState == PairState.PAIRED) {
                                 message = null
                                 success = true
-                                pairedComputer = applyPairedCertificate(computer, pm)
+                                pairedComputer = applyPairedCertificate(computer, pm, isNewPairing)
                                 if (pairedComputer == null) {
                                     message = resources.getString(R.string.pair_fail)
                                     success = false
@@ -2325,7 +2326,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                                 }
                         PairState.ALREADY_IN_PROGRESS -> message = resources.getString(R.string.pair_already_in_progress)
                         PairState.PAIRED -> {
-                            pairedComputer = applyPairedCertificate(computer, pm)
+                            pairedComputer = applyPairedCertificate(computer, pm, isNewPairing)
                             if (pairedComputer != null) {
                                 message = null
                                 success = true
@@ -2376,7 +2377,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }.start()
     }
 
-    private fun applyPairedCertificate(computer: ComputerDetails, pm: PairingManager): ComputerDetails? {
+    private fun applyPairedCertificate(computer: ComputerDetails, pm: PairingManager, isNewPairing: Boolean): ComputerDetails? {
         val binder = managerBinder ?: return null
         val pairedCert = pm.getPairedCert()
         if (pairedCert == null) {
