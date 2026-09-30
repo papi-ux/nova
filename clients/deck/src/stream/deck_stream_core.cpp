@@ -230,7 +230,7 @@ void DeckStreamSession::listenerConnectionTerminatedForSlot(const std::size_t sl
     }
     // Publish the payload before its ready flag. These atomics retain their
     // seq_cst ordering: connectionStatus reads the flag before the code, so
-    // seeing termination cannot mistake an error for the previous graceful0.
+    // seeing termination cannot mistake an error for the previous zero value (graceful termination).
     owner->terminationErrorCode_ = errorCode;
     owner->connectionTerminatedSeen_ = true;
     owner->networkStarted_ = false;
