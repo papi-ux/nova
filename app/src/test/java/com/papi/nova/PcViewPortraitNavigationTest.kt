@@ -94,8 +94,10 @@ class PcViewPortraitNavigationTest {
         toggle.performClick()
         idleAndLayout(activity)
         assertTrue(activity.findViewById<View>(R.id.actionSettings).isShown)
-        assertTrue("Hiding navigation must return measured space to computers", hiddenHeight >
-            activity.findViewById<View>(R.id.pcFragmentContainer).height)
+        val expandedHeight = activity.findViewById<View>(R.id.pcFragmentContainer).height
+        assertTrue("Hiding navigation returns space: hidden=$hiddenHeight expanded=$expandedHeight " +
+            "header=${activity.findViewById<View>(R.id.pcViewHeader).height} root=${activity.window.decorView.height}",
+            hiddenHeight > expandedHeight)
     }
 
     @Test fun aOpensAndClosesMenuInPlaceWithEveryRequiredActionReachable() {
@@ -160,7 +162,8 @@ class PcViewPortraitNavigationTest {
         preferences.edit().putBoolean("nova_dashboard_rail_collapsed", false).commit()
         val controller = open()
         menu(controller.get()).performClick()
-        controller.get().findViewById<View>(R.id.actionSettings).requestFocus()
+        idleAndLayout(controller.get())
+        assertTrue(controller.get().findViewById<View>(R.id.actionSettings).requestFocus())
         val saved = Bundle()
         controller.saveInstanceState(saved)
         controller.pause().stop().destroy()
