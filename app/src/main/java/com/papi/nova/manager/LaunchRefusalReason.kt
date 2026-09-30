@@ -45,7 +45,9 @@ enum class LaunchRefusalReason {
     @StringRes
     fun messageRes(): Int = when (this) {
         HOST_UNREACHABLE -> R.string.nova_launch_host_unreachable
-        HOST_TOO_OLD, PROFILE_NOT_DETERMINISTIC -> R.string.nova_launch_deterministic_host_required
+        HOST_TOO_OLD -> R.string.nova_launch_deterministic_host_required
+        // The host answered as a current Polaris, so "Update Polaris" named the one cause it was not.
+        PROFILE_NOT_DETERMINISTIC -> R.string.nova_launch_profile_not_settled
         HOST_REFUSED, SPACE_PROFILE -> R.string.nova_launch_retry
         TOPOLOGY -> R.string.nova_launch_envelope_topology
         HDR -> R.string.nova_launch_envelope_hdr

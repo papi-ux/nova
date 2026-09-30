@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for Settings, profiles and updates on the panel foundation (migration group 4). -->
+<resources>
+    <!-- Settings pane -->
+    <string name="nova_settings_search_title">Search results</string>
+    <string name="nova_settings_hint_category">Category</string>
+    <string name="nova_settings_reset">Reset</string>
+    <string name="nova_settings_on">On</string>
+    <string name="nova_settings_off">Off</string>
+    <string name="nova_settings_not_set">Not set</string>
+    <string name="nova_settings_applies_next_stream">Applies on the next stream</string>
+    <string name="nova_settings_applies_after_restart">Applies after Nova restarts</string>
+    <string name="nova_settings_profile_override">Overrides the app setting</string>
+    <!-- The last row of an overridden setting's page in a profile, for a remote, which has no X to
+         reset the row with: drops the profile's value. -->
+    <string name="nova_settings_use_preset_default">Use Preset Default</string>
+    <string name="nova_settings_use_preset_default_caption">Follow the app setting again</string>
+    <!-- The hint bar's key for a hold that resets an overridden switch or in-place choice: a remote's
+         OK, and a controller's A. Its label is nova_settings_reset. -->
+    <string name="nova_settings_hint_hold_ok">Hold OK</string>
+    <string name="nova_settings_hint_hold_a">Hold A</string>
+    <!-- Joins the parts of a setting's caption. -->
+    <string name="nova_settings_caption_separator" translatable="false">" · "</string>
+    <string name="nova_settings_needs_dependency">Turn on %1$s to change this</string>
+    <string name="nova_settings_needs_dependency_generic">Turn on the setting this depends on to change it</string>
+    <string name="nova_settings_bitrate_auto">Auto</string>
+    <string name="nova_settings_bitrate_mbps">%1$s Mbps</string>
+    <!-- A number and its unit, such as 90 %. -->
+    <string name="nova_settings_value_with_unit">%1$s %2$s</string>
+    <string name="nova_settings_hud_preview_enabled">Enabled · %1$s · %2$d%% glass</string>
+    <string name="nova_settings_hud_preview_saved">Previewing saved HUD mode and glass opacity</string>
+
+    <!-- Text settings: what can go wrong, and why a value was refused -->
+    <string name="nova_settings_warning_custom_resolution">Use width x height, such as 1920x1080. Unsupported modes may fail to start.</string>
+    <string name="nova_settings_warning_custom_refresh_rate">Use a refresh rate your display and host can actually present.</string>
+    <string name="nova_settings_warning_custom_bitrate">Use Mbps values that fit your network. Too high can cause stutter or disconnects.</string>
+    <string name="nova_settings_warning_generic">This setting can affect stream reliability. Check the value before saving.</string>
+    <string name="nova_settings_invalid_custom_resolution">Enter a resolution like 1920x1080.</string>
+    <string name="nova_settings_invalid_custom_refresh_rate">Enter a refresh rate from 1 to 240.</string>
+    <string name="nova_settings_invalid_custom_bitrate">Enter a bitrate from 1 to %1$d Mbps.</string>
+    <string name="nova_settings_invalid_generic">Enter a valid value before saving.</string>
+
+    <!-- Legacy settings -->
+    <string name="nova_settings_reset_controls">Reset controls</string>
+
+    <!-- Profiles -->
+    <string name="nova_settings_profile_subtitle">Profile overrides</string>
+    <string name="nova_settings_profile_rename">Rename</string>
+    <string name="nova_settings_profile_name">Name</string>
+    <string name="nova_settings_profile_opening_legacy">Opening legacy profile settings for %1$s</string>
+    <string name="nova_profiles_delete_consequence">%1$s and every setting it overrides are deleted.</string>
+    <!-- A preset row: its edit button, and what A or a tap on the row does to the preset in use. -->
+    <string name="nova_profiles_edit">Edit preset</string>
+    <string name="nova_profiles_use">Use this preset</string>
+    <string name="nova_profiles_stop_using">Stop using this preset</string>
+    <!-- The preset editor: Back with changes Save has not kept, and a save that failed. -->
+    <string name="profile_editor_unsaved_title">Unsaved Changes</string>
+    <string name="profile_editor_unsaved_hint">This preset has changes that are not saved yet.</string>
+    <string name="profile_editor_keep_editing">Keep Editing</string>
+    <string name="profile_editor_discard">Discard Changes</string>
+    <string name="profile_editor_discard_confirm">Discard</string>
+    <string name="profile_editor_discard_consequence">The changes are lost. The saved preset stays as it was.</string>
+    <string name="profile_editor_save_failed_title">Preset Not Saved</string>
+    <string name="profile_editor_save_failed_message">Nova could not save this preset. Your changes are still here.</string>
+    <string name="profile_editor_not_found_message">This preset is no longer on this device. It may have been deleted.</string>
+    <!-- A row only the Legacy screen can show: which setting that screen is showing, and the way back. -->
+    <string name="nova_settings_profile_legacy_fallback">%1$s is on the Legacy screen. Back returns to the preset.</string>
+    <string name="nova_settings_legacy_fallback">%1$s is on the Legacy screen. Back returns to Settings.</string>
+
+    <!-- Updates and support -->
+    <string name="nova_update_unknown_error">Unknown error</string>
+    <string name="nova_support_report_share_title">Send Nova support report</string>
+</resources>

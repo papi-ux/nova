@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the library and game detail panels (migration group 3): Library Options, System,
+     Polaris Sync, Play Setup and the End splits. -->
+<resources>
+    <!-- Where End Session was pressed in the library, in the eyebrow's line beside Try Again, when
+         the host did not end the session or this device lacks what the host needs to end it. -->
+    <string name="nova_library_end_failed">Could not end the session</string>
+    <!-- In the same place, when another device started the session: this one can never end it, so
+         there is no Try Again. -->
+    <string name="nova_library_end_started_elsewhere">Another device started this session. End it there or on the host.</string>
+    <!-- In the same place, when Nova no longer holds what the host needs to end the session, so
+         asking again cannot work. -->
+    <string name="nova_library_end_missing_session">Nova lost this session\'s details. End it on the host.</string>
+    <!-- In the same place, when the host accepted this device's End and the game has not closed yet:
+         Try Again comes back after a moment. -->
+    <string name="nova_library_end_still_closing">The host is still closing this game.</string>
+    <!-- In the same place, when Nova could not reach the host to ask. -->
+    <string name="nova_library_end_unreachable">Nova could not reach the host to end the session.</string>
+    <!-- A refresh that failed while the library still shows its games: the title of its Notice. -->
+    <string name="nova_library_refresh_failed_title">Could not refresh the library</string>
+    <!-- Beside an armed End Session in the library's top strip, which has no room for a longer line. -->
+    <string name="nova_library_end_strip_consequence">Unsaved progress on the host is lost.</string>
+    <!-- The library strip right after End Session is confirmed, until the host answers. -->
+    <string name="nova_library_ending_session">Ending session</string>
+
+    <!-- Library Options. -->
+    <string name="nova_library_panel_filter">Filter</string>
+    <!-- Under the filter row: how many games each quick filter shows. -->
+    <string name="nova_library_panel_filter_counts">%1$d in all · %2$d recent</string>
+    <!-- Why a source filter cannot be stepped to in the filter row. -->
+    <string name="nova_library_panel_filter_set_in_sources">Chosen in Sources</string>
+    <!-- Why a category or genre filter cannot be stepped to in the filter row. -->
+    <string name="nova_library_panel_filter_set_in_more">Chosen in More Filters</string>
+    <!-- The More Filters row's value while no category or genre narrows the library. -->
+    <string name="nova_library_panel_more_none">None</string>
+    <string name="nova_library_panel_clear_caption">Show the whole library again.</string>
+    <!-- Section label above Sort, Layout and Poster Titles. -->
+    <string name="nova_library_panel_view">View</string>
+    <string name="nova_library_panel_search">Search</string>
+    <string name="nova_library_panel_show_results">Show Results</string>
+    <string name="nova_library_panel_clear_search">Clear Search</string>
+    <!-- Above the grid while a search narrows it; A on it clears the search. -->
+    <string name="nova_library_search_chip">Search: %1$s · %2$d shown</string>
+    <string name="nova_library_panel_refresh_caption">Ask the host for its library again.</string>
+    <string name="nova_library_panel_artwork_updating">Updating artwork</string>
+    <!-- A category's row on the More Filters page: how many games it holds. -->
+    <plurals name="nova_library_panel_category_caption">
+        <item quantity="one">Category · %1$d game</item>
+        <item quantity="other">Category · %1$d games</item>
+    </plurals>
+    <!-- A genre's row on the More Filters page: how many games it holds. -->
+    <!-- A More Filters row, and the filter's value, when a category and a genre share a name:
+         the category's title, as in "Action Category". -->
+    <string name="nova_library_more_category_named">%1$s Category</string>
+    <!-- The same for the genre, as in "Action Genre". -->
+    <string name="nova_library_more_genre_named">%1$s Genre</string>
+    <plurals name="nova_library_panel_genre_caption">
+        <item quantity="one">Genre · %1$d game</item>
+        <item quantity="other">Genre · %1$d games</item>
+    </plurals>
+
+    <!-- The hint bar's label for Y, which flips Play Setup between this game and every game. -->
+    <string name="nova_play_setup_panel_scope_hint">This or Every Game</string>
+    <!-- The last row of Play Setup, for a remote with no Y: shows the rows every game inherits. -->
+    <string name="nova_play_setup_edit_every_game">Edit for Every Game</string>
+    <!-- The same row on the Every Game side: back to this game's own rows. -->
+    <string name="nova_play_setup_edit_this_game">Edit for This Game</string>
+    <string name="nova_play_setup_edit_this_game_caption">Choices for this game alone, over the host defaults</string>
+    <!-- Leads a Play Setup row's caption while its value was chosen for this game, not by the host. -->
+    <string name="nova_play_setup_set_for_game">Set for this game</string>
+</resources>

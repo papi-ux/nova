@@ -98,12 +98,12 @@ data class NovaDisplayResolutionPlanner(
         ): NovaDisplayResolutionPlanner {
             val deviceChoice = NovaDisplayResolutionChoice(
                 id = DEVICE_SETTINGS_ID,
-                // Eleven characters: what one line of a legend card holds with four cards
-                // across a handheld. "Device Settings" wrapped, and cost the legend a line.
-                title = "This Device",
+                // Short enough for one line of a card. It is the size saved in Nova's settings,
+                // which "This Device" did not say: on the Shield it was not the screen's size.
+                title = "Saved Size",
                 targetMode = device.mode,
                 badge = "",
-                reason = "Use this device's saved resolution.",
+                reason = "The resolution saved in Nova's settings.",
                 advanced = false,
                 custom = false,
                 safe = true,
@@ -133,15 +133,59 @@ data class NovaDisplayResolutionPlanner(
                     )
                 }
                 .distinctBy { it.targetMode }
+            // The host's scale factors, which it has always sent and nothing read: 2x is 4K on a
+            // 1080p handheld, and no preset reaches it. Each is applied to this device as the
+            // presets are, and one that lands on a size already listed is that row again.
+            val listed = (listOf(deviceChoice) + presets).map { it.targetMode }.toMutableSet()
+            val scales = contract.advancedScaleFactors
+                .filter { it.safe && it.scaleFactor.isFinite() && it.scaleFactor > 0.0 }
+                .sortedBy { it.scaleFactor }
+                .mapNotNull { scale ->
+                    val width = roundToEven(device.width * scale.scaleFactor)
+                    val height = roundToEven(device.height * scale.scaleFactor)
+                    val mode = "${width}x${height}x${device.fps}"
+                    if (!safeMode(width, height) || !listed.add(mode)) return@mapNotNull null
+                    val label = scale.label.trim().ifBlank { scaleLabel(scale.scaleFactor) }
+                    NovaDisplayResolutionChoice(
+                        id = SCALE_ID_PREFIX + label,
+                        title = label,
+                        targetMode = mode,
+                        badge = "",
+                        reason = if (scale.scaleFactor > 1.0) SCALE_ABOVE_REASON else SCALE_BELOW_REASON,
+                        advanced = true,
+                        custom = false,
+                        safe = true,
+                        recommended = false
+                    )
+                }
+            val offered = presets + scales
             return NovaDisplayResolutionPlanner(
                 available = true,
                 sourceMode = device.mode,
                 recommendedId = DEVICE_SETTINGS_ID,
                 recommendedMode = device.mode,
-                visibleChoices = listOf(deviceChoice) + presets.filter { includeAdvanced || !it.advanced },
-                hasAdvancedChoices = presets.any { it.advanced }
+                visibleChoices = listOf(deviceChoice) + offered.filter { includeAdvanced || !it.advanced },
+                hasAdvancedChoices = offered.any { it.advanced }
             )
         }
+
+        /** The id of a choice made from one of the host's scale factors, before its label. */
+        const val SCALE_ID_PREFIX = "scale_"
+
+        private const val SCALE_ABOVE_REASON = "Rendered larger than this screen, then scaled down to it."
+        private const val SCALE_BELOW_REASON = "Rendered smaller than this screen, then scaled up to it."
+
+        /** A scale as a person says it, 2x or 1.5x, for a host that sent no label. */
+        private fun scaleLabel(scale: Double): String {
+            val whole = kotlin.math.abs(scale - kotlin.math.round(scale)) < 0.01
+            return if (whole) "${kotlin.math.round(scale).toInt()}x" else "${scale}x"
+        }
+
+        /**
+         * A choice's title as shown, with the multiplication sign: a host labels its scales
+         * "1.25x". The title itself keeps the x, since a scale's saved id is made from it.
+         */
+        fun displayTitle(title: String): String = title.replace(Regex("(?<=\\d)x(?![A-Za-z])"), "×")
 
         /** The host's rounding, so a preset lands on the size the host would have planned. */
         private fun roundToEven(value: Double): Int {
@@ -166,14 +210,26 @@ data class NovaDisplayResolutionPlanner(
         }
 
         /**
-         * The width x height half of a planner target mode. The trailing rate is the
-         * host's own plan for that mode, not a decision this row makes -- the frame
-         * rate is owned by Tuning and the launch composer -- so the row's value must
-         * not read as one.
+         * The width by height half of a planner target mode, with the one multiplication sign
+         * Play Setup writes everywhere. The trailing rate is the host's own plan for that mode,
+         * not a decision this row makes (the frame rate is owned by its own row and the launch
+         * composer), so the row's value must not read as one.
          */
         fun resolutionLabel(targetMode: String): String {
-            val parts = targetMode.trim().split('x', 'X')
-            return if (parts.size == 3) "${parts[0]}x${parts[1]}" else targetMode
+            val parts = targetMode.trim().split('x', 'X', '×')
+            return if (parts.size >= 2 && parts[0].toIntOrNull() != null && parts[1].toIntOrNull() != null) {
+                "${parts[0]}×${parts[1]}"
+            } else {
+                targetMode
+            }
+        }
+
+        /** The width and height of a planner target mode, or null when it names no size. */
+        fun resolutionSize(targetMode: String): Pair<Int, Int>? {
+            val parts = targetMode.trim().split('x', 'X', '×')
+            val width = parts.getOrNull(0)?.toIntOrNull() ?: return null
+            val height = parts.getOrNull(1)?.toIntOrNull() ?: return null
+            return (width to height).takeIf { width > 0 && height > 0 }
         }
 
         /** The trailing rate half of a planner target mode, or null when it can't be read. */

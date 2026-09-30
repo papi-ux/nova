@@ -1,6 +1,5 @@
 package com.papi.nova.binding.input.virtual_controller
 
-import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -113,21 +112,6 @@ abstract class VirtualControllerElement protected constructor(
     protected fun getDefaultStrokeWidth(): Int {
         val screen: DisplayMetrics = resources.displayMetrics
         return (screen.heightPixels * 0.004f).toInt()
-    }
-
-    protected fun showConfigurationDialog() {
-        val alertBuilder = AlertDialog.Builder(context)
-        alertBuilder.setTitle("Configuration")
-        val functions = arrayOf<CharSequence>("Move", "Resize", "Cancel")
-
-        alertBuilder.setItems(functions) { _, which ->
-            when (which) {
-                0 -> actionEnableMove()
-                1 -> actionEnableResize()
-                else -> actionCancel()
-            }
-        }
-        alertBuilder.create().show()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

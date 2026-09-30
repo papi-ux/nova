@@ -69,9 +69,6 @@ object NovaLibraryPreferences {
                     )
                 }
                 ?: NovaLibraryFilterState()
-            NovaLibraryPrimaryFilter.HDR -> NovaLibraryFilterState(
-                primary = NovaLibraryPrimaryFilter.HDR
-            )
             NovaLibraryPrimaryFilter.MORE -> when {
                 filterState.category.isNotBlank() -> NovaLibraryFilterState(
                     primary = NovaLibraryPrimaryFilter.MORE,

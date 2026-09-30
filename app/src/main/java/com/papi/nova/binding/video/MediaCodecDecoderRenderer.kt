@@ -1775,7 +1775,7 @@ class MediaCodecDecoderRenderer(
                 0.0
             }
             val perfSample = PerfOverlaySample(
-                fps = fps.totalFps.toDouble(),
+                fps = fps.renderedFps.toDouble(),
                 incomingFps = fps.receivedFps.toDouble(),
                 renderedFps = fps.renderedFps.toDouble(),
                 width = initialWidth,

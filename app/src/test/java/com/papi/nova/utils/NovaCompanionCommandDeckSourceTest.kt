@@ -137,13 +137,14 @@ class NovaCompanionCommandDeckSourceTest {
     @Test
     fun quickKeysAndCommandCenterUseDistinctExistingAuthorities() {
         val controller = File(root, "utils/ExternalDisplayControlController.kt").readText()
-        val gameMenu = File(root, "GameMenu.kt").readText()
+        val quickMenu = File(root, "ui/NovaQuickMenu.kt").readText()
 
-        assertTrue(gameMenu.contains("fun showSpecialKeysMenuFromCommandDeck()"))
-        assertTrue(gameMenu.contains("private fun showSpecialKeysMenu()"))
+        // Quick Keys opens the Command Center straight on its key list; Command Center opens its root.
+        assertTrue(quickMenu.contains("fun showKeys()"))
+        assertTrue(quickMenu.contains("open(device = null, keysAsRoot = true)"))
         assertTrue(controller.contains("NovaCompanionCommandActionId.QUICK_KEYS -> showQuickKeys()"))
         assertTrue(controller.contains("NovaCompanionCommandActionId.COMMAND_CENTER -> showGameMenu()"))
-        assertTrue(controller.contains("gameMenu?.showSpecialKeysMenuFromCommandDeck()"))
+        assertTrue(controller.contains("quickMenu?.showKeys()"))
     }
 
     @Test

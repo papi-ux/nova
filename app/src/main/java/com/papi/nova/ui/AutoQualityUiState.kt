@@ -35,13 +35,14 @@ data class AutoQualityUiState(
             // Older hosts expose preference and target only. Never claim encoder acknowledgement.
             if (live == null) return AutoQualityUiState(State.WATCHING, "Live Tuning On", "Tuning: On",
                 "Enabled on this host; encoder acknowledgement is unavailable", policy.targetSummary, Tone.INFO, true)
+            // Joined with a comma: the Command Center reads it as "Live Tuning On, stable. Host setting."
             val label = when (live.state) {
-                "waiting" -> "Live Tuning On — waiting for a stream"
-                "unavailable" -> "Live Tuning On — unavailable for this stream"
-                "applying" -> "Live Tuning On — applying bitrate"
-                "measuring" -> "Live Tuning On — measuring"
-                "adjusting" -> "Live Tuning On — adjusting"
-                else -> "Live Tuning On — stable"
+                "waiting" -> "Live Tuning On, waiting for a stream"
+                "unavailable" -> "Live Tuning On, unavailable for this stream"
+                "applying" -> "Live Tuning On, applying bitrate"
+                "measuring" -> "Live Tuning On, measuring"
+                "adjusting" -> "Live Tuning On, adjusting"
+                else -> "Live Tuning On, stable"
             }
             val compact = when (live.state) {
                 "waiting" -> "Tuning: Waiting"

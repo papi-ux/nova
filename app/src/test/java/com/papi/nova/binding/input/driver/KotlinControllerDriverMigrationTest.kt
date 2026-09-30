@@ -2,7 +2,6 @@ package com.papi.nova.binding.input.driver
 
 import android.app.Service
 import android.hardware.usb.UsbDevice
-import com.papi.nova.GameMenu
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.nvstream.input.ControllerPacket
 import java.io.File
@@ -85,7 +84,7 @@ class KotlinControllerDriverMigrationTest {
     @Test
     fun defaultGameInputDeviceDoesNotEnableMouseEmulation() {
         val device = object : GameInputDevice {
-            override fun getGameMenuOptions(): List<GameMenu.MenuOption> = emptyList()
+            override fun getGameMenuOptions(): List<com.papi.nova.ui.panel.NovaMenuItem> = emptyList()
         }
 
         assertFalse(device.supportsControllerMouseEmulation())

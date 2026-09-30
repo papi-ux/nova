@@ -17,7 +17,7 @@ namespace nova_vk {
    * handed, and everything inside them, must outlive the device it makes from them.
    */
   struct device_t {
-    bool create(bool want_presentation);
+    bool create(bool want_presentation, uint32_t *missing_features = nullptr);
     void destroy();
 
     ~device_t() {

@@ -273,6 +273,34 @@ class NovaSettingsDefinitionsTest {
         assertFalse(keys.contains("seekbar_vibrate_fallback_strength"))
     }
 
+    /**
+     * N27, papi's call (b): the draggable button that opens the Command Center is for touch
+     * players. Its row is named for what it does, and it is not offered where nothing can press
+     * it: a device with no touchscreen, or a television.
+     */
+    @Test
+    fun theTouchMenuButtonIsOfferedOnlyToTouchPlayers() {
+        val packageManager = Shadows.shadowOf(context.packageManager)
+        fun offered(): Boolean = NovaSettingsAvailability.filter(context, NovaSettingDefinitions.load(context))
+            .settings.any { it.key == "checkbox_enable_floating_button" }
+
+        packageManager.setSystemFeature(PackageManager.FEATURE_TOUCHSCREEN, true)
+        packageManager.setSystemFeature(PackageManager.FEATURE_LEANBACK, false)
+        packageManager.setSystemFeature(PackageManager.FEATURE_TELEVISION, false)
+        assertTrue("a touch player keeps the row", offered())
+        assertEquals(
+            "Touch Menu Button",
+            NovaSettingDefinitions.load(context).require("checkbox_enable_floating_button").title,
+        )
+
+        packageManager.setSystemFeature(PackageManager.FEATURE_TOUCHSCREEN, false)
+        assertFalse("nothing can press it without a touchscreen", offered())
+
+        packageManager.setSystemFeature(PackageManager.FEATURE_TOUCHSCREEN, true)
+        packageManager.setSystemFeature(PackageManager.FEATURE_LEANBACK, true)
+        assertFalse("a television never needs it", offered())
+    }
+
     @Test
     fun externalDisplayTargetPreferenceOffersAutoPrimaryExternalAndLargest() {
         val definitions = NovaSettingDefinitions.load(context)

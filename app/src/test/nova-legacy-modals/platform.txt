@@ -1,0 +1,6 @@
+# Surfaces the platform owns or that are not modal, kept on purpose (spec section 8), one
+# "path:count" per line under app/src/main/java/com/papi/nova/. This list is permanent and the only
+# one left: the closing step removed the group lists and sealed NovaPanelSourceGuardTest, which
+# allows these alone.
+# The in-stream key preview is a popup, not a modal, and is left alone.
+binding/input/virtual_controller/keyboard/KeyBoardLayoutController.kt:1

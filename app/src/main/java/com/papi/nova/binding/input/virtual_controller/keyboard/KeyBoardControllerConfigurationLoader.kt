@@ -7,13 +7,13 @@ import android.text.TextUtils
 import android.view.KeyEvent
 import android.widget.Toast
 import androidx.preference.PreferenceManager
-import com.papi.nova.GameMenu
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.binding.input.KeyboardTranslator
 import com.papi.nova.nvstream.NvConnection
 import com.papi.nova.nvstream.input.KeyboardPacket
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.NovaSpecialKeyPrefs
 import com.papi.nova.utils.KeyConfigHelper
 import com.papi.nova.utils.KeyMapper
 import org.json.JSONException
@@ -409,8 +409,8 @@ object KeyBoardControllerConfigurationLoader {
         buttonSum: Double,
         offset: Int
     ) {
-        val preferences = context.getSharedPreferences(GameMenu.PREF_NAME, Activity.MODE_PRIVATE)
-        val value = preferences.getString(GameMenu.KEY_NAME, "").orEmpty()
+        val preferences = context.getSharedPreferences(NovaSpecialKeyPrefs.PREF_NAME, Activity.MODE_PRIVATE)
+        val value = preferences.getString(NovaSpecialKeyPrefs.KEY_NAME, "").orEmpty()
         if (TextUtils.isEmpty(value)) return
 
         try {

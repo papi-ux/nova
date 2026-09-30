@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the panel foundation in ui/panel: panels, pages, rows, split confirms and state pages. -->
+<resources>
+    <string name="nova_panel_stay">Stay</string>
+    <string name="nova_panel_keep">Keep</string>
+    <string name="nova_panel_close">Close</string>
+    <string name="nova_panel_cancel">Cancel</string>
+    <string name="nova_panel_save">Save</string>
+    <string name="nova_panel_try_again">Try Again</string>
+    <string name="nova_panel_back">Back</string>
+    <string name="nova_panel_select">Select</string>
+    <string name="nova_panel_details">Details</string>
+    <string name="nova_panel_hide_details">Hide details</string>
+    <string name="nova_panel_help">Help</string>
+    <string name="nova_panel_current">Current</string>
+    <string name="nova_panel_previous">Previous</string>
+    <string name="nova_panel_next">Next</string>
+    <!-- The hint bar's label for Left and Right on a row that changes in place. -->
+    <string name="nova_panel_change">Change</string>
+    <string name="nova_panel_toggle">Toggle</string>
+    <string name="nova_panel_type_value">Type Value</string>
+    <string name="nova_panel_type">Type</string>
+    <string name="nova_panel_exact_value">Exact value</string>
+    <string name="nova_panel_working">Working</string>
+    <string name="nova_panel_back_to">Back to %1$s</string>
+    <!-- One sentence for End Session everywhere: the game page, the library strip and the Command Center. -->
+    <string name="nova_panel_end_session_message">Unsaved progress on the host is lost.</string>
+    <!-- The title of a confirm page whose caller gave none. -->
+    <string name="nova_panel_confirm_title">Confirm</string>
+    <string name="nova_panel_vdisplay_title">Virtual display unavailable</string>
+    <!-- The scrim behind a panel, for TalkBack: tapping it closes the panel. -->
+    <string name="nova_panel_close_panel">Close panel</string>
+
+    <!-- Joins the hints in the hint bar's TalkBack description. -->
+    <string name="nova_panel_hint_separator" translatable="false">", "</string>
+    <!-- Controller button names in the hint bar. They name physical buttons, so they stay as printed. -->
+    <string name="nova_panel_key_a" translatable="false">A</string>
+    <string name="nova_panel_key_b" translatable="false">B</string>
+    <!-- Left and Right on the d-pad, as one key chip in the hint bar. -->
+    <string name="nova_panel_key_left_right" translatable="false">◂▸</string>
+</resources>

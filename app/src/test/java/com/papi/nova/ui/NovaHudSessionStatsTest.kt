@@ -215,7 +215,7 @@ class NovaHudSessionStatsTest {
         assertTrue(text.contains("Observed: 59.5 FPS / target 120 FPS"))
         assertFalse(text.contains("Suggested:"))
         assertFalse(text.contains("Health:"))
-        assertTrue(text.contains("Network: 24 ms RTT / 0.25% loss"))
+        assertTrue(text.contains("Network: 24 ms RTT / 0.25% frames missing"))
         assertTrue(text.contains("Counters: 7198 received / 7190 rendered / 2 lost"))
         assertTrue(text.contains("Observational only"))
         assertFalse(text.contains("Generic Handheld"))
@@ -244,7 +244,7 @@ class NovaHudSessionStatsTest {
         assertFalse(text.contains("Diagnosis:"))
         assertFalse(text.contains("Wi-Fi jitter"))
         assertFalse(text.contains("Try first:"))
-        assertTrue(text.contains("Network: 32 ms RTT / 3.4% loss"))
+        assertTrue(text.contains("Network: 32 ms RTT / 3.4% frames missing"))
         assertFalse(text.contains("private-host"))
     }
 }

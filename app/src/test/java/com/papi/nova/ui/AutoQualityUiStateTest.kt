@@ -23,6 +23,33 @@ class AutoQualityUiStateTest {
             assertEquals(live.appliedBitrateKbps, StreamPolicyUiState.from(status).effectiveBitrateKbps)
         }
     }
+    /** Copy rule 10: no em or en dash. On the RP6 the Command Center joined "Live Tuning On" and "stable" with an em dash. */
+    @Test fun liveTuningLabelsJoinTheirStateWithACommaNotADash() {
+        val fixtures = JSONArray(javaClass.getResource("/live-tuning-v1.json")!!.readText())
+        for (i in 0 until fixtures.length()) {
+            val live = LiveTuningStatus.parse(fixtures.getJSONObject(i).getJSONObject("live_tuning"))!!
+            val ui = AutoQualityUiState.from(status().copy(liveTuning = live, liveTuningPresent = true))
+            assertFalse(ui.label, ui.label.contains('\u2014') || ui.label.contains('\u2013'))
+        }
+        val stable = (0 until fixtures.length()).map { fixtures.getJSONObject(it) }.first { it.getString("name") == "stable" }
+            .let { LiveTuningStatus.parse(it.getJSONObject("live_tuning"))!! }
+        assertEquals("Live Tuning On, stable", AutoQualityUiState.from(status().copy(liveTuning = stable, liveTuningPresent = true)).label)
+        listOf("src/main/java/com/papi/nova/ui/AutoQualityUiState.kt", "src/main/java/com/papi/nova/ui/NovaQuickMenuUiState.kt").forEach { path ->
+            val source = java.io.File(path).readText()
+            assertFalse("$path writes no dashed Live Tuning copy", Regex("Live Tuning[^\"]*[\u2014\u2013]|Reconnecting [\u2014\u2013]").containsMatchIn(source))
+        }
+    }
+
+    /** The Settings Touchscreen Mode description: an upstream typo and a missing space. */
+    @Test fun touchscreenModeDescriptionIsSpelledRight() {
+        val text = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+            .getString(com.papi.nova.R.string.summary_touchscreen_mode)
+        assertFalse(text, text.contains("useing") || text.contains("Pad(Natural)"))
+        // Plain words that fit a caption's two lines: the three line list ran past them on the Shield.
+        assertTrue(text, text.contains("an external display always uses the trackpad."))
+        assertTrue(text, text.length <= 120)
+    }
+
     @Test fun aiReadinessCannotEnableLiveTuning() {
         val ui = AutoQualityUiState.from(status(adaptiveBitrateEnabled = false, aiOptimizerEnabled = true))
         assertFalse(ui.enabled)

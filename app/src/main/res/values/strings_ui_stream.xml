@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the stream and the companion display on the panel foundation: the Command Center
+     pages, the state pages over the stream, and the on-screen keyboard editor. -->
+<resources>
+    <!-- Command Center: the Session row that opens the page of legacy extras. -->
+    <string name="nova_cc_more_controls">More Controls</string>
+    <string name="nova_cc_more_controls_caption">Clipboard, zoom, touch and server commands</string>
+    <!-- Command Center: the header while the split is armed, under Stay and End Session. -->
+    <string name="nova_cc_end_session_consequence">Unsaved progress on the host is lost.</string>
+    <!-- Command Center: the Keys page when no key can be offered. -->
+    <string name="nova_cc_keys_empty">No keys to send</string>
+    <string name="nova_cc_keys_empty_reason">Default keys are turned off in Settings and no custom keys are imported.</string>
+    <string name="nova_cc_custom_keys">Custom keys</string>
+    <!-- Command Center: the Doctor card's detail line and supporting line. -->
+    <string name="nova_cc_doctor_try_first">Try first: %1$s</string>
+    <string name="nova_cc_doctor_evidence">Evidence: %1$s</string>
+    <string name="nova_cc_doctor_confidence">Confidence: %1$s</string>
+    <string name="nova_cc_doctor_source">Source: %1$s</string>
+    <!-- Where an AI explanation came from, before the host's source mode. -->
+    <string name="nova_cc_doctor_ai_only">AI explanation only</string>
+    <!-- The Doctor card's line for a reading that only informs, before what pressing it does. -->
+    <string name="nova_cc_doctor_nothing_to_fix">Nothing to fix · %1$s</string>
+    <!-- The Doctor card before the host's first reading, disabled: why pressing it does nothing yet. -->
+    <string name="nova_cc_doctor_checking_why">Nothing to copy until the host answers</string>
+    <!-- The Doctor card's last reading, kept while a status read fails, before what pressing it does. -->
+    <string name="nova_cc_doctor_stale">A few seconds old · %1$s</string>
+    <string name="nova_cc_last_confirmed">Last confirmed: %1$s</string>
+    <string name="nova_cc_hud_position">HUD position</string>
+    <string name="nova_cc_hud_position_reset">Reset HUD position</string>
+    <string name="nova_cc_hud_top_left">Top left</string>
+    <string name="nova_cc_hud_top_right">Top right</string>
+    <string name="nova_cc_hud_bottom_left">Bottom left</string>
+    <string name="nova_cc_hud_bottom_right">Bottom right</string>
+    <string name="nova_cc_hud_dragged">Custom</string>
+    <!-- A Doctor reading with nothing to run while the session strip warns: the strip's words, then
+         what pressing the card does. -->
+    <string name="nova_cc_doctor_strip_says">%1$s · %2$s</string>
+    <!-- Command Center: Live Tuning's caption for a moment after a switch the host did not confirm:
+         the state the host reports now, which the row's chip shows, or that it did not answer. -->
+    <string name="nova_cc_live_tuning_kept_on">The host kept Live Tuning On.</string>
+    <string name="nova_cc_live_tuning_kept_off">The host kept Live Tuning Off.</string>
+    <string name="nova_cc_live_tuning_unconfirmed">The host did not answer, so the change is not confirmed.</string>
+    <!-- Command Center: Alt + F4 splits in place; the confirming half and the line under the pair. -->
+    <string name="nova_cc_close_app">Close App</string>
+    <string name="nova_cc_alt_f4_consequence">Sends Alt + F4, which closes the focused window on the host, usually the game.</string>
+    <!-- Command Center: More Controls. -->
+    <!-- More Controls' rows in title case, as every other row name in the Command Center is. -->
+    <string name="nova_cc_android_keyboard">Android Keyboard</string>
+    <string name="nova_cc_android_keyboard_caption">Types into the host with this device\'s keyboard.</string>
+    <string name="nova_cc_zoom">Pan and Zoom</string>
+    <!-- The draggable button on the stream that opens the Command Center; touch players only. -->
+    <string name="nova_cc_floating_button">Touch Menu Button</string>
+    <string name="nova_cc_special_keys_layout">On-Screen Special Keys</string>
+    <!-- A switch: on, the stream uses the custom sensitivity set in Settings. -->
+    <string name="nova_cc_touch_sensitivity">Custom Touch Sensitivity</string>
+    <string name="nova_cc_task_manager">Task Manager</string>
+    <string name="nova_cc_task_manager_caption">Sends Ctrl + Shift + Esc to the host.</string>
+    <string name="nova_cc_fetch_clipboard">Fetch Clipboard</string>
+    <string name="nova_cc_fetch_clipboard_caption">Copies the host\'s clipboard to this device.</string>
+    <string name="nova_cc_on">On</string>
+    <string name="nova_cc_off">Off</string>
+    <string name="nova_cc_controller_section">Controller</string>
+    <string name="nova_cc_controller_mouse">Controller as Mouse</string>
+    <!-- Command Center: the Mouse Mode page, opened from the Controls row. -->
+    <string name="nova_cc_mouse_mode">Mouse Mode</string>
+    <string name="nova_cc_host_section">Host</string>
+    <string name="nova_cc_touch_section">Touch and screen</string>
+    <!-- Command Center: Live Tuning. It is a host setting, so it confirms in place and says what it changes. -->
+    <string name="nova_cc_live_tuning">Live Tuning</string>
+    <string name="nova_cc_live_tuning_turn_on">Turn On</string>
+    <string name="nova_cc_live_tuning_turn_off">Turn Off</string>
+    <string name="nova_cc_live_tuning_consequence">Changes Polaris for every device.</string>
+    <string name="nova_cc_live_tuning_unknown">Unknown</string>
+    <string name="nova_cc_live_tuning_fixed">Fixed</string>
+    <string name="nova_cc_live_tuning_saving">Saving…</string>
+    <string name="nova_cc_live_tuning_reconnecting">Reconnecting. The host has not confirmed the setting.</string>
+    <string name="nova_cc_live_tuning_space">This Space uses the bitrate selected when the stream starts.</string>
+    <string name="nova_cc_live_tuning_waiting_host">Waiting for the host to confirm the setting.</string>
+    <string name="nova_cc_live_tuning_off_caption">The bitrate stays where the stream started.</string>
+    <string name="nova_cc_live_tuning_on_unconfirmed">On. This host does not say what bitrate it applied.</string>
+    <string name="nova_cc_live_tuning_steady">Steady</string>
+    <string name="nova_cc_live_tuning_waiting_stream">Waiting for a stream</string>
+    <string name="nova_cc_live_tuning_unavailable">Unavailable for this stream</string>
+    <string name="nova_cc_live_tuning_applying">Applying a new bitrate</string>
+    <string name="nova_cc_live_tuning_measuring">Measuring the connection</string>
+    <string name="nova_cc_live_tuning_adjusting">Adjusting the bitrate</string>
+    <!-- Live Tuning's caption: what it is doing, then the bitrate it applied and the limit it keeps under. -->
+    <string name="nova_cc_live_tuning_state">%1$s.</string>
+    <string name="nova_cc_live_tuning_state_reason">%1$s: %2$s.</string>
+    <string name="nova_cc_live_tuning_state_figures">%1$s. %2$s applied, %3$s limit.</string>
+    <!-- Sync Status while Live Tuning holds the bitrate. -->
+    <string name="nova_cc_live_tuning_sync_capped">Live Tuning is at %1$s under your %2$s limit.</string>
+    <string name="nova_cc_live_tuning_sync_target">Live Tuning target is %1$s.</string>
+    <!-- Mouse Mode: the local cursor, a switch in its own row after the modes. -->
+    <string name="nova_cc_local_cursor">Local Cursor</string>
+    <string name="nova_cc_local_cursor_caption">Draws the pointer on this device. Needs a physical mouse.</string>
+    <!-- HUD Mode and HUD Opacity when the HUD sits in its own corner, under the Command Center. -->
+    <string name="nova_cc_hud_mode_under_panel">Pick a layout. The HUD is under this panel, so close it to see the change.</string>
+    <string name="nova_cc_hud_opacity_under_panel">The HUD is under this panel, so close it to see the change.</string>
+    <!-- Command Center rows that had no caption, and a state chip word. -->
+    <string name="nova_cc_paste_caption">Copies this device\'s clipboard to the host.</string>
+    <string name="nova_cc_rotate_caption">Closes Command Center and turns the stream between landscape and portrait.</string>
+    <string name="nova_cc_shown">Shown</string>
+    <!-- The session strip's detail line, in plain words: GPU capture, GPU encoding or CPU capture.
+         It says nothing of the capture when the host reports no capture path. -->
+    <string name="nova_cc_capture_gpu">GPU capture</string>
+    <string name="nova_cc_capture_cpu">CPU capture</string>
+    <string name="nova_cc_capture_gpu_encoder">GPU encoding</string>
+
+    <!-- Launch failure and stream errors, as full-screen state pages. -->
+    <string name="nova_stream_launch_retry">Try Again</string>
+    <string name="nova_stream_h264_unsupported">This device or ROM doesn\'t support hardware accelerated H.264 playback.</string>
+
+    <!-- The host's screen is locked: a state page over the stream. -->
+    <string name="nova_stream_lock_title">Host screen is locked</string>
+    <string name="nova_stream_lock_message">Polaris can unlock it for you. Not Now leaves the lock screen on the stream, so you can sign in there.</string>
+    <string name="nova_stream_lock_not_now">Not Now</string>
+
+    <!-- Reconnecting: a busy page over the stream with a way out. -->
+    <string name="nova_stream_reconnect_message">%1$s\n%2$s</string>
+
+    <!-- The on-screen keys editor: the line under an armed Clear All. -->
+    <string name="nova_stream_keys_clear_consequence">Hides every on-screen key. Add Keys brings them back.</string>
+
+    <!-- Session setup: what the progress overlay says for a stage it does not know. -->
+    <string name="nova_stream_progress_working">Working on it</string>
+    <string name="nova_stream_progress_waiting">Nova is waiting for the next stream setup signal.</string>
+    <string name="nova_stream_progress_update">Startup update</string>
+</resources>

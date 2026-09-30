@@ -16,7 +16,6 @@ import com.papi.nova.R
 import com.papi.nova.ShortcutTrampoline
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
-import com.papi.nova.ui.NovaSnackbar
 import java.io.IOException
 import java.nio.charset.Charset
 import java.util.Collections
@@ -283,10 +282,7 @@ class ShortcutHelper(private val context: Activity) {
 
     fun exportLauncherFile(computer: ComputerDetails?, app: NvApp?) {
         if (computer == null || computer.uuid.isEmpty() || computer.name.isEmpty()) {
-            NovaSnackbar.showError(
-                context,
-                context.getString(R.string.export_launcher_computer_details_incomplete)
-            )
+            showExportProblem(context, context.getString(R.string.export_launcher_computer_details_incomplete))
             LimeLog.warning("exportLauncherFile: Computer details incomplete.")
             return
         }
@@ -297,10 +293,7 @@ class ShortcutHelper(private val context: Activity) {
             app.appUUID == null ||
             app.appUUID!!.isEmpty()
         ) {
-            NovaSnackbar.showError(
-                context,
-                context.getString(R.string.export_launcher_app_details_incomplete)
-            )
+            showExportProblem(context, context.getString(R.string.export_launcher_app_details_incomplete))
             LimeLog.warning("exportLauncherFile: App details incomplete.")
             return
         }
@@ -334,10 +327,7 @@ class ShortcutHelper(private val context: Activity) {
             context.startActivityForResult(intent, REQUEST_CODE_EXPORT_ART_FILE)
         } catch (e: Exception) {
             LimeLog.severe("Failed to start activity for file export: " + e.message)
-            NovaSnackbar.showError(
-                context,
-                context.getString(R.string.failed_to_initiate_file_export, e.message)
-            )
+            showExportProblem(context, context.getString(R.string.failed_to_initiate_file_export, e.message))
             artFileContentToExport = null
         }
     }
@@ -354,14 +344,19 @@ class ShortcutHelper(private val context: Activity) {
         const val KEY_APP_NAME: String = "app_name"
         const val KEY_APP_ID: String = "app_id"
 
+        /**
+         * An export that could not finish, on a Notice in the App list's edge panel, where it can
+         * be read: each floated in a snackbar and was gone in seconds (audit X2). Any thread.
+         */
+        private fun showExportProblem(activity: Activity, message: String) {
+            Dialog.displayDialog(activity, activity.getString(R.string.applist_menu_export_launcher), message, false)
+        }
+
         @JvmStatic
         fun writeArtFileToUri(activityContext: Activity, uri: Uri?) {
             if (uri == null) {
                 LimeLog.warning("writeArtFileToUri: URI is null.")
-                NovaSnackbar.showError(
-                    activityContext,
-                    activityContext.getString(R.string.file_export_failed_no_location_selected)
-                )
+                showExportProblem(activityContext, activityContext.getString(R.string.file_export_failed_no_location_selected))
                 artFileContentToExport = null
                 return
             }
@@ -369,10 +364,7 @@ class ShortcutHelper(private val context: Activity) {
             val content = artFileContentToExport
             if (content.isNullOrEmpty()) {
                 LimeLog.warning("writeArtFileToUri: No content to export.")
-                NovaSnackbar.showError(
-                    activityContext,
-                    activityContext.getString(R.string.file_export_failed_no_content_to_write)
-                )
+                showExportProblem(activityContext, activityContext.getString(R.string.file_export_failed_no_content_to_write))
                 return
             }
 
@@ -381,31 +373,19 @@ class ShortcutHelper(private val context: Activity) {
                     if (outputStream != null) {
                         outputStream.write(content.toByteArray(Charset.defaultCharset()))
                         outputStream.flush()
+                        // The save sheet closing on Save is the answer, as a cancelled one's is.
                         LimeLog.info("Successfully wrote .art file to: $uri")
-                        NovaSnackbar.showSuccess(
-                            activityContext,
-                            activityContext.getString(R.string.file_exported_successfully)
-                        )
                     } else {
                         LimeLog.severe("Failed to open output stream for URI: $uri")
-                        NovaSnackbar.showError(
-                            activityContext,
-                            activityContext.getString(R.string.failed_to_open_file_for_writing)
-                        )
+                        showExportProblem(activityContext, activityContext.getString(R.string.failed_to_open_file_for_writing))
                     }
                 }
             } catch (e: IOException) {
                 LimeLog.severe("Error writing .art file to URI: $uri - " + e.message)
-                NovaSnackbar.showError(
-                    activityContext,
-                    activityContext.getString(R.string.error_writing_file, e.message)
-                )
+                showExportProblem(activityContext, activityContext.getString(R.string.error_writing_file, e.message))
             } catch (e: Exception) {
                 LimeLog.severe("Unexpected error writing .art file to URI: $uri - " + e.message)
-                NovaSnackbar.showError(
-                    activityContext,
-                    activityContext.getString(R.string.unexpected_error_during_file_export)
-                )
+                showExportProblem(activityContext, activityContext.getString(R.string.unexpected_error_during_file_export))
             } finally {
                 artFileContentToExport = null
             }

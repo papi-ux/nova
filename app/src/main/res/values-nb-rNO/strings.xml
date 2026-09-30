@@ -5,14 +5,12 @@
     <string name="title_checkbox_stretch_video">Strekk video til hele skjermen</string>
     <string name="title_seekbar_bitrate">Video-bitrate</string>
     <string name="title_fps_list">Videobilderammetakt</string>
-    <string name="applist_quit_confirmation">Er du sikker på at du vil avslutte det kjørende programmet\? All ulagret data vil gå tapt.</string>
     <string name="applist_refresh_msg">Gjenoppfrisker programmer …</string>
     <string name="perf_overlay_decoder">Dekoder: %1$s</string>
     <string name="perf_overlay_incomingfps">Innkommende bilderammetakt fra nettverket: %1$.2f BPS</string>
     <string name="perf_overlay_renderingfps">Opptegningsbilderammetakt: %1$.2f BPS</string>
     <string name="perf_overlay_netdrops">Bilderammer droppet av din nettverkstilknytning: %1$.2f%%</string>
     <string name="perf_overlay_dectime">Gjennomsnittlig dekodingstid: %1$.2f ms</string>
-    <string name="lost_connection">Mistet tilknytning til PC</string>
     <string name="searching_pc">Søker etter PC-er med GameStream kjørende …
 \n
 \nForsikre deg om at GameStream er påslått i GeForce Experience SHEILD-innstillingene.</string>
@@ -40,10 +38,8 @@
     <string name="wol_no_mac">Kunne ikke vekke opp PC fordi GFE ikke sendte en MAC-adresse</string>
     <string name="pair_already_in_progress">Parring allerede underveis</string>
     <string name="pair_fail">Parring mislyktes</string>
-    <string name="pair_pairing_msg">Skriv inn følgende PIN på mål-PC-en:</string>
     <string name="pair_pairing_title">Parring</string>
     <string name="pair_pc_ingame">Datamaskinen er for øyeblikket i et spill. Du må lukke spillet før parring.</string>
-    <string name="pairing">Parrer …</string>
     <string name="nettest_title_done">Nettverkstest fullført</string>
     <string name="title_seekbar_deadzone">Dødsonejustering for analogstikke</string>
     <string name="title_checkbox_xb1_driver">Driver for Xbox 360/One USB-spillkontroller</string>
@@ -71,14 +67,11 @@
     <string name="category_audio_settings">Lydinnstillinger</string>
     <string name="title_resolution_list">Videooppløsning</string>
     <string name="category_basic_settings">Grunnleggende innstillinger</string>
-    <string name="addpc_enter_ip">Du må skrive inn en IP-adresse</string>
-    <string name="addpc_success">Datamaskin tillagt</string>
     <string name="msg_add_pc">Kobler til PC-en …</string>
     <string name="title_add_pc">Legg til PC manuelt</string>
     <string name="applist_details_id">Program-ID:</string>
     <string name="applist_quit_fail">Klarte ikke å avslutte</string>
     <string name="applist_quit_success">Avsluttet</string>
-    <string name="applist_quit_app">Avslutter …</string>
     <string name="applist_refresh_error_msg">Klarte ikke å hente programliste</string>
     <string name="applist_refresh_error_title">Feil</string>
     <string name="applist_refresh_title">Programliste</string>
@@ -94,11 +87,7 @@
     <string name="poor_connection_msg">Dårlig tilknytning til PC</string>
     <string name="slow_connection_msg">Vis tilkobling til PC
 \nReduser bitraten din</string>
-    <string name="delete_pc_msg">Er du sikker på at du vil slette denne PC-en\?</string>
-    <string name="help">Hjelp</string>
     <string name="title_details">Detaljer</string>
-    <string name="no">Nei</string>
-    <string name="yes">Ja</string>
     <string name="ip_hint">IP-adresse for GeForce PC</string>
     <string name="conn_terminated_msg">Tilkoblingen ble avsluttet</string>
     <string name="conn_terminated_title">Tilkobling avsluttet</string>

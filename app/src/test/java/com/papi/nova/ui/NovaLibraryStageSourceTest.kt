@@ -411,7 +411,9 @@ class NovaLibraryStageSourceTest {
         assertTrue(source.contains("NovaPosterAnimationDurationMillis = 180"))
         assertTrue(source.contains("animationSpec = tween(durationMillis = NovaPosterAnimationDurationMillis)"))
         assertTrue(source.contains(".zIndex(if (focused) 1f else 0f)"))
-        assertTrue(source.contains("scaleX = scale") && source.contains("scaleY = scale"))
+        // Lift plus the one ring (spec section 2), no scale.
+        assertFalse(source.contains("scaleX = scale") || source.contains("scaleY = scale"))
+        assertTrue(source.contains("NovaPanelMetrics.FocusRingWidth"))
         assertTrue(source.contains("translationY = -lift.toPx()"))
         assertFalse(source.contains("NovaFocusMotionSpec.CardFocusedScale"))
         assertFalse(source.contains(".novaFocusMotion("))
@@ -452,8 +454,9 @@ class NovaLibraryStageSourceTest {
         assertTrue(source.contains(".semantics(mergeDescendants = true)"))
         assertTrue(source.contains("contentDescription = accessibleLabel"))
         assertTrue(source.contains("role = Role.Button"))
-        assertTrue(source.contains(".combinedClickable(") && source.contains("onOpenDetail()"))
-        assertTrue(source.windowed(".combinedClickable(".length).count { it == ".combinedClickable(" } == 1)
+        // Acts on release, and only on the poster the press began on.
+        assertTrue(source.contains(".novaClickable(") && source.contains("onOpenDetail()"))
+        assertTrue(source.windowed(".novaClickable(".length).count { it == ".novaClickable(" } == 1)
         assertFalse(source.contains(".focusable()"))
         assertFalse(source.contains("import androidx.compose.foundation.focusable"))
         assertTrue(source.contains("game.sourceLabel") && source.contains("game.categoryLabel"))
@@ -490,7 +493,7 @@ class NovaLibraryStageSourceTest {
         val modifierStart = source.indexOf("modifier = modifier")
         val requesterIndex = source.indexOf(".then(focusRequesterModifier)", modifierStart)
         val focusObserverIndex = source.indexOf(".onFocusChanged", modifierStart)
-        val clickOwnerIndex = source.indexOf(".combinedClickable(", modifierStart)
+        val clickOwnerIndex = source.indexOf(".novaClickable(", modifierStart)
         assertTrue(requesterIndex >= 0 && requesterIndex < focusObserverIndex && focusObserverIndex < clickOwnerIndex)
         assertTrue(source.contains("Key.DirectionLeft -> onNavigate?.invoke(-1) ?: false"))
         assertTrue(source.contains("Key.DirectionRight -> onNavigate?.invoke(1) ?: false"))
@@ -510,9 +513,10 @@ class NovaLibraryStageSourceTest {
             "src/test/java/com/papi/nova/ui/NovaLibraryLayoutV2Test.kt" to listOf(
                 "fun freshOptionsStateDefaultsToPlainPosterArtwork()",
             ),
-            "src/test/java/com/papi/nova/ui/NovaComposeSourceGuardTest.kt" to listOf(
+            "src/test/java/com/papi/nova/ui/NovaLibrarySourceGuardTest.kt" to listOf(
                 "fun task9SharedPosterCardKeepsMetadataInAccessibilityOnly()",
-                "fun task9SharedPosterCardUsesScaleOnlyWithoutVisualBadgesOrBorders()",
+                // Posters moved from a scale to the lift and the one ring (spec section 2).
+                "fun task9SharedPosterCardUsesLiftAndTheOneRingWithoutBadgesOrBorders()",
                 "fun task9StageGridCompactAndRecentUseOnlySharedPosterCard()",
                 "fun task9StageIdentityUsesOneManifestIconAndOneRenderedTitle()",
             ),
@@ -527,7 +531,7 @@ class NovaLibraryStageSourceTest {
     }
 
     @Test
-    fun cinematicControllerHintsAreBorderlessRightAlignedAndPreserveFullSemantics() {
+    fun cinematicControllerHintsAreThePanelHintBarRightAlignedAndPreserveFullSemantics() {
         val chrome = read("src/main/java/com/papi/nova/ui/NovaLibraryCinematicChrome.kt")
         val activity = read("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
@@ -540,33 +544,34 @@ class NovaLibraryStageSourceTest {
         assertTrue(helper.contains("compact: Boolean"))
         assertTrue(helper.contains("modifier: Modifier = Modifier"))
         assertTrue(helper.contains("val colors = LocalNovaComposeColors.current"))
-        assertTrue(helper.contains("val surfaces = LocalNovaLibrarySurfaces.current"))
         assertTrue(helper.contains(".fillMaxWidth()"))
         assertTrue(helper.contains(".heightIn(min = 34.dp)"))
         assertTrue(helper.contains("contentAlignment = Alignment.CenterEnd"))
-        // The hint row is chrome, not content: it carries no backing plate of its own and
-        // reads against the backdrop's own bottom gradient.
+        // No wide scrim of its own behind the row: it reads against the backdrop's bottom gradient.
         assertFalse(helper.contains("Brush.horizontalGradient("))
         assertFalse(helper.contains("focusedArtworkScrim"))
         assertTrue(helper.contains("contentDescription = semanticsDescription"))
         assertTrue(helper.contains(".testTag(\"nova-library-cinematic-controller-hints\")"))
         assertTrue(helper.contains(".testTag(\"nova-library-cinematic-controller-hints-row\")"))
         assertTrue(helper.contains(".widthIn(max = rowMaxWidth)"))
-        assertTrue(helper.contains(".horizontalScroll(rememberScrollState())"))
         assertTrue(helper.contains("end = 12.dp"))
         assertTrue(helper.contains("vertical = 6.dp"))
-        assertTrue(helper.contains("Arrangement.spacedBy(itemSpacing)"))
-        assertTrue(helper.contains("CircleShape"))
-        assertTrue(helper.contains(".background(colors.accent.copy("))
-        assertFalse("library cinematic hints must not restore the old bordered panel", helper.contains(".border("))
-        assertFalse("library cinematic hints must not use an enclosing panel surface", helper.contains("surfaces.panel"))
-        assertFalse("library cinematic hints must not use an enclosing tile surface", helper.contains("surfaces.tile"))
+        // N13 (smoke test 2026-09-29): the borderless round chips read at low contrast on the
+        // Shield. The row is the one panel hint bar now, its plate as wide as its hints and at the
+        // end, and its hints wrap rather than scroll. Its own words are cleared, so the row's
+        // description, every hint including those it leaves out, is the one that is read.
+        assertTrue(helper.contains("NovaPanelHintBar(hints = hints)"))
+        assertTrue(helper.contains(".width(IntrinsicSize.Max)"))
+        assertTrue(helper.contains(".clearAndSetSemantics { }"))
+        assertFalse("hints wrap rather than scroll one under the edge", helper.contains(".horizontalScroll("))
+        assertFalse("no second chip style beside the panels' own", helper.contains("CircleShape"))
 
         val screenStart = activity.indexOf("private fun NovaLibraryScreen(")
         val screenEnd = activity.indexOf("@Composable\n    private fun NovaLibraryHomeHero(", screenStart)
         val screen = activity.substring(screenStart, screenEnd)
-        assertTrue(screen.contains("val controllerHints = novaLibraryControllerHints(isLandscape)"))
-        assertTrue(screen.contains("val visibleControllerHints = if (largeText)"))
+        // A remote is named by its own keys, a controller by its own (C04).
+        assertTrue(screen.contains("val controllerHints = if (lastInputRemote) novaLibraryRemoteHints() else novaLibraryControllerHints(isLandscape)"))
+        assertTrue(screen.contains("val visibleControllerHints = when {"))
         assertTrue(screen.contains("controllerHints.filterIndexed { index, _ -> index in LARGE_TEXT_HINT_INDICES }"))
         assertTrue(screen.contains("val controllerHintDescription = controllerHints.joinToString(separator = \" · \")"))
         assertTrue(screen.contains("visible = space == null && (stageMode || controllerHintsVisible)"))
@@ -586,7 +591,7 @@ class NovaLibraryStageSourceTest {
             "R.string.nova_controller_hint_b",
             "R.string.nova_controller_hint_back",
             "R.string.nova_controller_hint_x",
-            "R.string.nova_controller_hint_library",
+            "R.string.nova_controller_hint_options",
             "R.string.nova_controller_hint_y",
             "R.string.nova_controller_hint_layout",
             "R.string.menu_button",
@@ -642,16 +647,27 @@ class NovaLibraryStageSourceTest {
         assertTrue(action.contains(".height(if (largeText) 34.dp else 28.dp)"))
         assertTrue(action.contains(".testTag(\"${'$'}{testTag}-surface\")"))
         assertTrue(action.contains(".testTag(\"${'$'}{testTag}-label\")"))
-        // Focus reads as a scale and a brighter accent fill, never an outline.
-        assertTrue(action.contains("val focusedScale = if (focused) 1.06f else 1f"))
-        assertTrue(action.contains("emphasized && focused -> lerp(colors.accent, Color.White, 0.42f)"))
-        assertTrue(action.contains("colors.accent"))
+        // Focus is the one focus look (spec section 2): the fill and a ring inside the visible
+        // surface, with no scale, and the label in the theme's on-accent colour rather than a
+        // fixed near-black.
+        assertFalse(action.contains("focusedScale") || action.contains("scaleX"))
+        assertTrue(action.contains("NovaPanelMetrics.FocusRingWidth") && action.contains("NovaPanelMetrics.FocusMillis"))
+        assertTrue(action.contains("colors.accent") && action.contains("colors.onAccent"))
+        assertFalse(action.contains("Color(0xFF"))
         assertTrue(action.contains("maxLines = 1"))
         assertTrue(action.contains("overflow = TextOverflow.Ellipsis"))
         assertTrue(action.contains("role = Role.Button; contentDescription = label"))
-        assertTrue(action.contains(".combinedClickable(onClick = onClick, onLongClick = onClick)"))
-        assertTrue(action.contains(".focusable()"))
-        assertFalse("Stage CTA must not restore the hard white outline", action.contains(".border("))
+        assertTrue(action.contains(".novaClickable(role = Role.Button, onClick = onClick)"))
+        assertTrue(
+            "the press target is the larger box, and the ring is drawn on the visible surface inside it",
+            action.indexOf(".novaClickable(") < action.indexOf(".width(if (largeText) 132.dp else 108.dp)")
+        )
+        // Its one border is the focus ring, drawn only while focus is arriving or held: no outline at rest.
+        assertTrue(
+            "Stage CTA must not restore the hard white outline",
+            action.split(".border(").size == 2 &&
+                action.contains("if (focus > 0f) {\n                        Modifier.border(NovaPanelMetrics.FocusRingWidth, ring.copy(alpha = ring.alpha * focus), shape)"),
+        )
 
         val composeTest = read("src/androidTest/java/com/papi/nova/ui/NovaLibraryStageComposeTest.kt")
         assertTrue(composeTest.contains("nova-stage-primary-action-surface"))

@@ -80,7 +80,7 @@ class NovaLibraryPreferencesTest {
         NovaLibraryLayoutMode.entries.forEach { layoutMode ->
             val prefs = freshPrefs("nova-library-prefs-production-${layoutMode.name}")
             val options = NovaLibraryOptionsState(
-                sortMode = NovaLibrarySortMode.HDR_FIRST,
+                sortMode = NovaLibrarySortMode.NAME_DESC,
                 layoutMode = layoutMode,
                 showPosterTitles = false,
             )

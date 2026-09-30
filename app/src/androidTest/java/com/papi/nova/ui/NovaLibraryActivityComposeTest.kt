@@ -6,7 +6,8 @@ import android.content.pm.PackageManager
 import android.view.ViewGroup
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -73,11 +74,11 @@ class NovaLibraryActivityComposeTest {
 
             composeRule.waitForIdle()
             val serverName = "Test Server"
-            val searchHint = context.getString(R.string.nova_library_search_hint)
             val optionsTitle = context.getString(R.string.nova_library_options_title)
             val systemTitle = context.getString(R.string.nova_system_menu_title)
             val filterAll = context.getString(R.string.nova_library_filter_all)
-            val filterHdr = context.getString(R.string.nova_library_filter_hdr)
+            val filterRecent = context.getString(R.string.nova_library_filter_recent)
+            val searchRow = context.getString(R.string.nova_library_panel_search)
 
             // The toolbar leads with the host. "Library" is deliberately not drawn in the
             // cinematic layout -- it restates what the whole screen already is -- so this
@@ -92,26 +93,20 @@ class NovaLibraryActivityComposeTest {
             composeRule.onNodeWithText(systemTitle)
                 .assertIsDisplayed()
                 .assertHasClickAction()
-            // Everything below lives inside Options, not on the shell: search and the
-            // filter chips both moved there. Asserting them without opening the drawer
-            // was asserting a drawer nobody had opened, which is why all three failed in
-            // turn once the one before them was fixed.
+            // Everything below lives inside Options, not on the shell: search and the filters
+            // both moved there. Options opens as a panel in its own window, which the rule sees
+            // as a second root.
             composeRule.onNodeWithContentDescription(optionsTitle).performClick()
             composeRule.waitForIdle()
             composeRule.onNodeWithText(optionsTitle, substring = false).assertIsDisplayed()
 
-            composeRule.onNodeWithContentDescription(searchHint)
+            // The quick filters are the values of one row, which changes in place on Left and
+            // Right, so the whole row is the one thing to press.
+            composeRule.onNode(hasText(filterAll) and hasText(filterRecent) and hasClickAction())
+                .assertIsDisplayed()
+            composeRule.onNodeWithText(searchRow, substring = false)
                 .performScrollTo()
                 .assertIsDisplayed()
-            // No performScrollTo on these two. They sit in a horizontally scrolling row
-            // that recomposes as it scrolls, so scrolling to the first one detached the
-            // second from the tree mid-assertion. They are on screen already; what is
-            // worth asserting is that they exist and can be pressed.
-            composeRule.onNode(hasContentDescription("$filterAll. ", substring = true))
-                .assertExists()
-                .assertHasClickAction()
-            composeRule.onNode(hasContentDescription("$filterHdr. ", substring = true))
-                .assertExists()
                 .assertHasClickAction()
         }
     }

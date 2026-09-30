@@ -1,6 +1,5 @@
 package com.papi.nova.binding.input.virtual_controller.keyboard
 
-import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -146,19 +145,6 @@ abstract class keyBoardVirtualControllerElement protected constructor(
     protected fun getDefaultStrokeWidth(): Int {
         val screen: DisplayMetrics = resources.displayMetrics
         return (screen.heightPixels * 0.004f).toInt()
-    }
-
-    protected fun showConfigurationDialog() {
-        val alertBuilder = AlertDialog.Builder(context)
-        alertBuilder.setTitle("Configuration")
-        alertBuilder.setItems(arrayOf<CharSequence>("Move", "Resize", "Cancel")) { _, which ->
-            when (which) {
-                0 -> actionEnableMove()
-                1 -> actionEnableResize()
-                else -> actionCancel()
-            }
-        }
-        alertBuilder.create().show()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

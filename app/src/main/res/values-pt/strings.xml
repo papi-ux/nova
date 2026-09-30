@@ -65,7 +65,6 @@
     <string name="applist_menu_scut">Criar Atalho</string>
     <string name="applist_refresh_msg">A recarregar apps…</string>
     <string name="applist_refresh_error_msg">Falha ao obter a lista de apps</string>
-    <string name="applist_quit_app">Saindo</string>
     <string name="applist_quit_success">Saiu com sucesso</string>
     <string name="applist_quit_fail">Falha ao sair</string>
     <string name="text_native_res_dialog">Os modos de resolução nativa não são oficialmente suportados pelo GeForce Experience, portanto, ele não definirá a resolução da ecrã do host. Precisará configurá-lo manualmente durante o jogo.
@@ -146,12 +145,7 @@
     <string name="conn_hardware_latency">Latência média de decodificação de hardware:</string>
     <string name="conn_starting">Iniciando</string>
     <string name="conn_error_title">Erro de Conexão</string>
-    <string name="yes">Sim</string>
-    <string name="no">Não</string>
-    <string name="lost_connection">Conexão perdida com o PC</string>
     <string name="title_details">Detalhes</string>
-    <string name="help">Ajuda</string>
-    <string name="delete_pc_msg">Tem certeza de que deseja apagar este PC\?</string>
     <string name="poor_connection_msg">Conexão ruim com o PC</string>
     <string name="slow_connection_msg">Conexão lenta com o PC
 \nReduza sua taxa de bits</string>
@@ -169,13 +163,10 @@
     <string name="applist_menu_hide_app">Esconder app</string>
     <string name="applist_refresh_title">Lista de apps</string>
     <string name="applist_refresh_error_title">Erro</string>
-    <string name="applist_quit_confirmation">Tem certeza de que deseja sair da app em execução\? Todos os dados não salvos serão perdidos.</string>
     <string name="applist_details_id">ID do App:</string>
     <string name="title_add_pc">Adicionar PC Manualmente</string>
     <string name="msg_add_pc">Conectando ao PC…</string>
-    <string name="addpc_success">Computador adicionado com sucesso</string>
     <string name="addpc_unknown_host">Não foi possível encontrar o PC. Certifique-se de que não cometeu um erro de digitação no endereço.</string>
-    <string name="addpc_enter_ip">Deve inserir um endereço de IP</string>
     <string name="addpc_wrong_sitelocal">Esse endereço não parece certo. Deve usar o endereço de IP público do seu roteador para transmitir pela Internet.</string>
     <string name="category_basic_settings">Configurações Básicas</string>
     <string name="title_resolution_list">Resolução</string>
@@ -210,10 +201,8 @@
     <string name="title_enable_perf_overlay">Mostrar status de performance durante a transmissão</string>
     <string name="nettest_title_done">Teste de Internet Completo</string>
     <string name="nettest_text_inconclusive">O teste de rede não pôde ser executado porque nenhum dos servidores de teste de conexão do Nova estava acessível. Verifique a sua conexão com a Internet ou tente novamente mais tarde.</string>
-    <string name="pairing">A parear…</string>
     <string name="pair_pc_offline">Esse computador está offline</string>
     <string name="pair_pc_ingame">Esse computador está atualmente num jogo. Deve fechar o jogo antes de parear.</string>
-    <string name="pair_pairing_msg">Insira o seguinte PIN no PC de destino:</string>
     <string name="pair_incorrect_pin">PIN incorreto</string>
     <string name="pair_already_in_progress">Pareamento já em andamento</string>
     <string name="wol_pc_online">Esse computador está disponível</string>

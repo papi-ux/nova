@@ -94,7 +94,7 @@ class NovaSpaceComposeTest {
 
     @Test fun settingsOffer120FpsWithoutHostTopologyControls() {
         var selected = 0
-        val row = NovaPlaySetupRowState(NovaPlaySetupRow.FRAME_RATE, "Frame Rate", "Saved For Next Launch", "60 FPS", "",
+        val row = NovaPlaySetupRowState(NovaPlaySetupRow.FRAME_RATE, "Frame Rate", "Saved For Next Launch", "60 FPS",
             listOf(NovaPlaySetupOption("120 FPS", "", onSelect = { selected = 120 })))
         compose.setContent {
             NovaComposeTheme {
@@ -202,7 +202,7 @@ class NovaSpaceComposeTest {
         compose.setContent { NovaComposeTheme {
             NovaEnvironmentBar(snapshot, true, { choices++ }, modifier = Modifier.requiredSize(560.dp, 70.dp), compact = true)
         } }
-        compose.onNodeWithText("This computer").assertIsDisplayed()
+        compose.onNodeWithText("Your Host").assertIsDisplayed()
         compose.onNodeWithText("Your Space").assertDoesNotExist()
         compose.onNodeWithTag("nova-environment-choose").assertHasClickAction().performClick()
         compose.runOnIdle { assertEquals(1, choices) }

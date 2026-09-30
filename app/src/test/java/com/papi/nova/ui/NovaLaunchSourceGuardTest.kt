@@ -112,7 +112,6 @@ class NovaLaunchSourceGuardTest {
         val serverHelper = readSource("src/main/java/com/papi/nova/utils/ServerHelper.kt")
         val game = readSource("src/main/java/com/papi/nova/Game.kt")
         val nvHttp = readSource("src/main/java/com/papi/nova/nvstream/http/NvHTTP.kt")
-        val chrome = readSource("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt")
         val errorSection = game.section(
             "var dialogText:String = getResources().getString(R.string.conn_error_msg)",
             "private fun showNovaLaunchIssueSheet"
@@ -137,7 +136,8 @@ class NovaLaunchSourceGuardTest {
                 "RAW blob, because a resolution pick or fps pin makes the composed blob non-null while " +
                 "the guard's answer is still on the wire",
             detail.contains("val preflightInFlight: Boolean = false") &&
-                detail.contains("NovaGameDetailOptimizationState(preflightInFlight = true)") &&
+                // In flight with no plan settled: the last plan rides along only to be shown (#18).
+                detail.contains("fun recheckState() = NovaGameDetailOptimizationState(\n            preflightInFlight = true,\n            lastPlan = ") &&
                 detail.contains("when (optimizationState.launchPreflightGate())") &&
                 detail.contains("NovaLaunchPreflightGate.WAIT ->") &&
                 detail.contains("if (launchCanReplay)")
@@ -148,7 +148,7 @@ class NovaLaunchSourceGuardTest {
                 !detail.contains("fun launchSelected(") &&
                 // A settle that fires late must not let a launch through on the previous
                 // value, so it marks in flight now and the launch flushes it early.
-                detail.contains("optimizationState = NovaGameDetailOptimizationState(preflightInFlight = true)") &&
+                detail.contains("optimizationState = recheckState()") &&
                 detail.contains("preflightRequestFence.invalidate()") &&
                 detail.contains("settleJob?.cancel()") &&
                 detail.contains("flushSettled()")
@@ -158,21 +158,32 @@ class NovaLaunchSourceGuardTest {
             game.contains("showNovaLaunchIssueSheet(") &&
                 ! errorSection.contains("Dialog.displayDialog(")
         )
+        // The launch issue is a full-screen state page now: no sheet, so no theme background
+        // to peek out as a clipped bump and no handle to drag it away.
+        val launchIssue = game.section("private fun showNovaLaunchIssueSheet(", "private fun finishSecondScreen(")
+        val launchIssuePage = readSource("src/main/java/com/papi/nova/ui/NovaLaunchIssuePage.kt")
         assertTrue(
-            "Launch issue drawer must use shared transparent Nova glass sheet chrome so the old bottom-sheet theme background cannot peek out as a clipped bump",
-            game.contains("NovaSheetChrome.applyBottomSheetChrome(") &&
-                game.contains("NovaSheetChrome.createSheetBackground(") &&
+            "Launch issue must be a full-screen Nova state page, not a sheet whose theme background can peek out as a clipped bump",
+            launchIssue.contains("novaLaunchIssuePage(") &&
+                launchIssuePage.contains("NovaStatePage.Problem(") &&
+                launchIssue.contains("surfaces.show(page)") &&
+                !launchIssue.contains("BottomSheetDialog") &&
                 !game.contains("setBackgroundColor(Color.rgb(18, 22, 28))")
         )
         assertTrue(
-            "Nova drawers should let content scroll down without minimizing the whole sheet; only the top handle strip may drag-dismiss",
-            detail.contains("behavior.isDraggable = false") &&
-                detail.contains("novaSheetHandleDrag") &&
-                detail.contains("NovaSheetDragHandle(") &&
-                syncSheetGestureIsLocked() &&
-                chrome.contains("isDraggable = false") &&
-                chrome.contains("attachHandleDragToDismiss") &&
-                game.contains("NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)")
+            "B on a failed launch returns to Nova and never retries: each page states its back as the way out (R5)",
+            launchIssuePage.split("NovaStatePage.Problem(").size == 3 &&
+                launchIssuePage.split("back = NovaProblemBack.Close(").size == 3
+        )
+        // Group 3: game detail and Polaris Sync host no bottom sheet any more (Play Setup is a panel
+        // in the detail window, Polaris Sync a page of the library's System panel), so there is no
+        // sheet behaviour of theirs left to lock; a panel is dragged only by its frame, and the
+        // sheet drag handle went with the sheet (R13 bans default drag handles).
+        assertTrue(
+            "game detail content scrolls without dragging anything away: no sheet behaviour and no drag handle",
+            !detail.contains("BottomSheetBehavior") &&
+                !detail.contains("novaSheetHandleDrag") &&
+                !detail.contains("NovaSheetDragHandle(")
         )
     }
 
@@ -203,7 +214,7 @@ class NovaLaunchSourceGuardTest {
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailContent.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt") +
             readSource("src/main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
-        val syncSheet = readSource("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt")
+        val library = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
 
         assertTrue(
             "the game detail window hosts no bottom sheet and no legacy alert at all, so there is no Material host left to restyle",
@@ -217,9 +228,10 @@ class NovaLaunchSourceGuardTest {
                 gameDetail.contains(".background(colors.window)\n                .background(surfaces.panel)")
         )
         assertTrue(
-            "Polaris sync sheet must use the same theme-aware host chrome instead of static nova_sheet_bg inset background",
-            syncSheet.contains("NovaSheetChrome.applyBottomSheetChrome(bottomSheetDialog, contentView)") &&
-                !syncSheet.contains("sheet.setBackgroundResource")
+            "Polaris Sync is a page of the library's System panel now, drawn on the panel's own theme-aware surface, so no sheet host with a static inset background is left",
+            library.contains("return LibraryPage.PolarisSync(getString(R.string.nova_polaris_sync_title))") &&
+                !library.contains("NovaPolarisSyncSheet") &&
+                !library.contains("sheet.setBackgroundResource")
         )
     }
 
@@ -338,9 +350,9 @@ class NovaLaunchSourceGuardTest {
             "private fun scheduleActiveSessionFollowUpRefreshes(",
             "private fun queryActiveSession()"
         )
-        val quit = game.section(
-            "fun quit()",
-            "override fun showGameMenu("
+        val endSession = game.section(
+            "fun endSession()",
+            "fun quit()"
         )
         val markLocalSessionEnd = game.section(
             "private fun markLocalSessionEnd()",
@@ -349,7 +361,7 @@ class NovaLaunchSourceGuardTest {
 
         assertTrue(
             "Game End should mark the local session card stale before returning to Library",
-            quit.contains("markLocalSessionEnd()") &&
+            endSession.contains("markLocalSessionEnd()") &&
                 markLocalSessionEnd.contains("NovaSessionEndSignal.mark(") &&
                 markLocalSessionEnd.contains("EXTRA_PC_UUID") &&
                 markLocalSessionEnd.contains("EXTRA_HOST")
@@ -366,9 +378,10 @@ class NovaLaunchSourceGuardTest {
                 markLocalSessionEnd.contains("localSessionEndMarked = true")
         )
         assertTrue(
-            "Command Center End should defer the local End marker to the confirmed Game quit dialog",
+            "Command Center End should defer the local End marker to Game's confirmed end: the header's split confirms, then Game ends the session",
             !quickMenu.contains("NovaSessionEndSignal.mark(") &&
-                quickMenu.contains("game.quit()")
+                quickMenu.contains("end = game::endSession") &&
+                quickMenu.contains("onEndStream = { haptic(sessionEnd::perform) }")
         )
         assertTrue(
             "Library resume should consume the local End marker before polling can re-add a paused session",
@@ -841,18 +854,21 @@ class NovaLaunchSourceGuardTest {
                 optimization.contains("check(StreamSyncManager.hasTrustedResolvedProfile(opt))") &&
                 optimization.contains("val optimizationMode = uiState.playMode") &&
                 optimization.contains("mode = optimizationMode") &&
-                optimization.contains("NovaGameDetailOptimizationState(preflightFailed = true)") &&
+                optimization.contains("NovaGameDetailOptimizationState(preflightFailed = true, preflightMessage = e.rejection.error)") &&
+                optimization.contains("preflightFailed = true,\n                        preflightMessage = getString(R.string.nova_game_detail_launch_preflight_unavailable),") &&
                 optimization.contains("pendingLaunch = false") &&
                 highFps.contains("loadOptimization(profilePreference)") &&
                 highFps.contains("pendingSettledWork = null") &&
                 !highFps.contains("lifecycleScope.launch")
         )
 
+        // The rejection's own words ride on the state the status line reads, not a snackbar (audit
+        // X2), and the held launch that cannot replay adds no message of its own over them.
         assertTrue(
             "a typed host rejection must remain visible instead of being replaced by the generic retry message",
-            optimization.contains("var failureMessageShown = false") &&
-                optimization.contains("failureMessageShown = true") &&
-                optimization.contains("if (!failureMessageShown)")
+            optimization.contains("preflightMessage = e.rejection.error") &&
+                Regex("nova_game_detail_launch_preflight_unavailable").findAll(optimization).count() == 1 &&
+                !optimization.substringAfter("pendingLaunch = false").substringBefore("}").contains("preflightMessage")
         )
 
         assertTrue(
@@ -1020,11 +1036,6 @@ class NovaLaunchSourceGuardTest {
     private fun readSource(path: String): String =
         String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
 
-
-    private fun syncSheetGestureIsLocked(): Boolean {
-        val sync = readSource("src/main/java/com/papi/nova/ui/NovaPolarisSyncSheet.kt")
-        return sync.contains("isDraggable = false")
-    }
 
     private fun String.section(startMarker: String, endMarker: String): String {
         val start = indexOf(startMarker)

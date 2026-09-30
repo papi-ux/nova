@@ -4,8 +4,10 @@ import android.content.res.Configuration
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.HorizontalScrollView
+import android.widget.ScrollView
+import androidx.activity.ComponentActivity
 import androidx.core.view.ViewCompat
+import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.R
@@ -19,15 +21,16 @@ import org.junit.runner.RunWith
 class NovaCompanionCommandDeckInstrumentationTest {
     @Test
     fun compactDeckKeepsChromeBoundedAndTouchpadCenterOwned() {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.runOnMainSync {
-            val baseContext = instrumentation.targetContext
+        // The End Session tile is a ComposeView, which composes only in a window, so the deck is
+        // attached to an activity here, as it is to the companion window in the stream.
+        ActivityScenario.launch(ComponentActivity::class.java).use { scenario -> scenario.onActivity { activity ->
+            val baseContext = activity
             val context = baseContext.createConfigurationContext(
                 Configuration(baseContext.resources.configuration).apply { fontScale = 2f },
             )
             assertEquals(2f, context.resources.configuration.fontScale, 0f)
             val root = ExternalControllerView(context)
-            val deck = NovaCompanionCommandDeckView(context) { }
+            val deck = NovaCompanionCommandDeckView(context, composeOwner = activity) { }
             var touchpadEvents = 0
             root.setOnTouchListener { _, _ ->
                 touchpadEvents += 1
@@ -40,6 +43,7 @@ class NovaCompanionCommandDeckInstrumentationTest {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 ),
             )
+            activity.setContentView(root)
             deck.render(state())
 
             val density = context.resources.displayMetrics.density
@@ -51,11 +55,13 @@ class NovaCompanionCommandDeckInstrumentationTest {
             )
             root.layout(0, 0, width, height)
 
-            val statusViewport = deck.getChildAt(0) as HorizontalScrollView
-            val actionViewport = deck.getChildAt(1) as HorizontalScrollView
+            // The strips keep to the deck's width and wrap; the rail, taller than its share at
+            // twice the font on so small a display, scrolls up and down rather than across.
+            val statusViewport = deck.getChildAt(0) as ScrollView
+            val actionViewport = deck.getChildAt(1) as ScrollView
             assertEquals(width, statusViewport.measuredWidth)
             assertEquals(width, actionViewport.measuredWidth)
-            assertTrue(actionViewport.getChildAt(0).measuredWidth > actionViewport.measuredWidth)
+            assertTrue(actionViewport.getChildAt(0).measuredHeight > actionViewport.measuredHeight)
 
             val down = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, width / 2f, height / 2f, 0)
             val up = MotionEvent.obtain(0, 10, MotionEvent.ACTION_UP, width / 2f, height / 2f, 0)
@@ -67,7 +73,7 @@ class NovaCompanionCommandDeckInstrumentationTest {
                 up.recycle()
             }
             assertEquals(2, touchpadEvents)
-        }
+        } }
     }
 
     @Test
@@ -87,13 +93,13 @@ class NovaCompanionCommandDeckInstrumentationTest {
 
             val androidKeyboard = requireAction(deck, context.getString(R.string.companion_deck_android_keyboard))
             val novaKeyboard = requireAction(deck, context.getString(R.string.companion_deck_nova_keyboard))
-            val endSession = requireAction(deck, context.getString(R.string.companion_deck_end_session))
+            // End Session is a split tile drawn in Compose, which carries its own semantics.
+            val endSession = requireNotNull(deck.findViewWithTag<View>(NovaCompanionCommandDeckView.END_SESSION_TILE_TAG))
             assertTrue(androidKeyboard.isSelected)
             assertEquals("Active", ViewCompat.getStateDescription(androidKeyboard))
             assertFalse(novaKeyboard.isSelected)
             assertEquals("Inactive", ViewCompat.getStateDescription(novaKeyboard))
             assertFalse(endSession.isSelected)
-            assertEquals(null, ViewCompat.getStateDescription(endSession))
         }
     }
 

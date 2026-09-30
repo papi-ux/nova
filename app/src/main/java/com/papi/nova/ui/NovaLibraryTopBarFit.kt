@@ -11,14 +11,23 @@ package com.papi.nova.ui
  * measures each part at the current font scale and this function decides, in a fixed order, what
  * to leave out until the row fits:
  *
- * 1. the Space control's caption line (avatar, name and chevron stay),
- * 2. the host's status line,
- * 3. the card's cover,
- * 4. the card's eyebrow and title (its actions stay),
- * 5. the words of the Space's status badge (a dot stays),
- * 6. the Space name, which ellipsizes and at the last goes, leaving avatar and chevron,
- * 7. the host name, which ellipsizes down to [NovaTopBarWidths.identityFloor],
- * 8. End Session on the card, only when nothing else was enough.
+ * 1. the card's eyebrow, which the action beside it already says (the title stays, with the
+ *    eyebrow's line to wrap onto),
+ * 2. the Space control's caption line (avatar, name and chevron stay),
+ * 3. the host's status line,
+ * 4. the card's cover,
+ * 5. the card's title (its actions stay),
+ * 6. the words of the Space's status badge (a dot stays),
+ * 7. the Space name, which ellipsizes and at the last goes, leaving avatar and chevron,
+ * 8. the host name, which ellipsizes down to [NovaTopBarWidths.identityFloor],
+ * 9. End Session on the card, only when nothing else was enough.
+ *
+ * The card's words never ellipsize (R13). They are measured whole: the eyebrow on one line and the
+ * title on the lines the strip's height leaves it, and they are shown at that width or not at all.
+ *
+ * A refused End's reason takes the eyebrow's place, and nothing else in the strip says it, so it is
+ * never left out (XR3): it wraps onto the lines the strip has above the title, and where that is not
+ * room enough, step 1 gives up the title instead and the reason takes the title's lines too.
  *
  * The result count and layout name are not in the strip any more. They read as a stray label in
  * the right-hand cluster (papi, 2026-09-16 21:27), and both already live in the Options sheet: the
@@ -27,6 +36,19 @@ package com.papi.nova.ui
  * Options and System never shrink or move: the composable measures the right cluster before the
  * left, so a residual mismatch squeezes the host side, never the menus.
  */
+
+/**
+ * [label] without its domain, for a place too narrow for the whole name: "living-room-gaming-pc"
+ * for "living-room-gaming-pc.papi.miami". An address, or a name with no domain, stays whole.
+ */
+internal fun novaShortHostLabel(label: String): String {
+    val trimmed = label.trim()
+    if (NOVA_HOST_ADDRESS.matches(trimmed)) return trimmed
+    val first = trimmed.substringBefore('.')
+    return if (first.isNotEmpty() && first != trimmed && first.any { it.isLetter() }) first else trimmed
+}
+
+private val NOVA_HOST_ADDRESS = Regex("""^[0-9.]+$|^\[?[0-9a-fA-F:]+]?$""")
 
 /** Below this the Space name reads as a stray letter, so it goes instead of ellipsizing further. */
 internal const val NOVA_TOP_BAR_NAME_MIN = 24f
@@ -56,12 +78,22 @@ internal data class NovaTopBarContinueWidths(
     val padding: Float,
     /** The cover square, or 0 when the card has no game to show. */
     val cover: Float,
-    /** The narrowest the eyebrow and title column may ellipsize to before it goes. */
+    /**
+     * The width the eyebrow and title need to be read whole: the eyebrow on one line, the title
+     * on the lines the strip leaves under it. Narrower, the eyebrow goes first.
+     */
     val textMin: Float,
     val gap: Float,
     val primary: Float,
     /** End Session, or 0 when the session is not this device's. */
     val secondary: Float,
+    /** The width the title alone needs, on the lines the strip gives it once the eyebrow has gone. */
+    val titleMin: Float = textMin,
+    /**
+     * The card's words are a refused End's reason, which stays whatever else gives way. Its
+     * [titleMin] is then the reason alone, on every line the strip has.
+     */
+    val keepsText: Boolean = false,
 )
 
 /** Everything the strip holds, in dp, as measured at the current font scale. */
@@ -89,6 +121,8 @@ internal data class NovaTopBarFit(
     val showSpaceCaption: Boolean = true,
     val showHostStatus: Boolean = true,
     val showContinueCover: Boolean = true,
+    /** The card's eyebrow over its title; without it the title has the eyebrow's line too. */
+    val showContinueEyebrow: Boolean = true,
     val showContinueText: Boolean = true,
     val compactSpaceStatus: Boolean = false,
     /** How wide the Space name may be; infinite while it keeps its natural width. */
@@ -98,6 +132,13 @@ internal data class NovaTopBarFit(
     val showContinueSecondary: Boolean = true,
     /** The Space control's width once fitted; infinite while nothing about it was trimmed. */
     val spaceWidth: Float = Float.POSITIVE_INFINITY,
+    /**
+     * How many lines the card's title may take: the lines the strip has room for under the
+     * eyebrow, or without it. Set where the strip is measured; the fit itself only says what shows.
+     */
+    val continueTitleLines: Int = 1,
+    /** How many lines the eyebrow may take: one, or a refused End's reason's lines. Set where measured. */
+    val continueEyebrowLines: Int = 1,
 ) {
     val showSpaceName: Boolean get() = spaceNameMax >= NOVA_TOP_BAR_NAME_MIN
 }
@@ -124,7 +165,7 @@ internal fun novaTopBarSpaceWidth(space: NovaTopBarSpaceWidths, fit: NovaTopBarF
 internal fun novaTopBarContinueWidth(card: NovaTopBarContinueWidths, fit: NovaTopBarFit): Float {
     val parts = buildList {
         if (fit.showContinueCover && card.cover > 0f) add(card.cover)
-        if (fit.showContinueText) add(card.textMin)
+        if (fit.showContinueText) add(if (fit.showContinueEyebrow) card.textMin else card.titleMin)
         add(card.primary)
         if (fit.showContinueSecondary && card.secondary > 0f) add(card.secondary)
     }
@@ -153,13 +194,17 @@ internal fun novaTopBarRequiredWidth(widths: NovaTopBarWidths, fit: NovaTopBarFi
 internal fun novaTopBarOverflow(widths: NovaTopBarWidths, fit: NovaTopBarFit): Float =
     maxOf(0f, novaTopBarRequiredWidth(widths, fit) - widths.available)
 
-/** The continue card's words, so the strip can measure the card before it draws it. */
+/**
+ * The continue card's words, so the strip can measure the card before it draws it. With [refusal],
+ * the eyebrow is why an End was refused.
+ */
 internal data class NovaTopBarContinue(
     val eyebrow: String,
     val title: String,
     val actionLabel: String,
     val secondaryActionLabel: String?,
     val hasCover: Boolean,
+    val refusal: Boolean = false,
 )
 
 /**
@@ -172,6 +217,7 @@ internal fun NovaLibraryHeroState.topBarContinue(): NovaTopBarContinue = NovaTop
     actionLabel = actionLabel,
     secondaryActionLabel = secondaryActionLabel?.takeIf { secondaryAction != null },
     hasCover = game != null,
+    refusal = endStatus is NovaLibraryEndStatus.Failed,
 )
 
 /** Leave parts out, in the documented order, and stop the moment the row fits. */
@@ -186,10 +232,12 @@ private fun fitTopBar(widths: NovaTopBarWidths): NovaTopBarFit {
     var fit = NovaTopBarFit()
     fun over() = novaTopBarOverflow(widths, fit)
     val steps: List<(NovaTopBarFit) -> NovaTopBarFit> = listOf(
+        { it.copy(showContinueEyebrow = false) },
         { it.copy(showSpaceCaption = false) },
         { it.copy(showHostStatus = false) },
         { it.copy(showContinueCover = false) },
-        { it.copy(showContinueText = false) },
+        // A refused End's reason is never left out; what gives way after it does instead.
+        { if (widths.continueCard?.keepsText == true) it else it.copy(showContinueText = false) },
         { it.copy(compactSpaceStatus = true) },
     )
     for (step in steps) {

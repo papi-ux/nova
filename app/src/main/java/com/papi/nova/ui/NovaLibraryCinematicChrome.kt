@@ -6,24 +6,21 @@ import android.widget.ImageView
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -35,7 +32,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -46,10 +42,9 @@ import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
-import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaControllerHint
-import com.papi.nova.ui.compose.novaKeyChipSize
+import com.papi.nova.ui.panel.NovaPanelHintBar
 
 /**
  * What the backdrop crossfades between. Two targets are the same backdrop when they draw the
@@ -214,9 +209,6 @@ internal fun NovaLibraryCinematicControllerHints(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val opacityScale = LocalNovaMenuOpacityScale.current
-    val itemSpacing = if (compact) 10.dp else 14.dp
     val rowMaxWidth = if (compact) 600.dp else 760.dp
     Box(
         modifier = modifier
@@ -243,46 +235,20 @@ internal fun NovaLibraryCinematicControllerHints(
                     .testTag("nova-stage-footer-brand"),
             )
         }
-        Row(
+        // The one hint bar every panel draws, as wide as its hints and at the end: the round
+        // chips with no plate under them read at low contrast on the Shield's artwork (N13). Its
+        // hints wrap to a second line rather than scroll one under the edge. The bar's own words
+        // are cleared, because this row already says every hint, those it leaves out included.
+        Box(
             modifier = Modifier
                 .widthIn(max = rowMaxWidth)
-                .horizontalScroll(rememberScrollState())
+                .width(IntrinsicSize.Max)
                 .padding(start = 12.dp, end = 12.dp)
                 .padding(vertical = 6.dp)
-                .testTag("nova-library-cinematic-controller-hints-row"),
-            horizontalArrangement = Arrangement.spacedBy(itemSpacing),
-            verticalAlignment = Alignment.CenterVertically,
+                .testTag("nova-library-cinematic-controller-hints-row")
+                .clearAndSetSemantics { },
         ) {
-            hints.forEach { hint ->
-                Row(
-                    modifier = Modifier.clearAndSetSemantics { },
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(novaKeyChipSize(if (hint.key.length <= 2) 20.dp else 28.dp))
-                            .clip(CircleShape)
-                            .background(colors.accent.copy(alpha = 0.72f * opacityScale)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = hint.key,
-                            color = colors.onAccent,
-                            fontSize = if (hint.key.length <= 2) 8.sp else 6.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                        )
-                    }
-                    Text(
-                        text = hint.label,
-                        color = colors.textPrimary.copy(alpha = 0.88f),
-                        fontSize = if (compact) 10.sp else 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                    )
-                }
-            }
+            NovaPanelHintBar(hints = hints)
         }
     }
 }

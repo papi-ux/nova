@@ -1,106 +1,71 @@
 package com.papi.nova.utils
 
 import android.app.Activity
-import android.app.AlertDialog
-import android.content.DialogInterface
-import android.view.LayoutInflater
-import android.widget.ProgressBar
-import android.widget.TextView
 import com.papi.nova.R
-import com.papi.nova.ui.NovaSheetChrome
-import com.papi.nova.ui.NovaThemeManager
-import com.papi.nova.ui.NovaDialogWindows
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaStateOwner
+import com.papi.nova.ui.panel.NovaStatePage
+import com.papi.nova.ui.panel.NovaSurfaces
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.flow.MutableStateFlow
 
+/**
+ * A wait the player cannot skip past, shown as a full-screen Busy page on the activity's
+ * [NovaSurfaces]. [displayDialog] returns this handle, which updates and dismisses the page from
+ * any thread. New code uses `NovaSurfaces.busy` instead.
+ */
 class SpinnerDialog private constructor(
     private val activity: Activity,
-    private val title: String,
-    private val message: String,
-    private val finish: Boolean
-) : Runnable, DialogInterface.OnCancelListener {
-    private var dialog: AlertDialog? = null
-    private var messageView: TextView? = null
-
+    private val key: String,
+    private val message: MutableStateFlow<String>,
+) {
+    /** Takes the page down; a page already on screen still stays its minimum time. Any thread. */
     fun dismiss() {
-        activity.runOnUiThread(this)
+        NovaSurfaces.existing(activity)?.dismiss(key)
     }
 
+    /** Replaces the page's message. Any thread. */
     fun setMessage(message: String) {
-        activity.runOnUiThread {
-            messageView?.text = message
-        }
-    }
-
-    override fun run() {
-        if (activity.isFinishing) {
-            return
-        }
-
-        val activeDialog = dialog
-        if (activeDialog == null) {
-            val content = LayoutInflater.from(activity).inflate(R.layout.nova_spinner_dialog, null)
-            content.findViewById<ProgressBar>(R.id.spinner_progress)?.indeterminateDrawable?.setTint(
-                NovaThemeManager.getAccentColor(activity)
-            )
-            messageView = content.findViewById<TextView>(R.id.spinner_message).apply {
-                text = message
-            }
-
-            val builder = AlertDialog.Builder(activity)
-            builder.setTitle(title)
-            builder.setView(content)
-            builder.setOnCancelListener(this)
-            builder.setCancelable(finish)
-
-            val createdDialog = builder.create()
-            NovaSheetChrome.applyAlertDialogChrome(createdDialog)
-            dialog = createdDialog
-
-            synchronized(rundownDialogs) {
-                rundownDialogs.add(this)
-                createdDialog.show()
-                createdDialog.window?.let { NovaDialogWindows.adopt(createdDialog.context, it) }
-            }
-        } else {
-            synchronized(rundownDialogs) {
-                if (rundownDialogs.remove(this) && activeDialog.isShowing) {
-                    activeDialog.dismiss()
-                }
-            }
-        }
-    }
-
-    override fun onCancel(dialog: DialogInterface) {
-        synchronized(rundownDialogs) {
-            rundownDialogs.remove(this)
-        }
-        activity.finish()
+        this.message.value = message
     }
 
     companion object {
-        private val rundownDialogs = ArrayList<SpinnerDialog>()
+        private val serial = AtomicLong()
 
+        /**
+         * Shows [title] and [message] over the screen. With [finish], the page has a focused Cancel
+         * that finishes the activity, and B does the same; without it the page cannot be left and
+         * absorbs A and B until it is dismissed.
+         */
         @JvmStatic
         fun displayDialog(activity: Activity, title: String, message: String, finish: Boolean): SpinnerDialog {
-            val spinner = SpinnerDialog(activity, title, message, finish)
-            activity.runOnUiThread(spinner)
+            val key = "nova-legacy-spinner-" + serial.incrementAndGet()
+            val spinner = SpinnerDialog(activity, key, MutableStateFlow(message))
+            if (activity.isFinishing) return spinner
+            val cancel = if (finish) {
+                NovaAction(activity.getString(R.string.nova_panel_cancel)) {
+                    spinner.dismiss()
+                    activity.finish()
+                }
+            } else {
+                null
+            }
+            NovaSurfaces.of(activity).show(
+                NovaStatePage.Busy(
+                    key = key,
+                    title = title,
+                    message = spinner.message,
+                    cancel = cancel,
+                    owner = NovaStateOwner.LegacySpinner,
+                ),
+            )
             return spinner
         }
 
+        /** Takes down every spinner shown over [activity]. Any thread. */
         @JvmStatic
         fun closeDialogs(activity: Activity) {
-            synchronized(rundownDialogs) {
-                val iterator = rundownDialogs.iterator()
-                while (iterator.hasNext()) {
-                    val dialog = iterator.next()
-                    if (dialog.activity == activity) {
-                        iterator.remove()
-                        val activeDialog = dialog.dialog
-                        if (activeDialog != null && activeDialog.isShowing) {
-                            activeDialog.dismiss()
-                        }
-                    }
-                }
-            }
+            NovaSurfaces.existing(activity)?.clear(NovaStateOwner.LegacySpinner)
         }
     }
 }

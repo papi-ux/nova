@@ -42,15 +42,11 @@
     <string name="nettest_text_blocked">Votre appareil bloque Nova. Le streaming sur Internet peut ne pas fonctionner lorsque vous êtes connecté à ce réseau.</string>
 
     <!-- Pair messages -->
-    <string name="pairing">Appariement…</string>
     <string name="pair_pc_confirm_title">Appairer le PC</string>
     <string name="pair_pc_confirm_message">Voulez-vous vraiment vous appairer avec %s ? Veuillez ne pas vous appairer avec des ordinateurs inconnus.</string>
     <string name="pair_pc_offline">L\'ordinateur est hors ligne</string>
     <string name="pair_pc_ingame">L\'ordinateur est actuellement dans un jeu. Vous devez fermer le jeu avant l\'appairage.</string>
     <string name="pair_pairing_title">Appariement</string>
-    <string name="pair_pairing_msg">Veuillez entrer le code PIN suivant sur le PC cible :</string>
-    <string name="pair_pairing_help">Si votre PC hôte utilise Sunshine, accédez à l\'interface web de Sunshine pour saisir le code PIN.</string>
-    <string name="pair_otp_pairing_msg">Appariement, veuillez patienter…</string>
     <string name="pair_otp_pairing_help">L\'appariement OTP n\'est disponible qu\'avec Apollo, entrez manuellement le code PIN que vous venez de fournir sur l\'interface web si vous utilisez un autre logiciel hôte.</string>
     <string name="pair_incorrect_pin">Code PIN ou phrase secrète incorrect</string>
     <string name="pair_fail">Échec de l\'appariement</string>
@@ -106,12 +102,7 @@
     <!-- General strings -->
     <string name="ip_hint">Adresse IP du PC hôte</string>
     <string name="searching_pc">Recherche de PC hôtes sur votre réseau local…\n\nAssurez-vous que Sunshine est en cours d\'exécution ou que GameStream est activé dans les paramètres GeForce Experience SHIELD.</string>
-    <string name="yes">Oui</string>
-    <string name="no">Non</string>
-    <string name="lost_connection">Connexion perdue avec le PC</string>
     <string name="title_details">Détails</string>
-    <string name="help">Aide</string>
-    <string name="delete_pc_msg">Êtes-vous sûr de vouloir supprimer ce PC ?</string>
     <string name="slow_connection_msg">Connexion lente au PC\nRéduisez votre débit</string>
     <string name="poor_connection_msg">Mauvaise connexion au PC</string>
     <string name="perf_overlay_streamdetails">Stream vidéo : %1$s %2$.2f FPS</string>
@@ -141,19 +132,15 @@
     <string name="applist_refresh_msg">Actualisation des applications…</string>
     <string name="applist_refresh_error_title">Erreur</string>
     <string name="applist_refresh_error_msg">Impossible d\'obtenir la liste des applications</string>
-    <string name="applist_quit_app">Fermeture de</string>
     <string name="applist_quit_success">Application fermée avec succès</string>
     <string name="applist_quit_fail">Échec de la fermeture</string>
-    <string name="applist_quit_confirmation">Voulez-vous vraiment quitter l\'application en cours d\'exécution ? Toutes les données non enregistrées seront perdues.</string>
     <string name="applist_details_id">ID de l\'appli :</string>
 
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Ajouter un PC manuellement</string>
     <string name="msg_add_pc">Connexion au PC…</string>
     <string name="addpc_fail">Impossible de se connecter à l\'ordinateur spécifié. Assurez-vous que les ports requis sont autorisés via le pare-feu.</string>
-    <string name="addpc_success">Ordinateur ajouté avec succès</string>
     <string name="addpc_unknown_host">Impossible de résoudre l\'adresse du PC. Assurez-vous que vous n\'avez pas fait de faute de frappe dans l\'adresse.</string>
-    <string name="addpc_enter_ip">Vous devez entrer une adresse IP</string>
     <string name="addpc_wrong_sitelocal">Cette adresse ne semble pas correcte. Vous devez utiliser l\'adresse IP publique de votre routeur pour le streaming depuis Internet.</string>
 
     <!-- Preferences -->
@@ -332,22 +319,7 @@
     <string name="accessibility_description_text">Utilisé uniquement lorsque les raccourcis clavier physiques sont interceptés par le système. Dans certains systèmes, plusieurs raccourcis clavier sont définis et utilisés par le système Android, empêchant leur transmission au PC hôte. Nova ne regardera pas votre saisie, ni ne collectera votre mot de passe, votre numéro de carte de crédit ou toute autre information personnelle.</string>
 
     <!-- In Game menu -->
-    <string name="game_menu_toggle_keyboard">Afficher le clavier logiciel</string>
-    <string name="game_menu_toggle_hud">Basculer l\'affichage des performances</string>
-    <string name="game_menu_select_mouse_mode">Sélectionner le mode de la souris</string>
-    <string name="game_menu_enable_zoom_mode">Activer le mode Zoom/Panoramique</string>
-    <string name="game_menu_disable_zoom_mode">Désactiver le mode Zoom/Panoramique</string>
-    <string name="game_menu_rotate_screen">Pivoter l\'écran</string>
-    <string name="game_menu_toggle_keyboard_model">Basculer les touches spéciales</string>
-    <string name="game_menu_toggle_virtual_model">Basculer le contrôleur à l\'écran</string>
-    <string name="game_menu_toggle_virtual_keyboard_model">Basculer le clavier virtuel complet</string>
-    <string name="game_menu_switch_touch_sensitivity_model">Changer la sensibilité tactile</string>
-    <string name="game_menu_toggle_mouse_on">Activer l\'émulation de la souris par la manette</string>
-    <string name="game_menu_toggle_mouse_off">Désactiver l\'émulation de la souris par la manette</string>
     <string name="game_menu_disconnect">Déconnecter</string>
-    <string name="game_menu_cancel">Annuler</string>
-    <string name="game_menu_task_manager">Ouvrir le gestionnaire des tâches</string>
-    <string name="game_menu_send_keys">Envoyer des touches spéciales</string>
     <string name="game_menu_send_keys_esc">ÉCHAP</string>
     <string name="game_menu_send_keys_f11">F11</string>
     <string name="game_menu_send_keys_alt_f4">Alt + F4</string>
@@ -387,7 +359,7 @@
     <string name="summary_custom_refresh_rate">Entrez le taux de rafraîchissement manuellement. Seulement pris en charge par Apollo.</string>
     <string name="dialog_custom_refresh_rate">Entrez le taux de rafraîchissement en Hz. Peut être fractionnaire.</string>
     <string name="title_touchscreen_mode">Mode de l\'écran tactile</string>
-    <string name="summary_touchscreen_mode">Choisissez entre les modes MultiTouch/SingleTouch/Trackpad/Désactivé.\nLe stylet/stylo sont toujours utilisables lorsque le mode Désactivé est sélectionné.\nForcé en mode Track Pad(Natural) lors de l\'utilisation d\'un affichage externe.</string>
+    <string name="summary_touchscreen_mode">Choisissez entre les modes MultiTouch/SingleTouch/Trackpad/Désactivé.\nLe stylet/stylo sont toujours utilisables lorsque le mode Désactivé est sélectionné.\nForcé en mode Track pad (Natural) lors de l\'utilisation d\'un affichage externe.</string>
 
     <!-- New Strings -->
     <string name="title_checkbox_mouse_local_cursor">Utiliser le curseur local de la souris</string>
@@ -487,7 +459,6 @@
     <string name="perf_overlay_lite_bandwidth">Bande passante</string>
     <string name="perf_overlay_lite_network_decoding_delay">Délai de décodage/réseau</string>
     <string name="perf_overlay_lite_packet_loss">Perte de paquets</string>
-    <string name="quick_menu_title">Menu rapide</string>
     <string name="wrong_import_format">Mauvais format d\'importation, veuillez vérifier !</string>
     <string name="title_checkbox_gamepad_enable_battery_report">Activer le rapport d\'état de la batterie pour la manette</string>
     <string name="summary_checkbox_gamepad_enable_battery_report">Signaler l\'état de la batterie de la manette lorsque cela est possible.\nLa désactivation de cette option peut aider si vous rencontrez des problèmes de bégaiement avec l\'entrée tactile/trackpad/stylet/souris.</string>
@@ -524,10 +495,8 @@
     <string name="debug_info_vibration_amplitude">Amplitude de vibration (%d)</string>
     <string name="debug_info_simple_vibration">Vibration simple pendant 1 seconde</string>
     <string name="debug_info_continuous_hd_vibration">Vibration HD continue</string>
-    <string name="debug_info_please_choose">Veuillez choisir</string>
     <string name="debug_info_no_gamepad_detected">Aucune manette détectée, veuillez connecter une manette, appuyer sur actualiser, puis réessayer !</string>
     <string name="debug_info_no_vibrator">Aucun vibreur détecté sur la manette !</string>
-    <string name="debug_info_set_amplitude">Définir l\'amplitude 0-255 (Efficace uniquement pour la vibration HD)</string>
     <string name="debug_info_name">Nom : </string>
     <string name="debug_info_sensors">Capteurs : </string>
     <string name="debug_info_no_relevant_driver">Aucun (aucun pilote pertinent ou manette non prise en charge)</string>
@@ -550,14 +519,9 @@
     <string name="pref_import_success">Importation réussie !</string>
     <string name="pref_error_occurred">Une erreur s\'est produite : </string>
     <string name="pref_save_keyboard_profile">Enregistrer le profil OSK</string>
-    <string name="game_menu_advanced">Menu avancé</string>
     <string name="game_dialog_title_quit_confirm">Voulez-vous vraiment quitter ?</string>
     <string name="game_dialog_message_quit_confirm">Veuillez vous assurer que vous n\'avez aucune progression non enregistrée. La quittance de la session mettra fin à l\'application en cours d\'exécution.</string>
-    <string name="game_menu_quit_session">Quitter la session</string>
     <string name="game_menu_server_cmd">Commandes du serveur</string>
-    <string name="game_menu_fetch_clipboard">Récupérer le presse-papiers</string>
-    <string name="game_menu_upload_clipboard">Télécharger le presse-papiers</string>
-    <string name="game_dialog_title_server_cmd_empty">Aucune commande de serveur</string>
     <string name="game_dialog_message_server_cmd_empty">Veuillez vous assurer que vous utilisez Apollo comme logiciel serveur et que vous avez accordé à ce client l\'autorisation "Commande de serveur".</string>
     <string name="vdisplay_not_ready">Le pilote d\'affichage virtuel n\'est pas prêt sur le serveur. Veuillez vous assurer que le pilote SudoVDA est installé et activé.</string>
     <string name="vdisplay_not_supported"><![CDATA[L\'affichage virtuel n\'est pas pris en charge sur ce serveur. Veuillez utiliser <a href=\"https://github.com/ClassicOldSong/Apollo\">Apollo</a> comme logiciel de streaming hôte.]]></string>

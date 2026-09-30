@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -51,23 +52,27 @@ class NovaRevealingTextTest {
     @Test
     fun theTilesThatCutTheirTextRevealItWhenHighlighted() {
         val row = read("main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
-            .section("internal fun NovaSteamChoiceRow(", "if (value.isNotBlank()) {")
-        assertTrue(
-            "a row or a card under the cursor shows its whole caption, and a name too long for it runs past",
-            row.contains("NovaRevealingText(") && row.contains("highlighted = focused,") &&
-                row.contains("Modifier.basicMarquee(iterations = Int.MAX_VALUE)")
+            .section("internal fun NovaSteamChoiceRow(", "private val ChoiceRowValueMeasurePolicy")
+        assertFalse(
+            "a choice row cuts nothing, so it has nothing to reveal: its name and caption wrap whole, " +
+                "and no marquee runs under the cursor, which was an endless animation inside a panel (R13)",
+            row.contains("NovaRevealingText(") || row.contains("basicMarquee") ||
+                row.contains("maxLines") || row.contains("TextOverflow")
         )
         val setup = read("main/java/com/papi/nova/ui/NovaPlaySetup.kt")
-        assertTrue(
-            "the cursor never stops on a legend card, so the current choice is the one that plays, twice",
-            setup.contains("highlighted = option.current,") && setup.contains("passes = 2,")
+        assertFalse(
+            "Play Setup cuts nothing, so it has nothing to reveal: its rows, its options and the plan say every " +
+                "sentence whole, and the reveal that replayed inside the panel was an animation with no end (R13)",
+            setup.contains("NovaRevealingText(") || setup.contains("passes =")
         )
+        val option = setup.section("internal fun NovaPlaySetupOptionRow(", "internal fun NovaPlaySetupBands(")
         assertTrue(
-            "a place the game cannot open in says why in a caption, so the cursor may stand on it to read it",
-            setup.section("internal fun NovaPlaySetupDestinations(", "internal fun novaPlaySetupConsequenceLines(")
-                .contains("focusableWhenDisabled = true,") &&
+            "a place or a size that cannot be chosen says why on its own line at rest, \"Not available\" and its " +
+                "reason, whole, so it is read without the cursor standing on it",
+            option.contains("!option.enabled -> listOf(notAvailable, option.consequence)") &&
+                !option.contains("maxLines") &&
                 read("main/java/com/papi/nova/ui/NovaGameDetailDestinations.kt")
-                    .contains(".focusable(enabled = actionable || focusableWhenDisabled)")
+                    .contains("focusableWhenDisabled = focusableWhenDisabled,")
         )
     }
 

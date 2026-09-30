@@ -34,12 +34,13 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.NovaActionButton
 import com.papi.nova.ui.compose.NovaControllerHint
-import com.papi.nova.ui.compose.NovaControllerHintBar
+import com.papi.nova.ui.panel.NovaPanelDensityHost
+import com.papi.nova.ui.panel.NovaPanelHintBar
 import kotlinx.coroutines.delay
 
 /**
- * The Space chooser, in the detail window's row grammar: the current Space marked, a status
- * chip on every row, and A/B hints at the foot.
+ * The Space chooser, in the detail window's row grammar: the current Space carrying the one
+ * current mark, a status chip on every row, the one focus look, and A/B hints at the foot.
  *
  * Rows stay selectable while a Space is starting, stopping or in use, because choosing a
  * Space is how you browse its games; only what the host says cannot run at all is off. Focus
@@ -105,7 +106,7 @@ internal fun NovaSpaceChooser(
                 caption = stringResource(desktop.caption),
                 enabled = desktop.enabled,
                 onClick = { onChoose("desktop") },
-                selected = current == "desktop",
+                current = current == "desktop",
                 autoFocus = current == "desktop",
                 modifier = Modifier.testTag("nova-space-choice-desktop"),
                 describeCaption = !snapshot.desktopAllowed,
@@ -124,7 +125,7 @@ internal fun NovaSpaceChooser(
                     ),
                     enabled = snapshot.canSwitch && space.state != "unavailable",
                     onClick = { onChoose(space.id) },
-                    selected = space.selected,
+                    current = space.selected,
                     badge = stringResource(NovaSpacesCopy.stateLabel(space.state)),
                     autoFocus = space.selected,
                     modifier = Modifier.testTag("nova-space-choice-${space.id}"),
@@ -136,13 +137,15 @@ internal fun NovaSpaceChooser(
                 minHeight = 48.dp,
                 modifier = Modifier.focusRequester(backFocus).testTag("nova-space-chooser-back"),
             )
-            NovaControllerHintBar(
-                hints = listOf(
-                    NovaControllerHint(stringResource(R.string.nova_controller_hint_a), stringResource(R.string.nova_controller_hint_select)),
-                    NovaControllerHint(stringResource(R.string.nova_controller_hint_b), stringResource(R.string.nova_controller_hint_back)),
-                ),
-                compact = true,
-            )
+            // The one hint bar, at the density the panels on this screen draw theirs.
+            NovaPanelDensityHost {
+                NovaPanelHintBar(
+                    hints = listOf(
+                        NovaControllerHint(stringResource(R.string.nova_controller_hint_a), stringResource(R.string.nova_controller_hint_select)),
+                        NovaControllerHint(stringResource(R.string.nova_controller_hint_b), stringResource(R.string.nova_controller_hint_back)),
+                    ),
+                )
+            }
         }
     }
 }

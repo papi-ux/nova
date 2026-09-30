@@ -19,11 +19,9 @@
     <string name="nettest_title_done">Ολοκληρώθηκε η δοκιμή δικτύου</string>
     <string name="nettest_text_inconclusive">Η δοκιμή δικτύου δεν μπορούσε να πραγματοποιηθεί επειδή κανένας από τους διακομιστές δοκιμής σύνδεσης της Nova δεν ήταν προσβάσιμος. Ελέγξτε τη σύνδεσή σας στο Internet ή δοκιμάστε ξανά αργότερα.</string>
     <string name="nettest_text_blocked">Η τρέχουσα σύνδεση δικτύου της συσκευής σας εμποδίζει το Nova. Η ροή μέσω του Internet ενδέχεται να μην λειτουργεί ενώ είστε συνδεδεμένοι σε αυτό το δίκτυο.</string>
-    <string name="pairing">Σύζευξη…</string>
     <string name="pair_pc_offline">Ο υπολογιστής είναι εκτός σύνδεσης</string>
     <string name="pair_pc_ingame">Ο υπολογιστής βρίσκεται αυτή τη στιγμή σε παιχνίδι. Πρέπει να κλείσετε το παιχνίδι πριν κάνετε σύζευξη.</string>
     <string name="pair_pairing_title">Σύζευξη</string>
-    <string name="pair_pairing_msg">Εισαγάγετε τον ακόλουθο κωδικό PIN στον υπολογιστή προορισμού:</string>
     <string name="pair_incorrect_pin">Λανθασμένο PIN</string>
     <string name="pair_already_in_progress">Η σύζευξη βρίσκεται ήδη σε εξέλιξη</string>
     <string name="wol_pc_online">Ο υπολογιστής είναι συνδεδεμένος</string>
@@ -42,7 +40,6 @@
     <string name="applist_refresh_error_title">Σφάλμα</string>
     <string name="applist_refresh_error_msg">Απέτυχε η λήψη λίστας εφαρμογών</string>
     <string name="applist_quit_fail">Αποτυχία διακοπής</string>
-    <string name="applist_quit_confirmation">Είστε σίγουροι ότι θέλετε να τερματίσετε την τρέχουσα εφαρμογή; Όλα τα μη αποθηκευμένα δεδομένα θα χαθούν.</string>
     <string name="dialog_text_reset_osc">Είστε βέβαιοι ότι θέλετε να διαγράψετε την αποθηκευμένη διάταξη στοιχείων ελέγχου στην οθόνη;</string>
     <string name="title_enable_perf_overlay">Εμφάνιση στατιστικών στοιχείων απόδοσης κατά τη ροή</string>
     <string name="unpair_error">Η συσκευή δεν είχε συζευξηθεί</string>
@@ -64,14 +61,12 @@
     <string name="conn_starting">Εκκίνηση</string>
     <string name="conn_terminated_msg">Η σύνδεση τερματίστηκε</string>
     <string name="ip_hint">Διεύθυνση IP του υπολογιστή GeForce</string>
-    <string name="yes">Ναί</string>
     <string name="perf_overlay_streamdetails">Ροή βίντεο: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Αποκωδικοποιητής: %1$s</string>
     <string name="perf_overlay_incomingfps">Ρυθμός εισερχόμενων καρέ από το δίκτυο: %1$.2f FPS</string>
     <string name="applist_menu_cancel">Ακύρωση</string>
     <string name="applist_menu_tv_channel">Προσθήκη στο κανάλι</string>
     <string name="applist_refresh_msg">Ανανέωση εφαρμογών…</string>
-    <string name="addpc_success">Ο υπολογιστής προστέθηκε με επιτυχία</string>
     <string name="addpc_unknown_host">Αδυναμία επίλυσης διεύθυνσης υπολογιστή. Βεβαιωθείτε ότι δεν κάνατε τυπογραφικό λάθος στη διεύθυνση.</string>
     <string name="title_fps_list">Ρυθμός καρέ βίντεο</string>
     <string name="summary_fps_list">Αύξηση για πιο ομαλή ροή βίντεο. Μειώστε για καλύτερες επιδόσεις σε συσκευές χαμηλότερων προδιαγραφών.</string>
@@ -140,15 +135,12 @@
 \n
 \nΑν το πρόβλημα παραμένει, δοκιμάστε να επανεγκαταστήσετε τα προγράμματα οδήγησης της κάρτας γραφικών και το GeForce Experience.</string>
     <string name="conn_terminated_title">Η σύνδεση τερματίστηκε</string>
-    <string name="help">Βοήθεια</string>
     <string name="perf_overlay_netdrops">Πλαίσια που απορρίπτονται από τη σύνδεση δικτύου σας: %1$.2f%%</string>
-    <string name="applist_quit_app">Εγκατάλειψη</string>
     <string name="msg_add_pc">Σύνδεση στον υπολογιστή…</string>
     <string name="error_404">Το GFE επέστρεψε ένα σφάλμα HTTP 404. Βεβαιωθείτε ότι ο υπολογιστής σας χρησιμοποιεί μια υποστηριζόμενη κάρτα γραφικών. Η χρήση λογισμικού απομακρυσμένης επιφάνειας εργασίας μπορεί επίσης να προκαλέσει αυτό το σφάλμα. Δοκιμάστε την επανεκκίνηση του υπολογιστή σας ή την επανεγκατάσταση του GFE.</string>
     <string name="video_decoder_init_failed">Απέτυχε η προετοιμασία του αποκωδικοποιητή βίντεο. Η συσκευή σας ενδέχεται να μην υποστηρίζει την επιλεγμένη ανάλυση ή ρυθμό καρέ.</string>
     <string name="perf_overlay_dectime">Μέσος χρόνος αποκωδικοποίησης: %1$.2f ms</string>
     <string name="title_add_pc">Προσθήκη υπολογιστή χειροκίνητα</string>
-    <string name="lost_connection">Χάθηκε η σύνδεση με τον υπολογιστή</string>
     <string name="title_details">Λεπτομέρειες</string>
     <string name="applist_menu_resume">Συνέχιση περιόδου λειτουργίας</string>
     <string name="applist_menu_quit">Έξοδος από τη συνεδρία</string>
@@ -158,8 +150,6 @@
     <string name="searching_pc">Αναζήτηση για υπολογιστές με GameStream σε λειτουργία...
 \n
 \n Βεβαιωθείτε ότι το GameStream είναι ενεργοποιημένο στις ρυθμίσεις GeForce Experience SHIELD.</string>
-    <string name="no">Οχι</string>
-    <string name="delete_pc_msg">Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτόν τον υπολογιστή;</string>
     <string name="slow_connection_msg">Αργή σύνδεση με υπολογιστή
 \nΜειώστε το bitrate σας</string>
     <string name="poor_connection_msg">Κακή σύνδεση με τον υπολογιστή</string>
@@ -172,7 +162,6 @@
     <string name="applist_menu_scut">Δημιουργία συντόμευσης</string>
     <string name="applist_details_id">Αναγνωριστικό εφαρμογής:</string>
     <string name="addpc_fail">Αδυναμία σύνδεσης με τον καθορισμένο υπολογιστή. Βεβαιωθείτε ότι οι απαιτούμενες θύρες επιτρέπονται μέσω του τείχους προστασίας.</string>
-    <string name="addpc_enter_ip">Πρέπει να εισαγάγετε μια διεύθυνση IP</string>
     <string name="title_resolution_list">Ανάλυση βίντεο</string>
     <string name="summary_audio_config_list">Ενεργοποίηση ήχου surround 5.1 ή 7.1 για συστήματα οικιακού κινηματογράφου</string>
     <string name="category_input_settings">Ρυθμίσεις εισόδου</string>
@@ -210,7 +199,6 @@
 \n
 \nΔοκιμάστε να απενεργοποιήσετε τη λειτουργία HDR, να αλλάξετε την ανάλυση ροής ή να αλλάξετε την ανάλυση οθόνης του υπολογιστή φιλοξενίας.</string>
     <string name="pcview_menu_eol">Λήξη Υποστήριξης NVIDA GameStream</string>
-    <string name="pair_pairing_help">Εάν ο υπολογιστής οικοδεσπότης χρησιμοποιεί το Sunshine, πλοηγηθείτε στην διαδικτυακή διεπαφή χρήστη του Sunshine για να εισάγετε το PIN.</string>
     <string name="title_enable_commit_text">Ενεργοποίηση εισαγωγής commit-text (σάρωση/φωνή)</string>
     <string name="summary_enable_commit_text">Προωθεί κείμενο πολλών χαρακτήρων από τα εικονικά πληκτρολόγια (σάρωση, προτάσεις, φωνητική πληκτρολόγηση). Ίσως προκαλέσει προβλήματα σε παιχνίδια που βασίζονται σε πληκτρολόγηση πλήκτρο-πλήκτρο.</string>
 </resources>

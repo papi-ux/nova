@@ -11,6 +11,7 @@
 #include "pyrowave_device.h"
 
 #include "pyrowave_device_c.h"
+#include "pyrowave_feature_diagnostics.h"
 
 #include <android/log.h>
 #include <dlfcn.h>
@@ -36,6 +37,8 @@ namespace nova_vk {
       PFN_vkDestroyInstance destroy_instance = nullptr;
       PFN_vkEnumeratePhysicalDevices enumerate_physical_devices = nullptr;
       PFN_vkGetPhysicalDeviceProperties2 get_physical_device_properties2 = nullptr;
+      PFN_vkGetPhysicalDeviceProperties get_physical_device_properties = nullptr;
+      PFN_vkEnumerateDeviceExtensionProperties enumerate_device_extensions = nullptr;
       PFN_vkGetPhysicalDeviceFeatures2 get_physical_device_features2 = nullptr;
       PFN_vkGetPhysicalDeviceQueueFamilyProperties get_queue_family_properties = nullptr;
       PFN_vkCreateDevice create_device = nullptr;
@@ -92,6 +95,10 @@ namespace nova_vk {
           reinterpret_cast<PFN_vkEnumeratePhysicalDevices>(get("vkEnumeratePhysicalDevices"));
         get_physical_device_properties2 = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2>(
           get("vkGetPhysicalDeviceProperties2"));
+        get_physical_device_properties = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(
+          get("vkGetPhysicalDeviceProperties"));
+        enumerate_device_extensions = reinterpret_cast<PFN_vkEnumerateDeviceExtensionProperties>(
+          get("vkEnumerateDeviceExtensionProperties"));
         get_physical_device_features2 = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2>(
           get("vkGetPhysicalDeviceFeatures2"));
         get_queue_family_properties = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(
@@ -128,8 +135,11 @@ namespace nova_vk {
     graphics_family = VK_QUEUE_FAMILY_IGNORED;
   }
 
-  bool device_t::create(bool want_presentation) {
+  bool device_t::create(bool want_presentation, uint32_t *missing_features) {
     destroy();
+    if (missing_features) {
+      *missing_features = 0;
+    }
 
     if (!loader.open()) {
       return false;
@@ -242,6 +252,12 @@ namespace nova_vk {
         !vulkan12.storageBuffer8BitAccess || !vulkan12.timelineSemaphore ||
         !vulkan13.subgroupSizeControl || !vulkan13.computeFullSubgroups) {
       LOGW("this GPU lacks a feature the codec's shaders need");
+      if (missing_features) {
+        *missing_features = missing_required_features(physical_device,
+          loader.get_physical_device_properties, loader.enumerate_device_extensions,
+          loader.get_physical_device_features2);
+        LOGW("missing required Vulkan features: 0x%x", *missing_features);
+      }
       destroy();
       return false;
     }
@@ -305,8 +321,16 @@ namespace nova_vk {
 }  // namespace nova_vk
 
 extern "C" void *pyrowave_device_acquire(bool want_presentation, pyrowave_device *out_codec_device) {
+  return pyrowave_device_acquire_diagnosed(want_presentation, out_codec_device, nullptr);
+}
+
+extern "C" void *pyrowave_device_acquire_diagnosed(bool want_presentation,
+    pyrowave_device *out_codec_device, uint32_t *missing_features) {
+  if (out_codec_device) {
+    *out_codec_device = nullptr;
+  }
   auto *owned = new nova_vk::device_t();
-  if (!owned->create(want_presentation)) {
+  if (!owned->create(want_presentation, missing_features)) {
     delete owned;
     return nullptr;
   }
