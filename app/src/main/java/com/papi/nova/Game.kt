@@ -1782,10 +1782,7 @@ configuredStreamHdr = willStreamHdr
             if (pyroWaveWarning != null)
             {
                 LimeLog.warning(pyroWaveWarning.logLine)
-                if (pyroWaveWarning.tellPlayer)
-                {
-                    NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, pyroWaveAdvice.mbps))
-                }
+                // Actionable advice stays in Command Center's recommendation row.
             }
         }
 doctorTelemetry.reset()

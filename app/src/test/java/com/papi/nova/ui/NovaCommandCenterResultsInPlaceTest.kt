@@ -35,10 +35,12 @@ class NovaCommandCenterResultsInPlaceTest {
     }
 
     @Test
-    fun aSavedLaunchPresetIsSaidOnItsRow() {
-        val pick = menu.section("onProfilePreference = {", "onQuickKey = {")
-        assertFalse("nothing about the pick floats", pick.contains("NovaSnackbar"))
-        assertTrue("the save is the row's caption", pick.contains("launchPresetSaved = true"))
-        assertTrue(state.contains("launchPresetSaved -> context.getString(\n                        R.string.nova_quick_menu_profile_preference_saved"))
+    fun livePictureResultsBelongToTheStreamAndNeverWriteTheNextLaunchPreset() {
+        assertTrue(menu.contains("game.novaBitrateAction(::bitrateMenuCurrent)"))
+        assertFalse(menu.contains("AutoQualityProfilePreferences.save("))
+        val content=File("src/main/java/com/papi/nova/ui/NovaQuickMenuContent.kt").readText()
+        val picture=content.section("private fun NovaPageScope.NovaQuickMenuStabilityCard(", "private fun NovaQuickMenuStaticCard(")
+        assertTrue(picture.contains("picture.result ?: picture.reason"))
+        assertFalse(picture.contains("NovaSnackbar"))
     }
 }

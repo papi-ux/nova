@@ -55,10 +55,11 @@ class NovaPlaySetupDeviceConsumerTest {
         val rows = buildNovaDevicePlaySetupRows(model.uiState.value) { definition,value -> model.setValue(definition,value) }
         assertTrue("the real device settings have six rows", rows.size>=6)
         val quality = rows.first { it.label=="Quality" }
+        var writes = 0
         val keys = rule.setPanelContent {
             val state by model.uiState.collectAsState()
             Column {
-                buildNovaDevicePlaySetupRows(state) { definition,value -> model.setValue(definition,value) }.forEach { row ->
+                buildNovaDevicePlaySetupRows(state) { definition,value -> writes++; model.setValue(definition,value) }.forEach { row ->
                     NovaPlaySetupSettingRow(row, {}, Modifier.testTag("device-${row.label}"))
                 }
             }
@@ -66,7 +67,12 @@ class NovaPlaySetupDeviceConsumerTest {
         rule.frames(8)
         rule.onNodeWithTag("device-Quality").requestFocus()
         keys.press(NovaTestKeys.LEFT); rule.frames(10)
-        rule.waitUntil(5000) { model.pictureTier!=NovaTier.CUSTOM }
+        assertEquals("Left reached the actual device-setting callback",1,writes)
+        val savedBy = System.nanoTime()+5_000_000_000L
+        while (model.pictureTier==NovaTier.CUSTOM && System.nanoTime()<savedBy) {
+            shadowOf(Looper.getMainLooper()).idle();rule.frames(1);Thread.sleep(5)
+        }
+        assertNotEquals(NovaTier.CUSTOM,model.pictureTier)
         assertEquals(201124,prefs.getInt("seekbar_bitrate_kbps",0))
         assertFalse(prefs.getBoolean(NovaSettingsMigration.CUSTOM_AUTO,true))
         assertFalse(prefs.contains("nova_stream_preset"))
