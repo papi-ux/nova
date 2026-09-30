@@ -41,7 +41,7 @@ class Issue157ThorRegressionSourceTest {
         val strings = File("src/main/res/values/strings.xml").readText()
 
         assertTrue(pcView.contains("setOnServerActionListener"))
-        assertTrue(pcView.contains("showServerBottomSheet(computer)"))
+        assertTrue(pcView.contains("showHostPanel(computer)"))
         assertTrue(adapter.contains("serverActionListener"))
         assertTrue(adapter.contains("setOnClickListener { serverActionListener?.invoke(obj) }"))
         assertTrue(layout.contains("@+id/server_actions_button"))
@@ -76,7 +76,8 @@ class Issue157ThorRegressionSourceTest {
         assertTrue(pcView.contains("appContext.bindService("))
         assertTrue(pcView.contains("Context.BIND_AUTO_CREATE"))
         assertTrue(pcView.contains("appContext.unbindService(removalConnection)"))
-        assertTrue(pcView.contains("Toast.makeText(appContext, failureMessage"))
+        // A failed removal still tells the player, on a page that stays until it is closed (audit X2).
+        assertTrue(pcView.contains("showHostsNotice(deleteTitle, failureMessage)"))
         val pcRemoval = pcView.substringAfter("private fun removeComputer(details: ComputerDetails)")
             .substringBefore("private fun checkAutoNavigation")
         val preferenceCleanupIndex = pcRemoval.indexOf("appContext.getSharedPreferences")
@@ -101,8 +102,13 @@ class Issue157ThorRegressionSourceTest {
         assertTrue(source.contains("serviceBound = bindService("))
         assertTrue(source.contains("thread.join(500L)"))
         assertTrue(source.contains("if (serviceBound)"))
-        val deepLinkConfirm = source.substringAfter("setPositiveButton(getString(R.string.proceed)").substringBefore("setNegativeButton")
+        // The deep link's pairing confirm is a Confirm page now, built by novaPairLinkConfirmPage;
+        // its Pair queues the host and leaves the screen to the add worker, as the dialog's
+        // Proceed did.
+        val deepLinkConfirm = source.substringAfter("novaPairLinkConfirmPage(this, hostName) {").substringBefore("}")
+        assertTrue(deepLinkConfirm.contains("computersToAdd.add("))
         assertFalse(deepLinkConfirm.contains("finish()"))
+        assertTrue(source.contains("onConfirm = onPair,"))
         assertFalse(source.contains("managerBinder!!.addComputerBlocking"))
         assertFalse(source.contains("thread.join()"))
     }

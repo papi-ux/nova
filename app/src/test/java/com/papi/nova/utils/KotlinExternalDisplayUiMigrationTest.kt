@@ -75,10 +75,6 @@ class KotlinExternalDisplayUiMigrationTest {
         )
         ExternalDisplayControlPresentation::class.java.getMethod("hideGameMenu")
         ExternalDisplayControlPresentation::class.java.getMethod("isGameMenuOpen")
-        com.papi.nova.GameMenu::class.java.getMethod(
-            "setOnMenuDismissedListener",
-            Function0::class.java,
-        )
         com.papi.nova.Game::class.java.getMethod(
             "showGameMenuFromDisplay",
             Int::class.javaPrimitiveType!!,
@@ -88,22 +84,14 @@ class KotlinExternalDisplayUiMigrationTest {
             "handleQuickMenuBackFromDisplay",
             Int::class.javaPrimitiveType!!,
         )
-        com.papi.nova.GameMenu::class.java.getConstructor(com.papi.nova.Game::class.java)
-        com.papi.nova.GameMenu::class.java.getConstructor(
+        // The companion's Command Center is the stream's, built on the companion display's
+        // surfaces; Mouse Mode is a page inside it, so it needs no window type or token of its own.
+        com.papi.nova.ui.NovaQuickMenu::class.java.getConstructor(
             com.papi.nova.Game::class.java,
-            Context::class.java
+            com.papi.nova.ui.panel.NovaSurfaces::class.java,
         )
-        com.papi.nova.GameMenu::class.java.getConstructor(
-            com.papi.nova.Game::class.java,
-            Context::class.java,
-            Int::class.javaObjectType
-        )
-        com.papi.nova.Game::class.java.getMethod("selectMouseMode", Context::class.java)
-        com.papi.nova.Game::class.java.getMethod(
-            "selectMouseMode",
-            Context::class.java,
-            Int::class.javaObjectType
-        )
+        com.papi.nova.Game::class.java.getMethod("mouseModeChoices")
+        com.papi.nova.Game::class.java.getMethod("chooseMouseMode", Int::class.javaPrimitiveType!!)
         GameDisplayLaunchTrampolineActivity::class.java.getMethod(
             "launchGameOnRequestedDisplay",
             Context::class.java,
@@ -151,13 +139,6 @@ class KotlinExternalDisplayUiMigrationTest {
         UiHelper::class.java.getMethod(
             "displayQuitConfirmationDialog",
             Activity::class.java,
-            Runnable::class.java,
-            Runnable::class.java
-        )
-        UiHelper::class.java.getMethod(
-            "displayDeletePcConfirmationDialog",
-            Activity::class.java,
-            ComputerDetails::class.java,
             Runnable::class.java,
             Runnable::class.java
         )

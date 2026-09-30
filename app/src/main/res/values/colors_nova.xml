@@ -31,7 +31,8 @@
     <color name="nova_oled_divider">#FF1a1a22</color>
     <color name="nova_oled_text_primary">#FFe0e6ed</color>
     <color name="nova_oled_text_secondary">#FFa8b0b8</color>
-    <color name="nova_oled_text_muted">#FF555e66</color>
+    <!-- 5.4:1 on the card and the panel. The #555E66 it replaces read at 3.0:1, too dim for a caption. -->
+    <color name="nova_oled_text_muted">#FF7F878E</color>
     <color name="nova_oled_accent">#FF8b80ff</color>
     <color name="nova_oled_accent_surface">#148b80ff</color>
 
@@ -79,7 +80,8 @@
     <!-- 01 Light Cyan -->
     <color name="nova_text_primary">#FFC8D6E5</color>
     <color name="nova_text_secondary">#FFa8b0b8</color>
-    <color name="nova_text_muted">#FF7a8e95</color>
+    <!-- 4.9:1 on the card and 5.7:1 on the panel; the #7A8E95 it replaces read at 3.7:1 on the card. -->
+    <color name="nova_text_muted">#FF91A4AD</color>
 
     <!-- 04 Medium Purple. The blue this replaces was never the brand accent, and the
          detail window had ended up drawing both at once. -->
@@ -121,8 +123,13 @@
     <color name="nova_accent_glow">@color/nova_polaris_accent_glow</color>
     <color name="nova_accent_surface">@color/nova_polaris_accent_surface</color>
     <color name="nova_success">#FF4ade80</color>
+    <!-- The positive colour on a light card, where the light green would not read at 4.5:1. -->
+    <color name="nova_success_on_light">#FF166534</color>
     <color name="nova_warning">#FFfbbf24</color>
     <color name="nova_error">#FFf87171</color>
+    <!-- The destructive fill on a light surface, where the light red stands out from it at under
+         3:1. White reads on it at 6.5:1. -->
+    <color name="nova_error_on_light">#FFB3261E</color>
 
     <!-- 03 Dim Gray -->
     <color name="nova_divider">#FF4C5265</color>

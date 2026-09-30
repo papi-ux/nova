@@ -20,8 +20,11 @@ class LaunchRefusalReasonTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val updatePolaris = context.getString(R.string.nova_launch_deterministic_host_required)
 
+        // A host that answered without a settled profile is a current Polaris: on the RP6 it
+        // happened right after a game profile was cleared, and "Update Polaris" sent papi to fix
+        // the one thing that was fine.
         assertEquals(
-            listOf(LaunchRefusalReason.HOST_TOO_OLD, LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC),
+            listOf(LaunchRefusalReason.HOST_TOO_OLD),
             LaunchRefusalReason.entries.filter {
                 context.getString(it.messageRes()) == updatePolaris
             },

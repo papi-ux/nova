@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.content.FileProvider
 import com.papi.nova.LimeLog
+import com.papi.nova.R
 import java.io.File
 
 /**
@@ -57,7 +58,7 @@ object SupportReportSharing {
                 putExtra(Intent.EXTRA_SUBJECT, "Nova support report")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            activity.startActivity(Intent.createChooser(intent, "Send Nova support report"))
+            activity.startActivity(Intent.createChooser(intent, activity.getString(R.string.nova_support_report_share_title)))
             true
         } catch (error: Throwable) {
             LimeLog.warning("Diagnostics: could not share the support report: ${error.message}")

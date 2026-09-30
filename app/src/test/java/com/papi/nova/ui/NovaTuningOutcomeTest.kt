@@ -10,14 +10,16 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 @RunWith(RobolectricTestRunner::class)
 class NovaTuningOutcomeTest {
+    private fun outcome(optimization: JSONObject?, preference: String) =
+        novaTuningOutcome(optimization, preference, testLaunchProfileText())
 
     @Test
     fun autoAndHighFpsHaveNoHostOutcome() {
         val blob = JSONObject("{\"preference_applied\":false}")
-        assertEquals(NovaTuningOutcome.Default, novaTuningOutcome(blob, "auto"))
+        assertEquals(NovaTuningOutcome.Default, outcome(blob, "auto"))
         // High FPS is binding client-side; what the host thinks of the ask is moot.
-        assertEquals(NovaTuningOutcome.Default, novaTuningOutcome(blob, "high_fps"))
-        assertEquals(NovaTuningOutcome.Default, novaTuningOutcome(null, "quality"))
+        assertEquals(NovaTuningOutcome.Default, outcome(blob, "high_fps"))
+        assertEquals(NovaTuningOutcome.Default, outcome(null, "quality"))
     }
 
     @Test
@@ -25,7 +27,7 @@ class NovaTuningOutcomeTest {
         // preference_applied absent everywhere: an older host, not a decline.
         assertEquals(
             NovaTuningOutcome.Default,
-            novaTuningOutcome(JSONObject("{\"display_mode\":\"1920x1080x60\"}"), "quality")
+            outcome(JSONObject("{\"display_mode\":\"1920x1080x60\"}"), "quality")
         )
     }
 
@@ -33,18 +35,18 @@ class NovaTuningOutcomeTest {
     fun appliedAndDeclinedReadFromEitherLevel() {
         assertEquals(
             NovaTuningOutcome.Applied,
-            novaTuningOutcome(JSONObject("{\"preference_applied\":true}"), "quality")
+            outcome(JSONObject("{\"preference_applied\":true}"), "quality")
         )
         assertEquals(
             NovaTuningOutcome.Applied,
-            novaTuningOutcome(
+            outcome(
                 JSONObject("{\"profile_state\":{\"preference_applied\":true}}"),
                 "stability"
             )
         )
         assertEquals(
             NovaTuningOutcome.Declined("History Safe Profile"),
-            novaTuningOutcome(
+            outcome(
                 JSONObject(
                     "{\"preference_applied\":false," +
                         "\"preference_blocked_reason\":\"history_safe_profile\"}"
@@ -54,7 +56,7 @@ class NovaTuningOutcomeTest {
         )
         assertEquals(
             NovaTuningOutcome.Declined(""),
-            novaTuningOutcome(JSONObject("{\"preference_applied\":false}"), "stability")
+            outcome(JSONObject("{\"preference_applied\":false}"), "stability")
         )
     }
 }

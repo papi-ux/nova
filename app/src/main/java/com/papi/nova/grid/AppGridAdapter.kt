@@ -260,7 +260,7 @@ class AppGridAdapter(
         }
 
         val bg = GradientDrawable()
-        bg.cornerRadius = context.resources.displayMetrics.density * 8f
+        bg.cornerRadius = context.resources.getDimension(R.dimen.nova_radius_row)
         bg.setColor(bgColor)
         badge.setTextColor(textColor)
         badge.background = bg

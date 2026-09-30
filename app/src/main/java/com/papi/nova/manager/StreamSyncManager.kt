@@ -384,6 +384,13 @@ class StreamSyncManager private constructor() {
         private fun resolvedPreset(optimization: JSONObject?): String =
             normalized(resolvedProfile(optimization)?.optString("preset", "auto"))
 
+        /**
+         * The preset key the host resolved a launch to, such as "quality", from its resolved
+         * profile; "auto" when the profile names none, and "" when there is no resolved profile.
+         */
+        @JvmStatic
+        fun resolvedLaunchPreset(optimization: JSONObject?): String = resolvedPreset(optimization)
+
         @JvmStatic
         fun buildDeviceCapabilities(
             context: Context,

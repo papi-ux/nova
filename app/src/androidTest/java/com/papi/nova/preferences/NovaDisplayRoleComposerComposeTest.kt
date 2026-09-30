@@ -51,16 +51,15 @@ class NovaDisplayRoleComposerComposeTest {
                             roleState = roleState,
                             onSwap = {},
                             onApply = {},
-                            onDismiss = {},
                         )
                     }
                 }
             }
         }
 
+        // Cancel is B and the page header now, so the page's actions are Swap and Apply.
         val labels = listOf(
             context.getString(R.string.display_role_swap),
-            context.getString(R.string.display_role_cancel),
             context.getString(R.string.display_role_apply),
         )
         val rootBounds = composeRule.onNodeWithTag("actions-root")

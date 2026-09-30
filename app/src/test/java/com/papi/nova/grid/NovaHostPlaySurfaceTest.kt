@@ -104,6 +104,7 @@ class NovaHostPlaySurfaceTest {
     fun theCardItsPillAndItsSheetAskTheSameQuestion() {
         val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val adapter = File("src/main/java/com/papi/nova/grid/PcGridAdapter.kt").readText()
+        // The host menu's rows and its header both live beside each other in NovaHostSheet.kt.
         val sheet = File("src/main/java/com/papi/nova/ui/NovaHostSheet.kt").readText()
         val press = pcView.substringAfter("private fun openBestPlaySurface(").substringBefore("private fun syncComputerList()")
         assertTrue(
@@ -117,10 +118,10 @@ class NovaHostPlaySurfaceTest {
                 adapter.contains("setStatusHint(statusHint, inUse.cardHintRes)")
         )
         assertTrue(
-            "the sheet offers the library first then, so its primary is the one the card leads to, and watching is a tile",
-            pcView.contains("if (libraryFirst) offerLibrary()") && pcView.contains("if (!libraryFirst) offerLibrary()") &&
+            "the menu offers the library first then, so its primary is the one the card leads to, and watching is a row",
+            sheet.contains("if (libraryFirst) offerLibrary()") && sheet.contains("if (!libraryFirst) offerLibrary()") &&
                 sheet.contains("statusRes = inUse.statusRes,") && sheet.contains("statusArg = inUse.owner,") &&
-                pcView.contains("getString(copy.statusRes, copy.statusArg ?: address)")
+                sheet.contains("context.getString(copy.statusRes, copy.statusArg ?: address)")
         )
     }
 
@@ -129,8 +130,9 @@ class NovaHostPlaySurfaceTest {
         val pcView = File("src/main/java/com/papi/nova/PcView.kt").readText()
         val adapter = File("src/main/java/com/papi/nova/grid/PcGridAdapter.kt").readText()
         val sheet = File("src/main/java/com/papi/nova/ui/NovaHostSheet.kt").readText()
-        assertEquals("the card's press and the sheet's order", 2, pcView.split("watchable = computer.currentGameWatchable,").size - 1 +
+        assertEquals("the card's press", 1, pcView.split("watchable = computer.currentGameWatchable,").size - 1 +
             (pcView.split("watchable = details.currentGameWatchable,").size - 1))
+        assertEquals("the menu's order", 1, sheet.split("watchable = details.currentGameWatchable,").size - 1)
         assertTrue("the card's pill", adapter.contains("watchable = obj.details.currentGameWatchable,"))
         assertTrue(
             "the sheet's header",
@@ -138,8 +140,8 @@ class NovaHostPlaySurfaceTest {
         )
         assertTrue(
             "the Watch tile is there only where there is a stream, and says the mode it will be watched at",
-            pcView.contains("if (novaHostInUse(details.currentGameOwnerDeviceName, details.currentGameWatchable).offersWatch) {") &&
-                pcView.contains("getString(R.string.pcview_sheet_caption_watch_mode, mode.width, mode.height, novaWatchRate(mode.fps))")
+            sheet.contains("if (novaHostInUse(details.currentGameOwnerDeviceName, details.currentGameWatchable).offersWatch) {") &&
+                sheet.contains("getString(R.string.pcview_sheet_caption_watch_mode, mode.width, mode.height, novaWatchRate(mode.fps))")
         )
     }
 

@@ -95,7 +95,8 @@ data class NovaHudUiState(
     val packetLossLabel: String = "--",
     val packetLossTone: NovaHudTone = NovaHudTone.MUTED,
     val jitterLabel: String = "--",
-    val framesLostLabel: String = "--"
+    val framesLostLabel: String = "--",
+    val renderGapLabel: String = "--"
 ) {
     companion object {
         private const val SPARKLINE_CAPACITY = 60
@@ -175,61 +176,90 @@ data class NovaHudUiState(
             lowOnePercentFps: Double = calculateLowOnePercent(sparklineSamples),
             decodeTimeMs: Double = 0.0,
             hostProcessingLatencyMs: Double? = null,
-            incomingFps: Double = 0.0,
-            renderedFps: Double = 0.0,
+            incomingFps: Double = Double.NaN,
+            renderedFps: Double = Double.NaN,
             packetLossPct: Double = -1.0,
             rttVarianceMs: Int = -1,
-            framesLost: Long = -1L
+            framesLost: Long = -1L,
+            mediaFresh: Boolean = fps.isFinite() && (fps > 0.0 || incomingFps > 0.0 || sparklineSamples.isNotEmpty()),
+            mediaStale: Boolean = false,
+            hostFresh: Boolean = status != null,
+            launchPresetLabel: String = ""
         ): NovaHudUiState {
-            val autoQuality = AutoQualityUiState.from(status, targetFps)
-            val healthReason = buildHealthReason(status, latencyMs)
+            // A live media feed and the independently polled host status age separately.
+            val currentStatus = status.takeIf { hostFresh && it?.streamingActive == true }
+            val autoQuality = AutoQualityUiState.from(currentStatus, targetFps)
+            val decodeTone = if (mediaFresh) toneForDecode(decodeTimeMs, targetFps) else NovaHudTone.MUTED
+            val renderGap = mediaFresh && incomingFps.isFinite() && renderedFps.isFinite() &&
+                incomingFps > 0.0 && renderedFps >= 0.0 &&
+                incomingFps - renderedFps > maxOf(2.0, incomingFps * 0.1)
+            val hostReason = buildHealthReason(currentStatus, if (mediaFresh) latencyMs else 0)
+            val belowTarget = mediaFresh && fps.isFinite() && fps >= 0.0 && targetFps > 0.0 && fps < targetFps * 0.9
+            val healthReason = when {
+                !mediaFresh -> (if (mediaStale) "Readings stale" else "Waiting for video") to NovaHudTone.MUTED
+                packetLossPct.isFinite() && packetLossPct > 0.0 -> "Video frames missing" to toneForPacketLoss(packetLossPct)
+                renderGap -> "Render rate below receive" to NovaHudTone.WARNING
+                decodeTone == NovaHudTone.DANGER || decodeTone == NovaHudTone.WARNING -> "Decode over budget" to decodeTone
+                hostReason.second == NovaHudTone.WARNING || hostReason.second == NovaHudTone.DANGER -> hostReason
+                belowTarget -> "Below target" to NovaHudTone.INFO
+                else -> hostReason
+            }
+            val tuningLabel = currentStatus?.liveTuning?.takeIf { it.enabled && it.state == "adjusting" }?.let {
+                "Auto: ${(it.appliedBitrateKbps / 1000.0).roundToInt()} / ${(it.qualityLimitKbps / 1000.0).roundToInt()}M"
+            } ?: autoQuality.compactLabel
+            val visibleFps = if (mediaFresh) formatFps(fps) else "--"
             return NovaHudUiState(
                 mode = mode,
-                fpsLabel = formatFps(fps),
+                fpsLabel = visibleFps,
                 targetFpsLabel = formatTargetFps(mode, targetFps),
-                latencyLabel = latencyMs.takeIf { it > 0 }?.let { "${it}ms" } ?: "--ms",
+                latencyLabel = latencyMs.takeIf { mediaFresh && it > 0 }?.let { "${it}ms" } ?: "--ms",
                 bitrateLabel = formatBitrate(mode, bitrateKbps),
                 resolutionLabel = formatResolution(mode, width, height),
                 codecLabel = normalizeCodecLabel(codec),
-                lowOnePercentLabel = lowOnePercentFps.takeIf { it > 0.0 }?.roundToInt()?.toString() ?: "--",
-                streamModeLabel = status?.let(::buildSessionModeLabel).orEmpty(),
-                streamModeShortLabel = status?.let(::buildSessionModeShortLabel).orEmpty(),
+                lowOnePercentLabel = lowOnePercentFps.takeIf { mediaFresh && it.isFinite() && it >= 0.0 }?.roundToInt()?.toString() ?: "--",
+                streamModeLabel = currentStatus?.let(::buildSessionModeLabel).orEmpty(),
+                streamModeShortLabel = currentStatus?.let(::buildSessionModeShortLabel).orEmpty(),
                 autopilotLabel = autoQuality.label,
-                autopilotHudLabel = autoQuality.hudLabel(),
-                autopilotCompactLabel = autoQuality.compactLabel,
-                fpsTone = toneForFps(fps, status),
-                latencyTone = toneForLatency(latencyMs),
+                autopilotHudLabel = tuningLabel,
+                autopilotCompactLabel = tuningLabel,
+                fpsTone = if (!mediaFresh) NovaHudTone.MUTED else toneForFps(fps, currentStatus).let {
+                    if (belowTarget && it != NovaHudTone.WARNING && it != NovaHudTone.DANGER) NovaHudTone.INFO else it
+                },
+                latencyTone = if (mediaFresh) toneForLatency(latencyMs) else NovaHudTone.MUTED,
                 statusTone = healthReason.second,
                 tuningTone = autoQuality.tone.toHudTone(),
                 healthReasonLabel = healthReason.first,
                 healthReasonTone = healthReason.second,
-                streamTruthLabel = buildStreamTruth(status, targetFps, codec, height),
-                layerHealth = buildLayerHealth(status, latencyMs),
+                streamTruthLabel = buildStreamTruth(currentStatus, targetFps, codec, height, launchPresetLabel),
+                layerHealth = buildLayerHealth(currentStatus, if (mediaFresh) latencyMs else 0, decodeTone,
+                    if (mediaFresh) packetLossPct else -1.0, renderGap, mediaFresh, hostProcessingLatencyMs),
                 eventBreadcrumbLabel = eventBreadcrumbLabel,
                 // The buffer already caps at the capacity; copying it again once a second
                 // bought nothing.
-                sparklineSamples = if (sparklineSamples.size <= SPARKLINE_CAPACITY) {
+                sparklineSamples = if (!mediaFresh) emptyList() else if (sparklineSamples.size <= SPARKLINE_CAPACITY) {
                     sparklineSamples
                 } else {
                     sparklineSamples.takeLast(SPARKLINE_CAPACITY)
                 },
-                decodeTimeLabel = formatMillis(decodeTimeMs),
-                decodeTone = toneForDecode(decodeTimeMs, targetFps),
-                hostLatencyLabel = formatMillis(hostProcessingLatencyMs ?: 0.0),
-                incomingFpsLabel = formatFps(incomingFps),
-                renderedFpsLabel = formatFps(renderedFps),
-                packetLossLabel = formatPercent(packetLossPct),
-                packetLossTone = toneForPacketLoss(packetLossPct),
+                decodeTimeLabel = if (mediaFresh) formatMillis(decodeTimeMs) else "--",
+                decodeTone = decodeTone,
+                hostLatencyLabel = if (mediaFresh) formatMillis(hostProcessingLatencyMs ?: 0.0) else "--",
+                incomingFpsLabel = if (mediaFresh) formatFps(incomingFps) else "--",
+                renderedFpsLabel = if (mediaFresh) formatFps(renderedFps) else "--",
+                packetLossLabel = if (mediaFresh) formatPercent(packetLossPct) else "--",
+                packetLossTone = if (mediaFresh) toneForPacketLoss(packetLossPct) else NovaHudTone.MUTED,
                 // Jitter means nothing without a round trip to wobble around.
-                jitterLabel = rttVarianceMs.takeIf { it >= 0 && latencyMs > 0 }?.let { "${it}ms" } ?: "--",
-                framesLostLabel = framesLost.takeIf { it >= 0L }?.toString() ?: "--"
+                jitterLabel = rttVarianceMs.takeIf { mediaFresh && it >= 0 && latencyMs > 0 }?.let { "${it}ms" } ?: "--",
+                framesLostLabel = framesLost.takeIf { mediaFresh && it >= 0L }?.toString() ?: "--",
+                renderGapLabel = if (mediaFresh && incomingFps.isFinite() && renderedFps.isFinite() &&
+                    incomingFps >= 0 && renderedFps >= 0) "${(incomingFps - renderedFps).coerceAtLeast(0.0).roundToInt()} FPS" else "--"
             )
         }
 
         // Loss is a share of the frames in the last window. Zero is the only good number;
         // a trace still gets named as one rather than rounding to a green-looking 0%.
         fun formatPercent(pct: Double): String = when {
-            pct < 0.0 -> "--"
+            !pct.isFinite() || pct < 0.0 -> "--"
             pct == 0.0 -> "0%"
             pct < 0.1 -> "<0.1%"
             pct < 10.0 -> String.format(java.util.Locale.US, "%.1f%%", pct)
@@ -239,34 +269,31 @@ data class NovaHudUiState(
         // Under one percent the stream is losing frames you might not notice; at one
         // percent and over it is visibly stuttering.
         fun toneForPacketLoss(pct: Double): NovaHudTone = when {
-            pct < 0.0 -> NovaHudTone.MUTED
+            !pct.isFinite() || pct < 0.0 -> NovaHudTone.MUTED
             pct == 0.0 -> NovaHudTone.STABLE
             pct < 1.0 -> NovaHudTone.WARNING
             else -> NovaHudTone.DANGER
         }
 
         private fun formatFps(fps: Double): String =
-            fps.takeIf { it > 0.0 }?.roundToInt()?.toString() ?: "--"
+            fps.takeIf { it.isFinite() && it >= 0.0 }?.roundToInt()?.toString() ?: "--"
 
         // Under 10 ms the decimal is the difference between decoders: 2.4ms and 8.9ms are
         // not the same panel. Past that, the whole number is the story.
         fun formatMillis(ms: Double): String = when {
-            ms <= 0.0 -> "--"
+            !ms.isFinite() || ms <= 0.0 -> "--"
             ms < 10.0 -> String.format(java.util.Locale.US, "%.1fms", ms)
             else -> "${ms.roundToInt()}ms"
         }
 
-        // Decode time is only good or bad against the frame it has to fit in: 13 ms is
-        // fine at 60 fps and a dropped frame at 120. With no target yet, 60 fps is the
-        // budget, which is what most panels show anyway.
+        // Decode is measured work, not a diagnosis of total client latency. It must fit
+        // in one actual target frame; an unknown target has no invented 60 Hz budget.
         fun toneForDecode(ms: Double, targetFps: Double): NovaHudTone {
-            if (ms <= 0.0) {
-                return NovaHudTone.MUTED
-            }
-            val frameMs = 1000.0 / (if (targetFps > 0.0) targetFps else 60.0)
+            if (!ms.isFinite() || ms <= 0.0 || !targetFps.isFinite() || targetFps <= 0.0) return NovaHudTone.MUTED
+            val frameMs = 1000.0 / targetFps
             return when {
-                ms < frameMs * 0.5 -> NovaHudTone.STABLE
-                ms < frameMs -> NovaHudTone.WARNING
+                ms <= frameMs -> NovaHudTone.STABLE
+                ms <= frameMs * 1.25 -> NovaHudTone.WARNING
                 else -> NovaHudTone.DANGER
             }
         }
@@ -289,14 +316,11 @@ data class NovaHudUiState(
             }
         }
 
-        fun calculateLowOnePercent(samples: List<Float>): Double {
-            if (samples.size < 3) {
-                return 0.0
-            }
-            val sorted = samples.sorted()
-            val index = (samples.size * 0.01f).toInt().coerceIn(0, sorted.lastIndex)
-            return sorted[index].toDouble()
-        }
+        // Compatibility name for existing callers. These are periodic FPS samples, not
+        // per-frame durations: the display calls this WINDOW MIN, never a 1% low.
+        fun calculateLowOnePercent(samples: List<Float>): Double =
+            samples.takeLast(SPARKLINE_CAPACITY).filter { it.isFinite() && it >= 0f }
+                .minOrNull()?.toDouble() ?: Double.NaN
 
         private fun formatTargetFps(mode: NovaHudMode, targetFps: Double): String {
             if (targetFps <= 0.0) {
@@ -428,8 +452,11 @@ data class NovaHudUiState(
                     "Needs attention" to NovaHudTone.WARNING
                 normalizedPrimaryIssue.isNotBlank() && normalizedPrimaryIssue != "none" ->
                     "Needs attention" to NovaHudTone.WARNING
-                status == null -> "Waiting" to NovaHudTone.MUTED
-                else -> "Stable" to NovaHudTone.STABLE
+                status == null -> "Local readings" to NovaHudTone.INFO
+                status.health.grade.equals("good", ignoreCase = true) ||
+                    status.hasAuthoritativeDoctorResult && !status.authoritativeDoctorVerdictNeedsAttention ->
+                    "Stable" to NovaHudTone.STABLE
+                else -> "Local readings" to NovaHudTone.INFO
             }
         }
 
@@ -437,7 +464,8 @@ data class NovaHudUiState(
             status: PolarisSessionStatus?,
             targetFps: Double,
             codec: String,
-            height: Int
+            height: Int,
+            launchPresetLabel: String
         ): String {
             val target = targetFps.takeIf { it > 0.0 }?.roundToInt()
             val streamLabel = when {
@@ -452,15 +480,23 @@ data class NovaHudUiState(
                 status?.isHostRenderLimited == true -> "$streamLabel • Host capped"
                 status?.hostCaptureTruthLabel?.isNotBlank() == true ->
                     "$streamLabel • ${status.hostCaptureTruthLabel}"
-                status?.profileState?.preferenceLabel?.isNotBlank() == true ->
-                    "$streamLabel • ${status.profileState.preferenceLabel} profile"
+                launchPresetLabel.isNotBlank() -> "$streamLabel • $launchPresetLabel preset"
                 codec.isNotBlank() -> "$streamLabel • ${normalizeCodecLabel(codec)}"
                 status != null -> "$streamLabel • ${status.sessionModeLabel}"
                 else -> streamLabel
             }
         }
 
-        private fun buildLayerHealth(status: PolarisSessionStatus?, latencyMs: Int): List<NovaHudLayerHealth> {
+        private fun buildLayerHealth(
+            status: PolarisSessionStatus?,
+            latencyMs: Int,
+            decodeTone: NovaHudTone,
+            frameLossPct: Double,
+            renderGap: Boolean,
+            mediaFresh: Boolean,
+            hostLatencyMs: Double?,
+        ): List<NovaHudLayerHealth> {
+            if (!mediaFresh) return listOf("HOST", "NET", "CLIENT").map { NovaHudLayerHealth(it, NovaHudTone.MUTED) }
             val primaryIssue = status?.effectivePrimaryIssue.orEmpty()
             val normalizedPrimaryIssue = primaryIssue.lowercase()
             val networkObservation = normalizedPrimaryIssue in
@@ -485,35 +521,38 @@ data class NovaHudUiState(
             val hostTone = when {
                 status?.isHostRenderLimited == true || normalizedPrimaryIssue.contains("host") || issues.any { it.contains("host") } ->
                     NovaHudTone.WARNING
-                (status?.hasAuthoritativeDoctorResult != true &&
-                    status?.health?.grade.equals("degraded", ignoreCase = true)) ||
-                    (status?.hasAuthoritativeDoctorResult != true &&
-                        status?.health?.grade.equals("watch", ignoreCase = true) && !networkObservation) ||
-                    normalizedPrimaryIssue == "frame_pacing" || issues.contains("frame_pacing") || hostDoctorWarning -> NovaHudTone.WARNING
-                else -> NovaHudTone.STABLE
+                normalizedPrimaryIssue == "encoder_load" || normalizedPrimaryIssue == "frame_pacing" ||
+                    issues.contains("frame_pacing") || hostDoctorWarning -> NovaHudTone.WARNING
+                hostLatencyMs != null && hostLatencyMs.isFinite() && hostLatencyMs > 0.0 -> NovaHudTone.STABLE
+                else -> NovaHudTone.MUTED
             }
             val networkTone = when {
+                frameLossPct.isFinite() && frameLossPct > 0.0 -> toneForPacketLoss(frameLossPct)
                 networkDoctorWarning -> NovaHudTone.WARNING
                 !networkObservation &&
                     (normalizedPrimaryIssue == "network_jitter" || issues.any { it.contains("network") } ||
                         (status?.hasAuthoritativeDoctorResult != true && riskElevated(status?.health?.networkRisk))) -> NovaHudTone.WARNING
                 latencyMs > 50 -> NovaHudTone.DANGER
                 latencyMs >= 45 -> NovaHudTone.WARNING
-                else -> NovaHudTone.STABLE
+                latencyMs > 0 && frameLossPct == 0.0 -> NovaHudTone.STABLE
+                else -> NovaHudTone.MUTED
             }
             val clientTone = when {
+                // This device's own decode time says the most about it. A PyroWave stream decoding
+                // in 15 ms against an 8.3 ms frame showed DEC in red beside a green CLIENT dot.
+                decodeTone == NovaHudTone.DANGER -> NovaHudTone.DANGER
+                decodeTone == NovaHudTone.WARNING || renderGap -> NovaHudTone.WARNING
                 normalizedPrimaryIssue.contains("decoder") || issues.any { it.contains("decoder") } ||
                     (status?.hasAuthoritativeDoctorResult != true && riskElevated(status?.health?.decoderRisk)) ||
                     clientDoctorWarning -> NovaHudTone.WARNING
-                status?.encoder?.targetResidency.equals("cpu", ignoreCase = true) -> NovaHudTone.WARNING
-                else -> NovaHudTone.STABLE
+                decodeTone == NovaHudTone.STABLE -> NovaHudTone.STABLE
+                else -> NovaHudTone.MUTED
             }
             val hostCaptureLabel = status?.hostCaptureTruthLabel.orEmpty()
             val hostLabel = hostCaptureLabel.ifBlank { "HOST" }
             val resolvedHostTone = when {
                 hostCaptureLabel.contains("SHM", ignoreCase = true) ||
                     hostCaptureLabel.contains("mismatch", ignoreCase = true) -> NovaHudTone.WARNING
-                hostCaptureLabel.contains("GPU-native", ignoreCase = true) -> NovaHudTone.STABLE
                 else -> hostTone
             }
             return listOf(
@@ -628,7 +667,7 @@ class NovaHudSessionStats {
     private var sessionSamples = 0
     private var sessionStartTime = 0L
     private var sessionMinFps = 0.0
-    private var sessionLowOnePercentFps = 0.0
+    private var sessionLowOnePercentFps = Double.NaN
     private var targetFps = 0.0
     private var lastCodec = ""
     private var lastBitrateKbps = 0
@@ -654,7 +693,7 @@ class NovaHudSessionStats {
         sessionSamples = 0
         sessionStartTime = 0L
         sessionMinFps = 0.0
-        sessionLowOnePercentFps = 0.0
+        sessionLowOnePercentFps = Double.NaN
         sessionBitrateSum = 0L
         sessionBitrateSamples = 0
         lastMonotonicTimestampMs = 0L
@@ -685,16 +724,16 @@ class NovaHudSessionStats {
         }
     }
 
-    fun recordFps(fps: Double, nowMs: Long = System.currentTimeMillis(), lowOnePercentFps: Double = 0.0) {
-        if (fps <= 0.0) {
+    fun recordFps(fps: Double, nowMs: Long = System.currentTimeMillis(), lowOnePercentFps: Double = Double.NaN) {
+        if (!fps.isFinite() || fps < 0.0) {
             return
         }
         sessionFpsSum += fps
         sessionSamples++
-        if (sessionMinFps <= 0.0 || fps < sessionMinFps) {
+        if (sessionSamples == 1 || fps < sessionMinFps) {
             sessionMinFps = fps
         }
-        if (lowOnePercentFps > 0.0) {
+        if (lowOnePercentFps.isFinite() && lowOnePercentFps >= 0.0) {
             sessionLowOnePercentFps = lowOnePercentFps
         }
         if (sessionStartTime == 0L) {
@@ -725,7 +764,7 @@ class NovaHudSessionStats {
     }
 
     fun recordPerfSample(sample: PerfOverlaySample) {
-        recordFps(if (sample.renderedFps > 0.0) sample.renderedFps else sample.fps)
+        recordFps(sample.renderedFps)
         recordLatency(sample.rttMs)
         recordPacketLoss(sample.packetLossPct)
         setLastCodec(sample.codec)
@@ -795,8 +834,8 @@ class NovaHudSessionStats {
         summary["retransmissions_available"] = false
         summary["session_generation"] = sessionGeneration
         hostProcessingLatencyMs?.let { summary["host_processing_latency_ms"] = it }
-        if (sessionLowOnePercentFps > 0.0) summary["low_1_percent_fps"] = sessionLowOnePercentFps
-        if (sessionMinFps > 0.0) summary["min_fps"] = sessionMinFps
+        if (sessionLowOnePercentFps.isFinite()) summary["window_min_sampled_fps"] = sessionLowOnePercentFps
+        if (sessionSamples > 0) summary["min_fps"] = sessionMinFps
         // Rendered FPS alone cannot distinguish moving content from a static
         // or duplicate-only source. Polaris owns pacing classification once
         // source/capture cadence is available; Nova reports only raw stages.

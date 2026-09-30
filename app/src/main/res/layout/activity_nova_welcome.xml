@@ -37,7 +37,7 @@
                 android:fontFamily="sans-serif-light"
                 android:gravity="center"
                 android:letterSpacing="0.03"
-                android:text="Welcome to Nova"
+                android:text="@string/nova_welcome_title"
                 android:textColor="?attr/colorOnSurface"
                 android:textSize="28sp" />
 
@@ -49,7 +49,7 @@
                 android:fontFamily="sans-serif"
                 android:gravity="center"
                 android:lineSpacingExtra="2dp"
-                android:text="Your PC games across Android TVs, handhelds, tablets, and phones."
+                android:text="@string/nova_welcome_subtitle"
                 android:textColor="?android:attr/textColorSecondary"
                 android:textSize="14sp" />
 
@@ -65,7 +65,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:letterSpacing="0.08"
-                    android:text="01  Find your host"
+                    android:text="@string/nova_welcome_step_find"
                     android:textAllCaps="true"
                     android:textColor="?attr/colorAccent"
                     android:textSize="11sp" />
@@ -74,7 +74,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Nova discovers PCs on your local network and keeps manual entry close when discovery is not enough."
+                    android:text="@string/nova_welcome_step_find_body"
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -91,7 +91,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:letterSpacing="0.08"
-                    android:text="02  Pair with confidence"
+                    android:text="@string/nova_welcome_step_pair"
                     android:textAllCaps="true"
                     android:textColor="?attr/colorAccent"
                     android:textSize="11sp" />
@@ -100,7 +100,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Use standard Moonlight pairing, or scan a Polaris pairing QR when your host shows one."
+                    android:id="@+id/welcome_pair_body"
+                    android:text="@string/nova_welcome_step_pair_body"
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -117,7 +118,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:letterSpacing="0.08"
-                    android:text="03  Built for the screen in your hands"
+                    android:text="@string/nova_welcome_step_play"
                     android:textAllCaps="true"
                     android:textColor="?attr/colorAccent"
                     android:textSize="11sp" />
@@ -126,7 +127,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Controller-first navigation, touch-friendly controls, TV focus rings, and performance HUDs are ready when you stream."
+                    android:text="@string/nova_welcome_step_play_body"
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -137,7 +138,7 @@
                 android:layout_height="52dp"
                 android:focusable="true"
                 android:nextFocusDown="@id/welcome_add_manual_btn"
-                android:text="Discover hosts"
+                android:text="@string/nova_welcome_discover"
                 android:textAllCaps="false"
                 android:textColor="@android:color/white"
                 android:textSize="17sp"
@@ -156,7 +157,7 @@
                 android:focusable="true"
                 android:nextFocusUp="@id/welcome_discover_btn"
                 android:nextFocusDown="@id/welcome_scan_qr_btn"
-                android:text="Add manually"
+                android:text="@string/nova_welcome_add_manually"
                 android:textAllCaps="false"
                 android:textColor="?android:attr/textColorPrimary"
                 app:cornerRadius="25dp"
@@ -171,7 +172,7 @@
                 android:layout_marginTop="10dp"
                 android:focusable="true"
                 android:nextFocusUp="@id/welcome_add_manual_btn"
-                android:text="Scan Polaris QR"
+                android:text="@string/nova_welcome_scan_qr"
                 android:textAllCaps="false"
                 android:textColor="?android:attr/textColorPrimary"
                 app:cornerRadius="25dp"

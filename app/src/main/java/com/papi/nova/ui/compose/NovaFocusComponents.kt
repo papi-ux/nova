@@ -1,14 +1,9 @@
 package com.papi.nova.ui.compose
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -16,17 +11,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,10 +32,14 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -57,45 +53,39 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.papi.nova.R
+import com.papi.nova.ui.panel.NovaCurrentMark
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.novaClickable
+import com.papi.nova.ui.panel.novaFocusRing
 
 internal object NovaFocusMotionSpec {
     const val DurationMillis = 150
     const val CardFocusedScale = 1.025f
-    const val ButtonFocusedScale = 1.03f
-    const val ButtonPressedScale = 0.98f
     const val CardFocusedHaloAlpha = 0.34f
-    const val ButtonFocusedHaloAlpha = 0.28f
     const val ButtonPressedAlpha = 0.86f
 }
 
 private fun novaFocusFloatTween() = tween<Float>(durationMillis = NovaFocusMotionSpec.DurationMillis)
 
-private fun novaFocusDpTween() = tween<Dp>(durationMillis = NovaFocusMotionSpec.DurationMillis)
-
-private fun novaFocusColorTween() = tween<Color>(durationMillis = NovaFocusMotionSpec.DurationMillis)
-
+/**
+ * The card lift and halo the library's hero strip and the search field still draw. Nothing presses
+ * through it any more: buttons take the one focus look ([novaFocusRing]), with no scale.
+ */
 internal fun Modifier.novaFocusMotion(
     focused: Boolean,
-    enabled: Boolean = true,
-    pressed: Boolean = false,
     focusedScale: Float = NovaFocusMotionSpec.CardFocusedScale,
-    pressedScale: Float = NovaFocusMotionSpec.ButtonPressedScale,
     haloAlpha: Float = NovaFocusMotionSpec.CardFocusedHaloAlpha,
     cornerRadius: Dp = NovaRadius.row
 ): Modifier = composed {
     val surfaces = LocalNovaLibrarySurfaces.current
-    val targetScale = when {
-        pressed && enabled -> pressedScale
-        focused && enabled -> focusedScale
-        else -> 1f
-    }
     val scale by animateFloatAsState(
-        targetValue = targetScale,
+        targetValue = if (focused) focusedScale else 1f,
         animationSpec = novaFocusFloatTween(),
         label = "NovaFocusMotionScale"
     )
     val animatedHaloAlpha by animateFloatAsState(
-        targetValue = if (focused && enabled) haloAlpha else 0f,
+        targetValue = if (focused) haloAlpha else 0f,
         animationSpec = novaFocusFloatTween(),
         label = "NovaFocusMotionHalo"
     )
@@ -154,132 +144,14 @@ fun novaKeyChipSize(base: Dp): Dp = novaKeyChipSize(base, LocalDensity.current.f
 
 internal fun novaKeyChipSize(base: Dp, fontScale: Float): Dp = base * fontScale.coerceAtLeast(1f)
 
+/**
+ * One controller hint: a key and what it does here. Panels and screens alike draw a list of them
+ * with the one hint bar, NovaPanelHintBar; the library paints its own on the artwork.
+ */
 data class NovaControllerHint(
     val key: String,
     val label: String
 )
-
-@Composable
-fun NovaControllerHintBar(
-    hints: List<NovaControllerHint>,
-    modifier: Modifier = Modifier,
-    compact: Boolean = false,
-    semanticsDescription: String? = null
-) {
-    if (hints.isEmpty()) return
-
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(NovaRadius.hero)
-    val hintContentDescription = semanticsDescription
-        ?: hints.joinToString(separator = " · ") { hint -> "${hint.key} ${hint.label}" }
-    val horizontalPadding = if (compact) 8.dp else 10.dp
-    val itemSpacing = if (compact) 8.dp else 12.dp
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 30.dp)
-            .clip(shape)
-            .background(surfaces.panel.copy(alpha = 0.86f * LocalNovaMenuOpacityScale.current))
-            .border(1.dp, surfaces.panelBorder, shape)
-            .semantics { contentDescription = hintContentDescription }
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = horizontalPadding, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(itemSpacing),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        hints.forEach { hint ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Text(
-                    text = hint.key,
-                    color = colors.onAccent,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(NovaRadius.row))
-                        .background(colors.accent.copy(alpha = 0.92f))
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
-                )
-                Text(
-                    text = hint.label,
-                    color = colors.textSecondary,
-                    fontSize = if (compact) 11.sp else 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-        Spacer(Modifier.width(2.dp))
-    }
-}
-
-@Composable
-fun NovaFocusableCard(
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    onClick: (() -> Unit)? = null,
-    contentDescription: String? = null,
-    contentPadding: PaddingValues = PaddingValues(12.dp),
-    content: @Composable BoxScope.() -> Unit
-) {
-    var focused by remember { mutableStateOf(false) }
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(NovaRadius.row)
-    val borderWidth by animateDpAsState(
-        targetValue = if (focused && enabled) 2.dp else 1.dp,
-        animationSpec = novaFocusDpTween(),
-        label = "NovaFocusableCardBorderWidth"
-    )
-    val borderColor by animateColorAsState(
-        targetValue = if (focused && enabled) surfaces.focusRing else surfaces.tileBorder,
-        animationSpec = novaFocusColorTween(),
-        label = "NovaFocusableCardBorderColor"
-    )
-    val clickableModifier = if (onClick != null) {
-        Modifier.clickable(
-            enabled = enabled,
-            role = Role.Button,
-            onClick = onClick
-        )
-    } else {
-        Modifier
-    }
-    val semanticsModifier = if (contentDescription != null) {
-        Modifier.semantics {
-            this.contentDescription = contentDescription
-            if (onClick != null) {
-                role = Role.Button
-            }
-        }
-    } else {
-        Modifier
-    }
-
-    Box(
-        modifier = modifier
-            .novaFocusMotion(
-                focused = focused,
-                enabled = enabled,
-                haloAlpha = NovaFocusMotionSpec.CardFocusedHaloAlpha,
-                cornerRadius = NovaRadius.row
-            )
-            .clip(shape)
-            .background(surfaces.tile)
-            .border(borderWidth, borderColor, shape)
-            .then(semanticsModifier)
-            .onFocusChanged { focused = it.isFocused || it.hasFocus }
-            .then(clickableModifier)
-            .focusable(enabled = enabled)
-            .padding(contentPadding),
-        content = content
-    )
-}
 
 // Shared haptic vocabulary for the gamepad-first surfaces: a light tick when focus moves,
 // a firmer confirm when a primary action fires. The platform suppresses these when the
@@ -291,10 +163,6 @@ fun HapticFeedback.novaFocusTick() {
 fun HapticFeedback.novaConfirm() {
     performHapticFeedback(HapticFeedbackType.Confirm)
 }
-
-// Destructive actions keep the quiet ghost shape and only tint their text, matching the
-// End Session confirm sheet.
-private val NovaDestructiveContent = Color(0xFFF87171)
 
 @Composable
 fun NovaActionButton(
@@ -332,17 +200,51 @@ fun NovaActionButton(
             fontWeight = FontWeight.SemiBold,
             fontSize = fontSize,
             textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            // Whole words on as many lines as they need, never an ellipsis: Artwork Studio's
+            // buttons cut their labels to one line (C25). The button grows to hold them.
         )
     }
 }
 
 /**
- * The surface of [NovaActionButton] around content of its own: the same container, focus ring,
- * focus motion, press state, haptics and disabled treatment, for an action that is more than one
- * line of text, such as the library's Space control. [content] gets the colour text should use
- * and whether the surface holds focus, so an affordance like a chevron can follow the ring.
+ * The surface of [NovaActionButton] around content of its own: the same container, focus look,
+ * press state, haptics and disabled treatment, for an action that is more than one line of text,
+ * such as the library's Space control. [content] gets the colour text should use and whether the
+ * surface holds focus, so an affordance like a chevron can follow the ring.
+ *
+ * Focus has one look everywhere: a fill plus a 3dp ring inside the shape, with no scale and no
+ * halo ([novaFocusRing]). A [primary] takes the accent fill under focus. At rest it is a tile like
+ * any other, with its label and icon in the accent, so only focus is loud (R9): Resume, Close and
+ * Save rested as solid accent beside the focused button and read as a second focus. A fill at rest
+ * is kept for a primary destructive, such as the confirm half of an armed destructive split, in
+ * red (a confirm page's destructive answer looks the same), and for a full-screen state page's
+ * recovery action, which passes [fillAtRest] because it is the one thing on its page. The
+ * destructive fill is a red on every theme, never the text colour the destructive text falls
+ * back to.
+ *
+ * Both halves of an armed neutral split pass [accentUnderFocus]: they rest as tiles, the
+ * confirm's label in the accent as a primary's is, and the half with focus fills in the accent,
+ * so nothing fills without focus (review finding 4).
+ *
+ * The ring is the accent ring every control has, on every surface but one: a primary whose accent
+ * fill runs flush to its edge under focus rings in its label colour, `onAccent`, where an accent
+ * ring would vanish on it. A red fill takes the accent ring flush (in-game #14). An accent fill
+ * that is there at rest, or one under [accentUnderFocus], stands off the ring by
+ * [NovaPanelMetrics.FocusRingGap] under focus, so the one accent ring reads on it.
+ *
+ * A destructive action at rest has destructive text and a hairline in the destructive fill: the
+ * text colour falls back to the ordinary text colour on a theme whose red does not read as words,
+ * and a hairline in that colour read as a second focus ring. A line needs only 3:1, which the
+ * fill always has. Activation goes through [novaClickable], so A acts on release and only on the
+ * surface that took the press.
+ *
+ * [selected] marks the current value the one way R9 allows: the check ([NovaCurrentMark]) after the
+ * content, selected semantics and the state description Current. It never fills the surface,
+ * because fills only ever mean focus.
+ *
+ * At rest an unfilled surface draws the control fill, or [restFill] where it stands among rows,
+ * such as a destructive row that splits in place, so it rests as the tile the rows around it do.
+ * What it shows is published by the focus look that draws it ([NovaSurfaceLook]).
  */
 @Composable
 fun NovaActionSurface(
@@ -358,6 +260,9 @@ fun NovaActionSurface(
     cornerRadius: Dp = NovaRadius.hero,
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
     contentAlignment: Alignment = Alignment.Center,
+    restFill: Color = Color.Unspecified,
+    fillAtRest: Boolean = false,
+    accentUnderFocus: Boolean = false,
     content: @Composable BoxScope.(contentColor: Color, focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -367,71 +272,61 @@ fun NovaActionSurface(
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(cornerRadius)
-    val targetContainer = when {
-        pressed && enabled && primary -> colors.accent.copy(alpha = colors.accent.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
+    val fill = if (destructive) colors.destructiveFill else colors.accent
+    val onFill = if (destructive) colors.onDestructiveFill else colors.onAccent
+    // A primary fills under focus, and so does a half of an armed neutral split; only a primary
+    // destructive or [fillAtRest] is filled at rest too.
+    val fills = (primary || accentUnderFocus) && enabled
+    val filledAtRest = primary && enabled && (destructive || fillAtRest)
+    val filled = filledAtRest || (fills && focused)
+    val pressedFill = fill.copy(alpha = fill.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
+    val restContainer = when {
+        pressed && filledAtRest -> pressedFill
         pressed && enabled -> surfaces.selectedControl.copy(alpha = surfaces.selectedControl.alpha * NovaFocusMotionSpec.ButtonPressedAlpha)
-        primary && enabled -> colors.accent
-        focused -> surfaces.selectedControl
-        // `selected` used to reach the semantics tree and no colour branch, so a selected
-        // button looked exactly like an unselected one. Call sites worked around that by
-        // passing `primary = true` to mean "selected", which is why that flag ended up
-        // carrying two meanings.
-        selected && enabled -> colors.accentSurface
-        else -> surfaces.control
+        filledAtRest -> fill
+        else -> restFill.takeOrElse { surfaces.control }
     }
-    val container by animateColorAsState(
-        targetValue = targetContainer,
-        animationSpec = novaFocusColorTween(),
-        label = "NovaActionButtonContainer"
-    )
+    // A surface that fills takes its fill under focus; everything else takes the focused control fill.
+    val focusedContainer = if (fills) (if (pressed) pressedFill else fill) else surfaces.selectedControl
+    // An accent fill that is not flush to the edge under focus stands off the accent ring; a red
+    // fill never has.
+    val ringStandsOff = fills && !destructive && (filledAtRest || accentUnderFocus)
+    val ring = novaActionRing(fills = fills, destructive = destructive, standsOff = ringStandsOff, onFill = onFill, focusRing = surfaces.focusRing)
     val contentColor = when {
-        primary && enabled -> colors.onAccent
-        destructive && enabled -> NovaDestructiveContent
+        filled -> onFill
+        primary && enabled -> colors.accentText
+        destructive && enabled -> colors.destructive
         enabled -> colors.textPrimary
         else -> colors.textMuted
     }
-    val borderColor by animateColorAsState(
-        targetValue = when {
-            focused && primary -> colors.onAccent
-            focused -> surfaces.focusRing
-            destructive && !primary -> NovaDestructiveContent.copy(alpha = 0.45f)
-            !primary -> surfaces.tileBorder
-            else -> surfaces.tileBorder
-        },
-        animationSpec = novaFocusColorTween(),
-        label = "NovaActionButtonBorderColor"
-    )
-    val borderWidth by animateDpAsState(
-        targetValue = when {
-            focused -> 3.dp
-            !primary -> 1.dp
-            else -> 0.dp
-        },
-        animationSpec = novaFocusDpTween(),
-        label = "NovaActionButtonBorderWidth"
-    )
-    val alpha = if (enabled) 1f else 0.45f
+    val restBorder = when {
+        filledAtRest -> Color.Transparent
+        // The fill's red, never the text fallback: a hairline in the text colour is a second ring.
+        destructive && enabled -> colors.destructiveFill
+        else -> surfaces.tileBorder
+    }
+    val alpha = if (enabled) 1f else NovaPanelMetrics.DisabledAlpha
+    val state = stateDescription ?: if (selected) stringResource(R.string.nova_panel_current) else null
 
     Box(
         modifier = modifier
             .defaultMinSize(minHeight = minHeight)
-            .novaFocusMotion(
-                focused = focused,
-                enabled = enabled,
-                pressed = pressed,
-                focusedScale = NovaFocusMotionSpec.ButtonFocusedScale,
-                haloAlpha = NovaFocusMotionSpec.ButtonFocusedHaloAlpha,
-                cornerRadius = cornerRadius
-            )
             .clip(shape)
-            .background(container.copy(alpha = container.alpha * alpha))
-            .border(borderWidth, borderColor, shape)
+            .novaFocusRing(
+                shape = shape,
+                ring = ring,
+                focusedFill = focusedContainer.copy(alpha = focusedContainer.alpha * alpha),
+                restFill = restContainer.copy(alpha = restContainer.alpha * alpha),
+                restBorder = restBorder,
+                restBorderWidth = if (filledAtRest) 0.dp else NovaPanelMetrics.Hairline,
+                ringStandsOff = ringStandsOff,
+            )
             .semantics {
                 contentDescription?.let { this.contentDescription = it }
                 if (selected) {
                     this.selected = true
                 }
-                stateDescription?.let { this.stateDescription = it }
+                state?.let { this.stateDescription = it }
                 role = Role.Button
             }
             .onFocusChanged {
@@ -439,20 +334,53 @@ fun NovaActionSurface(
                 if (nowFocused && !focused) haptics.novaFocusTick()
                 focused = nowFocused
             }
-            .clickable(
+            .novaClickable(
                 enabled = enabled,
-                interactionSource = interactionSource,
-                indication = null,
                 role = Role.Button,
+                interactionSource = interactionSource,
                 onClick = {
                     haptics.novaConfirm()
                     onClick()
-                }
+                },
             )
-            .focusable(enabled = enabled)
             .padding(contentPadding),
         contentAlignment = contentAlignment
     ) {
-        content(contentColor, focused)
+        if (selected) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+            ) {
+                Box(Modifier.weight(1f, fill = false), contentAlignment = contentAlignment) {
+                    content(contentColor, focused)
+                }
+                NovaCurrentMark()
+            }
+        } else {
+            content(contentColor, focused)
+        }
     }
 }
+
+/**
+ * A [NovaActionSurface]'s focus ring. A primary whose accent fill runs flush to its edge under
+ * focus rings in its label colour, since an accent ring would vanish on it. Every other surface
+ * takes the accent ring every control has: a red fill, on which the armed End Session drew a black
+ * ring where Stay beside it drew the accent (in-game #14), and an accent fill that [standsOff] the
+ * ring, as a half of an armed neutral split does under focus (review finding 4).
+ */
+internal fun novaActionRing(fills: Boolean, destructive: Boolean, standsOff: Boolean, onFill: Color, focusRing: Color): Color =
+    if (fills && !destructive && !standsOff) onFill else focusRing
+
+/**
+ * What a surface with the focus look shows once focus has settled: the [fill] behind its content,
+ * the [ring] focus draws or [Color.Unspecified] without focus, and whether its fill stands off that
+ * ring. The node that draws the look publishes it in its semantics ([novaFocusRing]), so a check
+ * reads what that node draws rather than a copy of the rule.
+ */
+@Immutable
+data class NovaSurfaceLook(val fill: Color, val ring: Color, val ringStandsOff: Boolean)
+
+/** The [NovaSurfaceLook] of a [NovaActionSurface]. */
+val NovaSurfaceLookKey = SemanticsPropertyKey<NovaSurfaceLook>("NovaSurfaceLook")
+var SemanticsPropertyReceiver.novaSurfaceLook by NovaSurfaceLookKey

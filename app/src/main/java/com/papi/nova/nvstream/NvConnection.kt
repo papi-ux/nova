@@ -183,7 +183,7 @@ class NvConnection(
 
         context.serverAppVersion = h.getServerVersion(serverInfo)
         if (context.serverAppVersion == null) {
-            listener.displayMessage("Server version malformed")
+            listener.displayMessage("Host version malformed")
             return false
         }
 
@@ -195,7 +195,7 @@ class NvConnection(
         context.serverGfeVersion = h.getGfeVersion(serverInfo)
 
         if (h.getPairState(serverInfo) != PairingManager.PairState.PAIRED) {
-            listener.displayMessage("Device not paired with computer")
+            listener.displayMessage("Device not paired with host")
             return false
         }
 
@@ -218,7 +218,7 @@ class NvConnection(
                 )
                 return false
             } else {
-                listener.displayTransientMessage("Your PC GPU does not support streaming HDR. The stream will be SDR.")
+                listener.displayTransientMessage("Your host's GPU does not support streaming HDR. The stream will be SDR.")
                 context.negotiatedHdr = false
             }
         }
@@ -227,7 +227,7 @@ class NvConnection(
             (h.getServerCodecModeSupport(serverInfo).toInt() and 0x200) == 0 &&
             context.isNvidiaServerSoftware
         ) {
-            listener.displayMessage("Your host PC does not support streaming at resolutions above 4K.")
+            listener.displayMessage("Your host does not support streaming at resolutions above 4K.")
             return false
         } else if ((streamConfig.getWidth() > 4096 || streamConfig.getHeight() > 4096) &&
             (streamConfig.getSupportedVideoFormats() and MoonBridge.VIDEO_FORMAT_MASK_H264.inv()) == 0
@@ -282,7 +282,7 @@ class NvConnection(
                             listener.displayMessage(
                                 "This session wasn't started by this device," +
                                     " so it cannot be resumed. End streaming on the original " +
-                                    "device or the PC itself and try again.",
+                                    "device or the host itself and try again.",
                             )
                             return false
                         }
@@ -344,11 +344,11 @@ class NvConnection(
                     listener.displayMessage(
                         "This session wasn't started by this device," +
                             " so it cannot be resumed. End streaming on the original " +
-                            "device or the PC itself and try again. (Error code: " + e.getErrorCode() + ")",
+                            "device or the host itself and try again. (Error code: " + e.getErrorCode() + ")",
                     )
                     return false
                 } else if (e.getErrorCode() == 525) {
-                    listener.displayMessage("The application is minimized. Resume it on the PC manually or quit the session and start streaming again.")
+                    listener.displayMessage("The application is minimized. Resume it on the host manually or quit the session and start streaming again.")
                     return false
                 } else if (e.getErrorCode() == 412 && context.watchOnlyRequested) {
                     val errorMessage = e.getErrorMessage()
@@ -478,7 +478,7 @@ class NvConnection(
             listener.displayMessage(
                 "This session wasn't started by this device," +
                     " so it cannot be quit. End streaming on the original " +
-                    "device or the PC itself.",
+                    "device or the host itself.",
             )
             return false
         }
@@ -494,7 +494,7 @@ class NvConnection(
                 listener.displayMessage(
                     "This session wasn't started by this device," +
                         " so it cannot be quit. End streaming on the original " +
-                        "device or the PC itself. (Error code: " + e.getErrorCode() + ")",
+                        "device or the host itself. (Error code: " + e.getErrorCode() + ")",
                 )
                 return false
             } else {

@@ -80,11 +80,9 @@
 \nAs seguintes portas de rede estão bloqueadas:
 \n</string>
     <string name="nettest_text_blocked">A conexão de rede atual do seu dispositivo está bloqueando o Nova. A transmissão pela Internet pode não funcionar enquanto estiver conectado a esta rede.</string>
-    <string name="pairing">Pareando…</string>
     <string name="pair_pc_offline">Esse computador está indisponível</string>
     <string name="pair_pc_ingame">Esse computador está atualmente em um jogo. Você deve fechar o jogo antes de parear.</string>
     <string name="pair_pairing_title">Pareando</string>
-    <string name="pair_pairing_msg">Insira o seguinte PIN no PC de destino:</string>
     <string name="pair_incorrect_pin">PIN incorreto</string>
     <string name="pair_fail">Falha no pareamento</string>
     <string name="pair_already_in_progress">Pareamento já em andamento</string>
@@ -99,12 +97,7 @@
     <string name="error_manager_not_running">O serviço ComputerManager não está em execução. Aguarde alguns segundos ou reinicie o aplicativo.</string>
     <string name="error_unknown_host">Falha ao encontrar o host</string>
     <string name="conn_terminated_msg">A conexão foi encerrada.</string>
-    <string name="yes">Sim</string>
-    <string name="no">Não</string>
-    <string name="lost_connection">Conexão perdida com o PC</string>
     <string name="title_details">Detalhes</string>
-    <string name="help">Ajuda</string>
-    <string name="delete_pc_msg">Tem certeza de que deseja excluir este PC\?</string>
     <string name="slow_connection_msg">Conexão lenta com o PC
 \nReduza sua taxa de bits</string>
     <string name="poor_connection_msg">Conexão ruim com o PC</string>
@@ -134,19 +127,15 @@
     <string name="applist_menu_hide_app">Esconder Jogo</string>
     <string name="applist_refresh_title">Lista de Aplicativos</string>
     <string name="perf_overlay_netdrops">Quadros dropados pela rede: %1$.2f%%</string>
-    <string name="applist_quit_app">Saindo</string>
     <string name="applist_quit_success">Saiu com sucesso</string>
     <string name="applist_quit_fail">Falha ao sair</string>
     <string name="applist_refresh_msg">Recarregando aplicativos…</string>
     <string name="applist_refresh_error_title">Erro</string>
     <string name="applist_refresh_error_msg">Falha ao obter a lista de aplicativos</string>
-    <string name="applist_quit_confirmation">Tem certeza de que deseja sair do aplicativo em execução\? Todos os dados não salvos serão perdidos.</string>
     <string name="applist_details_id">ID do App:</string>
     <string name="title_add_pc">Adicionar PC Manualmente</string>
     <string name="msg_add_pc">Conectando ao PC…</string>
-    <string name="addpc_success">Computador adicionado com sucesso</string>
     <string name="addpc_unknown_host">Não foi possível encontrar o PC. Certifique-se de que não cometeu um erro de digitação no endereço.</string>
-    <string name="addpc_enter_ip">Você deve inserir um endereço de IP</string>
     <string name="category_input_settings">Configurações de Controles</string>
     <string name="category_basic_settings">Configurações Básicas</string>
     <string name="title_resolution_list">Resolução</string>

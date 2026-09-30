@@ -11,13 +11,10 @@
     <string name="searching_pc">Wyszukiwanie komputerów-hostów w sieci lokalnej...
 \n
 \nUpewnij się, że aplikacja Sunshine jest uruchomiona na komputerze-hoście lub funkcja GameStream jest włączona w ustawieniach aplikacji GeForce Experience SHIELD.</string>
-    <string name="yes">Tak</string>
     <string name="title_audio_config_list">Konfiguracja dźwięku przestrzennego</string>
     <string name="summary_audio_config_list">Włączenie dźwięku przestrzennego 5.1 lub 7.1 dla systemów kina domowego</string>
     <string name="summary_checkbox_mouse_emulation">Długie naciśnięcie przycisku Start spowoduje przełączenie gamepada w tryb myszy</string>
     <string name="error_code_prefix">Kod błędu:</string>
-    <string name="help">Pomoc</string>
-    <string name="delete_pc_msg">Czy na pewno chcesz usunąć ten komputer?</string>
     <string name="slow_connection_msg">Wolne połączenie z komputerem
 \nZmniejsz szybkość transmisji</string>
     <string name="poor_connection_msg">Słabe połączenie z komputerem</string>
@@ -29,10 +26,8 @@
     <string name="applist_menu_tv_channel">Dodaj do kanału</string>
     <string name="applist_refresh_title">Lista aplikacji</string>
     <string name="applist_refresh_error_msg">Nie udało się pobrać listy aplikacji</string>
-    <string name="applist_quit_app">Rezygnacja</string>
     <string name="applist_quit_success">Zakończono z powodzeniem</string>
     <string name="applist_quit_fail">Nie udało się zakończyć</string>
-    <string name="applist_quit_confirmation">Czy na pewno chcesz zamknąć uruchomioną aplikację? Wszystkie niezapisane dane zostaną utracone.</string>
     <string name="applist_details_id">App ID:</string>
     <string name="title_add_pc">Dodaj komputer ręcznie</string>
     <string name="msg_add_pc">Podłączanie do komputera…</string>
@@ -175,18 +170,14 @@
     <string name="perf_overlay_renderingfps">Liczba klatek na sekundę renderowania: %1$.2f FPS</string>
     <string name="applist_refresh_error_title">Błąd</string>
     <string name="applist_refresh_msg">Odświeżanie aplikacji…</string>
-    <string name="addpc_enter_ip">Należy wprowadzić adres IP</string>
     <string name="category_audio_settings">Ustawienia audio</string>
     <string name="title_frame_pacing">Tempo klatek wideo</string>
     <string name="pacing_balanced">Zrównoważone</string>
-    <string name="no">Nie</string>
     <string name="applist_menu_quit">Zakończenie sesji</string>
     <string name="title_seekbar_bitrate">Szybkość transmisji wideo</string>
     <string name="summary_checkbox_flip_face_buttons">Przełącza przyciski A/B i X/Y dla gamepadów i elementów sterujących na ekranie</string>
     <string name="category_help">Pomoc</string>
     <string name="resolution_480p">480p</string>
-    <string name="pair_pairing_msg">Wprowadź następujący kod PIN na komputerze docelowym:</string>
-    <string name="pair_pairing_help">Jeśli na komputerze hosta działa Sunshine, przejdź do interfejsu użytkownika Sunshine aby wprowadzić kod PIN.</string>
     <string name="unpairing">Rozparowywanie…</string>
     <string name="unpair_success">Rozparowano z powodzeniem</string>
     <string name="unable_to_pin_shortcut">Obecny program uruchamiający nie pozwala na tworzenie przypiętych skrótów.</string>
@@ -196,7 +187,6 @@
     <string name="conn_hardware_latency">Średnie opóźnienie dekodowania sprzętowego:</string>
     <string name="conn_starting">Uruchamianie</string>
     <string name="conn_error_title">Błąd połączenia</string>
-    <string name="lost_connection">Utrata połączenia z komputerem</string>
     <string name="dialog_title_reset_osc">Reset układu</string>
     <string name="dialog_text_reset_osc">Czy na pewno chcesz usunąć zapisany układ kontrolek ekranowych?</string>
     <string name="summary_checkbox_enable_pip">Umożliwia wyświetlanie strumienia (ale nie sterowanie nim) podczas pracy wielozadaniowej</string>
@@ -214,7 +204,6 @@
     <string name="applist_menu_resume">Wznowienie sesji</string>
     <string name="perf_overlay_netdrops">Ramki porzucone przez połączenie sieciowe: %1$.2f%%</string>
     <string name="perf_overlay_dectime">Średni czas dekodowania: %1$.2f ms</string>
-    <string name="addpc_success">Dodano komputer z powodzeniem</string>
     <string name="resolution_prefix_native_landscape">(Panoramiczny)</string>
     <string name="resolution_prefix_native_fullscreen">Natywny pełny ekran</string>
     <string name="resolution_prefix_native_portrait">(Portretowy)</string>
@@ -230,7 +219,6 @@
     <string name="nettest_text_waiting">Nova testuje połączenie sieciowe w celu ustalenia, czy wymagane porty są zablokowane.
 \n
 \nMoże to potrwać kilka sekund…</string>
-    <string name="pairing">Parowanie…</string>
     <string name="pair_pc_ingame">Komputer jest obecnie w trakcie gry. Przed sparowaniem należy zamknąć grę.</string>
     <string name="nettest_text_success">Wygląda na to, że sieć nie blokuje Nova. Jeśli nadal masz problemy z połączeniem, sprawdź ustawienia zapory sieciowej na swoim komputerze.
 \n

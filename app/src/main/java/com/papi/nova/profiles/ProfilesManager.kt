@@ -9,7 +9,7 @@ import com.google.gson.reflect.TypeToken
 import com.papi.nova.LimeLog
 import java.io.File
 import java.io.FileReader
-import java.io.FileWriter
+import java.io.FileOutputStream
 import java.io.IOException
 import java.util.UUID
 
@@ -18,6 +18,7 @@ class ProfilesManager private constructor() {
     private var activeProfileId: UUID? = null
     private val listeners: MutableList<ProfileChangeListener> = ArrayList()
     private var appContext: Context? = null
+    internal var openProfileWriter: (File) -> FileOutputStream = { FileOutputStream(it) }
 
     fun load(context: Context?): Boolean {
         LimeLog.info("ArtemisProfile: Loading profile...")
@@ -80,12 +81,10 @@ class ProfilesManager private constructor() {
             }
             val file = File(dir, PROFILES_FILE)
             try {
-                FileWriter(file).use { writer ->
-                    val data = ProfilesData()
-                    data.profiles = ArrayList(profiles.values)
-                    data.activeProfileId = activeProfileId
-                    Gson().toJson(data, writer)
-                }
+                val data = ProfilesData()
+                data.profiles = ArrayList(profiles.values)
+                data.activeProfileId = activeProfileId
+                NovaProfileFile.write(file, Gson().toJson(data), openProfileWriter)
             } catch (e: IOException) {
                 LimeLog.warning("ArtemisProfile: Failed to save profiles to file:$e")
                 e.printStackTrace()
@@ -112,6 +111,23 @@ class ProfilesManager private constructor() {
         profiles[profile.getUuid()] = profile
         notifyListeners()
         saveIfPossible()
+    }
+
+    /**
+     * Puts [profile] in place of the preset with its id, or adds it, and keeps it only if the file
+     * saves. A failed save puts back what was there and returns false, so the list never shows a
+     * preset the file does not have. Listeners hear only a change that was kept.
+     */
+    fun commit(context: Context, profile: SettingsProfile): Boolean {
+        val id = profile.getUuid()
+        val previous = profiles[id]
+        profiles[id] = profile
+        if (!save(context)) {
+            if (previous != null) profiles[id] = previous else profiles.remove(id)
+            return false
+        }
+        notifyListeners()
+        return true
     }
 
     fun delete(uuid: UUID?) {

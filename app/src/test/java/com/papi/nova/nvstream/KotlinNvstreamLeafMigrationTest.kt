@@ -43,7 +43,7 @@ class KotlinNvstreamLeafMigrationTest {
         assertTrue(IOException::class.java.isAssignableFrom(HostHttpResponseException::class.java))
         assertEquals(599, exception.getErrorCode())
         assertEquals("launch failed", exception.getErrorMessage())
-        assertEquals("Host PC returned error: launch failed (Error code: 599)", exception.message)
+        assertEquals("Host returned error: launch failed (Error code: 599)", exception.message)
     }
 
     @Test

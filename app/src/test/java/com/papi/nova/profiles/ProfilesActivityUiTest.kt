@@ -1,13 +1,13 @@
 package com.papi.nova.profiles
 
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
-import android.os.Looper
 import android.view.View
+import androidx.core.view.ViewCompat
 import android.widget.ImageButton
-import android.widget.RadioButton
+import android.widget.FrameLayout
 import androidx.preference.Preference
+import androidx.compose.ui.platform.ComposeView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.EditProfileActivity
@@ -21,6 +21,7 @@ import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.BeforeClass
@@ -58,6 +59,26 @@ class ProfilesActivityUiTest {
         val next = Shadows.shadowOf(activity).nextStartedActivity
         assertNotNull("FAB should launch EditProfileActivity", next)
         assertEquals(EditProfileActivity::class.java.name, next.component!!.className)
+    }
+
+    @Test
+    // Robolectric 4.16 no longer supplies Android21/22. The wrapper uses FrameLayout's
+    // API21 foreground contract; run the focus behavior on its oldest supplied SDK too.
+    @Config(sdk = [23, 33])
+    fun focusedFabUsesCompatibilityWrapperWithoutLosingChildFocus() {
+        val controller = Robolectric.buildActivity(ProfilesActivity::class.java).setup()
+        try {
+            val fab = controller.get().findViewById<ImageButton>(R.id.addProfileFab)
+            assertTrue("foreground belongs to the API21-compatible wrapper", fab.parent is FrameLayout)
+            val frame = fab.parent as FrameLayout
+            assertNotNull(frame.foreground)
+            assertTrue(fab.requestFocus())
+            frame.refreshDrawableState()
+            assertTrue("child focus reaches the visible ring", frame.drawableState.contains(android.R.attr.state_focused))
+            assertTrue(frame.foreground.isStateful)
+        } finally {
+            controller.destroy()
+        }
     }
 
     @Test
@@ -128,8 +149,10 @@ class ProfilesActivityUiTest {
         }
     }
 
+    // The preset in use was a radio button, a separate focus stop that toggled on its own. It is
+    // the one current mark now (R9), and the row itself is what A or a tap acts on.
     @Test
-    fun radioClick_changesActiveProfile() {
+    fun rowClick_changesActiveProfileAndOnlyThatRowCarriesTheCheck() {
         val p1 = SettingsProfile(UUID.randomUUID(), "One", System.currentTimeMillis(), System.currentTimeMillis(), null)
         val p2 = SettingsProfile(UUID.randomUUID(), "Two", System.currentTimeMillis(), System.currentTimeMillis(), null)
         pm.add(p1)
@@ -142,17 +165,37 @@ class ProfilesActivityUiTest {
         rv.layout(0, 0, 1000, 1000)
         assertEquals(2, rv.adapter!!.itemCount)
 
-        val vh = rv.findViewHolderForAdapterPosition(1)
-        assertNotNull(vh)
-        val rb = vh!!.itemView.findViewById<RadioButton>(R.id.profileActive)
-        assertNotNull(rb)
-        rb.performClick()
+        val current = rv.findViewHolderForAdapterPosition(0)!!.itemView
+        val other = rv.findViewHolderForAdapterPosition(1)!!.itemView
+        assertEquals(View.VISIBLE, current.findViewById<View>(R.id.profileCurrent).visibility)
+        assertEquals(activity.getString(R.string.nova_panel_current), ViewCompat.getStateDescription(current))
+        assertTrue(current.isSelected)
+        assertEquals(View.GONE, other.findViewById<View>(R.id.profileCurrent).visibility)
+        assertNull(ViewCompat.getStateDescription(other))
+        assertTrue("the row is a focus stop, so A reaches it", other.isFocusable)
+
+        other.performClick()
 
         assertEquals(p2.getUuid(), pm.getActive()!!.getUuid())
+        // The mark moving is the answer: "Activated preset" floated over the list (audit X2).
+        assertNull("no Toast floats", org.robolectric.shadows.ShadowToast.getLatestToast())
+
+        Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        val exactly = View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY)
+        rv.measure(exactly, exactly)
+        rv.layout(0, 0, 1000, 1000)
+        val nowCurrent = rv.findViewHolderForAdapterPosition(1)!!.itemView
+        assertEquals("the mark moved to the row pressed", View.VISIBLE, nowCurrent.findViewById<View>(R.id.profileCurrent).visibility)
+        nowCurrent.performClick()
+        assertNull("the same row again stops using it", pm.getActive())
+        assertNull("still no Toast", org.robolectric.shadows.ShadowToast.getLatestToast())
     }
 
+    // Delete was a stock AlertDialog; it is a split confirm in the row now, driven through its
+    // controller keys in ProfilesDeleteSplitComposeTest. Here: the row carries it in place of the
+    // old trash button, and the screen answers A and B through the key gate.
     @Test
-    fun deleteProfile_removesRowAndUpdatesEmptyState() {
+    fun deleteIsASplitConfirmInTheRow() {
         val p = SettingsProfile(UUID.randomUUID(), "ToDelete", System.currentTimeMillis(), System.currentTimeMillis(), null)
         pm.add(p)
 
@@ -162,20 +205,9 @@ class ProfilesActivityUiTest {
         rv.layout(0, 0, 1000, 1000)
         val vh = rv.findViewHolderForAdapterPosition(0)
         assertNotNull(vh)
-        val deleteBtn = vh!!.itemView.findViewById<ImageButton>(R.id.deleteProfile)
-        deleteBtn.performClick()
-
-        val dialog = ShadowAlertDialog.getLatestAlertDialog()
-        assertNotNull(dialog)
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
-
-        Shadows.shadowOf(Looper.getMainLooper()).idle()
-
-        assertEquals(0, rv.adapter!!.itemCount)
-        assertTrue(pm.getProfiles().isEmpty())
-
-        rv.layout(0, 0, 1000, 1000)
-        assertEquals(View.GONE, rv.visibility)
+        val delete = vh!!.itemView.findViewById<View>(R.id.deleteProfile)
+        assertTrue("Delete is drawn by Compose as a split confirm", delete is ComposeView)
+        assertNull("no stock dialog is raised for Delete", ShadowAlertDialog.getLatestAlertDialog())
     }
 
     companion object {

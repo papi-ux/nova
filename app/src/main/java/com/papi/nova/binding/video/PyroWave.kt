@@ -1,6 +1,7 @@
 package com.papi.nova.binding.video
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Build
 import android.view.Surface
 import com.papi.nova.LimeLog
@@ -37,6 +38,9 @@ object PyroWave {
     private const val PREFS_NAME = "nova_pyrowave"
     private const val KEY_FINGERPRINT = "probe_fingerprint"
     private const val KEY_RESULT = "probe_result"
+    private const val KEY_SCHEMA = "probe_schema"
+    private const val KEY_MISSING_FEATURES = "probe_missing_features"
+    private const val PROBE_SCHEMA = 2
 
     private val loaded: Boolean = try {
         System.loadLibrary("pyrowave-jni")
@@ -50,6 +54,31 @@ object PyroWave {
 
     @Volatile
     private var cached: Probe = Probe.UNKNOWN
+
+    @Volatile
+    var missingRequiredFeatures: Int = 0
+        private set
+
+    internal data class CachedProbe(val probe: Probe, val missingFeatures: Int)
+
+    internal fun readProbeCache(prefs: SharedPreferences, fingerprint: String): CachedProbe? {
+        // Reprobe beta.3's generic failure once, so the reason can name the actual missing features.
+        if (prefs.getInt(KEY_SCHEMA, 0) != PROBE_SCHEMA ||
+            prefs.getString(KEY_FINGERPRINT, null) != fingerprint) return null
+        val probe = fromNative(prefs.getInt(KEY_RESULT, Int.MIN_VALUE)) ?: return null
+        val missing = prefs.getInt(KEY_MISSING_FEATURES, 0)
+        if (missing !in 0..PyroWaveGpuFeatures.ALL || (probe != Probe.UNUSABLE && missing != 0)) return null
+        return CachedProbe(probe, missing)
+    }
+
+    internal fun writeProbeCache(prefs: SharedPreferences, fingerprint: String, result: CachedProbe) {
+        prefs.edit()
+            .putString(KEY_FINGERPRINT, fingerprint)
+            .putInt(KEY_SCHEMA, PROBE_SCHEMA)
+            .putInt(KEY_RESULT, toNative(result.probe))
+            .putInt(KEY_MISSING_FEATURES, result.missingFeatures)
+            .apply()
+    }
 
     /** Whether the native library is present and loadable on this device. */
     @JvmStatic
@@ -84,19 +113,14 @@ object PyroWave {
 
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val fingerprint = Build.FINGERPRINT ?: ""
-        if (prefs.getString(KEY_FINGERPRINT, null) == fingerprint) {
-            val remembered = prefs.getInt(KEY_RESULT, Int.MIN_VALUE)
-            fromNative(remembered)?.let {
-                cached = it
-                return it
-            }
+        readProbeCache(prefs, fingerprint)?.let {
+            missingRequiredFeatures = it.missingFeatures
+            cached = it.probe
+            return it.probe
         }
 
         val probe = measure(context)
-        prefs.edit()
-            .putString(KEY_FINGERPRINT, fingerprint)
-            .putInt(KEY_RESULT, toNative(probe))
-            .apply()
+        writeProbeCache(prefs, fingerprint, CachedProbe(probe, missingRequiredFeatures))
         cached = probe
         return probe
     }
@@ -114,7 +138,9 @@ object PyroWave {
      * path that works; the recommended path is tried only if compute fails, and never silently.
      */
     private fun measure(context: Context): Probe {
-        val recommendation = fromNative(nativeProbeDecoder())
+        val nativeResult = nativeProbeDecoder()
+        missingRequiredFeatures = PyroWaveGpuFeatures.fromNativeFailure(nativeResult)
+        val recommendation = fromNative(nativeResult)
         if (recommendation == null || recommendation == Probe.UNUSABLE) {
             LimeLog.info("PyroWave: no usable Vulkan device")
             return Probe.UNUSABLE

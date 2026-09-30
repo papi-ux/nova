@@ -24,7 +24,8 @@ class NovaSpacesVocabularyTest {
         "src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt",
         "src/main/java/com/papi/nova/grid/PcGridAdapter.kt",
         "src/main/java/com/papi/nova/Game.kt",
-        "src/main/java/com/papi/nova/GameMenu.kt",
+        // The legacy menu's successor: the Command Center's pages.
+        "src/main/java/com/papi/nova/ui/NovaCommandCenterPages.kt",
         "src/main/java/com/papi/nova/ui/NovaQuickMenuUiState.kt",
     )
 
@@ -166,7 +167,7 @@ class NovaSpacesVocabularyTest {
     @Test
     fun theChooserIsBuiltFromTheDetailWindowRows() {
         val chooser = File("src/main/java/com/papi/nova/ui/NovaSpaceChooser.kt").readText()
-        assertTrue(chooser.contains("NovaSteamChoiceRow(") && chooser.contains("NovaControllerHintBar("))
+        assertTrue(chooser.contains("NovaSteamChoiceRow(") && chooser.contains("NovaPanelHintBar("))
         assertFalse(
             "focus is claimed once when the chooser opens; re-requesting it on every snapshot moved the cursor on poll blips",
             chooser.contains("LaunchedEffect(snapshot"),

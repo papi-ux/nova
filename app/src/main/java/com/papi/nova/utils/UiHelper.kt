@@ -1,38 +1,43 @@
 package com.papi.nova.utils
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.app.GameManager
 import android.app.GameState
 import android.app.LocaleManager
 import android.app.UiModeManager
 import android.content.Context
-import android.content.DialogInterface
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Insets
 import android.os.Build
-import android.text.Html
-import android.text.method.LinkMovementMethod
 import android.util.TypedValue
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
-import android.widget.TextView
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.fromHtml
+import androidx.compose.ui.text.style.TextDecoration
 import com.papi.nova.LimeLog
 import com.papi.nova.R
-import com.papi.nova.computers.HostForget
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.preferences.PreferenceConfiguration
-import com.papi.nova.ui.NovaDialogWindows
 import com.papi.nova.ui.NovaSystemBars
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaSurfaces
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 object UiHelper {
-    private const val TV_VERTICAL_PADDING_DP = 15
-    private const val TV_HORIZONTAL_PADDING_DP = 15
+    // The television title-safe area, as the panels keep it: 15dp left the host list and Settings
+    // under a television's overscan.
+    private const val TV_VERTICAL_PADDING_DP = 27
+    private const val TV_HORIZONTAL_PADDING_DP = 48
+    private val confirmSerial = AtomicLong()
+    private val confirmationLinkStyles = TextLinkStyles(style = SpanStyle(textDecoration = TextDecoration.Underline))
 
     @JvmStatic
     fun isTvDevice(context: Context): Boolean {
@@ -185,7 +190,8 @@ object UiHelper {
             val verticalPaddingPixels = (TV_VERTICAL_PADDING_DP * scale + 0.5f).toInt()
             val horizontalPaddingPixels = (TV_HORIZONTAL_PADDING_DP * scale + 0.5f).toInt()
 
-            rootView.setPadding(
+            // The controls keep clear of the edge; a background under them still reaches it.
+            insetTarget.setPadding(
                 horizontalPaddingPixels,
                 verticalPaddingPixels,
                 horizontalPaddingPixels,
@@ -324,6 +330,11 @@ object UiHelper {
         }
     }
 
+    /**
+     * Asks before going on, as a Confirm page in the right-edge panel (pushed onto a panel that is
+     * already open). Stay is focused and runs [onNo], as B does; the action runs [onYes]. [message]
+     * is HTML, so a link in it can be followed by touch.
+     */
     @JvmStatic
     fun displayConfirmationDialog(
         parent: Activity,
@@ -334,30 +345,40 @@ object UiHelper {
         onYes: Runnable?,
         onNo: Runnable?,
     ) {
-        val dialogClickListener = DialogInterface.OnClickListener { _, which ->
-            when (which) {
-                DialogInterface.BUTTON_POSITIVE -> onYes?.run()
-                DialogInterface.BUTTON_NEGATIVE -> onNo?.run()
-            }
-        }
+        presentConfirmation(
+            parent,
+            title = title ?: parent.getString(R.string.nova_panel_confirm_title),
+            message = AnnotatedString.fromHtml(message, linkStyles = confirmationLinkStyles),
+            stayLabel = btnNoText ?: parent.getString(R.string.nova_panel_cancel),
+            actionLabel = btnYesText ?: parent.getString(android.R.string.ok),
+            destructive = false,
+            onYes = onYes,
+            onNo = onNo,
+        )
+    }
 
-        val builder = AlertDialog.Builder(parent)
-        @Suppress("DEPRECATION")
-        builder.setMessage(Html.fromHtml(message))
-        if (title != null) {
-            builder.setTitle(title)
-        }
-        if (btnYesText != null) {
-            builder.setPositiveButton(btnYesText, dialogClickListener)
-        }
-        if (btnNoText != null) {
-            builder.setNegativeButton(btnNoText, dialogClickListener)
-        }
-        val dialog = builder.create()
-        dialog.show()
-        dialog.window?.let { NovaDialogWindows.adopt(dialog.context, it) }
-        dialog.findViewById<TextView>(android.R.id.message)
-            ?.movementMethod = LinkMovementMethod.getInstance()
+    private fun presentConfirmation(
+        parent: Activity,
+        title: String,
+        message: AnnotatedString,
+        stayLabel: String,
+        actionLabel: String,
+        destructive: Boolean,
+        onYes: Runnable?,
+        onNo: Runnable?,
+    ) {
+        NovaSurfaces.of(parent).present(
+            NovaCommonPage.Confirm(
+                key = "nova-legacy-confirm-" + confirmSerial.incrementAndGet(),
+                title = title,
+                message = message,
+                stayLabel = stayLabel,
+                actionLabel = actionLabel,
+                destructive = destructive,
+                onConfirm = { onYes?.run() },
+                onStay = { onNo?.run() },
+            ),
+        )
     }
 
     @JvmStatic
@@ -374,7 +395,7 @@ object UiHelper {
         }
         displayConfirmationDialog(
             parent,
-            null,
+            parent.resources.getString(R.string.nova_panel_vdisplay_title),
             message,
             parent.resources.getString(R.string.proceed),
             parent.resources.getString(R.string.cancel),
@@ -383,40 +404,18 @@ object UiHelper {
         )
     }
 
+    /** Ends the running session only on a deliberate second step: Stay is focused, and B stays too. */
     @JvmStatic
     fun displayQuitConfirmationDialog(parent: Activity, onYes: Runnable?, onNo: Runnable?) {
-        displayConfirmationDialog(
+        presentConfirmation(
             parent,
-            null,
-            parent.resources.getString(R.string.applist_quit_confirmation),
-            parent.resources.getString(R.string.yes),
-            parent.resources.getString(R.string.no),
-            onYes,
-            onNo,
-        )
-    }
-
-    @JvmStatic
-    fun displayDeletePcConfirmationDialog(
-        parent: Activity,
-        computer: ComputerDetails,
-        onYes: Runnable?,
-        onNo: Runnable?,
-    ) {
-        displayConfirmationDialog(
-            parent,
-            computer.name,
-            parent.resources.getString(
-                when {
-                    HostForget.mayCloseRunningGame(computer) -> R.string.delete_pc_msg_paired_running
-                    HostForget.canAsk(computer) -> R.string.delete_pc_msg_paired
-                    else -> R.string.delete_pc_msg
-                },
-            ),
-            parent.resources.getString(R.string.yes),
-            parent.resources.getString(R.string.no),
-            onYes,
-            onNo,
+            title = parent.getString(R.string.game_dialog_title_quit_confirm),
+            message = AnnotatedString(parent.getString(R.string.nova_panel_end_session_message)),
+            stayLabel = parent.getString(R.string.nova_panel_stay),
+            actionLabel = parent.getString(R.string.game_dialog_action_end_session),
+            destructive = true,
+            onYes = onYes,
+            onNo = onNo,
         )
     }
 

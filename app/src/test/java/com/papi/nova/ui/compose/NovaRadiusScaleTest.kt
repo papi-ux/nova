@@ -29,10 +29,9 @@ class NovaRadiusScaleTest {
 
         assertEquals(
             "Corners come from NovaRadius, not from a number at the call site. Nova reached " +
-                "thirteen distinct values across 73 sites before the scale existed — each one " +
-                "individually defensible, which is exactly how that happens. Sheets are the " +
-                "deliberate exception and go through NovaSheetChrome.SHEET_CORNER_RADIUS_DP, " +
-                "which is a named constant and so does not trip this.\n" +
+                "thirteen distinct values across 73 sites before the scale existed, each one " +
+                "individually defensible, which is exactly how that happens. The drawer's 26dp " +
+                "is NovaRadius.drawer, a named step like the others.\n" +
                 offenders.joinToString("\n"),
             emptyList<String>(),
             offenders
@@ -111,8 +110,8 @@ class NovaRadiusScaleTest {
 
         /**
          * A dp literal that is a bare number: `14.dp` matches, `NovaRadius.row` has no `.dp`
-         * at all, and `SHEET_CORNER_RADIUS_DP.dp` is preceded by a word character so the
-         * lookbehind rejects it.
+         * at all, and a named constant such as `CORNER_DP.dp` is preceded by a word character
+         * so the lookbehind rejects it.
          */
         val BARE_DP = Regex("""(?<![\w.])\d+(?:\.\d+)?\.dp""")
 

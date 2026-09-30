@@ -17,11 +17,9 @@
     <string name="pcview_menu_delete_pc">Șterge PC</string>
     <string name="pcview_menu_details">Vezi detalii</string>
     <!-- Pair messages -->
-    <string name="pairing">Se împerechează…</string>
     <string name="pair_pc_offline">PC-ul nu este accesibil</string>
     <string name="pair_pc_ingame">PC-ul rulează un joc acum. Trebuie să închizi jocul pentru a-l putea împerechea.</string>
     <string name="pair_pairing_title">Se împerechează</string>
-    <string name="pair_pairing_msg">Te rugăm să introduci urmatorul PIN în PC-ul pe care îl împerechezi:</string>
     <string name="pair_incorrect_pin">PIN-ul este greșit</string>
     <string name="pair_fail">Împerecherea a eșuat</string>
     <string name="pair_already_in_progress">Împerecherea este deja în curs</string>
@@ -66,12 +64,7 @@
     <string name="ip_hint">Adresa IP a PC-ului cu GFE</string>
     <string name="searching_pc">Se caută PC-uri cu GameStream activat…\n\n
         Asigură-te ca GameStream este activat în setările Geforce Experience SHIELD.</string>
-    <string name="yes">Da</string>
-    <string name="no">Nu</string>
-    <string name="lost_connection">S-a pierdut conexiunea catre PC</string>
     <string name="title_details">Detalii</string>
-    <string name="help">Ajutor</string>
-    <string name="delete_pc_msg">Sigur dorești să ștergi acest PC?</string>
     <string name="slow_connection_msg">Conexiune inceată catre PC\nRedu rata de biți</string>
     <string name="poor_connection_msg">Conexiune slabă catre PC</string>
     <string name="perf_overlay_decoder">Decodor: %1$s</string>
@@ -92,18 +85,14 @@
     <string name="applist_refresh_msg">Reîmprospătare aplicații…</string>
     <string name="applist_refresh_error_title">Eroare</string>
     <string name="applist_refresh_error_msg">Nu s-a putut obține lista de aplicații</string>
-    <string name="applist_quit_app">Închidere în curs</string>
     <string name="applist_quit_success">Închis cu succes</string>
     <string name="applist_quit_fail">Nu s-a putut închide lista</string>
-    <string name="applist_quit_confirmation">Sigur dorești să închizi aplicația curentă? Toate datele nesalvate vor fi pierdute.</string>
     <string name="applist_details_id">ID-ul aplicației:</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Adaugă PC manual</string>
     <string name="msg_add_pc">Conectare în curs…</string>
     <string name="addpc_fail">Nu s-a putut efectua conectarea la adresa introdusă. Asigurăte ca porturile nu sunt blocate in firewall.</string>
-    <string name="addpc_success">PC adăugat cu succes</string>
     <string name="addpc_unknown_host">Nu am putut identifica adresa PC-ului. Asigură-te că ai introdus-o corect.</string>
-    <string name="addpc_enter_ip">Trebuie să introduci o adresa IP</string>
     <string name="addpc_wrong_sitelocal">Adresa introdusă nu pare corectă. Pentru conectare prin Internet, este nevoie de adresa publică a routerului.</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Setări de bază</string>

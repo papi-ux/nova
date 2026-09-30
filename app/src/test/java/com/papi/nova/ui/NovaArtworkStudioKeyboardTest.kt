@@ -18,13 +18,20 @@ class NovaArtworkStudioKeyboardTest {
             Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaArtworkStudio.kt")),
             StandardCharsets.UTF_8,
         )
+        val field = String(
+            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/panel/NovaTextField.kt")),
+            StandardCharsets.UTF_8,
+        )
         assertTrue(
             "the search field is the studio's first stop, so focus on open raised a full screen of " +
-                "keyboard over a studio nobody had seen yet",
+                "keyboard over a studio nobody had seen yet. It sits out the first focus, and it is " +
+                "NovaTextField, which never raises the keyboard for focus alone and hides it on B",
             studio.contains(".focusProperties { canFocus = fieldTakesFocus }") &&
                 studio.contains("delay(NOVA_FIRST_FOCUS_SETTLE_MS * 4)") &&
-                studio.contains("showKeyboardOnFocus = false") && studio.contains("imeAction = ImeAction.Search") &&
-                studio.contains("keyboardActions = KeyboardActions(onSearch = {")
+                studio.contains("NovaTextField(") && studio.contains("imeAction = ImeAction.Search") &&
+                studio.contains("onImeAction = { if (!state.working && query.isNotBlank()) onSearch() }") &&
+                field.contains("showKeyboardOnFocus = false") &&
+                !studio.contains("OutlinedTextField(")
         )
     }
 }

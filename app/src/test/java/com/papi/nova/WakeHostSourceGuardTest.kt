@@ -49,9 +49,12 @@ class WakeHostSourceGuardTest {
             "wake and sleep share one button in one spot, so a stray tap on the way into the library must not be able to complete sleep",
             pcView.contains("startHostSleepHold(") && pcView.contains("hostSleepHold.isComplete(")
         )
+        // The undo was a snackbar with a timer; it is a Notice in the edge panel since M12, whose
+        // Keep Awake is focused and answers every way off the page.
         assertTrue(
             "the undo sits in front of the request, because a host that is already down cannot be woken from the couch",
-            pcView.contains("HoldToConfirm.SLEEP_GRACE_MILLIS") && pcView.contains("showPendingWithCancel(")
+            pcView.contains("HoldToConfirm.SLEEP_GRACE_MILLIS") && pcView.contains("key = SLEEP_COUNTDOWN_PAGE,") &&
+                pcView.contains("onClose = { cancelPendingHostSleep() }")
         )
         assertTrue(
             "a host that accepted the request but stayed awake must not leave 'going to sleep' on screen; the host is asked why",
@@ -90,9 +93,15 @@ class WakeHostSourceGuardTest {
             "the button stays on Sleeping... until the host answers, not Wake Host the moment the host drops off",
             pcView.contains("busy -> R.string.pcview_sleep_in_progress") && strings.contains("name=\"pcview_sleep_in_progress\"")
         )
+        // The fallback check moved into the screen's key gate: the gate consumes A and delivers it
+        // as one center press, so Android never adds a fallback press that could count twice. The
+        // gate is every Nova screen's since the closing step, so PcView no longer turns it on.
         assertTrue(
-            "a controller's A holds the button like the D-pad center does, counted once even when Android adds a fallback press",
-            pcView.contains("keyCode != KeyEvent.KEYCODE_BUTTON_A") && pcView.contains("KeyEvent.FLAG_FALLBACK")
+            "a controller's A holds the button like the D-pad center does, counted once",
+            File("src/main/java/com/papi/nova/NovaActivity.kt").readText().contains("protected open val novaKeyGate: Boolean = true") &&
+                !pcView.contains("override val novaKeyGate") &&
+                pcView.contains("keyCode != KeyEvent.KEYCODE_DPAD_CENTER") &&
+                !pcView.contains("KeyEvent.FLAG_FALLBACK")
         )
         assertTrue(
             "TalkBack cannot perform a timed hold, so Sleep Host is also a named accessibility action",
@@ -119,7 +128,7 @@ class WakeHostSourceGuardTest {
         assertTrue(
             "a press on an awake host that will not sleep says why, instead of waking what is awake",
             pcView.contains("} else if (preferredHostIsReachable()) {") &&
-                pcView.contains("NovaSnackbar.showQuiet(this, hostSleepRefusal())") &&
+                pcView.contains("showSleepNotice(hostSleepRefusal())") &&
                 strings.contains("name=\"pcview_sleep_unavailable_not_offered\"")
         )
         assertTrue(

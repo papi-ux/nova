@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What Launch, the game page's status line and Play Setup's plan say about a launch, built by
+     NovaLaunchProfileSummary (N22). The words were written into the builder in English. -->
+<resources>
+    <!-- Launch's label: the frame rate Tuning pins, whatever the host planned. -->
+    <string name="nova_launch_plan_label_pinned">Launch %1$s FPS · your pick</string>
+    <string name="nova_launch_plan_label_trial">Try High FPS stream %1$s FPS</string>
+    <string name="nova_launch_plan_label_high_fps">Launch High FPS stream %1$s FPS</string>
+    <string name="nova_launch_plan_label_recovery">Launch Recovery profile %1$s FPS</string>
+    <string name="nova_launch_plan_label_fps">Launch %1$s FPS</string>
+    <!-- Launch's label with a profile or preset name and no rate. -->
+    <string name="nova_launch_plan_label_named">Launch %1$s</string>
+    <!-- An Auto preset names nothing a player chose, so Launch says the rate alone. -->
+    <string name="nova_launch_plan_label_at_fps">Launch at %1$s FPS</string>
+    <string name="nova_launch_plan_label_plain">Launch</string>
+    <!-- A preset's name, then the rate it resolved. -->
+    <string name="nova_launch_plan_label_preset_fps">Launch %1$s · %2$s FPS</string>
+    <!-- A Space's name, then the rate it resolved. -->
+    <string name="nova_launch_plan_label_space_fps">Launch in %1$s · %2$s FPS</string>
+    <string name="nova_launch_plan_label_space">Launch in %1$s</string>
+    <!-- Stands in for a Space with no name, after Launch in. -->
+    <string name="nova_launch_plan_your_space">your Space</string>
+    <!-- Profile names, as the plan and Launch say them. -->
+    <string name="nova_launch_plan_profile_high_fps_stream">High FPS stream</string>
+    <string name="nova_launch_plan_profile_high_fps_trial">High FPS trial</string>
+    <string name="nova_launch_plan_profile_recovery">Recovery profile</string>
+    <string name="nova_launch_plan_profile_quality">Quality profile</string>
+    <string name="nova_launch_plan_profile_stability">Stability profile</string>
+    <string name="nova_launch_plan_profile_auto">Auto</string>
+    <string name="nova_launch_plan_profile_holding">Holding</string>
+    <string name="nova_launch_plan_profile_learning">Learning</string>
+    <string name="nova_launch_plan_profile_generic">Profile</string>
+    <!-- The plan's lines. Each starts with a short label and a colon, which Play Setup drops where its own key says the same. -->
+    <string name="nova_launch_plan_requested_fps">Requested: %1$s / %2$s FPS</string>
+    <string name="nova_launch_plan_requested">Requested: %1$s</string>
+    <string name="nova_launch_plan_requested_asked">Requested: %1$s · %2$s FPS</string>
+    <string name="nova_launch_plan_requested_space">Requested: %1$s FPS</string>
+    <string name="nova_launch_plan_selected_pinned_over">Selected: %1$s FPS pinned (host offered %2$s / %3$s FPS)</string>
+    <string name="nova_launch_plan_selected_pinned">Selected: %1$s FPS pinned</string>
+    <string name="nova_launch_plan_selected_asked_gap">Selected: %1$s / %2$s FPS · you asked %3$s</string>
+    <string name="nova_launch_plan_selected_fps">Selected: %1$s / %2$s FPS</string>
+    <string name="nova_launch_plan_selected">Selected: %1$s</string>
+    <string name="nova_launch_plan_resolved">Resolved: %1$s</string>
+    <string name="nova_launch_plan_performance">Performance: %1$s</string>
+    <string name="nova_launch_plan_reason">Reason: %1$s</string>
+    <string name="nova_launch_plan_limited_by">Limited by: %1$s</string>
+    <string name="nova_launch_plan_trial_freshness">One-launch trial; learned recovery remains active unless this launch grades cleanly.</string>
+    <string name="nova_launch_plan_recovery_active_age">Recovery active from last session · %1$s</string>
+    <string name="nova_launch_plan_recovery_active">Recovery active from last session</string>
+    <!-- What holds the granted rate under the rate asked for. -->
+    <string name="nova_launch_plan_held_by">Held by %1$s</string>
+    <string name="nova_launch_plan_held_by_recovery">Held by the recovery profile</string>
+    <string name="nova_launch_plan_retry_fps">Try %1$s FPS once</string>
+    <string name="nova_launch_plan_retry_high_fps">Try High FPS once</string>
+    <string name="nova_launch_plan_no_recovery_needed">No recovery adjustment is needed.</string>
+    <string name="nova_launch_plan_heads_up">Heads up</string>
+    <string name="nova_launch_plan_target_met">Target met</string>
+    <string name="nova_launch_plan_near_target">Near target</string>
+    <string name="nova_launch_plan_preset_reason">Deterministic preset v1; Doctor history and AI output cannot change these fields.</string>
+    <string name="nova_launch_plan_preset_hdr_off">HDR is off in this client\'s Settings (Request HDR when host supports it). Turn it on to ask; Polaris decides from there.</string>
+    <string name="nova_launch_plan_preset_doctor">Doctor observations do not change launch settings.</string>
+    <string name="nova_launch_plan_preset_label">Launch preset</string>
+    <string name="nova_launch_plan_preset_freshness">Resolved for this launch</string>
+    <string name="nova_launch_plan_preset_description">Polaris resolved this from the launch request, paired-device settings, and current host capabilities.</string>
+    <string name="nova_launch_plan_space_label">Space stream</string>
+    <!-- What the host resolved, part by part. -->
+    <string name="nova_launch_plan_size_at_fps">%1$d×%2$d @ %3$s FPS</string>
+    <string name="nova_launch_plan_mbps">%1$s Mbps</string>
+    <!-- A codec chosen on this device rather than by the host. -->
+    <string name="nova_launch_plan_client_choice">%1$s (client choice)</string>
+    <string name="nova_launch_plan_hdr">HDR</string>
+    <string name="nova_launch_plan_sdr_not_requested">SDR (HDR not requested)</string>
+    <string name="nova_launch_plan_sdr_host_off">SDR (host turned HDR off)</string>
+    <string name="nova_launch_plan_sdr_host_encoder">SDR (host encoder)</string>
+    <string name="nova_launch_plan_sdr">SDR</string>
+    <!-- The evidence behind the plan's notice. -->
+    <string name="nova_launch_plan_last_stream">Last stream: %1$s/%2$s FPS.</string>
+    <string name="nova_launch_plan_one_percent_low">1%% low: %1$s FPS.</string>
+    <string name="nova_launch_plan_bad_pacing">Bad pacing: %1$s%%.</string>
+    <string name="nova_launch_plan_stream_target_met">Stream target met.</string>
+    <string name="nova_launch_plan_normal_variation">Normal gameplay variation.</string>
+    <string name="nova_launch_plan_impact_host_render">The host missed the stream target, which can cause repeated frames or uneven motion.</string>
+    <string name="nova_launch_plan_impact_decoder">The client decoder missed frames, which can cause stutter or uneven motion.</string>
+    <string name="nova_launch_plan_impact_network">The network path was unstable, which can cause hitching or dropped frames.</string>
+    <string name="nova_launch_plan_impact_encoder">The host encoder missed frames, which can cause uneven frame delivery.</string>
+    <string name="nova_launch_plan_impact_pacing">Frames arrived unevenly, which can look like judder even when average FPS is high.</string>
+    <string name="nova_launch_plan_impact_other">Polaris reported %1$s for the last session.</string>
+    <string name="nova_launch_plan_retry_remains">Try %1$s FPS once remains available below.</string>
+    <string name="nova_launch_plan_next_recovery_instead">Next launch: %1$s FPS Recovery instead of your requested %2$s FPS because the learned recovery profile is active.</string>
+    <string name="nova_launch_plan_next_selected_instead">Next launch: Nova selected %1$s FPS instead of your requested %2$s FPS.</string>
+    <string name="nova_launch_plan_next_recovery_remains">Next launch: %1$s FPS Recovery remains active. One clean launch can release it, or reset this game profile below.</string>
+    <!-- How the last session went. -->
+    <string name="nova_launch_plan_last_grade_status">Last: grade %1$s · %2$s at %3$s/%4$s FPS</string>
+    <string name="nova_launch_plan_last_grade_fps">Last: grade %1$s at %2$s/%3$s FPS</string>
+    <string name="nova_launch_plan_last_grade">Last: grade %1$s</string>
+    <string name="nova_launch_plan_issue">Issue: %1$s</string>
+    <string name="nova_launch_plan_next_release">Next: one clean launch can release recovery, or reset this game profile.</string>
+    <!-- What limited a launch, as Polaris names it. -->
+    <string name="nova_launch_plan_issue_host_render">Host Render</string>
+    <string name="nova_launch_plan_issue_decoder">Decoder Path</string>
+    <string name="nova_launch_plan_issue_network">Network</string>
+    <string name="nova_launch_plan_issue_encoder">Encoder</string>
+    <string name="nova_launch_plan_issue_pacing">Frame Pacing</string>
+    <!-- How long ago the last session's result came. -->
+    <string name="nova_launch_plan_age_now">just now</string>
+    <string name="nova_launch_plan_age_minutes">%1$d min ago</string>
+    <string name="nova_launch_plan_age_hours">%1$d hr ago</string>
+    <string name="nova_launch_plan_age_days">%1$d d ago</string>
+</resources>

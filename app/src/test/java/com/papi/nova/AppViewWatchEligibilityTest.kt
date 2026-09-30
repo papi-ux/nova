@@ -4,6 +4,7 @@ import android.os.Looper
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.compose.ui.platform.ComposeView
 import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.computers.ComputerManagerListener
 import com.papi.nova.grid.AppGridAdapter
@@ -18,8 +19,9 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowDialog
-import org.robolectric.shadows.ShadowToast
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaMenuItem
+import com.papi.nova.ui.panel.novaSurfaces
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -39,9 +41,10 @@ class AppViewWatchEligibilityTest {
         init {
             activity.setTheme(R.style.AppTheme)
             for (viewId in listOf(R.id.recently_played_name, R.id.recently_played_kicker,
-                R.id.recently_played_meta, R.id.recently_played_action, R.id.recently_played_end_session)) {
+                R.id.recently_played_meta, R.id.recently_played_action)) {
                 card.addView(TextView(activity).apply { id = viewId })
             }
+            card.addView(ComposeView(activity).apply { id = R.id.recently_played_end_session })
             activity.setContentView(card)
             val adapter = mock(AppGridAdapter::class.java)
             `when`(adapter.itemCount).thenReturn(1)
@@ -64,11 +67,10 @@ class AppViewWatchEligibilityTest {
             shadowOf(Looper.getMainLooper()).idle()
         }
 
-        fun sheet(selected: AppView.AppObject = app): List<TextView> {
-            AppView::class.java.getDeclaredMethod("showAppBottomSheet", AppView.AppObject::class.java)
+        fun panel(selected: AppView.AppObject = app): List<NovaMenuItem> {
+            AppView::class.java.getDeclaredMethod("showAppPanel", AppView.AppObject::class.java)
                 .apply { isAccessible = true }.invoke(activity, selected)
-            val actions = ShadowDialog.getLatestDialog().findViewById<LinearLayout>(R.id.sheet_actions)
-            return (0 until actions.childCount).mapNotNull { actions.getChildAt(it) as? TextView }
+            return (activity.novaSurfaces.panel.top as NovaCommonPage.Menu).items
         }
 
         fun label() = activity.findViewById<TextView>(R.id.recently_played_action).text.toString()
@@ -89,9 +91,9 @@ class AppViewWatchEligibilityTest {
         assertFalse(fixture.card.isEnabled)
         assertEquals(View.GONE, fixture.activity.findViewById<View>(R.id.recently_played_end_session).visibility)
         for (selected in listOf(fixture.app, AppView.AppObject(NvApp("Other game", "other", 8, false)))) {
-            val labels = fixture.sheet(selected).filter { it.isEnabled }.map { it.text.toString() }
+            val labels = fixture.panel(selected).filterIsInstance<NovaMenuItem.Action>().filter { it.disabledReason == null }.map { it.label }
             assertFalse(labels.any { it.startsWith("Watch") || it.startsWith("Resume") || it.startsWith("Quit") || it == "End Session" })
-            ShadowDialog.getLatestDialog().dismiss()
+            fixture.activity.novaSurfaces.panel.close()
         }
     }
 
@@ -101,15 +103,15 @@ class AppViewWatchEligibilityTest {
             val fixture = Fixture(watchable)
             fixture.refresh()
             assertEquals("Watch Stream", fixture.label())
-            assertTrue(fixture.sheet().any { it.text == "Watch Stream" && it.isEnabled })
-            ShadowDialog.getLatestDialog().dismiss()
+            assertTrue(fixture.panel().filterIsInstance<NovaMenuItem.Action>().any { it.label == "Watch Stream" && it.disabledReason == null })
+            fixture.activity.novaSurfaces.panel.close()
         }
         val owner = Fixture(watchable = false, owned = true)
         owner.refresh()
         assertEquals("Resume", owner.label())
         assertTrue(owner.card.isEnabled)
-        assertTrue(owner.sheet().any { it.text == "Resume Stream" })
-        ShadowDialog.getLatestDialog().dismiss()
+        assertTrue(owner.panel().filterIsInstance<NovaMenuItem.Action>().any { it.label == "Resume Stream" })
+        owner.activity.novaSurfaces.panel.close()
     }
 
     @Test
@@ -133,10 +135,10 @@ class AppViewWatchEligibilityTest {
     @Test
     fun aWatchActionOpenedEarlierRechecksTheCurrentHostAnswer() {
         val fixture = Fixture(watchable = true)
-        val watch = fixture.sheet().first { it.text == "Watch Stream" }
+        val watch = fixture.panel().filterIsInstance<NovaMenuItem.Action>().first { it.label == "Watch Stream" }
         fixture.computer.currentGameWatchable = false
-        watch.performClick()
+        watch.onClick()
         assertNull(shadowOf(fixture.activity).nextStartedActivity)
-        assertEquals("Nobody is streaming this game, so there is nothing to watch.", ShadowToast.getTextOfLatestToast())
+        assertEquals("Nobody is streaming this game, so there is nothing to watch.", (fixture.activity.novaSurfaces.panel.top as NovaCommonPage.Notice).message)
     }
 }

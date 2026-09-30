@@ -189,6 +189,21 @@ class HostSleepSequenceTest {
     }
 
     @Test
+    fun aRequestConfirmedWhereItWasAskedSkipsTheCountdownButStillGoesOutOnce() {
+        // The host menu's split is the confirm (M12), so its request starts out, not counting down.
+        val sequence = HostSleepSequence()
+        assertTrue(sequence.startRequest())
+        assertEquals(HostSleepSequence.Phase.REQUESTING, sequence.phase)
+        assertFalse("one request at a time", sequence.startRequest())
+        assertFalse("nor a hold's countdown on top of it", sequence.startCountdown())
+        assertFalse("a request already out cannot be called off", sequence.cancelCountdown())
+        sequence.finish()
+
+        assertTrue(sequence.startCountdown())
+        assertFalse("a split confirmed during a hold's countdown sends nothing more", sequence.startRequest())
+    }
+
+    @Test
     fun aCancelledCountdownSendsNothing() {
         val sequence = HostSleepSequence()
         assertTrue(sequence.startCountdown())

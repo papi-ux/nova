@@ -183,9 +183,36 @@ class PolarisApiClient @JvmOverloads constructor(
     private val liveTuningReducer = LiveTuningReducer()
     private val mutableSessionStatus = kotlinx.coroutines.flow.MutableStateFlow<PolarisSessionStatus?>(null)
     val sessionStatusUpdates: kotlinx.coroutines.flow.StateFlow<PolarisSessionStatus?> = mutableSessionStatus
+    private data class CommandKeySession(val id: String, val generation: Long) {
+        fun matches(status: PolarisSessionStatus) = id.isNotBlank() &&
+            id == status.appSessionId && generation == status.sessionGeneration
+    }
+    private var commandKeySession: CommandKeySession? = null
+    @Volatile private var commandKeysRestricted = false
+    /** A failed reading removes telemetry, but cannot grant input after a viewer/denied reading. */
+    val commandKeysAllowed: Boolean get() = !commandKeysRestricted
+
+    // A client can observe the previous owned session before its new stream launches. Only an
+    // actual denial binds a session; another session's owner cannot clear that standing denial.
+    private fun updateCommandKeyAuthority(status: PolarisSessionStatus) {
+        val session = commandKeySession
+        val owner = status.authorityContractValid && status.isStreaming &&
+            status.clientRole == "owner" && status.ownedByClient
+        if (status.isViewer || (status.authorityContractValid && status.isStreaming && !status.ownedByClient)) {
+            if (session == null) commandKeySession = CommandKeySession(status.appSessionId, status.sessionGeneration)
+            commandKeysRestricted = true
+        } else if (owner && commandKeysRestricted && session?.matches(status) == true) {
+            // Retire the recovered denial so a later legitimate owner launch is not pinned here.
+            // An identityless denial never matches and cannot be cleared by guessing.
+            commandKeySession = null
+            commandKeysRestricted = false
+        }
+    }
+
     @Synchronized private fun publishStatus(status: PolarisSessionStatus?): PolarisSessionStatus? {
         if (status == null) { mutableSessionStatus.value = null; return null }
         if (status.liveTuning != null && liveTuningReducer.accept(status.liveTuning) == null) return mutableSessionStatus.value
+        updateCommandKeyAuthority(status)
         mutableSessionStatus.value = status
         return status
     }

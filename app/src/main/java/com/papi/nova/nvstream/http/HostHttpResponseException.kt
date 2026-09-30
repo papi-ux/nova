@@ -8,6 +8,9 @@ import java.io.IOException
  * Polaris adds two root attributes Moonlight never had: error_code, a stable
  * name for what refused the launch, and error_action, the one change that
  * fixes it. Both are optional so Sunshine and older Polaris hosts still parse.
+ *
+ * [statusMessage] is the status_message the host's own response carried, and
+ * null when it carried none: an HTTP status, or a status Nova made up itself.
  */
 class HostHttpResponseException(
     private val errorCode: Int,
@@ -15,6 +18,7 @@ class HostHttpResponseException(
     private val hostCode: String? = null,
     private val hostAction: String? = null,
     private val watchProfile: com.papi.nova.nvstream.NovaWatchProfile? = null,
+    private val statusMessage: String? = null,
 ) : IOException() {
     fun getErrorCode(): Int = errorCode
 
@@ -29,8 +33,11 @@ class HostHttpResponseException(
     /** The mode a refused watcher should ask for instead; null when the host named none as fields. */
     fun getWatchProfile(): com.papi.nova.nvstream.NovaWatchProfile? = watchProfile
 
+    /** What the host said in its own response's status_message; null when it said nothing there. */
+    fun getHostStatusMessage(): String? = statusMessage?.trim()?.takeIf { it.isNotEmpty() }
+
     override val message: String
-        get() = "Host PC returned error: $errorMsg (Error code: $errorCode)"
+        get() = "Host returned error: $errorMsg (Error code: $errorCode)"
 
     companion object {
         private const val serialVersionUID = 1543508830807804222L

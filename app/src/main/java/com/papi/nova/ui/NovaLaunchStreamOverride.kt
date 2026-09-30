@@ -10,6 +10,12 @@ object NovaLaunchStreamOverride {
     const val NORMALIZATION_REASON = "nova_play_setup_override"
 
     /**
+     * The source of an envelope composed with no trusted host plan under it: a choice made here
+     * and nothing else. Game rejects it before launch, and it is no plan to describe.
+     */
+    const val UNVERIFIED_SOURCE = "nova_explicit_launch_unverified_v1"
+
+    /**
      * The client-side fps pin: Tuning = High FPS means the Settings frame rate,
      * guaranteed. The other preferences leave the host in control.
      */
@@ -49,10 +55,7 @@ object NovaLaunchStreamOverride {
             // A legacy/AI/history host response cannot be relabelled as a
             // deterministic launch contract merely because Nova overlays one
             // explicit display choice. Game rejects this marker before launch.
-            put(
-                "source",
-                "nova_explicit_launch_unverified_v1"
-            )
+            put("source", UNVERIFIED_SOURCE)
             put("confidence", "deterministic")
             put("cache_status", "not_applicable")
             put("recommendation_version", 1)

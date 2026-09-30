@@ -6,6 +6,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PyroWaveAvailabilityTest {
+    @Test fun missingShieldFeaturesDisableSelectionAndSavedPyrowaveLaunches() {
+        val mask = PyroWaveGpuFeatures.STORAGE_8BIT or PyroWaveGpuFeatures.TIMELINE_SEMAPHORE
+        assertEquals(mask, PyroWaveGpuFeatures.fromNativeFailure(-268))
+        val status = PyroWaveAvailability.evaluate(true, PyroWave.Probe.UNUSABLE, mask)
+        assertEquals(Status.GPU_FEATURES_UNAVAILABLE, status)
+        assertFalse(PyroWaveAvailability.canSelect("forcepyrowave", status))
+        assertFalse(PyroWaveAvailability.canLaunch(FormatOption.FORCE_PYROWAVE, status))
+        assertTrue(PyroWaveAvailability.canSelect("forceh265", status))
+    }
+
+    @Test fun unspecifiedNativeFailuresDoNotInventMissingFeatures() {
+        for (result in listOf(Int.MIN_VALUE, -320, -256, -2, -1, 0, 1, Int.MAX_VALUE)) {
+            assertEquals(0, PyroWaveGpuFeatures.fromNativeFailure(result))
+        }
+        assertEquals(63, PyroWaveGpuFeatures.fromNativeFailure(-319))
+        assertEquals(Status.DECODE_UNAVAILABLE, PyroWaveAvailability.evaluate(true, PyroWave.Probe.UNUSABLE))
+    }
+
     @Test fun onlyTheMeasuredComputePathCanEnableTheCurrentRenderer() {
         for (probe in PyroWave.Probe.entries) {
             val expected = when (probe) {

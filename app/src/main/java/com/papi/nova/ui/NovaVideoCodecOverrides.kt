@@ -76,11 +76,32 @@ object NovaVideoCodecOverrides {
     }
 }
 
-/** Uses the same variant-specific resource catalog as Settings; stable has no experimental entry. */
+/**
+ * Uses the same variant-specific resource catalog as Settings; stable has no experimental entry.
+ * The row opens its page (R2): each codec carries a sentence, and PyroWave's is too long for a
+ * row. [preview] gives what the plan card shows while a codec has focus there, from the codec it
+ * would launch with; null for one that leaves the choice to the app setting or the host.
+ */
+/**
+ * One sentence for each codec, the same on Play Setup's page and in Settings: every standard codec
+ * had carried one shared sentence, and "Recommended" sat in the name instead of leading its note.
+ */
+internal fun novaCodecOptionDetail(context: Context, value: String): String = context.getString(
+    when (value) {
+        "auto" -> R.string.nova_codec_detail_auto
+        "forceav1" -> R.string.nova_codec_detail_av1
+        "forceh265" -> R.string.nova_codec_detail_hevc
+        "neverh265" -> R.string.nova_codec_detail_h264
+        "forcepyrowave" -> R.string.nova_play_setup_codec_pyrowave_detail
+        else -> R.string.nova_play_setup_codec_standard_detail
+    },
+)
+
 internal fun novaPlaySetupCodecRow(
     context: Context,
     selected: String?,
     appSetting: FormatOption?,
+    preview: (FormatOption) -> NovaPlaySetupPreview? = { null },
     onSelect: (String?) -> Unit,
 ): NovaPlaySetupRowState {
     val values = context.resources.getStringArray(R.array.video_format_values)
@@ -98,27 +119,30 @@ internal fun novaPlaySetupCodecRow(
             NovaVideoCodecOverrides.label(appSetting)) else options.firstOrNull { it.first == selected }?.second.orEmpty(),
         caption = if (effective == FormatOption.FORCE_PYROWAVE && unavailableReason.isNotEmpty())
             unavailableReason else context.getString(if (effective == FormatOption.FORCE_PYROWAVE)
-                R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_caption),
-        stripTitle = context.getString(R.string.nova_play_setup_video_codec),
+                R.string.nova_play_setup_codec_pyrowave_caption else R.string.nova_play_setup_codec_caption),
         options = listOf(NovaPlaySetupOption(
             label = context.getString(R.string.nova_play_setup_codec_app_setting),
+            value = NovaVideoCodecOverrides.label(appSetting),
             consequence = if (!PyroWaveAvailability.canLaunch(appSetting, availability))
                 unavailableReason else context.getString(R.string.nova_play_setup_codec_inherit_detail),
             current = selected == null,
             enabled = PyroWaveAvailability.canLaunch(appSetting, availability),
             onSelect = if (PyroWaveAvailability.canLaunch(appSetting, availability))
                 ({ onSelect(null) }) else null,
-        )) + options.map { (value, label) -> NovaPlaySetupOption(
-            label = label,
-            consequence = if (value == "forcepyrowave" && unavailableReason.isNotEmpty())
-                unavailableReason else context.getString(if (value == "forcepyrowave")
-                    R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_standard_detail),
-            current = value == selected,
-            enabled = PyroWaveAvailability.canSelect(value, availability),
-            onSelect = if (PyroWaveAvailability.canSelect(value, availability))
-                ({ onSelect(value) }) else null,
-        ) },
+        )) + options.map { (value, label) ->
+            val format = NovaVideoCodecOverrides.resolve(value, null)
+            NovaPlaySetupOption(
+                label = label,
+                consequence = if (value == "forcepyrowave" && unavailableReason.isNotEmpty())
+                    unavailableReason else novaCodecOptionDetail(context, value),
+                current = value == selected,
+                enabled = PyroWaveAvailability.canSelect(value, availability),
+                onSelect = if (PyroWaveAvailability.canSelect(value, availability))
+                    ({ onSelect(value) }) else null,
+                preview = format?.takeIf { it != FormatOption.AUTO }?.let(preview),
+            )
+        },
         overridden = selected != null,
-        optionsPerRow = 3,
+        opensPage = true,
     )
 }
