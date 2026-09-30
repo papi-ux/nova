@@ -19,6 +19,9 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -68,6 +71,10 @@ class NovaOverlayAppearanceInstrumentedTest {
                 val host = rule.onNodeWithText("HOST").getUnclippedBoundsInRoot()
                 val client = rule.onNodeWithText("CLIENT").getUnclippedBoundsInRoot()
                 assertEquals("normal text keeps all three layers together", host.top.value, client.top.value, 1f)
+                val loss = mutableListOf<TextLayoutResult>()
+                rule.onNodeWithText("0%", useUnmergedTree = true)
+                    .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(loss) }
+                assertEquals("the loss value stays together", 1, loss.single().lineCount)
             }
             shot("hud-${choice.name.lowercase()}-64")
         }

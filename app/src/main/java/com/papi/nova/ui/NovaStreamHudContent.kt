@@ -184,7 +184,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 // independently could add a pixel and push CLIENT onto a second row.
                 ((maxWidth.roundToPx() - 8.dp.roundToPx() * (columns - 1)) / columns).toDp()
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val layers: @Composable () -> Unit = {
                 val host = state.layerHealth.getOrNull(0)
                 val net = state.layerHealth.getOrNull(1)
                 val client = state.layerHealth.getOrNull(2)
@@ -197,7 +197,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 HudLayerColumn(net?.label ?: "NET", net?.tone ?: NovaHudTone.MUTED, Modifier.width(columnWidth)) {
                     HudFact("RTT", state.latencyLabel, state.latencyTone)
                     HudFact("JITTER", state.jitterLabel)
-                    HudFact("FRAME LOSS\nLATEST WINDOW", state.packetLossLabel, state.packetLossTone)
+                    HudFact("FRAME LOSS\nLAST SAMPLE", state.packetLossLabel, state.packetLossTone)
                     HudFact("MISSING", state.framesLostLabel)
                     HudFact("IN", state.incomingFpsLabel)
                 }
@@ -208,6 +208,14 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                     // A rate gap can include intentional pacing. It is not a cumulative drop counter.
                     HudFact("RENDER GAP", state.renderGapLabel)
                 }
+            }
+            if (columns == 3) {
+                // The three known layers fit. Row avoids FlowRow's intrinsic remeasurement
+                // wrapping the third layer differently on real fonts and density 2.3.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { layers() }
+            } else {
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) { layers() }
             }
         }
         HudEventBreadcrumb(state.eventBreadcrumbLabel)
@@ -696,7 +704,7 @@ internal fun hudMetricDescription(label: String, value: String): String {
         "IN" -> "Received frame rate"
         "OUT" -> "Rendered frame rate"
         "WINDOW MIN" -> "Minimum of the last 60 FPS samples"
-        "FRAME LOSS\nLATEST WINDOW" -> "Video frames missing in the latest sample window"
+        "FRAME LOSS\nLAST SAMPLE" -> "Video frames missing in the latest sample window"
         "MISSING" -> "Video frames missing this session"
         "RENDER GAP" -> "Receive minus render rate, including intentional pacing"
         "BIT" -> "Bitrate"
