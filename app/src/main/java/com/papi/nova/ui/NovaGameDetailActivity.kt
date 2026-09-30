@@ -1924,24 +1924,20 @@ class NovaGameDetailActivity : NovaActivity() {
             onKeepInStep = { hostSyncEngine?.setAutoSync(it) },
         )
 
-        fun changeDeviceSetting(definition: NovaSettingDefinition, value: NovaSettingValue) {
-            // Invalidate immediately, before either the settle delay or an asynchronous save.
-            settleThen {
-                kotlinx.coroutines.suspendCancellableCoroutine<Unit> { waiting ->
-                    deviceSettings.setValue(definition, value) {
-                        if (waiting.isActive) waiting.resumeWith(Result.success(Unit))
-                    }
-                }
-                val outcome = deviceSettings.uiState.value.tierSaveResult
+        val deviceEdits = NovaPlaySetupDeviceEdits(
+            save = { definition, value, completed -> deviceSettings.setValue(definition, value, completed) },
+            settle = ::settleThen,
+            outcome = { deviceSettings.uiState.value.tierSaveResult },
+            recheck = { outcome ->
                 if (outcome in setOf(NovaTierSaveResult.FAILED, NovaTierSaveResult.PROFILE_FAILED, NovaTierSaveResult.SUPERSEDED)) {
                     optimizationState = NovaGameDetailOptimizationState(preflightFailed = true,
                         lastPlan = optimizationState.lastPlan,
                         preflightMessage = "Could not save this choice. Try again in Quality")
                 } else loadOptimization(profilePreference)
-            }
-        }
+            },
+        )
         fun deviceRows(state: NovaSettingsUiState = deviceSettings.uiState.value) =
-            buildNovaDevicePlaySetupRows(state, ::changeDeviceSetting)
+            buildNovaDevicePlaySetupRows(state, deviceEdits::change)
         fun devicePage(row: NovaPlaySetupRow): NovaPage? {
             val definition = deviceSettings.uiState.value.deviceStreamSettings.firstOrNull {
                 it.key == novaDevicePlaySetupKeys[row] } ?: return null
@@ -1950,7 +1946,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 return com.papi.nova.ui.panel.NovaCommonPage.Slider(key="device-bitrate", title=definition.title,
                     value=value, range=(definition.min ?: 1000)..(definition.max ?: 300000),
                     step=definition.step ?: 5000, format={ NovaBitrateAdvice.text(it,false) }, exactDivisor=1,
-                    exactLabel="Bitrate (kbps)", onSave={ changeDeviceSetting(definition,NovaSettingValue.IntValue(it)) })
+                    exactLabel="Bitrate (kbps)", onSave={ deviceEdits.change(definition,NovaSettingValue.IntValue(it)) })
             }
             return PlaySetupPage.Options(definition.title, row,
                 bands={ listOf(NovaPlaySetupBand(null,deviceRows().firstOrNull { it.row==row }?.options.orEmpty())) },

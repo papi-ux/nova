@@ -15,6 +15,14 @@ internal val novaDevicePlaySetupKeys = linkedMapOf(
 internal fun buildNovaDevicePlaySetupRows(
     state: NovaSettingsUiState,
     onValue: (NovaSettingDefinition, NovaSettingValue) -> Unit,
+) = buildNovaDevicePlaySetupRows(state, onValue,
+    com.papi.nova.binding.video.PyroWaveAvailability.Status.CHECKING, "Checking PyroWave compatibility")
+
+internal fun buildNovaDevicePlaySetupRows(
+    state: NovaSettingsUiState,
+    onValue: (NovaSettingDefinition, NovaSettingValue) -> Unit,
+    pyroWave: com.papi.nova.binding.video.PyroWaveAvailability.Status,
+    pyroWaveReason: String,
 ): List<NovaPlaySetupRowState> = novaDevicePlaySetupKeys.mapNotNull { (row,key) ->
     val definition = state.deviceStreamSettings.firstOrNull { it.key == key } ?: return@mapNotNull null
     val current = state.values[key] ?: definition.defaultValue

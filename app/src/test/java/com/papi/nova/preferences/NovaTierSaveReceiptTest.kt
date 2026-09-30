@@ -60,6 +60,88 @@ class NovaTierSaveReceiptTest {
     private fun quality() = vm.uiState.value.quickSettings.first { it.key == "nova_stream_preset" }
     private fun select() { vm.setValue(quality(),NovaSettingValue.StringValue("recommended")) { completed=true } }
 
+    private fun differentBaseAndSetup(options: Map<String, Any>) {
+        profile.setOptions(options)
+        val prefs = context.getSharedPreferences("tier-receipt",0)
+        prefs.edit().clear().putString(NovaSettingsMigration.TIER,"recommended")
+            .putString("list_resolution","1920x1080").putString("list_fps","120")
+            .putString("video_format","auto").putInt("seekbar_bitrate_kbps",30000)
+            .putBoolean(NovaSettingsMigration.CUSTOM_AUTO,true).commit()
+        models.clear()
+        vm = NovaSettingsViewModel(NovaSettingDefinitions.load(context), NovaSettingsRepository.createForTest(
+            context,prefs,File(context.filesDir,"different-${UUID.randomUUID()}.preferences_pb")))
+        models.put("settings",vm)
+        await { vm.streamTiers.value != null }
+    }
+
+    private fun customOptions(automatic: Boolean = false, bitrate: Int = 350000) = mapOf(
+        "list_resolution" to "3840x2160", "list_fps" to "60", "video_format" to "forceh265",
+        "seekbar_bitrate_kbps" to bitrate, NovaSettingsMigration.TIER to "custom",
+        NovaSettingsMigration.CUSTOM_AUTO to automatic, NovaSettingsMigration.CUSTOM_EXISTS to true)
+
+    @Test fun effectiveSnapshotDisplaysTheActiveCustomPlanInsteadOfTheBaseRung() {
+        differentBaseAndSetup(customOptions())
+        assertEquals(NovaTier.CUSTOM,vm.pictureTier)
+        assertEquals(NovaSettingValue.StringValue("3840x2160"),vm.uiState.value.values["list_resolution"])
+        assertEquals(NovaSettingValue.IntValue(350000),vm.uiState.value.values["seekbar_bitrate_kbps"])
+        assertEquals(false,vm.uiState.value.bitrateAuto)
+    }
+
+    @Test fun fpsEditPreservesTheDifferentActiveSetupManualPinAndCodec() {
+        differentBaseAndSetup(customOptions(bitrate=450000))
+        vm.setValue(requireNotNull(NovaSettingDefinitions.load(context).find("list_fps")),
+            NovaSettingValue.StringValue("120")) { completed=true }
+        await { completed };manager.awaitDeferredWritesForTest()
+        ProfilesManager.instance=null
+        val cold=ProfilesManager.getInstance();assertTrue(cold.load(context))
+        val saved=cold.getActive()!!.getOptions()!!
+        assertEquals("3840x2160",saved["list_resolution"])
+        assertEquals("forceh265",saved["video_format"])
+        assertEquals(450000,(saved["seekbar_bitrate_kbps"] as Number).toInt())
+        assertEquals(false,saved[NovaSettingsMigration.CUSTOM_AUTO])
+        assertEquals("120",saved["list_fps"])
+    }
+
+    @Test fun automaticActiveSetupRetainsItsOwnSizeAndCodec() {
+        differentBaseAndSetup(customOptions(automatic=true))
+        vm.setValue(requireNotNull(NovaSettingDefinitions.load(context).find("list_fps")),
+            NovaSettingValue.StringValue("120")) { completed=true }
+        await { completed };manager.awaitDeferredWritesForTest()
+        assertEquals("3840x2160",profile.getOptions()!!["list_resolution"])
+        assertEquals("forceh265",profile.getOptions()!!["video_format"])
+        assertEquals(true,profile.getOptions()!![NovaSettingsMigration.CUSTOM_AUTO])
+    }
+
+    @Test fun sparseSetupKeepsItsOwnFpsWhenOnlyResolutionIsEdited() {
+        differentBaseAndSetup(mapOf("list_fps" to "30",NovaSettingsMigration.TIER to "custom",
+            NovaSettingsMigration.CUSTOM_AUTO to true,NovaSettingsMigration.CUSTOM_EXISTS to true))
+        vm.setValue(requireNotNull(NovaSettingDefinitions.load(context).find("list_resolution")),
+            NovaSettingValue.StringValue("2560x1440")) { completed=true }
+        await { completed };manager.awaitDeferredWritesForTest()
+        assertEquals("30",profile.getOptions()!!["list_fps"])
+        assertFalse(profile.getOptions()!!.containsKey("video_format"))
+        assertFalse(profile.getOptions()!!.containsKey("custom_refresh_rate"))
+    }
+
+    @Test fun queuedDifferentFineFieldsSurviveABlockedEarlierSave() {
+        val entered=CountDownLatch(1);val release=CountDownLatch(1)
+        manager.openProfileWriter={ file -> object:FileOutputStream(file) {
+            override fun write(bytes:ByteArray) { entered.countDown();check(release.await(5,TimeUnit.SECONDS));super.write(bytes) }
+        } }
+        var done=0
+        val definitions=NovaSettingDefinitions.load(context)
+        try {
+            vm.setValue(requireNotNull(definitions.find("seekbar_bitrate_kbps")),NovaSettingValue.IntValue(201124)) { done++ }
+            await { entered.count==0L }
+            vm.setValue(requireNotNull(definitions.find("list_resolution")),NovaSettingValue.StringValue("3840x2160")) { done++ }
+            vm.setValue(requireNotNull(definitions.find("list_fps")),NovaSettingValue.StringValue("120")) { done++ }
+        } finally { release.countDown() }
+        await { done==3 };manager.awaitDeferredWritesForTest()
+        assertEquals("3840x2160",profile.getOptions()!!["list_resolution"])
+        assertEquals("120",profile.getOptions()!!["list_fps"])
+        assertEquals(201124,(profile.getOptions()!!["seekbar_bitrate_kbps"] as Number).toInt())
+    }
+
     @Test fun completionWaitsForTheParticipatingSavedSetupReceipt() {
         val entered=CountDownLatch(1);val release=CountDownLatch(1)
         manager.openProfileWriter={ file -> object:FileOutputStream(file) {

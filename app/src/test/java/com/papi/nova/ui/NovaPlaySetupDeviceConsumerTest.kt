@@ -15,6 +15,7 @@ import androidx.preference.PreferenceManager
 import com.papi.nova.preferences.*
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.ui.panel.*
+import com.papi.nova.binding.video.PyroWaveAvailability
 import java.io.File
 import java.util.UUID
 import org.junit.After
@@ -33,6 +34,24 @@ class NovaPlaySetupDeviceConsumerTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
     private val models = ViewModelStore()
     @After fun stop() { models.clear(); NovaTierRuntime.installForTest(null) }
+    @Test fun everyGameCodecGatesUnsupportedPyrowaveAndProtectsItsCallback() {
+        val definition=requireNotNull(NovaSettingDefinitions.load(rule.activity).find("video_format"))
+        val state=NovaSettingsUiStateFactory.build(NovaSettingDefinitions.load(rule.activity),
+            mapOf("video_format" to NovaSettingValue.StringValue("auto")),"category_stream_quality","")
+            .copy(deviceStreamSettings=listOf(definition))
+        var writes=0
+        val row=buildNovaDevicePlaySetupRows(state,{ _,_ -> writes++ },
+            PyroWaveAvailability.Status.GPU_FEATURES_UNAVAILABLE,"Missing 8-bit storage and timeline semaphores").single()
+        val pyro=row.options.first { it.label.contains("PyroWave") }
+        assertFalse(pyro.enabled)
+        assertTrue(pyro.consequence.contains("8-bit storage"))
+        pyro.onSelect?.invoke()
+        assertEquals("disabled activation cannot persist the codec",0,writes)
+        val supported=buildNovaDevicePlaySetupRows(state,{ _,_ -> writes++ },
+            PyroWaveAvailability.Status.AVAILABLE,"").single().options.first { it.label.contains("PyroWave") }
+        assertTrue(supported.enabled)
+        supported.onSelect!!.invoke();assertEquals(1,writes)
+    }
     @Test fun everyGameQualityChangesTheDeviceTierAndKeepsTheCustomPin() {
         ProfilesManager.instance = null
         NovaTierRuntime.installForTest(NovaTierInputs(NovaSize(1920,1080), listOf(60,120), NovaDistance.HAND,

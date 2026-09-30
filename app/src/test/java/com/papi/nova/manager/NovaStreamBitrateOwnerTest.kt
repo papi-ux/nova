@@ -70,6 +70,19 @@ class NovaStreamBitrateOwnerTest {
     private fun owner() = NovaStreamBitrateOwner(scope, { currentApi }, { connection },
         { streamActive }, { inputs })
 
+    @Test fun malformedViewerIsReadOnlyButCannotPoisonTheValidOwnerIdentity() {
+        currentApi = api { json() }; val owner = owner()
+        owner.observe(currentApi, connection, parsed(json()), caps)
+        assertTrue(owner.state.value.rate.canChange)
+        val malformed=json().put("client_role","viewer").put("owned_by_client",false)
+            .put("app_session_id","").put("session_generation",0)
+        owner.observe(currentApi, connection, parsed(malformed), caps)
+        assertFalse(owner.state.value.rate.canChange)
+        owner.observe(currentApi, connection, parsed(json()), caps)
+        assertTrue("the genuine owner can recover after malformed telemetry",owner.state.value.rate.canChange)
+        assertTrue(posts.isEmpty())
+    }
+
     @Test fun lateObservationFromPreviousApiCannotRetireTheNewStream() {
         val previous = api { json() }; val previousConnection = connection
         currentApi = api { json() }; connection = Any()
