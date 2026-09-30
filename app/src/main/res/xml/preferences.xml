@@ -44,7 +44,7 @@
         <com.papi.nova.preferences.SeekBarPreference
             android:dialogMessage="@string/summary_seekbar_bitrate"
             android:key="seekbar_bitrate_kbps"
-            android:max="300000"
+            android:max="500000"
             android:summary="@string/summary_seekbar_bitrate"
             android:text="@string/suffix_seekbar_bitrate_mbps"
             android:title="@string/title_seekbar_bitrate"
@@ -86,7 +86,7 @@
         <com.papi.nova.preferences.SeekBarPreference
             android:dialogMessage="@string/summary_seekbar_metered_bitrate"
             android:key="seekbar_metered_bitrate_kbps"
-            android:max="300000"
+            android:max="500000"
             android:summary="@string/summary_seekbar_metered_bitrate"
             android:text="@string/suffix_seekbar_bitrate_mbps"
             android:title="@string/title_seekbar_metered_bitrate"
