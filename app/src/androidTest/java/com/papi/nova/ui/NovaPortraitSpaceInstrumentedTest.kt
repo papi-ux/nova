@@ -47,6 +47,10 @@ class NovaPortraitLibraryInstrumentedTest {
         }
 
     @Test fun regularMenuReopensOnTouchAndControllerBackWithoutDuplicatingGames() {
+        // Artwork and reveal animations keep running on a large-text Library. Advance a
+        // bounded frame clock for each interaction instead of waiting for them to stop.
+        compose.mainClock.autoAdvance = false
+        fun settle() { compose.mainClock.advanceTimeBy(1_000); compose.waitForIdle() }
         val context = ApplicationProvider.getApplicationContext<Context>()
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
         val previousLayout = preferences.getString("nova_library_layout_mode", null)
@@ -73,7 +77,7 @@ class NovaPortraitLibraryInstrumentedTest {
                         PolarisGame(id = "game-$index", name = "Game ${index + 1}", source = "steam", lastLaunched = 100 - index.toLong())
                     }
                 }
-                compose.waitForIdle()
+                settle()
                 compose.onNodeWithText("Continue").assertDoesNotExist()
                 compose.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
                 compose.onNodeWithTag("nova-poster-game-0").assertIsDisplayed()
@@ -83,6 +87,7 @@ class NovaPortraitLibraryInstrumentedTest {
                 portraitShot("regular-collapsed")
 
                 compose.onNodeWithTag("nova-portrait-menu-toggle").performClick()
+                settle()
                 compose.onNodeWithText("Options").assertIsDisplayed()
                 portraitShot("regular-expanded")
                 val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -94,6 +99,7 @@ class NovaPortraitLibraryInstrumentedTest {
                     instrumentation.sendKeySync(KeyEvent(time, time, action, KeyEvent.KEYCODE_BUTTON_B,
                         0, 0, -1, 0, 0, InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_DPAD))
                 }
+                settle()
                 compose.onNodeWithText("Menu").assertIsDisplayed().assertIsFocused()
                 compose.onNodeWithText("Options").assertDoesNotExist()
                 assertEquals(collapsedPoster.top.value,
@@ -103,6 +109,7 @@ class NovaPortraitLibraryInstrumentedTest {
                     state<NovaLibraryActiveSessionUiState?>(activity, "activeSession").value =
                         NovaLibraryActiveSessionUiState(24, "game-0", "Game 1", "Test client", true, 0, false, false, 1920, 1080, 60f)
                 }
+                settle()
                 compose.onNodeWithText("Resume Stream").assertIsDisplayed()
                 compose.onNodeWithText("Continue").assertDoesNotExist()
                 portraitShot("regular-active-session")
