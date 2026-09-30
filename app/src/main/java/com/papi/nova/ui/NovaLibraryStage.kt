@@ -56,6 +56,7 @@ import com.papi.nova.ui.panel.NovaKeys
 import com.papi.nova.ui.panel.NovaPressLatch
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -76,6 +77,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.compose.novaConfirm
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisSpaces
@@ -756,6 +758,7 @@ internal fun NovaLibraryStage(
     val rowState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val inputModeManager = LocalInputModeManager.current
+    val haptics = LocalHapticFeedback.current
     val activation = remember { NovaStagePress() }
     fun select(game: PolarisGame) {
         if (game.id == selectedId) return
@@ -784,7 +787,9 @@ internal fun NovaLibraryStage(
         sortLabel ?: stringResource(R.string.nova_library_options_sort_library_order))
     BoxWithConstraints(Modifier.fillMaxSize().testTag("nova-library-stage").padding(horizontal = 10.dp)) {
         val captionHeightDp = if (showPosterTitles) kotlin.math.ceil(34f * density.fontScale + 6).toInt() else 0
-        val geometry = novaLibraryStageGeometry((maxWidth + 20.dp).value.toInt(), maxHeight.value.toInt(), density.fontScale, captionHeightDp)
+        // Pixel rounding can report an intended 354dp budget as 353.90476dp at density
+        // 2.625. Recover its nearest integer dp rather than dropping a whole 2:3 rung.
+        val geometry = novaLibraryStageGeometry((maxWidth + 20.dp).value.roundToInt(), maxHeight.value.roundToInt(), density.fontScale, captionHeightDp)
         Row(
             modifier = Modifier.fillMaxWidth().height(geometry.selected.heightDp.dp)
                 .testTag("nova-stage-poster-area"),
@@ -813,7 +818,10 @@ internal fun NovaLibraryStage(
                                 KeyEventType.KeyUp -> if (activation.latch.release(native.keyCode)) {
                                     val target = activation.gameId
                                     activation.gameId = null
-                                    if (!native.isCanceled && target == selected.id) onOpenDetail(selected)
+                                    if (!native.isCanceled && target == selected.id) {
+                                        haptics.novaConfirm()
+                                        onOpenDetail(selected)
+                                    }
                                 }
                             }
                             return@onPreviewKeyEvent true
@@ -823,7 +831,10 @@ internal fun NovaLibraryStage(
                         select(games[NovaLibraryUiStateMapper.stageAdjacentIndex(selectedIndex, delta, games.size)])
                         true
                     }
-                    .novaClickable(role = Role.Button) { onOpenDetail(selected) }
+                    .novaClickable(role = Role.Button) {
+                        haptics.novaConfirm()
+                        onOpenDetail(selected)
+                    }
                     .testTag("nova-stage-selected-focus"),
             ) {
                 NovaLibraryPosterCard(
@@ -902,7 +913,7 @@ private fun NovaLibraryStageIdentity(
     val logo = game.logoArtwork?.cached == true
     val logoKey = PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_LOGO)
     val fontScale = LocalDensity.current.fontScale
-    val metadataHeight = if (largeText) 0f else 11f * fontScale + 8f
+    val metadataHeight = if (largeText) 0f else 14f * fontScale + 8f
     val titleLines = if (heightDp >= 60f * fontScale + metadataHeight + 17f * fontScale + 8f) 2 else 1
     val titleHeight = if (logo) 46f else titleLines * 30f * fontScale
     val statsLines = if (heightDp >= titleHeight + metadataHeight + 34f * fontScale + 8f) 2 else 1
@@ -931,7 +942,7 @@ private fun NovaLibraryStageIdentity(
         }
         val metadata = stageHeroMetadata(game)
         if (!largeText && metadata.isNotBlank()) {
-            Text(metadata, color = colors.textSecondary, fontSize = 11.sp, maxLines = 1,
+            Text(metadata, color = colors.textSecondary, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 8.dp).testTag("nova-stage-metadata"))
         }

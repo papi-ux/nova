@@ -1764,7 +1764,7 @@ class NovaLibraryActivity : NovaActivity() {
             NovaLibraryCinematicBackdrop(
                 game = focusedBackdropGame,
                 apiClient = apiClient,
-                strength = if (model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE) {
+                strength = if (stageMode) {
                     1f
                 } else {
                     NovaLibraryGridBackdropStrength
