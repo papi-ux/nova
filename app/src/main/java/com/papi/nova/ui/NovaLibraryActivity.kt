@@ -239,6 +239,8 @@ class NovaLibraryActivity : NovaActivity() {
         NovaThemeManager.applyTheme(this)
         appliedTheme = NovaThemeManager.getTheme(this)
         super.onCreate(savedInstanceState)
+        searchQuery = savedInstanceState?.getString(STATE_SEARCH_QUERY).orEmpty()
+        lastFocusedGameId = savedInstanceState?.getString(STATE_FOCUSED_GAME)
         // A television's hint bar names its remote's keys from the start, not after the first press (C04).
         lastInputRemote = com.papi.nova.ui.panel.NovaRemoteInput.startsOnRemote(this)
 
@@ -346,6 +348,12 @@ class NovaLibraryActivity : NovaActivity() {
 
     private fun openLibrarySystem() {
         openLibraryPanel(LibraryPage.System(getString(R.string.nova_system_menu_title)))
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(STATE_SEARCH_QUERY, searchQuery)
+        outState.putString(STATE_FOCUSED_GAME, lastFocusedGameId)
+        super.onSaveInstanceState(outState)
     }
 
     /**
@@ -3169,6 +3177,8 @@ class NovaLibraryActivity : NovaActivity() {
         const val EXTRA_SERVER_COMMANDS = "server_commands"
         const val EXTRA_SERVER_CERT = "server_cert"
         const val EXTRA_SPACES_AVAILABLE = "spaces_available"
+        private const val STATE_SEARCH_QUERY = "library_search_query"
+        private const val STATE_FOCUSED_GAME = "library_focused_game"
         private const val CONTROLLER_HINT_IDLE_REVEAL_MS = 4_000L
         private const val ABOUT_NOTICE_KEY = "nova-library-about"
         private const val REFRESH_FAILED_NOTICE_KEY = "nova-library-refresh-failed"
