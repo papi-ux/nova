@@ -6,6 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -45,12 +48,12 @@ class NovaSettingsPortraitMenuTest {
             )
         }
         rule.onNodeWithText("Menu").assertIsDisplayed().performClick()
-        rule.onNodeWithText("Input").performClick()
+        rule.onNode(hasText("Input") and hasClickAction()).performClick()
         rule.onNodeWithText("Hide menu").performClick()
         rule.onNodeWithText("Legacy").assertDoesNotExist()
         rule.onNodeWithText("Rumble").assertIsDisplayed().performClick()
         rule.onNodeWithText("Menu").performClick()
-        rule.onNodeWithText("Input").assertIsDisplayed()
+        rule.onNode(hasText("Input") and hasClickAction()).assertIsDisplayed()
         org.junit.Assert.assertEquals("input", selected)
         org.junit.Assert.assertEquals(NovaSettingValue.BooleanValue(true), values["rumble"])
     }

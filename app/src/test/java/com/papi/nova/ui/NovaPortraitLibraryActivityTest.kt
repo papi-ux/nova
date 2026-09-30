@@ -72,7 +72,7 @@ class NovaPortraitLibraryActivityTest {
     @Test fun regularDoesNotRepeatRecentGamesAboveItsGrid() = library {
         rule.onNodeWithText("Continue").assertDoesNotExist()
         rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
-        rule.onNodeWithTag("nova-poster-card-recent").assertIsDisplayed()
+        rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
     }
 
     @Test fun portraitMenuCanHideAndReopenWithoutRestoringTheOldContinueRow() = library {
