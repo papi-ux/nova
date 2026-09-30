@@ -24,6 +24,8 @@ import androidx.compose.ui.node.TraversableNode
 import androidx.compose.ui.node.traverseDescendants
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import com.papi.nova.ui.NovaControllerTouchMode
 import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 
@@ -279,10 +281,13 @@ fun Modifier.novaClickable(
     .clickable(
         interactionSource = interactionSource,
         indication = null,
-        enabled = enabled,
+        // Keep clickable's own focus target attached for a read-only focus stop. Toggling it
+        // off while a write settles otherwise removes the target that currently owns focus.
+        enabled = enabled || focusableWhenDisabled,
         role = role,
-        onClick = onClick,
+        onClick = { if (enabled) onClick() },
     )
+    .semantics { if (!enabled) disabled() }
     .focusable(enabled = enabled || focusableWhenDisabled, interactionSource = interactionSource)
     .then(NovaContentFocusElement)
 

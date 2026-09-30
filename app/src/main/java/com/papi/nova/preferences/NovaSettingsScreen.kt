@@ -1224,7 +1224,7 @@ private fun NovaSettingRow(
             }
             // X resets a profile override, on release.
             .onKeyEvent { event ->
-                if (!canReset || event.key != Key.ButtonX) return@onKeyEvent false
+                if (!canReset || !enabled || event.key != Key.ButtonX) return@onKeyEvent false
                 val native = event.nativeKeyEvent
                 when (event.type) {
                     KeyEventType.KeyDown -> if (native.repeatCount == 0) resetLatch.press(native.keyCode)
