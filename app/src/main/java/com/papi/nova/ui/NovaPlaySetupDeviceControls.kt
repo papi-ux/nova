@@ -41,11 +41,14 @@ internal fun buildNovaDevicePlaySetupRows(
             }
         }
         else -> definition.options.map { option ->
-            NovaPlaySetupOption(option.label, option.disabledReason ?: option.caption ?: definition.summary,
+            val reason = option.disabledReason ?: if (key == "video_format" &&
+                !com.papi.nova.binding.video.PyroWaveAvailability.canSelect(option.value, pyroWave)) pyroWaveReason else null
+            NovaPlaySetupOption(option.label, reason ?: option.caption ?: definition.summary,
                 current=(current as? NovaSettingValue.StringValue)?.value==option.value,
-                enabled=option.disabledReason==null,
-                onSelect={ onValue(definition,NovaSettingValue.StringValue(option.value)) },
-                value=option.caption.orEmpty(), focusableWhenDisabled=row==NovaPlaySetupRow.DEVICE_QUALITY)
+                enabled=reason==null,
+                onSelect=if (reason == null) ({ onValue(definition,NovaSettingValue.StringValue(option.value)) }) else null,
+                value=option.caption.orEmpty(), focusableWhenDisabled=row in setOf(
+                    NovaPlaySetupRow.DEVICE_QUALITY,NovaPlaySetupRow.DEVICE_VIDEO_CODEC))
         }
     }
     val shown = when (row) {

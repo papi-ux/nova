@@ -10,6 +10,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.requestFocus
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.lifecycle.ViewModelStore
 import androidx.preference.PreferenceManager
 import com.papi.nova.preferences.*
@@ -47,6 +49,14 @@ class NovaPlaySetupDeviceConsumerTest {
         assertTrue(pyro.consequence.contains("8-bit storage"))
         pyro.onSelect?.invoke()
         assertEquals("disabled activation cannot persist the codec",0,writes)
+        rule.setPanelContent {
+            NovaPlaySetupBands(listOf(NovaPlaySetupBand(null,row.options)),{ it.onSelect?.invoke() },
+                rowModifier={ key,_ -> Modifier.testTag("device-codec-$key") })
+        }
+        rule.frames(4)
+        val pyroKey=row.options.indexOf(pyro).toString()+":"+pyro.label
+        rule.onNodeWithTag("device-codec-$pyroKey").assertIsNotEnabled().performClick()
+        assertEquals("touching the actual disabled option cannot write",0,writes)
         val supported=buildNovaDevicePlaySetupRows(state,{ _,_ -> writes++ },
             PyroWaveAvailability.Status.AVAILABLE,"").single().options.first { it.label.contains("PyroWave") }
         assertTrue(supported.enabled)

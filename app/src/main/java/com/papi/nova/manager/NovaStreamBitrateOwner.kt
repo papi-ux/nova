@@ -67,8 +67,8 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
         if (caps!=null && capabilities==null) capabilities=caps
         status=reading
         if (reading==null) { controller?.observe(null);publish();return@synchronized }
-        val actualDenial=reading.isViewer || (reading.authorityContractValid && reading.isStreaming &&
-            (!reading.ownedByClient || reading.controls.hostTuningAllowed==false))
+        val actualDenial=validKey(reading) && (reading.isViewer || (reading.authorityContractValid && reading.isStreaming &&
+            (!reading.ownedByClient || reading.controls.hostTuningAllowed==false)))
         if (actualDenial) { if (!denied) denial=key(reading);denied=true }
         else if (denied && owned(reading) && validKey(reading) && denial==key(reading)) { denied=false;denial=null }
         if (denied || !owned(reading) || !validKey(reading) || capabilities==null) {

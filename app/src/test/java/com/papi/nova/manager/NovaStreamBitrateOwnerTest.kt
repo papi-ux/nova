@@ -83,6 +83,17 @@ class NovaStreamBitrateOwnerTest {
         assertTrue(posts.isEmpty())
     }
 
+    @Test fun genuineKeyedViewerDenialCannotBeClearedByAnotherOwnerSession() {
+        currentApi=api { json() };val owner=owner()
+        owner.observe(currentApi,connection,parsed(json()),caps)
+        owner.observe(currentApi,connection,parsed(json().put("client_role","viewer").put("owned_by_client",false)),caps)
+        assertFalse(owner.state.value.rate.canChange)
+        owner.observe(currentApi,connection,parsed(json().put("app_session_id","session-b").put("session_generation",8)),caps)
+        assertFalse(owner.state.value.rate.canChange)
+        owner.observe(currentApi,connection,parsed(json()),caps)
+        assertTrue(owner.state.value.rate.canChange)
+    }
+
     @Test fun lateObservationFromPreviousApiCannotRetireTheNewStream() {
         val previous = api { json() }; val previousConnection = connection
         currentApi = api { json() }; connection = Any()

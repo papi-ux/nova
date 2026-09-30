@@ -2,6 +2,8 @@ package com.papi.nova.ui
 
 import com.papi.nova.preferences.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineStart
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -43,5 +45,28 @@ class NovaPlaySetupDeviceEditsTest {
         }
         pending!!.invoke()
         assertEquals(NovaSettingValue.StringValue("3840x2160"), stored[resolution.key])
+    }
+
+    @Test fun theDebouncedRecheckWaitsForEveryOwnedReceipt() = runBlocking {
+        val completions=mutableListOf<() -> Unit>()
+        val edits=NovaPlaySetupDeviceEdits(
+            save={ definition,value,completed -> stored[definition.key]=value;completions+=completed },
+            settle={ pending=it },outcome={ NovaTierSaveResult.SAVED },recheck={ checks++ })
+        edits.change(resolution,NovaSettingValue.StringValue("3840x2160"))
+        edits.change(fps,NovaSettingValue.StringValue("120"))
+        val preflight=async(start=CoroutineStart.UNDISPATCHED) { pending!!.invoke() }
+        assertEquals(2,completions.size)
+        completions[0]();assertFalse(preflight.isCompleted);assertEquals(0,checks)
+        completions[1]();preflight.await();assertEquals(1,checks)
+    }
+
+    @Test fun activityUsesTheOwnedAdapterAndAwaitsItBeforeReadingLaunchPreferences() {
+        val source=readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        assertTrue(source.contains("deviceEdits::change"))
+        assertTrue(source.contains("onSave={ deviceEdits.change("))
+        val load=source.substringAfter("fun loadOptimization(").substringBefore("retryPreflight =")
+        assertTrue(load.indexOf("deviceSettings.awaitStreamWrites()") >= 0)
+        assertTrue(load.indexOf("deviceSettings.awaitStreamWrites()") < load.indexOf("PreferenceConfiguration.readPreferences("))
+        assertTrue(load.indexOf("deviceSettings.awaitStreamWrites()") < load.indexOf("apiClient.getOptimization("))
     }
 }

@@ -69,6 +69,12 @@ class NovaSettingsViewModel(
     private var tierResult: NovaTierSaveResult? = null
     private var tierPending = false
     private var pendingFineEdit: Pair<NovaSettingDefinition,NovaSettingValue>? = null
+    private data class FineIntent(val definition: NovaSettingDefinition, val value: NovaSettingValue,
+        val owner: Any?, val revision: Long, val epoch: Long)
+    private var fineEpoch = 0L
+    private var snapshotOwner: Any? = null
+    private val fineIntents = linkedMapOf<Long, FineIntent>()
+    private val streamCompletions = linkedMapOf<Long, kotlinx.coroutines.CompletableDeferred<Unit>>()
 
     private val mutableUiState = MutableStateFlow(
         NovaSettingsUiStateFactory.build(
@@ -79,9 +85,10 @@ class NovaSettingsViewModel(
     val uiState: StateFlow<NovaSettingsUiState> = mutableUiState.asStateFlow()
     private val mutableTiers = MutableStateFlow<NovaStreamTiers?>(null)
     val streamTiers: StateFlow<NovaStreamTiers?> = mutableTiers.asStateFlow()
-    val pictureTier: NovaTier get() = NovaStreamSettings.selected(rawValues())
+    val pictureTier: NovaTier get() = NovaStreamSettings.selected(rawValues(displayValues()))
     val bitrateText: String get() {
-        val plan = mutableTiers.value?.plan(pictureTier) ?: NovaStreamSettings.custom(rawValues())
+        val plan = if (pictureTier == NovaTier.CUSTOM) NovaStreamSettings.custom(rawValues(displayValues()))
+            else mutableTiers.value?.plan(pictureTier)
         return plan?.let { NovaBitrateAdvice.text(it.bitrateKbps,
             pictureTier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues())) }.orEmpty()
     }
@@ -91,12 +98,21 @@ class NovaSettingsViewModel(
 
     fun useRecommended() = selectPictureTier(NovaTier.RECOMMENDED)
 
-    private fun rawValues(): Map<String, Any?> = values.mapValues { (_, value) -> when (value) {
+    private fun rawValues(source: Map<String, NovaSettingValue> = values): Map<String, Any?> = source.mapValues { (_, value) -> when (value) {
         is NovaSettingValue.StringValue -> value.value
         is NovaSettingValue.IntValue -> value.value
         is NovaSettingValue.BooleanValue -> value.value
         is NovaSettingValue.StringSetValue -> value.value
     } }
+
+    private fun displayValues(): Map<String, NovaSettingValue> = fineIntents.values
+        .filter { it.epoch == fineEpoch && it.owner == snapshotOwner && it.owner == store.tierOwner() }
+        .fold(values) { current, intent -> current + streamEditUpdates(current, intent.definition, intent.value) }
+
+    /** Launch preflight reads preferences only after all independently owned local edits settle. */
+    suspend fun awaitStreamWrites() {
+        while (streamCompletions.isNotEmpty()) streamCompletions.values.toList().forEach { it.await() }
+    }
 
 
     init {
@@ -140,25 +156,36 @@ class NovaSettingsViewModel(
         val revision = if (selection || definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO)
             ++tierRevision else tierRevision
         val owner = store.tierOwner()
+        if (owner != snapshotOwner) {
+            tierResult = NovaTierSaveResult.SUPERSEDED; emit(); refresh(); onCompleted(); return
+        }
         val intent = if (selection) TierIntent(tier!!, owner, revision) else null
-        if (selection) pendingFineEdit = null
+        if (selection) { pendingFineEdit = null; fineEpoch++; fineIntents.clear() }
+        val fine = if (!selection && (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO))
+            FineIntent(definition,value,owner,revision,fineEpoch) else null
+        if (fine != null) fineIntents[revision] = fine
+        val completion = if (selection || fine != null) kotlinx.coroutines.CompletableDeferred<Unit>().also {
+            streamCompletions[revision] = it; tierPending = true
+        } else null
         if (!selection && revision == tierRevision && (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO)) {
             tierIntent = null; tierResult = null
         }
+        emit()
         viewModelScope.launch {
             try {
                 stateMutex.withLock {
                     if (intent != null) {
                         if (NovaTierControls.canSelect(mutableTiers.value, intent.tier)) saveTier(intent)
-                    } else if (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO) {
-                        if (revision == tierRevision && owner == store.tierOwner()) {
+                    } else if (fine != null) {
+                        val newerSameField = fineIntents.values.any { it.revision > revision && it.definition.key == definition.key }
+                        if (fine.epoch == fineEpoch && !newerSameField && owner == store.tierOwner()) {
+                            loadStoreState()
                             tierIntent = TierIntent(NovaTier.CUSTOM, owner, revision)
                             pendingFineEdit = definition to value
                             tierPending = true; emit()
                             val result = try { persistStreamEdit(definition, value, owner) }
                             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                             catch (_: Exception) { NovaTierSaveResult.FAILED }
-                            finally { tierPending = false }
                             if (revision == tierRevision) {
                                 tierResult = if (owner == store.tierOwner()) result else NovaTierSaveResult.SUPERSEDED
                                 if (tierResult == NovaTierSaveResult.SUPERSEDED) { tierIntent = null; pendingFineEdit = null }
@@ -170,10 +197,16 @@ class NovaSettingsViewModel(
                         values = values + (definition.key to value)
                         applyPresetIfNeeded(definition, value)
                     }
+                    fineIntents.remove(revision)
                     loadStoreState()
                     emit()
                 }
             } finally {
+                fineIntents.remove(revision)
+                streamCompletions.remove(revision)
+                tierPending = streamCompletions.isNotEmpty()
+                emit()
+                completion?.complete(Unit)
                 onCompleted()
             }
         }
@@ -185,7 +218,6 @@ class NovaSettingsViewModel(
         val result = try { store.saveTier(intent.tier, intent.owner) }
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) { NovaTierSaveResult.FAILED }
-        finally { tierPending = false }
         if (intent.revision == tierRevision) {
             tierResult = if (intent.owner == store.tierOwner()) result else NovaTierSaveResult.SUPERSEDED
             if (tierResult == NovaTierSaveResult.SUPERSEDED) tierIntent = null
@@ -227,9 +259,14 @@ class NovaSettingsViewModel(
     }
 
     private suspend fun loadStoreState() {
-        values = store.snapshot(definitions)
+        do {
+            val before = store.tierOwner()
+            val next = store.snapshot(definitions)
+            snapshotOwner = store.tierOwner()
+            if (before == snapshotOwner) { values = next; break }
+        } while (true)
         values = values + (NovaSettingsMigration.AUTO to NovaSettingValue.BooleanValue(
-            pictureTier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues())))
+            NovaStreamSettings.selected(rawValues()) != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues())))
         overrideKeys = store.overrideKeys(definitions)
         resettableKeys = store.resettableKeys(definitions)
         store.deviceTierInputs()?.let { inputs ->
@@ -242,9 +279,11 @@ class NovaSettingsViewModel(
         }
     }
 
-    private suspend fun persistStreamEdit(definition: NovaSettingDefinition, value: NovaSettingValue, expectedOwner: Any?): NovaTierSaveResult {
+    private fun streamEditUpdates(source: Map<String,NovaSettingValue>, definition: NovaSettingDefinition,
+        value: NovaSettingValue): Map<String,NovaSettingValue> {
         val updates = mutableMapOf<String, NovaSettingValue>()
-        if (pictureTier != NovaTier.CUSTOM) mutableTiers.value?.plan(pictureTier)?.let { plan ->
+        val selected = NovaStreamSettings.selected(rawValues(source))
+        if (selected != NovaTier.CUSTOM) mutableTiers.value?.plan(selected)?.let { plan ->
             updates["list_resolution"] = NovaSettingValue.StringValue("${plan.width}x${plan.height}")
             updates["list_fps"] = NovaSettingValue.StringValue(plan.fps.toString())
             updates["video_format"] = NovaSettingValue.StringValue("auto")
@@ -255,24 +294,25 @@ class NovaSettingsViewModel(
         val automatic = when (definition.key) {
             "seekbar_bitrate_kbps" -> false
             NovaSettingsMigration.AUTO -> (value as? NovaSettingValue.BooleanValue)?.value == true
-            else -> pictureTier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues())
+            else -> selected != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues(source))
         }
         updates[NovaSettingsMigration.AUTO] = NovaSettingValue.BooleanValue(automatic)
         updates[NovaSettingsMigration.CUSTOM_AUTO] = NovaSettingValue.BooleanValue(automatic)
-        val remove = emptySet<String>()
         updates[NovaSettingsMigration.CUSTOM_EXISTS] = NovaSettingValue.BooleanValue(true)
-        val previous = values
-        values = (values - remove) + updates
-        if (automatic) NovaStreamSettings.custom(rawValues())?.let { plan ->
+        if (automatic) NovaStreamSettings.custom(rawValues(source + updates))?.let { plan ->
             val advice = NovaBitrateAdvice.recommend(plan.width, plan.height, plan.fps, plan.codec, tierInputs?.distance ?: NovaDistance.HAND)
             updates["seekbar_bitrate_kbps"] = NovaSettingValue.IntValue(advice.kbps)
         }
-        values = previous
+        return updates
+    }
+
+    private suspend fun persistStreamEdit(definition: NovaSettingDefinition, value: NovaSettingValue, expectedOwner: Any?): NovaTierSaveResult {
+        val updates = streamEditUpdates(values, definition, value)
         val resolved = updates.map { (key, update) ->
             (definitions.find(key) ?: resetDefinitions.find(key) ?: NovaStreamSettings.definition(key)
                 ?: error("Missing stream definition $key")) to update
         }
-        return store.saveStreamEdits(resolved, remove, expectedOwner)
+        return store.saveStreamEdits(resolved, emptySet(), expectedOwner)
     }
 
     private suspend fun applyPresetIfNeeded(
@@ -297,7 +337,8 @@ class NovaSettingsViewModel(
     }
 
     private fun emit() {
-        val tiers = mutableTiers.value
+        val projected = displayValues()
+        val tiers = mutableTiers.value?.copy(custom = NovaStreamSettings.custom(rawValues(projected)))
         val tier = pictureTier
         val generated = tiers != null && definitions.find(NovaTierControls.QUALITY_KEY) != null
         val tierMessage = when {
@@ -315,7 +356,7 @@ class NovaSettingsViewModel(
                         listOf(NovaSettingOption("Try again", "retry_tier", caption = tierMessage)) else emptyList())
             })
         }
-        val shownValues = if (generated) NovaTierControls.displayValues(values, tiers!!, tier) else values
+        val shownValues = if (generated) NovaTierControls.displayValues(projected, tiers!!, tier) else projected
         mutableUiState.value = NovaSettingsUiStateFactory.build(
             definitions = shownDefinitions,
             values = shownValues,
@@ -327,7 +368,7 @@ class NovaSettingsViewModel(
         ).copy(generatedQuality = generated, tierSavePending = tierPending, tierSaveResult = tierResult,
             deviceStreamSettings = shownDefinitions.settings.filter { it.key == NovaTierControls.QUALITY_KEY ||
                 it.key in NovaSettingsMigration.STREAM_KEYS || it.key == NovaSettingsMigration.AUTO },
-            bitrateAuto = if (generated) tier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues()) else null)
+            bitrateAuto = if (generated) tier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues(projected)) else null)
     }
 
     class Factory(

@@ -6,6 +6,13 @@ import org.json.JSONObject
 import kotlin.math.abs
 
 enum class NovaStreamSource { DEVICE, HOST_SAVED_COPY, HOST_CAP, HOST_POLICY, SPACE, WATCH, UNKNOWN }
+internal fun novaLaunchChoiceAttribution(deviceTier: String, gamePinned: Boolean, setupParticipates: Boolean): String =
+    when {
+        gamePinned -> "This game"
+        setupParticipates -> "Saved setup"
+        else -> deviceTier
+    }
+
 data class NovaStreamSourceRequest(val width:Int,val height:Int,val fps:Double,val bitrateKbps:Int,
     val who:String="Recommended")
 data class NovaStreamSourceLine(val source:NovaStreamSource,val text:String,val capKbps:Int?=null,

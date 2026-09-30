@@ -12,6 +12,8 @@ import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import org.junit.Assert.*
 import org.junit.After
 import org.junit.Before
@@ -127,17 +129,46 @@ class NovaTierSaveReceiptTest {
             override fun write(bytes:ByteArray) { entered.countDown();check(release.await(5,TimeUnit.SECONDS));super.write(bytes) }
         } }
         var done=0
+        var preflightReady=false
+        val scope=kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob()+kotlinx.coroutines.Dispatchers.Unconfined)
         val definitions=NovaSettingDefinitions.load(context)
         try {
             vm.setValue(requireNotNull(definitions.find("seekbar_bitrate_kbps")),NovaSettingValue.IntValue(201124)) { done++ }
             await { entered.count==0L }
+            vm.setValue(requireNotNull(definitions.find("list_resolution")),NovaSettingValue.StringValue("2560x1440")) { done++ }
             vm.setValue(requireNotNull(definitions.find("list_resolution")),NovaSettingValue.StringValue("3840x2160")) { done++ }
             vm.setValue(requireNotNull(definitions.find("list_fps")),NovaSettingValue.StringValue("120")) { done++ }
+            scope.launch { vm.awaitStreamWrites();preflightReady=true }
+            assertFalse("no host recheck can read a partly committed device plan",preflightReady)
+            assertEquals(NovaSettingValue.StringValue("3840x2160"),vm.uiState.value.values["list_resolution"])
+            assertEquals(NovaSettingValue.StringValue("120"),vm.uiState.value.values["list_fps"])
         } finally { release.countDown() }
-        await { done==3 };manager.awaitDeferredWritesForTest()
+        await { done==4 && preflightReady };manager.awaitDeferredWritesForTest();scope.cancel()
         assertEquals("3840x2160",profile.getOptions()!!["list_resolution"])
         assertEquals("120",profile.getOptions()!!["list_fps"])
         assertEquals(201124,(profile.getOptions()!!["seekbar_bitrate_kbps"] as Number).toInt())
+    }
+
+    @Test fun blockedOldOwnerCannotEditTheReplacementSetupOrClaimItsReceipt() {
+        val replacement=SettingsProfile(UUID.randomUUID(),"Replacement",0L,0L,customOptions(bitrate=450000))
+        manager.add(replacement)
+        val entered=CountDownLatch(1);val release=CountDownLatch(1)
+        manager.openProfileWriter={ file -> object:FileOutputStream(file) {
+            override fun write(bytes:ByteArray) { entered.countDown();check(release.await(5,TimeUnit.SECONDS));super.write(bytes) }
+        } }
+        var done=0
+        var switch: Thread?=null
+        try {
+            vm.setValue(requireNotNull(NovaSettingDefinitions.load(context).find("list_fps")),NovaSettingValue.StringValue("120")) { done++ }
+            await { entered.count==0L }
+            vm.setValue(requireNotNull(NovaSettingDefinitions.load(context).find("list_resolution")),NovaSettingValue.StringValue("2560x1440")) { done++ }
+            switch=kotlin.concurrent.thread { manager.setActive(replacement.getUuid()) }
+            await { manager.getActive()?.getUuid()==replacement.getUuid() }
+        } finally { release.countDown() }
+        switch?.join(5000);assertFalse(switch?.isAlive==true)
+        await { done==2 };manager.awaitDeferredWritesForTest()
+        assertEquals(customOptions(bitrate=450000),replacement.getOptions())
+        assertEquals(NovaTierSaveResult.SUPERSEDED,vm.uiState.value.tierSaveResult)
     }
 
     @Test fun completionWaitsForTheParticipatingSavedSetupReceipt() {

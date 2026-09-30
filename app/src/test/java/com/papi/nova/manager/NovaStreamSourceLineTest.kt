@@ -10,6 +10,16 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class NovaStreamSourceLineTest {
+    @Test fun gamePinsAndSetupOwnershipSurviveAHostCapInThePreviewSource() {
+        val fields=JSONObject().put("target_bitrate_kbps",JSONObject().put("value",28000)
+            .put("source","capability_validation").put("reason_code","host_bitrate_cap"))
+        val preflight=JSONObject().put("resolved_profile",JSONObject().put("policy_version",1).put("fields",fields))
+        val game=novaLaunchChoiceAttribution("Recommended",gamePinned=true,setupParticipates=true)
+        assertEquals("This game · host cap 28 Mbps",NovaStreamSourceLine.fromPreflight(preflight,
+            NovaStreamSourceRequest(3840,2160,60.0,350000,game)).text)
+        assertEquals("Saved setup",novaLaunchChoiceAttribution("Recommended",false,true))
+        assertEquals("Recommended",novaLaunchChoiceAttribution("Recommended",false,false))
+    }
     @Test fun savedCopyAndPreflightCapNameTheLayerAndFigure() {
         fun field(value: Any, source: String, reason: String="") = JSONObject().put("value",value).put("source",source).put("reason_code",reason)
         val fields = JSONObject().put("display_width",field(1280,"paired_client"))

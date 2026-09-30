@@ -597,6 +597,8 @@ class NovaGameDetailActivity : NovaActivity() {
         // so that cycling past three values costs one round-trip rather than three.
         var settleJob: Job? = null
         var pendingSettledWork: (suspend () -> Unit)? = null
+        var devicePyroWave by mutableStateOf(com.papi.nova.binding.video.PyroWaveAvailability.Status.CHECKING)
+        var devicePyroWaveReason by mutableStateOf(getString(R.string.nova_pyrowave_checking))
         // A blocking host request may not observe coroutine cancellation until it returns.
         // The generation fence is therefore the authority boundary: only the newest
         // request may publish settings/optimization state or replay a held Play press.
@@ -658,7 +660,11 @@ class NovaGameDetailActivity : NovaActivity() {
                 com.papi.nova.manager.NovaStreamSourceLine.fromPreflight(optimization,
                     com.papi.nova.manager.NovaStreamSourceRequest(launchPreferences.width, launchPreferences.height,
                         (effectiveFpsPin(chosenFps, profilePreference, launchPreferences.fps) ?: launchPreferences.fps.toInt()).toDouble(),
-                        launchPreferences.bitrate, deviceSettings.pictureTier.name.lowercase().replaceFirstChar(Char::uppercase)))
+                        launchPreferences.bitrate, com.papi.nova.manager.novaLaunchChoiceAttribution(
+                            deviceSettings.pictureTier.name.lowercase().replaceFirstChar(Char::uppercase),
+                            gamePinned = chosenResolution != null || chosenFps != null || chosenCodec != null || profilePreference != "auto",
+                            setupParticipates = ProfilesManager.getInstance().getActive()?.getOptions()?.keys?.any {
+                                it in com.papi.nova.preferences.NovaSettingsMigration.STREAM_KEYS } == true)))
             }
             return if (source == null) preview else preview.copy(profileSummary = preview.profileSummary?.let { summary ->
                 summary.copy(reasonLine=source.text, limitingLine=if(source.limitCodes.isEmpty()) summary.limitingLine else source.text)
@@ -975,6 +981,11 @@ class NovaGameDetailActivity : NovaActivity() {
             preflightJob = lifecycleScope.launch {
                 var launchCanReplay = false
                 val nextOptimizationState = try {
+                    deviceSettings.awaitStreamWrites()
+                    check(deviceSettings.uiState.value.tierSaveResult !in setOf(
+                        NovaTierSaveResult.FAILED, NovaTierSaveResult.PROFILE_FAILED, NovaTierSaveResult.SUPERSEDED)) {
+                        "device settings could not be saved"
+                    }
                     awaitLatestSteamLaunchModeWrite()
                     if (!preflightRequestFence.owns(requestGeneration)) {
                         throw CancellationException("launch preflight superseded")
@@ -1937,7 +1948,7 @@ class NovaGameDetailActivity : NovaActivity() {
             },
         )
         fun deviceRows(state: NovaSettingsUiState = deviceSettings.uiState.value) =
-            buildNovaDevicePlaySetupRows(state, deviceEdits::change)
+            buildNovaDevicePlaySetupRows(state, deviceEdits::change, devicePyroWave, devicePyroWaveReason)
         fun devicePage(row: NovaPlaySetupRow): NovaPage? {
             val definition = deviceSettings.uiState.value.deviceStreamSettings.firstOrNull {
                 it.key == novaDevicePlaySetupKeys[row] } ?: return null
@@ -2075,6 +2086,18 @@ class NovaGameDetailActivity : NovaActivity() {
                 setContent {
             NovaComposeTheme {
                 val deviceState by deviceSettings.uiState.collectAsState()
+                val needsDeviceCodec = destination == NovaGameDetailDestination.PLAY_SETUP &&
+                    playSetupScope == NovaPlaySetupScope.EVERY_GAME && spaceGame == null
+                LaunchedEffect(needsDeviceCodec) {
+                    if (needsDeviceCodec) {
+                        val availability = withContext(Dispatchers.Default) {
+                            val status = com.papi.nova.binding.video.PyroWaveAvailability.inspect(applicationContext)
+                            status to com.papi.nova.binding.video.PyroWaveAvailability.reason(applicationContext, status)
+                        }
+                        devicePyroWave = availability.first
+                        devicePyroWaveReason = availability.second
+                    }
+                }
                 // While the plan is rechecked, the last one stands in, dimmed, with Launch's preset.
                 val launchPreview = launchPreview().withLastPlanWhileChecking()
                 if (spaceGame != null && com.papi.nova.manager.WorkerLaunchContract.isLegacyProfileApp(currentGame.id)) {

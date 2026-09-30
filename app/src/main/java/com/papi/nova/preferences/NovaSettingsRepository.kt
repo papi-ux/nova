@@ -15,6 +15,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.preference.PreferenceManager
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
@@ -196,8 +197,23 @@ class NovaSettingsRepository private constructor(
             else -> NovaTierSaveResult.PROFILE_FAILED
         }
     }
-    override val tierUpdates get() = NovaTierRuntime.updates.filterNotNull().map { it.inputs }
-    override suspend fun storedStreamKeys() = mirrorPrefs.all.keys
+    private fun activeStreamOptions() = com.papi.nova.profiles.ProfilesManager.getInstance()
+        .getActive()?.getOptions().orEmpty().filterKeys {
+            it in NovaSettingsMigration.STREAM_KEYS || it in NovaStreamSettings.metadataDefinitions.map { definition -> definition.key }
+        }
+
+    override val tierUpdates get() = kotlinx.coroutines.flow.merge(
+        NovaTierRuntime.updates.filterNotNull().map { it.inputs },
+        kotlinx.coroutines.flow.callbackFlow {
+            val manager = com.papi.nova.profiles.ProfilesManager.getInstance()
+            val listener = com.papi.nova.profiles.ProfilesManager.ProfileChangeListener {
+                NovaTierRuntime.snapshot()?.inputs?.let { trySend(it) }
+            }
+            manager.addListener(listener)
+            awaitClose { manager.removeListener(listener) }
+        },
+    )
+    override suspend fun storedStreamKeys() = mirrorPrefs.all.keys + activeStreamOptions().keys
 
     /**
      * Default SharedPreferences is authoritative because legacy/runtime consumers read it
@@ -206,8 +222,15 @@ class NovaSettingsRepository private constructor(
     override suspend fun snapshot(definitions: NovaSettingsDefinitionSet): Map<String, NovaSettingValue> {
         return persistSerialized {
             reconcileDataStoreMirror()
+            val streamOptions = activeStreamOptions()
             (definitions.settings + NovaStreamSettings.metadataDefinitions).distinctBy { it.key }.mapNotNull { definition ->
-                val value = mirrorPrefs.readSettingValue(definition) ?: definition.defaultValue
+                val overlay = when (val raw = streamOptions[definition.key]) {
+                    is Boolean -> NovaSettingValue.BooleanValue(raw)
+                    is Number -> NovaSettingValue.IntValue(raw.toInt())
+                    is String -> NovaSettingValue.StringValue(raw)
+                    else -> null
+                }
+                val value = overlay ?: mirrorPrefs.readSettingValue(definition) ?: definition.defaultValue
                 if (value == null) null else definition.key to value
             }.toMap()
         }
