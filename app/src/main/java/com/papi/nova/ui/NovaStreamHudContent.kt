@@ -178,7 +178,12 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
         BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
             val minimum = (100f * textScale).dp
             val columns = ((maxWidth.value + 8) / (minimum.value + 8)).toInt().coerceIn(1, 3)
-            val columnWidth = (maxWidth - 8.dp * (columns - 1)) / columns
+            val density = LocalDensity.current
+            val columnWidth = with(density) {
+                // Round once in pixels, then divide down. Rounding three fractional dp widths
+                // independently could add a pixel and push CLIENT onto a second row.
+                ((maxWidth.roundToPx() - 8.dp.roundToPx() * (columns - 1)) / columns).toDp()
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val host = state.layerHealth.getOrNull(0)
                 val net = state.layerHealth.getOrNull(1)
