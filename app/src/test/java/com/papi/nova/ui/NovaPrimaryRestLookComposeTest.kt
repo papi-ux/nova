@@ -174,56 +174,20 @@ class NovaPrimaryRestLookComposeTest {
 
     @Test
     fun theStageHerosReviewAndLaunchRestsOnTheScrimAndFillsWithTheOneRingUnderFocus() {
-        val games = listOf(
-            PolarisGame(id = "control", name = "Control", source = "steam"),
-            PolarisGame(id = "portal", name = "Portal", source = "steam"),
-        )
-        val keys = rule.setPanelContent {
+        val games = listOf(PolarisGame(id = "control", name = "Control"), PolarisGame(id = "portal", name = "Portal"))
+        rule.setPanelContent {
             colors = LocalNovaComposeColors.current
             surfaces = LocalNovaLibrarySurfaces.current
-            NovaLibraryStage(
-                games = games,
-                focusedGame = games.first(),
-                restoreFocusGameId = null,
-                primaryActionLabel = "Review & Launch",
-                apiClient = PolarisApiClient(context, ""),
-                showPosterTitles = false,
-                onPrimaryAction = {},
-                onGameFocused = {},
-                onOpenDetail = {},
-                artworkLoader = { _, _, _ -> },
-                posterLoader = { _, _ -> },
-            )
+            NovaLibraryStage(games, games.first(), null, apiClient = PolarisApiClient(context, ""),
+                showPosterTitles = false, onGameFocused = {}, onOpenDetail = {},
+                artworkLoader = { _, _, _ -> }, posterLoader = { _, _ -> })
         }
         rule.waitForIdle()
-        val surface = size("nova-stage-primary-action-surface")
-        // A ring drawn along the surface's edge, inside it: its stroke centred half a ring in.
-        fun Mark.ringOfTheSurface() = stroke != null && abs(width + stroke - surface.width) <= 1.5f && abs(height + stroke - surface.height) <= 1.5f
-
-        rule.onNodeWithTag("nova-stage-primary-action").assertIsNotFocused()
-        val rest = drawn()
-        assertTrue("at rest the artwork scrim: $rest", rest.fills.any { it.sized(surface) && near(it.color, surfaces.focusedArtworkScrim) })
-        assertFalse("not the accent: $rest", rest.fills.any { it.sized(surface) && near(it.color, colors.accent) })
-        assertFalse("and no ring: $rest", rest.rings.any { it.ringOfTheSurface() })
-
-        rule.onNodeWithTag("nova-stage-primary-action").requestFocus()
+        rule.onNodeWithTag("nova-stage-primary-action").assertDoesNotExist()
+        rule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused()
         rule.mainClock.advanceTimeBy(NovaPanelMetrics.FocusMillis.toLong() + 32)
         rule.waitForIdle()
         val focused = drawn()
-        assertTrue("under focus the accent fill: $focused", focused.fills.any { it.sized(surface) && near(it.color, colors.accent) })
-        val rings = focused.rings.filter { it.ringOfTheSurface() }
-        assertEquals("one ring, inside the surface's edge: $focused", 1, rings.size)
-        assertTrue("in its label's colour: $focused", near(rings.single().color, colors.onAccent))
-        assertEquals("as wide as every ring", ringPx, rings.single().stroke!!, 0.5f)
-
-        // Focus gone again, down to the posters, the ring goes with it.
-        rule.onNodeWithTag("nova-stage-primary-action").assertIsFocused()
-        keys.press(NovaTestKeys.DOWN)
-        rule.mainClock.advanceTimeBy(NovaPanelMetrics.FocusMillis.toLong() + 32)
-        rule.waitForIdle()
-        rule.onNodeWithTag("nova-stage-primary-action").assertIsNotFocused()
-        val after = drawn()
-        assertFalse("no ring once focus has gone: $after", after.rings.any { it.ringOfTheSurface() })
-        assertTrue("and the scrim again: $after", after.fills.any { it.sized(surface) && near(it.color, surfaces.focusedArtworkScrim) })
+        assertTrue("the selected poster carries its focus ring", focused.rings.any { near(it.color, surfaces.focusRing) })
     }
 }

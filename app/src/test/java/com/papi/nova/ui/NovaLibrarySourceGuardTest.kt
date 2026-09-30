@@ -1631,7 +1631,7 @@ class NovaLibrarySourceGuardTest {
                 card.contains("add(title)") &&
                 card.contains("if (metadata.isNotBlank()) add(metadata)") &&
                 card.contains("if (game.hdrSupported) add(hdrLabel)") &&
-                card.contains("if (game.lastLaunched > 0L) add(recentLabel)") &&
+                card.contains("if (lastPlayedLabel != null) add(lastPlayedLabel)") &&
                 card.contains("add(detailsLabel)") &&
                 card.contains("contentDescription = accessibleLabel") &&
                 metadata.contains("listOf(game.sourceLabel, game.categoryLabel)") &&
@@ -1662,7 +1662,9 @@ class NovaLibrarySourceGuardTest {
         ).forEach { forbidden ->
             assertFalse("plain poster visual tree must not render $forbidden", visualCard.contains(forbidden))
         }
-        assertFalse("poster artwork must not render text or pill overlays", artwork.contains("Text(") || artwork.contains("Pill("))
+        assertTrue("Running is the one approved poster badge", artwork.contains("if (running)"))
+        assertEquals(1, artwork.countOccurrences("Text("))
+        assertFalse(artwork.contains("Pill("))
     }
 
     @Test
@@ -1687,9 +1689,9 @@ class NovaLibrarySourceGuardTest {
             "shared PosterCard focus treatment is the lift with the approved alpha support, and the one 3dp ring",
             card.contains("val presentationSpec = NovaLibraryUiStateMapper.posterPresentationSpec(layoutMode)") &&
                 card.contains("val alpha by animateFloatAsState(") &&
-                card.contains("targetValue = if (focused) 1f else presentationSpec.unfocusedAlpha") &&
+                card.contains("targetValue = if (visualFocused) 1f else presentationSpec.unfocusedAlpha") &&
                 card.contains("val lift by animateDpAsState(") &&
-                card.contains("targetValue = if (focused) NovaPosterFocusedLift else 0.dp") &&
+                card.contains("targetValue = if (visualFocused && layoutMode != NovaLibraryLayoutMode.STAGE) NovaPosterFocusedLift else 0.dp") &&
                 artwork.contains("translationY = -lift.toPx()") &&
                 artwork.contains("this.alpha = alpha") &&
                 artwork.contains("NovaPanelMetrics.FocusRingWidth") &&
@@ -1716,67 +1718,25 @@ class NovaLibrarySourceGuardTest {
     @Test
     fun task9StageGridCompactAndRecentUseOnlySharedPosterCard() {
         val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        val activity = readSource("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
-        val stageGrid = stage.section(
-            "private fun NovaLibraryStagePosterGrid(",
-            "internal fun NovaLibraryStageRow(",
-        )
-        val stageRow = stage.section(
-            "internal fun NovaLibraryStageRow(",
-            "private fun stagePosterCaptionBudgetDp(",
-        )
-        val libraryGrid = activity.section(
-            "private fun NovaLibraryContent(",
-            "private fun NovaLibraryRecentRail(",
-        )
-        val recentContinue = activity.section(
-            "private fun NovaLibraryRecentRail(",
-            "private fun rememberLibraryPosterFocusRequester(",
-        )
-
-        assertTrue(
-            "Stage and compact Stage rails must each call the shared PosterCard",
-            stageGrid.countOccurrences("NovaLibraryPosterCard(") == 1 &&
-                stageGrid.contains("layoutMode = NovaLibraryLayoutMode.STAGE") &&
-                stageRow.countOccurrences("NovaLibraryPosterCard(") == 1 &&
-                stageRow.contains("layoutMode = NovaLibraryLayoutMode.STAGE")
-        )
-        assertTrue(
-            "Grid/Compact library content and Recent/Continue must call the shared PosterCard",
-            libraryGrid.countOccurrences("NovaLibraryPosterCard(") == 1 &&
-                libraryGrid.contains("layoutMode = layoutMode") &&
-                recentContinue.countOccurrences("NovaLibraryPosterCard(") == 1 &&
-                recentContinue.contains("layoutMode = NovaLibraryLayoutMode.COMPACT")
-        )
-        listOf("NovaLibraryStageCard(", "NovaLibraryGameCard(").forEach { legacy ->
-            assertFalse("legacy poster definition/call must stay deleted: $legacy", stage.contains(legacy) || activity.contains(legacy))
-        }
+        val activity = readNovaLibraryActivity()
+        assertEquals(2, stage.countOccurrences("NovaLibraryPosterCard("))
+        assertEquals(2, activity.countOccurrences("NovaLibraryPosterCard("))
+        assertFalse(stage.contains("NovaLibraryStageCard("))
+        assertFalse(activity.contains("NovaLibraryGameCard("))
     }
 
     @Test
     fun task9StageIdentityUsesOneManifestIconAndOneRenderedTitle() {
         val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        val identity = stage.blockStartingAt("private fun NovaLibraryStageHero(")
-
-        assertTrue(
-            "Stage identity must use exactly one manifest-icon rendering path",
-            identity.countOccurrences("AndroidView(") == 1 &&
-                identity.countOccurrences("game.iconArtwork") == 1 &&
-                identity.countOccurrences("PolarisGame.ARTWORK_KIND_ICON") == 2 &&
-                identity.contains("artworkLoader(view, game, PolarisGame.ARTWORK_KIND_ICON)")
-        )
-        assertTrue(
-            "Stage identity must render the game name exactly once in Nova text; the second"
-                + " Text is the supporting source/category/capability line, not another title",
-            identity.countOccurrences("Text(") == 2 &&
-                identity.countOccurrences("text = game.name") == 1 &&
-                identity.contains("stageHeroMetadata(game)")
-        )
-        assertFalse("Stage identity must never request logo artwork", identity.contains("ARTWORK_KIND_LOGO"))
-        assertFalse(
-            "Stage identity must not add a separate logo or wordmark path",
-            identity.lowercase().contains("wordmark") || identity.lowercase().contains("logo")
-        )
+        val identity = stage.blockStartingAt("private fun NovaLibraryStageIdentity(")
+        assertEquals(1, identity.countOccurrences("AndroidView("))
+        assertTrue(identity.contains("val logo = game.logoArtwork?.cached == true"))
+        assertTrue(identity.contains("if (logo) {"))
+        assertTrue(identity.contains("} else {"))
+        assertEquals(1, identity.countOccurrences("Text(game.name"))
+        assertTrue(identity.contains("stageHeroMetadata(game)"))
+        assertTrue(identity.contains("stagePlayStats(game, running)"))
+        assertFalse(identity.contains("ARTWORK_KIND_ICON"))
     }
 
     // Task 9 plain-art/default/semantic source guards: END

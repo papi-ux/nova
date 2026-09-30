@@ -8,19 +8,13 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.BringIntoViewSpec
-import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -30,16 +24,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.zIndex
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,13 +36,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -64,24 +48,14 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import com.papi.nova.ui.panel.NovaPanelMetrics
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import com.papi.nova.ui.panel.NovaSplitConfirm
-import com.papi.nova.ui.panel.NovaSplitConfirmState
 import com.papi.nova.ui.panel.novaClickable
-import com.papi.nova.ui.panel.novaPanelType
-import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -94,12 +68,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaRadius
-import kotlinx.coroutines.Job
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisSpaces
@@ -109,11 +81,9 @@ import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionButton
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
-import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -755,24 +725,13 @@ private fun NovaLibraryToolbarSystemAction(onClick: () -> Unit) {
 
 /** The beta.1 Stage: one fixed focus owner, a height-sized cover, and a wrapping row beside it.
  * Session actions belong to the shared strip; A on the selected cover opens its game page. */
-@Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun NovaLibraryStage(
     games: List<PolarisGame>,
     focusedGame: PolarisGame?,
     restoreFocusGameId: String?,
-    primaryActionLabel: String,
-    sessionTitle: String? = null,
-    sessionSupportingLine: String? = null,
-    sessionActionLabel: String? = null,
-    secondaryActionLabel: String? = null,
     apiClient: PolarisApiClient,
     showPosterTitles: Boolean,
-    onPrimaryAction: () -> Unit,
-    onSessionAction: (() -> Unit)? = null,
-    onSecondaryAction: (() -> Unit)? = null,
-    endRefusal: String? = null,
-    endPending: Boolean = false,
     onGameFocused: (PolarisGame) -> Unit,
     onOpenDetail: (PolarisGame) -> Unit,
     artworkLoader: (ImageView, PolarisGame, String) -> Unit = { view, game, kind -> apiClient.loadArtworkInto(view, game, kind) },
@@ -794,6 +753,7 @@ internal fun NovaLibraryStage(
     val scope = rememberCoroutineScope()
     val inputModeManager = LocalInputModeManager.current
     fun select(game: PolarisGame) {
+        if (game.id == selectedId) return
         selectedId = game.id
         onGameFocused(game)
         scope.launch { rowState.scrollToItem(0) }
@@ -856,7 +816,7 @@ internal fun NovaLibraryStage(
                     largeText = largeText,
                     running = selected.id == runningGameId,
                     artworkLoader = artworkLoader,
-                    endRefusal = endRefusal,
+                    heightDp = geometry.infoHeightDp,
                     modifier = Modifier.fillMaxWidth().height(geometry.infoHeightDp.dp),
                 )
                 if (geometry.neighbour.heightDp >= 3) {
@@ -906,13 +866,18 @@ private fun NovaLibraryStageIdentity(
     largeText: Boolean,
     running: Boolean,
     artworkLoader: (ImageView, PolarisGame, String) -> Unit,
-    endRefusal: String?,
+    heightDp: Int,
     modifier: Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
     // Match the detail page: a cached logo is ready to use, otherwise the game name is stable.
     val logo = game.logoArtwork?.cached == true
     val logoKey = PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_LOGO)
+    val fontScale = LocalDensity.current.fontScale
+    val metadataHeight = if (largeText) 0f else 11f * fontScale + 8f
+    val titleLines = if (heightDp >= 60f * fontScale + metadataHeight + 17f * fontScale + 8f) 2 else 1
+    val titleHeight = if (logo) 46f else titleLines * 30f * fontScale
+    val statsLines = if (heightDp >= titleHeight + metadataHeight + 34f * fontScale + 8f) 2 else 1
     Column(modifier.testTag("nova-stage-identity"), verticalArrangement = Arrangement.Bottom) {
         if (logo) {
             AndroidView(
@@ -933,7 +898,7 @@ private fun NovaLibraryStageIdentity(
             )
         } else {
             Text(game.name, color = colors.textPrimary, fontSize = 26.sp, lineHeight = 30.sp,
-                fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.Bold, maxLines = titleLines, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag("nova-stage-title"))
         }
         val metadata = stageHeroMetadata(game)
@@ -945,14 +910,10 @@ private fun NovaLibraryStageIdentity(
         val stats = stagePlayStats(game, running)
         if (stats.isNotBlank()) {
             Text(stats, color = colors.textSecondary, fontSize = 13.sp, lineHeight = 17.sp,
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                maxLines = statsLines, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 8.dp).testTag("nova-stage-play-stats"))
         }
-        if (endRefusal != null) {
-            Text(endRefusal, color = colors.warning, fontSize = 12.sp,
-                modifier = Modifier.padding(top = 6.dp).semantics { liveRegion = LiveRegionMode.Polite }
-                    .testTag(NOVA_STAGE_END_REFUSED_TAG))
-        }
+
     }
 }
 
@@ -974,24 +935,6 @@ private fun Modifier.novaStageRowEdgeFade(more: () -> Boolean): Modifier = graph
     }
 }
 
-/** Compatibility entrypoint for Stage rail fixtures. Production uses the complete Stage above. */
-@Suppress("UNUSED_PARAMETER")
-@Composable
-internal fun NovaLibraryStageRow(
-    games: List<PolarisGame>,
-    apiClient: PolarisApiClient,
-    isLandscape: Boolean,
-    posterColumns: Int,
-    restoreFocusGameId: String?,
-    showPosterTitles: Boolean,
-    onGameFocused: (PolarisGame) -> Unit,
-    onOpenDetail: (PolarisGame) -> Unit,
-    coverLoader: (ImageView, PolarisGame) -> Unit = { view, game -> apiClient.loadCoverInto(view, game) },
-) = NovaLibraryStage(games, null, restoreFocusGameId, "", apiClient = apiClient,
-    showPosterTitles = showPosterTitles, onPrimaryAction = {}, onGameFocused = onGameFocused,
-    onOpenDetail = onOpenDetail, artworkLoader = { _, _, _ -> }, posterLoader = coverLoader)
-
-internal const val NOVA_STAGE_END_REFUSED_TAG = "nova-stage-end-refused"
 private const val STAGE_FOCUS_REQUEST_ATTEMPTS = 24
 private const val STAGE_FOCUS_RETRY_DELAY_MS = 32L
 

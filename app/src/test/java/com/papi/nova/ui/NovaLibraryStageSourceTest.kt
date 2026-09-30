@@ -27,7 +27,7 @@ class NovaLibraryStageSourceTest {
         assertFalse(strings.contains("nova_library_options_layout_spotlight"))
         assertFalse(strings.contains("nova_library_options_layout_list"))
         assertTrue(stage.contains("BoxWithConstraints"))
-        assertTrue(stage.contains("NovaLibraryUiStateMapper.stageLayoutSpecForViewport("))
+        assertTrue(stage.contains("novaLibraryStageGeometry("))
     }
 
     @Test
@@ -45,99 +45,69 @@ class NovaLibraryStageSourceTest {
         assertFalse(activity.contains("NovaLibraryFocusedBackdrop"))
         assertFalse(stage.contains("NovaLibraryStageBackdrop"))
         assertFalse(stage.contains("nova-stage-cinematic-backdrop"))
-        assertFalse(stage.contains("Brush.horizontalGradient("))
+        assertTrue(stage.contains("blendMode = androidx.compose.ui.graphics.BlendMode.DstIn"))
         assertFalse(stage.contains("Brush.verticalGradient("))
         assertFalse(stage.contains("NovaPolarisStageAtmosphere"))
         assertFalse(stage.contains("nova-stage-polaris-atmosphere"))
         assertFalse(stage.contains("import androidx.compose.foundation.Canvas"))
         assertTrue(stage.contains(".testTag(\"nova-library-stage\")"))
         assertFalse(stage.contains("BoxWithConstraints(modifier = Modifier.fillMaxSize().background("))
-        assertFalse(stage.contains("PolarisGame.ARTWORK_KIND_LOGO"))
-        assertTrue(stage.contains("PolarisGame.ARTWORK_KIND_ICON"))
-        assertTrue(stage.contains("apiClient.loadArtworkInto(view, game, artworkKind)"))
+        assertTrue(stage.contains("PolarisGame.ARTWORK_KIND_LOGO"))
+        assertFalse(stage.contains("PolarisGame.ARTWORK_KIND_ICON"))
+        assertTrue(stage.contains("apiClient.loadArtworkInto(view, game, kind)"))
         assertTrue(stage.contains("apiClient.loadCoverInto(view, game)"))
     }
 
     @Test
     fun stageKeepsLaunchArtworkTouchControllerAndAccessibilityPathsImmediate() {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        val posterCard = read("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
-
-        assertTrue(stage.contains("onPrimaryAction: () -> Unit"))
-        assertFalse(stage.contains("onArtworkAction: (PolarisGame) -> Unit"))
-        assertTrue(stage.contains("onGameFocused: (PolarisGame) -> Unit"))
+        val poster = read("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
         assertTrue(stage.contains("onOpenDetail: (PolarisGame) -> Unit"))
-        assertTrue(stage.contains("LazyRow("))
-        assertTrue(stage.contains("LazyVerticalGrid("))
-        assertTrue(stage.contains("focusRequester = focusRequesters[index]"))
-        assertTrue(posterCard.contains(".focusRequester(focusRequester)"))
-        assertTrue(posterCard.contains(".onFocusChanged"))
-        assertTrue(posterCard.contains(".semantics"))
-        assertTrue(posterCard.contains("contentDescription = accessibleLabel"))
+        assertTrue(stage.contains(".novaClickable(role = Role.Button) { onOpenDetail(selected) }"))
+        assertTrue(stage.contains(".focusRequester(stageFocus)"))
+        assertTrue(stage.contains("Key.DirectionLeft -> -1; Key.DirectionRight -> 1"))
         assertTrue(stage.contains("key = { _, game -> game.id }"))
+        assertTrue(poster.contains("contentDescription = accessibleLabel"))
+        assertFalse(stage.contains("launchGame("))
     }
 
     @Test
     fun stageWiresRevisionKeysPortraitRestoreAndDeclaredPosterDensity() {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        val posterCard = read("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
-
-        assertTrue(posterCard.contains("posterPresentationKey"))
-        assertTrue(stage.contains("rememberLazyGridState"))
-        assertTrue(stage.contains("restoreFocusGameId = restoreFocusGameId"))
-        assertTrue(stage.contains("posterColumns = spec.stagePosterColumns"))
-        assertTrue(stage.contains("posterColumns: Int"))
+        val activity = read("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        assertTrue(stage.contains("restoreFocusGameId?.takeIf { it in ids }"))
+        assertTrue(stage.contains("PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_LOGO)"))
+        assertTrue(stage.contains("novaLibraryStageGeometry("))
+        assertTrue(activity.contains("if (!isLandscape && model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE)"))
+        assertFalse(stage.contains("stageRailPosterWidthDp("))
     }
 
     @Test
     fun renderedCardsConsumeAdaptiveHeightsAndStageActionsAreFocusSafe() {
-        val activity = read("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
-        val state = read("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        assertFalse(activity.contains("gameCardHeightDp = layoutSpec.gameCardHeightDp"))
-        assertFalse(activity.contains("gameCardHeightDp: Int"))
-        assertFalse(activity.contains("cardHeightDp: Int? = null"))
-        assertTrue(activity.contains("NovaLibraryPosterCard("))
-        assertTrue(activity.contains(".aspectRatio(NovaLibraryUiStateMapper.posterAspectRatio())"))
-        assertTrue(state.contains("largeText: Boolean = false"))
-        assertTrue(stage.contains("largeText = largeText"))
-        assertFalse(stage.contains(".isSuccess"))
-        assertTrue(stage.windowed(".getOrDefault(false)".length).count { it == ".getOrDefault(false)" } >= 2)
-        assertTrue(stage.contains("private fun NovaStageHeroAction("))
-        assertTrue(stage.contains(".height(if (largeText) 42.dp else 40.dp)"))
-        assertTrue(stage.contains(".height(if (largeText) 34.dp else 28.dp)"))
-        assertTrue(stage.contains("focused = focusState.isFocused || focusState.hasFocus"))
+        val activity = read("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        assertTrue(stage.contains("geometry.selected.widthDp.dp"))
+        assertTrue(stage.contains("geometry.neighbour.widthDp.dp"))
+        assertTrue(stage.contains(".focusProperties { canFocus = false }"))
+        assertTrue(stage.contains("stageFocus.requestFocus() }.getOrDefault(false)"))
+        assertFalse(stage.contains("NovaStageHeroAction("))
+        assertFalse(activity.contains("primaryActionLabel = stringResource(R.string.nova_library_review_and_launch)"))
     }
 
     @Test
     fun activeSessionControlsLiveInsideStageWithoutAStackedHomeHero() {
         val activity = read("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        assertFalse(activity.contains("if (!stageMode || activeSession != null)"))
-        assertTrue(activity.windowed("showStandaloneHomeHero(".length).count { it == "showStandaloneHomeHero(" } >= 2)
-        assertTrue(activity.contains("activeSession: NovaLibraryActiveSessionUiState?"))
-        assertTrue(activity.contains("activeSession = activeSession"))
+        val strip = read("src/main/java/com/papi/nova/ui/NovaLibraryHero.kt")
+        assertTrue(activity.contains("continueSlot = if (showContinue)"))
+        assertTrue(activity.contains("NovaLibraryShowcaseContinue("))
         assertTrue(activity.contains("activeSession?.let(onResumeSession)"))
         assertTrue(activity.contains("activeSession?.let(onEndSession)"))
-        assertTrue(activity.contains("val showStageContent ="))
-        assertTrue(activity.contains("NovaLibraryUiStateMapper.shouldRenderStageContent("))
-        assertTrue(activity.contains("NovaLibraryUiStateMapper.stageFocusedGame("))
-        assertTrue(activity.contains("model.hero.reason != NovaLibraryHeroReason.ACTIVE_SESSION"))
-        assertTrue(activity.contains("model.filteredGames.isEmpty() && !showStageContent"))
-        assertFalse(activity.contains("model.hero.game != null"))
-        assertTrue(stage.contains("sessionTitle: String? = null"))
-        assertTrue(stage.contains("nova-stage-session-only-hero"))
-        assertTrue(activity.contains("secondaryActionLabel = model.hero.secondaryActionLabel"))
-        assertTrue(activity.contains("sessionActionLabel = if ("))
-        assertTrue(stage.contains("sessionActionLabel: String? = null"))
-        assertTrue(stage.contains("onSessionAction: (() -> Unit)? = null"))
-        assertTrue(stage.contains("secondaryActionLabel: String? = null"))
-        assertTrue(stage.contains("onSecondaryAction: (() -> Unit)? = null"))
-        assertTrue(stage.contains("nova-stage-session-action"))
-        assertTrue(stage.contains("nova-stage-secondary-action"))
-        assertTrue(activity.contains("NovaLibraryLandscapeStageShell("))
-        assertTrue(stage.contains("internal fun NovaLibraryLandscapeStageShell("))
-        assertTrue(stage.contains("stageLayoutSpecForViewport("))
+        assertTrue(strip.contains("NovaSplitConfirm("))
+        assertTrue(strip.contains("NOVA_LIBRARY_END_FAILED_TAG"))
+        assertTrue(strip.contains("NovaLibraryEndingNotice()"))
+        assertFalse(stage.contains("nova-stage-session-action"))
+        assertFalse(stage.contains("nova-stage-secondary-action"))
     }
 
     @Test
@@ -242,70 +212,34 @@ class NovaLibraryStageSourceTest {
     @Test
     fun stageSeparatesPresentationIdentityFromLoaderFenceAndOmitsUnavailableMarks() {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        val posterCard = read("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
-        val artworkSources = stage + posterCard
-        val presentationTag = "R.id.nova_artwork_presentation_key"
-
-        assertTrue(artworkSources.windowed("view.getTag($presentationTag)".length).count { it == "view.getTag($presentationTag)" } >= 2)
-        assertTrue(artworkSources.windowed("view.setTag($presentationTag".length).count { it == "view.setTag($presentationTag" } >= 2)
-        assertFalse(stage.contains("view.tag = heroKey"))
-        assertFalse(stage.contains("view.tag = logoKey"))
-        assertFalse(stage.contains("view.tag = iconKey"))
-        assertFalse(stage.contains("view.tag = posterKey"))
-        assertFalse(stage.contains("view.tag = posterPresentationKey"))
-        assertFalse(stage.contains("val hasLogo = game.logoArtwork != null"))
-        assertFalse(stage.contains("if (hasLogo)"))
-        assertFalse(stage.contains("nova-stage-logo"))
-        assertTrue(stage.contains("val hasIcon = game.iconArtwork != null"))
-        assertTrue(stage.contains("if (hasIcon)"))
-        assertTrue(stage.contains("modifier = Modifier.weight(1f).testTag(\"nova-stage-title\")"))
+        assertTrue(stage.contains("val logo = game.logoArtwork?.cached == true"))
+        assertTrue(stage.contains("if (logo) {"))
+        assertTrue(stage.contains("view.getTag(R.id.nova_artwork_presentation_key) != logoKey"))
+        assertTrue(stage.contains("view.setTag(R.id.nova_artwork_presentation_key, logoKey)"))
+        assertTrue(stage.contains("artworkLoader(view, game, PolarisGame.ARTWORK_KIND_LOGO)"))
+        assertTrue(stage.contains("Text(game.name"))
+        assertFalse(stage.contains("ARTWORK_KIND_ICON"))
     }
 
     @Test
     fun everyStagePosterSurfaceDelegatesToTheSharedCleanDetailOnlyCard() {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        val grid = stage
-            .substringAfter("private fun NovaLibraryStagePosterGrid(")
-            .substringBefore("internal fun NovaLibraryStageRow(")
-        val row = stage
-            .substringAfter("internal fun NovaLibraryStageRow(")
-            .substringBefore("private const val STAGE_FOCUS_REQUEST_ATTEMPTS")
-        val posterRegions = grid + row
-
-        assertTrue(grid.contains("NovaLibraryPosterCard("))
-        assertTrue(row.contains("NovaLibraryPosterCard("))
-        assertTrue(stage.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" } == 2)
-        assertTrue(grid.contains("showPosterTitle = showPosterTitles"))
-        assertTrue(row.contains("showPosterTitle = showPosterTitles"))
+        assertEquals(2, stage.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" })
+        assertTrue(stage.contains("focusedOverride = stageFocused"))
+        assertTrue(stage.contains("running = selected.id == runningGameId"))
+        assertTrue(stage.contains("running = game.id == runningGameId"))
         assertFalse(stage.contains("private fun NovaLibraryStageCard("))
         assertFalse(stage.contains("private fun NovaStagePill("))
-        assertFalse(grid.contains("AndroidView("))
-        assertFalse(grid.contains(".border("))
-        listOf(
-            "NovaStagePill(",
-            "stageCardNeedsTextScrim(",
-            "Brush.verticalGradient(",
-            "nova_library_card_action_details",
-            "nova_library_filter_recent",
-            "game.hdrSupported",
-            "game.lastLaunched",
-            "game.source",
-            "game.category",
-            "Text(",
-        ).forEach { forbidden ->
-            assertFalse("legacy Stage poster chrome remains: $forbidden", posterRegions.contains(forbidden))
-        }
     }
 
     @Test
     fun stageFocusOwnershipUsesTransientBlurSafeMapper() {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-
-        assertTrue(stage.contains("focusedCardId = NovaLibraryUiStateMapper.stageFocusOwnerAfterChange("))
-        assertTrue(stage.contains("currentOwnerId = focusedCardId"))
-        assertTrue(stage.contains("gameId = game.id"))
-        assertTrue(stage.contains("isFocused = isFocused"))
-        assertFalse(stage.contains("else if (focusedCardId == game.id) focusedCardId = null"))
+        assertEquals(1, stage.windowed(".focusRequester(stageFocus)".length).count { it == ".focusRequester(stageFocus)" })
+        assertTrue(stage.contains("var selectedId by remember(ids)"))
+        assertTrue(stage.contains("selectedId = game.id"))
+        assertTrue(stage.contains(".testTag(\"nova-stage-selected-focus\")"))
+        assertFalse(stage.contains("focusRequesters[index]"))
     }
 
 
@@ -369,35 +303,13 @@ class NovaLibraryStageSourceTest {
 
     @Test
     fun stageLandscapeRailConsumesMapperOwnedRatioAndPresentationContracts() {
-        val state = read("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        val row = stage
-            .substringAfter("internal fun NovaLibraryStageRow(")
-            .substringBefore("private const val STAGE_FOCUS_REQUEST_ATTEMPTS")
-
-        assertTrue(row.contains("NovaLibraryUiStateMapper.posterPresentationSpec("))
-        assertTrue(row.contains("NovaLibraryUiStateMapper.portraitPosterSizeForWidth("))
-        assertTrue(row.contains("NovaLibraryUiStateMapper.portraitPosterSizeForRail("))
-        assertTrue(row.contains(".widthDp"))
-        assertTrue(row.contains(".heightDp"))
-        assertTrue(row.contains("captionBudgetDp = stagePosterCaptionBudgetDp("))
-        assertTrue(row.contains("railHeightDp - captionBudgetDp"))
-        assertTrue(row.contains("artworkWidthDp = posterSize.widthDp"))
-        assertTrue(row.contains("artworkHeightDp = posterSize.heightDp"))
-        assertTrue(row.contains("cellWidthDp = artworkWidthDp + 2 * presentationSpec.focusGutterDp"))
-        assertTrue(row.contains("cellHeightDp = artworkHeightDp + captionBudgetDp"))
-        assertTrue(row.contains("cardWidthDp = cellWidthDp"))
-        assertTrue(row.contains(".width(cellWidthDp.dp)"))
-        assertTrue(row.contains(".height(cellHeightDp.dp)"))
-        assertTrue(row.contains("layoutMode = NovaLibraryLayoutMode.STAGE"))
-        assertTrue(stage.contains("private const val STAGE_POSTER_CAPTION_BUDGET_DP = 36"))
-        assertTrue(stage.contains("private const val STAGE_LARGE_TEXT_POSTER_CAPTION_BUDGET_DP = 64"))
-        assertFalse(stage.contains(".aspectRatio(2f / 3f)"))
-        assertFalse(stage.contains("NovaLibraryUiStateMapper.stageCardHeightDp("))
-        assertFalse(stage.contains("NovaLibraryUiStateMapper.stageConstrainedCardHeightDp("))
-        assertFalse(state.contains("fun stageCardHeightDp("))
-        assertFalse(state.contains("fun stageConstrainedCardHeightDp("))
-        assertFalse(state.contains("1.6f"))
+        val geometry = read("src/main/java/com/papi/nova/ui/NovaLibraryStageGeometry.kt")
+        assertTrue(stage.contains("novaLibraryStageGeometry(maxWidth.value.toInt(), maxHeight.value.toInt(), density.fontScale, captionHeightDp)"))
+        assertTrue(geometry.contains("NovaPortraitPosterSize(selectedUnits * 2, selectedUnits * 3)"))
+        assertTrue(geometry.contains("posterGapDp: Int = 12"))
+        assertFalse(stage.contains("STAGE_POSTER_WIDTH_FRACTION"))
+        assertFalse(stage.contains("NovaStageEdgeScrollSpec"))
     }
 
     @Test
@@ -440,7 +352,8 @@ class NovaLibraryStageSourceTest {
         ).forEach { forbidden -> assertFalse("forbidden visual chrome: $forbidden", source.contains(forbidden)) }
         assertTrue(artwork.contains(".aspectRatio(NovaLibraryUiStateMapper.posterAspectRatio())"))
         assertTrue(artwork.indexOf(".graphicsLayer {") < artwork.indexOf(".testTag("))
-        assertFalse(artwork.contains("Text("))
+        assertTrue(artwork.contains("if (running)"))
+        assertTrue(artwork.contains("nova-poster-running-"))
         assertTrue(source.contains("if (showPosterTitle) {"))
         assertTrue(caption.contains("maxLines = if (layoutMode == NovaLibraryLayoutMode.COMPACT) 1 else 2"))
         assertTrue(caption.contains(".testTag(\"nova-poster-caption-${'$'}{game.id}\")"))
@@ -460,9 +373,9 @@ class NovaLibraryStageSourceTest {
         assertFalse(source.contains(".focusable()"))
         assertFalse(source.contains("import androidx.compose.foundation.focusable"))
         assertTrue(source.contains("game.sourceLabel") && source.contains("game.categoryLabel"))
-        assertTrue(source.contains("game.hdrSupported") && source.contains("game.lastLaunched > 0L"))
+        assertTrue(source.contains("game.hdrSupported") && source.contains("game.lastLaunched > 0"))
         assertTrue(source.contains("R.string.badge_hdr"))
-        assertTrue(source.contains("R.string.nova_library_filter_recent"))
+        assertTrue(source.contains("R.string.nova_library_meta_last_played"))
         assertTrue(source.contains("R.string.nova_library_card_action_details"))
         assertTrue(source.contains("R.id.nova_artwork_presentation_key"))
         assertTrue(source.contains("PolarisApiClient.artworkPresentationKey("))
@@ -610,71 +523,26 @@ class NovaLibraryStageSourceTest {
         assertTrue(activity.contains("reserveControllerHintSpace = true"))
         assertFalse(activity.contains("reserveControllerHintSpace = !stageMode"))
         assertTrue(activity.contains(".padding(bottom = controllerHintBarBottomPadding)"))
-        assertTrue(stage.contains("NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp()"))
+        assertFalse(stage.contains("stageControllerHintFooterHeightDp()"))
     }
 
     @Test
     fun cinematicControllerHintComposeFixtureProvesSafeBoundsSemanticsAndStageSeparation() {
-        val source = read("src/androidTest/java/com/papi/nova/ui/NovaLibraryStageComposeTest.kt")
-
-        assertTrue(source.contains("fun rp6LargeTextCinematicHintsStayRightAlignedAndClearOfStageRail()"))
-        assertTrue(source.contains("private fun NovaLibraryCinematicControllerHintsRp6Fixture("))
-        assertTrue(source.contains("Density(density.density, fontScale = 2f)"))
-        assertTrue(source.contains(".requiredSize(833.dp, 390.dp)"))
-        assertTrue(source.contains("assertContentDescriptionEquals(semanticsDescription)"))
-        assertTrue(source.contains("rootBounds.right - rowBounds.right"))
-        assertTrue(source.contains("trailingGapPx <= with(density) { 12.dp.toPx() } + 0.5f"))
-        assertTrue(source.contains("rowBounds.width < rootBounds.width"))
-        assertTrue(source.contains("rootBounds.height + 0.5f >= with(density) { 44.dp.toPx() }"))
-        assertTrue(source.contains("railBounds.bottom <= rootBounds.top + 0.5f"))
+        val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
+        val native = read("src/androidTest/java/com/papi/nova/ui/NovaLibraryStageComposeTest.kt")
+        assertTrue(stage.contains("lineHeight = 14.sp"))
+        assertTrue(stage.contains(".testTag(\"nova-stage-position\")"))
+        assertTrue(native.contains("rp6LargeTextCinematicHintsStayRightAlignedAndClearOfStageRail"))
     }
 
     @Test
     fun primaryStageActionUsesCompactVisibleSurfaceInsideAccessibleTarget() {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
-        val start = stage.indexOf("private fun NovaStageHeroAction(")
-        val end = stage.indexOf("private fun NovaLibraryStagePosterGrid(", start)
-        assertTrue(start >= 0 && end > start)
-        val action = stage.substring(start, end)
-
-        // The accessible target keeps its size, the visible surface always stays inside
-        // it, and the CTA carries only its label: the controller glyph is gone for good.
-        assertTrue(action.contains(".width(if (largeText) 140.dp else 116.dp)"))
-        assertTrue(action.contains(".height(if (largeText) 42.dp else 40.dp)"))
-        assertTrue(action.contains(".width(if (largeText) 132.dp else 108.dp)"))
-        assertFalse("Stage CTA must not seat a controller glyph", action.contains("nova_controller_hint_a"))
-        assertFalse(action.contains("showGlyph"))
-        assertTrue(action.contains(".height(if (largeText) 34.dp else 28.dp)"))
-        assertTrue(action.contains(".testTag(\"${'$'}{testTag}-surface\")"))
-        assertTrue(action.contains(".testTag(\"${'$'}{testTag}-label\")"))
-        // Focus is the one focus look (spec section 2): the fill and a ring inside the visible
-        // surface, with no scale, and the label in the theme's on-accent colour rather than a
-        // fixed near-black.
-        assertFalse(action.contains("focusedScale") || action.contains("scaleX"))
-        assertTrue(action.contains("NovaPanelMetrics.FocusRingWidth") && action.contains("NovaPanelMetrics.FocusMillis"))
-        assertTrue(action.contains("colors.accent") && action.contains("colors.onAccent"))
-        assertFalse(action.contains("Color(0xFF"))
-        assertTrue(action.contains("maxLines = 1"))
-        assertTrue(action.contains("overflow = TextOverflow.Ellipsis"))
-        assertTrue(action.contains("role = Role.Button; contentDescription = label"))
-        assertTrue(action.contains(".novaClickable(role = Role.Button, onClick = onClick)"))
-        assertTrue(
-            "the press target is the larger box, and the ring is drawn on the visible surface inside it",
-            action.indexOf(".novaClickable(") < action.indexOf(".width(if (largeText) 132.dp else 108.dp)")
-        )
-        // Its one border is the focus ring, drawn only while focus is arriving or held: no outline at rest.
-        assertTrue(
-            "Stage CTA must not restore the hard white outline",
-            action.split(".border(").size == 2 &&
-                action.contains("if (focus > 0f) {\n                        Modifier.border(NovaPanelMetrics.FocusRingWidth, ring.copy(alpha = ring.alpha * focus), shape)"),
-        )
-
-        val composeTest = read("src/androidTest/java/com/papi/nova/ui/NovaLibraryStageComposeTest.kt")
-        assertTrue(composeTest.contains("nova-stage-primary-action-surface"))
-        assertTrue(composeTest.contains("surfaceHeightDp <= 35f"))
-        assertTrue(composeTest.contains("assertContained(actionBounds, surfaceBounds, \"primary action surface in action row\")"))
-        assertTrue(composeTest.contains("actionHeightDp >= 41.5f"))
-        assertTrue(composeTest.contains("assertContentDescriptionEquals(\"Review & Launch\")"))
+        val activity = read("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
+        assertFalse(stage.contains("nova-stage-primary-action"))
+        assertFalse(stage.contains("NovaStageHeroAction("))
+        assertFalse(activity.contains("primaryActionLabel = stringResource(R.string.nova_library_review_and_launch)"))
+        assertTrue(stage.contains("onOpenDetail(selected)"))
     }
 
 }

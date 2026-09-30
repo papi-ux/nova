@@ -43,23 +43,12 @@ class NovaLibraryEndSplitComposeTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         return rule.setPanelContent {
             Box(Modifier.fillMaxSize()) {
-                NovaLibraryStage(
-                    games = emptyList(),
-                    focusedGame = null,
-                    restoreFocusGameId = null,
-                    primaryActionLabel = "Review and Launch",
-                    sessionTitle = "Portal",
-                    sessionSupportingLine = "Running on the host",
-                    sessionActionLabel = "Resume Stream",
-                    secondaryActionLabel = "End Session",
-                    apiClient = PolarisApiClient(context, ""),
-                    showPosterTitles = false,
-                    onPrimaryAction = {},
-                    onSessionAction = { resumes++ },
-                    onSecondaryAction = { ends++ },
-                    onGameFocused = {},
-                    onOpenDetail = {},
-                )
+                val session = NovaLibraryActiveSessionUiState(24, "active", "Portal", "Test", true, 0, false, false, 1920, 1080, 60f)
+                val hero = NovaLibraryUiStateMapper.build(emptyList(), "", NovaLibraryFilterState(), activeSession = session).hero
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxSize()) {
+                    NovaLibraryStripContinue(hero, PolarisApiClient(context, ""), NovaTopBarFit(),
+                        onPrimaryAction = { resumes++ }, onSecondaryAction = { ends++ })
+                }
             }
         }
     }

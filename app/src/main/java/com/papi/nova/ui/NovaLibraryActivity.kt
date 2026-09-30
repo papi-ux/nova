@@ -2533,8 +2533,6 @@ class NovaLibraryActivity : NovaActivity() {
                             games = model.filteredGames,
                             apiClient = apiClient,
                             focusedGame = targetGame,
-                            primaryActionLabel = "",
-                            onPrimaryAction = {},
                             runningGameId = model.hero.game?.id.takeIf { model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION },
                             sortLabel = sortModeLabel(model.optionsState.sortMode),
                             restoreFocusGameId = restoreFocusGameId,

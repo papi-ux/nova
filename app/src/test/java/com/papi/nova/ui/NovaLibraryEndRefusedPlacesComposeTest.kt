@@ -171,61 +171,18 @@ class NovaLibraryEndRefusedPlacesComposeTest {
     @Test
     fun theStageHeroSaysItUnderTheTitle() {
         val line = context.getString(R.string.nova_library_end_started_elsewhere)
-        rule.setPanelContent {
-            NovaLibraryStage(
-                games = listOf(game),
-                focusedGame = game,
-                restoreFocusGameId = null,
-                primaryActionLabel = "Review & Launch",
-                sessionTitle = game.name,
-                sessionActionLabel = "Resume Stream",
-                secondaryActionLabel = null,
-                apiClient = PolarisApiClient(context, ""),
-                showPosterTitles = false,
-                onPrimaryAction = {},
-                onSessionAction = {},
-                endRefusal = line,
-                onGameFocused = {},
-                onOpenDetail = {},
-                artworkLoader = { _, _, _ -> },
-                posterLoader = { _, _ -> },
-            )
-        }
-        rule.waitForIdle()
-        assertWholeInside(NOVA_STAGE_END_REFUSED_TAG, line, "nova-stage-hero")
-        val title = rule.onNodeWithTag("nova-stage-title", useUnmergedTree = true).getUnclippedBoundsInRoot()
-        val refusal = rule.onNodeWithTag(NOVA_STAGE_END_REFUSED_TAG, useUnmergedTree = true).getUnclippedBoundsInRoot()
-        assertTrue("under the title", refusal.top >= title.bottom - 0.5.dp)
-        val resume = rule.onNodeWithTag("nova-stage-session-action", useUnmergedTree = true).getUnclippedBoundsInRoot()
-        val stage = rule.onNodeWithTag("nova-stage-hero", useUnmergedTree = true).getUnclippedBoundsInRoot()
-        assertTrue("Resume still sits in the hero: $resume in $stage", resume.bottom <= stage.bottom + 0.5.dp)
+        strip(hero(NovaLibraryEndStatus.Failed(24, line, canRetry = false)))
+        assertWholeInside(NOVA_LIBRARY_END_FAILED_TAG, line, "nova-library-landscape-toolbar")
+        rule.onNodeWithText("End Session").assertDoesNotExist()
     }
 
     @Test
     fun theSessionOnlyStageHeroSaysItUnderTheTitle() {
         val line = context.getString(R.string.nova_library_end_started_elsewhere)
-        rule.setPanelContent {
-            NovaLibraryStage(
-                games = emptyList(),
-                focusedGame = null,
-                restoreFocusGameId = null,
-                primaryActionLabel = "Review & Launch",
-                sessionTitle = game.name,
-                sessionSupportingLine = "Running on pc-papi",
-                sessionActionLabel = "Resume Stream",
-                secondaryActionLabel = null,
-                apiClient = PolarisApiClient(context, ""),
-                showPosterTitles = false,
-                onPrimaryAction = {},
-                onSessionAction = {},
-                endRefusal = line,
-                onGameFocused = {},
-                onOpenDetail = {},
-                artworkLoader = { _, _, _ -> },
-                posterLoader = { _, _ -> },
-            )
-        }
-        rule.waitForIdle()
-        assertWholeInside(NOVA_STAGE_END_REFUSED_TAG, line, "nova-stage-session-only-hero")
+        val model = NovaLibraryUiStateMapper.withEndStatus(
+            NovaLibraryUiStateMapper.build(emptyList(), "", NovaLibraryFilterState(), activeSession = session),
+            session, NovaLibraryEndStatus.Failed(24, line, canRetry = false), context.getString(R.string.nova_panel_try_again))
+        strip(model.hero)
+        assertWholeInside(NOVA_LIBRARY_END_FAILED_TAG, line, "nova-library-landscape-toolbar")
     }
 }
