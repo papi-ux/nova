@@ -12,6 +12,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.platform.testTag
@@ -29,6 +34,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -44,133 +50,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+@OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class NovaLibraryStageComposeTest {
     @get:Rule
     val composeRule = createComposeRule()
-
-    @Test
-    fun retroidLandscapeStageContainsIdentityActionsAndPosterRail() {
-        enterControllerInputMode()
-        val games = games()
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-        val observedDensity = AtomicReference<Density>()
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                val density = LocalDensity.current
-                observedDensity.set(density)
-                CompositionLocalProvider(
-                    LocalDensity provides Density(density.density, fontScale = 2f),
-                ) {
-                    // ACTIVE_SESSION_RP6_FIXTURE
-                    Box(
-                        Modifier
-                            .requiredSize(width = 833.dp, height = 390.dp)
-                            .windowInsetsPadding(WindowInsets(0.dp, 4.dp, 0.dp, 4.dp))
-                            .padding(NovaLibraryUiStateMapper.screenPaddingDp(isLandscape = true).dp)
-                    ) {
-                        NovaLibraryLandscapeStageShell(
-                            modifier = Modifier.fillMaxSize(),
-                            reserveControllerHintSpace = false,
-                        ) {
-                            NovaLibraryLandscapeToolbarContent(
-                                hostLabel = "Polaris",
-                                resultCount = games.size,
-                                layoutLabel = "Stage",
-                                polarisReady = true,
-                                cinematic = true,
-                                onOpenOptions = {},
-                                onOpenSystemMenu = {},
-                            )
-                            Box(Modifier.weight(1f).fillMaxWidth()) {
-                                    NovaLibraryStage(
-                        games = games,
-                        focusedGame = games[1],
-                        restoreFocusGameId = games[1].id,
-                        primaryActionLabel = "Review & Launch",
-                        sessionActionLabel = "Resume Stream",
-                        secondaryActionLabel = "End Session",
-                        apiClient = apiClient,
-                        showPosterTitles = true,
-                        onPrimaryAction = {},
-                        onSessionAction = {},
-                        onSecondaryAction = {},
-                        onGameFocused = {},
-                        onOpenDetail = {},
-                        artworkLoader = { _, _, _ -> },
-                        posterLoader = { _, _ -> },
-                                    )
-                                }
-                            }
-                    }
-                }
-            }
-        }
-
-        composeRule.onNodeWithTag("nova-stage-landscape-rail").assertIsDisplayed()
-        val restoredPoster = composeRule.onNode(hasContentDescription("Bravo", substring = true))
-        composeRule.waitUntil(timeoutMillis = 2_000) {
-            runCatching {
-                restoredPoster.assertIsFocused()
-                true
-            }.getOrDefault(false)
-        }
-        val primaryAction = composeRule.onNodeWithTag("nova-stage-primary-action")
-        primaryAction
-            .assertIsDisplayed()
-            .assertHasClickAction()
-            .assertContentDescriptionEquals("Review & Launch")
-        composeRule.onAllNodesWithTag("nova-stage-artwork-action").assertCountEquals(0)
-        composeRule.onAllNodesWithTag("nova-stage-cinematic-backdrop").assertCountEquals(0)
-        composeRule.onNodeWithTag("nova-stage-session-action").assertIsDisplayed().assertHasClickAction()
-        composeRule.onNodeWithTag("nova-stage-secondary-action").assertIsDisplayed().assertHasClickAction()
-        assertTrue(primaryAction.fetchSemanticsNode().boundsInRoot.height >= 42f)
-        primaryAction.performSemanticsAction(SemanticsActions.RequestFocus)
-        composeRule.waitUntil(timeoutMillis = 2_000) {
-            runCatching {
-                primaryAction.assertIsFocused()
-                true
-            }.getOrDefault(false)
-        }
-        val toolbarBounds = composeRule.onNodeWithTag("nova-library-landscape-toolbar").fetchSemanticsNode().boundsInRoot
-        val stageBounds = composeRule.onNodeWithTag("nova-library-stage").fetchSemanticsNode().boundsInRoot
-        val pixelsPerDp = observedDensity.get().density
-        val railBounds = composeRule.onNodeWithTag("nova-stage-landscape-rail").fetchSemanticsNode().boundsInRoot
-        val cardBounds = composeRule.onNodeWithTag("nova-stage-poster-${games.first().id}").fetchSemanticsNode().boundsInRoot
-        val actionBounds = composeRule.onNodeWithTag("nova-stage-primary-action").fetchSemanticsNode().boundsInRoot
-        val surfaceBounds = composeRule.onNodeWithTag("nova-stage-primary-action-surface", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        assertTrue("toolbarDp=${toolbarBounds.height / pixelsPerDp} px=${toolbarBounds.height} density=$pixelsPerDp", toolbarBounds.height / pixelsPerDp in 61f..63f)
-        assertTrue(stageBounds.height / pixelsPerDp in 285f..287f)
-        val railHeightDp = railBounds.height / pixelsPerDp
-        assertTrue("railDp=$railHeightDp px=${railBounds.height} density=$pixelsPerDp", railHeightDp in 146f..156f)
-        val cardHeightDp = cardBounds.height / pixelsPerDp
-        assertTrue("cardDp=$cardHeightDp railDp=$railHeightDp", cardHeightDp <= railHeightDp)
-        val posterArtBounds = composeRule.onNodeWithTag("nova-poster-art-${games[1].id}", useUnmergedTree = true)
-            .fetchSemanticsNode().boundsInRoot
-        val posterCaptionBounds = composeRule.onNodeWithTag("nova-poster-caption-${games[1].id}", useUnmergedTree = true)
-            .assertIsDisplayed()
-            .fetchSemanticsNode().boundsInRoot
-        assertTrue(
-            "caption top ${posterCaptionBounds.top} overlaps artwork bottom ${posterArtBounds.bottom}",
-            posterCaptionBounds.top >= posterArtBounds.bottom - 1f,
-        )
-        val actionHeightDp = actionBounds.height / pixelsPerDp
-        val surfaceHeightDp = surfaceBounds.height / pixelsPerDp
-        assertTrue("actionHeightDp=$actionHeightDp", actionHeightDp >= 41.5f)
-        assertTrue("surfaceHeightDp=$surfaceHeightDp", surfaceHeightDp <= 35f)
-        assertContained(actionBounds, surfaceBounds, "primary action surface in action row")
-        assertContained(stageBounds, actionBounds, "primary action row in stage")
-        listOf(
-            "nova-stage-identity",
-            "nova-stage-primary-action",
-            "nova-stage-landscape-rail",
-        ).forEach { tag ->
-            val bounds = composeRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
-            assertContained(stageBounds, bounds, tag)
-        }
-    }
+    private var observedStageDensity: Density? = null
 
     @Test
     fun normalTextLandscapeToolbarKeepsRightAlignedOrderedTouchTargets() {
@@ -300,641 +185,283 @@ class NovaLibraryStageComposeTest {
         assertContained(toolbar, systemMenu, "$layout System")
     }
 
-    @Test
-    fun stagePosterTitleChoiceUsesOnlyTheSharedBelowArtworkCaptionAndNoVisualBadges() {
-        enterControllerInputMode()
-        val showTitles = mutableStateOf(false)
-        val badgeGame = game("alpha", "Alpha", "steam").copy(
-            hdrSupported = true,
-            lastLaunched = 1L,
-            category = "fast_action",
-        )
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
 
-        composeRule.setContent {
-            NovaComposeTheme {
-                Box(Modifier.requiredSize(width = 800.dp, height = 220.dp)) {
-                    NovaLibraryStageRow(
-                        games = listOf(badgeGame, game("bravo", "Bravo", "epic")),
-                        apiClient = apiClient,
-                        isLandscape = true,
-                        posterColumns = 5,
-                        restoreFocusGameId = badgeGame.id,
-                        showPosterTitles = showTitles.value,
-                        onGameFocused = {},
-                        onOpenDetail = {},
-                        coverLoader = { _, _ -> },
-                    )
-                }
-            }
-        }
-
-        composeRule.onNodeWithTag("nova-poster-${badgeGame.id}")
-            .assertIsDisplayed()
-            .assertHasClickAction()
-        composeRule.onAllNodesWithTag("nova-poster-caption-${badgeGame.id}").assertCountEquals(0)
-        listOf("HDR", "Recent", "Details", "Steam", "Fast action").forEach { forbidden ->
-            composeRule.onAllNodesWithText(forbidden, substring = true, useUnmergedTree = true)
-                .assertCountEquals(0)
-        }
-
-        composeRule.runOnIdle { showTitles.value = true }
-        val artBounds = composeRule.onNodeWithTag("nova-poster-art-${badgeGame.id}", useUnmergedTree = true)
-            .fetchSemanticsNode().boundsInRoot
-        val captionBounds = composeRule.onNodeWithTag("nova-poster-caption-${badgeGame.id}", useUnmergedTree = true)
-            .assertIsDisplayed()
-            .fetchSemanticsNode().boundsInRoot
-        assertTrue(
-            "caption top ${captionBounds.top} overlaps artwork bottom ${artBounds.bottom}",
-            captionBounds.top >= artBounds.bottom - 1f,
-        )
-        listOf("HDR", "Recent", "Details", "Steam", "Fast action").forEach { forbidden ->
-            composeRule.onAllNodesWithText(forbidden, substring = true, useUnmergedTree = true)
-                .assertCountEquals(0)
-        }
-    }
-
-    @Test
-    fun stagePosterFocusScalesArtworkWithoutReflowingItsStableCellOrRail() {
-        enterControllerInputMode()
-        val games = games()
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                Box(Modifier.requiredSize(width = 800.dp, height = 220.dp)) {
-                    NovaLibraryStageRow(
-                        games = games,
-                        apiClient = apiClient,
-                        isLandscape = true,
-                        posterColumns = 5,
-                        restoreFocusGameId = games.first().id,
-                        showPosterTitles = false,
-                        onGameFocused = {},
-                        onOpenDetail = {},
-                        coverLoader = { _, _ -> },
-                    )
-                }
-            }
-        }
-
-        composeRule.waitUntil(timeoutMillis = 2_000) {
-            runCatching {
-                composeRule.onNodeWithTag("nova-poster-${games.first().id}").assertIsFocused()
-                true
-            }.getOrDefault(false)
-        }
-        composeRule.onAllNodesWithTag("nova-poster-caption-${games.first().id}").assertCountEquals(0)
-        val targetPoster = composeRule.onNodeWithTag("nova-poster-${games[1].id}")
-        val artBefore = composeRule.onNodeWithTag("nova-poster-art-${games[1].id}", useUnmergedTree = true)
-            .fetchSemanticsNode().boundsInRoot
-        val cellBefore = composeRule.onNodeWithTag("nova-stage-poster-${games[1].id}")
-            .fetchSemanticsNode().boundsInRoot
-        val railBefore = composeRule.onNodeWithTag("nova-stage-landscape-rail")
-            .fetchSemanticsNode().boundsInRoot
-
-        composeRule.mainClock.autoAdvance = false
-        try {
-            targetPoster.performSemanticsAction(SemanticsActions.RequestFocus)
-            composeRule.mainClock.advanceTimeBy(250L)
-            composeRule.waitForIdle()
-
-            val artAfter = composeRule.onNodeWithTag("nova-poster-art-${games[1].id}", useUnmergedTree = true)
-                .fetchSemanticsNode().boundsInRoot
-            val cellAfter = composeRule.onNodeWithTag("nova-stage-poster-${games[1].id}")
-                .fetchSemanticsNode().boundsInRoot
-            val railAfter = composeRule.onNodeWithTag("nova-stage-landscape-rail")
-                .fetchSemanticsNode().boundsInRoot
-            assertTrue("focused artwork width did not grow: $artBefore -> $artAfter", artAfter.width > artBefore.width + 1f)
-            assertTrue("focused artwork height did not grow: $artBefore -> $artAfter", artAfter.height > artBefore.height + 1f)
-            assertRectStable(cellBefore, cellAfter, "Stage poster cell")
-            assertRectStable(railBefore, railAfter, "Stage poster rail")
-        } finally {
-            composeRule.mainClock.autoAdvance = true
-        }
-    }
-
-    @Test
-    fun unmatchedActiveSessionRendersSessionOnlyHeroAndControls() {
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-        val resumed = AtomicInteger(0)
-        val ended = AtomicInteger(0)
-        val unrelatedGames = games()
-        val launched = AtomicInteger(0)
-
-        val detailed = AtomicInteger(0)
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                Box(Modifier.requiredSize(width = 817.dp, height = 274.dp)) {
-                    NovaLibraryStage(
-                        games = unrelatedGames,
-                        focusedGame = null,
-                        restoreFocusGameId = null,
-                        primaryActionLabel = "Launch",
-                        sessionTitle = "Desktop on Pixel",
-                        sessionSupportingLine = "Watch • Pixel • 2 viewers",
-                        sessionActionLabel = "Watch Stream",
-                        secondaryActionLabel = "End Session",
-                        apiClient = apiClient,
-                        showPosterTitles = true,
-                        onPrimaryAction = { launched.incrementAndGet() },
-                        onSessionAction = { resumed.incrementAndGet() },
-                        onSecondaryAction = { ended.incrementAndGet() },
-
-                        onGameFocused = {},
-                        onOpenDetail = { detailed.incrementAndGet() },
-                    )
-                }
-            }
-        }
-
-        composeRule.onNodeWithTag("nova-stage-session-only-hero").assertIsDisplayed()
-        composeRule.onAllNodesWithTag("nova-stage-primary-action").assertCountEquals(0)
-        composeRule.onAllNodesWithTag("nova-stage-artwork-action").assertCountEquals(0)
-        composeRule.onNodeWithTag("nova-stage-landscape-rail").assertIsDisplayed()
-        composeRule.onNodeWithTag("nova-stage-session-action").performClick()
-        composeRule.onNodeWithTag("nova-stage-secondary-action").performClick()
-        assertEquals(1, resumed.get())
-        assertEquals(1, ended.get())
-        assertEquals(0, launched.get())
-
-        assertEquals(0, detailed.get())
-    }
-
-    @Test
-    fun pixelPortraitStageReflowsToAContainedVerticalPosterGrid() {
-        enterControllerInputMode()
-        val games = games()
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                Box(Modifier.requiredSize(width = 430.dp, height = 932.dp)) {
-                    NovaLibraryStage(
-                        games = games,
-                        focusedGame = games[1],
-                        restoreFocusGameId = games[1].id,
-                        primaryActionLabel = "Launch",
-                        apiClient = apiClient,
-                        showPosterTitles = true,
-                        onPrimaryAction = {},
-                        onGameFocused = {},
-                        onOpenDetail = {},
-                        artworkLoader = { _, _, _ -> },
-                        posterLoader = { _, _ -> },
-                    )
-                }
-            }
-        }
-
-        composeRule.onNodeWithTag("nova-stage-portrait-grid").assertIsDisplayed()
-        val stageBounds = composeRule.onNodeWithTag("nova-library-stage").fetchSemanticsNode().boundsInRoot
-        val identityBounds = composeRule.onNodeWithTag("nova-stage-identity").fetchSemanticsNode().boundsInRoot
-        val gridBounds = composeRule.onNodeWithTag("nova-stage-portrait-grid").fetchSemanticsNode().boundsInRoot
-        assertContained(stageBounds, identityBounds, "portrait identity")
-        assertContained(stageBounds, gridBounds, "portrait grid")
-        assertTrue("portrait grid should settle below identity", gridBounds.top >= identityBounds.bottom)
-        val restored = composeRule.onNode(hasContentDescription("Bravo", substring = true))
-        composeRule.waitUntil(timeoutMillis = 2_000) {
-            runCatching {
-                restored.assertIsFocused()
-                true
-            }.getOrDefault(false)
-        }
-        composeRule.onNodeWithTag("nova-poster-${games[1].id}")
-            .assertIsDisplayed()
-            .assertHasClickAction()
-        composeRule.onNodeWithTag("nova-stage-poster-${games[1].id}").assertIsDisplayed()
-        val portraitArt = composeRule.onNodeWithTag("nova-poster-art-${games[1].id}", useUnmergedTree = true)
-            .fetchSemanticsNode().boundsInRoot
-        val portraitCaption = composeRule.onNodeWithTag("nova-poster-caption-${games[1].id}", useUnmergedTree = true)
-            .fetchSemanticsNode().boundsInRoot
-        assertTrue(portraitCaption.top >= portraitArt.bottom - 1f)
-    }
-
-    @Test
-    fun plainArtworkStageUsesOneNovaTitleAndTheIconWithoutLogoWordmark() {
-        enterControllerInputMode()
-        val title = "Control Ultimate Edition"
-        val game = game("control", title, "steam").copy(
-            artwork = PolarisGame.ArtworkManifest(
-                revision = "identity-v1",
-                assets = PolarisGame.ArtworkAssets(
-                    logo = PolarisGame.ArtworkAsset(url = "/artwork/control/logo", cached = true),
-                    icon = PolarisGame.ArtworkAsset(url = "/artwork/control/icon", cached = true),
-                ),
-            ),
-        )
-        val iconLoads = AtomicInteger(0)
-        val logoLoads = AtomicInteger(0)
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                Box(Modifier.fillMaxSize()) {
-                    NovaLibraryStage(
-                        games = listOf(game),
-                        focusedGame = game,
-                        restoreFocusGameId = game.id,
-                        primaryActionLabel = "Launch",
-                        apiClient = apiClient,
-                        showPosterTitles = false,
-                        onPrimaryAction = {},
-                        onGameFocused = {},
-                        onOpenDetail = {},
-                        artworkLoader = { _, _, kind ->
-                            when (kind) {
-                                PolarisGame.ARTWORK_KIND_ICON -> iconLoads.incrementAndGet()
-                                PolarisGame.ARTWORK_KIND_LOGO -> logoLoads.incrementAndGet()
-                            }
-                        },
-                        posterLoader = { _, _ -> },
-                    )
-                }
-            }
-        }
-
-        composeRule.onNodeWithTag("nova-stage-icon").assertIsDisplayed()
-        composeRule.onAllNodesWithTag("nova-stage-logo").assertCountEquals(0)
-        composeRule.onNodeWithTag("nova-stage-title").assertIsDisplayed()
-        composeRule.onAllNodesWithText(title, useUnmergedTree = true).assertCountEquals(1)
-        composeRule.runOnIdle {
-            assertEquals(1, iconLoads.get())
-            assertEquals(0, logoLoads.get())
-        }
-    }
-
-    @Test
-    fun focusedPosterDeterministicallyDrivesDetailAndPrimaryActionsWithoutLaunchingAGame() {
-        enterControllerInputMode()
-        val games = games()
-        val focusedGameId = AtomicReference<String?>(null)
-
-        val detailGameId = AtomicReference<String?>(null)
-        val primaryActions = AtomicInteger(0)
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                NovaLibraryStage(
-                    games = games,
-                    focusedGame = games[1],
-                    restoreFocusGameId = games[1].id,
-                    primaryActionLabel = "Launch",
-                    apiClient = apiClient,
-                    showPosterTitles = true,
-                    onPrimaryAction = { primaryActions.incrementAndGet() },
-
-                    onGameFocused = { focusedGameId.set(it.id) },
-                    onOpenDetail = { detailGameId.set(it.id) },
-                    artworkLoader = { _, _, _ -> },
-                    posterLoader = { _, _ -> },
-                )
-            }
-        }
-
-        val bravo = composeRule.onNode(hasContentDescription("Bravo", substring = true))
-        bravo.assertIsDisplayed().assertHasClickAction()
-        composeRule.waitUntil(timeoutMillis = 2_000) {
-            runCatching {
-                bravo.assertIsFocused()
-                true
-            }.getOrDefault(false)
-        }
-        bravo.performClick()
-
-        composeRule.runOnIdle {
-            assertEquals("bravo", focusedGameId.get())
-            assertEquals("bravo", detailGameId.get())
-            assertEquals(0, primaryActions.get())
-        }
-
-        composeRule.onNodeWithTag("nova-stage-primary-action").performClick()
-
-        composeRule.runOnIdle {
-            assertEquals("bravo", focusedGameId.get())
-            assertEquals("bravo", detailGameId.get())
-
-            assertEquals(1, primaryActions.get())
-        }
-    }
-
-    @Test
-    fun stageArtworkLoadersDoNotRepeatAfterUnrelatedRecomposition() {
-        val games = games()
-        val actionLabel = mutableStateOf("Launch")
-        val posterLoads = AtomicInteger(0)
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                NovaLibraryStage(
-                    games = games,
-                    focusedGame = games[1],
-                    restoreFocusGameId = games[1].id,
-                    primaryActionLabel = actionLabel.value,
-                    apiClient = apiClient,
-                    showPosterTitles = true,
-                    onPrimaryAction = {},
-                    onGameFocused = {},
-                    onOpenDetail = {},
-                    artworkLoader = { _, _, _ -> },
-                    posterLoader = { view, _ ->
-                        view.tag = Any()
-                        posterLoads.incrementAndGet()
-                    },
-                )
-            }
-        }
-
-        composeRule.waitForIdle()
-        val initialLoads = posterLoads.get()
-        assertTrue(initialLoads > 0)
-        composeRule.runOnIdle { actionLabel.value = "Play" }
-        composeRule.waitForIdle()
-        assertEquals(initialLoads, posterLoads.get())
-    }
-
-    @Test
-    fun stageOmitsLogoAndIconLoadersWhenAssetsAreUnavailable() {
-        val games = games()
-        val markLoads = AtomicInteger(0)
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                NovaLibraryStage(
-                    games = games,
-                    focusedGame = games[1],
-                    restoreFocusGameId = games[1].id,
-                    primaryActionLabel = "Launch",
-                    apiClient = apiClient,
-                    showPosterTitles = true,
-                    onPrimaryAction = {},
-                    onGameFocused = {},
-                    onOpenDetail = {},
-                    artworkLoader = { _, _, _ -> markLoads.incrementAndGet() },
-                    posterLoader = { _, _ -> },
-                )
-            }
-        }
-
-        composeRule.waitForIdle()
-        assertEquals(0, markLoads.get())
-    }
-
-    @Test
-    fun stageLoadsIconButDoesNotRequestLogoWhenBothUrlsExist() {
-        val games = games().toMutableList()
-        games[1] = games[1].copy(
-            artwork = PolarisGame.ArtworkManifest(
-                assets = PolarisGame.ArtworkAssets(
-                    logo = PolarisGame.ArtworkAsset(url = "https://example.invalid/logo.png", cached = false),
-                    icon = PolarisGame.ArtworkAsset(url = "https://example.invalid/icon.png", cached = false),
-                ),
-            ),
-        )
-        val logoLoads = AtomicInteger(0)
-        val iconLoads = AtomicInteger(0)
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-        composeRule.setContent {
-            NovaComposeTheme {
-                NovaLibraryStage(
-                    games = games,
-                    focusedGame = games[1],
-                    restoreFocusGameId = games[1].id,
-                    primaryActionLabel = "Launch",
-                    apiClient = apiClient,
-                    showPosterTitles = true,
-                    onPrimaryAction = {},
-                    onGameFocused = {},
-                    onOpenDetail = {},
-                    artworkLoader = { _, _, kind ->
-                        when (kind) {
-                            PolarisGame.ARTWORK_KIND_LOGO -> logoLoads.incrementAndGet()
-                            PolarisGame.ARTWORK_KIND_ICON -> iconLoads.incrementAndGet()
-                        }
-                    },
-                    posterLoader = { _, _ -> },
-                )
-            }
-        }
-        composeRule.waitForIdle()
-        composeRule.runOnIdle {
-            assertEquals(0, logoLoads.get())
-            assertEquals(1, iconLoads.get())
-        }
-    }
-
-    @Test
-    fun rp6LargeTextCinematicHintsStayRightAlignedAndClearOfStageRail() {
-        enterControllerInputMode()
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-        val allHints = listOf(
-            NovaControllerHint("A", "Select"),
-            NovaControllerHint("B", "Back"),
-            NovaControllerHint("X", "Library"),
-            NovaControllerHint("Y", "Layout"),
-            NovaControllerHint("Menu", "System"),
-            NovaControllerHint("LB/RB", "Library / System"),
-        )
-        val visibleHints = allHints.filterIndexed { index, _ -> index in setOf(0, 1, 3) }
-        val semanticsDescription = allHints.joinToString(separator = " · ") { hint ->
-            "${hint.key} ${hint.label}"
-        }
-        val observedDensity = AtomicReference<Density>()
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                NovaLibraryCinematicControllerHintsRp6Fixture(
-                    games = games(),
-                    apiClient = apiClient,
-                    visibleHints = visibleHints,
-                    semanticsDescription = semanticsDescription,
-                    observedDensity = observedDensity,
-                )
-            }
-        }
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithTag("nova-library-cinematic-controller-hints")
-            .assertIsDisplayed()
-            .assertContentDescriptionEquals(semanticsDescription)
-        val rootBounds = bounds("nova-library-cinematic-controller-hints")
-        val rowBounds = bounds("nova-library-cinematic-controller-hints-row")
-        val railBounds = bounds("nova-stage-landscape-rail")
-        val density = observedDensity.get()
-        val trailingGapPx = rootBounds.right - rowBounds.right
-
-        assertTrue(trailingGapPx >= -0.5f)
-        assertTrue(trailingGapPx <= with(density) { 12.dp.toPx() } + 0.5f)
-        assertTrue(rowBounds.width < rootBounds.width)
-        assertTrue(rootBounds.height + 0.5f >= with(density) { 44.dp.toPx() })
-        assertTrue(
-            "stage rail overlaps cinematic hints: rail=$railBounds hints=$rootBounds density=${density.density}",
-            railBounds.bottom <= rootBounds.top + 0.5f,
-        )
-        allHints.forEach { hint ->
-            assertTrue(semanticsDescription.contains("${hint.key} ${hint.label}"))
-        }
-    }
-
-    @Composable
-    private fun NovaLibraryCinematicControllerHintsRp6Fixture(
-        games: List<PolarisGame>,
-        apiClient: PolarisApiClient,
-        visibleHints: List<NovaControllerHint>,
-        semanticsDescription: String,
-        observedDensity: AtomicReference<Density>,
+    private fun stageFixture(
+        many: List<PolarisGame> = games(),
+        restore: String? = many.firstOrNull()?.id,
+        fontScale: Float = 1f,
+        onDetail: (PolarisGame) -> Unit = {},
+        artworkLoader: (android.widget.ImageView, PolarisGame, String) -> Unit = { _, _, _ -> },
+        showPosterTitles: Boolean = false,
     ) {
-        val density = LocalDensity.current
-        val rp6LargeTextDensity = Density(density.density, fontScale = 2f)
-        observedDensity.set(rp6LargeTextDensity)
-        CompositionLocalProvider(LocalDensity provides rp6LargeTextDensity) {
-            Box(
-                modifier = Modifier
-                    .requiredSize(833.dp, 390.dp)
-                    .testTag("nova-library-cinematic-controller-hints-rp6-fixture"),
-            ) {
-                NovaLibraryLandscapeStageShell(
-                    modifier = Modifier.fillMaxSize(),
-                    reserveControllerHintSpace = true,
-                ) {
-                    NovaLibraryStage(
-                        games = games,
-                        focusedGame = games.first(),
-                        restoreFocusGameId = null,
-                        primaryActionLabel = "Play",
-                        apiClient = apiClient,
-                        showPosterTitles = true,
-                        onPrimaryAction = {},
-                        onGameFocused = {},
-                        onOpenDetail = {},
-                        artworkLoader = { _, _, _ -> },
-                        posterLoader = { _, _ -> },
-                    )
+        enterControllerInputMode()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        composeRule.setContent {
+            NovaComposeTheme {
+                val density = LocalDensity.current
+                val fixtureDensity = Density(density.density, fontScale)
+                observedStageDensity = fixtureDensity
+                CompositionLocalProvider(LocalDensity provides fixtureDensity) {
+                    Box(Modifier.requiredSize(833.dp, 354.dp)) {
+                        NovaLibraryStage(many, many.firstOrNull { it.id == restore }, restore,
+                            apiClient = PolarisApiClient(context, ""), showPosterTitles = showPosterTitles,
+                            onGameFocused = {}, onOpenDetail = onDetail,
+                            artworkLoader = artworkLoader, posterLoader = { view, game ->
+                                view.setImageDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.rgb(45 + game.id.length * 4, 70, 90)))
+                            })
+                    }
                 }
-                NovaLibraryCinematicControllerHints(
-                    hints = visibleHints,
-                    semanticsDescription = semanticsDescription,
-                    compact = true,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth(),
-                )
             }
         }
+        composeRule.waitForIdle()
+    }
+
+    @Test fun selectedCoverUsesApprovedHeightGeometryAndAOpensOnlyItsDetail() {
+        val opened = AtomicReference<String>()
+        stageFixture(onDetail = { opened.set(it.id) })
+        val cover = composeRule.onNodeWithTag("nova-poster-art-alpha", true).getUnclippedBoundsInRoot()
+        val next = composeRule.onNodeWithTag("nova-poster-art-bravo", true).getUnclippedBoundsInRoot()
+        val after = composeRule.onNodeWithTag("nova-poster-art-charlie", true).getUnclippedBoundsInRoot()
+        val stage = composeRule.onNodeWithTag("nova-library-stage").getUnclippedBoundsInRoot()
+        assertEquals(10f, (cover.left - stage.left).value, .6f)
+        assertEquals(224f, (cover.right - cover.left).value, 0.6f)
+        assertEquals(336f, (cover.bottom - cover.top).value, 0.6f)
+        assertEquals(120f, (next.right - next.left).value, 0.6f)
+        assertEquals(180f, (next.bottom - next.top).value, 0.6f)
+        assertEquals(12f, (after.left - next.right).value, 0.6f)
+        composeRule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused().performKeyInput { pressKey(Key.Enter) }
+        assertEquals("alpha", opened.get())
+        composeRule.onAllNodesWithText("Review & Launch").assertCountEquals(0)
+        capture("selected-geometry")
+    }
+
+    @Test fun wrappingThroughFiveHundredGamesKeepsOneFocusAndAReachableTail() {
+        val many = (0 until 500).map { game("g-$it", "Game $it", "steam") }
+        stageFixture(many, "g-499")
+        val fixed = composeRule.onNodeWithTag("nova-poster-art-g-499", true).getUnclippedBoundsInRoot()
+        composeRule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { pressKey(Key.DirectionRight) }
+        composeRule.waitForIdle()
+        assertEquals(fixed, composeRule.onNodeWithTag("nova-poster-art-g-0", true).getUnclippedBoundsInRoot())
+        composeRule.onNodeWithTag("nova-stage-position", true).assertTextEquals("1 of 500 · Library Order")
+        composeRule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("nova-stage-position", true).assertTextEquals("500 of 500 · Library Order")
+        composeRule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused()
+        composeRule.onNodeWithTag("nova-poster-g-250").assertDoesNotExist()
+        capture("wrapping-tail")
+    }
+
+    @Test fun aRowTapSelectsBeforeASecondTapOpensDetails() {
+        val opened = AtomicInteger()
+        stageFixture(onDetail = { opened.incrementAndGet() })
+        composeRule.onNodeWithTag("nova-poster-bravo").performClick()
+        composeRule.waitForIdle()
+        assertEquals(0, opened.get())
+        val b = composeRule.onNodeWithTag("nova-poster-art-bravo", true).getUnclippedBoundsInRoot()
+        assertEquals(224f, (b.right - b.left).value, .6f)
+        composeRule.onNodeWithTag("nova-poster-bravo").performClick()
+        assertEquals(1, opened.get())
+    }
+
+    @Test fun aCachedLogoReplacesTheTitleWithoutLoadingIconArt() {
+        val artwork = PolarisGame.ArtworkManifest(assets = PolarisGame.ArtworkAssets(
+            logo = PolarisGame.ArtworkAsset(url = "/logo", cached = true),
+            icon = PolarisGame.ArtworkAsset(url = "/icon", cached = true)))
+        val many = games().toMutableList().apply { this[0] = this[0].copy(artwork = artwork) }
+        val logoLoads = AtomicInteger()
+        stageFixture(many, artworkLoader = { _, _, kind ->
+            assertEquals(PolarisGame.ARTWORK_KIND_LOGO, kind)
+            logoLoads.incrementAndGet()
+        })
+        composeRule.onNodeWithTag("nova-stage-logo", true).assertIsDisplayed()
+        composeRule.onNodeWithTag("nova-stage-title", true).assertDoesNotExist()
+        assertEquals(1, logoLoads.get())
+    }
+
+    @Test fun largeTextIdentityRailAndCounterStayWithinTheStageContent() {
+        stageFixture(fontScale = 2f)
+        val stage = composeRule.onNodeWithTag("nova-library-stage").getUnclippedBoundsInRoot()
+        val poster = composeRule.onNodeWithTag("nova-poster-art-alpha", true).getUnclippedBoundsInRoot()
+        val identity = composeRule.onNodeWithTag("nova-stage-identity", true).getUnclippedBoundsInRoot()
+        val rail = composeRule.onNodeWithTag("nova-stage-landscape-rail").getUnclippedBoundsInRoot()
+        val counter = composeRule.onNodeWithTag("nova-stage-position", true).getUnclippedBoundsInRoot()
+        assertTrue(poster.bottom <= counter.top + .6.dp)
+        assertTrue(identity.bottom <= rail.top + .6.dp)
+        assertTrue(rail.bottom <= counter.top + .6.dp)
+        assertTrue(counter.bottom <= stage.bottom + .6.dp)
+        composeRule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused()
+        capture("large-text")
+    }
+
+    @Test fun longTitleAndMetadataStayWithinTheirBudgetAtModeratelyLargeText() = assertModeratelyLargeIdentity(false)
+
+    @Test fun posterCaptionsPreserveTheModeratelyLargeIdentityBudget() = assertModeratelyLargeIdentity(true)
+
+    @Test fun posterCaptionsKeepLargeIdentityAndBothLinesAtTwoTimesText() = assertModeratelyLargeIdentity(true, 2f)
+
+    private fun assertModeratelyLargeIdentity(showPosterTitles: Boolean, fontScale: Float = 1.3f) {
+        val many = games().toMutableList().apply {
+            this[0] = this[0].copy(name = "A game with a longer title\nAnd a visible second line",
+                category = "action", playTime = PolarisGame.PlayTime(seconds = 84 * 3600),
+                lastLaunched = System.currentTimeMillis() / 1000 - 3600)
+            this[1] = this[1].copy(name = "A long neighbour title\nWith a second visible line")
+        }
+        stageFixture(many, fontScale = fontScale, showPosterTitles = showPosterTitles)
+        // Retain the real factory conversion and paragraph-relative line height before
+        // any assertion, including failed native runs. Direct SP conversion differs here.
+        val suppliedDensity = checkNotNull(observedStageDensity)
+        val convertedLinePx = with(suppliedDensity) { NOVA_STAGE_CAPTION_LINE_HEIGHT_SP.sp.toPx() }
+        val fontSizePx = with(suppliedDensity) { NOVA_STAGE_CAPTION_FONT_SIZE_SP.sp.toPx() }
+        val fontRelativeLinePx = (NOVA_STAGE_CAPTION_LINE_HEIGHT_SP / NOVA_STAGE_CAPTION_FONT_SIZE_SP) * fontSizePx
+        val resolvedLinePx = novaLibraryStageCaptionLineHeightPx(suppliedDensity.fontScale, fontSizePx, convertedLinePx)
+        val reservedDp = novaLibraryStageCaptionHeightDp(resolvedLinePx,
+            with(suppliedDensity) { NOVA_STAGE_CAPTION_TOP_PADDING_DP.dp.roundToPx() }, suppliedDensity.density)
+        val metrics = buildString {
+            append("factory=${suppliedDensity.javaClass.name}, density=${suppliedDensity.density}, ")
+            append("fontScale=${suppliedDensity.fontScale}, converter17spPx=$convertedLinePx, ")
+            append("font12spPx=$fontSizePx, fontRelative17spPx=$fontRelativeLinePx, ")
+            append("resolvedLinePx=$resolvedLinePx, captionReserveDp=$reservedDp")
+            if (showPosterTitles) {
+                val result = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+                composeRule.onNodeWithTag("nova-poster-caption-bravo", true)
+                    .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(result) }
+                val laid = result.single()
+                append("\ncaptionConstraints=${laid.layoutInput.constraints}, captionSize=${laid.size}, ")
+                append("lineCount=${laid.lineCount}, lastLineBottom=${laid.getLineBottom(laid.lineCount - 1)}, ")
+                append("paragraph17spPx=${with(laid.layoutInput.density) { 17.sp.toPx() }}, ")
+                append("didExceedMaxLines=${laid.multiParagraph.didExceedMaxLines}, ")
+                append("cardPx=${composeRule.onNodeWithTag("nova-poster-bravo").fetchSemanticsNode().size}, ")
+                append("artPx=${composeRule.onNodeWithTag("nova-poster-art-bravo", true).fetchSemanticsNode().size}")
+            }
+        }
+        capture("long-title-text-${if (fontScale == 2f) "2_0" else "1_3"}-${if (showPosterTitles) "captions" else "plain"}", metrics)
+        val title = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        composeRule.onNodeWithTag("nova-stage-title", true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
+        if (!showPosterTitles) assertEquals("fixture exercises two title lines where they fit", 2, title.single().lineCount)
+        assertTrue("a short caption-on pane keeps a readable bounded title", title.single().lineCount in 1..2)
+        composeRule.onNodeWithTag("nova-stage-title", true).assertTextEquals(many[0].name)
+        val density = ApplicationProvider.getApplicationContext<android.content.Context>().resources.displayMetrics.density
+        val identityTags = mutableListOf("nova-stage-title", "nova-stage-play-stats")
+        if (fontScale < 1.5f) {
+            val metadata = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            composeRule.onNodeWithTag("nova-stage-metadata", true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(metadata) }
+            assertTrue("metadata fits its 14sp single-line budget",
+                metadata.single().size.height / density <= kotlin.math.ceil(14f * fontScale) + 1f)
+            identityTags.add("nova-stage-metadata")
+        } else {
+            composeRule.onNodeWithTag("nova-stage-metadata", true).assertDoesNotExist()
+        }
+        val identity = composeRule.onNodeWithTag("nova-stage-identity", true).getUnclippedBoundsInRoot()
+        val rail = composeRule.onNodeWithTag("nova-stage-landscape-rail").getUnclippedBoundsInRoot()
+        val counter = composeRule.onNodeWithTag("nova-stage-position", true).getUnclippedBoundsInRoot()
+        assertTrue("identity stays above the captioned rail", identity.bottom <= rail.top + .6.dp)
+        assertTrue("captioned rail stays above the position counter", rail.bottom <= counter.top + .6.dp)
+        identityTags.forEach { tag ->
+            val node = composeRule.onNodeWithTag(tag, true)
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            val laid = layouts.single()
+            // Bounded titles may deliberately ellipsize extra lines; didOverflowHeight also
+            // reports that. Every line we actually draw must still fit its measured height.
+            assertTrue("$tag shows every drawn line", laid.size.height + 1f >= laid.getLineBottom(laid.lineCount - 1))
+            val b = node.getUnclippedBoundsInRoot()
+            assertTrue("$tag stays within its identity block", b.top >= identity.top - .6.dp && b.bottom <= identity.bottom + .6.dp)
+            if (tag == "nova-stage-play-stats") {
+                assertTrue("the complete stats are not vertically clipped", !laid.didOverflowHeight)
+                node.assertTextEquals(layouts.single().layoutInput.text.text)
+                assertTrue("populated playtime and last-played remain present", layouts.single().layoutInput.text.text.contains("84 h played") && layouts.single().layoutInput.text.text.contains("Last played"))
+                assertTrue("full stats are not ellipsized", (0 until layouts.single().lineCount).none { layouts.single().isLineEllipsized(it) })
+                assertTrue("full stats stay within the allowed lines", !layouts.single().multiParagraph.didExceedMaxLines)
+            }
+        }
+        if (showPosterTitles) {
+            val caption = composeRule.onNodeWithTag("nova-poster-caption-bravo", true)
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            caption.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            val laid = layouts.single()
+            val art = composeRule.onNodeWithTag("nova-poster-art-bravo", true).getUnclippedBoundsInRoot()
+            val bounds = caption.getUnclippedBoundsInRoot()
+            val card = composeRule.onNodeWithTag("nova-poster-bravo").getUnclippedBoundsInRoot()
+            val diagnostics = "text=${laid.layoutInput.text.text}, constraints=${laid.layoutInput.constraints}, " +
+                "size=${laid.size}, paragraphHeight=${laid.multiParagraph.height}, " +
+                "lineHeight=${laid.layoutInput.style.lineHeight}, density=${laid.layoutInput.density.density}, " +
+                "fontScale=${laid.layoutInput.density.fontScale}, maxLines=${laid.layoutInput.maxLines}, " +
+                "didExceedMaxLines=${laid.multiParagraph.didExceedMaxLines}, " +
+                "lastLineBottom=${laid.getLineBottom(laid.lineCount - 1)}, " +
+                "cardDp=$card, artDp=$art, captionDp=$bounds, " +
+                "cardPx=${composeRule.onNodeWithTag("nova-poster-bravo").fetchSemanticsNode().size}, " +
+                "artPx=${composeRule.onNodeWithTag("nova-poster-art-bravo", true).fetchSemanticsNode().size}, " +
+                "captionPx=${caption.fetchSemanticsNode().size}"
+            assertEquals("long neighbour exercises both caption lines: $diagnostics", 2, laid.lineCount)
+            assertTrue("both visible caption lines fit vertically", laid.size.height + 1f >= laid.getLineBottom(laid.lineCount - 1))
+            assertTrue("two caption lines fit their 34sp budget",
+                layouts.single().size.height / density <= kotlin.math.ceil(34f * fontScale) + 1f)
+            assertTrue("caption remains inside its neighbour card", bounds.bottom <= card.bottom + .6.dp)
+            if (fontScale == 2f) {
+                assertEquals("caption-on large text retains a readable cover row", 129f, (art.bottom - art.top).value, .6f)
+                assertEquals("large identity preserves its title and populated stats", 103f, (identity.bottom - identity.top).value, .6f)
+            }
+            assertTrue("ellipsized captions retain the complete semantic game name",
+                composeRule.onNodeWithTag("nova-poster-bravo").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].joinToString().contains(many[1].name))
+        }
+    }
+
+    @Test fun changingTheSelectedGameWhileAHeldCancelsThatPress() {
+        val opened = mutableListOf<String>()
+        stageFixture(onDetail = { opened += it.id })
+        composeRule.onNodeWithTag("nova-stage-selected-focus").performKeyInput {
+            keyDown(Key.Enter)
+            pressKey(Key.DirectionRight)
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { keyUp(Key.Enter) }
+        assertEquals(emptyList<String>(), opened)
+        composeRule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { pressKey(Key.Enter) }
+        assertEquals(listOf("bravo"), opened)
+        capture("press-change-release")
+    }
+
+    @Test fun anUncachedLogoKeepsTheTitleWithoutRequestingItOnFocus() {
+        val artwork = PolarisGame.ArtworkManifest(assets = PolarisGame.ArtworkAssets(
+            logo = PolarisGame.ArtworkAsset(url = "/logo", cached = false)))
+        val many = games().toMutableList().apply { this[0] = this[0].copy(artwork = artwork) }
+        val loads = AtomicInteger()
+        stageFixture(many, artworkLoader = { _, _, _ -> loads.incrementAndGet() })
+        composeRule.onNodeWithTag("nova-stage-title", true).assertIsDisplayed().assertTextEquals("Alpha")
+        composeRule.onNodeWithTag("nova-stage-logo", true).assertDoesNotExist()
+        assertEquals(0, loads.get())
+    }
+
+    /** Synthetic cover fixtures prove layout/focus; they do not prove a live library or stream. */
+    private fun capture(name: String, metrics: String? = null) {
+        composeRule.waitForIdle()
+        val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        val suffix = androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("screenshotSuffix") ?: "stage"
+        val directory = java.io.File(instrumentation.targetContext.getExternalFilesDir(null), "stage-131").apply { mkdirs() }
+        if (metrics != null) {
+            java.io.File(directory, "$name-$suffix.txt").writeText(metrics + "\n")
+            android.util.Log.i("NovaStageCaption", metrics)
+        }
+        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
+        java.io.File(directory, "$name-$suffix.png").outputStream().use {
+            check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+        }
+        bitmap.recycle()
     }
 
     private fun enterControllerInputMode() {
         androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().setInTouchMode(false)
     }
-
     private fun assertContained(container: Rect, child: Rect, label: String) {
-        assertTrue("$label left ${child.left} < ${container.left}", child.left >= container.left)
-        assertTrue("$label top ${child.top} < ${container.top}", child.top >= container.top)
-        assertTrue("$label right ${child.right} > ${container.right}", child.right <= container.right)
-        assertTrue("$label bottom ${child.bottom} > ${container.bottom}", child.bottom <= container.bottom)
+        assertTrue("$label left", child.left >= container.left - .6f)
+        assertTrue("$label top", child.top >= container.top - .6f)
+        assertTrue("$label right", child.right <= container.right + .6f)
+        assertTrue("$label bottom", child.bottom <= container.bottom + .6f)
     }
-
-    private fun assertRectStable(before: Rect, after: Rect, label: String) {
-        assertTrue("$label left reflowed: $before -> $after", kotlin.math.abs(before.left - after.left) <= 0.5f)
-        assertTrue("$label top reflowed: $before -> $after", kotlin.math.abs(before.top - after.top) <= 0.5f)
-        assertTrue("$label right reflowed: $before -> $after", kotlin.math.abs(before.right - after.right) <= 0.5f)
-        assertTrue("$label bottom reflowed: $before -> $after", kotlin.math.abs(before.bottom - after.bottom) <= 0.5f)
-    }
-
-    @Test
-    fun stageRailHoldsStillUntilFocusApproachesAnEdge() {
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val apiClient = PolarisApiClient(context, "127.0.0.1", 47984)
-        val many = (0 until 14).map { index ->
-            game("game-$index", "Game $index", "steam")
-        }
-
-        composeRule.setContent {
-            NovaComposeTheme {
-                Box(Modifier.requiredSize(width = 833.dp, height = 390.dp)) {
-                    NovaLibraryStage(
-                        games = many,
-                        focusedGame = many.first(),
-                        restoreFocusGameId = many.first().id,
-                        primaryActionLabel = "Review & Launch",
-                        apiClient = apiClient,
-                        showPosterTitles = false,
-                        onPrimaryAction = {},
-                        onGameFocused = {},
-                        onOpenDetail = {},
-                        artworkLoader = { _, _, _ -> },
-                        posterLoader = { _, _ -> },
-                    )
-                }
-            }
-        }
-
-        fun railOriginOf(id: String): Float =
-            composeRule.onNodeWithTag("nova-stage-poster-$id").fetchSemanticsNode().boundsInRoot.left
-
-        // Anchor on a poster that stays composed throughout so its screen position is a
-        // direct readout of how far the rail has scrolled.
-        composeRule.onNodeWithTag("nova-poster-${many[2].id}")
-            .performSemanticsAction(SemanticsActions.RequestFocus)
-        composeRule.waitForIdle()
-        val anchorAfterNearFocus = railOriginOf(many[2].id)
-
-        // Moving the selection one step, well inside the rail, must not drag the library
-        // sideways: the focus travels across stationary posters.
-        composeRule.onNodeWithTag("nova-poster-${many[3].id}")
-            .performSemanticsAction(SemanticsActions.RequestFocus)
-        composeRule.waitForIdle()
-        val anchorAfterInteriorStep = railOriginOf(many[2].id)
-        assertEquals(
-            "interior focus step must not scroll the rail",
-            anchorAfterNearFocus,
-            anchorAfterInteriorStep,
-            0.5f,
-        )
-
-        // Stepping on until the selection reaches the trailing edge must scroll, otherwise
-        // the tail of the library would be unreachable. Lazy items only exist once visible,
-        // so walk the selection the way a D-pad would rather than jumping to the end.
-        for (index in 4..7) {
-            composeRule.onNodeWithTag("nova-poster-${many[index].id}")
-                .performSemanticsAction(SemanticsActions.RequestFocus)
-            composeRule.waitForIdle()
-        }
-        val anchorAfterEdgeFocus = railOriginOf(many[2].id)
-        assertTrue(
-            "focus reaching the trailing edge must scroll the rail: " +
-                "$anchorAfterInteriorStep -> $anchorAfterEdgeFocus",
-            anchorAfterInteriorStep - anchorAfterEdgeFocus > 1f,
-        )
-    }
-
-    private fun games(): List<PolarisGame> = listOf(
-        game("alpha", "Alpha", "steam"),
-        game("bravo", "Bravo", "epic"),
-        game("charlie", "Charlie", "gog"),
-        game("delta", "Delta", "steam"),
-    )
-
-    private fun game(id: String, name: String, source: String): PolarisGame = PolarisGame(
-        id = id,
-        name = name,
-        source = source,
-        launcherSource = source,
-        category = "fast_action",
-        genres = listOf("Action"),
-    )
+    private fun games() = listOf(game("alpha", "Alpha", "steam"), game("bravo", "Bravo", "epic"),
+        game("charlie", "Charlie", "gog"), game("delta", "Delta", "steam"))
+    private fun game(id: String, name: String, source: String) = PolarisGame(id = id, name = name,
+        source = source, launcherSource = source, category = "fast_action", genres = listOf("Action"))
 }

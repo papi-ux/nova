@@ -677,76 +677,12 @@ class NovaLibraryUiStateTest {
 
     @Test
     fun stageMetricsCenterTheFocusedGameAndPreservePortraitGeometry() {
-        val thorWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
-            availableWidthDp = 833,
-            isLandscape = true
-        )
-        val thorLargeTextWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
-            availableWidthDp = 833,
-            isLandscape = true,
-            largeText = true
-        )
-        val compactThorLargeTextWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
-            availableWidthDp = 472,
-            isLandscape = true,
-            largeText = true
-        )
-        val phoneWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
-            availableWidthDp = 430,
-            isLandscape = false
-        )
-
-        assertEquals(149, thorWidth)
-        assertEquals(190, thorLargeTextWidth)
-        assertEquals(100, compactThorLargeTextWidth)
-        assertEquals(84, phoneWidth)
-        assertTrue(thorWidth * 5 + 16 * 4 + 24 <= 833)
-        // End inset tracks the viewport so a focused first/last poster is not crowded
-        // against the screen edge (concept: 54px on a 1920px stage).
-        assertEquals(
-            23,
-            NovaLibraryUiStateMapper.stageHorizontalContentPaddingDp(
-                availableWidthDp = 833,
-                cardWidthDp = thorWidth
-            )
-        )
-        assertEquals(
-            NovaPortraitPosterSize(widthDp = 148, heightDp = 222),
-            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(thorWidth),
-        )
-        assertEquals(
-            NovaPortraitPosterSize(widthDp = 190, heightDp = 285),
-            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(thorLargeTextWidth),
-        )
-        assertEquals(
-            NovaPortraitPosterSize(widthDp = 100, heightDp = 150),
-            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(compactThorLargeTextWidth),
-        )
-        assertEquals(
-            NovaPortraitPosterSize(widthDp = 84, heightDp = 126),
-            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(phoneWidth),
-        )
-
-        val stagePresentation = NovaLibraryUiStateMapper.posterPresentationSpec(
-            NovaLibraryLayoutMode.STAGE,
-        )
-        val constrainedSizes = listOf(
-            310 to NovaPortraitPosterSize(widthDp = 180, heightDp = 270),
-            400 to NovaPortraitPosterSize(widthDp = 234, heightDp = 351),
-            126 to NovaPortraitPosterSize(widthDp = 68, heightDp = 102),
-        )
-        constrainedSizes.forEach { (railHeightDp, expectedSize) ->
-            val actualSize = NovaLibraryUiStateMapper.portraitPosterSizeForRail(
-                railHeightDp = railHeightDp,
-                presentationSpec = stagePresentation,
-            )
-            assertEquals(expectedSize, actualSize)
-            assertEquals(actualSize.widthDp * 3, actualSize.heightDp * 2)
-            assertTrue(
-                actualSize.heightDp * stagePresentation.focusedScale +
-                    stagePresentation.focusGutterDp * 2 <= railHeightDp + 0.0001f,
-            )
-        }
+        val rp6 = novaLibraryStageGeometry(833, 354, 1f)
+        assertEquals(NovaPortraitPosterSize(224, 336), rp6.selected)
+        assertEquals(NovaPortraitPosterSize(120, 180), rp6.neighbour)
+        val tall = novaLibraryStageGeometry(833, 450, 1f)
+        assertTrue(tall.selected.heightDp > rp6.selected.heightDp)
+        assertTrue(tall.selected.widthDp <= 833 * .30f)
     }
 
     @Test
@@ -757,9 +693,9 @@ class NovaLibraryUiStateTest {
         assertEquals(0, NovaLibraryUiStateMapper.stageRestoreIndex(gameIds, "missing"))
         assertEquals(0, NovaLibraryUiStateMapper.stageRestoreIndex(gameIds, null))
         assertEquals(0, NovaLibraryUiStateMapper.stageRestoreIndex(emptyList(), "bravo"))
-        assertEquals(0, NovaLibraryUiStateMapper.stageAdjacentIndex(0, -1, gameIds.size))
+        assertEquals(2, NovaLibraryUiStateMapper.stageAdjacentIndex(0, -1, gameIds.size))
         assertEquals(1, NovaLibraryUiStateMapper.stageAdjacentIndex(0, 1, gameIds.size))
-        assertEquals(2, NovaLibraryUiStateMapper.stageAdjacentIndex(2, 1, gameIds.size))
+        assertEquals(0, NovaLibraryUiStateMapper.stageAdjacentIndex(2, 1, gameIds.size))
         assertEquals(1, NovaLibraryUiStateMapper.stageAdjacentIndex(2, -1, gameIds.size))
     }
 
