@@ -6,6 +6,7 @@ import com.papi.nova.api.PolarisClientSettings
 object PolarisProfileSync {
     private const val PREF_NAME = "nova_prefs"
     private const val AUTO_SYNC_PREFIX = "polaris_auto_sync_"
+    private val autoSyncLock = Any()
     const val AUTO_SYNC_MIN_INTERVAL_MS = 5000L
 
     data class StreamProfile(
@@ -61,12 +62,25 @@ object PolarisProfileSync {
             .getBoolean(autoSyncKey(serverUuid), false)
     }
 
+    /** Seed only a newly completed pairing; absence still means off for existing hosts. */
+    @JvmStatic
+    fun initializeAutoSyncForNewPairing(context: Context, serverUuid: String?) {
+        if (serverUuid.isNullOrBlank()) return
+        synchronized(autoSyncLock) {
+            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            val key = autoSyncKey(serverUuid)
+            if (!prefs.contains(key)) prefs.edit().putBoolean(key, true).apply()
+        }
+    }
+
     @JvmStatic
     fun setAutoSyncEnabled(context: Context, serverUuid: String?, enabled: Boolean) {
         if (serverUuid.isNullOrBlank()) return
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(autoSyncKey(serverUuid), enabled)
-            .apply()
+        synchronized(autoSyncLock) {
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(autoSyncKey(serverUuid), enabled)
+                .apply()
+        }
     }
 }

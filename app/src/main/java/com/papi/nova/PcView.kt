@@ -69,6 +69,7 @@ import com.papi.nova.manager.HostPowerPolicy
 import com.papi.nova.manager.HostSleepSequence
 import com.papi.nova.manager.HostSleepUnavailable
 import com.papi.nova.manager.PolarisStartupCoordinator
+import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.manager.PolarisStartupStatus
 import com.papi.nova.manager.TcpHostReachabilityProbe
 import com.papi.nova.nvstream.http.ComputerDetails
@@ -2396,6 +2397,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
 
         binder.persistComputer(managedComputer ?: computer)
+        if (isNewPairing) {
+            PolarisProfileSync.initializeAutoSyncForNewPairing(this, computer.uuid)
+        }
         binder.invalidateStateForComputer(computer.uuid)
 
         return managedComputer ?: computer
