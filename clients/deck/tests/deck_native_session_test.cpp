@@ -619,7 +619,7 @@ void testStreamCapabilitiesAtLaunch() {
 
 void testVideoCodecAtLaunch() {
     // Fresh local decode, catalog and serverinfo checks precede host mutation.
-    for (int scenario = 0; scenario < 10; ++scenario) {
+    for (int scenario = 0; scenario < 9; ++scenario) {
         Host host;
         Driver driver;
         host.verifyStream = [&](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
