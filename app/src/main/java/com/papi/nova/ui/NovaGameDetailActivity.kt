@@ -604,6 +604,11 @@ class NovaGameDetailActivity : NovaActivity() {
         // request may publish settings/optimization state or replay a held Play press.
         val preflightRequestFence = NovaLaunchPreflightRequestFence()
         var preflightJob: Job? = null
+        var preflightGeneration = 0L
+        var hostCaptureCapabilities by mutableStateOf<com.papi.nova.api.PolarisCapabilities?>(null)
+        val detailHostUuid = serverUuid
+        fun detailHostIsCurrent() = !isFinishing && !isDestroyed && serverUuid == detailHostUuid &&
+            this@NovaGameDetailActivity.apiClient === apiClient
         // The retained ViewModel owns the actual Steam mutation. This Activity job only
         // waits to publish its result; recreation may cancel the waiter without losing
         // host ordering or allowing the replacement window to launch stale state.
@@ -977,9 +982,11 @@ class NovaGameDetailActivity : NovaActivity() {
             // settled answer of "nothing to guard" -- for as long as the round-trip took.
             preflightJob?.cancel()
             val requestGeneration = preflightRequestFence.begin()
+            preflightGeneration = requestGeneration
             optimizationState = recheckState()
             preflightJob = lifecycleScope.launch {
                 var launchCanReplay = false
+                var observedCapabilities: com.papi.nova.api.PolarisCapabilities? = null
                 val nextOptimizationState = try {
                     deviceSettings.awaitStreamWrites()
                     check(deviceSettings.uiState.value.tierSaveResult !in setOf(
@@ -1002,6 +1009,8 @@ class NovaGameDetailActivity : NovaActivity() {
                     val optimizationMode = uiState.playMode
                     val optimizationEncoder = selectedEncoderBackend()
                     val opt = withContext(Dispatchers.IO) {
+                        // A fresh answer belongs to this paired API and this fenced preflight.
+                        observedCapabilities = apiClient.getCapabilities()
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
                         val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
                         val spaceRequest = if (spaceGame != null) NovaSpaceUiState.request(
@@ -1047,7 +1056,8 @@ class NovaGameDetailActivity : NovaActivity() {
                         preflightMessage = getString(R.string.nova_game_detail_launch_preflight_unavailable),
                     )
                 }
-                if (!preflightRequestFence.owns(requestGeneration)) return@launch
+                if (!preflightRequestFence.owns(requestGeneration) || !detailHostIsCurrent()) return@launch
+                hostCaptureCapabilities = observedCapabilities
                 optimizationState = nextOptimizationState
                 if (pendingLaunch) {
                     if (launchCanReplay) {
@@ -1684,10 +1694,17 @@ class NovaGameDetailActivity : NovaActivity() {
                 // The size the launch will ask for, which PyroWave's advice is judged at, by the same
                 // verdict the plan reads (#10).
                 val askedSize = launchSize(preferences)
-                rows += novaPlaySetupCodecRow(
+                val rowGeneration = preflightGeneration
+                val rowGameId = currentGame.id
+                rows += novaPlaySetupHostCodecRow(
                     this@NovaGameDetailActivity,
                     chosenCodec,
                     preferences.videoFormat,
+                    availability = { com.papi.nova.binding.video.PyroWaveAvailability.inspect(applicationContext) },
+                    hostUnavailable = { hostCaptureCapabilities?.capture?.pyrowaveUnavailable },
+                    isCurrent = { detailHostIsCurrent() && currentGame.id == rowGameId &&
+                        preflightGeneration == rowGeneration && !optimizationState.preflightInFlight &&
+                        !optimizationState.preflightFailed },
                     preview = { format ->
                         NovaPlaySetupPreview(
                             part = NovaPlaySetupPreviewPart.CODEC,

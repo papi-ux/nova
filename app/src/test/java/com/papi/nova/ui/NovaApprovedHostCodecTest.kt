@@ -17,16 +17,10 @@ import org.robolectric.annotation.Implementation
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], shadows = [NovaCompatiblePyrowaveShadow::class])
 class NovaApprovedHostCodecTest {
-    // The test-only checkpoint also compiles before the host-specific projection exists.
-    // Once added, this bridge is replaced by a normal typed production call.
     private fun hostRow(context: Context, refusal: PolarisCapabilities.PyrowaveUnavailable,
-                        onSelect: (String?) -> Unit): NovaPlaySetupRowState {
-        val added = Class.forName("com.papi.nova.ui.NovaVideoCodecOverridesKt").declaredMethods
-            .firstOrNull { it.name == "novaPlaySetupHostCodecRow" }
-        return if (added == null) novaPlaySetupCodecRow(context, "forcepyrowave", FormatOption.FORCE_PYROWAVE,
-            onSelect = onSelect) else added.invoke(null, context, "forcepyrowave", FormatOption.FORCE_PYROWAVE,
-            { PyroWaveAvailability.Status.AVAILABLE }, { refusal }, { true }, onSelect) as NovaPlaySetupRowState
-    }
+                        onSelect: (String?) -> Unit) = novaPlaySetupHostCodecRow(context,
+        "forcepyrowave", FormatOption.FORCE_PYROWAVE, { PyroWaveAvailability.Status.AVAILABLE },
+        { refusal }, { true }, onSelect = onSelect)
     @Test fun currentHostCaptureRefusalIsVisibleAndNeitherExplicitNorInheritedPyrowaveCanCommit() {
         val context = ApplicationProvider.getApplicationContext<Context>()
             assertEquals(PyroWaveAvailability.Status.AVAILABLE, PyroWaveAvailability.inspect(context))
@@ -43,6 +37,24 @@ class NovaApprovedHostCodecTest {
             assertEquals(1, writes)
 
     }
+    @Test fun hostRefusalAndChangedHostInvalidateAlreadyRenderedCallbacks() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        var refusal: PolarisCapabilities.PyrowaveUnavailable? = null
+        var current = true
+        var writes = 0
+        val row = novaPlaySetupHostCodecRow(context, null, FormatOption.FORCE_PYROWAVE,
+            { PyroWaveAvailability.Status.AVAILABLE }, { refusal }, { current }, onSelect = { writes++ })
+        val pyro = row.options.first { it.label.contains("PyroWave") }
+        assertTrue(pyro.enabled); assertTrue(row.options.first().enabled)
+        refusal = PolarisCapabilities.PyrowaveUnavailable("capture_cpu", "GPU capture is unavailable")
+        pyro.onSelect!!.invoke(); row.options.first().onSelect!!.invoke()
+        assertEquals("a new refusal retires callbacks from the old row", 0, writes)
+        refusal = null; current = false
+        row.options.first { it.label == context.getString(com.papi.nova.R.string.videoformat_auto) }.onSelect!!.invoke()
+        assertEquals("a row belonging to another host/generation cannot save even Auto", 0, writes)
+        current = true; pyro.onSelect!!.invoke(); assertEquals(1, writes)
+    }
+
 }
 
 @Implements(PyroWave::class, isInAndroidSdk = false)
