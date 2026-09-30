@@ -73,7 +73,7 @@ class NovaLibraryActivitySourceTest {
         assertFalse(rows.contains("TextOverflow.Ellipsis"))
         assertTrue(
             strings.contains(
-                "name=\"nova_library_options_layout_stage_hint\">One game large, with its artwork and actions, over a row of the rest."
+                "name=\"nova_library_options_layout_stage_hint\">One game up front with its art, the rest in a row beside it."
             )
         )
     }
