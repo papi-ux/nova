@@ -36,6 +36,7 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
     private var inputRevision=0L
     private var permit:(()->Boolean)?=null
     private var operationToken:NovaLiveBitrateToken?=null
+    private var operationInputs:NovaLiveStreamInputs?=null
     private val busy=AtomicBoolean(false)
     private var result:String?=null
     private val mutableState=MutableStateFlow(NovaLiveBitratePresentation())
@@ -54,8 +55,12 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
     }
 
     fun observe(observedApi:PolarisApiClient?,observedConnection:Any?,reading:PolarisSessionStatus?,caps:PolarisCapabilities?=null): Unit = synchronized(lock) {
+        if (currentApi()==null || currentConnection()==null || !streamActive()) {
+            retire();return@synchronized
+        }
+        // A cancelled old collector may finish after the replacement stream is attached.
         if (observedApi==null || observedConnection==null || observedApi!==currentApi() ||
-            observedConnection!==currentConnection() || !streamActive()) { retire();return@synchronized }
+            observedConnection!==currentConnection()) return@synchronized
         if (api!==observedApi || connection!==observedConnection) {
             retire();api=observedApi;connection=observedConnection
         }
@@ -79,6 +84,7 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
                     val fresh=capturedApi.getSessionStatus()
                     observe(capturedApi,capturedConnection,fresh)
                     return fresh?.takeIf { dispatchAllowed(capturedApi,capturedConnection) }
+                        ?.copy(pyrowaveBitrate=matchingAdvice(fresh))
                 }
                 override fun setBitrate(kbps:Int,observed:PolarisSessionStatus)=false
                 override fun write(encoderKbps:Int,observed:PolarisSessionStatus):PolarisBitrateWriteResult =
@@ -95,7 +101,7 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
             controllerJob=scope.launch { created.state.collect { synchronized(lock) { if (controller===created) publish() } } }
         }
         val inputs=streamInputs()
-        val advice=reading.pyrowaveBitrate?.takeIf { it.width==inputs.width && it.height==inputs.height && it.fps==inputs.fps }
+        val advice=matchingAdvice(reading)
         val signature=listOf(inputs,reading.encoder.codec,reading.liveTuning?.hostInstance,
             reading.bitrateUnits?.audioKbps,reading.bitrateUnits?.fecPercent,reading.bitrateUnits?.splitKbps!=null,
             advice,hostMaximum())
@@ -108,8 +114,16 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
         publish()
     }
 
+    private fun matchingAdvice(reading:PolarisSessionStatus):PolarisPyrowaveAdvice? {
+        val inputs=streamInputs()
+        return reading.pyrowaveBitrate?.takeIf {
+            it.width==inputs.width && it.height==inputs.height && it.fps==inputs.fps
+        }
+    }
+
     private fun dispatchAllowed(capturedApi:PolarisApiClient,capturedConnection:Any)=synchronized(lock) {
         current() && api===capturedApi && connection===capturedConnection && !denied &&
+            operationInputs==streamInputs() &&
             streamInputs().readOnlyReason==null && status?.let { owned(it) && key(it)==identity }==true &&
             operationToken==NovaLiveBitrateToken(streamRevision,inputRevision) && permit?.invoke()==true
     }
@@ -134,10 +148,16 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
 
     suspend fun change(token:NovaLiveBitrateToken?,menuCurrent:()->Boolean,direction:Int?=null,kbps:Int?=null):NovaBitrateChange {
         val captured=synchronized(lock) {
-            if (token==null || token!=mutableState.value.token || !mutableState.value.rate.canChange ||
+            // Refresh mode ownership even before the next periodic status reading arrives.
+            observe(api,connection,status)
+            val attached=controller ?: return NovaBitrateChange.UNAVAILABLE
+            val presentation=mutableState.value
+            if (token==null || token!=presentation.token || !presentation.rate.canChange ||
+                (direction==null && kbps==null && presentation.rate.recommendedKbps==null) ||
                 !menuCurrent() || !busy.compareAndSet(false,true)) return NovaBitrateChange.UNAVAILABLE
-            operationToken=token;permit=menuCurrent;result="Changing for this stream";publish()
-            controller ?: return NovaBitrateChange.UNAVAILABLE
+            operationToken=token;operationInputs=streamInputs();permit=menuCurrent
+            result="Changing for this stream";publish()
+            attached
         }
         try {
             val outcome=when { direction!=null -> captured.step(direction);kbps!=null -> captured.setBitrate(kbps);else -> captured.useRecommended() }
@@ -150,6 +170,6 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
                 }
             }
             return outcome
-        } finally { synchronized(lock) { operationToken=null;permit=null;busy.set(false);publish() } }
+        } finally { synchronized(lock) { operationToken=null;operationInputs=null;permit=null;busy.set(false);publish() } }
     }
 }
