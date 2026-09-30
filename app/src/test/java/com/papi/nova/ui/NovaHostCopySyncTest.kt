@@ -15,7 +15,7 @@ import org.robolectric.annotation.Config
 import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@Config(sdk = [33], shadows = [com.papi.nova.shadows.ShadowMoonBridge::class])
 class NovaHostCopySyncTest {
     @Test fun closedHostSurfaceCannotSendItsOldClientCopy() {
         val context = ApplicationProvider.getApplicationContext<Context>()
