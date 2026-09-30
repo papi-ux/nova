@@ -54,6 +54,7 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
     std::mutex mutex;
     std::condition_variable wake;
     QVariantMap state;
+    bool pyrowaveSupportRefused = false; // one GUI-poll notification, mutex-protected
     std::optional<DeckHudSample> hud;
     QVariantMap hostHud = DeckHudHostReducer::unavailable();
     // Called only under mutex. Cleared before the owning worker destroys the observer.
@@ -586,12 +587,15 @@ void DeckNativeSessionController::poll() {
     QVariantMap next;
     std::optional<DeckHudSample> hudSample;
     QVariantMap hostHud;
+    bool pyrowaveSupportRefused = false;
     std::array<std::optional<DeckRumble>, 16> rumble;
     {
         const std::lock_guard lock(shared_->mutex);
         next = shared_->state;
         hudSample = shared_->hud;
         hostHud = shared_->hostHud;
+        pyrowaveSupportRefused = shared_->pyrowaveSupportRefused && !shared_->cancelled;
+        shared_->pyrowaveSupportRefused = false;
         for (unsigned player = 0; player < 16; ++player) {
             if (shared_->pendingRumble[player]) {
                 rumble[player] = (shared_->feedbackAllowed & (1u << player)) && !shared_->cancelled && next.value("phase") == "active"
@@ -600,6 +604,9 @@ void DeckNativeSessionController::poll() {
             }
         }
     }
+    // Consume this run's result before any terminal state notification can
+    // allow a new run. Cancelled workers never publish their refusal.
+    if (pyrowaveSupportRefused) emit this->pyrowaveSupportRefused();
     for (unsigned player = 0; player < 16; ++player) if (rumble[player]) {
         if (!player) emit rumbleRequested(rumble[player]->low, rumble[player]->high);
         emit playerRumbleRequested(player, rumble[player]->low, rumble[player]->high);
@@ -781,12 +788,19 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         }
         auto videoSupport = target->probeVideoSupport ? target->probeVideoSupport() : DeckVideoDecodeSupport{};
         stream::DeckPyrowaveProbeResult pyrowave;
+        bool checkedPyrowave = false;
         if (configuration && configuration->videoCodec == "pyrowave" && capabilities->pyrowave &&
             !polaris::isSpaceGame(gameId.toStdString()) && target->probePyrowaveSupport) {
             pyrowave = target->probePyrowaveSupport();
             videoSupport.pyrowave = pyrowave.limits;
+            checkedPyrowave = true;
         }
         if (shared->cancelled) { finish("cancelled", "Stream cancelled."); return; }
+        if (checkedPyrowave && (!pyrowave.reason.isEmpty() ||
+                !pyrowave.limits.supports(target->request.width, target->request.height))) {
+            const std::lock_guard lock(shared->mutex);
+            shared->pyrowaveSupportRefused = true;
+        }
         if (!pyrowave.reason.isEmpty()) { finish("failed", pyrowave.reason); return; }
         target->request.videoFormat = selectSdrVideoFormat(configuration ? configuration->videoCodec.toStdString() : "h264",
             capabilities->h264, capabilities->hevc && !polaris::isSpaceGame(gameId.toStdString()), videoSupport,

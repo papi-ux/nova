@@ -91,6 +91,7 @@ public:
 
 signals:
     void stateChanged();
+    void pyrowaveSupportRefused();
     void hudChanged();
     void inputSessionStarted(bool reusePlayers);
     void controlsChanged();
