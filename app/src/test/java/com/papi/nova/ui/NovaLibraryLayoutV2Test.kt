@@ -5,6 +5,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 class NovaLibraryLayoutV2Test {
     @Test
@@ -38,6 +40,45 @@ class NovaLibraryLayoutV2Test {
         val compact = NovaLibraryUiStateMapper.layoutSpec(833, 390, NovaLibraryLayoutMode.COMPACT)
         assertEquals(5, grid.gridColumns)
         assertEquals(6, compact.gridColumns)
+    }
+
+    @Test
+    fun captionReserveFitsSeparatelyRoundedLinesArtworkAndPaddingAcrossDensities() {
+        for (density in listOf(.5f, .75f, 1f, 1.25f, 1.5f, 2.625f, 3.5f, 4f)) {
+            for (fontScale in listOf(1f, 1.3f, 2f)) {
+                val lineHeightPx = 17f * fontScale * density
+                val paddingPx = (6f * density).roundToInt()
+                val captionHeight = novaLibraryStageCaptionHeightDp(lineHeightPx, paddingPx, density)
+                val geometry = novaLibraryStageGeometry(833, 354, fontScale, captionHeight)
+                val cardPx = ((geometry.neighbour.heightDp + captionHeight) * density).roundToInt()
+                val artworkWidthPx = (geometry.neighbour.widthDp * density).roundToInt()
+                val artworkHeightPx = (artworkWidthPx / (2f / 3f)).roundToInt()
+                val availableTextPx = cardPx - artworkHeightPx - paddingPx
+                assertTrue("density=$density scale=$fontScale reserves both rounded lines: $availableTextPx",
+                    availableTextPx >= 2 * ceil(lineHeightPx).toInt())
+            }
+        }
+    }
+
+    @Test
+    fun measuredFractionalDensityCaptionAndLargeTextBoundaryRemainReadable() {
+        val density = 2.625f
+        val caption = novaLibraryStageCaptionHeightDp(17f * 1.3f * density, (6f * density).roundToInt(), density)
+        assertEquals(52, caption)
+        // The native red had a 480px card, 347px art and 16px padding: only 117px.
+        val geometry = novaLibraryStageGeometry(833, 354, 1.3f, caption)
+        val cardPx = ((geometry.neighbour.heightDp + caption) * density).roundToInt()
+        assertTrue(cardPx - 347 - 16 >= 118)
+
+        val largeCaption = novaLibraryStageCaptionHeightDp(17f * 2f * density, (6f * density).roundToInt(), density)
+        assertEquals(76, largeCaption)
+        val large = novaLibraryStageGeometry(833, 354, 2f, largeCaption)
+        assertEquals(NovaPortraitPosterSize(86, 129), large.neighbour)
+        assertEquals(103, large.infoHeightDp)
+        assertTrue(large.infoHeightDp >= 47f * 2f + 8)
+        assertEquals(large.selected.heightDp, large.infoHeightDp + 16 + large.neighbour.heightDp + largeCaption)
+        // Caption rounding must not alter the plain-art large-text layout.
+        assertEquals(NovaPortraitPosterSize(88, 132), novaLibraryStageGeometry(833, 354, 2f).neighbour)
     }
 
     @Test

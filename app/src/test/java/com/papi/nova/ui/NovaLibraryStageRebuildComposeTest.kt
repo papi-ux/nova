@@ -108,6 +108,20 @@ class NovaLibraryStageRebuildComposeTest {
         assertEquals("caption permits both lines; native fixture measures the actual two lines", 2, layouts.single().layoutInput.maxLines)
     }
 
+    @Test fun fractionalDensityCaptionAllocatesBothNativeLineHeights() {
+        val entries = games.toMutableList().apply {
+            this[1] = this[1].copy(name = "A long neighbour title\nWith a second visible line")
+        }
+        stage(densityScale = 2.625f, fontScale = 1.3f, entries = entries, showPosterTitles = true)
+        val layouts = mutableListOf<TextLayoutResult>()
+        rule.onNodeWithTag("nova-poster-caption-bravo", true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        // Native API33 measures two 59px lines here. Inspect the actual composable's
+        // allocation, independent of LEGACY Robolectric's synthetic glyph metrics.
+        assertTrue("two native lines require 118px; the old caption allocation was 117px",
+            layouts.single().layoutInput.constraints.maxHeight >= 118)
+    }
+
     private fun assertModeratelyLargeIdentity(showPosterTitles: Boolean) {
         val entries = games.toMutableList().apply {
             this[0] = this[0].copy(name = "A game with a longer title\nAnd a visible second line")

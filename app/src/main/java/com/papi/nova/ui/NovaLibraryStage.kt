@@ -786,7 +786,9 @@ internal fun NovaLibraryStage(
     val counter = stringResource(R.string.nova_library_stage_position, selectedIndex + 1, games.size,
         sortLabel ?: stringResource(R.string.nova_library_options_sort_library_order))
     BoxWithConstraints(Modifier.fillMaxSize().testTag("nova-library-stage").padding(horizontal = 10.dp)) {
-        val captionHeightDp = if (showPosterTitles) kotlin.math.ceil(34f * density.fontScale + 6).toInt() else 0
+        val captionHeightDp = if (showPosterTitles) with(density) {
+            novaLibraryStageCaptionHeightDp(17.sp.toPx(), 6.dp.roundToPx(), this.density)
+        } else 0
         // Pixel rounding can report an intended 354dp budget as 353.90476dp at density
         // 2.625. Recover its nearest integer dp rather than dropping a whole 2:3 rung.
         val geometry = novaLibraryStageGeometry((maxWidth + 20.dp).value.roundToInt(), maxHeight.value.roundToInt(), density.fontScale, captionHeightDp)
