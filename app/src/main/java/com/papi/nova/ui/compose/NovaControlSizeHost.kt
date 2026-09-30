@@ -79,6 +79,18 @@ private class NovaControlDensity(private val original: Density, private val scal
         return with(original) { text.toPx() }
     }
 
+    // Paragraph line-height calculation converts physical font pixels back to Sp. Delegating
+    // that conversion too avoids a lossy divide/multiply through the scaled layout density.
+    override fun Float.toSp(): TextUnit {
+        val pixels = this
+        return with(original) { pixels.toSp() }
+    }
+
+    override fun Int.toSp(): TextUnit {
+        val pixels = this
+        return with(original) { pixels.toSp() }
+    }
+
     override fun TextUnit.toDp(): Dp {
         val text = this
         return with(original) { text.toDp() } / scale
