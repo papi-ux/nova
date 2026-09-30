@@ -89,11 +89,13 @@ class NovaSettingsDpadComposeTest {
         category("empty").assertIsFocused()
     }
 
-    @Test fun aShortWindowHidesTheRepeatedQuickStripAndKeepsUpOnTheRail() {
+    @Test fun aShortWindowHidesTheRepeatedQuickStripAndRightEntersThePane() {
         showSettings(heightDp = 420)
         compose.onNodeWithTag("nova-settings-quick-quick-0").assertDoesNotExist()
         category("stream").performSemanticsAction(SemanticsActions.RequestFocus)
-        category("stream").performKeyInput { pressKey(Key.DirectionUp) }
+        category("stream").performKeyInput { pressKey(Key.DirectionRight) }
+        row("stream-0").assertIsFocused()
+        row("stream-0").performKeyInput { pressKey(Key.DirectionLeft) }
         category("stream").assertIsFocused()
     }
 
