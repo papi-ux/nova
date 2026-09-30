@@ -1543,7 +1543,7 @@ object NovaLibraryUiStateMapper {
             ?: filteredGames.firstOrNull()
     }
 
-    @Suppress("UNUSED_PARAMETER")
+    /** Regular gives its idle space to the grid; a live stream keeps its Resume/End card. */
     fun showStandaloneHomeHero(
         layoutMode: NovaLibraryLayoutMode,
         hasActiveSession: Boolean,

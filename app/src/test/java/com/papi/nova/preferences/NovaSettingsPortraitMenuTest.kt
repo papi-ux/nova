@@ -5,6 +5,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
+import android.view.KeyEvent
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -36,7 +41,7 @@ class NovaSettingsPortraitMenuTest {
         )
         var selected by mutableStateOf("stream")
         var values by mutableStateOf<Map<String, NovaSettingValue>>(emptyMap())
-        rule.setPanelContent {
+        val keys = rule.setPanelContent {
             NovaSettingsContent(
                 state = NovaSettingsUiStateFactory.build(definitions, values, selected, ""),
                 title = "Settings", subtitle = "Test", onBack = {}, onOpenLegacy = {},
@@ -54,5 +59,13 @@ class NovaSettingsPortraitMenuTest {
         rule.onNode(hasText("Input") and hasClickAction()).assertIsDisplayed()
         org.junit.Assert.assertEquals("input", selected)
         org.junit.Assert.assertEquals(NovaSettingValue.BooleanValue(true), values["rumble"])
+        rule.onNodeWithTag("nova-portrait-menu-toggle").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        keys.gatedPress(KeyEvent.KEYCODE_BUTTON_B)
+        rule.onNodeWithText("Menu").assertIsDisplayed().assertIsFocused()
+        rule.onNodeWithText("Legacy").assertDoesNotExist()
+        keys.press(KeyEvent.KEYCODE_DPAD_DOWN)
+        rule.onNodeWithTag("nova-settings-row-rumble").assertIsFocused()
+        org.junit.Assert.assertEquals("input", selected)
+
     }
 }

@@ -1921,7 +1921,8 @@ class NovaLibraryActivity : NovaActivity() {
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             NovaPortraitMenuBar(
-                                title = stringResource(R.string.nova_library_title),
+                                title = stringResource(R.string.nova_library_title) +
+                                    serverName?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
                                 expanded = portraitMenuExpanded,
                                 onToggle = { portraitMenuExpanded = !portraitMenuExpanded },
                                 toggleModifier = Modifier.focusRequester(portraitMenuFocus),
