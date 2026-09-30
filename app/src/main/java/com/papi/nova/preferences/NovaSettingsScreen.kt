@@ -327,6 +327,7 @@ internal fun NovaSettingsContent(
         // pane shows, and the subtitle go, so the pane shows whole rows rather than two and a half.
         val compact = LocalNovaPanelDensity.current == NovaPanelDensity.Compact
         val showQuickStrip = showNavigation && !compact && state.quickSettings.isNotEmpty()
+        val navigationScroll = rememberScrollState()
         focus.hasQuickStrip = showQuickStrip
         Column(
             modifier = Modifier
@@ -400,7 +401,8 @@ internal fun NovaSettingsContent(
                 if (portrait) Column(
                     Modifier.fillMaxWidth()
                         .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp)
-                        .verticalScroll(rememberScrollState())
+                        .novaScrollEdgeFade(navigationScroll)
+                        .verticalScroll(navigationScroll)
                         .testTag("nova-portrait-settings-navigation")
                 ) {
                     navigationHeader()
