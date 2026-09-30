@@ -736,7 +736,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             target_compile_definitions(nova_deck_native_session_test PRIVATE
                 NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             foreach(case IN ITEMS stage-platform stage-name stage-audio stage-rtsp stage-refused
-                    stage-control stage-video stage-input unknown-start term-no-video term-no-frame
+                    stage-control stage-video stage-input stage-input-init unknown-start term-no-video term-no-frame
                     term-early term-protected term-conversion term-unknown host-refusal
                     unknown-stage mixed-stage-termination cancelled-stage term-fatal)
                 add_test(NAME nova_deck_failure_gui_${case}_test

@@ -929,6 +929,7 @@ void testNamedFailureGui(const QString& scenario) {
     else if (scenario == "stage-refused") { stage=STAGE_RTSP_HANDSHAKE; error=503; expected="PC refused"; }
     else if (scenario == "stage-control") { stage=STAGE_CONTROL_STREAM_START; error=-99; expected="control connection"; }
     else if (scenario == "stage-video") { stage=STAGE_VIDEO_STREAM_START; error=-12; expected="video decoder"; }
+    else if (scenario == "stage-input-init") { stage=STAGE_INPUT_STREAM_INIT; error=-12; expected="game input setup"; }
     else if (scenario == "stage-input") { stage=STAGE_INPUT_STREAM_START; error=-12; expected="game input"; }
     else if (scenario == "unknown-stage") { stage=99; error=-7001; expected="unrecognized stage (stage 99, error -7001)"; }
     else if (scenario == "mixed-stage-termination") { stage=STAGE_VIDEO_STREAM_START; error=-12; expected="video decoder"; driver.terminateAtStart=true; }
@@ -972,6 +973,8 @@ void testNamedFailureGui(const QString& scenario) {
     }
     if (scenario=="stage-refused" || scenario=="pyro-stage-refused" || hostRefusal || hostCapability) guiRequire(!controller.state().value("copy").toString().contains("47998"), "host refusal blames firewall ports");
     const auto state=controller.state();
+    if (scenario=="stage-input-init")
+        guiRequire(!state.value("copy").toString().contains("controller",Qt::CaseInsensitive),"input-channel initialization invented a physical controller failure");
     if (scenario=="term-fatal" || scenario=="pyro-term-fatal") {
         const auto copy=state.value("copy").toString();
         guiRequire(!copy.contains("capture",Qt::CaseInsensitive) && !copy.contains("HDR",Qt::CaseInsensitive),"reserved fatal code invented a specific refusal cause");
