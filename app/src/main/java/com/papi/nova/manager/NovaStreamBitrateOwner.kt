@@ -47,13 +47,13 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
     private fun key(s:PolarisSessionStatus)=s.appSessionId to s.sessionGeneration
     private fun validKey(s:PolarisSessionStatus)=s.appSessionId.isNotBlank() && s.sessionGeneration>0
 
-    fun retire()=synchronized(lock) {
+    fun retire(): Unit = synchronized(lock) {
         controllerJob?.cancel();controllerJob=null;controller=null;identity=null;denial=null;denied=false
         api=null;connection=null;capabilities=null;status=null;inputSignature=null;streamRevision++;inputRevision++
         result=null;mutableState.value=NovaLiveBitratePresentation()
     }
 
-    fun observe(observedApi:PolarisApiClient?,observedConnection:Any?,reading:PolarisSessionStatus?,caps:PolarisCapabilities?=null)=synchronized(lock) {
+    fun observe(observedApi:PolarisApiClient?,observedConnection:Any?,reading:PolarisSessionStatus?,caps:PolarisCapabilities?=null): Unit = synchronized(lock) {
         if (observedApi==null || observedConnection==null || observedApi!==currentApi() ||
             observedConnection!==currentConnection() || !streamActive()) { retire();return@synchronized }
         if (api!==observedApi || connection!==observedConnection) {
