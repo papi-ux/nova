@@ -42,9 +42,9 @@ class NovaPortraitLibraryActivityTest {
             get(activity) as MutableState<T>
         }
 
-    private fun library(block: (NovaLibraryActivity) -> Unit) {
+    private fun library(layout: NovaLibraryLayoutMode = NovaLibraryLayoutMode.GRID, block: (NovaLibraryActivity) -> Unit) {
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        preferences.edit().putString("nova_library_layout_mode", NovaLibraryLayoutMode.GRID.name).commit()
+        preferences.edit().putString("nova_library_layout_mode", layout.name).commit()
         val intent = Intent(context, NovaLibraryActivity::class.java)
             .putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
             .putExtra(NovaLibraryActivity.EXTRA_HTTPS_PORT, 9)
@@ -73,6 +73,15 @@ class NovaPortraitLibraryActivityTest {
         rule.onNodeWithText("Continue").assertDoesNotExist()
         rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
         rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
+    }
+
+    @Test fun savedStageUsesTheRegularGridInPortraitWithoutChangingTheSavedChoice() = library(NovaLibraryLayoutMode.STAGE) {
+        rule.onNodeWithTag("nova-library-stage").assertDoesNotExist()
+        rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
+        rule.onNodeWithText("Continue").assertDoesNotExist()
+        rule.onNodeWithText("Menu").assertIsDisplayed()
+        org.junit.Assert.assertEquals(NovaLibraryLayoutMode.STAGE.name,
+            PreferenceManager.getDefaultSharedPreferences(context).getString("nova_library_layout_mode", null))
     }
 
     @Test fun portraitMenuCanHideAndReopenWithoutRestoringTheOldContinueRow() = library {

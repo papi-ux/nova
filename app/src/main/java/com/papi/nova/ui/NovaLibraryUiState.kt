@@ -97,12 +97,6 @@ data class NovaLibraryLayoutSpec(
     val windowClass: NovaLibraryWindowClass,
     val gridColumns: Int,
     val gameCardHeightDp: Int,
-    val stageUsesVerticalGrid: Boolean,
-    val stagePosterColumns: Int,
-    val stageHeroHeightDp: Int,
-    val stagePosterRailHeightDp: Int,
-    val stageChromeBudgetDp: Int,
-    val stageUsesCompactHero: Boolean,
 )
 
 enum class NovaLibraryEmptyState {
@@ -434,29 +428,18 @@ object NovaLibraryUiStateMapper {
      * the stage instead anchors a single rail above a deliberately light three-hint
      * footer, so the extra gutter only pushed the rail away from its baseline.
      */
-    private const val STAGE_CONTROLLER_HINT_FOOTER_DP = 40
+    private const val STAGE_CONTROLLER_HINT_FOOTER_DP = 0
     private const val PORTRAIT_CONTROLLER_HINT_BOTTOM_PADDING_DP = 40
 
     fun posterAspectRatio(): Float = 2f / 3f
-
-    /**
-     * Cinematic stage poster width as a fraction of the viewport, taken from the Polaris
-     * concept (a 200px poster on a 1920px stage). This is the single source of truth for
-     * rail density: it holds the same visual proportion on every display, which is why the
-     * landscape rail no longer derives its card size from a per-window-class column count.
-     */
-    const val STAGE_POSTER_WIDTH_FRACTION = 0.105f
-
-    fun stageRailPosterWidthDp(availableWidthDp: Int): Int =
-        (availableWidthDp * STAGE_POSTER_WIDTH_FRACTION).toInt().coerceAtLeast(2)
 
     internal fun posterPresentationSpec(
         mode: NovaLibraryLayoutMode,
     ): NovaPosterPresentationSpec = when (mode) {
         NovaLibraryLayoutMode.STAGE -> NovaPosterPresentationSpec(
-            focusedScale = 1.10f,
-            unfocusedAlpha = 0.76f,
-            focusGutterDp = 6,
+            focusedScale = 1f,
+            unfocusedAlpha = 1f,
+            focusGutterDp = 0,
         )
         NovaLibraryLayoutMode.GRID -> NovaPosterPresentationSpec(
             focusedScale = 1.08f,
@@ -1090,71 +1073,10 @@ object NovaLibraryUiStateMapper {
             NovaLibraryWindowClass.HANDHELD_LANDSCAPE -> if (layoutMode == NovaLibraryLayoutMode.COMPACT) 88 else 112
             NovaLibraryWindowClass.TV_LANDSCAPE -> if (layoutMode == NovaLibraryLayoutMode.COMPACT) 136 else 180
         }
-        val stageHeroHeightDp = when (windowClass) {
-            NovaLibraryWindowClass.PHONE_PORTRAIT -> if (largeText) 380 else 320
-            NovaLibraryWindowClass.HANDHELD_LANDSCAPE -> if (largeText) 280 else 300
-            NovaLibraryWindowClass.TV_LANDSCAPE -> if (largeText) 600 else 520
-        }
-        val stagePosterColumns = when (windowClass) {
-            NovaLibraryWindowClass.PHONE_PORTRAIT -> 2
-            NovaLibraryWindowClass.HANDHELD_LANDSCAPE -> if (largeText) 4 else 3
-            NovaLibraryWindowClass.TV_LANDSCAPE -> if (largeText) 7 else 5
-        }
-        val stagePosterRailHeightDp = when (windowClass) {
-            NovaLibraryWindowClass.PHONE_PORTRAIT -> 300
-            NovaLibraryWindowClass.HANDHELD_LANDSCAPE -> if (largeText) 200 else 172
-            NovaLibraryWindowClass.TV_LANDSCAPE -> 320
-        }
         return NovaLibraryLayoutSpec(
             windowClass = windowClass,
             gridColumns = gridColumns,
             gameCardHeightDp = gameCardHeightDp,
-            stageUsesVerticalGrid = windowClass == NovaLibraryWindowClass.PHONE_PORTRAIT,
-            stagePosterColumns = stagePosterColumns,
-            stageHeroHeightDp = stageHeroHeightDp,
-            stagePosterRailHeightDp = stagePosterRailHeightDp,
-            stageChromeBudgetDp = stageHeroHeightDp + stagePosterRailHeightDp,
-            stageUsesCompactHero = false,
-        )
-    }
-
-    fun stageLayoutSpecForViewport(
-        widthDp: Int,
-        heightDp: Int,
-        largeText: Boolean,
-    ): NovaLibraryLayoutSpec {
-        val base = layoutSpec(
-            widthDp = widthDp,
-            heightDp = heightDp,
-            layoutMode = NovaLibraryLayoutMode.STAGE,
-            largeText = largeText,
-        )
-        if (base.windowClass == NovaLibraryWindowClass.PHONE_PORTRAIT) return base
-
-        // Budget hero + rail against the real viewport so the top-anchored hero
-        // and the bottom-anchored rail cannot draw over each other.
-        val minimumHeroHeightDp = when (base.windowClass) {
-            NovaLibraryWindowClass.HANDHELD_LANDSCAPE -> if (largeText) 96 else 88
-            NovaLibraryWindowClass.TV_LANDSCAPE -> if (largeText) 576 else 440
-            NovaLibraryWindowClass.PHONE_PORTRAIT -> return base
-        }
-        val railHeightDp = minOf(
-            base.stagePosterRailHeightDp,
-            (heightDp - minimumHeroHeightDp).coerceAtLeast(0),
-        )
-        // The hero band no longer paints a scrim (NovaLibraryCinematicBackdrop owns the
-        // stage gradients), so it simply reserves the space above the rail. Letting it
-        // absorb the remainder keeps hero + rail exactly filling the viewport instead of
-        // leaving a dead gap on tall displays.
-        val heroHeightDp = (heightDp - railHeightDp).coerceAtLeast(0)
-        return base.copy(
-            stageHeroHeightDp = heroHeightDp,
-            stagePosterRailHeightDp = railHeightDp,
-            stageChromeBudgetDp = heroHeightDp + railHeightDp,
-            stageUsesCompactHero =
-                base.stageUsesCompactHero ||
-                    heroHeightDp < base.stageHeroHeightDp ||
-                    railHeightDp < base.stagePosterRailHeightDp,
         )
     }
 
@@ -1201,27 +1123,6 @@ object NovaLibraryUiStateMapper {
         }
     }
 
-    fun stageCardWidthDp(
-        availableWidthDp: Int,
-        isLandscape: Boolean,
-        largeText: Boolean = false,
-        posterColumns: Int? = null,
-    ): Int {
-        val columns = posterColumns ?: if (availableWidthDp >= 1280) 8 else if (largeText) 4 else 5
-        return ((availableWidthDp - 24 - 16 * (columns - 1)) / columns)
-            .coerceAtLeast(if (isLandscape) 96 else 84)
-    }
-
-    /**
-     * End inset for the poster rail. The focused card scales up about its centre, so a flat
-     * gutter left the first and last posters crowded against the screen edge. Tracks the
-     * concept's 54px-on-1920 margin.
-     */
-    fun stageHorizontalContentPaddingDp(
-        availableWidthDp: Int,
-        cardWidthDp: Int
-    ): Int = (availableWidthDp * 0.028f).toInt().coerceIn(8, 48)
-
     fun stageRestoreIndex(gameIds: List<String>, restoreGameId: String?): Int {
         if (gameIds.isEmpty() || restoreGameId == null) return 0
         return gameIds.indexOf(restoreGameId).takeIf { it >= 0 } ?: 0
@@ -1242,7 +1143,8 @@ object NovaLibraryUiStateMapper {
 
     fun stageAdjacentIndex(currentIndex: Int, delta: Int, itemCount: Int): Int {
         if (itemCount <= 0) return 0
-        return (currentIndex + delta).coerceIn(0, itemCount - 1)
+        val shifted = (currentIndex.toLong() + delta.toLong()) % itemCount.toLong()
+        return ((shifted + itemCount) % itemCount).toInt()
     }
 
     fun recentRailCardWidthDp(
@@ -1547,8 +1449,7 @@ object NovaLibraryUiStateMapper {
     fun showStandaloneHomeHero(
         layoutMode: NovaLibraryLayoutMode,
         hasActiveSession: Boolean,
-    ): Boolean = layoutMode != NovaLibraryLayoutMode.STAGE &&
-        (hasActiveSession || layoutMode != NovaLibraryLayoutMode.GRID)
+    ): Boolean = hasActiveSession || layoutMode == NovaLibraryLayoutMode.COMPACT
 
     /**
      * Whether the landscape strip's card has something to act on now: a live game to resume or

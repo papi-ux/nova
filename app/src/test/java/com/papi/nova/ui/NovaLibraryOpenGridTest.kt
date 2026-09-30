@@ -24,8 +24,9 @@ class NovaLibraryOpenGridTest {
         assertEquals(14, NovaLibraryUiStateMapper.posterFocusRiseDp(NovaLibraryLayoutMode.COMPACT, 123))
         // 1.08 on 210dp: 10 + 8.4.
         assertEquals(19, NovaLibraryUiStateMapper.posterFocusRiseDp(NovaLibraryLayoutMode.GRID, 210))
-        // 1.10 on 100dp is exactly 15; float residue must not make it 16.
-        assertEquals(15, NovaLibraryUiStateMapper.posterFocusRiseDp(NovaLibraryLayoutMode.STAGE, 100))
+        // Stage no longer zooms; only the shared grid helper's lift remains in this calculation.
+        // Its fixed selected poster uses no lift and never calls the grid-rise helper.
+        assertEquals(10, NovaLibraryUiStateMapper.posterFocusRiseDp(NovaLibraryLayoutMode.STAGE, 100))
         assertEquals(10, NovaLibraryUiStateMapper.posterFocusRiseDp(NovaLibraryLayoutMode.GRID, 0))
     }
 

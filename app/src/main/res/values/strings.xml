@@ -263,7 +263,11 @@
     <string name="nova_library_options_sort_source_hint">Group by launcher or store.</string>
     <string name="nova_library_options_layout_title">Layout</string>
     <string name="nova_library_options_layout_stage">Stage</string>
-    <string name="nova_library_options_layout_stage_hint">One game large, with its artwork and actions, over a row of the rest.</string>
+    <string name="nova_library_options_layout_stage_hint">One game up front with its art, the rest in a row beside it.</string>
+    <string name="nova_library_stage_position">%1$d of %2$d · %3$s</string>
+    <string name="nova_library_stage_running">Running</string>
+    <string name="nova_library_stage_running_now">Running now</string>
+    <string name="nova_library_stage_last_played">Last played %1$s</string>
     <string name="nova_library_options_layout_grid">Regular</string>
     <string name="nova_space_retry_target_missing">This Space title is no longer available. Choose a title from the library.</string>
     <string name="nova_library_options_layout_grid_hint">Posters in a grid, several rows at a time.</string>

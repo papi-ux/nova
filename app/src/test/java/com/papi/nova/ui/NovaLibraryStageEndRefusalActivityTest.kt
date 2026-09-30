@@ -90,7 +90,7 @@ class NovaLibraryStageEndRefusalActivityTest {
             }
             rule.waitForIdle()
 
-            rule.onNodeWithTag(NOVA_STAGE_END_REFUSED_TAG, useUnmergedTree = true).assertTextEquals(line)
+            rule.onNodeWithTag(NOVA_LIBRARY_END_FAILED_TAG, useUnmergedTree = true).assertTextEquals(line)
         } finally {
             controller.pause().stop().destroy()
             PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit()
