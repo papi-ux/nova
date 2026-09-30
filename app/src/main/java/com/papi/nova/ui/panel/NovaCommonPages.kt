@@ -557,49 +557,56 @@ private fun NovaSliderTrack(value: Int, range: IntRange, step: Int, label: Strin
     }
     fun move(direction: Int) = edit(novaNumberStep(read(), direction, range, step))
     Column(
-        modifier = modifier
-            .testTag("nova-number-slider")
-            .fillMaxWidth()
-            .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
-            .focusRequester(focus)
-            .clip(shape)
-            .novaFocusRing(shape, rest = novaRowRest)
-            .novaFocusHint(NovaFocusHint.Change)
-            .semantics(mergeDescendants = true) {
-                stateDescription = label
-                progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), range.first.toFloat()..range.last.toFloat(),
-                    ((span + step.coerceAtLeast(1) - 1) / step.coerceAtLeast(1) - 1).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
-                setProgress { requested ->
-                    requested.isFinite() && edit(novaNumberAt(requested.toDouble(), range, step))
-                }
-                customActions = listOf(
-                    CustomAccessibilityAction(decrease) { move(-1) },
-                    CustomAccessibilityAction(increase) { move(1) },
-                )
-            }
-            .onPreviewKeyEvent { event ->
-                val direction = when (event.key) {
-                    Key.DirectionLeft -> -1
-                    Key.DirectionRight -> 1
-                    else -> return@onPreviewKeyEvent false
-                }
-                if (event.type == KeyEventType.KeyDown) move(direction)
-                true
-            }
-            // A still does nothing here; Down reaches exact entry and then Save.
-            .novaClickable(onClick = {})
-            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+        // Focus the value row, rather than its taller touch track as well: a short page must be
+        // able to bring its focus target into view without fighting the scroll container.
+        Row(
+            modifier = modifier
+                .testTag("nova-number-slider")
+                .fillMaxWidth()
+                .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
+                .focusRequester(focus)
+                .clip(shape)
+                .novaFocusRing(shape, rest = novaRowRest)
+                .novaFocusHint(NovaFocusHint.Change)
+                .semantics(mergeDescendants = true) {
+                    stateDescription = label
+                    progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), range.first.toFloat()..range.last.toFloat(),
+                        ((span + step.coerceAtLeast(1) - 1) / step.coerceAtLeast(1) - 1).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
+                    setProgress { requested ->
+                        requested.isFinite() && edit(novaNumberAt(requested.toDouble(), range, step))
+                    }
+                    customActions = listOf(
+                        CustomAccessibilityAction(decrease) { move(-1) },
+                        CustomAccessibilityAction(increase) { move(1) },
+                    )
+                }
+                .onPreviewKeyEvent { event ->
+                    val direction = when (event.key) {
+                        Key.DirectionLeft -> -1
+                        Key.DirectionRight -> 1
+                        else -> return@onPreviewKeyEvent false
+                    }
+                    if (event.type == KeyEventType.KeyDown) move(direction)
+                    true
+                }
+                // A still does nothing here; Down reaches exact entry and then Save.
+                .novaClickable(onClick = {})
+                .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+        ) {
             Text(text = label, style = novaPanelType.value, color = colors.textPrimary, modifier = Modifier.weight(1f))
             NumberStepButton("−", decrease, value > range.first) { move(-1); focus.requestFocus() }
             NumberStepButton("+", increase, value < range.last) { move(1); focus.requestFocus() }
         }
         Box(
             modifier = Modifier
-                .testTag("nova-number-track")
                 .fillMaxWidth()
+                .padding(horizontal = NovaPanelMetrics.SpaceMd)
+                .testTag("nova-number-track")
                 // This is a physical finger target, independent of Compact visual metrics.
                 .heightIn(min = 48.dp)
                 // These handlers keep their pointer across draft recomposition. Only a horizontal
