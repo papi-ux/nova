@@ -36,16 +36,20 @@ class NovaFineEditReceiptQueueTest {
             "video_format" to NovaSettingValue.StringValue("forceh265"))
         val failures = linkedMapOf<String, NovaTierSaveResult>()
         val accepted = mutableListOf<Set<String>>()
+        var supported = true
+        var nextSaveBarrier: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+        var saveBlocked = false
         override fun tierOwner() = owner
         override suspend fun snapshot(definitions: NovaSettingsDefinitionSet) =
             definitions.settings.mapNotNull { d -> d.defaultValue?.let { d.key to it } }.toMap() + values
         override suspend fun storedStreamKeys() = values.keys
         override suspend fun deviceTierInputs() = NovaTierInputs(NovaSize(1920,1080),listOf(60,120),NovaDistance.HAND,
-            NovaDeviceCapabilities(listOf(NovaCodecCapability(NovaCodecChoice.HEVC,"fixture",
-                listOf(NovaDecodePoint(NovaSize(3840,2160),120))))))
+            NovaDeviceCapabilities(if (supported) listOf(NovaCodecCapability(NovaCodecChoice.HEVC,"fixture",
+                listOf(NovaDecodePoint(NovaSize(3840,2160),120)))) else emptyList()))
         override suspend fun saveStreamEdits(updates: List<Pair<NovaSettingDefinition,NovaSettingValue>>,
             removeKeys: Set<String>, expectedOwner: Any?): NovaTierSaveResult {
             if (owner != expectedOwner) return NovaTierSaveResult.SUPERSEDED
+            nextSaveBarrier?.let { nextSaveBarrier=null;saveBlocked=true;it.await() }
             val fields = updates.map { it.first.key }.toSet()
             failures.keys.firstOrNull { it in fields }?.let { return failures.getValue(it) }
             updateAtomically(updates,removeKeys)
@@ -167,5 +171,38 @@ class NovaFineEditReceiptQueueTest {
         store.failures.clear();retry(vm)
         assertEquals(NovaSettingValue.StringValue("3840x2160"),store.values["list_resolution"])
         assertEquals(NovaTierSaveResult.SAVED,vm.uiState.value.tierSaveResult)
+    }
+
+    @Test fun rejectedUnavailableTierChoiceKeepsTheUnresolvedFineRetry() {
+        val store=Store();store.supported=false;store.failures["list_resolution"]=NovaTierSaveResult.FAILED
+        val vm=model(store);assertFalse(vm.streamTiers.value!!.max.available)
+        write(vm,"list_resolution","3840x2160")
+        write(vm,NovaTierControls.QUALITY_KEY,"max")
+        assertEquals(NovaTier.CUSTOM,vm.pictureTier)
+        assertEquals(NovaTierSaveResult.FAILED,vm.uiState.value.tierSaveResult)
+        assertTrue(quality(vm).options.any { it.value=="retry_tier" })
+        store.failures.clear();retry(vm)
+        assertEquals(NovaSettingValue.StringValue("3840x2160"),store.values["list_resolution"])
+        assertEquals(NovaTierSaveResult.SAVED,vm.uiState.value.tierSaveResult)
+    }
+
+    @Test fun tierBecomingUnavailableWhileQueuedDoesNotSupersedeFailedChoices() {
+        val store=Store();store.failures["list_resolution"]=NovaTierSaveResult.FAILED
+        val vm=model(store);assertTrue(vm.streamTiers.value!!.max.available)
+        write(vm,"list_resolution","3840x2160")
+        val release=kotlinx.coroutines.CompletableDeferred<Unit>();store.nextSaveBarrier=release
+        var done=0
+        vm.setValue(definitions.require("list_fps"),NovaSettingValue.StringValue("120")) { done++ }
+        await { store.saveBlocked }
+        vm.setValue(quality(vm),NovaSettingValue.StringValue("max")) { done++ }
+        store.supported=false;release.complete(Unit)
+        await { done==2 }
+        assertFalse(vm.streamTiers.value!!.max.available)
+        assertEquals(NovaTier.CUSTOM,vm.pictureTier)
+        assertEquals(NovaTierSaveResult.FAILED,vm.uiState.value.tierSaveResult)
+        assertTrue(quality(vm).options.any { it.value=="retry_tier" })
+        store.failures.clear();retry(vm)
+        assertEquals(NovaSettingValue.StringValue("3840x2160"),store.values["list_resolution"])
+        assertEquals(NovaSettingValue.StringValue("120"),store.values["list_fps"])
     }
 }
