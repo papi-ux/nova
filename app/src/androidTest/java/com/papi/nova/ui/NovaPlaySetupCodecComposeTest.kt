@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.Game
+import com.papi.nova.binding.video.PyroWaveAvailability
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.preferences.PreferenceConfiguration.FormatOption
 import com.papi.nova.ui.compose.NovaComposeTheme
@@ -87,14 +88,31 @@ class NovaPlaySetupCodecComposeTest {
         option.performKeyInput { keyDown(Key.DirectionCenter); keyUp(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals("auto", selected) }
 
-        compose.onNode(hasText("PyroWave", substring = true) and hasClickAction() and !hasTestTag("codec-row"))
+        val availability = PyroWaveAvailability.inspect(context.applicationContext)
+        val pyro = compose.onNode(hasText("PyroWave", substring = true) and hasClickAction() and !hasTestTag("codec-row"))
+            .performScrollTo().assertIsDisplayed()
+        // Native devices retain the real availability gate. An unsupported emulator must not
+        // acquire a hidden PyroWave launch choice just to satisfy this interaction test.
+        if (PyroWaveAvailability.canSelect("forcepyrowave", availability)) {
+            pyro.assertIsEnabled().performTouchInput { click() }
+            compose.runOnIdle { assertEquals("forcepyrowave", NovaVideoCodecOverrides.load(context, host, game, 1)) }
+        } else {
+            pyro.assertIsNotEnabled().performTouchInput { click() }
+            compose.runOnIdle { assertEquals("auto", NovaVideoCodecOverrides.load(context, host, game, 1)) }
+            compose.onNodeWithText(PyroWaveAvailability.reason(context, availability), substring = true).assertIsDisplayed()
+        }
+        File(context.getExternalFilesDir(null), "play-setup-codec-availability.txt")
+            .writeText("$availability\n${PyroWaveAvailability.reason(context, availability)}\n")
+
+        val hevc = context.getString(com.papi.nova.R.string.videoformat_hevcalways)
+        compose.onNodeWithTag("codec-option-0:$hevc")
             .performScrollTo().assertIsDisplayed().performTouchInput { click() }
         compose.runOnIdle {
-            assertEquals("forcepyrowave", NovaVideoCodecOverrides.load(context, host, game, 1))
-            val launch = PreferenceConfiguration().apply { videoFormat = FormatOption.FORCE_HEVC }
+            assertEquals("forceh265", NovaVideoCodecOverrides.load(context, host, game, 1))
+            val launch = PreferenceConfiguration().apply { videoFormat = FormatOption.FORCE_H264 }
             NovaVideoCodecOverrides.applyToLaunch(context, Intent().putExtra(Game.EXTRA_PC_UUID, host)
                 .putExtra(Game.EXTRA_APP_UUID, game).putExtra(Game.EXTRA_APP_ID, 1), launch)
-            assertEquals(FormatOption.FORCE_PYROWAVE, launch.videoFormat)
+            assertEquals(FormatOption.FORCE_HEVC, launch.videoFormat)
         }
         // Keep a device rendering of the production row and its page's options alongside the test result.
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
