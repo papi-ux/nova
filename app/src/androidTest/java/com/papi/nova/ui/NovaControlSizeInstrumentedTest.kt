@@ -33,6 +33,12 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.preferences.*
 import com.papi.nova.ui.compose.NovaActionSurface
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.panel.NovaPanelDensityHost
+import com.papi.nova.ui.panel.LocalNovaPanelDensity
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.NovaValueRow
+import com.papi.nova.ui.panel.NovaValueStyle
+import com.papi.nova.ui.panel.NovaOption
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -99,6 +105,46 @@ class NovaControlSizeInstrumentedTest {
             assertEquals("the area below the visual button still answers touch at $choice", before + 1, taps)
             compose.runOnIdle { input.requestInputMode(InputMode.Keyboard) }
         }
+    }
+
+    @Test fun compactPickerEdgesReachTheirOwnChoicesInsteadOfTheParentNextAction() = withRestoredChoice {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(compose.activity)
+        prefs.edit().putString(key, "compact").commit()
+        var cycle by mutableStateOf(1)
+        var segment by mutableStateOf(2)
+        var edgePixels = 0f
+        var arrowHalfWidthPixels = 0f
+        compose.setContent {
+            NovaComposeTheme {
+                NovaPanelDensityHost {
+                    val density = LocalDensity.current
+                    edgePixels = with(density) {
+                        (NovaPanelMetrics.valueControlHeight(LocalNovaPanelDensity.current) / 2 - 1.dp).toPx()
+                    }
+                    arrowHalfWidthPixels = with(density) { (NovaPanelMetrics.ArrowTarget / 2).toPx() }
+                    Column(Modifier.padding(24.dp).width(300.dp)) {
+                        NovaValueRow("Cycle", listOf(NovaOption(0, "Low"), NovaOption(1, "Middle"), NovaOption(2, "High")),
+                            current = cycle, onChange = { cycle = it }, style = NovaValueStyle.Cycler,
+                            modifier = Modifier.testTag("edge-cycler"))
+                        Spacer(Modifier.height(24.dp))
+                        NovaValueRow("Segments", listOf(NovaOption(0, "One"), NovaOption(1, "Two"), NovaOption(2, "Three")),
+                            current = segment, onChange = { segment = it }, style = NovaValueStyle.Segmented,
+                            modifier = Modifier.testTag("edge-segments"))
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        val middle = compose.onNodeWithText("Middle", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        compose.onRoot().performTouchInput {
+            click(Offset(middle.left - arrowHalfWidthPixels, middle.center.y + edgePixels))
+        }
+        compose.waitForIdle()
+        assertEquals("the previous-arrow edge lowers the value instead of running Next on the row", 0, cycle)
+        val two = compose.onNodeWithText("Two", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        compose.onRoot().performTouchInput { click(Offset(two.center.x, two.center.y + edgePixels)) }
+        compose.waitForIdle()
+        assertEquals("the segment edge chooses Two instead of wrapping the parent's Three to One", 1, segment)
     }
 
     @Test fun settingsChoiceChangesInPlaceAndKeepsControllerFocus() = withRestoredChoice {
