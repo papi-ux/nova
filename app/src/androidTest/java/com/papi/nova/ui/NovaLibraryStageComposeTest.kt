@@ -293,30 +293,42 @@ class NovaLibraryStageComposeTest {
 
     @Test fun posterCaptionsPreserveTheModeratelyLargeIdentityBudget() = assertModeratelyLargeIdentity(true)
 
-    private fun assertModeratelyLargeIdentity(showPosterTitles: Boolean) {
+    @Test fun posterCaptionsKeepLargeIdentityAndBothLinesAtTwoTimesText() = assertModeratelyLargeIdentity(true, 2f)
+
+    private fun assertModeratelyLargeIdentity(showPosterTitles: Boolean, fontScale: Float = 1.3f) {
         val many = games().toMutableList().apply {
             this[0] = this[0].copy(name = "A game with a longer title\nAnd a visible second line",
                 category = "action", playTime = PolarisGame.PlayTime(seconds = 84 * 3600),
                 lastLaunched = System.currentTimeMillis() / 1000 - 3600)
             this[1] = this[1].copy(name = "A long neighbour title\nWith a second visible line")
         }
-        stageFixture(many, fontScale = 1.3f, showPosterTitles = showPosterTitles)
+        stageFixture(many, fontScale = fontScale, showPosterTitles = showPosterTitles)
         // Capture even when a measured-text assertion fails; every native red needs a frame.
-        capture("long-title-text-1_3-${if (showPosterTitles) "captions" else "plain"}")
+        capture("long-title-text-${if (fontScale == 2f) "2_0" else "1_3"}-${if (showPosterTitles) "captions" else "plain"}")
         val title = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         composeRule.onNodeWithTag("nova-stage-title", true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
         if (!showPosterTitles) assertEquals("fixture exercises two title lines where they fit", 2, title.single().lineCount)
         assertTrue("a short caption-on pane keeps a readable bounded title", title.single().lineCount in 1..2)
         composeRule.onNodeWithTag("nova-stage-title", true).assertTextEquals(many[0].name)
-        val metadata = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
-        composeRule.onNodeWithTag("nova-stage-metadata", true)
-            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(metadata) }
         val density = ApplicationProvider.getApplicationContext<android.content.Context>().resources.displayMetrics.density
-        assertTrue("metadata fits its 14sp single-line budget",
-            metadata.single().size.height / density <= kotlin.math.ceil(14f * 1.3f) + 1f)
+        val identityTags = mutableListOf("nova-stage-title", "nova-stage-play-stats")
+        if (fontScale < 1.5f) {
+            val metadata = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            composeRule.onNodeWithTag("nova-stage-metadata", true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(metadata) }
+            assertTrue("metadata fits its 14sp single-line budget",
+                metadata.single().size.height / density <= kotlin.math.ceil(14f * fontScale) + 1f)
+            identityTags.add("nova-stage-metadata")
+        } else {
+            composeRule.onNodeWithTag("nova-stage-metadata", true).assertDoesNotExist()
+        }
         val identity = composeRule.onNodeWithTag("nova-stage-identity", true).getUnclippedBoundsInRoot()
-        listOf("nova-stage-title", "nova-stage-metadata", "nova-stage-play-stats").forEach { tag ->
+        val rail = composeRule.onNodeWithTag("nova-stage-landscape-rail").getUnclippedBoundsInRoot()
+        val counter = composeRule.onNodeWithTag("nova-stage-position", true).getUnclippedBoundsInRoot()
+        assertTrue("identity stays above the captioned rail", identity.bottom <= rail.top + .6.dp)
+        assertTrue("captioned rail stays above the position counter", rail.bottom <= counter.top + .6.dp)
+        identityTags.forEach { tag ->
             val node = composeRule.onNodeWithTag(tag, true)
             val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
             node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
@@ -355,8 +367,12 @@ class NovaLibraryStageComposeTest {
             assertEquals("long neighbour exercises both caption lines: $diagnostics", 2, laid.lineCount)
             assertTrue("both visible caption lines fit vertically", laid.size.height + 1f >= laid.getLineBottom(laid.lineCount - 1))
             assertTrue("two caption lines fit their 34sp budget",
-                layouts.single().size.height / density <= kotlin.math.ceil(34f * 1.3f) + 1f)
+                layouts.single().size.height / density <= kotlin.math.ceil(34f * fontScale) + 1f)
             assertTrue("caption remains inside its neighbour card", bounds.bottom <= card.bottom + .6.dp)
+            if (fontScale == 2f) {
+                assertEquals("caption-on large text retains a readable cover row", 129f, (art.bottom - art.top).value, .6f)
+                assertEquals("large identity preserves its title and populated stats", 103f, (identity.bottom - identity.top).value, .6f)
+            }
             assertTrue("ellipsized captions retain the complete semantic game name",
                 composeRule.onNodeWithTag("nova-poster-bravo").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].joinToString().contains(many[1].name))
         }
