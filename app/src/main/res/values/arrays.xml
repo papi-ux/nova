@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string-array name="nova_control_size_names">
+        <item>Compact</item>
+        <item>Standard</item>
+        <item>Large</item>
+    </string-array>
+    <string-array name="nova_control_size_values">
+        <item>compact</item>
+        <item>standard</item>
+        <item>large</item>
+    </string-array>
     <string-array name="nova_theme_names">
         <item>Polaris Aurora</item>
         <item>Portable Chrome</item>

@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -30,6 +32,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import com.papi.nova.ui.compose.novaControlDimension
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -244,7 +248,11 @@ internal fun NovaSettingsContent(
 ) {
     val colors = LocalNovaComposeColors.current
     val context = LocalContext.current
-    val wide = LocalConfiguration.current.screenWidthDp >= 720
+    val portrait = LocalConfiguration.current.screenHeightDp > LocalConfiguration.current.screenWidthDp
+    val wide = !portrait && LocalConfiguration.current.screenWidthDp >= 720
+    var portraitMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    val portraitMenuFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val showNavigation = !portrait || portraitMenuExpanded
     val latestState by rememberUpdatedState(state)
     val back by rememberUpdatedState(onBack)
     val select by rememberUpdatedState(onCategory)
@@ -319,7 +327,8 @@ internal fun NovaSettingsContent(
         // A short window gives its height to the rows: the quick strip, which repeats values the
         // pane shows, and the subtitle go, so the pane shows whole rows rather than two and a half.
         val compact = LocalNovaPanelDensity.current == NovaPanelDensity.Compact
-        val showQuickStrip = !compact && state.quickSettings.isNotEmpty()
+        val showQuickStrip = showNavigation && !compact && state.quickSettings.isNotEmpty()
+        val navigationScroll = rememberScrollState()
         focus.hasQuickStrip = showQuickStrip
         Column(
             modifier = Modifier
@@ -346,6 +355,13 @@ internal fun NovaSettingsContent(
                     true
                 }
         ) {
+            if (portrait) com.papi.nova.ui.NovaPortraitMenuBar(
+                title = title, expanded = portraitMenuExpanded,
+                onToggle = { portraitMenuExpanded = !portraitMenuExpanded },
+                toggleModifier = Modifier.focusRequester(portraitMenuFocus),
+                onBack = onBack,
+            )
+            val navigationHeader: @Composable () -> Unit = {
             NovaSettingsCompactHeader(
                 title = title,
                 subtitle = subtitle.takeIf { !compact },
@@ -355,7 +371,8 @@ internal fun NovaSettingsContent(
                 onBack = onBack,
                 onOpenLegacy = onOpenLegacy,
                 headerActions = headerActions,
-                wide = wide
+                wide = wide,
+                showIdentity = !portrait
             )
             if (showQuickStrip) {
             Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
@@ -380,6 +397,20 @@ internal fun NovaSettingsContent(
                 Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
             }
 
+            }
+            if (showNavigation) {
+                if (portrait) Column(
+                    Modifier.fillMaxWidth()
+                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp)
+                        .novaScrollEdgeFade(navigationScroll)
+                        .verticalScroll(navigationScroll)
+                        .testTag("nova-portrait-settings-navigation")
+                ) {
+                    navigationHeader()
+                    NovaSettingsCategoryChips(state, onCategory)
+                } else navigationHeader()
+            }
+
             val paneHost: @Composable (Modifier) -> Unit = { modifier ->
                 NovaPageStackHost(
                     state = pane,
@@ -389,7 +420,10 @@ internal fun NovaSettingsContent(
                     // Pages pushed over the rows keep focus; the rows themselves may give it to the rail.
                     containFocus = pane.depth > 1,
                     onCloseRequest = {
-                        if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
+                        if (portrait && portraitMenuExpanded) {
+                            portraitMenuExpanded = false
+                            portraitMenuFocus.requestFocus()
+                        } else if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
                     },
                     hints = hints,
                     remoteKeys = remoteKeys,
@@ -441,7 +475,7 @@ internal fun NovaSettingsContent(
                     paneHost(Modifier.weight(1f).fillMaxHeight())
                 }
             } else {
-                NovaSettingsCategoryChips(state, onCategory)
+                if (!portrait && showNavigation) NovaSettingsCategoryChips(state, onCategory)
                 Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
                 paneHost(Modifier.fillMaxWidth().weight(1f))
             }
@@ -696,7 +730,8 @@ private fun NovaSettingsCompactHeader(
     onBack: () -> Unit,
     onOpenLegacy: () -> Unit,
     headerActions: List<NovaSettingsHeaderAction>,
-    wide: Boolean
+    wide: Boolean,
+    showIdentity: Boolean = true,
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
@@ -708,9 +743,9 @@ private fun NovaSettingsCompactHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)
         ) {
-            NovaSettingsHeaderButton(stringResource(R.string.nova_settings_back), onBack)
+            if (showIdentity) NovaSettingsHeaderButton(stringResource(R.string.nova_settings_back), onBack)
             // Titles wrap rather than cut: a long preset name takes a second line.
-            Column(Modifier.weight(1f)) {
+            if (showIdentity) Column(Modifier.weight(1f)) {
                 Text(text = title, style = type.panelTitle, color = colors.textPrimary)
                 subtitle?.let { Text(text = it, style = type.caption, color = colors.textMuted) }
             }
@@ -879,7 +914,7 @@ private fun NovaSettingPill(
             )
             .semantics(mergeDescendants = true) { contentDescription = "${definition.title}, $value" }
             .novaClickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+            .padding(horizontal = novaControlDimension(NovaPanelMetrics.SpaceMd), vertical = novaControlDimension(NovaPanelMetrics.SpaceSm)),
         contentAlignment = Alignment.CenterStart
     ) {
         Text(text = label, style = type.value)
@@ -965,7 +1000,7 @@ private fun NovaCategoryRow(
             .novaFocusRing(shape, rest = novaRowRest)
             .semantics { this.selected = selected }
             .novaClickable(role = Role.Tab, onClick = onClick)
-            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+            .padding(horizontal = novaControlDimension(NovaPanelMetrics.SpaceMd), vertical = novaControlDimension(NovaPanelMetrics.SpaceSm)),
         contentAlignment = Alignment.CenterStart
     ) {
         Text(

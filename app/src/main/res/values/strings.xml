@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="nova_control_size_title">Control Size</string>
+    <string name="nova_control_size_summary">Resize buttons and spacing in the modern interface. Text Size stays independent.</string>
     <!-- Shortcut strings -->
     <string name="scut_deleted_pc">Host deleted</string>
     <string name="scut_not_paired">Host not paired</string>
@@ -200,6 +202,8 @@
     <string name="pcview_menu_open_management_page">Host Console</string>
     <string name="pcview_error_no_management_url">Nova does not know this host\'s address, so it cannot open its console.</string>
     <string name="nova_library_title">Library</string>
+    <string name="nova_portrait_show_menu">Menu</string>
+    <string name="nova_portrait_hide_menu">Hide menu</string>
     <string name="nova_library_server_context">From %1$s</string>
     <string name="nova_library_server_context_fallback">From your Polaris host</string>
     <string name="nova_library_switch_server">Switch</string>
