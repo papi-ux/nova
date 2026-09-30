@@ -39,7 +39,9 @@ internal class NovaHostsViewMetrics(context: Context) {
         val factor = size.layoutScale
         for ((view, base) in originals) {
             fun scaled(value: Int) = (value * factor).roundToInt()
-            val target = view.isClickable || view.isFocusable
+            // The 1dp focus bridge is a navigation marker, not a button. Turning a plain View
+            // from fixed height into wrap_content fills its entire AT_MOST parent on Android.
+            val target = view.isClickable || view is MaterialButton
             val button = view as? MaterialButton
             var insetTop = 0
             var insetBottom = 0
@@ -67,7 +69,7 @@ internal class NovaHostsViewMetrics(context: Context) {
             val params = view.layoutParams ?: continue
             if (target && base.width > 0) params.width = max(scaled(base.width), hitFloor)
             val containsTargets = view is ViewGroup && (0 until view.childCount).any {
-                view.getChildAt(it).let { child -> child.isClickable || child.isFocusable }
+                view.getChildAt(it).let { child -> child.isClickable || child is MaterialButton }
             }
             if ((target || containsTargets || view is TextView) && base.height > 0) {
                 // Wrap text if Android text needs more height; the original shape sets a floor.
