@@ -102,11 +102,11 @@ class NovaLibraryStageRebuildComposeTest {
         stage(fontScale = 1.3f, entries = entries, showPosterTitles = showPosterTitles)
         val title = mutableListOf<TextLayoutResult>()
         rule.onNodeWithTag("nova-stage-title", true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
-        assertEquals("fixture exercises two title lines", 2, title.single().lineCount)
+        assertEquals("fixture exercises two title lines: ${title.single().layoutInput}, identity ${rule.onNodeWithTag("nova-stage-identity", true).getUnclippedBoundsInRoot()}", 2, title.single().lineCount)
         val metadata = mutableListOf<TextLayoutResult>()
         rule.onNodeWithTag("nova-stage-metadata", true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(metadata) }
         val density = context.resources.displayMetrics.density
-        assertTrue("metadata fits its 14sp single-line budget, not an inherited 24sp body line",
+        assertTrue("metadata fits its 14sp single-line budget: size ${metadata.single().size}, paragraph ${metadata.single().multiParagraph.height}, style ${metadata.single().layoutInput.style}, density $density",
             metadata.single().size.height / density <= kotlin.math.ceil(14f * 1.3f) + 1f)
         listOf("nova-stage-title", "nova-stage-metadata", "nova-stage-play-stats").forEach { tag ->
             val node = rule.onNodeWithTag(tag, true)
