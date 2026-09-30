@@ -12,6 +12,7 @@ import android.widget.TextView
 import androidx.lifecycle.Lifecycle
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -184,7 +185,7 @@ class NovaHostsViewInstrumentedTest {
                     })))
                     adapter.setOnItemClickListener { primaryPresses++ }
                     adapter.setOnServerActionListener { managePresses++ }
-                    val holder = adapter.onCreateViewHolder(RecyclerView(activity), 0)
+                    val holder = adapter.onCreateViewHolder(RecyclerView(activity).apply { layoutManager = LinearLayoutManager(activity) }, 0)
                     adapter.onBindViewHolder(holder, 0)
                     activity.setContentView(FrameLayout(activity).apply {
                         setPadding(16, 32, 16, 32)

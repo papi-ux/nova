@@ -8,6 +8,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.PcViewModel
 import com.papi.nova.R
@@ -44,7 +45,7 @@ class NovaHostControlSizeViewTest {
             uuid = "size-test-host"; name = "Living room computer"; state = ComputerDetails.State.ONLINE
         })
         adapter.setItems(listOf(computer))
-        val parent = RecyclerView(context)
+        val parent = RecyclerView(context).apply { layoutManager = LinearLayoutManager(context) }
         val holder = adapter.onCreateViewHolder(parent, 0)
         adapter.onBindViewHolder(holder, 0)
         layout(holder.itemView)
