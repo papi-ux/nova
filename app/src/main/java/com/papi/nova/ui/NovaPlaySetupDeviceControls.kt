@@ -33,7 +33,7 @@ internal fun buildNovaDevicePlaySetupRows(
         }
         NovaSettingType.Slider -> {
             val value=(current as? NovaSettingValue.IntValue)?.value ?: definition.min ?: 1000
-            val range=(definition.min ?: 1000)..(definition.max ?: 300000)
+            val range=(definition.min ?: 1000)..(definition.max ?: PreferenceConfiguration.MAX_BITRATE_KBPS)
             listOf((value-5000).coerceIn(range),value,(value+5000).coerceIn(range)).distinct().sorted().map { target ->
                 NovaPlaySetupOption(NovaBitrateAdvice.text(target,false), "Your device setting",
                     current=target==value, enabled=target in range,
