@@ -685,7 +685,7 @@
             android:title="Nova Text Size"
             android:summary="Scale Nova text relative to Android system text size"
             android:dialogMessage="Scale Nova text relative to Android system text size"
-            android:defaultValue="100"
+            android:defaultValue="80"
             android:max="130"
             android:text="%"
             app:iconSpaceReserved="false"
