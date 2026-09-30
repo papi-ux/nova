@@ -83,27 +83,38 @@ internal fun NovaLibraryPosterCard(
     onFocused: () -> Unit = {},
     onNavigate: ((Int) -> Boolean)? = null,
     posterLoader: ((ImageView, PolarisGame) -> Unit)? = null,
+    /** Stage keeps focus on one fixed owner while the selected game swaps underneath it. */
+    focusedOverride: Boolean? = null,
+    running: Boolean = false,
 ) {
     val presentationSpec = NovaLibraryUiStateMapper.posterPresentationSpec(layoutMode)
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val posterLoaderIdentity: Any = posterLoader ?: apiClient
     var focused by remember(game.id) { mutableStateOf(false) }
+    val visualFocused = focusedOverride ?: focused
     val haptics = LocalHapticFeedback.current
     val alpha by animateFloatAsState(
-        targetValue = if (focused) 1f else presentationSpec.unfocusedAlpha,
+        targetValue = if (visualFocused) 1f else presentationSpec.unfocusedAlpha,
         animationSpec = tween(durationMillis = NovaPosterAnimationDurationMillis),
         label = "NovaPosterAlpha",
     )
     val lift by animateDpAsState(
-        targetValue = if (focused) NovaPosterFocusedLift else 0.dp,
+        targetValue = if (visualFocused && layoutMode != NovaLibraryLayoutMode.STAGE) NovaPosterFocusedLift else 0.dp,
         animationSpec = tween(durationMillis = NovaPosterAnimationDurationMillis),
         label = "NovaPosterLift",
     )
     val title = game.name.ifBlank { androidx.compose.ui.res.stringResource(R.string.nova_library_unknown_game) }
     val metadata = novaLibraryPosterMetadata(game)
     val hdrLabel = androidx.compose.ui.res.stringResource(R.string.badge_hdr)
-    val recentLabel = androidx.compose.ui.res.stringResource(R.string.nova_library_filter_recent)
+    val lastPlayedLabel = if (game.lastLaunched > 0) androidx.compose.ui.res.stringResource(
+        R.string.nova_library_meta_last_played,
+        android.text.format.DateUtils.getRelativeTimeSpanString(
+            game.lastLaunched.coerceAtMost(Long.MAX_VALUE / 1000) * 1000,
+            System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS,
+            android.text.format.DateUtils.FORMAT_ABBREV_RELATIVE),
+    ) else null
+    val runningLabel = androidx.compose.ui.res.stringResource(R.string.nova_library_stage_running)
     val detailsLabel = androidx.compose.ui.res.stringResource(R.string.nova_library_card_action_details)
     val accessibleLabel = remember(
         title,
@@ -111,14 +122,17 @@ internal fun NovaLibraryPosterCard(
         game.hdrSupported,
         game.lastLaunched,
         hdrLabel,
-        recentLabel,
+        lastPlayedLabel,
+        running,
+        runningLabel,
         detailsLabel,
     ) {
         buildList {
             add(title)
             if (metadata.isNotBlank()) add(metadata)
             if (game.hdrSupported) add(hdrLabel)
-            if (game.lastLaunched > 0L) add(recentLabel)
+            if (lastPlayedLabel != null) add(lastPlayedLabel)
+            if (running) add(runningLabel)
             add(detailsLabel)
         }.joinToString(". ")
     }
@@ -130,7 +144,7 @@ internal fun NovaLibraryPosterCard(
 
     Column(
         modifier = modifier
-            .zIndex(if (focused) 1f else 0f)
+            .zIndex(if (visualFocused) 1f else 0f)
             .testTag("nova-poster-${game.id}")
             .then(focusRequesterModifier)
             .onFocusChanged { state ->
@@ -159,13 +173,14 @@ internal fun NovaLibraryPosterCard(
     ) {
         NovaLibraryPosterArtwork(
             game = game,
-            focused = focused,
+            focused = visualFocused,
             apiClient = apiClient,
             posterLoader = posterLoader,
             posterLoaderIdentity = posterLoaderIdentity,
             alpha = alpha,
             lift = lift,
             backgroundColor = surfaces.mediaPlaceholder,
+            running = running,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = presentationSpec.focusGutterDp.dp),
@@ -191,6 +206,7 @@ private fun NovaLibraryPosterArtwork(
     alpha: Float,
     lift: androidx.compose.ui.unit.Dp,
     backgroundColor: androidx.compose.ui.graphics.Color,
+    running: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(NovaPosterCornerRadius)
@@ -269,6 +285,20 @@ private fun NovaLibraryPosterArtwork(
                     }
                 },
         )
+        if (running) {
+            Text(
+                text = androidx.compose.ui.res.stringResource(R.string.nova_library_stage_running),
+                color = LocalNovaComposeColors.current.textPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                modifier = Modifier.align(androidx.compose.ui.Alignment.TopStart)
+                    .padding(6.dp).clip(shape)
+                    .background(LocalNovaLibrarySurfaces.current.focusedArtworkScrim)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .testTag("nova-poster-running-${game.id}"),
+            )
+        }
     }
 }
 

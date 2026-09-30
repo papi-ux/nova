@@ -1704,7 +1704,7 @@ class NovaLibraryActivity : NovaActivity() {
             portraitMenuExpanded = false
             portraitMenuFocus.requestFocus()
         }
-        val stageMode = model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE
+        val stageMode = isLandscape && model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE
         val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()
         val layoutSpec = NovaLibraryUiStateMapper.layoutSpec(
             configuration.screenWidthDp,
@@ -2449,7 +2449,10 @@ class NovaLibraryActivity : NovaActivity() {
         onGameFocused: (PolarisGame) -> Unit,
         onOpenDetail: (PolarisGame) -> Unit
     ) {
-        val layoutMode = model.optionsState.layoutMode
+        // Stage is a landscape composition. Portrait uses Regular without rewriting the saved choice.
+        val layoutMode = if (!isLandscape && model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE) {
+            NovaLibraryLayoutMode.GRID
+        } else model.optionsState.layoutMode
         val stablePosterLoader = remember(apiClient) {
             { view: ImageView, targetGame: PolarisGame -> apiClient.loadCoverInto(view, targetGame) }
         }
@@ -2530,42 +2533,12 @@ class NovaLibraryActivity : NovaActivity() {
                             games = model.filteredGames,
                             apiClient = apiClient,
                             focusedGame = targetGame,
-                            primaryActionLabel = stringResource(R.string.nova_library_review_and_launch),
-                            sessionTitle = model.hero.title.takeIf {
-                                model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION
-                            },
-                            sessionSupportingLine = model.hero.supportingLine
-                                .takeIf { model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION },
-                            // A refused End says why under the hero's title, whole (XR3).
-                            endRefusal = (model.hero.endStatus as? NovaLibraryEndStatus.Failed)?.line,
-                            endPending = model.hero.endStatus is NovaLibraryEndStatus.Ending,
-                            sessionActionLabel = if (
-                                model.hero.primaryAction == NovaLibraryHeroPrimaryAction.RESUME ||
-                                model.hero.primaryAction == NovaLibraryHeroPrimaryAction.WATCH
-                            ) {
-                                model.hero.actionLabel
-                            } else {
-                                null
-                            },
-                            secondaryActionLabel = model.hero.secondaryActionLabel,
+                            primaryActionLabel = "",
+                            onPrimaryAction = {},
+                            runningGameId = model.hero.game?.id.takeIf { model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION },
+                            sortLabel = sortModeLabel(model.optionsState.sortMode),
                             restoreFocusGameId = restoreFocusGameId,
                             showPosterTitles = model.optionsState.showPosterTitles,
-                            onPrimaryAction = { targetGame?.let(onOpenDetail) },
-                            onSessionAction = if (
-                                model.hero.primaryAction == NovaLibraryHeroPrimaryAction.RESUME ||
-                                model.hero.primaryAction == NovaLibraryHeroPrimaryAction.WATCH
-                            ) {
-                                { activeSession?.let(onResumeSession) }
-                            } else {
-                                null
-                            },
-                            onSecondaryAction = if (
-                                model.hero.secondaryAction == NovaLibraryHeroSecondaryAction.END_SESSION
-                            ) {
-                                { activeSession?.let(onEndSession) }
-                            } else {
-                                null
-                            },
                             onGameFocused = onGameFocused,
                             onOpenDetail = onOpenDetail,
                             artworkLoader = { view, targetGame, artworkKind ->

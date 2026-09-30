@@ -1,6 +1,13 @@
 package com.papi.nova.ui
 
 import android.widget.ImageView
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -746,6 +753,9 @@ private fun NovaLibraryToolbarSystemAction(onClick: () -> Unit) {
     )
 }
 
+/** The beta.1 Stage: one fixed focus owner, a height-sized cover, and a wrapping row beside it.
+ * Session actions belong to the shared strip; A on the selected cover opens its game page. */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun NovaLibraryStage(
     games: List<PolarisGame>,
@@ -761,558 +771,211 @@ internal fun NovaLibraryStage(
     onPrimaryAction: () -> Unit,
     onSessionAction: (() -> Unit)? = null,
     onSecondaryAction: (() -> Unit)? = null,
-    /** Why the host refused an End, said under the hero's title until the End status clears (XR3). */
     endRefusal: String? = null,
     endPending: Boolean = false,
     onGameFocused: (PolarisGame) -> Unit,
     onOpenDetail: (PolarisGame) -> Unit,
-    artworkLoader: (ImageView, PolarisGame, String) -> Unit = { view, game, artworkKind ->
-        apiClient.loadArtworkInto(view, game, artworkKind)
-    },
-    posterLoader: (ImageView, PolarisGame) -> Unit = { view, game ->
-        apiClient.loadCoverInto(view, game)
-    }
+    artworkLoader: (ImageView, PolarisGame, String) -> Unit = { view, game, kind -> apiClient.loadArtworkInto(view, game, kind) },
+    posterLoader: (ImageView, PolarisGame) -> Unit = { view, game -> apiClient.loadCoverInto(view, game) },
+    runningGameId: String? = null,
+    sortLabel: String? = null,
 ) {
-    val selected = if (sessionTitle != null && focusedGame == null) {
-        null
-    } else {
-        focusedGame ?: games.firstOrNull()
+    if (games.isEmpty()) return
+    val ids = remember(games) { games.map { it.id } }
+    var selectedId by remember(ids) { mutableStateOf(restoreFocusGameId?.takeIf { it in ids } ?: focusedGame?.id?.takeIf { it in ids } ?: ids.first()) }
+    val selectedIndex = ids.indexOf(selectedId).coerceAtLeast(0)
+    val selected = games[selectedIndex]
+    val neighbours = remember(games, selectedIndex) {
+        games.drop(selectedIndex + 1) + games.take(selectedIndex)
     }
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag("nova-library-stage")) {
-        val largeText = LocalDensity.current.fontScale >= 1.5f
-        val verticalGrid = maxHeight > maxWidth
-        val footerHeightDp = if (verticalGrid) {
-            0
-        } else {
-            NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp()
-        }
-        val spec = NovaLibraryUiStateMapper.stageLayoutSpecForViewport(
-            widthDp = maxWidth.value.toInt(),
-            heightDp = (maxHeight.value.toInt() - footerHeightDp).coerceAtLeast(0),
-            largeText = largeText,
-        )
-
-        if (selected != null) {
-            NovaLibraryStageHero(
-                game = selected,
-                heightDp = spec.stageHeroHeightDp,
-                largeText = largeText,
-                compact = spec.stageUsesCompactHero,
-                primaryActionLabel = primaryActionLabel,
-                sessionActionLabel = sessionActionLabel,
-                secondaryActionLabel = secondaryActionLabel,
-                artworkLoader = artworkLoader,
-                onPrimaryAction = onPrimaryAction,
-                onSessionAction = onSessionAction,
-                onSecondaryAction = onSecondaryAction,
-                endRefusal = endRefusal,
-                endPending = endPending,
-            )
-        } else if (sessionTitle != null && sessionActionLabel != null && onSessionAction != null) {
-            NovaLibraryStageSessionHero(
-                title = sessionTitle,
-                supportingLine = sessionSupportingLine,
-                heightDp = spec.stageHeroHeightDp,
-                largeText = largeText,
-                compact = spec.stageUsesCompactHero,
-                actionLabel = sessionActionLabel,
-                secondaryActionLabel = secondaryActionLabel,
-                onAction = onSessionAction,
-                onSecondaryAction = onSecondaryAction,
-                endRefusal = endRefusal,
-                endPending = endPending,
-            )
-        }
-
-        if (spec.stageUsesVerticalGrid) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .height(spec.stagePosterRailHeightDp.dp),
-            ) {
-                NovaLibraryStagePosterGrid(
-                    games = games,
-                    apiClient = apiClient,
-                    columns = spec.stagePosterColumns,
-                    heightDp = spec.stagePosterRailHeightDp,
-                    restoreFocusGameId = restoreFocusGameId,
-                    showPosterTitles = showPosterTitles,
-                    posterLoader = posterLoader,
-                    onGameFocused = onGameFocused,
-                    onOpenDetail = onOpenDetail,
-                )
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .height((spec.stagePosterRailHeightDp + footerHeightDp).dp)
-                    .padding(bottom = footerHeightDp.dp),
-            ) {
-                NovaLibraryStageRow(
-                    games = games,
-                    apiClient = apiClient,
-                    isLandscape = true,
-                    posterColumns = spec.stagePosterColumns,
-                    restoreFocusGameId = restoreFocusGameId,
-                    showPosterTitles = showPosterTitles,
-                    onGameFocused = onGameFocused,
-                    onOpenDetail = onOpenDetail,
-                    coverLoader = posterLoader,
-                )
-            }
-        }
+    val stageFocus = remember { FocusRequester() }
+    var stageFocused by remember { mutableStateOf(false) }
+    val rowState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val inputModeManager = LocalInputModeManager.current
+    fun select(game: PolarisGame) {
+        selectedId = game.id
+        onGameFocused(game)
+        scope.launch { rowState.scrollToItem(0) }
     }
-}
-
-@Composable
-private fun NovaLibraryStageSessionHero(
-    title: String,
-    supportingLine: String?,
-    heightDp: Int,
-    largeText: Boolean,
-    compact: Boolean,
-    actionLabel: String,
-    secondaryActionLabel: String?,
-    onAction: () -> Unit,
-    onSecondaryAction: (() -> Unit)?,
-    endRefusal: String? = null,
-    endPending: Boolean = false,
-) {
-    val surfaces = LocalNovaLibrarySurfaces.current
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(heightDp.dp)
-            .background(surfaces.mediaPlaceholder)
-            .testTag("nova-stage-session-only-hero"),
-    ) {
-        Column(
-            modifier = Modifier.align(Alignment.BottomStart).padding(if (compact) 8.dp else 14.dp),
-        ) {
-            Text(
-                text = title,
-                color = androidx.compose.ui.graphics.Color.White,
-                fontSize = when {
-                    compact && largeText -> 18.sp
-                    compact -> 20.sp
-                    else -> 24.sp
-                },
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag("nova-stage-session-title"),
-            )
-            if (endRefusal != null) {
-                NovaStageEndRefusal(endRefusal, compact)
-            } else if (!compact && !supportingLine.isNullOrBlank()) {
-                Text(
-                    text = supportingLine,
-                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.78f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            // End splits in its own slot; armed, Resume steps aside so the pair has its room.
-            val endSplit = rememberNovaSplitConfirmState()
-            val resumeFocus = remember { FocusRequester() }
-            val handoff = rememberNovaEndFocusHandoff(
-                endShown = secondaryActionLabel != null && onSecondaryAction != null,
-                resume = resumeFocus,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = handoff.group) {
-                if (endPending) NovaLibraryEndingNotice() else {
-                    if (!endSplit.armed) NovaStageHeroAction(
-                        label = actionLabel,
-                        emphasized = true,
-                        testTag = "nova-stage-session-action",
-                        onClick = onAction,
-                        modifier = Modifier.focusRequester(resumeFocus),
-                    )
-                    if (secondaryActionLabel != null && onSecondaryAction != null) {
-                        NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction, modifier = handoff.end)
-                    }
-                }
-            }
-        }
+    LaunchedEffect(restoreFocusGameId, ids) {
+        restoreFocusGameId?.takeIf { it in ids && it != selectedId }?.let { selectedId = it }
     }
-}
-
-/** Cards sit flat and evenly spaced; the focused card is distinguished by scale,
- *  opacity and lift rather than by crowding its neighbours. Poster width itself
- *  comes from [NovaLibraryUiStateMapper.stageRailPosterWidthDp]. */
-private val NovaStageCarouselGapDp = 12.dp
-
-/** How close (in card widths) the focused poster may come to a rail edge before the rail
- *  scrolls. Inside that band the rail holds still and the selection travels across
- *  stationary posters, which is what keeps a sense of place in a long library. */
-private const val NovaStageEdgeScrollMarginCards = 1.15f
-
-/**
- * Edge-scrolling policy for the poster rail.
- *
- * Compose already asks the scrollable to bring a newly focused child into view; the default
- * spec scrolls the minimum needed, which re-seats the selection against the viewport edge on
- * every step. Supplying the spec — rather than running a second scroller next to it — keeps a
- * single scroll authority and lets the rail stay put until the selection nears an edge.
- */
-@OptIn(ExperimentalFoundationApi::class)
-private object NovaStageEdgeScrollSpec : BringIntoViewSpec {
-    override fun calculateScrollDistance(
-        offset: Float,
-        size: Float,
-        containerSize: Float,
-    ): Float {
-        val margin = (size * NovaStageEdgeScrollMarginCards)
-            .coerceAtMost((containerSize - size) / 2f)
-            .coerceAtLeast(0f)
-        val trailingEdge = offset + size
-        return when {
-            offset < margin -> offset - margin
-            trailingEdge > containerSize - margin -> trailingEdge - (containerSize - margin)
-            else -> 0f
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun NovaLibraryStageHero(
-    game: PolarisGame,
-    heightDp: Int,
-    largeText: Boolean,
-    compact: Boolean,
-    primaryActionLabel: String,
-    sessionActionLabel: String? = null,
-    secondaryActionLabel: String? = null,
-    artworkLoader: (ImageView, PolarisGame, String) -> Unit,
-    onPrimaryAction: () -> Unit,
-    onSessionAction: (() -> Unit)? = null,
-    onSecondaryAction: (() -> Unit)? = null,
-    endRefusal: String? = null,
-    endPending: Boolean = false,
-) {
-    val heroColors = LocalNovaComposeColors.current
-    val hasIcon = game.iconArtwork != null
-    val iconKey = PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_ICON)
-    // No scrim here: NovaLibraryCinematicBackdrop is the single owner of the stage
-    // gradients, and stacking a second one over it crushed the hero artwork.
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(heightDp.dp)
-            .testTag("nova-stage-hero"),
-    ) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(if (compact) 4.dp else 16.dp)
-                .testTag("nova-stage-identity"),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (hasIcon) {
-                    AndroidView(
-                        factory = { context ->
-                            ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
-                        },
-                        update = { view ->
-                            if (view.getTag(R.id.nova_artwork_presentation_key) != iconKey) {
-                                view.setTag(R.id.nova_artwork_presentation_key, iconKey)
-                                view.setImageDrawable(null)
-                                artworkLoader(view, game, PolarisGame.ARTWORK_KIND_ICON)
-                            }
-                        },
-                        modifier = Modifier
-                            .size(if (compact) 32.dp else 40.dp)
-                            .clip(RoundedCornerShape(NovaRadius.row))
-                            .testTag("nova-stage-icon"),
-                    )
-                }
-                Text(
-                    text = game.name,
-                    color = androidx.compose.ui.graphics.Color.White,
-                    fontSize = when {
-                        compact -> 20.sp
-                        largeText -> 26.sp
-                        else -> 24.sp
-                    },
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).testTag("nova-stage-title"),
-                )
-            }
-            // End splits in its own slot; armed, the other actions and the metadata line step aside
-            // so the pair and its consequence line fit the hero's height.
-            val endSplit = rememberNovaSplitConfirmState()
-            val endArmed = endSplit.armed && secondaryActionLabel != null && onSecondaryAction != null
-            val heroMetadata = stageHeroMetadata(game)
-            if (endRefusal != null && !endArmed) {
-                // A refused End, in the metadata line's place under the title, and whole.
-                NovaStageEndRefusal(endRefusal, compact)
-            } else if (heroMetadata.isNotBlank() && !largeText && !endArmed) {
-                Text(
-                    text = heroMetadata,
-                    color = heroColors.textSecondary,
-                    style = NovaChromeType.label(fontSize = if (compact) 9.sp else 10.sp, letterSpacing = 0.16.em),
-                    lineHeight = if (compact) 11.sp else 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .padding(top = if (compact) 2.dp else 6.dp)
-                        .testTag("nova-stage-metadata"),
-                )
-            }
-            // Where a refused End leaves no Try Again, focus goes to Resume, or to the primary when
-            // there is no session action (XR3).
-            val resumeFocus = remember { FocusRequester() }
-            val hasSessionAction = sessionActionLabel != null && onSessionAction != null
-            val handoff = rememberNovaEndFocusHandoff(
-                endShown = secondaryActionLabel != null && onSecondaryAction != null,
-                resume = resumeFocus,
-            )
-            Row(
-                modifier = Modifier.padding(top = if (compact) 4.dp else 10.dp).then(handoff.group),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                if (endPending) NovaLibraryEndingNotice() else {
-                    if (!endArmed) NovaStageHeroAction(
-                        label = primaryActionLabel,
-                        emphasized = true,
-                        testTag = "nova-stage-primary-action",
-                        onClick = onPrimaryAction,
-                        modifier = if (hasSessionAction) Modifier else Modifier.focusRequester(resumeFocus),
-                    )
-                    if (sessionActionLabel != null && onSessionAction != null && !endArmed) {
-                        NovaStageHeroAction(
-                            label = sessionActionLabel,
-                            emphasized = false,
-                            testTag = "nova-stage-session-action",
-                            onClick = onSessionAction,
-                            modifier = Modifier.focusRequester(resumeFocus),
-                        )
-                    }
-                    if (secondaryActionLabel != null && onSecondaryAction != null) {
-                        NovaStageEndAction(label = secondaryActionLabel, state = endSplit, onConfirm = onSecondaryAction, modifier = handoff.end)
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Why the host refused an End, under the Stage hero's title (XR3): whole, on as many lines as it
- * takes, and announced. The Stage had said nothing, and End only went away.
- */
-@Composable
-private fun NovaStageEndRefusal(line: String, compact: Boolean) {
-    Text(
-        text = line,
-        color = LocalNovaComposeColors.current.warning,
-        fontSize = if (compact) 11.sp else 12.sp,
-        lineHeight = if (compact) 13.sp else 15.sp,
-        modifier = Modifier
-            .padding(top = if (compact) 2.dp else 6.dp)
-            .semantics { liveRegion = LiveRegionMode.Polite }
-            .testTag(NOVA_STAGE_END_REFUSED_TAG),
-    )
-}
-
-/** The Stage hero's line saying why an End was refused, for a test to find it. */
-internal const val NOVA_STAGE_END_REFUSED_TAG = "nova-stage-end-refused"
-
-/**
- * End Session on the stage, as a split in its own slot: Stay and End Session, with what ending
- * costs said once under the pair. The library ends the session without asking again.
- */
-@Composable
-private fun NovaStageEndAction(
-    label: String,
-    state: NovaSplitConfirmState,
-    onConfirm: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    NovaSplitConfirm(
-        label = label,
-        confirmLabel = stringResource(R.string.game_dialog_action_end_session),
-        onConfirm = onConfirm,
-        consequence = stringResource(R.string.nova_panel_end_session_message),
-        state = state,
-        modifier = modifier.testTag("nova-stage-secondary-action"),
-    )
-}
-
-/**
- * A stage call to action, in the one focus look: the selection fill and a 3dp ring inside the
- * visible surface, animated over 150ms, with no scale. The press target stays the larger box
- * around the surface. The emphasized action rests as a tile like the one beside it, marked by its
- * label in the accent, and takes the accent fill, with its label and ring in the theme's on-accent
- * colour, only while it holds focus (M6): a solid accent at rest read as a second focus beside the
- * poster that held it, as every other primary did before it rested as a tile.
- */
-@Composable
-private fun NovaStageHeroAction(
-    label: String,
-    modifier: Modifier = Modifier,
-    emphasized: Boolean,
-    testTag: String,
-    onClick: () -> Unit,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val density = LocalDensity.current
-    val largeText = density.fontScale >= 1.5f
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val opacityScale = LocalNovaMenuOpacityScale.current
-    val shape = RoundedCornerShape(NovaRadius.hero)
-    // The hero's primary action is not menu chrome. Folding the menu-opacity preference (64% by
-    // default) into its tile would thin the scrim under its accent label until the artwork showed
-    // through the words, so the primary keeps the scrim's own weight at rest.
-    val restFill = if (emphasized) surfaces.focusedArtworkScrim else surfaces.focusedArtworkScrim.copy(alpha = 0.72f * opacityScale)
-    val focusedFill = if (emphasized) colors.accent else surfaces.selectedControl
-    val ring = if (emphasized) colors.onAccent else surfaces.focusRing
-    val focus by animateFloatAsState(
-        targetValue = if (focused) 1f else 0f,
-        animationSpec = tween(NovaPanelMetrics.FocusMillis),
-        label = "NovaStageActionFocus",
-    )
-    val visualFontSize = when {
-        density.fontScale >= 1.9f -> 9.sp
-        largeText -> 11.sp
-        else -> 13.sp
-    }
-    val visualLineHeight = when {
-        density.fontScale >= 1.9f -> 12.sp
-        largeText -> 14.sp
-        else -> 16.sp
-    }
-
-    Box(
-        modifier = modifier
-            .width(if (largeText) 140.dp else 116.dp)
-            .height(if (largeText) 42.dp else 40.dp)
-            .onFocusChanged { focusState ->
-                focused = focusState.isFocused || focusState.hasFocus
-            }
-            .semantics { role = Role.Button; contentDescription = label }
-            // A on release, and only where it was pressed.
-            .novaClickable(role = Role.Button, onClick = onClick)
-            .testTag(testTag),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(if (largeText) 132.dp else 108.dp)
-                .height(if (largeText) 34.dp else 28.dp)
-                .clip(shape)
-                .background(lerp(restFill, focusedFill, focus))
-                // The ring sits inside the surface's corners, as it does on every control, and only
-                // with focus: a border takes no room and draws inside its shape.
-                .then(
-                    if (focus > 0f) {
-                        Modifier.border(NovaPanelMetrics.FocusRingWidth, ring.copy(alpha = ring.alpha * focus), shape)
-                    } else {
-                        Modifier
-                    },
-                )
-                .testTag("${testTag}-surface"),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = label,
-                    color = when {
-                        emphasized && focused -> colors.onAccent
-                        emphasized -> colors.accentText
-                        else -> colors.textPrimary
-                    },
-                    fontSize = visualFontSize,
-                    lineHeight = visualLineHeight,
-                    fontWeight = if (focused) FontWeight.Bold else FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.testTag("${testTag}-label"),
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun NovaLibraryStagePosterGrid(
-    games: List<PolarisGame>,
-    apiClient: PolarisApiClient,
-    columns: Int,
-    heightDp: Int,
-    restoreFocusGameId: String?,
-    showPosterTitles: Boolean,
-    posterLoader: (ImageView, PolarisGame) -> Unit,
-    onGameFocused: (PolarisGame) -> Unit,
-    onOpenDetail: (PolarisGame) -> Unit
-) {
-    val gameIds = remember(games) { games.map { it.id } }
-    val initialIndex = remember(gameIds, restoreFocusGameId) {
-        NovaLibraryUiStateMapper.stageRestoreIndex(gameIds, restoreFocusGameId)
-    }
-    val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = initialIndex)
-    val focusRequesters = remember(gameIds) { List(games.size) { FocusRequester() } }
-    LaunchedEffect(gameIds, initialIndex) {
-        if (games.isEmpty()) return@LaunchedEffect
-        gridState.scrollToItem(initialIndex)
+    LaunchedEffect(ids) {
+        inputModeManager.requestInputMode(InputMode.Keyboard)
         repeat(STAGE_FOCUS_REQUEST_ATTEMPTS) {
             withFrameNanos { }
-            val composed = gridState.layoutInfo.visibleItemsInfo.any { it.index == initialIndex }
-            if (composed &&
-                runCatching { focusRequesters[initialIndex].requestFocus() }.getOrDefault(false)
-            ) {
-                return@LaunchedEffect
-            }
+            if (runCatching { stageFocus.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
             delay(STAGE_FOCUS_RETRY_DELAY_MS)
         }
     }
-
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(columns),
-        state = gridState,
-        modifier = Modifier.fillMaxWidth().height(heightDp.dp).testTag("nova-stage-portrait-grid"),
-        contentPadding = PaddingValues(8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        gridItemsIndexed(items = games, key = { _, game -> game.id }) { index, game ->
+    val density = LocalDensity.current
+    val largeText = density.fontScale >= 1.5f
+    val counter = stringResource(R.string.nova_library_stage_position, selectedIndex + 1, games.size,
+        sortLabel ?: stringResource(R.string.nova_library_options_sort_library_order))
+    BoxWithConstraints(Modifier.fillMaxSize().testTag("nova-library-stage")) {
+        val captionHeightDp = if (showPosterTitles) kotlin.math.ceil(34f * density.fontScale + 6).toInt() else 0
+        val geometry = novaLibraryStageGeometry(maxWidth.value.toInt(), maxHeight.value.toInt(), density.fontScale, captionHeightDp)
+        Row(
+            modifier = Modifier.fillMaxWidth().height(geometry.selected.heightDp.dp)
+                .testTag("nova-stage-poster-area"),
+            horizontalArrangement = Arrangement.spacedBy(geometry.selectedGapDp.dp),
+        ) {
+            // This owner never leaves the layout as Left/Right changes the selected game's art.
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("nova-stage-poster-${game.id}"),
+                modifier = Modifier.width(geometry.selected.widthDp.dp).height(geometry.selected.heightDp.dp)
+                    .focusRequester(stageFocus)
+                    .onFocusChanged {
+                        stageFocused = it.isFocused
+                        if (it.isFocused) onGameFocused(selected)
+                    }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        val delta = when (event.key) { Key.DirectionLeft -> -1; Key.DirectionRight -> 1; else -> return@onPreviewKeyEvent false }
+                        select(games[NovaLibraryUiStateMapper.stageAdjacentIndex(selectedIndex, delta, games.size)])
+                        true
+                    }
+                    .novaClickable(role = Role.Button) { onOpenDetail(selected) }
+                    .testTag("nova-stage-selected-focus"),
             ) {
                 NovaLibraryPosterCard(
-                    game = game,
+                    game = selected,
                     layoutMode = NovaLibraryLayoutMode.STAGE,
                     apiClient = apiClient,
-                    showPosterTitle = showPosterTitles,
-                    onOpenDetail = { onOpenDetail(game) },
-                    modifier = Modifier.fillMaxWidth(),
-                    focusRequester = focusRequesters[index],
-                    onFocused = { onGameFocused(game) },
+                    showPosterTitle = false,
+                    onOpenDetail = { onOpenDetail(selected) },
+                    modifier = Modifier.fillMaxSize().focusProperties { canFocus = false },
+                    focusedOverride = stageFocused,
+                    running = selected.id == runningGameId,
                     posterLoader = posterLoader,
                 )
             }
+            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                NovaLibraryStageIdentity(
+                    game = selected,
+                    largeText = largeText,
+                    running = selected.id == runningGameId,
+                    artworkLoader = artworkLoader,
+                    endRefusal = endRefusal,
+                    modifier = Modifier.fillMaxWidth().height(geometry.infoHeightDp.dp),
+                )
+                if (geometry.neighbour.heightDp >= 3) {
+                    LazyRow(
+                        state = rowState,
+                        modifier = Modifier.fillMaxWidth().height((geometry.neighbour.heightDp + captionHeightDp).dp)
+                            .novaStageRowEdgeFade { rowState.canScrollForward }
+                            .testTag("nova-stage-landscape-rail"),
+                        horizontalArrangement = Arrangement.spacedBy(geometry.posterGapDp.dp),
+                        verticalAlignment = Alignment.Bottom,
+                    ) {
+                        itemsIndexed(neighbours, key = { _, game -> game.id }, contentType = { _, _ -> "stage-game" }) { _, game ->
+                            NovaLibraryPosterCard(
+                                game = game,
+                                layoutMode = NovaLibraryLayoutMode.STAGE,
+                                apiClient = apiClient,
+                                showPosterTitle = showPosterTitles,
+                                onOpenDetail = {
+                                    select(game)
+                                    stageFocus.requestFocus()
+                                },
+                                modifier = Modifier.width(geometry.neighbour.widthDp.dp).height((geometry.neighbour.heightDp + captionHeightDp).dp)
+                                    .focusProperties { canFocus = false },
+                                running = game.id == runningGameId,
+                                posterLoader = posterLoader,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Text(
+            text = counter,
+            color = LocalNovaComposeColors.current.textSecondary,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.BottomStart).testTag("nova-stage-position"),
+        )
+    }
+}
+
+@Composable
+private fun NovaLibraryStageIdentity(
+    game: PolarisGame,
+    largeText: Boolean,
+    running: Boolean,
+    artworkLoader: (ImageView, PolarisGame, String) -> Unit,
+    endRefusal: String?,
+    modifier: Modifier,
+) {
+    val colors = LocalNovaComposeColors.current
+    // Match the detail page: a cached logo is ready to use, otherwise the game name is stable.
+    val logo = game.logoArtwork?.cached == true
+    val logoKey = PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_LOGO)
+    Column(modifier.testTag("nova-stage-identity"), verticalArrangement = Arrangement.Bottom) {
+        if (logo) {
+            AndroidView(
+                factory = { context -> ImageView(context).apply {
+                    scaleType = ImageView.ScaleType.FIT_START
+                    importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                } },
+                update = { view ->
+                    if (view.getTag(R.id.nova_artwork_presentation_key) != logoKey) {
+                        view.setTag(R.id.nova_artwork_presentation_key, logoKey)
+                        view.setImageDrawable(null)
+                        artworkLoader(view, game, PolarisGame.ARTWORK_KIND_LOGO)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(46.dp)
+                    .semantics { contentDescription = game.name }
+                    .testTag("nova-stage-logo"),
+            )
+        } else {
+            Text(game.name, color = colors.textPrimary, fontSize = 26.sp, lineHeight = 30.sp,
+                fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("nova-stage-title"))
+        }
+        val metadata = stageHeroMetadata(game)
+        if (!largeText && metadata.isNotBlank()) {
+            Text(metadata, color = colors.textSecondary, fontSize = 11.sp, maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp).testTag("nova-stage-metadata"))
+        }
+        val stats = stagePlayStats(game, running)
+        if (stats.isNotBlank()) {
+            Text(stats, color = colors.textSecondary, fontSize = 13.sp, lineHeight = 17.sp,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp).testTag("nova-stage-play-stats"))
+        }
+        if (endRefusal != null) {
+            Text(endRefusal, color = colors.warning, fontSize = 12.sp,
+                modifier = Modifier.padding(top = 6.dp).semantics { liveRegion = LiveRegionMode.Polite }
+                    .testTag(NOVA_STAGE_END_REFUSED_TAG))
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/** Right-edge fade for a partial next cover. The selected cover and its ring are outside it. */
+private fun Modifier.novaStageRowEdgeFade(more: () -> Boolean): Modifier = graphicsLayer {
+    compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+    clip = true
+}.drawWithContent {
+    drawContent()
+    if (more()) {
+        val band = 24.dp.toPx().coerceAtMost(size.width / 2f)
+        drawRect(
+            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                listOf(Color.Black, Color.Transparent), startX = size.width - band, endX = size.width),
+            topLeft = androidx.compose.ui.geometry.Offset(size.width - band, 0f),
+            size = androidx.compose.ui.geometry.Size(band, size.height),
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+        )
+    }
+}
+
+/** Compatibility entrypoint for Stage rail fixtures. Production uses the complete Stage above. */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun NovaLibraryStageRow(
     games: List<PolarisGame>,
@@ -1323,218 +986,42 @@ internal fun NovaLibraryStageRow(
     showPosterTitles: Boolean,
     onGameFocused: (PolarisGame) -> Unit,
     onOpenDetail: (PolarisGame) -> Unit,
-    coverLoader: (ImageView, PolarisGame) -> Unit = { view, game ->
-        apiClient.loadCoverInto(view, game)
-    }
-) {
-    // The rail is a lazy list and the cinematic posters are ~10% of the viewport, so the
-    // whole library scrolls here. It used to be capped to a handful of items back when a
-    // focused card took a quarter of the screen and only a few could ever be reached.
-    val effectiveGames = games
-    val gameIds = remember(effectiveGames) { effectiveGames.map { it.id } }
-    val initialIndex = remember(gameIds, restoreFocusGameId) {
-        NovaLibraryUiStateMapper.stageRestoreIndex(gameIds, restoreFocusGameId)
-    }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
-    val focusRequesters = remember(gameIds) { List(effectiveGames.size) { FocusRequester() } }
-    val scope = rememberCoroutineScope()
-    var focusedCardId by remember(gameIds) { mutableStateOf<String?>(null) }
-    val largeText = LocalDensity.current.fontScale >= 1.5f
-    val inputModeManager = LocalInputModeManager.current
+    coverLoader: (ImageView, PolarisGame) -> Unit = { view, game -> apiClient.loadCoverInto(view, game) },
+) = NovaLibraryStage(games, null, restoreFocusGameId, "", apiClient = apiClient,
+    showPosterTitles = showPosterTitles, onPrimaryAction = {}, onGameFocused = onGameFocused,
+    onOpenDetail = onOpenDetail, artworkLoader = { _, _, _ -> }, posterLoader = coverLoader)
 
-    // A FocusRequester bound to a lazy item that has not been composed yet silently does
-    // nothing, so wait for the target to actually appear in the layout before asking. Without
-    // this the rail never takes focus on a cold start and the first D-pad press walks the
-    // toolbar instead of the library.
-    LaunchedEffect(gameIds, initialIndex) {
-        if (effectiveGames.isEmpty()) return@LaunchedEffect
-        listState.scrollToItem(initialIndex)
-        repeat(STAGE_FOCUS_REQUEST_ATTEMPTS) {
-            withFrameNanos { }
-            val composed = listState.layoutInfo.visibleItemsInfo.any { it.index == initialIndex }
-            if (composed) {
-                // Compose refuses focus while the window is in touch mode, so a cold start
-                // would otherwise leave the stage unfocused and hand the first D-pad press
-                // to the toolbar. This surface is controller-first, so declare that intent.
-                inputModeManager.requestInputMode(InputMode.Keyboard)
-                val accepted = runCatching {
-                    focusRequesters[initialIndex].requestFocus()
-                }.getOrDefault(false)
-                if (accepted) return@LaunchedEffect
-            }
-            delay(STAGE_FOCUS_RETRY_DELAY_MS)
-        }
-    }
-
-    // Removed aggressive auto-snap: allows smooth free-form scrolling
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val availableWidthDp = maxWidth.value.toInt()
-        val presentationSpec = NovaLibraryUiStateMapper.posterPresentationSpec(
-            NovaLibraryLayoutMode.STAGE,
-        )
-        val railHeightDp = maxHeight.value.toInt()
-        val captionBudgetDp = stagePosterCaptionBudgetDp(
-            showPosterTitles = showPosterTitles,
-            largeText = largeText,
-        )
-        val minimumRailHeightDp =
-            NovaLibraryUiStateMapper.minimumPortraitPosterRailHeightDp(presentationSpec) + captionBudgetDp
-        if (railHeightDp < minimumRailHeightDp) return@BoxWithConstraints
-        val artworkRailHeightDp = (railHeightDp - captionBudgetDp).coerceAtLeast(0)
-        val fitSize = NovaLibraryUiStateMapper.portraitPosterSizeForRail(
-            artworkRailHeightDp,
-            presentationSpec,
-        )
-        // Pin card width to a fraction of the viewport (GameNative-style) rather
-        // than deriving it from leftover rail height, then clamp to what the rail
-        // can actually show. Without this the cards collapse whenever the hero
-        // takes vertical budget.
-        val carouselTargetWidthDp =
-            NovaLibraryUiStateMapper.stageRailPosterWidthDp(availableWidthDp)
-        // The cinematic proportion decides the poster size. The rail-fit size is a
-        // ceiling, not a floor: it only shrinks the card when the rail genuinely cannot
-        // host the proportional size. Using it as a floor let cards inflate to fill
-        // whatever rail height happened to be reserved, which silently overrode the
-        // proportion this layout is supposed to hold.
-        val widthFirstDp = carouselTargetWidthDp.coerceAtMost(fitSize.widthDp)
-        val posterSize = NovaLibraryUiStateMapper.portraitPosterSizeForWidth(
-            widthFirstDp.coerceAtLeast(2),
-        )
-        val artworkWidthDp = posterSize.widthDp
-        val artworkHeightDp = posterSize.heightDp
-        val cellWidthDp = artworkWidthDp + 2 * presentationSpec.focusGutterDp
-        val cellHeightDp = artworkHeightDp + captionBudgetDp
-        val verticalContentPaddingPerEdgeDp = NovaLibraryUiStateMapper.stageRailVerticalContentPaddingDp()
-        val horizontalPaddingDp = NovaLibraryUiStateMapper.stageHorizontalContentPaddingDp(
-            availableWidthDp = availableWidthDp,
-            cardWidthDp = cellWidthDp,
-        )
-
-        CompositionLocalProvider(LocalBringIntoViewSpec provides NovaStageEdgeScrollSpec) {
-        LazyRow(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("nova-stage-landscape-rail"),
-            contentPadding = PaddingValues(
-                start = horizontalPaddingDp.dp,
-                top = verticalContentPaddingPerEdgeDp.dp,
-                end = horizontalPaddingDp.dp,
-                bottom = verticalContentPaddingPerEdgeDp.dp,
-            ),
-            horizontalArrangement = Arrangement.spacedBy(NovaStageCarouselGapDp),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            itemsIndexed(
-                items = effectiveGames,
-                key = { _, game -> game.id },
-                contentType = { _, _ -> "stage-game" }
-            ) { index, game ->
-                val isFocusedCard = focusedCardId == game.id
-                Box(
-                    modifier = Modifier
-                        .width(cellWidthDp.dp)
-                        .height(cellHeightDp.dp)
-                        .zIndex(if (isFocusedCard) 1f else 0f)
-                        .testTag("nova-stage-poster-${game.id}"),
-                ) {
-                    NovaLibraryPosterCard(
-                        game = game,
-                        layoutMode = NovaLibraryLayoutMode.STAGE,
-                        apiClient = apiClient,
-                        showPosterTitle = showPosterTitles,
-                        onOpenDetail = {
-                            onGameFocused(game)
-                            onOpenDetail(game)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        focusRequester = focusRequesters[index],
-                        onFocusChanged = { isFocused ->
-                            focusedCardId = NovaLibraryUiStateMapper.stageFocusOwnerAfterChange(
-                                currentOwnerId = focusedCardId,
-                                gameId = game.id,
-                                isFocused = isFocused,
-                            )
-                        },
-                        onFocused = { onGameFocused(game) },
-                        onNavigate = { delta ->
-                            val nextIndex = NovaLibraryUiStateMapper.stageAdjacentIndex(
-                                currentIndex = index,
-                                delta = delta,
-                                itemCount = effectiveGames.size,
-                            )
-                            if (nextIndex != index) {
-                                scope.launch {
-                                    repeat(STAGE_FOCUS_REQUEST_ATTEMPTS) {
-                                        withFrameNanos { }
-                                        if (runCatching {
-                                            focusRequesters[nextIndex].requestFocus()
-                                        }.getOrDefault(false)
-                                        ) {
-                                            return@launch
-                                        }
-                                        delay(STAGE_FOCUS_RETRY_DELAY_MS)
-                                    }
-                                }
-                            }
-                            true
-                        },
-                        posterLoader = coverLoader,
-                    )
-                }
-            }
-        }
-        }
-    }
-}
-
-private fun stagePosterCaptionBudgetDp(showPosterTitles: Boolean, largeText: Boolean): Int = when {
-    !showPosterTitles -> 0
-    largeText -> STAGE_LARGE_TEXT_POSTER_CAPTION_BUDGET_DP
-    else -> STAGE_POSTER_CAPTION_BUDGET_DP
-}
-
-private const val STAGE_POSTER_CAPTION_BUDGET_DP = 36
-private const val STAGE_LARGE_TEXT_POSTER_CAPTION_BUDGET_DP = 64
+internal const val NOVA_STAGE_END_REFUSED_TAG = "nova-stage-end-refused"
 private const val STAGE_FOCUS_REQUEST_ATTEMPTS = 24
 private const val STAGE_FOCUS_RETRY_DELAY_MS = 32L
 
-/**
- * Supporting line under the hero title: where the game came from, what it is, and the
- * capabilities worth knowing before launching. Uppercased and letterspaced so it reads as
- * a caption against the title rather than competing with it.
- */
 @Composable
 private fun stageHeroMetadata(game: PolarisGame): String {
-    val hdrLabel = stringResource(R.string.badge_hdr)
-    val recentLabel = stringResource(R.string.nova_library_filter_recent)
-    return remember(
-        game.id,
-        game.sourceLabel,
-        game.categoryLabel,
-        game.hdrSupported,
-        game.lastLaunched,
-        hdrLabel,
-        recentLabel,
-    ) {
-        buildList {
-            add(game.sourceLabel)
-            add(game.categoryLabel)
-            if (game.hdrSupported) add(hdrLabel)
-            if (game.lastLaunched > 0L) add(recentLabel)
-        }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .joinToString(" · ") { it.uppercase(Locale.US) }
-    }
+    val hdr = stringResource(R.string.badge_hdr)
+    return listOf(game.sourceLabel, game.categoryLabel, hdr.takeIf { game.hdrSupported })
+        .filterNotNull().filter(String::isNotBlank).distinct().joinToString(" · ")
 }
+
+@Composable
+private fun stagePlayStats(game: PolarisGame, running: Boolean): String = buildList {
+    if (running) add(stringResource(R.string.nova_library_stage_running_now))
+    game.playTime?.let {
+        val minutes = it.seconds.coerceAtLeast(0) / 60
+        add(if (minutes >= 60) stringResource(R.string.nova_game_detail_played_hours, minutes / 60)
+            else stringResource(R.string.nova_game_detail_played_minutes, minutes))
+    }
+    if (game.lastLaunched > 0) {
+        val relative = android.text.format.DateUtils.getRelativeTimeSpanString(
+            game.lastLaunched.coerceAtMost(Long.MAX_VALUE / 1000) * 1000,
+            System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS,
+            android.text.format.DateUtils.FORMAT_ABBREV_RELATIVE)
+        add(stringResource(R.string.nova_library_stage_last_played, relative))
+    }
+}.joinToString(" · ")
 
 internal fun stageDisplayTitle(title: String, largeText: Boolean): String {
     if (!largeText || title.length <= 20 || '\n' in title) return title
     val midpoint = title.length / 2
-    val breakIndex = title.indices
-        .filter { index -> title[index] == ' ' }
-        .minByOrNull { index -> kotlin.math.abs(index - midpoint) }
-        ?: return title
+    val breakIndex = title.indices.filter { title[it] == ' ' }.minByOrNull { abs(it - midpoint) } ?: return title
     return title.substring(0, breakIndex) + "\n" + title.substring(breakIndex + 1)
 }

@@ -434,7 +434,7 @@ object NovaLibraryUiStateMapper {
      * the stage instead anchors a single rail above a deliberately light three-hint
      * footer, so the extra gutter only pushed the rail away from its baseline.
      */
-    private const val STAGE_CONTROLLER_HINT_FOOTER_DP = 40
+    private const val STAGE_CONTROLLER_HINT_FOOTER_DP = 0
     private const val PORTRAIT_CONTROLLER_HINT_BOTTOM_PADDING_DP = 40
 
     fun posterAspectRatio(): Float = 2f / 3f
@@ -454,9 +454,9 @@ object NovaLibraryUiStateMapper {
         mode: NovaLibraryLayoutMode,
     ): NovaPosterPresentationSpec = when (mode) {
         NovaLibraryLayoutMode.STAGE -> NovaPosterPresentationSpec(
-            focusedScale = 1.10f,
-            unfocusedAlpha = 0.76f,
-            focusGutterDp = 6,
+            focusedScale = 1f,
+            unfocusedAlpha = 1f,
+            focusGutterDp = 0,
         )
         NovaLibraryLayoutMode.GRID -> NovaPosterPresentationSpec(
             focusedScale = 1.08f,
@@ -1242,7 +1242,8 @@ object NovaLibraryUiStateMapper {
 
     fun stageAdjacentIndex(currentIndex: Int, delta: Int, itemCount: Int): Int {
         if (itemCount <= 0) return 0
-        return (currentIndex + delta).coerceIn(0, itemCount - 1)
+        val shifted = (currentIndex.toLong() + delta.toLong()) % itemCount.toLong()
+        return ((shifted + itemCount) % itemCount).toInt()
     }
 
     fun recentRailCardWidthDp(
@@ -1547,8 +1548,7 @@ object NovaLibraryUiStateMapper {
     fun showStandaloneHomeHero(
         layoutMode: NovaLibraryLayoutMode,
         hasActiveSession: Boolean,
-    ): Boolean = layoutMode != NovaLibraryLayoutMode.STAGE &&
-        (hasActiveSession || layoutMode != NovaLibraryLayoutMode.GRID)
+    ): Boolean = hasActiveSession || layoutMode == NovaLibraryLayoutMode.COMPACT
 
     /**
      * Whether the landscape strip's card has something to act on now: a live game to resume or
