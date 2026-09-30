@@ -22,7 +22,7 @@ class NovaHostCopyRecoveryComposeTest {
     @Test fun staleHostCopyHasAdjacentUseDeviceSettingOnTheActualPlaySetupRoot() {
         val panel = NovaPanelState().also { it.open(PlaySetupPage.Root("Play Setup")) }
         val summary = NovaLaunchProfileSummary("Launch", "", "1280×720 · 60 FPS", "Host's saved copy · 1280×720",
-            "", "", "", NovaLaunchProfileNoticeTone.NONE, "", "", emptyList(), false, "")
+            "", "", "", NovaLaunchProfileNoticeTone.HEALTHY, "", "", emptyList(), false, "")
         rule.setPanelContent {
             NovaGameDetailContentUnderTest(
                 uiState = NovaGameDetailUiState.from(PolarisGame(id="game",name="Control"),false,PolarisClientSettings(),"auto"),
