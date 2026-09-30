@@ -228,8 +228,11 @@ void DeckStreamSession::listenerConnectionTerminatedForSlot(const std::size_t sl
     if (owner == nullptr) {
         return;
     }
-    owner->connectionTerminatedSeen_ = true;
+    // Publish the payload before its ready flag. These atomics retain their
+    // seq_cst ordering: connectionStatus reads the flag before the code, so
+    // seeing termination cannot mistake an error for the previous graceful0.
     owner->terminationErrorCode_ = errorCode;
+    owner->connectionTerminatedSeen_ = true;
     owner->networkStarted_ = false;
     if (!owner->stopConnectionOwed_.load()) {
         // No host connection is live (a synthetic call, or one that raced a

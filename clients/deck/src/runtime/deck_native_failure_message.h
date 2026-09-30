@@ -55,7 +55,7 @@ inline std::string deckNativeFailureMessage(const stream::DeckMoonlightConnectio
     case STAGE_RTSP_HANDSHAKE: step="RTSP handshake"; action=ports; break;
     case STAGE_CONTROL_STREAM_INIT: step="control channel setup"; action=ports; break;
     case STAGE_VIDEO_STREAM_INIT: step="video channel setup"; action=ports; break;
-    case STAGE_INPUT_STREAM_INIT: step="game input setup"; action="Reconnect the controller and try again."; break;
+    case STAGE_INPUT_STREAM_INIT: step="game input setup"; action="Restart Nova, check the input connection to the PC, then try again."; break;
     case STAGE_CONTROL_STREAM_START: step="control connection"; action=ports; break;
     case STAGE_VIDEO_STREAM_START: step="video stream setup"; action="Check this device's video decoder and the PC's capture settings, then try again."; break;
     case STAGE_AUDIO_STREAM_START: step="audio stream setup"; action="Check this device's audio decoder and playback settings, then try again."; break;
