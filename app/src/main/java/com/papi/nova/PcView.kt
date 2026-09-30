@@ -40,6 +40,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
+import androidx.core.view.doOnLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
@@ -780,6 +781,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         val generation = hostsViewGeneration
         fun restore(last: Boolean) {
             if (generation != hostsViewGeneration || isFinishing || isDestroyed) return
+            // initializeViews also runs during onCreate, before the window is attached. An
+            // unavailable target at that point is not a missing action: retain its saved focus.
+            if (!window.decorView.isAttachedToWindow || !window.decorView.isShown) return
             val saved = pendingHostsFocus ?: return
             val target = if (saved.uuid != null) {
                 val position = pcGridAdapter.itemList.indexOfFirst { it.details.uuid == saved.uuid }
@@ -792,6 +796,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 pendingHostsFocus = null
             }
         }
+        window.decorView.doOnLayout { restore(false) }
         window.decorView.post { restore(false) }
         window.decorView.postDelayed({ restore(false) }, 150)
         window.decorView.postDelayed({ restore(true) }, 500)
@@ -1746,11 +1751,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        val focus = captureHostsFocus() ?: pendingHostsFocus
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_AUTO_NAVIGATED, autoNavigated)
         outState.putBoolean(STATE_FOCUS_THEME, returnFocusToTheme)
         outState.putBoolean(STATE_PORTRAIT_MENU, portraitMenuExpanded)
-        (captureHostsFocus() ?: pendingHostsFocus)?.let { focus ->
+        focus?.let { focus ->
             outState.putInt(STATE_HOSTS_FOCUS_ID, focus.actionId)
             outState.putString(STATE_HOSTS_FOCUS_UUID, focus.uuid)
             outState.putBoolean(STATE_HOSTS_FOCUS_MANAGE, focus.manage)
