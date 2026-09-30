@@ -111,4 +111,17 @@ class NovaBetaUpdateFeedTest {
             assertEquals(NovaUpdateChecker.LATEST_RELEASE_API_URL, requests.last().url.toString())
         }
     }
+
+    @Test fun defaultChannelUsesTheActualBuildVariantsFeed() {
+        val requests = mutableListOf<Request>()
+        val http = client(requests) { request ->
+            if (request.url.encodedPath.endsWith("/latest")) release("v1.4.15", beta = false).toString() to null
+            else JSONArray().put(release("v1.4.15-beta.2")).toString() to null
+        }
+        val result = NovaUpdateChecker.checkLatest(http, "1.4.14-pre", listOf("arm64-v8a"))
+        val beta = BuildConfig.BUILD_TYPE == "preRelease"
+        assertEquals(if (beta) "v1.4.15-beta.2" else "v1.4.15", chosen(result).tagName)
+        assertEquals(if (beta) "/repos/papi-ux/nova/releases" else "/repos/papi-ux/nova/releases/latest",
+            requests.single().url.encodedPath)
+    }
 }
