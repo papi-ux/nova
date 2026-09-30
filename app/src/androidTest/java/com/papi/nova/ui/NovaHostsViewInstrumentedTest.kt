@@ -9,7 +9,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
-import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
@@ -63,6 +62,7 @@ class NovaHostsViewInstrumentedTest {
                 is Int -> edit.putInt(key, value)
                 is Long -> edit.putLong(key, value)
                 is Float -> edit.putFloat(key, value)
+                is Set<*> -> { @Suppress("UNCHECKED_CAST") edit.putStringSet(key, value as Set<String>) }
             } }
             edit.commit()
             welcome.edit().putBoolean("welcome_seen", oldWelcome).commit()
@@ -169,7 +169,7 @@ class NovaHostsViewInstrumentedTest {
     }
 
     @Test fun boundHostCardsResizeWithoutTextScalingAndRawManageTouchesStayOwned() = withPreferences {
-        ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
+        ActivityScenario.launch(PcView::class.java).use { scenario ->
             var managePresses = 0
             var primaryPresses = 0
             var originalText = 0f
