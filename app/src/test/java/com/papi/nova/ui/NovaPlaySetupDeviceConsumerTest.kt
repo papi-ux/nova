@@ -54,7 +54,7 @@ class NovaPlaySetupDeviceConsumerTest {
                 rowModifier={ key,_ -> Modifier.testTag("device-codec-$key") })
         }
         rule.frames(4)
-        val pyroKey=row.options.indexOf(pyro).toString()+":"+pyro.label
+        val pyroKey=novaPlaySetupOptionKey(0,pyro)
         rule.onNodeWithTag("device-codec-$pyroKey").assertIsNotEnabled().performClick()
         assertEquals("touching the actual disabled option cannot write",0,writes)
         val supported=buildNovaDevicePlaySetupRows(state,{ _,_ -> writes++ },

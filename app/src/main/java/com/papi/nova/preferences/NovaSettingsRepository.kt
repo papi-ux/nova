@@ -328,9 +328,11 @@ class NovaSettingsRepository private constructor(
     }
 
     private suspend fun <T> persistSerialized(block: suspend () -> T): T {
-        return novaSettingsWriteMutex.withLock {
-            withContext(NonCancellable + Dispatchers.IO) {
-                block()
+        // Release the shared lock on IO before returning to the caller's dispatcher. A
+        // cancelled screen must not hold all settings writes while its Main continuation waits.
+        return withContext(Dispatchers.IO) {
+            novaSettingsWriteMutex.withLock {
+                withContext(NonCancellable) { block() }
             }
         }
     }
