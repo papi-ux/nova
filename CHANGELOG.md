@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Control Size offers Compact, Standard and Large layouts for the modern Android interface, with Standard as the default. Nova Text Size remains independent and follows Android text scaling; smaller controls keep the same minimum touch targets. Control Size belongs to the device, so saved game setups cannot change it.
 - Portrait Library and Settings start with their supporting menus hidden behind Menu. Hide menu or Back returns the space to games and settings rows. Regular removes the old Continue card and carousel; an active stream keeps its Resume or Watch actions. Library preserves its search and focused game when the screen turns.
 - Nova Beta identifies new pairings as “Beta” instead of “Pre”, keeping the same installed app and data. Existing pairings keep their stored host name until the device pairs again.
 **Nova Linux (Alpha)**

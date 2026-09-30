@@ -691,6 +691,14 @@
             app:iconSpaceReserved="false"
             seekbar:min="80"
             seekbar:step="1" />
+        <ListPreference
+            android:key="nova_control_size"
+            android:title="@string/nova_control_size_title"
+            android:summary="@string/nova_control_size_summary"
+            android:entries="@array/nova_control_size_names"
+            android:entryValues="@array/nova_control_size_values"
+            android:defaultValue="standard"
+            app:iconSpaceReserved="false" />
         <CheckBoxPreference
             android:key="nova_hide_system_bars"
             android:title="@string/title_nova_hide_system_bars"

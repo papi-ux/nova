@@ -547,6 +547,7 @@ class EditProfileActivity : NovaActivity() {
             }
 
             findPreference<Preference>("nova_ui_font_scale_percent")?.isVisible = false
+            findPreference<Preference>("nova_control_size")?.isVisible = false
             findPreference<Preference>("option_reset_osc_preference")?.isVisible = false
             findPreference<Preference>("import_keyboard_file")?.isVisible = false
             findPreference<Preference>("export_keyboard_file")?.isVisible = false

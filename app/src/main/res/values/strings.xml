@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="nova_control_size_title">Control Size</string>
+    <string name="nova_control_size_summary">Resize buttons and spacing in the modern interface. Text Size stays independent.</string>
     <!-- Shortcut strings -->
     <string name="scut_deleted_pc">Host deleted</string>
     <string name="scut_not_paired">Host not paired</string>
