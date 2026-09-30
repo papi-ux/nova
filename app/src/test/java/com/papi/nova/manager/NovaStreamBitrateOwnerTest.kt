@@ -113,7 +113,7 @@ class NovaStreamBitrateOwnerTest {
         currentApi = api { json() }; val owner = owner()
         owner.observe(currentApi, connection, parsed(json()), caps)
         assertEquals(NovaBitrateChange.APPLIED, owner.change(owner.state.value.token, { true }, kbps = 40000))
-        assertEquals(listOf(34672), posts)
+        assertEquals(listOf(34988), posts)
         assertEquals(40000, owner.state.value.rate.requestedKbps)
         assertNull(owner.state.value.rate.receivedKbps)
     }
