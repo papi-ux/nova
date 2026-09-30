@@ -20,6 +20,16 @@ class NovaQuickMenuUiStateTest {
         get() = RuntimeEnvironment.getApplication()
 
     @Test
+    fun aNewOpeningWithoutTelemetryStillUsesTheStreamsInputRestriction() {
+        val state = quickState(status = null, commandKeysAllowed = false)
+        assertTrue(state.quickKeys.none { it.enabled })
+        assertTrue(state.pinnedQuickKeys.none { it.enabled })
+        assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.KEYBOARD }.enabled)
+        assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.MOUSE_MODE }.enabled)
+        assertTrue(quickState(status = status(), commandKeysAllowed = true).quickKeys.any { it.enabled })
+    }
+
+    @Test
     fun viewerSessionShowsLeaveAndLocksOwnerOnlyControls() {
         val state = quickState(
             status = status(
@@ -1490,11 +1500,13 @@ class NovaQuickMenuUiStateTest {
         fallbackTargetFps: Double = 60.0,
         doctorReceipt: DoctorActionReceipt? = null,
         lastStatus: PolarisSessionStatus? = null,
+        commandKeysAllowed: Boolean = true,
         context: Context = this.context,
     ) = NovaQuickMenuUiState.from(
         context = context,
         status = status,
         lastStatus = lastStatus,
+        commandKeysAllowed = commandKeysAllowed,
         apiAvailable = apiAvailable,
         liveTuningPending = liveTuningPending,
         liveTuningUnconfirmed = liveTuningUnconfirmed,

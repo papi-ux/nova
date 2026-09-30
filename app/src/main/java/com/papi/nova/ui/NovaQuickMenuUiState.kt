@@ -265,13 +265,15 @@ data class NovaQuickMenuUiState(
             lastStatus: PolarisSessionStatus? = null,
             // Static per locale. The host builds it once per open and hands it back in, so
             // a refresh after every tap does not rebuild nine identical rows from resources.
-            quickKeys: List<NovaQuickMenuAction> = quickKeyActions(context)
+            quickKeys: List<NovaQuickMenuAction> = quickKeyActions(context),
+            /** The stream retains its input restriction even when this opening has no reading. */
+            commandKeysAllowed: Boolean = true,
         ): NovaQuickMenuUiState {
             val viewerSession = status?.isViewer == true
             val canAdjustHostTuning = status?.canAdjustHostTuning == true
             val shutdownInProgress = status?.isShuttingDown == true ||
                 status?.controls?.shutdownInProgress == true
-            val ownerInputAllowed = (status ?: lastStatus)?.isViewer != true
+            val ownerInputAllowed = commandKeysAllowed && (status ?: lastStatus)?.isViewer != true
             val allowedQuickKeys = if (ownerInputAllowed) quickKeys else quickKeys.map { it.copy(enabled = false) }
             val streamPolicy = StreamPolicyUiState.from(status, fallbackBitrateKbps, fallbackTargetFps)
             val autoQuality = AutoQualityUiState.from(status, fallbackTargetFps)

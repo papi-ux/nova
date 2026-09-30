@@ -183,9 +183,41 @@ class PolarisApiClient @JvmOverloads constructor(
     private val liveTuningReducer = LiveTuningReducer()
     private val mutableSessionStatus = kotlinx.coroutines.flow.MutableStateFlow<PolarisSessionStatus?>(null)
     val sessionStatusUpdates: kotlinx.coroutines.flow.StateFlow<PolarisSessionStatus?> = mutableSessionStatus
+    private data class CommandKeySession(val id: String, val generation: Long) {
+        fun matches(status: PolarisSessionStatus) = id.isNotBlank() &&
+            id == status.appSessionId && generation == status.sessionGeneration
+    }
+    private var commandKeySession: CommandKeySession? = null
+    @Volatile private var commandKeysRestricted = false
+    /** A failed reading removes telemetry, but cannot grant input after a viewer/denied reading. */
+    val commandKeysAllowed: Boolean get() = !commandKeysRestricted
+
+    // This client belongs to one Game/stream. A replacement stream gets a fresh client; an owner
+    // reading for another session cannot remove this stream's previously observed restriction.
+    private fun updateCommandKeyAuthority(status: PolarisSessionStatus) {
+        val session = commandKeySession
+        val owner = status.authorityContractValid && status.isStreaming &&
+            status.clientRole == "owner" && status.ownedByClient
+        if (status.isViewer || (status.authorityContractValid && status.isStreaming && !status.ownedByClient)) {
+            if (session == null) commandKeySession = CommandKeySession(status.appSessionId, status.sessionGeneration)
+            commandKeysRestricted = true
+        } else if (owner) {
+            if (session == null && !commandKeysRestricted) {
+                // Older owner endpoints may have no identity. Preserve their existing allowance,
+                // but a subsequent viewer reading without identity cannot be cleared by guessing.
+                if (status.appSessionId.isNotBlank()) {
+                    commandKeySession = CommandKeySession(status.appSessionId, status.sessionGeneration)
+                }
+            } else {
+                commandKeysRestricted = session?.matches(status) != true
+            }
+        }
+    }
+
     @Synchronized private fun publishStatus(status: PolarisSessionStatus?): PolarisSessionStatus? {
         if (status == null) { mutableSessionStatus.value = null; return null }
         if (status.liveTuning != null && liveTuningReducer.accept(status.liveTuning) == null) return mutableSessionStatus.value
+        updateCommandKeyAuthority(status)
         mutableSessionStatus.value = status
         return status
     }

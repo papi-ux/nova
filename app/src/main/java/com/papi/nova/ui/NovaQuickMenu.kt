@@ -17,6 +17,7 @@ import com.papi.nova.api.PolarisDoctorActionResult
 import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.KeyboardTranslator
+import com.papi.nova.nvstream.NvConnection
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.panel.NovaEdge
 import com.papi.nova.ui.panel.NovaMenuItem
@@ -92,6 +93,8 @@ class NovaQuickMenu(
 
         val rootKey = if (keysAsRoot) CommandCenterPage.KeysKey else CommandCenterPage.RootKey
         val menu = MenuSession(device, rootKey)
+        val commandClient = game.novaApiClient
+        val commandConnection = game.conn
         session = menu
         // The panel window keeps A, B and focus to itself and hands input back to the stream (or
         // the deck) when it closes; what is left here is the Command Center's own teardown.
@@ -462,6 +465,7 @@ class NovaQuickMenu(
                 status = sessionStatus,
                 polarisHost = host.polaris,
                 lastStatus = host.last,
+                commandKeysAllowed = game.canSendCommandKeys(),
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
                 hostStateUnavailable = host.unavailable,
@@ -528,7 +532,7 @@ class NovaQuickMenu(
                 else -> return
             }
             dismiss()
-            sendKeysWithFocus(quickKeys)
+            sendKeysWithFocus(quickKeys, commandClient, commandConnection)
         }
 
         fun doctorResultMessage(result: PolarisDoctorActionResult): String {
@@ -1266,6 +1270,8 @@ class NovaQuickMenu(
      * shows once; as the companion deck's own page it is the whole list.
      */
     private fun keysPage(menu: MenuSession, besideTheRoot: Boolean): CommandCenterPage.Keys {
+        val commandClient = game.novaApiClient
+        val commandConnection = game.conn
         val defaults = if (PreferenceConfiguration.readPreferences(game).disableDefaultExtraKeys) {
             emptyList()
         } else {
@@ -1283,10 +1289,11 @@ class NovaQuickMenu(
                     label = key.label,
                     confirmLabel = game.getString(R.string.nova_cc_close_app),
                     consequence = game.getString(R.string.nova_cc_alt_f4_consequence),
-                    onConfirm = { sendKeysWithFocus(key.codes) },
+                    onConfirm = { sendKeysWithFocus(key.codes, commandClient, commandConnection) },
                 )
             } else {
-                NovaMenuItem.Action(key = key.key, label = key.label, onClick = { sendKeysWithFocus(key.codes) })
+                NovaMenuItem.Action(key = key.key, label = key.label,
+                    onClick = { sendKeysWithFocus(key.codes, commandClient, commandConnection) })
             }
         }
         val sections = buildList {
@@ -1327,6 +1334,8 @@ class NovaQuickMenu(
      * change in place, and actions that need the stream close the panel first.
      */
     private fun moreControlsPage(device: GameInputDevice?): CommandCenterPage.MoreControls {
+        val commandClient = game.novaApiClient
+        val commandConnection = game.conn
         fun switch(key: String, label: Int, current: Boolean, apply: (Boolean) -> Unit) = NovaMenuItem.Value(
             key = key,
             label = game.getString(label),
@@ -1372,6 +1381,8 @@ class NovaQuickMenu(
                                 KeyboardTranslator.VK_LSHIFT.toShort(),
                                 KeyboardTranslator.VK_ESCAPE.toShort(),
                             ),
+                            commandClient,
+                            commandConnection,
                         )
                     },
                 ),
@@ -1414,10 +1425,11 @@ class NovaQuickMenu(
         )
     }
 
-    private fun sendKeysWithFocus(keys: ShortArray) {
-        if (!game.canSendCommandKeys()) return
+    private fun sendKeysWithFocus(keys: ShortArray, client: PolarisApiClient?, connection: NvConnection?) {
+        fun currentTarget() = game.novaApiClient === client && game.conn === connection && game.canSendCommandKeys()
+        if (!currentTarget()) return
         game.window.decorView.postDelayed({
-            if (game.canSendCommandKeys()) {
+            if (currentTarget()) {
                 game.sendKeys(keys)
             }
         }, KEY_UP_DELAY)

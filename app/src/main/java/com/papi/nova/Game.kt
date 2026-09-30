@@ -4205,8 +4205,10 @@ return true
 }
 
 internal fun canSendCommandKeys(): Boolean {
-val current = novaApiClient?.sessionStatusUpdates?.value ?: lastPolarisSessionStatus
-return !watchOnlyRequested && current?.isViewer != true && !isFinishing && !isDestroyed
+if (watchOnlyRequested || isFinishing || isDestroyed) return false
+val client = novaApiClient
+return if (client != null) client.commandKeysAllowed && client.sessionStatusUpdates.value?.isViewer != true
+else lastPolarisSessionStatus?.isViewer != true
 }
 
  fun sendKeys(keys:ShortArray?) {
