@@ -15,7 +15,9 @@ internal object NovaTierControls {
                 else -> null
             }
             add(NovaSettingOption(tier.name.lowercase().replaceFirstChar(Char::uppercase), tier.name.lowercase(),
-                caption = if (missingCustom) null else plan.numbers, disabledReason = reason))
+                caption = if (missingCustom) null else listOfNotNull(plan.numbers,
+                    plan.reasons.firstOrNull { it.code == "above_native" }?.message,
+                    plan.limits.firstOrNull()?.message).joinToString(" · "), disabledReason = reason))
         }
         (tiers.fourK as? NovaFourK.Unavailable)?.let {
             add(NovaSettingOption("4K", "four_k", disabledReason = it.because.message))
@@ -29,7 +31,10 @@ internal object NovaTierControls {
         val plan = tiers.plan(tier)
         val source = if (tier == NovaTier.RECOMMENDED) "Recommended for this device" else "Your device setting"
         if (tier == NovaTier.CUSTOM && tiers.custom != null) return NovaStreamTiers.customDelta(tiers.custom, tiers.recommended)
-        return plan.limits.firstOrNull()?.message?.takeIf { it.length <= 56 }
+        // Max is an explicit above-panel choice. Keep that explanation even when its
+        // requested cadence also hit a decoder ceiling; the option retains both facts.
+        return plan.reasons.firstOrNull { it.code == "above_native" }?.message
+            ?: plan.limits.firstOrNull()?.message?.takeIf { it.length <= 56 }
             ?: plan.reasons.firstOrNull()?.message?.takeIf { it.length <= 56 } ?: source
     }
 
