@@ -6,7 +6,9 @@
 
 namespace nova::deck::runtime {
 
-inline bool deckPyrowaveCaptureRefusal(int code) {
+// Shared host refusal code: historically both capture and display/HDR refusal.
+// Its numeric value alone does not identify which condition occurred.
+inline bool deckHostStreamRefusal(int code) {
     return static_cast<std::uint32_t>(code) == 0x800e9403u;
 }
 
@@ -19,13 +21,9 @@ inline QVariantMap deckNativeFailureDiagnostics(const stream::DeckMoonlightConne
 
 inline std::string deckNativeFailureMessage(const stream::DeckMoonlightConnectionStatus& status, bool pyrowave) {
     const std::string ports = "Check your connection and streaming ports 47998 to 48010 on the PC and network.";
-    const auto captureRefused = [&] {
-        return pyrowave
-            ? "The PC refused PyroWave capture for this stream. Choose HEVC or H.264, or use a supported SDR capture route on the PC."
-            : "The PC refused video capture for this stream. Check its capture settings, then try again.";
-    };
+    const std::string hostRefused = "The PC refused this stream. Check its display and stream settings, then try again.";
     if (status.terminated && status.failedStage < 0) {
-        if (deckPyrowaveCaptureRefusal(status.terminationErrorCode)) return captureRefused();
+        if (deckHostStreamRefusal(status.terminationErrorCode)) return hostRefused;
         switch (status.terminationErrorCode) {
         case ML_ERROR_NO_VIDEO_TRAFFIC:
             return "No video traffic reached Nova. Check that the PC can capture this screen. " + ports;
@@ -43,7 +41,7 @@ inline std::string deckNativeFailureMessage(const stream::DeckMoonlightConnectio
                 + "). Check the PC and connection, then try again.";
         }
     }
-    if (deckPyrowaveCaptureRefusal(status.failedStageErrorCode)) return captureRefused();
+    if (deckHostStreamRefusal(status.failedStageErrorCode)) return hostRefused;
     if (status.failedStage == STAGE_RTSP_HANDSHAKE && status.failedStageErrorCode == 503)
         return pyrowave ? "The PC refused PyroWave for this stream. Choose HEVC or H.264, or review the PC's PyroWave capture support."
             : "The PC refused the stream's RTSP handshake (status 503). Check its capture settings and current sessions, then try again.";

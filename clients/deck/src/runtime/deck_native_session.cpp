@@ -1039,7 +1039,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             shared->automaticRetry = !inputFailed && connection.terminated &&
                 connection.terminationErrorCode != ML_ERROR_PROTECTED_CONTENT &&
                 connection.terminationErrorCode != ML_ERROR_FRAME_CONVERSION &&
-                !deckPyrowaveCaptureRefusal(connection.terminationErrorCode);
+                !deckHostStreamRefusal(connection.terminationErrorCode);
             finish("interrupted", shared->resumeTicket
                 ? inputFailed ? "Game input was interrupted. Nova did not ask the PC to end the game. Reconnect when you're ready."
                     : nativeFailure + " Nova did not ask the PC to end the game. Reconnect when you're ready."

@@ -933,7 +933,7 @@ void testNamedFailureGui(const QString& scenario) {
     else if (scenario == "term-protected") { error=ML_ERROR_PROTECTED_CONTENT; expected="protected content"; }
     else if (scenario == "term-conversion") { error=ML_ERROR_FRAME_CONVERSION; expected="convert"; }
     else if (scenario == "term-fatal" || scenario=="pyro-term-fatal") {
-        error=static_cast<int>(0x800e9403u); expected=pyrowave ? "PC refused PyroWave capture" : "PC refused video capture";
+        error=static_cast<int>(0x800e9403u); expected="PC refused this stream";
         host.automaticReconnect=true; host.appUuid="game"; controller.setInputFocus(true);
     }
     else if (scenario == "term-unknown") { error=-7009; expected="-7009"; }
@@ -965,6 +965,10 @@ void testNamedFailureGui(const QString& scenario) {
     }
     if (scenario=="stage-refused" || scenario=="pyro-stage-refused" || hostRefusal || hostCapability) guiRequire(!controller.state().value("copy").toString().contains("47998"), "host refusal blames firewall ports");
     const auto state=controller.state();
+    if (scenario=="term-fatal" || scenario=="pyro-term-fatal") {
+        const auto copy=state.value("copy").toString();
+        guiRequire(!copy.contains("capture",Qt::CaseInsensitive) && !copy.contains("HDR",Qt::CaseInsensitive),"reserved fatal code invented a specific refusal cause");
+    }
     if (hostCapability) {
         guiRequire(state.value("copy")==captureWords && state.value("failureSource")=="host-capability" && state.value("hostReason")=="fp16_capture",
             "fresh native capability check lost exact host refusal");
