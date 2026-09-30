@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Looper
 import androidx.compose.runtime.MutableState
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
