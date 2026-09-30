@@ -63,6 +63,6 @@ class NovaSettingsSmokeFixesSourceGuardTest {
     @Test
     fun customBitrateIsLeftToTheExactBitratePage() {
         assertTrue(settings.contains("it.key == PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING"))
-        assertTrue(screen.contains("exactDivisor = if (definition.isBitrateKbps()) 1000 else 1,"))
+        assertTrue(screen.contains("exactDivisor = 1,"))
     }
 }

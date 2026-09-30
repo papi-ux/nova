@@ -56,6 +56,14 @@ class NovaTierSettingsComposeTest {
         rule.frames(10)
         return keys to vm
     }
+    private fun awaitRecommended(vm:NovaSettingsViewModel) {
+        val deadline=System.nanoTime()+5_000_000_000L
+        while(vm.pictureTier!=NovaTier.RECOMMENDED && System.nanoTime()<deadline) {
+            shadowOf(Looper.getMainLooper()).idle();rule.frames(1);Thread.sleep(5)
+        }
+        assertEquals(NovaTier.RECOMMENDED,vm.pictureTier)
+        rule.frames(4)
+    }
     @Test fun aThenAChoosesRecommendedWhileTheOriginalCustomPinSurvives() {
         val (keys,vm)=show()
         val prefs=PreferenceManager.getDefaultSharedPreferences(rule.activity)
@@ -64,7 +72,7 @@ class NovaTierSettingsComposeTest {
         rule.onNodeWithText("Recommended",substring=false).assertIsFocused()
         assertEquals("custom",prefs.getString(NovaSettingsMigration.TIER,null))
         keys.press(NovaTestKeys.CENTER);rule.frames(8)
-        rule.waitUntil(5000) { vm.pictureTier==NovaTier.RECOMMENDED }
+        awaitRecommended(vm)
         assertEquals(201124,prefs.getInt("seekbar_bitrate_kbps",0))
         assertFalse(prefs.getBoolean(NovaSettingsMigration.CUSTOM_AUTO,true))
         rule.onNodeWithTag("nova-settings-row-nova_stream_preset").assertIsFocused()
@@ -73,7 +81,7 @@ class NovaTierSettingsComposeTest {
     @Test fun xOnQualityUsesRecommendedAndBackKeepsThePaneRow() {
         val (keys,vm)=show()
         keys.press(android.view.KeyEvent.KEYCODE_BUTTON_X);rule.frames(8)
-        rule.waitUntil(5000) { vm.pictureTier==NovaTier.RECOMMENDED }
+        awaitRecommended(vm)
         rule.onNodeWithTag("nova-settings-row-nova_stream_preset").assertIsFocused()
         keys.press(NovaTestKeys.CENTER);rule.frames(8)
         keys.back();rule.frames(8)

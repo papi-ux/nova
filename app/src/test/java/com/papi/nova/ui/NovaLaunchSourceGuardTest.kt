@@ -986,7 +986,7 @@ class NovaLaunchSourceGuardTest {
         val retainedLaunch = readSource("src/main/java/com/papi/nova/ui/NovaLaunchPreflight.kt")
         val selection = detail.section(
             "fun selectSteamLaunchMode(value: String) {",
-            "fun resetProfile() {"
+            "/**\n         * The act column"
         )
 
         assertTrue(!selection.contains("dismiss()"))

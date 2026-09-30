@@ -427,7 +427,7 @@ class PyroWaveBitrateAdviceTest {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val call = "PyroWaveDecoderRenderer.bitrateAdvice("
         assertEquals("the advice is built in one place", 1, Regex(Regex.escape(call)).findAll(game).count())
-        val site = game.substringAfter(call).substringBefore("NovaSnackbar.showQuiet")
+        val site = game.substringAfter(call).substringBefore("doctorTelemetry.reset()")
         assertTrue(
             "the advice no longer reads the chroma from the formats Nova offers",
             site.contains("adviceChroma444(supportedVideoFormats)"),
@@ -484,7 +484,7 @@ class PyroWaveBitrateAdviceTest {
         assertTrue("the advice is not inside the PyroWave guard", guard < call)
         assertFalse("the PyroWave guard closes before the advice", game.substring(guard, call).contains('}'))
 
-        val site = game.substring(call).substringBefore("NovaSnackbar.showQuiet")
+        val site = game.substring(call).substringBefore("doctorTelemetry.reset()")
         assertTrue(
             "the advice no longer reads the size and frame rate the stream is sent at",
             site.startsWith("PyroWaveDecoderRenderer.bitrateAdvice(\n                displayWidth, displayHeight, pyroWaveFps,"),
