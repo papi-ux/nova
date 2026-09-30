@@ -40,6 +40,9 @@ void applyConnectionStreamConfig(STREAM_CONFIGURATION& config, const DeckStreamC
 
 namespace {
 
+const char* safeStageName(int stage) {
+    return stage >= STAGE_NONE && stage < STAGE_MAX ? LiGetStageName(stage) : "unrecognized stage";
+}
 constexpr std::size_t kMaxCallbackSlots = 16;
 DeckStreamSession* callbackOwners[kMaxCallbackSlots] = {};
 bool callbackSlotReserved[kMaxCallbackSlots] = {};
@@ -188,14 +191,14 @@ void DeckStreamSession::audioDecodeAndPlaySampleForSlot(const std::size_t slot, 
 void DeckStreamSession::listenerStageStartingForSlot(const std::size_t slot, const int stage) {
     if (auto* owner = ownerForSlot(slot)) {
         owner->lastStage_ = stage;
-        owner->noteSessionEvent("moonlight stage starting: " + std::string(LiGetStageName(stage)));
+        owner->noteSessionEvent("moonlight stage starting: " + std::string(safeStageName(stage)));
     }
 }
 
 void DeckStreamSession::listenerStageCompleteForSlot(const std::size_t slot, const int stage) {
     if (auto* owner = ownerForSlot(slot)) {
         owner->lastStage_ = stage;
-        owner->noteSessionEvent("moonlight stage complete: " + std::string(LiGetStageName(stage)));
+        owner->noteSessionEvent("moonlight stage complete: " + std::string(safeStageName(stage)));
     }
 }
 
@@ -203,7 +206,7 @@ void DeckStreamSession::listenerStageFailedForSlot(const std::size_t slot, const
     if (auto* owner = ownerForSlot(slot)) {
         owner->failedStage_ = stage;
         owner->failedStageErrorCode_ = errorCode;
-        owner->noteSessionEvent("moonlight stage failed: " + std::string(LiGetStageName(stage)) + " (error " + std::to_string(errorCode) + ")");
+        owner->noteSessionEvent("moonlight stage failed: " + std::string(safeStageName(stage)) + " (error " + std::to_string(errorCode) + ")");
     }
 }
 
@@ -939,6 +942,7 @@ DeckMoonlightConnectionStatus DeckStreamSession::connectionStatus() const {
         .lastStage = lastStage_.load(),
         .failedStage = failedStage_.load(),
         .failedStageErrorCode = failedStageErrorCode_.load(),
+        .startErrorCode = startErrorCode_.load(),
     };
 }
 
@@ -972,6 +976,7 @@ DeckStreamTransition DeckStreamSession::prepare(const DeckStreamRequest& request
     lastStage_ = -1;
     failedStage_ = -1;
     failedStageErrorCode_ = 0;
+    startErrorCode_ = 0;
     return transitionTo(DeckStreamSessionState::Preparing, "prepared no-network moonlight-common-c boundary");
 }
 
@@ -1009,6 +1014,7 @@ DeckStreamTransition DeckStreamSession::startNetwork(const DeckStreamConnectionI
 
     transitionTo(DeckStreamSessionState::Starting, "starting host session via moonlight-common-c");
     const int rc = driver_.start(serverInfo, streamConfig_, listenerCallbacks_, videoCallbacks_, audioCallbacks_, callbackContext_);
+    startErrorCode_ = rc;
     if (rc != 0) {
         // A failed LiStartConnection already unwound its own stages, and a
         // second stop is a no-op there because every unwind step is guarded by
@@ -1020,7 +1026,7 @@ DeckStreamTransition DeckStreamSession::startNetwork(const DeckStreamConnectionI
         const auto status = connectionStatus();
         std::string reason = "LiStartConnection did not establish the host session (result " + std::to_string(rc);
         if (status.failedStage >= 0) {
-            reason += ", failed stage " + std::string(LiGetStageName(status.failedStage)) + " error " + std::to_string(status.failedStageErrorCode);
+            reason += ", failed stage " + std::string(safeStageName(status.failedStage)) + " error " + std::to_string(status.failedStageErrorCode);
         }
         reason += ")";
         auto failed = transitionTo(DeckStreamSessionState::Failed, reason);

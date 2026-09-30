@@ -488,7 +488,11 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     QString pyrowaveUnavailable;
 #ifdef NOVA_DECK_BUILD_PYROWAVE
     if (spaceSession) pyrowaveUnavailable = "PyroWave is not available in Spaces. Choose Auto or H.264.";
-    else if (!limits.pyrowave) pyrowaveUnavailable = "This PC does not offer compatible PyroWave support. Use a matching enabled Polaris build or choose another codec.";
+    else if (!limits.pyrowave) {
+        pyrowaveUnavailable = capabilities.value("pyrowaveUnavailableMessage").toString();
+        if (pyrowaveUnavailable.isEmpty())
+            pyrowaveUnavailable = "This PC does not offer compatible PyroWave support. Choose HEVC or H.264, or review PyroWave support on the PC.";
+    }
     else if (pyrowaveProbe_ && !pyrowaveResult_)
         pyrowaveUnavailable = pyrowaveWorker_ ? "Checking PyroWave support on this device..." : "Select PyroWave to check this device. Other codecs do not need this check.";
     else if (pyrowaveResult_ && !pyrowaveResult_->reason.isEmpty()) pyrowaveUnavailable = pyrowaveResult_->reason;

@@ -239,6 +239,12 @@ int main(int argc, char** argv) {
         DeckPlaySettings noGpu;
         require(noGpu.streamPlan(pyro, host, {}).value("reason").toString().contains("Vulkan"), "GPU refusal did not explain the missing decoder");
         require(pyroSettings.streamPlan(pyro, {}, {}).value("reason").toString().contains("PC"), "host refusal did not explain missing support");
+        const QString captureWords = "PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.";
+        const QVariantMap captureRefused{{"h264",true},{"pyrowave",false},{"pyrowaveUnavailableReason","fp16_capture"},{"pyrowaveUnavailableMessage",captureWords}};
+        require(pyroSettings.streamPlan(pyro,captureRefused,{}).value("reason")==captureWords,"host refusal message was rewritten");
+        auto contradictory = captureRefused; contradictory["pyrowave"]=true;
+        require(pyroSettings.streamPlan(pyro,contradictory,{}).value("playable").toBool(),"stale refusal overrode advertised PyroWave support");
+        require(pyroSettings.streamPlan(pyro,captureRefused,{},{},true).value("reason").toString().contains("Spaces"),"host refusal overrode the Space restriction");
 #else
         require(!pyroSettings.streamPlan(pyro, host, {}).value("playable").toBool(), "disabled build selected PyroWave");
         require(pyroPlan.value("reason").toString().contains("build"), "disabled build did not explain the missing codec");

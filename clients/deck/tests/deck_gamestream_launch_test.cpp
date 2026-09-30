@@ -147,6 +147,18 @@ void testCancelProtocol() {
     assert(!parseCancelResponse("").cancelled);
 }
 
+void testTypedHostRefusal() {
+    const auto refused = parseLaunchResponse(false, R"(<root status_code="503" status_message="PyroWave cannot read this HDR desktop. Choose HEVC or use a Private Stream." error_code="pyrowave_capture_unreadable" error_action="Choose HEVC or use a Private Stream."><gamesession>0</gamesession></root>)");
+    assert(!refused.started && refused.statusCode == 503);
+    assert(refused.errorCode == "pyrowave_capture_unreadable");
+    assert(refused.errorAction == "Choose HEVC or use a Private Stream.");
+    assert(refused.statusMessage == "PyroWave cannot read this HDR desktop. Choose HEVC or use a Private Stream.");
+    const auto unknown = parseLaunchResponse(false, R"(<root status_code="499" error_code="future_capture_route"><gamesession>0</gamesession></root>)");
+    assert(unknown.errorCode == "future_capture_route" && unknown.statusMessage.empty());
+    const auto malformed = parseLaunchResponse(false, R"(<root status_code="503" status_message="The PC supplied this exact reason." error_code="not a machine code"><gamesession>0</gamesession></root>)");
+    assert(malformed.errorCode.empty() && malformed.statusMessage == "The PC supplied this exact reason.");
+}
+
 void testParseResponses() {
     const std::string launchOk =
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -194,6 +206,7 @@ int main(int argc, char** argv) {
     testLaunchTarget();
     testCancelProtocol();
     testResumeResponseIdentity();
+    testTypedHostRefusal();
     testParseResponses();
     return 0;
 }

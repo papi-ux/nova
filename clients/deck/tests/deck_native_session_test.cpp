@@ -75,7 +75,7 @@ struct Driver final : DeckMoonlightConnectionDriver {
     STREAM_CONFIGURATION receivedConfiguration{};
     bool blockStart = false, blockStop = false;
     Barrier stopBarrier;
-    bool failStart = false;
+    bool failStart = false, terminateAtStart = false;
     int failedStage = -1, failedStageCode = -1, startReturnCode = -1;
     Barrier startBarrier;
     QThread* startThread = nullptr;
@@ -93,9 +93,10 @@ struct Driver final : DeckMoonlightConnectionDriver {
         receivedConfiguration = configuration;
         feedback = listener.rumble;
         ++starts;
-        if (blockStart) { startBarrier.wait(); return -1; }
+        if (blockStart) { startBarrier.wait(); if (!failStart) return -1; }
         if (failStart) {
             if (failedStage >= 0) listener.stageFailed(failedStage, failedStageCode);
+            if (terminateAtStart) listener.connectionTerminated(ML_ERROR_NO_VIDEO_TRAFFIC);
             return startReturnCode;
         }
         end = disconnect = false;
@@ -618,7 +619,7 @@ void testStreamCapabilitiesAtLaunch() {
 
 void testVideoCodecAtLaunch() {
     // Fresh local decode, catalog and serverinfo checks precede host mutation.
-    for (int scenario = 0; scenario < 9; ++scenario) {
+    for (int scenario = 0; scenario < 10; ++scenario) {
         Host host;
         Driver driver;
         host.verifyStream = [&](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
@@ -828,10 +829,35 @@ void testFailures() {
 void guiRequire(bool ok, const char* message) {
     if (!ok) throw std::runtime_error(message);
 }
+// Optional synthetic Qt captures are controller/geometry proof only, not a
+// physical stream, decoder, controller or pairing acceptance check.
+void captureFailure(QQuickWindow& window, const QString& scenario, const QVariantMap& state) {
+    const auto directory = qEnvironmentVariable("NOVA_DECK_FAILURE_CAPTURE_DIR");
+    if (directory.isEmpty()) return;
+    QDir().mkpath(directory);
+    for (int tick=0; tick<10; ++tick) { QCoreApplication::processEvents(); QThread::msleep(10); }
+    guiRequire(window.grabWindow().save(directory+"/"+scenario+".png"),"synthetic failure capture failed");
+    auto receipt=state; receipt["syntheticFixture"]=true; receipt["width"]=window.width(); receipt["height"]=window.height();
+    QFile file(directory+"/"+scenario+".json");
+    guiRequire(file.open(QIODevice::WriteOnly),"failure capture receipt failed");
+    file.write(QJsonDocument::fromVariant(receipt).toJson());
+}
 // The same native worker, real GUI state publication and production QML that
 // standalone uses. Only the host HTTP and moonlight driver are synthetic.
 void testNamedFailureGui(const QString& scenario) {
     Host host; Driver driver; host.driver = &driver;
+    const bool pyrowave = scenario.startsWith("pyro-") || scenario=="host-capability-launch";
+    const QString captureWords="PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.";
+    if (pyrowave) {
+        host.decoderSupport.pyrowave={1920,1200};
+        host.verifyStream=[&](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+            nova::deck::DeckStreamCapabilities caps;
+            caps.pyrowave=scenario!="host-capability-launch";
+            caps.pyrowaveUnavailableReason="fp16_capture";
+            caps.pyrowaveUnavailableMessage=captureWords.toStdString();
+            return caps;
+        };
+    }
     DeckNativeSessionController controller(true, host.resolver(), driver);
     QTemporaryDir preferences;
     DeckPlaySettings settings(preferences.filePath("play.ini"));
@@ -861,6 +887,11 @@ void testNamedFailureGui(const QString& scenario) {
     auto* preview = root->findChild<QObject*>("native-stream-preview");
     auto* play = root->findChild<QQuickItem*>("native-preview-action");
     guiRequire(window && preview && play, "production standalone stream route missing");
+    if (pyrowave) {
+        guiRequire(settings.saveChoice("host","game",{{"videoCodec","pyrowave"}}),"PyroWave fixture choice failed");
+        // The review has an older advertised value; the worker must recheck.
+        preview->setProperty("streamCapabilities",QVariantMap{{"valid",true},{"h264",true},{"pyrowave",true}});
+    }
     QMetaObject::invokeMethod(preview, "open");
     until([&] { return play->isEnabled() && preview->property("opened").toBool(); });
     if (scenario == "host-capability") {
@@ -877,23 +908,34 @@ void testNamedFailureGui(const QString& scenario) {
         return;
     }
     QString expected;
+    const bool cancelled = scenario=="cancelled-stage";
     int stage = -1, error = 0;
-    const bool terminal = scenario.startsWith("term-");
+    const bool terminal = scenario.startsWith("term-") || scenario=="pyro-term-fatal";
+    const bool hostCapability = scenario=="host-capability-launch";
     bool hostRefusal = scenario == "host-refusal";
     if (scenario == "stage-platform") { stage=STAGE_PLATFORM_INIT; error=-12; expected="platform"; }
     else if (scenario == "stage-name") { stage=STAGE_NAME_RESOLUTION; error=-2; expected="PC name"; }
     else if (scenario == "stage-audio") { stage=STAGE_AUDIO_STREAM_START; error=-12; expected="audio decoder"; }
     else if (scenario == "stage-rtsp") { stage=STAGE_RTSP_HANDSHAKE; error=-408; expected="RTSP handshake"; }
+    else if (scenario == "pyro-stage-refused") { stage=STAGE_RTSP_HANDSHAKE; error=503; expected="PC refused PyroWave"; }
+    else if (hostCapability) { expected=captureWords; }
     else if (scenario == "stage-refused") { stage=STAGE_RTSP_HANDSHAKE; error=503; expected="PC refused"; }
     else if (scenario == "stage-control") { stage=STAGE_CONTROL_STREAM_START; error=-99; expected="control connection"; }
     else if (scenario == "stage-video") { stage=STAGE_VIDEO_STREAM_START; error=-12; expected="video decoder"; }
     else if (scenario == "stage-input") { stage=STAGE_INPUT_STREAM_START; error=-12; expected="game input"; }
+    else if (scenario == "unknown-stage") { stage=99; error=-7001; expected="unrecognized stage (stage 99, error -7001)"; }
+    else if (scenario == "mixed-stage-termination") { stage=STAGE_VIDEO_STREAM_START; error=-12; expected="video decoder"; driver.terminateAtStart=true; }
+    else if (cancelled) { stage=STAGE_RTSP_HANDSHAKE; error=-408; expected="Stream cancelled."; driver.blockStart=true; }
     else if (scenario == "unknown-start") { driver.startReturnCode=-2222; expected="-2222"; }
     else if (scenario == "term-no-video") { error=ML_ERROR_NO_VIDEO_TRAFFIC; expected="No video traffic"; }
     else if (scenario == "term-no-frame") { error=ML_ERROR_NO_VIDEO_FRAME; expected="No complete video frame"; }
     else if (scenario == "term-early") { error=ML_ERROR_UNEXPECTED_EARLY_TERMINATION; expected="shortly after"; }
     else if (scenario == "term-protected") { error=ML_ERROR_PROTECTED_CONTENT; expected="protected content"; }
     else if (scenario == "term-conversion") { error=ML_ERROR_FRAME_CONVERSION; expected="convert"; }
+    else if (scenario == "term-fatal" || scenario=="pyro-term-fatal") {
+        error=static_cast<int>(0x800e9403u); expected=pyrowave ? "PC refused PyroWave capture" : "PC refused video capture";
+        host.automaticReconnect=true; host.appUuid="game"; controller.setInputFocus(true);
+    }
     else if (scenario == "term-unknown") { error=-7009; expected="-7009"; }
     else if (hostRefusal) {
         expected="PyroWave cannot read this HDR desktop. Choose HEVC or use a Private Stream.";
@@ -901,14 +943,19 @@ void testNamedFailureGui(const QString& scenario) {
         host.refusalResponse="<root status_code=\"503\" status_message=\"" + expected.toStdString() +
             "\" error_code=\"pyrowave_capture_unreadable\" error_action=\"Choose HEVC or use a Private Stream.\"><gamesession>0</gamesession></root>";
     } else guiRequire(false, "unknown failure fixture");
-    driver.failStart = !terminal && !hostRefusal;
+    driver.failStart = !terminal && !hostRefusal && !hostCapability;
     driver.failedStage=stage; driver.failedStageCode=error;
     guiRequire(QMetaObject::invokeMethod(play, "clicked"), "controller Play did not activate production QML");
+    if (cancelled) {
+        until([&] { return driver.startBarrier.entered.load(); });
+        controller.stop(); driver.startBarrier.release();
+    }
     if (terminal) {
         until([&] { return phase(controller)=="active"; });
         driver.terminate(error);
     }
     settled(controller);
+    captureFailure(*window,scenario,controller.state());
     guiRequire(controller.state().value("copy").toString().contains(expected,Qt::CaseInsensitive),
         qPrintable(QString("%1 lost named cause: %2").arg(scenario,controller.state().value("copy").toString())));
     guiRequire(!controller.state().value("copy").toString().contains("preview",Qt::CaseInsensitive), "working app still calls failure a preview");
@@ -916,9 +963,15 @@ void testNamedFailureGui(const QString& scenario) {
         guiRequire(controller.state().value("copy").toString().contains("47998") &&
             controller.state().value("copy").toString().contains("48010"), "transport cause lost actionable port guidance");
     }
-    if (scenario=="stage-refused" || hostRefusal) guiRequire(!controller.state().value("copy").toString().contains("47998"), "host refusal blames firewall ports");
+    if (scenario=="stage-refused" || scenario=="pyro-stage-refused" || hostRefusal || hostCapability) guiRequire(!controller.state().value("copy").toString().contains("47998"), "host refusal blames firewall ports");
     const auto state=controller.state();
-    if (hostRefusal) {
+    if (hostCapability) {
+        guiRequire(state.value("copy")==captureWords && state.value("failureSource")=="host-capability" && state.value("hostReason")=="fp16_capture",
+            "fresh native capability check lost exact host refusal");
+        guiRequire(host.requests==0 && driver.starts==0,"fresh unavailable capture started the transport");
+    } else if (cancelled) {
+        guiRequire(phase(controller)=="cancelled" && !state.contains("failureSource") && !state.contains("failedStageErrorCode"),"cancelled native failure exposed an error instead of cancellation");
+    } else if (hostRefusal) {
         guiRequire(state.value("copy")==expected && state.value("hostReason")=="pyrowave_capture_unreadable" && state.value("hostStatusCode")==503,
             "host refusal text or typed provenance was changed");
         guiRequire(driver.starts==0 && host.cancels==0,"refused launch touched native transport or ended an unstarted game");
@@ -944,7 +997,7 @@ void testNamedFailureGui(const QString& scenario) {
     guiRequire(!json.contains("private-token") && !json.contains("192.0.2.10"),"failure diagnostics leaked private session material");
     // The previous worker must settle before a new stream starts. Its published
     // failure and typed host reason must not be carried into that generation.
-    driver.failStart=false; host.refuseLaunch=false;
+    driver.failStart=false; driver.blockStart=false; driver.terminateAtStart=false; host.refuseLaunch=false;
     guiRequire(controller.start("host","game"),"next generation rejected after failure cleanup");
     until([&] { return phase(controller)=="active"; });
     QCoreApplication::processEvents();
@@ -1681,7 +1734,7 @@ void testAutomaticReconnectCancellation() {
 }
 
 void testAutomaticReconnectRefusals() {
-    for (int scenario = 0; scenario < 9; ++scenario) {
+    for (int scenario = 0; scenario < 10; ++scenario) {
         Host host;
         Driver driver;
         host.driver = &driver;
@@ -1699,7 +1752,7 @@ void testAutomaticReconnectRefusals() {
         if (scenario == 4) host.serverInfoOverride = ownedRunningGame("17", "private-token", "0");
         if (scenario == 5) host.automaticReconnect = false;
         driver.terminate(scenario == 6 ? ML_ERROR_PROTECTED_CONTENT : scenario == 7 ? ML_ERROR_FRAME_CONVERSION
-            : scenario == 8 ? ML_ERROR_GRACEFUL_TERMINATION : -7);
+            : scenario == 8 ? ML_ERROR_GRACEFUL_TERMINATION : scenario == 9 ? static_cast<int>(0x800e9403u) : -7);
         settled(controller);
         require(host.resumes == 0 && host.cancels == 0 && driver.starts == 1 && driver.stops == 1,
             "unsafe or nonrecoverable state automatically reconnected");

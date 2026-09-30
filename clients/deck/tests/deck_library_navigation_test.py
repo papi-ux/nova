@@ -497,8 +497,18 @@ def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window, se
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
         wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
 
+    # Actual standalone HTTP->backend->Main model->Play Setup, beyond the
+    # direct QML/worker fixture. This host hint must not disable ordinary codecs.
+    capture_words = "PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route."
+    host["capture"]["pyrowave_unavailable"] = {"reason": "fp16_capture", "message": capture_words}
+    wait(lambda s: s.get("streamCapabilities", {}).get("pyrowaveUnavailableReason") == "fp16_capture")
+    assert state()["streamCapabilities"]["pyrowaveUnavailableMessage"] == capture_words
     review()
     plan = state()["playSetup"]["streamPlan"]
+    assert state()["playSetup"]["playEnabled"], "capture refusal disabled ordinary H.264"
+    for codec in plan["codecs"]:
+        if codec["videoCodec"] == "pyrowave":
+            assert codec["detail"] == capture_words, "standalone lost the PC's exact PyroWave refusal"
     assert [rate["fps"] for rate in plan["rates"]] == [30, 60], "host rate became unsupported client rate"
     assert plan["videoLabel"] == "H.264 · SDR" and plan["resolutions"][-1]["recommended"], "effective format/recommendation missing"
     resolution()

@@ -737,17 +737,20 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             foreach(case IN ITEMS stage-platform stage-name stage-audio stage-rtsp stage-refused
                     stage-control stage-video stage-input unknown-start term-no-video term-no-frame
-                    term-early term-protected term-conversion term-unknown host-refusal)
+                    term-early term-protected term-conversion term-unknown host-refusal
+                    unknown-stage mixed-stage-termination cancelled-stage term-fatal)
                 add_test(NAME nova_deck_failure_gui_${case}_test
                     COMMAND nova_deck_native_session_test --failure-copy ${case})
                 set_tests_properties(nova_deck_failure_gui_${case}_test PROPERTIES
                     TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
             endforeach()
             if(NOVA_DECK_BUILD_PYROWAVE)
-                add_test(NAME nova_deck_failure_gui_host_capability_test
-                    COMMAND nova_deck_native_session_test --failure-copy host-capability)
-                set_tests_properties(nova_deck_failure_gui_host_capability_test PROPERTIES
-                    TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+                foreach(case IN ITEMS host-capability host-capability-launch pyro-stage-refused pyro-term-fatal)
+                    add_test(NAME nova_deck_failure_gui_${case}_test
+                        COMMAND nova_deck_native_session_test --failure-copy ${case})
+                    set_tests_properties(nova_deck_failure_gui_${case}_test PROPERTIES
+                        TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+                endforeach()
             endif()
             add_executable(nova_deck_pairing_qml_test tests/deck_pairing_qml_test.cpp)
             target_link_libraries(nova_deck_pairing_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
