@@ -217,6 +217,8 @@ class NovaLibraryStageComposeTest {
         val cover = composeRule.onNodeWithTag("nova-poster-art-alpha", true).getUnclippedBoundsInRoot()
         val next = composeRule.onNodeWithTag("nova-poster-art-bravo", true).getUnclippedBoundsInRoot()
         val after = composeRule.onNodeWithTag("nova-poster-art-charlie", true).getUnclippedBoundsInRoot()
+        val stage = composeRule.onNodeWithTag("nova-library-stage").getUnclippedBoundsInRoot()
+        assertEquals(10f, (cover.left - stage.left).value, .6f)
         assertEquals(224f, (cover.right - cover.left).value, 0.6f)
         assertEquals(336f, (cover.bottom - cover.top).value, 0.6f)
         assertEquals(120f, (next.right - next.left).value, 0.6f)

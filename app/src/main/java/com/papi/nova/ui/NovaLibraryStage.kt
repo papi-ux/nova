@@ -782,9 +782,9 @@ internal fun NovaLibraryStage(
     val largeText = density.fontScale >= 1.5f
     val counter = stringResource(R.string.nova_library_stage_position, selectedIndex + 1, games.size,
         sortLabel ?: stringResource(R.string.nova_library_options_sort_library_order))
-    BoxWithConstraints(Modifier.fillMaxSize().testTag("nova-library-stage")) {
+    BoxWithConstraints(Modifier.fillMaxSize().testTag("nova-library-stage").padding(horizontal = 10.dp)) {
         val captionHeightDp = if (showPosterTitles) kotlin.math.ceil(34f * density.fontScale + 6).toInt() else 0
-        val geometry = novaLibraryStageGeometry(maxWidth.value.toInt(), maxHeight.value.toInt(), density.fontScale, captionHeightDp)
+        val geometry = novaLibraryStageGeometry((maxWidth + 20.dp).value.toInt(), maxHeight.value.toInt(), density.fontScale, captionHeightDp)
         Row(
             modifier = Modifier.fillMaxWidth().height(geometry.selected.heightDp.dp)
                 .testTag("nova-stage-poster-area"),

@@ -68,6 +68,8 @@ class NovaLibraryStageRebuildComposeTest {
         val selected = rule.onNodeWithTag("nova-poster-art-alpha", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val next = rule.onNodeWithTag("nova-poster-art-bravo", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val after = rule.onNodeWithTag("nova-poster-art-charlie", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val area = rule.onNodeWithTag("nova-library-stage").getUnclippedBoundsInRoot()
+        assertEquals("selected art uses the strip's 10dp content inset", 10f, (selected.left - area.left).value, .6f)
         assertEquals(224f, (selected.right - selected.left).value, 0.6f)
         assertEquals(336f, (selected.bottom - selected.top).value, 0.6f)
         assertEquals(120f, (next.right - next.left).value, 0.6f)

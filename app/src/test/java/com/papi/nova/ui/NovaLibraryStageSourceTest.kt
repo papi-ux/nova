@@ -305,7 +305,7 @@ class NovaLibraryStageSourceTest {
     fun stageLandscapeRailConsumesMapperOwnedRatioAndPresentationContracts() {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
         val geometry = read("src/main/java/com/papi/nova/ui/NovaLibraryStageGeometry.kt")
-        assertTrue(stage.contains("novaLibraryStageGeometry(maxWidth.value.toInt(), maxHeight.value.toInt(), density.fontScale, captionHeightDp)"))
+        assertTrue(stage.contains("novaLibraryStageGeometry((maxWidth + 20.dp).value.toInt(), maxHeight.value.toInt(), density.fontScale, captionHeightDp)"))
         assertTrue(geometry.contains("NovaPortraitPosterSize(selectedUnits * 2, selectedUnits * 3)"))
         assertTrue(geometry.contains("posterGapDp: Int = 12"))
         assertFalse(stage.contains("STAGE_POSTER_WIDTH_FRACTION"))
