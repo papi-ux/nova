@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -244,7 +245,11 @@ internal fun NovaSettingsContent(
 ) {
     val colors = LocalNovaComposeColors.current
     val context = LocalContext.current
-    val wide = LocalConfiguration.current.screenWidthDp >= 720
+    val portrait = LocalConfiguration.current.screenHeightDp > LocalConfiguration.current.screenWidthDp
+    val wide = !portrait && LocalConfiguration.current.screenWidthDp >= 720
+    var portraitMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    val portraitMenuFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val showNavigation = !portrait || portraitMenuExpanded
     val latestState by rememberUpdatedState(state)
     val back by rememberUpdatedState(onBack)
     val select by rememberUpdatedState(onCategory)
@@ -319,7 +324,7 @@ internal fun NovaSettingsContent(
         // A short window gives its height to the rows: the quick strip, which repeats values the
         // pane shows, and the subtitle go, so the pane shows whole rows rather than two and a half.
         val compact = LocalNovaPanelDensity.current == NovaPanelDensity.Compact
-        val showQuickStrip = !compact && state.quickSettings.isNotEmpty()
+        val showQuickStrip = showNavigation && !compact && state.quickSettings.isNotEmpty()
         focus.hasQuickStrip = showQuickStrip
         Column(
             modifier = Modifier
@@ -346,7 +351,13 @@ internal fun NovaSettingsContent(
                     true
                 }
         ) {
-            NovaSettingsCompactHeader(
+            if (portrait) com.papi.nova.ui.NovaPortraitMenuBar(
+                title = title, expanded = portraitMenuExpanded,
+                onToggle = { portraitMenuExpanded = !portraitMenuExpanded },
+                toggleModifier = Modifier.focusRequester(portraitMenuFocus),
+                onBack = onBack,
+            )
+            if (showNavigation) NovaSettingsCompactHeader(
                 title = title,
                 subtitle = subtitle.takeIf { !compact },
                 query = state.searchQuery,
@@ -355,7 +366,8 @@ internal fun NovaSettingsContent(
                 onBack = onBack,
                 onOpenLegacy = onOpenLegacy,
                 headerActions = headerActions,
-                wide = wide
+                wide = wide,
+                showIdentity = !portrait
             )
             if (showQuickStrip) {
             Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
@@ -389,7 +401,10 @@ internal fun NovaSettingsContent(
                     // Pages pushed over the rows keep focus; the rows themselves may give it to the rail.
                     containFocus = pane.depth > 1,
                     onCloseRequest = {
-                        if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
+                        if (portrait && portraitMenuExpanded) {
+                            portraitMenuExpanded = false
+                            portraitMenuFocus.requestFocus()
+                        } else if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
                     },
                     hints = hints,
                     remoteKeys = remoteKeys,
@@ -441,7 +456,7 @@ internal fun NovaSettingsContent(
                     paneHost(Modifier.weight(1f).fillMaxHeight())
                 }
             } else {
-                NovaSettingsCategoryChips(state, onCategory)
+                if (showNavigation) NovaSettingsCategoryChips(state, onCategory)
                 Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
                 paneHost(Modifier.fillMaxWidth().weight(1f))
             }
@@ -696,7 +711,8 @@ private fun NovaSettingsCompactHeader(
     onBack: () -> Unit,
     onOpenLegacy: () -> Unit,
     headerActions: List<NovaSettingsHeaderAction>,
-    wide: Boolean
+    wide: Boolean,
+    showIdentity: Boolean = true,
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
@@ -708,9 +724,9 @@ private fun NovaSettingsCompactHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)
         ) {
-            NovaSettingsHeaderButton(stringResource(R.string.nova_settings_back), onBack)
+            if (showIdentity) NovaSettingsHeaderButton(stringResource(R.string.nova_settings_back), onBack)
             // Titles wrap rather than cut: a long preset name takes a second line.
-            Column(Modifier.weight(1f)) {
+            if (showIdentity) Column(Modifier.weight(1f)) {
                 Text(text = title, style = type.panelTitle, color = colors.textPrimary)
                 subtitle?.let { Text(text = it, style = type.caption, color = colors.textMuted) }
             }

@@ -1547,7 +1547,8 @@ object NovaLibraryUiStateMapper {
     fun showStandaloneHomeHero(
         layoutMode: NovaLibraryLayoutMode,
         hasActiveSession: Boolean,
-    ): Boolean = layoutMode != NovaLibraryLayoutMode.STAGE
+    ): Boolean = layoutMode != NovaLibraryLayoutMode.STAGE &&
+        (hasActiveSession || layoutMode != NovaLibraryLayoutMode.GRID)
 
     /**
      * Whether the landscape strip's card has something to act on now: a live game to resume or

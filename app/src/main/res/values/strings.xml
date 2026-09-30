@@ -200,6 +200,8 @@
     <string name="pcview_menu_open_management_page">Host Console</string>
     <string name="pcview_error_no_management_url">Nova does not know this host\'s address, so it cannot open its console.</string>
     <string name="nova_library_title">Library</string>
+    <string name="nova_portrait_show_menu">Menu</string>
+    <string name="nova_portrait_hide_menu">Hide menu</string>
     <string name="nova_library_server_context">From %1$s</string>
     <string name="nova_library_server_context_fallback">From your Polaris host</string>
     <string name="nova_library_switch_server">Switch</string>
