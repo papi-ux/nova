@@ -11,9 +11,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implements
+import org.robolectric.annotation.Implementation
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@Config(sdk = [33], shadows = [NovaCompatiblePyrowaveShadow::class])
 class NovaApprovedHostCodecTest {
     // The test-only checkpoint also compiles before the host-specific projection exists.
     // Once added, this bridge is replaced by a normal typed production call.
@@ -27,12 +29,6 @@ class NovaApprovedHostCodecTest {
     }
     @Test fun currentHostCaptureRefusalIsVisibleAndNeitherExplicitNorInheritedPyrowaveCanCommit() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        // A cached successful compute probe proves this is the host gate, not a decoder rejection.
-        val loaded = PyroWave::class.java.getDeclaredField("loaded").apply { isAccessible = true }
-        val cached = PyroWave::class.java.getDeclaredField("cached").apply { isAccessible = true }
-        val oldLoaded = loaded.getBoolean(null); val oldCached = cached.get(null)
-        try {
-            loaded.setBoolean(null, true); cached.set(null, PyroWave.Probe.COMPUTE)
             assertEquals(PyroWaveAvailability.Status.AVAILABLE, PyroWaveAvailability.inspect(context))
             var writes = 0
             val row = hostRow(context, PolarisCapabilities.PyrowaveUnavailable("capture_cpu", "This host needs GPU-native capture")) { writes++ }
@@ -45,6 +41,14 @@ class NovaApprovedHostCodecTest {
             assertEquals(0, writes)
             row.options.first { it.label == context.getString(com.papi.nova.R.string.videoformat_auto) }.onSelect!!.invoke()
             assertEquals(1, writes)
-        } finally { loaded.setBoolean(null, oldLoaded); cached.set(null, oldCached) }
+
+    }
+}
+
+@Implements(PyroWave::class, isInAndroidSdk = false)
+class NovaCompatiblePyrowaveShadow {
+    companion object {
+        @JvmStatic @Implementation fun isLibraryAvailable(): Boolean = true
+        @JvmStatic @Implementation fun probe(context: Context): PyroWave.Probe = PyroWave.Probe.COMPUTE
     }
 }

@@ -3,7 +3,6 @@ package com.papi.nova.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.assertExists
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.panel.NovaPanelState
