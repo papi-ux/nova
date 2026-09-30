@@ -25,6 +25,8 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.test.core.app.ApplicationProvider
@@ -58,10 +60,16 @@ class NovaLibraryStageRebuildComposeTest {
     private val hapticCalls = mutableListOf<HapticFeedbackType>()
 
     private fun stage(restore: String? = null, densityScale: Float? = null, fontScale: Float? = null,
-                      entries: List<PolarisGame> = games, showPosterTitles: Boolean = false) {
+                      entries: List<PolarisGame> = games, showPosterTitles: Boolean = false, linearFontScaling: Boolean = false) {
         rule.setPanelContent {
-            val density = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(densityScale ?: density.density, fontScale ?: density.fontScale),
+            val environmentDensity = LocalDensity.current
+            val testDensity = if (linearFontScaling) object : Density {
+                override val density = densityScale ?: environmentDensity.density
+                override val fontScale = fontScale ?: environmentDensity.fontScale
+                override fun TextUnit.toDp(): Dp = (value * fontScale).dp
+                override fun Dp.toSp(): TextUnit = (value / fontScale).sp
+            } else Density(densityScale ?: environmentDensity.density, fontScale ?: environmentDensity.fontScale)
+            CompositionLocalProvider(LocalDensity provides testDensity,
                 LocalHapticFeedback provides object : HapticFeedback {
                     override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) { hapticCalls += hapticFeedbackType }
                 }) {
@@ -112,12 +120,14 @@ class NovaLibraryStageRebuildComposeTest {
         val entries = games.toMutableList().apply {
             this[1] = this[1].copy(name = "A long neighbour title\nWith a second visible line")
         }
-        stage(densityScale = 2.625f, fontScale = 1.3f, entries = entries, showPosterTitles = true)
+        stage(densityScale = 2.625f, fontScale = 1.3f, entries = entries, showPosterTitles = true, linearFontScaling = true)
         val layouts = mutableListOf<TextLayoutResult>()
         rule.onNodeWithTag("nova-poster-caption-bravo", true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-        // Native API33 measures two 59px lines here. Inspect the actual composable's
-        // allocation, independent of LEGACY Robolectric's synthetic glyph metrics.
+        // API33 native uses linear SP conversion and measures two 59px lines here.
+        // Robolectric's Density factory instead uses a newer nonlinear converter despite
+        // sdk=33; explicitly match the native conversion, not its synthetic glyph metrics.
+        assertEquals(58.0125f, with(layouts.single().layoutInput.density) { 17.sp.toPx() }, .001f)
         assertTrue("two native lines require 118px; the old caption allocation was 117px",
             layouts.single().layoutInput.constraints.maxHeight >= 118)
     }
