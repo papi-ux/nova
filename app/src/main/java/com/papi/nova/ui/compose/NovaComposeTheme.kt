@@ -13,6 +13,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -27,6 +28,7 @@ import androidx.preference.PreferenceManager
 import com.papi.nova.R
 import com.papi.nova.ui.NovaMenuOpacityPreview
 import com.papi.nova.ui.NovaMenuPreferences
+import com.papi.nova.ui.NovaControlSizePreferences
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.utils.UiHelper
@@ -321,6 +323,14 @@ fun NovaComposeTheme(
     val context = LocalContext.current
     val theme = NovaThemeManager.getTheme(context)
     val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
+    var controlSize by remember(prefs) { mutableStateOf(NovaControlSizePreferences.read(prefs)) }
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == NovaControlSizePreferences.KEY) controlSize = NovaControlSizePreferences.read(prefs)
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var observedMenuOpacityPercent by remember(prefs) {
         mutableIntStateOf(NovaMenuPreferences.readOpacityPercent(prefs))
     }
@@ -380,16 +390,18 @@ fun NovaComposeTheme(
         ),
     )
 
-    androidx.compose.runtime.CompositionLocalProvider(
-        LocalNovaComposeColors provides colors,
-        LocalNovaLibrarySurfaces provides librarySurfaces,
-        LocalNovaMenuOpacityScale provides menuOpacityScale,
-        LocalNovaFormFactor provides formFactor,
-    ) {
-        MaterialTheme(
-            colorScheme = colorScheme,
-            shapes = NovaShapes,
-            content = content
-        )
+    NovaControlSizeHost(controlSize) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalNovaComposeColors provides colors,
+            LocalNovaLibrarySurfaces provides librarySurfaces,
+            LocalNovaMenuOpacityScale provides menuOpacityScale,
+            LocalNovaFormFactor provides formFactor,
+        ) {
+            MaterialTheme(
+                colorScheme = colorScheme,
+                shapes = NovaShapes,
+                content = content
+            )
+        }
     }
 }
