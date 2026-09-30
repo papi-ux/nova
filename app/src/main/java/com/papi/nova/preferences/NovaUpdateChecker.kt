@@ -21,6 +21,8 @@ internal sealed class NovaUpdateCheckResult {
     data class UpToDate(val release: NovaUpdateRelease) : NovaUpdateCheckResult()
 }
 
+internal enum class NovaUpdateChannel { STABLE, BETA }
+
 internal object NovaUpdateChecker {
     const val LATEST_RELEASE_API_URL = "https://api.github.com/repos/papi-ux/nova/releases/latest"
 
@@ -29,7 +31,8 @@ internal object NovaUpdateChecker {
     fun checkLatest(
         client: OkHttpClient = OkHttpClient(),
         currentVersionName: String = BuildConfig.VERSION_NAME,
-        supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList()
+        supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
+        channel: NovaUpdateChannel = if (BuildConfig.BUILD_TYPE == "preRelease") NovaUpdateChannel.BETA else NovaUpdateChannel.STABLE
     ): NovaUpdateCheckResult {
         val request = Request.Builder()
             .url(LATEST_RELEASE_API_URL)
