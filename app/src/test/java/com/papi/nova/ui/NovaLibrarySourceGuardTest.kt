@@ -100,7 +100,7 @@ class NovaLibrarySourceGuardTest {
         )
         assertTrue(
             "Stage, Regular, Compact, and poster-title visibility should be wired into production rendering",
-            activity.contains("val layoutMode = model.optionsState.layoutMode") &&
+            activity.contains("val layoutMode = if (!isLandscape && model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE)") &&
                 activity.contains("layoutMode == NovaLibraryLayoutMode.STAGE") &&
                 activity.contains("NovaLibraryStage(") &&
                 activity.contains("layoutMode = layoutMode") &&

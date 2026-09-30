@@ -75,8 +75,8 @@ class NovaLibraryStageRebuildComposeTest {
         assertEquals(12f, (after.left - next.right).value, 0.6f)
         rule.onNodeWithText("Review & Launch").assertDoesNotExist()
         rule.onNodeWithTag("nova-stage-title", useUnmergedTree = true).assertTextEquals("Alpha")
-        rule.onNodeWithTag("nova-stage-play-stats", useUnmergedTree = true).assertTextContains("84 h played")
-        rule.onNodeWithTag("nova-stage-play-stats", useUnmergedTree = true).assertTextContains("Last played")
+        rule.onNodeWithTag("nova-stage-play-stats", useUnmergedTree = true).assertTextContains("84 h played", substring = true)
+        rule.onNodeWithTag("nova-stage-play-stats", useUnmergedTree = true).assertTextContains("Last played", substring = true)
     }
 
     @Test fun controllerWrapKeepsTheSelectedPosterInTheSamePlaceAndAOpensOnlyItsDetail() {
