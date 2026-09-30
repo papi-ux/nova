@@ -67,11 +67,9 @@ class NovaTierSaveReceiptTest {
             .putString("list_resolution","1920x1080").putString("list_fps","120")
             .putString("video_format","auto").putInt("seekbar_bitrate_kbps",30000)
             .putBoolean(NovaSettingsMigration.CUSTOM_AUTO,true).commit()
-        models.clear()
-        vm = NovaSettingsViewModel(NovaSettingDefinitions.load(context), NovaSettingsRepository.createForTest(
-            context,prefs,File(context.filesDir,"different-${UUID.randomUUID()}.preferences_pb")))
-        models.put("settings",vm)
-        await { vm.streamTiers.value != null }
+        var refreshed=false
+        vm.refresh { refreshed=true }
+        await { refreshed }
     }
 
     private fun customOptions(automatic: Boolean = false, bitrate: Int = 350000) = mapOf(

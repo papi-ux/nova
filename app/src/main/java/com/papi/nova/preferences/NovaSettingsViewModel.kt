@@ -213,11 +213,15 @@ class NovaSettingsViewModel(
         }
     }
 
-    fun refresh() {
+    fun refresh(onCompleted: () -> Unit = {}) {
         viewModelScope.launch {
-            stateMutex.withLock {
-                loadStoreState()
-                emit()
+            try {
+                stateMutex.withLock {
+                    loadStoreState()
+                    emit()
+                }
+            } finally {
+                onCompleted()
             }
         }
     }
