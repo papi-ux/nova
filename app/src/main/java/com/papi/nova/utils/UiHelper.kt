@@ -312,13 +312,23 @@ object UiHelper {
                 prefs.edit().putInt("LastNotifiedCrashCount", crashCount).apply()
             }
             if (crashCount % 3 == 0) {
-                PreferenceConfiguration.resetStreamingSettings(activity)
-                Dialog.displayDialog(
-                    activity,
-                    activity.resources.getString(R.string.title_decoding_reset),
-                    activity.resources.getString(R.string.message_decoding_reset),
-                    markAcknowledged,
-                )
+                PreferenceConfiguration.resetStreamingSettings(activity) { saved ->
+                    activity.runOnUiThread {
+                        if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                        if (saved) {
+                            Dialog.displayDialog(activity,
+                                activity.getString(R.string.title_decoding_reset),
+                                activity.getString(R.string.message_decoding_reset), markAcknowledged)
+                        } else {
+                            // Leave the crash unacknowledged until a reset has actually saved.
+                            Dialog.displayDialog(activity,
+                                activity.getString(R.string.title_decoding_reset_failed),
+                                activity.getString(R.string.message_decoding_reset_failed), false,
+                                activity.getString(R.string.nova_space_launch_issue_retry),
+                                Runnable { showDecoderCrashDialog(activity) })
+                        }
+                    }
+                }
             } else {
                 Dialog.displayDialog(
                     activity,

@@ -18,13 +18,14 @@ class ProfilesManager private constructor() {
     private var activeProfileId: UUID? = null
     private val listeners: MutableList<ProfileChangeListener> = ArrayList()
     private var appContext: Context? = null
+    internal var openProfileWriter: (File) -> FileOutputStream = { FileOutputStream(it) }
+    enum class SaveResult { SAVED, SUPERSEDED, FAILED }
     private val snapshotLock = Any()
     private val persistenceLock=Any()
     private val persistenceRevision=java.util.concurrent.atomic.AtomicLong()
     private val persistenceExecutor=java.util.concurrent.Executors.newSingleThreadExecutor { task ->
         Thread(task,"NovaProfileWriter").apply { isDaemon=true }
     }
-    internal var openProfileWriter: (File) -> FileOutputStream = { FileOutputStream(it) }
 
     fun load(context: Context?): Boolean {
         LimeLog.info("ArtemisProfile: Loading profile...")
@@ -78,31 +79,51 @@ class ProfilesManager private constructor() {
         return true
     }
 
-    private fun snapshotForPersistence(): Pair<String, Long> = synchronized(snapshotLock) {
+    private fun snapshotForPersistence(candidate: SettingsProfile? = null): Pair<String, Long> = synchronized(snapshotLock) {
+        val snapshotProfiles = LinkedHashMap(profiles)
+        candidate?.let { snapshotProfiles[it.getUuid()] = it }
         val data=ProfilesData().apply {
-            profiles=ArrayList(this@ProfilesManager.profiles.values)
+            profiles=ArrayList(snapshotProfiles.values)
             activeProfileId=this@ProfilesManager.activeProfileId
         }
         Gson().toJson(data) to persistenceRevision.incrementAndGet()
     }
 
-    private fun persistSnapshot(context: Context, snapshot: Pair<String, Long>): Boolean = synchronized(persistenceLock) {
+    private fun persistSnapshot(context: Context, snapshot: Pair<String, Long>): SaveResult = synchronized(persistenceLock) {
         val (json, revision) = snapshot
-        if (revision != persistenceRevision.get()) return@synchronized true
+        if (revision != persistenceRevision.get()) return@synchronized SaveResult.SUPERSEDED
         try {
             val dir=File(context.filesDir,PROFILES_DIR)
             check(dir.exists() || dir.mkdirs())
-            NovaProfileFile.write(File(dir, PROFILES_FILE), json, openProfileWriter)
-            true
+            NovaProfileFile.write(File(dir,PROFILES_FILE), json, openProfileWriter)
+            if (revision == persistenceRevision.get()) SaveResult.SAVED else SaveResult.SUPERSEDED
         } catch(error:Exception) {
             LimeLog.warning("Nova: Could not save profiles: ${error.message}")
-            false
+            SaveResult.FAILED
         }
     }
 
     fun save(context: Context?): Boolean {
         if (context == null) return false
-        return persistSnapshot(context, snapshotForPersistence())
+        return persistSnapshot(context, snapshotForPersistence()) == SaveResult.SAVED
+    }
+
+    /** Publish an editor draft only after its own snapshot saved without being superseded. */
+    fun commit(context: Context, profile: SettingsProfile): Boolean {
+        // The editor still owns its mutable draft while IO runs. Capture a detached
+        // publication object, so later unsaved edits cannot become this write's receipt.
+        val captured = Gson().fromJson(Gson().toJson(profile), SettingsProfile::class.java)
+        val snapshot = snapshotForPersistence(captured)
+        if (persistSnapshot(context, snapshot) != SaveResult.SAVED) return false
+        val committed = synchronized(snapshotLock) {
+            if (snapshot.second != persistenceRevision.get()) false
+            else {
+                profiles[captured.getUuid()] = captured
+                true
+            }
+        }
+        if (committed) notifyListeners()
+        return committed
     }
 
     fun getProfiles(): MutableList<SettingsProfile> = ArrayList(profiles.values)
@@ -119,35 +140,23 @@ class ProfilesManager private constructor() {
         saveIfPossible()
     }
 
-    /** Keep selection immediate; serialize an immutable snapshot before handing disk IO to the worker. */
-    fun updateDeferred(profile: SettingsProfile) {
-        profiles[profile.getUuid()]=profile
+    /** Keep selection immediate; report this immutable snapshot's result on the writer thread. */
+    fun updateDeferred(profile: SettingsProfile, onSaved: (SaveResult) -> Unit = {}) {
+        val snapshot = synchronized(snapshotLock) {
+            profiles[profile.getUuid()] = profile
+            snapshotForPersistence()
+        }
         notifyListeners()
-        val context=appContext ?: return
+        val context=appContext ?: run { onSaved(SaveResult.FAILED); return }
         // The snapshot lock is never held by disk IO. Revision checks under the IO lock
         // serialize writers and prevent an older queued snapshot from replacing a newer one.
-        val snapshot=snapshotForPersistence()
-        persistenceExecutor.execute { persistSnapshot(context, snapshot) }
+        persistenceExecutor.execute {
+            val result = persistSnapshot(context, snapshot)
+            onSaved(result)
+        }
     }
 
     internal fun awaitDeferredWritesForTest() = persistenceExecutor.submit {}.get(5,java.util.concurrent.TimeUnit.SECONDS)
-
-    /**
-     * Puts [profile] in place of the preset with its id, or adds it, and keeps it only if the file
-     * saves. A failed save puts back what was there and returns false, so the list never shows a
-     * preset the file does not have. Listeners hear only a change that was kept.
-     */
-    fun commit(context: Context, profile: SettingsProfile): Boolean {
-        val id = profile.getUuid()
-        val previous = profiles[id]
-        profiles[id] = profile
-        if (!save(context)) {
-            if (previous != null) profiles[id] = previous else profiles.remove(id)
-            return false
-        }
-        notifyListeners()
-        return true
-    }
 
     fun delete(uuid: UUID?) {
         profiles.remove(uuid)
