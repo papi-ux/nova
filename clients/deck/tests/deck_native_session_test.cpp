@@ -878,12 +878,12 @@ void testNamedFailureGui(const QString& scenario) {
     bool hostRefusal = scenario == "host-refusal";
     if (scenario == "stage-platform") { stage=STAGE_PLATFORM_INIT; error=-12; expected="platform"; }
     else if (scenario == "stage-name") { stage=STAGE_NAME_RESOLUTION; error=-2; expected="PC name"; }
-    else if (scenario == "stage-audio") { stage=STAGE_AUDIO_STREAM_INIT; error=-12; expected="audio decoder"; }
+    else if (scenario == "stage-audio") { stage=STAGE_AUDIO_STREAM_START; error=-12; expected="audio decoder"; }
     else if (scenario == "stage-rtsp") { stage=STAGE_RTSP_HANDSHAKE; error=-408; expected="RTSP handshake"; }
     else if (scenario == "stage-refused") { stage=STAGE_RTSP_HANDSHAKE; error=503; expected="PC refused"; }
     else if (scenario == "stage-control") { stage=STAGE_CONTROL_STREAM_START; error=-99; expected="control connection"; }
-    else if (scenario == "stage-video") { stage=STAGE_VIDEO_STREAM_INIT; error=-12; expected="video decoder"; }
-    else if (scenario == "stage-input") { stage=STAGE_INPUT_STREAM_INIT; error=-12; expected="game input"; }
+    else if (scenario == "stage-video") { stage=STAGE_VIDEO_STREAM_START; error=-12; expected="video decoder"; }
+    else if (scenario == "stage-input") { stage=STAGE_INPUT_STREAM_START; error=-12; expected="game input"; }
     else if (scenario == "unknown-start") { driver.startReturnCode=-2222; expected="-2222"; }
     else if (scenario == "term-no-video") { error=ML_ERROR_NO_VIDEO_TRAFFIC; expected="No video traffic"; }
     else if (scenario == "term-no-frame") { error=ML_ERROR_NO_VIDEO_FRAME; expected="No complete video frame"; }
