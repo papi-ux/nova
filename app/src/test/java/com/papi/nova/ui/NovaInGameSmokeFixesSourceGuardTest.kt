@@ -21,28 +21,6 @@ class NovaInGameSmokeFixesSourceGuardTest {
     }
 
     /**
-     * In-game #12: every panel in the stream's own window takes the solid floor, and every other
-     * panel keeps its glass. Keyed on the light scrim, the floor also held Play Setup on the game
-     * page and the companion display's Command Center; keyed on a flag the Command Center set, it
-     * left a notice, Add Keys and the Leave Space confirm as glass over the game (review finding 3).
-     * NovaPanelOverStreamComposeTest draws the window's content; this pins that the window draws it.
-     */
-    @Test
-    fun thePanelOverTheStreamDrawsItsFillFromTheStreamSurfaces() {
-        val frame = read("ui/panel/NovaPanelFrame.kt")
-        assertTrue(frame.contains("if (overStream) surfaces.overStream() else surfaces"))
-        assertTrue(!frame.contains("if (scrim == NovaScrim.Stream) surfaces.overStream()"))
-        assertTrue(frame.contains("CompositionLocalProvider(LocalNovaLibrarySurfaces provides panelSurfaces)"))
-        val window = read("ui/panel/NovaPanelWindow.kt")
-        assertTrue("the window draws the content its placement keys", window.contains("NovaSurfacesWindowContent(surfaces"))
-        assertTrue(
-            "the floor follows the window's placement, not an opening's flag",
-            read("ui/panel/NovaSurfaces.kt").contains("overStream = surfaces.placement.overStream") &&
-                !read("ui/panel/NovaPanelState.kt").contains("overStream"),
-        )
-    }
-
-    /**
      * In-game #4, the caption half: the HUD stores its position on every mode change, so asking
      * only whether a position was stored hid "the HUD is under this panel" on the RP6, whose stored
      * position is the corner itself. Game hands the rows where the HUD is, read with the HUD's own

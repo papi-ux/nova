@@ -2,7 +2,6 @@ package com.papi.nova.ui
 
 import android.app.Application
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.ui.compose.novaComposeColors
 import org.junit.Assert.*
@@ -14,21 +13,15 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class NovaHudReadabilityAndPositionTest {
-    @Test fun textContrastSurvivesEveryThemeAndPanelOpacity() {
+    @Test fun themedTextIsDistinctFromItsGlyphOutline() {
         val context = ApplicationProvider.getApplicationContext<Application>()
         for (theme in listOf("polaris", "portable_chrome", "oled", "miami", "high_contrast", "material_you")) {
             context.getSharedPreferences("nova_prefs", 0).edit().putString("nova_theme", theme).commit()
             val colors = novaComposeColors(context)
             val text = listOf(colors.textPrimary, colors.textSecondary, colors.textMuted, colors.accent,
                 Color(0xFF4ADE80), Color(0xFFFBBF24), Color(0xFFF87171))
-            for (opacity in listOf(0f, 0.25f, 0.64f, 1f)) {
-                for (game in listOf(Color.White, Color.Black)) {
-                    val glass = colors.card.copy(alpha = opacity).compositeOver(game)
-                    val backing = NovaHudReadability.backing.compositeOver(glass)
-                    for (color in text) assertTrue("$theme opacity=$opacity color=$color",
-                        NovaHudReadability.contrast(NovaHudReadability.foreground(color), backing) >= 4.5f)
-                }
-            }
+            for (color in text) assertTrue("$theme color=$color",
+                NovaHudReadability.contrast(NovaHudReadability.foreground(color), NovaHudReadability.outline) >= 4.5f)
         }
     }
 

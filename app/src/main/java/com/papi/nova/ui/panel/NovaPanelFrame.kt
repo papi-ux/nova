@@ -78,7 +78,6 @@ import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaFormFactor
 import com.papi.nova.ui.compose.NovaMenuBackdropBlur
 import com.papi.nova.ui.compose.NovaRadius
-import com.papi.nova.ui.compose.overStream
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -139,10 +138,8 @@ val LocalNovaStreamCover = compositionLocalOf<NovaStreamCover?> { null }
  * drawn at the panel density for the window ([NovaPanelDensityHost]).
  *
  * [overStream] is for a panel in the stream's own window ([NovaWindowPlacement.overStream]):
- * nothing blurs the stream's video surface, so its fill keeps a floor the game's own text cannot
- * read through, whoever opened it. A panel anywhere else, Play Setup over the game page and the
- * Command Center on a companion display included, keeps the glass Menu Opacity chose, even where
- * its scrim is the light [NovaScrim.Stream].
+ * it publishes the part of the stream the panel covers. Every window keeps the background
+ * opacity the player chose; the scrim and full-brightness text remain separate from that glass.
  */
 @Composable
 fun NovaPanelFrame(
@@ -214,13 +211,10 @@ fun NovaPanelFrame(
             )
         }
         val tvSafe = LocalNovaFormFactor.current == NovaFormFactor.Television
-        // Over the stream nothing blurs what is behind the panel, so its fill keeps a floor the
-        // game's own text cannot read through; the scrim beside it still follows menu opacity.
-        // It follows the window, not the scrim: the light scrim alone also meant Play Setup on the
-        // game page and the companion display, which kept ignoring Menu Opacity.
+        // Menu Opacity is literal in every placement. A forced stream/no-blur floor made
+        // every choice below 99% look the same while the displayed percentage changed.
         val surfaces = LocalNovaLibrarySurfaces.current
-        val panelSurfaces = remember(surfaces, overStream) { if (overStream) surfaces.overStream() else surfaces }
-        CompositionLocalProvider(LocalNovaLibrarySurfaces provides panelSurfaces) {
+        CompositionLocalProvider(LocalNovaLibrarySurfaces provides surfaces) {
             if (NovaPanelMetrics.usesSheet(maxWidth, maxHeight)) {
                 NovaPanelSheet(
                     maxHeight = maxHeight * NovaPanelMetrics.SheetMaxHeightFraction,

@@ -48,10 +48,9 @@ class NovaHudAuditComposeTest {
         assertEquals(5, result.single().getLineEnd(0, visibleEnd = true))
         assertFalse(result.single().isLineEllipsized(0))
     }
-    @Test fun textKeepsAReadabilityBackingAtZeroPanelOpacity() {
+    @Test fun textDoesNotKeepIndividualBoxesAtZeroPanelOpacity() {
         draw()
-        // The backing is a distinct surface; the adjustable glass can still become clear.
-        assertTrue(rule.onAllNodesWithTag("nova_hud_readability_backing", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        rule.onAllNodesWithTag("nova_hud_readability_backing", useUnmergedTree = true).assertCountEquals(0)
     }
     @Test fun hudActionsAreAccessibleWithoutAnnouncingEveryTick() {
         var resets = 0

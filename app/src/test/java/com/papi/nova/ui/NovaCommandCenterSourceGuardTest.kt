@@ -382,10 +382,10 @@ class NovaCommandCenterSourceGuardTest {
                 !commandCenter.contains("NovaInGameOverlayAlpha.")
         )
         assertTrue(
-            "NovaHUD keeps adjustable panel glass and the shared border; text has an independent readability backing",
+            "NovaHUD keeps adjustable panel glass and the shared border; text has a glyph outline",
             hud.contains(".background(surfaces.panel.copy(alpha = hudOpacityScale))") &&
                 hud.contains("NovaInGameOverlayAlpha.Border") &&
-                hud.contains("NovaHudReadability.backing")
+                hud.contains("Shadow(NovaHudReadability.outline")
         )
         assertFalse(
             "NovaHUD does not use the retired nested tile/control fills",
