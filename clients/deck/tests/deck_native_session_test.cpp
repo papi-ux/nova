@@ -130,6 +130,7 @@ struct Host {
     DeckVideoDecodeSupport decoderSupport{.h264 = {4096, 4096}, .hevc = {1920, 1200}};
     DeckPyrowaveProbeResult pyrowaveSupport{{1920, 1200}, {}};
     std::atomic<int> pyrowaveChecks{0};
+    std::function<DeckPyrowaveProbeResult()> pyrowaveProbe;
     DeckHudHostFactory hostTelemetry;
     std::function<bool(const QString&, const QString&, const std::function<bool()>&)> authorizeSetup;
     std::function<bool(const std::string&, const std::function<bool()>&)> authorizeMode;
@@ -150,7 +151,7 @@ struct Host {
             target.resolveLaunchTopology = resolveTopology;
             target.verifyStreamCapabilities = verifyStream;
             target.probeVideoSupport = [this] { return decoderSupport; };
-            target.probePyrowaveSupport = [this] { ++pyrowaveChecks; return pyrowaveSupport; };
+            target.probePyrowaveSupport = [this] { ++pyrowaveChecks; return pyrowaveProbe ? pyrowaveProbe() : pyrowaveSupport; };
             target.hostTelemetry = hostTelemetry;
             target.automaticReconnect = automaticReconnect;
             target.transientCapabilityFailure = [this] { return transientCapabilities; };
@@ -357,6 +358,142 @@ void testPyrowaveEncoderOverride() {
             "unsupported codec or refused tuning mutated the host");
     }
 }
+
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+// Use the same keyed cache for review and the actual launch worker. The runtime
+// connection keeps these regressions compilable against the unfixed parent, so
+// their red result is retained success after a real refusal, not a missing API.
+void connectPyrowaveReview(DeckNativeSessionController& controller, DeckPlaySettings& settings) {
+    QObject::connect(&controller, SIGNAL(pyrowaveSupportRefused()),
+        &settings, SLOT(invalidatePyrowaveSupport()));
+}
+
+struct ChangedPyrowaveDevice {
+    DeckPyrowaveProbeCache cache;
+    std::atomic<int> device{0}, children{0}, reviews{0};
+    bool reducedLimits = false;
+    DeckPyrowaveProbeResult probe() {
+        const int current = device.load();
+        return cache.get(QString::number(current), [this, current] {
+            ++children;
+            return current == 0 ? DeckPyrowaveProbeResult{{1920, 1200}, {}}
+                : reducedLimits ? DeckPyrowaveProbeResult{{1280, 800}, {}}
+                : DeckPyrowaveProbeResult{{}, "PyroWave Vulkan decoding is unavailable on this Linux device. Choose another codec."};
+        });
+    }
+};
+
+QVariantMap reviewedPyrowave() {
+    auto values = DeckPlayConfiguration{1920, 1080, 60, 20000}.toMap();
+    values["videoCodec"] = "pyrowave";
+    values["encoderBackend"] = "nvenc";
+    return values;
+}
+const QVariantMap pyrowaveHost{{"h264", true}, {"hevc", true}, {"pyrowave", true}, {"maxFps", 60}};
+
+void testPyrowaveReviewRefresh(bool reducedLimits) {
+    QTemporaryDir directory;
+    DeckPlaySettings settings(directory.filePath("review.ini"));
+    settings.setVideoDecodeSupport({.h264 = {4096, 4096}, .hevc = {4096, 4096}});
+    ChangedPyrowaveDevice device;
+    device.reducedLimits = reducedLimits;
+    settings.setPyrowaveProbe([&] { ++device.reviews; return device.probe(); });
+    const auto values = reviewedPyrowave();
+    require(settings.save("host", "game", values), "PyroWave review preference not saved");
+    const auto saved = settings.load("host", "game");
+    require(!settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "first review did not wait for its worker");
+    until([&] { return settings.videoSupportRevision() == 1; });
+    require(settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "successful device review was not retained");
+    device.device = 1;
+    Host host; Driver driver;
+    host.pyrowaveProbe = [&] { return device.probe(); };
+    host.verifyStream = [](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+        nova::deck::DeckStreamCapabilities result; result.pyrowave = true; return result;
+    };
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    connectPyrowaveReview(controller, settings);
+    require(controller.startConfigured("host", "game", values), "changed-device launch was not reviewed");
+    settled(controller);
+    require(phase(controller) == "failed" && host.launches == 0 && driver.starts == 0, "changed device reached host launch");
+    if (!reducedLimits) require(controller.state().value("copy") == device.probe().reason, "launch lost its named refusal");
+    require(settings.videoSupportRevision() == 2, "actual launch refusal left Play Setup's successful review installed");
+    const int beforeReview = device.reviews;
+    for (const auto* codec : {"auto", "h264", "hevc"}) {
+        auto ordinary = values; ordinary["videoCodec"] = codec;
+        require(settings.streamPlan(ordinary, pyrowaveHost, {}).value("playable").toBool(), "refusal disabled an ordinary codec");
+    }
+    require(!settings.streamPlan(values, pyrowaveHost, {}, {}, true).value("playable").toBool(), "Space accepted PyroWave");
+    require(device.reviews == beforeReview && device.children == 2, "ordinary codecs or Space started the lazy probe");
+    require(!settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "launch refusal retained obsolete decoder limits");
+    until([&] { return settings.videoSupportRevision() == 3; });
+    const auto refreshed = settings.streamPlan(values, pyrowaveHost, {});
+    require(!refreshed.value("playable").toBool(), "changed-device review re-enabled an unsupported size");
+    if (reducedLimits) {
+        auto small = values; small["width"] = 1280; small["height"] = 800;
+        require(settings.streamPlan(small, pyrowaveHost, {}).value("playable").toBool(), "size refusal removed still-supported PyroWave sizes");
+    } else require(refreshed.value("reason") == controller.state().value("copy"), "next review lost the named launch refusal");
+    require(device.reviews == 2 && device.children == 2 && host.pyrowaveChecks == 1, "next review reran a keyed child instead of sharing the current result");
+    require(settings.load("host", "game") == saved && values.value("encoderBackend") == "nvenc", "refusal changed saved codec or stream preferences");
+}
+
+void testPyrowaveReviewStaleWorker() {
+    QTemporaryDir directory;
+    DeckPlaySettings settings(directory.filePath("stale-review.ini"));
+    settings.setVideoDecodeSupport({.h264 = {4096, 4096}, .hevc = {4096, 4096}});
+    ChangedPyrowaveDevice device;
+    Barrier oldReview;
+    settings.setPyrowaveProbe([&] {
+        const int review = ++device.reviews;
+        const auto result = device.probe();
+        if (review == 1) oldReview.wait(); // Old success is already out of the shared cache.
+        return result;
+    });
+    const auto values = reviewedPyrowave();
+    settings.streamPlan(values, pyrowaveHost, {});
+    until([&] { return oldReview.entered.load(); });
+    device.device = 1;
+    Host host; Driver driver;
+    host.pyrowaveProbe = [&] { return device.probe(); };
+    host.verifyStream = [](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+        nova::deck::DeckStreamCapabilities result; result.pyrowave = true; return result;
+    };
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    connectPyrowaveReview(controller, settings);
+    require(controller.startConfigured("host", "game", values), "stale-worker launch was not reviewed");
+    settled(controller);
+    require(settings.videoSupportRevision() == 1, "launch refusal did not invalidate the in-flight review");
+    oldReview.release();
+    // Repeated explicit reviews must stay refused while the old worker ends and
+    // the new generation consumes the shared, current keyed result.
+    until([&] {
+        const auto plan = settings.streamPlan(values, pyrowaveHost, {});
+        require(!plan.value("playable").toBool(), "stale review completion reinstalled old decoder support");
+        return plan.value("reason") == controller.state().value("copy");
+    });
+    require(device.reviews == 2 && device.children == 2, "stale review blocked the next current keyed review");
+}
+
+void testPyrowaveReviewCancellation() {
+    QTemporaryDir directory;
+    DeckPlaySettings settings(directory.filePath("cancel-review.ini"));
+    settings.setVideoDecodeSupport({.h264 = {4096, 4096}, .pyrowave = {1920, 1200}});
+    const auto values = reviewedPyrowave();
+    require(settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "cancellation fixture lacks reviewed support");
+    Host host; Driver driver; Barrier check;
+    host.pyrowaveProbe = [&] { check.wait(); return DeckPyrowaveProbeResult{{}, "changed device refusal"}; };
+    host.verifyStream = [](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+        nova::deck::DeckStreamCapabilities result; result.pyrowave = true; return result;
+    };
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    connectPyrowaveReview(controller, settings);
+    require(controller.startConfigured("host", "game", values), "cancelled PyroWave launch not accepted");
+    until([&] { return check.entered.load(); });
+    controller.stop(); check.release(); settled(controller);
+    require(phase(controller) == "cancelled" && settings.videoSupportRevision() == 0 &&
+        settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "cancelled probe published a stale refusal");
+    require(host.launches == 0 && driver.starts == 0, "cancelled probe reached host launch");
+}
+#endif
 
 void testReviewedConfiguration() {
     Host host;
@@ -2120,6 +2257,12 @@ int main(int argc, char** argv) {
     testDesktopWindowRouting();
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (app.arguments().contains("--pyrowave-review-refusal")) { testPyrowaveReviewRefresh(false); return 0; }
+    if (app.arguments().contains("--pyrowave-review-limits")) { testPyrowaveReviewRefresh(true); return 0; }
+    if (app.arguments().contains("--pyrowave-review-stale")) { testPyrowaveReviewStaleWorker(); return 0; }
+    if (app.arguments().contains("--pyrowave-review-cancelled")) { testPyrowaveReviewCancellation(); return 0; }
+#endif
     testNoAutomaticStartOrInvalidSelection();
     testPresentationLifetime();
     testReviewedConfiguration();

@@ -12,7 +12,7 @@ import org.robolectric.annotation.Config
 
 /**
  * The one rule for how a Select is presented (spec section 7, group 4), over the real
- * definitions in res/xml/preferences.xml: of the 19 list preferences, 12 change in place and 7
+ * definitions in res/xml/preferences.xml: of the 20 list preferences, 13 change in place and 7
  * open a page.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -24,8 +24,8 @@ class NovaSettingsSelectPresentationTest {
     }
 
     @Test
-    fun theNineteenListsSplitTwelveInPlaceAndSevenPages() {
-        assertEquals(19, selects.size)
+    fun theTwentyListsSplitThirteenInPlaceAndSevenPages() {
+        assertEquals(20, selects.size)
         val inPlace = selects.filter { it.selectPresentation == NovaSelectPresentation.InPlace }.map { it.key }.toSet()
         val pages = selects.filter { it.selectPresentation == NovaSelectPresentation.Page }.map { it.key }.toSet()
 
@@ -34,6 +34,7 @@ class NovaSettingsSelectPresentationTest {
                 PreferenceConfiguration.RESOLUTION_PREF_STRING,
                 PreferenceConfiguration.FPS_PREF_STRING,
                 "dual_screen_companion_dim_timeout_seconds",
+                "nova_control_size",
                 "nova_disconnect_resume_timeout_seconds",
                 "nova_polaris_max_retries",
                 "list_video_scale_mode",
@@ -61,13 +62,14 @@ class NovaSettingsSelectPresentationTest {
     }
 
     @Test
-    fun theFiveOrderedScalesStopAtTheirEndsAndTheRestWrap() {
+    fun theSixOrderedScalesStopAtTheirEndsAndTheRestWrap() {
         val ordered = selects.filter { it.isOrderedScale }.map { it.key }.toSet()
         assertEquals(
             setOf(
                 PreferenceConfiguration.RESOLUTION_PREF_STRING,
                 PreferenceConfiguration.FPS_PREF_STRING,
                 "dual_screen_companion_dim_timeout_seconds",
+                "nova_control_size",
                 "nova_disconnect_resume_timeout_seconds",
                 "nova_polaris_max_retries",
             ),

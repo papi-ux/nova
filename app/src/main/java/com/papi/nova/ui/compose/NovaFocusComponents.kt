@@ -122,7 +122,7 @@ fun NovaBadge(
             .clip(shape)
             .background(backgroundColor)
             .border(1.dp, borderColor, shape)
-            .padding(contentPadding),
+            .padding(novaControlPadding(contentPadding)),
         color = color,
         fontSize = fontSize,
         fontWeight = fontWeight,
@@ -310,7 +310,7 @@ fun NovaActionSurface(
 
     Box(
         modifier = modifier
-            .defaultMinSize(minHeight = minHeight)
+            .defaultMinSize(minHeight = novaControlDimension(minHeight))
             .clip(shape)
             .novaFocusRing(
                 shape = shape,
@@ -343,7 +343,7 @@ fun NovaActionSurface(
                     onClick()
                 },
             )
-            .padding(contentPadding),
+            .padding(novaControlPadding(contentPadding)),
         contentAlignment = contentAlignment
     ) {
         if (selected) {

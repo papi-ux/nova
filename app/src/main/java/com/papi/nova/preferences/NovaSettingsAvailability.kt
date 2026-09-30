@@ -125,6 +125,7 @@ object NovaSettingsAvailability {
     fun shouldPersistProfileOverride(key: String): Boolean = key !in profileEditorHiddenKeys
 
     private val profileEditorHiddenKeys = setOf(
+        "nova_control_size",
         "nova_ui_font_scale_percent",
         "option_reset_osc_preference",
         "nova_reset_stream_ui",

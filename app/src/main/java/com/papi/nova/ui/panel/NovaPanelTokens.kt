@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import com.papi.nova.ui.compose.novaControlDimension
 import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaChromeType
@@ -131,7 +132,7 @@ object NovaPanelMetrics {
     /** The gap between a page's rows: 6dp, or 4dp compact. */
     val RowGap: Dp
         @Composable @ReadOnlyComposable
-        get() = rowGap(LocalNovaPanelDensity.current)
+        get() = novaControlDimension(rowGap(LocalNovaPanelDensity.current))
 
     /**
      * A page header is one line at every density, the root's title or a pushed page's `‹ Title`,
@@ -181,7 +182,7 @@ object NovaPanelMetrics {
      */
     val ValueControlHeight: Dp
         @Composable @ReadOnlyComposable
-        get() = valueControlHeight(LocalNovaPanelDensity.current)
+        get() = novaControlDimension(valueControlHeight(LocalNovaPanelDensity.current))
 
     /** A segment of a segmented value row, as tall as the control. */
     val SegmentMinHeight: Dp
@@ -265,7 +266,7 @@ object NovaPanelMetrics {
     /** A row's least height on [formFactor] at the density in effect. */
     @Composable
     @ReadOnlyComposable
-    fun rowMinHeight(formFactor: NovaFormFactor): Dp = rowMinHeight(formFactor, LocalNovaPanelDensity.current)
+    fun rowMinHeight(formFactor: NovaFormFactor): Dp = novaControlDimension(rowMinHeight(formFactor, LocalNovaPanelDensity.current))
 
     fun rowMinHeight(formFactor: NovaFormFactor, density: NovaPanelDensity): Dp = when {
         formFactor == NovaFormFactor.Television -> RowMinHeightTv
@@ -276,7 +277,7 @@ object NovaPanelMetrics {
     /** A panel's padding on [formFactor] at the density in effect. */
     @Composable
     @ReadOnlyComposable
-    fun panelPadding(formFactor: NovaFormFactor): Dp = panelPadding(formFactor, LocalNovaPanelDensity.current)
+    fun panelPadding(formFactor: NovaFormFactor): Dp = novaControlDimension(panelPadding(formFactor, LocalNovaPanelDensity.current))
 
     fun panelPadding(formFactor: NovaFormFactor, density: NovaPanelDensity): Dp = when {
         formFactor == NovaFormFactor.Television -> PanelPaddingTv

@@ -102,6 +102,9 @@ class ProfilesActivityUiTest {
 
             assertNotNull(textSize)
             assertFalse(textSize!!.isVisible)
+            val controlSize = fragment.findPreference<Preference>("nova_control_size")
+            assertNotNull(controlSize)
+            assertFalse(controlSize!!.isVisible)
         } finally {
             controller.destroy()
             NovaSettingsFeatureFlags.setComposeSettingsEnabled(context, true)
@@ -120,6 +123,7 @@ class ProfilesActivityUiTest {
                     System.currentTimeMillis(),
                     mapOf(
                         "nova_ui_font_scale_percent" to 130,
+                        "nova_control_size" to "large",
                         "profile_test_marker" to "kept",
                     ),
                 )
@@ -139,6 +143,7 @@ class ProfilesActivityUiTest {
                         .getOptions()
                         .orEmpty()
                     assertFalse(savedOptions.containsKey("nova_ui_font_scale_percent"))
+                    assertFalse(savedOptions.containsKey("nova_control_size"))
                     assertEquals("kept", savedOptions["profile_test_marker"])
                 } finally {
                     controller.destroy()

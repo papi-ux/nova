@@ -26,6 +26,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.hasTestTag
@@ -410,6 +411,7 @@ class NovaSettingsPaneComposeTest {
     @Config(qualifiers = "w480dp-h900dp")
     fun theQuickStripWrapsSoEveryPillIsWhole() {
         show(widthDp = 480)
+        rule.onNodeWithText("Menu").performClick()
         val root = rule.onRoot().getBoundsInRoot()
         val quick = listOf(PreferenceConfiguration.FPS_PREF_STRING, "frame_pacing", PreferenceConfiguration.BITRATE_PREF_STRING)
         quick.forEach { key ->
@@ -423,12 +425,16 @@ class NovaSettingsPaneComposeTest {
     @Config(qualifiers = "w480dp-h900dp")
     fun inTheNarrowLayoutDownFromTheCategoriesEntersTheRows() {
         val keys = show(widthDp = 480)
+        rule.onNodeWithText("Menu").performClick()
         category("empty").performSemanticsAction(SemanticsActions.RequestFocus)
         settle()
         keys.press(NovaTestKeys.DOWN)
         settle()
         row("checkbox_enable_hdr").assertIsFocused()
-        // Without a rail, B at the rows leaves.
+        // Portrait first closes the menu; another B at the rows leaves.
+        keys.back()
+        settle()
+        assertEquals(0, backs)
         keys.back()
         settle()
         assertEquals(1, backs)

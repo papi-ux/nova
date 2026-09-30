@@ -385,16 +385,30 @@ DeckPlaySettings::~DeckPlaySettings() {
 void DeckPlaySettings::requestPyrowaveSupport() {
     if (!pyrowaveProbe_ || pyrowaveWorker_ || pyrowaveResult_) return;
     auto result = std::make_shared<stream::DeckPyrowaveProbeResult>();
+    const auto generation = pyrowaveGeneration_;
     pyrowaveWorker_ = QThread::create([probe = pyrowaveProbe_, result] { *result = probe(); });
-    connect(pyrowaveWorker_, &QThread::finished, this, [this, result] {
-        pyrowaveResult_ = *result;
-        videoSupport_.pyrowave = result->limits;
+    connect(pyrowaveWorker_, &QThread::finished, this, [this, result, generation] {
         pyrowaveWorker_->deleteLater();
         pyrowaveWorker_ = nullptr;
+        if (generation == pyrowaveGeneration_) {
+            pyrowaveResult_ = *result;
+            videoSupport_.pyrowave = result->limits;
+        }
+        // A rejected completion still releases the worker. Re-evaluate the
+        // current selection; only an explicit PyroWave review can start a new
+        // probe, and its shared cache already holds the current device result.
         ++videoSupportRevision_;
         emit videoSupportChanged();
     });
     pyrowaveWorker_->start();
+}
+
+void DeckPlaySettings::invalidatePyrowaveSupport() {
+    ++pyrowaveGeneration_;
+    pyrowaveResult_.reset();
+    videoSupport_.pyrowave = {};
+    ++videoSupportRevision_;
+    emit videoSupportChanged();
 }
 
 int DeckPlaySettings::displayRateLimit(double refreshHz) const { return deckDisplayRateLimit(refreshHz); }

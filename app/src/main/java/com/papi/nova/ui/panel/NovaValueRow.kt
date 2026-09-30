@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import com.papi.nova.ui.compose.novaControlDimension
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -359,7 +360,7 @@ private fun NovaValueRowFrame(
             }
             .novaClickable(enabled = enabled, focusableWhenDisabled = true, onClick = onActivate)
             .alpha(if (enabled) 1f else NovaPanelMetrics.DisabledAlpha)
-            .padding(horizontal = NovaPanelMetrics.SpaceMd),
+            .padding(horizontal = novaControlDimension(NovaPanelMetrics.SpaceMd)),
         contentAlignment = Alignment.CenterStart,
     ) {
         BoxWithConstraints(propagateMinConstraints = true) {
@@ -408,7 +409,7 @@ private fun <T> NovaSegmentedControl(options: List<NovaOption<T>>, index: Int, o
                         .heightIn(min = NovaPanelMetrics.SegmentMinHeight)
                         .clip(RoundedCornerShape(NovaRadius.chip))
                         .pointerInput(i) { detectTapGestures(onTap = { select(i) }) }
-                        .padding(horizontal = NovaPanelMetrics.SpaceSm),
+                        .padding(horizontal = novaControlDimension(NovaPanelMetrics.SpaceSm)),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs, Alignment.CenterHorizontally),
                 ) {

@@ -54,6 +54,7 @@ internal val NovaPageSelectKeys: Set<String> = setOf(
 
 /** The Selects whose options are an ordered scale: they stop at their ends instead of wrapping. */
 internal val NovaOrderedSelectKeys: Set<String> = setOf(
+    "nova_control_size",
     PreferenceConfiguration.RESOLUTION_PREF_STRING,
     PreferenceConfiguration.FPS_PREF_STRING,
     "dual_screen_companion_dim_timeout_seconds",
