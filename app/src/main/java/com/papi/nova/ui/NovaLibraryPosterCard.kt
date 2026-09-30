@@ -315,6 +315,9 @@ private fun NovaLibraryPosterCaption(
         text = title,
         color = color,
         fontSize = if (layoutMode == NovaLibraryLayoutMode.COMPACT) 11.sp else 12.sp,
+        // Stage reserves two 17sp lines beside the selected cover. Other layouts retain
+        // their inherited body line height and existing row geometry.
+        lineHeight = if (layoutMode == NovaLibraryLayoutMode.STAGE) 17.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
         fontWeight = FontWeight.SemiBold,
         maxLines = if (layoutMode == NovaLibraryLayoutMode.COMPACT) 1 else 2,
         overflow = TextOverflow.Ellipsis,
