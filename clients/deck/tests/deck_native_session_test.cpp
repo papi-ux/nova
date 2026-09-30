@@ -28,6 +28,7 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
+#include <stdexcept>
 
 using namespace nova::deck::runtime;
 using namespace nova::deck::stream;
@@ -824,6 +825,9 @@ void testFailures() {
 
 
 #ifdef NOVA_DECK_QML_DIRECTORY
+void guiRequire(bool ok, const char* message) {
+    if (!ok) throw std::runtime_error(message);
+}
 // The same native worker, real GUI state publication and production QML that
 // standalone uses. Only the host HTTP and moonlight driver are synthetic.
 void testNamedFailureGui(const QString& scenario) {
@@ -850,26 +854,26 @@ void testNamedFailureGui(const QString& scenario) {
 
         }
     )", QUrl());
-    require(component.isReady(), qPrintable(component.errorString()));
+    guiRequire(component.isReady(), qPrintable(component.errorString()));
     std::unique_ptr<QObject> root(component.create());
-    require(root != nullptr, qPrintable(component.errorString()));
+    guiRequire(root != nullptr, qPrintable(component.errorString()));
     auto* window = qobject_cast<QQuickWindow*>(root.get());
     auto* preview = root->findChild<QObject*>("native-stream-preview");
     auto* play = root->findChild<QQuickItem*>("native-preview-action");
-    require(window && preview && play, "production standalone stream route missing");
+    guiRequire(window && preview && play, "production standalone stream route missing");
     QMetaObject::invokeMethod(preview, "open");
     until([&] { return play->isEnabled() && preview->property("opened").toBool(); });
     if (scenario == "host-capability") {
         const QString words="PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.";
         preview->setProperty("streamCapabilities",QVariantMap{{"valid",true},{"h264",true},{"pyrowave",false},
             {"pyrowaveUnavailableReason","fp16_capture"},{"pyrowaveUnavailableMessage",words}});
-        require(settings.saveChoice("host","game",{{"videoCodec","pyrowave"}}),"cannot choose capability-refused codec");
+        guiRequire(settings.saveChoice("host","game",{{"videoCodec","pyrowave"}}),"cannot choose capability-refused codec");
         QMetaObject::invokeMethod(preview,"close"); QMetaObject::invokeMethod(preview,"open");
         QCoreApplication::processEvents();
         auto* setup=root->findChild<QObject*>("play-setup");
-        require(setup && setup->property("plan").toMap().value("reason")==words,
+        guiRequire(setup && setup->property("plan").toMap().value("reason")==words,
             "host capture reason/message did not reach production Play Setup");
-        require(!play->isEnabled() && host.requests==0 && driver.starts==0,"unavailable PyroWave became playable");
+        guiRequire(!play->isEnabled() && host.requests==0 && driver.starts==0,"unavailable PyroWave became playable");
         return;
     }
     QString expected;
@@ -896,34 +900,34 @@ void testNamedFailureGui(const QString& scenario) {
         host.refuseLaunch=true;
         host.refusalResponse="<root status_code=\"503\" status_message=\"" + expected.toStdString() +
             "\" error_code=\"pyrowave_capture_unreadable\" error_action=\"Choose HEVC or use a Private Stream.\"><gamesession>0</gamesession></root>";
-    } else require(false, "unknown failure fixture");
+    } else guiRequire(false, "unknown failure fixture");
     driver.failStart = !terminal && !hostRefusal;
     driver.failedStage=stage; driver.failedStageCode=error;
-    require(QMetaObject::invokeMethod(play, "clicked"), "controller Play did not activate production QML");
+    guiRequire(QMetaObject::invokeMethod(play, "clicked"), "controller Play did not activate production QML");
     if (terminal) {
         until([&] { return phase(controller)=="active"; });
         driver.terminate(error);
     }
     settled(controller);
-    require(controller.state().value("copy").toString().contains(expected,Qt::CaseInsensitive),
+    guiRequire(controller.state().value("copy").toString().contains(expected,Qt::CaseInsensitive),
         qPrintable(QString("%1 lost named cause: %2").arg(scenario,controller.state().value("copy").toString())));
-    require(!controller.state().value("copy").toString().contains("preview",Qt::CaseInsensitive), "working app still calls failure a preview");
+    guiRequire(!controller.state().value("copy").toString().contains("preview",Qt::CaseInsensitive), "working app still calls failure a preview");
     if (scenario=="stage-rtsp" || scenario=="term-no-video") {
-        require(controller.state().value("copy").toString().contains("47998") &&
+        guiRequire(controller.state().value("copy").toString().contains("47998") &&
             controller.state().value("copy").toString().contains("48010"), "transport cause lost actionable port guidance");
     }
-    if (scenario=="stage-refused" || hostRefusal) require(!controller.state().value("copy").toString().contains("47998"), "host refusal blames firewall ports");
+    if (scenario=="stage-refused" || hostRefusal) guiRequire(!controller.state().value("copy").toString().contains("47998"), "host refusal blames firewall ports");
     const auto state=controller.state();
     if (hostRefusal) {
-        require(state.value("copy")==expected && state.value("hostReason")=="pyrowave_capture_unreadable" && state.value("hostStatusCode")==503,
+        guiRequire(state.value("copy")==expected && state.value("hostReason")=="pyrowave_capture_unreadable" && state.value("hostStatusCode")==503,
             "host refusal text or typed provenance was changed");
-        require(driver.starts==0 && host.cancels==0,"refused launch touched native transport or ended an unstarted game");
+        guiRequire(driver.starts==0 && host.cancels==0,"refused launch touched native transport or ended an unstarted game");
     } else if (terminal) {
-        require(state.value("failureSource")=="termination" && state.value("terminationErrorCode")==error,
+        guiRequire(state.value("failureSource")=="termination" && state.value("terminationErrorCode")==error,
             "termination code/provenance did not reach GUI state");
-        require(state.value("canReconnect").toBool() && host.cancels==0,"named termination changed safe existing-game recovery");
+        guiRequire(state.value("canReconnect").toBool() && host.cancels==0,"named termination changed safe existing-game recovery");
     } else {
-        require(state.value("failureSource")== (scenario=="unknown-start" ? "start" : "stage") && state.value("failedStage")==stage && state.value("failedStageErrorCode")==error &&
+        guiRequire(state.value("failureSource")== (scenario=="unknown-start" ? "start" : "stage") && state.value("failedStage")==stage && state.value("failedStageErrorCode")==error &&
             (scenario!="unknown-start" || state.value("connectionStartCode")==-2222),
             "stage code/provenance did not reach GUI state");
     }
@@ -934,17 +938,17 @@ void testNamedFailureGui(const QString& scenario) {
             drawn=pos.y()>=0 && pos.y()+item->height()<=window->height();
         }
     }
-    require(drawn,"native failure did not reach the visible production QML status label");
-    require(play->isEnabled(),"named failure stranded the controller action");
+    guiRequire(drawn,"native failure did not reach the visible production QML status label");
+    guiRequire(play->isEnabled(),"named failure stranded the controller action");
     const auto json=QJsonDocument::fromVariant(state).toJson();
-    require(!json.contains("private-token") && !json.contains("192.0.2.10"),"failure diagnostics leaked private session material");
+    guiRequire(!json.contains("private-token") && !json.contains("192.0.2.10"),"failure diagnostics leaked private session material");
     // The previous worker must settle before a new stream starts. Its published
     // failure and typed host reason must not be carried into that generation.
     driver.failStart=false; host.refuseLaunch=false;
-    require(controller.start("host","game"),"next generation rejected after failure cleanup");
+    guiRequire(controller.start("host","game"),"next generation rejected after failure cleanup");
     until([&] { return phase(controller)=="active"; });
     QCoreApplication::processEvents();
-    require(phase(controller)=="active" && !controller.state().contains("failureSource") &&
+    guiRequire(phase(controller)=="active" && !controller.state().contains("failureSource") &&
         !controller.state().contains("hostReason"),"old failure provenance contaminated next stream generation");
     controller.stop(); settled(controller);
 }
@@ -2394,7 +2398,8 @@ int main(int argc, char** argv) {
     #ifdef NOVA_DECK_QML_DIRECTORY
     if (const auto index=app.arguments().indexOf("--failure-copy"); index>=0) {
         require(index+1<app.arguments().size(),"missing failure case");
-        testNamedFailureGui(app.arguments().at(index+1)); return 0;
+        try { testNamedFailureGui(app.arguments().at(index+1)); return 0; }
+        catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
     }
 #endif
     if (app.arguments().contains("--desktop-only")) { testDesktopWindowRouting(); return 0; }
