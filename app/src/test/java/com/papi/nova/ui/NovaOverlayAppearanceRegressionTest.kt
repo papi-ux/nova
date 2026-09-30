@@ -41,7 +41,7 @@ class NovaOverlayAppearanceRegressionTest {
     @Test fun debugDoesNotFillHalfTheHandheldScreen() {
         draw()
         val bounds = rule.onNodeWithTag("hud").getUnclippedBoundsInRoot()
-        assertTrue("compact Debug width: $bounds", bounds.width.value <= 340f)
+        assertTrue("compact Debug width: $bounds", (bounds.right - bounds.left).value <= 340f)
         val host = rule.onNodeWithText("HOST").getUnclippedBoundsInRoot()
         val client = rule.onNodeWithText("CLIENT").getUnclippedBoundsInRoot()
         assertEquals("three columns share one row", host.top.value, client.top.value, 1f)
