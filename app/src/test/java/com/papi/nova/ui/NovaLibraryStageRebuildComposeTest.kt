@@ -105,7 +105,7 @@ class NovaLibraryStageRebuildComposeTest {
         rule.onNodeWithTag("nova-poster-caption-bravo", true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         assertEquals("Stage reserves two 17sp caption lines", 17.sp, layouts.single().layoutInput.style.lineHeight)
-        assertEquals(2, layouts.single().lineCount)
+        assertEquals("caption permits both lines; native fixture measures the actual two lines", 2, layouts.single().layoutInput.maxLines)
     }
 
     private fun assertModeratelyLargeIdentity(showPosterTitles: Boolean) {
@@ -138,7 +138,7 @@ class NovaLibraryStageRebuildComposeTest {
             val caption = rule.onNodeWithTag("nova-poster-caption-bravo", true)
             val layouts = mutableListOf<TextLayoutResult>()
             caption.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-            assertEquals("long neighbour exercises both caption lines", 2, layouts.single().lineCount)
+            assertEquals("long neighbour permits both caption lines; native fixture measures them", 2, layouts.single().layoutInput.maxLines)
             assertEquals("two caption lines resolve their 34sp budget", 17.sp, layouts.single().layoutInput.style.lineHeight)
             assertTrue("ellipsized captions retain the complete semantic game name",
                 rule.onNodeWithTag("nova-poster-bravo").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].joinToString().contains(entries[1].name))
