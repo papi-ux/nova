@@ -175,7 +175,6 @@ class NovaSettingsViewModel(
             tierResult = NovaTierSaveResult.SUPERSEDED; emit(); refresh(); onCompleted(); return
         }
         val intent = if (selection) TierIntent(tier!!, owner, revision) else null
-        if (selection) { fineEpoch++; fineIntents.clear(); failedFineEdits.clear() }
         val fine = if (!selection && (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO))
             FineIntent(definition,value,owner,revision,fineEpoch) else null
         if (fine != null) {
@@ -194,7 +193,14 @@ class NovaSettingsViewModel(
             try {
                 stateMutex.withLock {
                     if (intent != null) {
-                        if (NovaTierControls.canSelect(mutableTiers.value, intent.tier)) saveTier(intent)
+                        loadStoreState()
+                        if (intent.revision == tierRevision && intent.owner == store.tierOwner() &&
+                            NovaTierControls.canSelect(mutableTiers.value, intent.tier)) {
+                            // Only an accepted replacement owns supersession. A stale Choice
+                            // page or a capability change while queued must preserve Retry.
+                            fineEpoch++; fineIntents.clear(); failedFineEdits.clear()
+                            saveTier(intent)
+                        }
                     } else if (fine != null) {
                         val newerSameField = fineIntents.values.any { it.revision > revision && it.definition.key == definition.key }
                         if (fine.epoch == fineEpoch && !newerSameField && owner == store.tierOwner()) {
