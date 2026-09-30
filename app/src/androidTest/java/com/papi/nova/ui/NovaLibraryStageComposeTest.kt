@@ -225,6 +225,7 @@ class NovaLibraryStageComposeTest {
         composeRule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused().performKeyInput { pressKey(Key.Enter) }
         assertEquals("alpha", opened.get())
         composeRule.onAllNodesWithText("Review & Launch").assertCountEquals(0)
+        capture("selected-geometry")
     }
 
     @Test fun wrappingThroughFiveHundredGamesKeepsOneFocusAndAReachableTail() {
@@ -240,6 +241,7 @@ class NovaLibraryStageComposeTest {
         composeRule.onNodeWithTag("nova-stage-position", true).assertTextEquals("500 of 500 · Library Order")
         composeRule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused()
         composeRule.onNodeWithTag("nova-poster-g-250").assertDoesNotExist()
+        capture("wrapping-tail")
     }
 
     @Test fun aRowTapSelectsBeforeASecondTapOpensDetails() {
@@ -254,7 +256,7 @@ class NovaLibraryStageComposeTest {
         assertEquals(1, opened.get())
     }
 
-    @Test fun aCachedLogoReplacesTheTitleAndUncachedArtFallsBackToTheTitle() {
+    @Test fun aCachedLogoReplacesTheTitleWithoutLoadingIconArt() {
         val artwork = PolarisGame.ArtworkManifest(assets = PolarisGame.ArtworkAssets(
             logo = PolarisGame.ArtworkAsset(url = "/logo", cached = true),
             icon = PolarisGame.ArtworkAsset(url = "/icon", cached = true)))
@@ -281,6 +283,46 @@ class NovaLibraryStageComposeTest {
         assertTrue(rail.bottom <= counter.top + .6.dp)
         assertTrue(counter.bottom <= stage.bottom + .6.dp)
         composeRule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused()
+        capture("large-text")
+    }
+
+    @Test fun changingTheSelectedGameWhileAHeldCancelsThatPress() {
+        val opened = mutableListOf<String>()
+        stageFixture(onDetail = { opened += it.id })
+        composeRule.onNodeWithTag("nova-stage-selected-focus").performKeyInput {
+            keyDown(Key.Enter)
+            pressKey(Key.DirectionRight)
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { keyUp(Key.Enter) }
+        assertEquals(emptyList<String>(), opened)
+        composeRule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { pressKey(Key.Enter) }
+        assertEquals(listOf("bravo"), opened)
+        capture("press-change-release")
+    }
+
+    @Test fun anUncachedLogoKeepsTheTitleWithoutRequestingItOnFocus() {
+        val artwork = PolarisGame.ArtworkManifest(assets = PolarisGame.ArtworkAssets(
+            logo = PolarisGame.ArtworkAsset(url = "/logo", cached = false)))
+        val many = games().toMutableList().apply { this[0] = this[0].copy(artwork = artwork) }
+        val loads = AtomicInteger()
+        stageFixture(many, artworkLoader = { _, _, _ -> loads.incrementAndGet() })
+        composeRule.onNodeWithTag("nova-stage-title", true).assertIsDisplayed().assertTextEquals("Alpha")
+        composeRule.onNodeWithTag("nova-stage-logo", true).assertDoesNotExist()
+        assertEquals(0, loads.get())
+    }
+
+    /** Synthetic cover fixtures prove layout/focus; they do not prove a live library or stream. */
+    private fun capture(name: String) {
+        composeRule.waitForIdle()
+        val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        val suffix = androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("screenshotSuffix") ?: "stage"
+        val directory = java.io.File(instrumentation.targetContext.getExternalFilesDir(null), "stage-131").apply { mkdirs() }
+        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
+        java.io.File(directory, "$name-$suffix.png").outputStream().use {
+            check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+        }
+        bitmap.recycle()
     }
 
     private fun enterControllerInputMode() {
