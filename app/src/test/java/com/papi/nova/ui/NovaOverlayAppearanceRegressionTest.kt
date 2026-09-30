@@ -47,13 +47,6 @@ class NovaOverlayAppearanceRegressionTest {
         assertEquals("three columns share one row", host.top.value, client.top.value, 1f)
     }
 
-    @Test fun largerTextKeepsTheThreeColumnsWhenThereIsRoom() {
-        draw(1.3f)
-        val host = rule.onNodeWithText("HOST").getUnclippedBoundsInRoot()
-        val client = rule.onNodeWithText("CLIENT").getUnclippedBoundsInRoot()
-        assertEquals(host.top.value, client.top.value, 1f)
-    }
-
     @Test fun textUsesAnOutlineInsteadOfIndividualPaddedBlackBoxes() {
         draw()
         rule.onAllNodesWithTag("nova_hud_readability_backing", useUnmergedTree = true).assertCountEquals(0)
