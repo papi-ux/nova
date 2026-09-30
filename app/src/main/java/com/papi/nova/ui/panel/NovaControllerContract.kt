@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusEventModifierNode
 import androidx.compose.ui.focus.FocusState
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.KeyInputModifierNode
 import androidx.compose.ui.input.key.type
@@ -278,6 +279,9 @@ fun Modifier.novaClickable(
     onClick: () -> Unit,
 ): Modifier = this
     .then(NovaActivatableElement(enabled, onClick, yieldsToContent = true))
+    // Keep the contract's touch-mode focus stop too: clickable otherwise overrides focusable's
+    // canFocus in touch mode, including when its target stays attached during a pending save.
+    .focusProperties { canFocus = enabled || focusableWhenDisabled }
     .clickable(
         interactionSource = interactionSource,
         indication = null,

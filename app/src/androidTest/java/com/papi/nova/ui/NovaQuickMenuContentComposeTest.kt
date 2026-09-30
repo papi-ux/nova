@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.ui.panel.NovaMenuItem
@@ -81,7 +82,7 @@ class NovaQuickMenuContentComposeTest {
     @Test
     fun moreKeysPushesTheKeyListOverTheRoot() {
         showRoot(expanded = false)
-        rule.onNodeWithText("More Keys").performClick()
+        rule.onNodeWithText("More Keys").performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals(2, panel.depth)
         assertTrue(panel.top is CommandCenterPage.Keys)
@@ -91,7 +92,7 @@ class NovaQuickMenuContentComposeTest {
     @Test
     fun moreControlsPushesTheLegacyExtrasOverTheRoot() {
         showRoot(expanded = false)
-        rule.onNodeWithText("More Controls").performClick()
+        rule.onNodeWithText("More Controls").performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals(2, panel.depth)
         assertTrue(panel.top is CommandCenterPage.MoreControls)

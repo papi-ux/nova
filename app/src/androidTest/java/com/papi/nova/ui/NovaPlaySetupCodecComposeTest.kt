@@ -3,6 +3,8 @@ package com.papi.nova.ui
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -55,7 +57,8 @@ class NovaPlaySetupCodecComposeTest {
                     selected = it
                     NovaVideoCodecOverrides.save(context, host, game, 1, it)
                 }
-                Column(Modifier.width(476.dp).background(LocalNovaComposeColors.current.window).padding(12.dp)) {
+                Column(Modifier.width(476.dp).verticalScroll(rememberScrollState())
+                    .background(LocalNovaComposeColors.current.window).padding(12.dp)) {
                     // The production row, which opens the codec page, and the page's own option rows.
                     NovaPlaySetupSettingRow(
                         state = row, onAdvance = { opened++ },
@@ -85,7 +88,7 @@ class NovaPlaySetupCodecComposeTest {
         compose.runOnIdle { assertEquals("auto", selected) }
 
         compose.onNode(hasText("PyroWave", substring = true) and hasClickAction() and !hasTestTag("codec-row"))
-            .assertIsDisplayed().performTouchInput { click() }
+            .performScrollTo().assertIsDisplayed().performTouchInput { click() }
         compose.runOnIdle {
             assertEquals("forcepyrowave", NovaVideoCodecOverrides.load(context, host, game, 1))
             val launch = PreferenceConfiguration().apply { videoFormat = FormatOption.FORCE_HEVC }
@@ -99,7 +102,7 @@ class NovaPlaySetupCodecComposeTest {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
         compose.onNodeWithTag("codec-option-0:" + context.getString(com.papi.nova.R.string.nova_play_setup_codec_app_setting))
-            .assertIsDisplayed().performTouchInput { click() }
+            .performScrollTo().assertIsDisplayed().performTouchInput { click() }
         compose.runOnIdle {
             assertNull(NovaVideoCodecOverrides.load(context, host, game, 1))
             assertEquals(FormatOption.FORCE_HEVC, NovaVideoCodecOverrides.resolve(selected, FormatOption.FORCE_HEVC))
