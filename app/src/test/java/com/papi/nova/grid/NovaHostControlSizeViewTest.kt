@@ -14,6 +14,8 @@ import com.papi.nova.R
 import com.papi.nova.TestLogSuppressor
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.NovaControlSize
+import kotlin.math.roundToInt
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.BeforeClass
@@ -108,12 +110,12 @@ class NovaHostControlSizeViewTest {
         assertTrue(primary)
     }
 
-    @Test fun compactManageRetainsASeparate48dpTargetAndStandardKeepsItsVisualTokens() {
+    @Test fun compactManageRetainsASeparate48dpTargetAndRegularUsesItsImmutableResourceTokens() {
         val standard = card("standard").holder.itemView
-        assertEquals(context.resources.getDimensionPixelSize(R.dimen.nova_spacing_lg),
+        assertEquals((context.resources.getDimensionPixelSize(R.dimen.nova_spacing_lg) * NovaControlSize.Standard.layoutScale).roundToInt(),
             standard.findViewById<View>(R.id.server_card_body).paddingLeft)
         val density = context.resources.displayMetrics.density
-        assertEquals((14 * density + .5f).toInt(), standard.findViewById<View>(R.id.server_card_body).paddingTop)
+        assertEquals((14 * density * NovaControlSize.Standard.layoutScale).roundToInt(), standard.findViewById<View>(R.id.server_card_body).paddingTop)
         listOf("compact", "standard", "large").forEach { size ->
             val view = card(size).holder.itemView
             val manage = view.findViewById<View>(R.id.server_actions_button)
