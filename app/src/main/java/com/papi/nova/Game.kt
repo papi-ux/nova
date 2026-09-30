@@ -47,6 +47,8 @@ import com.papi.nova.runtime.BackgroundResumePolicy
 import com.papi.nova.runtime.DoctorTelemetryUploadGate
 import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.runtime.PolarisLiveStatusRefreshPolicy
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.collect
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaHudSessionSummaryLog
@@ -175,6 +177,30 @@ class Game : NovaActivity(), SurfaceHolder.Callback, OnGenericMotionListener, On
 
 
 private val runtimeTasks:NovaRuntimeTasks = NovaRuntimeTasks(this, "Nova runtime")
+internal val novaLiveBitrate by lazy {
+    com.papi.nova.manager.NovaStreamBitrateOwner(lifecycleScope,
+        { novaApiClient }, { conn }, { isStreamActive && connected && !isFinishing && !isDestroyed },
+        {
+            val room = isOnExternalDisplay || (getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager)
+                ?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+            com.papi.nova.manager.NovaLiveStreamInputs(displayWidth, displayHeight,
+                configuredStreamFrameRateFps.toInt(),
+                if (room) com.papi.nova.preferences.NovaDistance.ROOM else com.papi.nova.preferences.NovaDistance.HAND,
+                when { watchOnlyRequested -> "Watching another player's stream"
+                    spaceSession -> "Space manages picture settings"
+                    else -> null })
+        })
+}
+private fun attachNovaLiveBitrate() {
+    val client = novaApiClient ?: return
+    val connection = conn ?: return
+    runtimeTasks.launchIoReplacing("NovaStreamBitrateStatus") {
+        client.sessionStatusUpdates.collect { reading ->
+            novaLiveBitrate.observe(client, connection, reading, currentNovaCapabilities())
+        }
+    }
+}
+
 private var novaHud:com.papi.nova.ui.NovaStreamHud? = null
 private val doctorTelemetry:NovaHudSessionStats = NovaHudSessionStats()
  var configuredHudTargetFps:Float = 0f
@@ -3582,6 +3608,7 @@ stopListeningForExternalDisplayRemoval()
 
  // Nova: clean up Polaris integration
         stopPolarisLiveSessionStatusRefresh()
+novaLiveBitrate.retire()
 runtimeTasks.cancelAll()
 stopCursorVisibilitySync()
 if (novaEventSource != null) novaEventSource!!.stop()
@@ -5638,6 +5665,8 @@ if (connecting || connected)
 connected = false
 connecting = connected
 isStreamActive = false
+novaLiveBitrate.retire()
+runtimeTasks.cancel("NovaStreamBitrateStatus")
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
 doctorTelemetryUploadGate.invalidate()
@@ -6081,6 +6110,7 @@ fun handleStreamStartedState() {
 connected = true
 connecting = false
 isStreamActive = true
+attachNovaLiveBitrate()
 stopBackgroundResumeWindow()
 syncDisconnectResumeTimeoutPolicy()
 syncPolarisCursorVisibility()
@@ -6102,6 +6132,7 @@ override fun run() {
 // owner's shape, and a 16:10 Deck stream drawn into a 16:9 box is stretched by a tenth.
 displayWidth = width
 displayHeight = height
+novaLiveBitrate.observe(novaApiClient, conn, novaApiClient?.sessionStatusUpdates?.value, currentNovaCapabilities())
 if (prefConfig!!.videoScaleMode != PreferenceConfiguration.ScaleMode.STRETCH) {
 streamContainer?.setDesiredAspectRatio(width.toDouble() / height.toDouble())
 }

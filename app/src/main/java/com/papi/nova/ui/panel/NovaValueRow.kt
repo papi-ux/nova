@@ -240,6 +240,8 @@ fun NovaStepperRow(
     caption: String? = null,
     enabled: Boolean = true,
     onExact: (() -> Unit)? = null,
+    /** A scoped live control delegates arithmetic to its own codec-aware engine. */
+    onStep: ((Int) -> Unit)? = null,
 ) {
     val latest by rememberUpdatedState(value)
     val change by rememberUpdatedState(onChange)
@@ -250,6 +252,7 @@ fun NovaStepperRow(
 
     fun move(direction: Int, repeats: Int) {
         if (!enabled) return
+        if (onStep != null) { haptics.novaFocusTick(); onStep(direction); return }
         val steps = if (repeats > NovaPanelMetrics.StepperAccelerateAfterRepeats) NovaPanelMetrics.StepperAcceleratedSteps else 1
         val target = (latest + direction * step * steps).coerceIn(range)
         if (target == latest) {

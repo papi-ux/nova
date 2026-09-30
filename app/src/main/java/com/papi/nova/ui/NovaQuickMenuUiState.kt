@@ -188,7 +188,8 @@ data class NovaQuickMenuUiState(
     val overlayRows: List<NovaQuickMenuAction>,
     val controlRows: List<NovaQuickMenuAction>,
     val sessionRows: List<NovaQuickMenuAction>,
-    val hudPositionCorner: NovaHudCorner? = null
+    val hudPositionCorner: NovaHudCorner? = null,
+    val liveBitrate: com.papi.nova.manager.NovaLiveBitratePresentation = com.papi.nova.manager.NovaLiveBitratePresentation(),
 ) {
     /**
      * The Quick Keys grid: the keys the pinned strip lacks, so each key shows once (N26). Derived
