@@ -1768,6 +1768,8 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
         ? nova::deck::stream::DeckVideoDecodeSupport{.h264 = {4096, 4096}, .hevc = {1920, 1200}}
         : mediaProbe.videoDecodeSupport);
     if (!fixtureVideoSupport) playSettings.setPyrowaveProbe(nova::deck::stream::cachedPyrowaveDecodeSupport);
+    QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::pyrowaveSupportRefused,
+        &playSettings, &nova::deck::runtime::DeckPlaySettings::invalidatePyrowaveSupport);
     hostSettings.setPlaySettings(&playSettings);
 #ifdef NOVA_DECK_VULKAN_STREAM
     std::unique_ptr<nova::deck::runtime::DeckVulkanSessionView> vulkanSessionView;

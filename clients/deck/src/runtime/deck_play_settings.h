@@ -52,6 +52,9 @@ public:
     ~DeckPlaySettings() override;
     int videoSupportRevision() const { return videoSupportRevision_; }
     void setPyrowaveProbe(std::function<stream::DeckPyrowaveProbeResult()> probe) { pyrowaveProbe_ = std::move(probe); }
+    // GUI-thread notification from a launch checked against the current device.
+    // Preferences and ordinary decoder support are unchanged.
+    Q_SLOT void invalidatePyrowaveSupport();
     Q_INVOKABLE QVariantMap load(const QString& hostId, const QString& gameId) const;
     Q_INVOKABLE bool save(const QString& hostId, const QString& gameId, const QVariantMap& configuration);
     Q_INVOKABLE bool saveChoice(const QString& hostId, const QString& gameId, const QVariantMap& choice);
@@ -108,6 +111,7 @@ private:
     std::function<stream::DeckPyrowaveProbeResult()> pyrowaveProbe_;
     std::optional<stream::DeckPyrowaveProbeResult> pyrowaveResult_;
     QThread* pyrowaveWorker_ = nullptr;
+    quint64 pyrowaveGeneration_ = 0;
     int videoSupportRevision_ = 0;
     QString fileName_;
     stream::DeckVideoDecodeSupport videoSupport_;
