@@ -6,6 +6,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NovaLibraryActivitySourceTest {
+    @Test
+    fun portraitBackdropUsesTheVisibleLayoutAlongsideSavedStagePortraitRendering() {
+        // The companion actual Activity test verifies saved Stage renders Regular in portrait.
+        // This guard verifies the shared backdrop receives that visible mode as well.
+        val source = readLibraryActivitySource()
+        assertTrue(source.contains("val stageMode = isLandscape && model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE"))
+        val backdrop = sourceBetween(source, "NovaLibraryCinematicBackdrop(", "if (surfaces.particlesEnabled)")
+        assertTrue(backdrop.contains("strength = if (stageMode)"))
+        assertFalse(backdrop.contains("model.optionsState.layoutMode"))
+    }
     private fun readLibraryActivitySource(): String =
         File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
 

@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertIsDisplayed
@@ -51,19 +54,23 @@ class NovaLibraryStageRebuildComposeTest {
     )
     private val focused = mutableListOf<String>()
     private val opened = mutableListOf<String>()
+    private val hapticCalls = mutableListOf<HapticFeedbackType>()
 
     private fun stage(restore: String? = null, densityScale: Float? = null, fontScale: Float? = null,
-                      entries: List<PolarisGame> = games) {
+                      entries: List<PolarisGame> = games, showPosterTitles: Boolean = false) {
         rule.setPanelContent {
             val density = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(densityScale ?: density.density, fontScale ?: density.fontScale)) {
+            CompositionLocalProvider(LocalDensity provides Density(densityScale ?: density.density, fontScale ?: density.fontScale),
+                LocalHapticFeedback provides object : HapticFeedback {
+                    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) { hapticCalls += hapticFeedbackType }
+                }) {
             Box(Modifier.requiredSize(833.dp, 354.dp)) {
                 NovaLibraryStage(
                     games = entries,
                     focusedGame = entries.firstOrNull { it.id == restore } ?: entries.first(),
                     restoreFocusGameId = restore,
                     apiClient = PolarisApiClient(context, ""),
-                    showPosterTitles = false,
+                    showPosterTitles = showPosterTitles,
                     onGameFocused = { focused += it.id },
                     onOpenDetail = { opened += it.id },
                     artworkLoader = { _, _, _ -> },
@@ -84,11 +91,15 @@ class NovaLibraryStageRebuildComposeTest {
         assertEquals("336dp selected cover at density 2.625", 882, size.height)
     }
 
-    @Test fun aTwoLineTitleAndMetadataKeepTheirSingleLineBudgetAtModeratelyLargeText() {
+    @Test fun aTwoLineTitleAndMetadataKeepTheirSingleLineBudgetAtModeratelyLargeText() = assertModeratelyLargeIdentity(false)
+
+    @Test fun posterCaptionsPreserveTheModeratelyLargeIdentityBudget() = assertModeratelyLargeIdentity(true)
+
+    private fun assertModeratelyLargeIdentity(showPosterTitles: Boolean) {
         val entries = games.toMutableList().apply {
-            this[0] = this[0].copy(name = "A long game title on its first line\nAnd its second line is visible too")
+            this[0] = this[0].copy(name = "A game with a longer title\nAnd a visible second line")
         }
-        stage(fontScale = 1.3f, entries = entries)
+        stage(fontScale = 1.3f, entries = entries, showPosterTitles = showPosterTitles)
         val title = mutableListOf<TextLayoutResult>()
         rule.onNodeWithTag("nova-stage-title", true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
         assertEquals("fixture exercises two title lines", 2, title.single().lineCount)
@@ -105,6 +116,11 @@ class NovaLibraryStageRebuildComposeTest {
             val bounds = node.getUnclippedBoundsInRoot()
             val identity = rule.onNodeWithTag("nova-stage-identity", true).getUnclippedBoundsInRoot()
             assertTrue("$tag stays within its identity block", bounds.top >= identity.top - .6.dp && bounds.bottom <= identity.bottom + .6.dp)
+            if (tag == "nova-stage-play-stats") {
+                node.assertTextContains("84 h played", substring = true).assertTextContains("Last played", substring = true)
+                assertFalse("full stats are not ellipsized", (0 until text.single().lineCount).any { text.single().isLineEllipsized(it) })
+                assertFalse("full stats stay within the allowed lines", text.single().multiParagraph.didExceedMaxLines)
+            }
         }
     }
 
@@ -151,8 +167,10 @@ class NovaLibraryStageRebuildComposeTest {
         rule.waitForIdle()
         rule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { keyUp(Key.Enter) }
         assertEquals("a release belongs to the game on which the press began", emptyList<String>(), opened)
+        assertEquals("a cancelled release gives no confirm cue", 0, hapticCalls.count { it == HapticFeedbackType.Confirm })
         rule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { pressKey(Key.Enter) }
         assertEquals(listOf("bravo"), opened)
+        assertEquals("a fresh successful activation confirms exactly once", 1, hapticCalls.count { it == HapticFeedbackType.Confirm })
     }
 
     @Test fun touchingANeighbourSelectsItBeforeOpeningItsDetails() {

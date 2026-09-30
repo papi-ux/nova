@@ -190,6 +190,7 @@ class NovaLibraryStageComposeTest {
         fontScale: Float = 1f,
         onDetail: (PolarisGame) -> Unit = {},
         artworkLoader: (android.widget.ImageView, PolarisGame, String) -> Unit = { _, _, _ -> },
+        showPosterTitles: Boolean = false,
     ) {
         enterControllerInputMode()
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -199,7 +200,7 @@ class NovaLibraryStageComposeTest {
                 CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                     Box(Modifier.requiredSize(833.dp, 354.dp)) {
                         NovaLibraryStage(many, many.firstOrNull { it.id == restore }, restore,
-                            apiClient = PolarisApiClient(context, ""), showPosterTitles = false,
+                            apiClient = PolarisApiClient(context, ""), showPosterTitles = showPosterTitles,
                             onGameFocused = {}, onOpenDetail = onDetail,
                             artworkLoader = artworkLoader, posterLoader = { view, game ->
                                 view.setImageDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.rgb(45 + game.id.length * 4, 70, 90)))
@@ -288,13 +289,17 @@ class NovaLibraryStageComposeTest {
         capture("large-text")
     }
 
-    @Test fun longTitleAndMetadataStayWithinTheirBudgetAtModeratelyLargeText() {
+    @Test fun longTitleAndMetadataStayWithinTheirBudgetAtModeratelyLargeText() = assertModeratelyLargeIdentity(false)
+
+    @Test fun posterCaptionsPreserveTheModeratelyLargeIdentityBudget() = assertModeratelyLargeIdentity(true)
+
+    private fun assertModeratelyLargeIdentity(showPosterTitles: Boolean) {
         val many = games().toMutableList().apply {
-            this[0] = this[0].copy(name = "A long game title on its first line\nAnd its second line is visible too",
+            this[0] = this[0].copy(name = "A game with a longer title\nAnd a visible second line",
                 category = "action", playTime = PolarisGame.PlayTime(seconds = 84 * 3600),
                 lastLaunched = System.currentTimeMillis() / 1000 - 3600)
         }
-        stageFixture(many, fontScale = 1.3f)
+        stageFixture(many, fontScale = 1.3f, showPosterTitles = showPosterTitles)
         val title = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         composeRule.onNodeWithTag("nova-stage-title", true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
@@ -313,8 +318,14 @@ class NovaLibraryStageComposeTest {
             assertTrue("$tag is not vertically clipped", !layouts.single().didOverflowHeight)
             val b = node.getUnclippedBoundsInRoot()
             assertTrue("$tag stays within its identity block", b.top >= identity.top - .6.dp && b.bottom <= identity.bottom + .6.dp)
+            if (tag == "nova-stage-play-stats") {
+                node.assertTextEquals(layouts.single().layoutInput.text.text)
+                assertTrue("populated playtime and last-played remain present", layouts.single().layoutInput.text.text.contains("84 h played") && layouts.single().layoutInput.text.text.contains("Last played"))
+                assertTrue("full stats are not ellipsized", (0 until layouts.single().lineCount).none { layouts.single().isLineEllipsized(it) })
+                assertTrue("full stats stay within the allowed lines", !layouts.single().multiParagraph.didExceedMaxLines)
+            }
         }
-        capture("long-title-text-1_3")
+        capture("long-title-text-1_3-${if (showPosterTitles) "captions" else "plain"}")
     }
 
     @Test fun changingTheSelectedGameWhileAHeldCancelsThatPress() {
