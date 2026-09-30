@@ -33,6 +33,7 @@ import android.view.accessibility.AccessibilityManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.StringRes
 import androidx.compose.runtime.snapshotFlow
@@ -92,6 +93,9 @@ import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.AdapterFragment
 import com.papi.nova.ui.AdapterFragmentCallbacks
+import com.papi.nova.ui.NovaControlSize
+import com.papi.nova.ui.NovaControlSizePreferences
+import com.papi.nova.ui.NovaHostsViewMetrics
 import com.papi.nova.ui.NovaLibraryActivity
 import com.papi.nova.ui.NovaServerGridLayoutManager
 import com.papi.nova.ui.NovaQrScanActivity
@@ -333,6 +337,15 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private enum class DashboardUpdatePillStatus { CURRENT, AVAILABLE, CHECKING, ERROR }
     private var dashboardUpdatePillStatus = DashboardUpdatePillStatus.CURRENT
     private var dashboardUpdatePillRelease: NovaUpdateRelease? = null
+    private var portraitMenuExpanded = false
+    private var hostsViewMetrics: NovaHostsViewMetrics? = null
+    private var hostsControlSize: NovaControlSize? = null
+    private data class HostsFocus(val actionId: Int = View.NO_ID, val uuid: String? = null, val manage: Boolean = false)
+    private var pendingHostsFocus: HostsFocus? = null
+    private var hostsViewGeneration = 0
+    private val portraitMenuBack = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() { setPortraitMenuExpanded(false, focusToggle = true) }
+    }
     private var dashboardRailCollapsed = false
     /** Whether the rail's labels are off, which trails [dashboardRailCollapsed] while the rail widens. */
     private var dashboardRailLabelsHidden = false
@@ -343,7 +356,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     /** Puts the caption under the top actions back in step with the focused action, as it is now. */
     private var refreshTopActionCaption: () -> Unit = {}
 
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) pendingHostsFocus = null
+        return super.dispatchTouchEvent(event)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) pendingHostsFocus = null
         if (event.action == KeyEvent.ACTION_DOWN && moveFocusWithinHostRow(event.keyCode)) {
             return true
         }
@@ -543,6 +562,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         super.onConfigurationChanged(newConfig)
 
         if (completeOnCreateCalled) {
+            pendingHostsFocus = captureHostsFocus()
             initializeViews(PreferenceConfiguration.readPreferences(this))
         }
 
@@ -550,6 +570,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     private fun initializeViews(prefs: PreferenceConfiguration) {
+        hostsViewGeneration++
+        dashboardRailAnimator?.cancel()
+        dashboardRailButtonText.clear()
         setContentView(R.layout.activity_pc_view)
 
         // The particle field and the background run under the system bars; only the
@@ -579,6 +602,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 header.paddingBottom,
             )
         }
+
+        hostsViewMetrics = NovaHostsViewMetrics(this).apply {
+            findViewById<View>(R.id.dashboardCockpitRail)?.let(::capture)
+            findViewById<View>(R.id.pcViewHeader)?.let(::capture)
+            findViewById<View>(R.id.pcFragmentContainer)?.let(::capture)
+        }
+        hostsControlSize = null
 
         spaceParticleView = findViewById(R.id.space_particles)
         val swipeRefresh = findViewById<SwipeRefreshLayout>(R.id.swipe_refresh)
@@ -647,7 +677,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
         githubAction?.setOnClickListener { HelpLauncher.launchGithub(this@PcView) }
         dashboardRailToggle?.setOnClickListener {
-            setDashboardRailCollapsed(!dashboardRailCollapsed)
+            if (isPortraitHosts()) setPortraitMenuExpanded(!portraitMenuExpanded, focusToggle = true)
+            else setDashboardRailCollapsed(!dashboardRailCollapsed)
         }
         emptyRefresh?.setOnClickListener {
             resetLibraryReadiness()
@@ -689,6 +720,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
 
         applyThemeToServerBrowser()
+        applyHostsControlSize()
         updateDashboardUpdatePill()
         updateModeTabs()
         updateServerFilterTabs()
@@ -700,6 +732,69 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout)
         updateEmptyState()
+        scheduleHostsFocusRestore()
+    }
+
+    private fun isPortraitHosts(): Boolean = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+
+    private fun setPortraitMenuExpanded(expanded: Boolean, focusToggle: Boolean = false) {
+        portraitMenuExpanded = expanded
+        val navigation = findViewById<View>(R.id.dashboardPortraitNavigation)
+        val toggle = findViewById<MaterialButton>(R.id.dashboardRailToggle)
+        if (isPortraitHosts() && navigation != null) {
+            if (focusToggle || !expanded && navigation.hasFocus()) toggle?.requestFocus()
+            navigation.visibility = if (expanded) View.VISIBLE else View.GONE
+            toggle?.setText(if (expanded) R.string.nova_hosts_hide_menu else R.string.nova_hosts_menu)
+            toggle?.contentDescription = getString(if (expanded) R.string.nova_hosts_hide_menu else R.string.nova_hosts_menu)
+            toggle?.setIconResource(if (expanded) R.drawable.ic_menu_collapse else R.drawable.ic_menu)
+            refreshTopActionCaption()
+        }
+        // Nova surfaces own their separate dialog window's Back; this is the underlying Activity.
+        portraitMenuBack.isEnabled = isPortraitHosts() && expanded
+    }
+
+    private fun applyHostsControlSize() {
+        val size = NovaControlSizePreferences.read(PreferenceManager.getDefaultSharedPreferences(this))
+        if (hostsControlSize == size) return
+        hostsControlSize = size
+        hostsViewMetrics?.apply(size)
+        if (isPortraitHosts()) setPortraitMenuExpanded(portraitMenuExpanded)
+        else setDashboardRailCollapsed(dashboardRailCollapsed, persist = false, animate = false)
+        // Rebind the retained rows, keeping their stable UUID IDs and action callbacks.
+        if (::pcGridAdapter.isInitialized) pcGridAdapter.refreshControlSize()
+    }
+
+    private fun captureHostsFocus(): HostsFocus? {
+        val focus = currentFocus ?: return null
+        val row = serverGridView?.findContainingItemView(focus)
+        if (row != null) {
+            val position = serverGridView?.getChildAdapterPosition(row) ?: RecyclerView.NO_POSITION
+            if (position in 0 until pcGridAdapter.itemCount) {
+                return HostsFocus(uuid = pcGridAdapter.getItem(position).details.uuid, manage = focus.id == R.id.server_actions_button)
+            }
+        }
+        return focus.id.takeIf { it != View.NO_ID }?.let { HostsFocus(actionId = it) }
+    }
+
+    private fun scheduleHostsFocusRestore() {
+        val generation = hostsViewGeneration
+        fun restore(last: Boolean) {
+            if (generation != hostsViewGeneration || isFinishing || isDestroyed) return
+            val saved = pendingHostsFocus ?: return
+            val target = if (saved.uuid != null) {
+                val position = pcGridAdapter.itemList.indexOfFirst { it.details.uuid == saved.uuid }
+                val row = if (position >= 0) serverGridView?.findViewHolderForItemId(pcGridAdapter.getItemId(position))?.itemView else null
+                if (saved.manage) row?.findViewById<View>(R.id.server_actions_button) else row
+            } else findViewById<View>(saved.actionId)
+            if (target?.isShown == true && target.requestFocus()) pendingHostsFocus = null
+            else if (saved.uuid == null || last) {
+                findViewById<View>(R.id.dashboardRailToggle)?.requestFocus()
+                pendingHostsFocus = null
+            }
+        }
+        window.decorView.post { restore(false) }
+        window.decorView.postDelayed({ restore(false) }, 150)
+        window.decorView.postDelayed({ restore(true) }, 500)
     }
 
     private fun applyThemeToServerBrowser() {
@@ -914,6 +1009,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         if (persist) {
             saveDashboardRailCollapsedPreference(collapsed)
         }
+        val size = hostsControlSize ?: NovaControlSizePreferences.read(PreferenceManager.getDefaultSharedPreferences(this))
+        val floor = UiHelper.dpToPx(this, 48f).toInt()
+        val limit = ((resources.getDimensionPixelSize(R.dimen.nova_dashboard_rail_collapsed_width) - floor) / 2).coerceAtLeast(0)
+        val startPadding = ((hostsViewMetrics?.originalPaddingStart(rail) ?: rail.paddingStart) * size.layoutScale).toInt()
+        val endPadding = ((hostsViewMetrics?.originalPaddingEnd(rail) ?: rail.paddingEnd) * size.layoutScale).toInt()
+        rail.setPaddingRelative(if (collapsed) startPadding.coerceAtMost(limit) else startPadding, rail.paddingTop,
+            if (collapsed) endPadding.coerceAtMost(limit) else endPadding, rail.paddingBottom)
         val targetWidth = resources.getDimensionPixelSize(
             if (collapsed) R.dimen.nova_dashboard_rail_collapsed_width else R.dimen.nova_dashboard_rail_width,
         )
@@ -963,7 +1065,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 dashboardRailButtonText[id] = button.text
             }
             button.text = if (collapsed) "" else dashboardRailButtonText[id]
-            button.iconPadding = if (collapsed) 0 else UiHelper.dpToPx(this, 6f).toInt()
+            button.iconPadding = if (collapsed) 0 else UiHelper.dpToPx(this, 6f * (hostsControlSize?.layoutScale ?: 1f)).toInt()
             button.gravity = if (collapsed) Gravity.CENTER else Gravity.CENTER_VERTICAL
         }
         setDashboardRailSetupActionsCollapsed(collapsed)
@@ -1003,8 +1105,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         val addServer = findViewById<MaterialButton>(R.id.actionAddServer)
         val scanPair = findViewById<MaterialButton>(R.id.actionScanPair)
         setupRow.orientation = if (collapsed) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
-        val collapsedSpacing = UiHelper.dpToPx(this, 6f).toInt()
-        val compactHeight = UiHelper.dpToPx(this, 34f).toInt()
+        val scale = hostsControlSize?.layoutScale ?: 1f
+        val collapsedSpacing = UiHelper.dpToPx(this, 6f * scale).toInt()
+        val compactHeight = UiHelper.dpToPx(this, 48f * scale.coerceAtLeast(1f)).toInt()
 
         addServer?.let { button ->
             val addParams = button.layoutParams as? LinearLayout.LayoutParams ?: return@let
@@ -1600,6 +1703,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         super.onCreate(savedInstanceState)
         // A recreate (a theme applied, a configuration change) is the same visit: the library was
         // opened once already, or the player chose to stay here.
+        portraitMenuExpanded = savedInstanceState?.getBoolean(STATE_PORTRAIT_MENU, false) ?: false
+        savedInstanceState?.let { saved ->
+            val actionId = saved.getInt(STATE_HOSTS_FOCUS_ID, View.NO_ID)
+            val uuid = saved.getString(STATE_HOSTS_FOCUS_UUID)
+            if (actionId != View.NO_ID || uuid != null) pendingHostsFocus = HostsFocus(actionId, uuid, saved.getBoolean(STATE_HOSTS_FOCUS_MANAGE))
+        }
+        onBackPressedDispatcher.addCallback(this, portraitMenuBack)
         autoNavigated = savedInstanceState?.getBoolean(STATE_AUTO_NAVIGATED, false) ?: false
         val focusTheme = savedInstanceState?.getBoolean(STATE_FOCUS_THEME, false) ?: false
 
@@ -1639,6 +1749,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_AUTO_NAVIGATED, autoNavigated)
         outState.putBoolean(STATE_FOCUS_THEME, returnFocusToTheme)
+        outState.putBoolean(STATE_PORTRAIT_MENU, portraitMenuExpanded)
+        (captureHostsFocus() ?: pendingHostsFocus)?.let { focus ->
+            outState.putInt(STATE_HOSTS_FOCUS_ID, focus.actionId)
+            outState.putString(STATE_HOSTS_FOCUS_UUID, focus.uuid)
+            outState.putBoolean(STATE_HOSTS_FOCUS_MANAGE, focus.manage)
+        }
     }
 
     private fun completeOnCreate() {
@@ -1943,6 +2059,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     override fun onResume() {
         super.onResume()
         if (recreateForThemeChangeIfNeeded()) return
+        if (completeOnCreateCalled) applyHostsControlSize()
 
         UiHelper.showCrashReportDialog(this)
         UiHelper.showDecoderCrashDialog(this)
@@ -3395,6 +3512,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         private const val SLEEP_COUNTDOWN_PAGE = "host-sleep-countdown"
         private const val STATE_AUTO_NAVIGATED = "nova.pcview.autoNavigated"
         private const val STATE_FOCUS_THEME = "nova.pcview.focusTheme"
+        private const val STATE_PORTRAIT_MENU = "nova.pcview.portraitMenu"
+        private const val STATE_HOSTS_FOCUS_ID = "nova.pcview.focusAction"
+        private const val STATE_HOSTS_FOCUS_UUID = "nova.pcview.focusHost"
+        private const val STATE_HOSTS_FOCUS_MANAGE = "nova.pcview.focusManage"
         private val SERVER_FILTER_IDS = intArrayOf(
             R.id.filterAllServers,
             R.id.filterOnlineServers,

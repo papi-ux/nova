@@ -30,6 +30,12 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
                 android:orientation="vertical">
 
                 <TextView
@@ -54,6 +60,41 @@
                     android:textSize="11sp" />
             </LinearLayout>
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/dashboardRailToggle"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:minWidth="48dp"
+                    android:layout_marginStart="8dp"
+                    android:contentDescription="@string/nova_hosts_menu"
+                    android:nextFocusDown="@id/actionStartPolaris"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="@string/nova_hosts_menu"
+                    android:textAllCaps="false"
+                    app:cornerRadius="24dp"
+                    app:icon="@drawable/ic_menu"
+                    app:iconGravity="textStart"
+                    app:iconPadding="6dp" />
+            </LinearLayout>
+
+            <com.papi.nova.ui.NovaHostsNavigationScrollView
+                android:id="@id/dashboardPortraitNavigation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:focusable="false"
+                android:descendantFocusability="afterDescendants"
+                android:overScrollMode="ifContentScrolls"
+                android:fillViewport="false">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
             <LinearLayout
                 android:id="@+id/dashboardPillRail"
                 android:layout_width="match_parent"
@@ -477,6 +518,9 @@
                         app:iconTint="?attr/colorOnSurface" />
                 </LinearLayout>
             </LinearLayout>
+
+                </LinearLayout>
+            </com.papi.nova.ui.NovaHostsNavigationScrollView>
 
             <LinearLayout
                 android:layout_width="match_parent"

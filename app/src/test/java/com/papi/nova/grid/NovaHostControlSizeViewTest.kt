@@ -111,7 +111,7 @@ class NovaHostControlSizeViewTest {
         assertTrue(primary)
     }
 
-    @Test fun compactManageRetainsASeparate48dpTargetAndRegularUsesItsImmutableResourceTokens() {
+    @Test fun compactManageRetainsASeparate48dpTargetAndStandardUsesItsImmutableResourceTokens() {
         val standard = card("standard").holder.itemView
         assertEquals((context.resources.getDimensionPixelSize(R.dimen.nova_spacing_lg) * NovaControlSize.Standard.layoutScale).roundToInt(),
             standard.findViewById<View>(R.id.server_card_body).paddingLeft)
