@@ -1147,7 +1147,8 @@ private fun NovaSettingRow(
     onRefocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val enabled = state.isEnabled(definition)
+    val enabled = state.isEnabled(definition) && !(state.tierSavePending &&
+        (definition.key == NovaTierControls.QUALITY_KEY || definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO))
     val quality = state.generatedQuality && definition.key == NovaTierControls.QUALITY_KEY
     val disabledReason = if (enabled) null else state.disabledReason(context, definition)
     val caption = disabledReason ?: if (quality) listOfNotNull(

@@ -63,6 +63,11 @@ class NovaSettingsViewModel(
     private var overrideKeys: Set<String> = emptySet()
     private var resettableKeys: Set<String> = emptySet()
     private var tierInputs: NovaTierInputs? = null
+    private data class TierIntent(val tier: NovaTier, val owner: Any?, val revision: Long)
+    private var tierRevision = 0L
+    private var tierIntent: TierIntent? = null
+    private var tierResult: NovaTierSaveResult? = null
+    private var tierPending = false
 
     private val mutableUiState = MutableStateFlow(
         NovaSettingsUiStateFactory.build(definitions, values, selectedCategoryKey, searchQuery)
@@ -115,18 +120,28 @@ class NovaSettingsViewModel(
         value: NovaSettingValue,
         onCompleted: () -> Unit = {}
     ) {
+        if (definition.key == NovaTierControls.QUALITY_KEY && (value as? NovaSettingValue.StringValue)?.value == "retry_tier") {
+            val intent = tierIntent
+            if (intent == null || intent.owner != store.tierOwner() || intent.revision != tierRevision) {
+                tierIntent = null; tierResult = NovaTierSaveResult.SUPERSEDED; emit(); onCompleted(); return
+            }
+            setValue(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)),
+                NovaSettingValue.StringValue(intent.tier.name.lowercase()), onCompleted)
+            return
+        }
+        val tier = (value as? NovaSettingValue.StringValue)?.value?.let { name -> NovaTier.entries.firstOrNull { it.name.equals(name,true) } }
+        val selection = tier != null && definition.key in setOf(NovaTierControls.QUALITY_KEY, NovaSettingsMigration.TIER)
+        val revision = if (selection || definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO)
+            ++tierRevision else tierRevision
+        val intent = if (selection) TierIntent(tier!!, store.tierOwner(), revision) else null
+        if (!selection && revision == tierRevision && (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO)) {
+            tierIntent = null; tierResult = null
+        }
         viewModelScope.launch {
             try {
                 stateMutex.withLock {
-                    val tier = (value as? NovaSettingValue.StringValue)?.value?.let { name ->
-                        NovaTier.entries.firstOrNull { it.name.equals(name, true) }
-                    }
-                    if (definition.key == NovaTierControls.QUALITY_KEY && tier != null) {
-                        if (NovaTierControls.canSelect(mutableTiers.value, tier)) {
-                            store.set(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)), value)
-                        }
-                    } else if (definition.key == NovaSettingsMigration.TIER && tier != null) {
-                        if (NovaTierControls.canSelect(mutableTiers.value, tier)) store.set(definition, value)
+                    if (intent != null) {
+                        if (NovaTierControls.canSelect(mutableTiers.value, intent.tier)) saveTier(intent)
                     } else if (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO) {
                         persistStreamEdit(definition, value)
                     } else {
@@ -140,6 +155,19 @@ class NovaSettingsViewModel(
             } finally {
                 onCompleted()
             }
+        }
+    }
+
+    private suspend fun saveTier(intent: TierIntent) {
+        if (intent.revision != tierRevision || intent.owner != store.tierOwner()) return
+        tierIntent = intent; tierResult = null; tierPending = true; emit()
+        val result = try { store.saveTier(intent.tier, intent.owner) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { NovaTierSaveResult.FAILED }
+        finally { tierPending = false }
+        if (intent.revision == tierRevision) {
+            tierResult = if (intent.owner == store.tierOwner()) result else NovaTierSaveResult.SUPERSEDED
+            if (tierResult == NovaTierSaveResult.SUPERSEDED) tierIntent = null
         }
     }
 
@@ -247,7 +275,21 @@ class NovaSettingsViewModel(
         val tiers = mutableTiers.value
         val tier = pictureTier
         val generated = tiers != null && definitions.find(NovaTierControls.QUALITY_KEY) != null
-        val shownDefinitions = if (generated) NovaTierControls.definitions(definitions, tiers!!, tier) else definitions
+        val tierMessage = when {
+            tierPending -> "Saving this choice"
+            tierResult == NovaTierSaveResult.SAVED -> "Saved"
+            tierResult == NovaTierSaveResult.PROFILE_FAILED -> "Device applied · saved setup could not be saved"
+            tierResult == NovaTierSaveResult.FAILED -> "Could not save this choice. Try again"
+            tierResult == NovaTierSaveResult.SUPERSEDED -> "Another change superseded this save"
+            else -> null
+        }
+        val shownDefinitions = (if (generated) NovaTierControls.definitions(definitions, tiers!!, tier) else definitions).let { projected ->
+            if (tierMessage == null) projected else projected.copy(settings = projected.settings.map { definition ->
+                if (definition.key != NovaTierControls.QUALITY_KEY) definition else definition.copy(summary = tierMessage,
+                    options = definition.options + if (tierIntent != null && tierResult in setOf(NovaTierSaveResult.FAILED,NovaTierSaveResult.PROFILE_FAILED))
+                        listOf(NovaSettingOption("Try again", "retry_tier", caption = tierMessage)) else emptyList())
+            })
+        }
         val shownValues = if (generated) NovaTierControls.displayValues(values, tiers!!, tier) else values
         mutableUiState.value = NovaSettingsUiStateFactory.build(
             definitions = shownDefinitions,
@@ -257,7 +299,7 @@ class NovaSettingsViewModel(
             overrideKeys = overrideKeys,
             resettableKeys = resettableKeys + if (generated && tier != NovaTier.RECOMMENDED &&
                 NovaTierControls.canSelect(tiers, NovaTier.RECOMMENDED)) setOf(NovaTierControls.QUALITY_KEY) else emptySet()
-        ).copy(generatedQuality = generated,
+        ).copy(generatedQuality = generated, tierSavePending = tierPending,
             bitrateAuto = if (generated) tier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues()) else null)
     }
 

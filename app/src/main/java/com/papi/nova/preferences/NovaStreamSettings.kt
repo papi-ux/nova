@@ -57,6 +57,20 @@ object NovaStreamSettings {
         }
     }
 
+    /** Consumer receipt preserves SUPERSEDED and pins the setup selected when the action began. */
+    internal fun selectActiveSetupTierResult(tier: NovaTier, expectedOwner: java.util.UUID?,
+        onSaved: (com.papi.nova.profiles.ProfilesManager.SaveResult) -> Unit) {
+        val manager = com.papi.nova.profiles.ProfilesManager.getInstance()
+        val active = manager.getActive()
+        if (active?.getUuid() != expectedOwner) { onSaved(com.papi.nova.profiles.ProfilesManager.SaveResult.SUPERSEDED); return }
+        if (active == null || active.getOptions()?.keys?.none {
+                it in NovaSettingsMigration.STREAM_KEYS || it == NovaSettingsMigration.TIER } != false) {
+            onSaved(com.papi.nova.profiles.ProfilesManager.SaveResult.SAVED); return
+        }
+        active.selectStreamTier(tier)
+        manager.updateDeferred(active, onSaved)
+    }
+
     fun generatedPlan(prefs: SharedPreferences): NovaStreamPlan? {
         val tier = NovaTier.entries.firstOrNull { it.name.equals(prefs.getString(NovaSettingsMigration.TIER, "custom"), true) } ?: NovaTier.CUSTOM
         if (tier == NovaTier.CUSTOM) return null

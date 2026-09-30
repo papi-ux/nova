@@ -12,6 +12,7 @@ data class NovaSettingsUiState(
     val resettableKeys: Set<String> = emptySet(),
     val generatedQuality: Boolean = false,
     val bitrateAuto: Boolean? = null,
+    val tierSavePending: Boolean = false,
 ) {
     fun isSearchActive(): Boolean = searchQuery.isNotBlank()
 
