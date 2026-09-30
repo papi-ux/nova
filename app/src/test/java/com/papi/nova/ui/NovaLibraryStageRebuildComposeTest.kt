@@ -120,6 +120,21 @@ class NovaLibraryStageRebuildComposeTest {
         assertEquals(listOf("bravo"), opened)
     }
 
+    @Test fun changingAwayAndBackStillCancelsTheOriginalHeldPress() {
+        stage()
+        rule.onNodeWithTag("nova-stage-selected-focus").performKeyInput {
+            keyDown(Key.Enter)
+            pressKey(Key.DirectionRight)
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { pressKey(Key.DirectionLeft) }
+        rule.waitForIdle()
+        rule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { keyUp(Key.Enter) }
+        assertEquals(emptyList<String>(), opened)
+        rule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { pressKey(Key.Enter) }
+        assertEquals(listOf("alpha"), opened)
+    }
+
     @Test fun stageKeepsTheLiveSessionInTheSharedStripWithoutAnIdleContinueCard() {
         assertEquals(true, NovaLibraryUiStateMapper.showStandaloneHomeHero(NovaLibraryLayoutMode.STAGE, hasActiveSession = true))
         assertEquals(false, NovaLibraryUiStateMapper.showStandaloneHomeHero(NovaLibraryLayoutMode.STAGE, hasActiveSession = false))

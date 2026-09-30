@@ -52,6 +52,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.novaClickable
+import com.papi.nova.ui.panel.NovaKeys
+import com.papi.nova.ui.panel.NovaPressLatch
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
@@ -754,14 +756,19 @@ internal fun NovaLibraryStage(
     val rowState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val inputModeManager = LocalInputModeManager.current
+    val activation = remember { NovaStagePress() }
     fun select(game: PolarisGame) {
         if (game.id == selectedId) return
+        activation.clear()
         selectedId = game.id
         onGameFocused(game)
         scope.launch { rowState.scrollToItem(0) }
     }
     LaunchedEffect(restoreFocusGameId, ids) {
-        restoreFocusGameId?.takeIf { it in ids && it != selectedId }?.let { selectedId = it }
+        restoreFocusGameId?.takeIf { it in ids && it != selectedId }?.let {
+            activation.clear()
+            selectedId = it
+        }
     }
     LaunchedEffect(ids) {
         inputModeManager.requestInputMode(InputMode.Keyboard)
@@ -789,9 +796,28 @@ internal fun NovaLibraryStage(
                     .focusRequester(stageFocus)
                     .onFocusChanged {
                         stageFocused = it.isFocused
+                        if (!it.hasFocus) activation.clear()
                         if (it.isFocused) onGameFocused(selected)
                     }
                     .onPreviewKeyEvent { event ->
+                        val native = event.nativeKeyEvent
+                        if (NovaKeys.isActivation(native.keyCode)) {
+                            // The fixed focus owner survives selection changes, so it fences
+                            // the release by the game that received the press, as per-game
+                            // posters do by losing focus. Touch and semantics keep novaClickable.
+                            when (event.type) {
+                                KeyEventType.KeyDown -> if (native.repeatCount == 0) {
+                                    activation.latch.press(native.keyCode)
+                                    activation.gameId = selected.id
+                                }
+                                KeyEventType.KeyUp -> if (activation.latch.release(native.keyCode)) {
+                                    val target = activation.gameId
+                                    activation.gameId = null
+                                    if (!native.isCanceled && target == selected.id) onOpenDetail(selected)
+                                }
+                            }
+                            return@onPreviewKeyEvent true
+                        }
                         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         val delta = when (event.key) { Key.DirectionLeft -> -1; Key.DirectionRight -> 1; else -> return@onPreviewKeyEvent false }
                         select(games[NovaLibraryUiStateMapper.stageAdjacentIndex(selectedIndex, delta, games.size)])
@@ -939,6 +965,15 @@ private fun Modifier.novaStageRowEdgeFade(more: () -> Boolean): Modifier = graph
 
 private const val STAGE_FOCUS_REQUEST_ATTEMPTS = 24
 private const val STAGE_FOCUS_RETRY_DELAY_MS = 32L
+
+private class NovaStagePress {
+    val latch = NovaPressLatch()
+    var gameId: String? = null
+    fun clear() {
+        latch.clear()
+        gameId = null
+    }
+}
 
 @Composable
 private fun stageHeroMetadata(game: PolarisGame): String {
