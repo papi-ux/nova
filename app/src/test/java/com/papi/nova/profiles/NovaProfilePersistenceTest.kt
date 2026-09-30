@@ -1,12 +1,14 @@
 package com.papi.nova.profiles
 
-import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
 import android.os.Looper
+import androidx.activity.ComponentActivity
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.R
 import com.papi.nova.preferences.NovaSettingsMigration
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaPageExit
+import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.UiHelper
 import java.io.File
@@ -25,7 +27,6 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowAlertDialog
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -192,8 +193,9 @@ class NovaProfilePersistenceTest {
     }
 
     @Test fun decoderRecoveryReportsFailureAndRetryAcknowledgesOnlyTheSavedReset() {
-        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
         val activity = controller.get()
+        val surfaces = NovaSurfaces.of(activity)
         val tombstone = context.getSharedPreferences("DecoderTombstone", Context.MODE_PRIVATE)
         tombstone.edit().putInt("CrashCount", 3).putInt("LastNotifiedCrashCount", 0).commit()
         try {
@@ -201,19 +203,28 @@ class NovaProfilePersistenceTest {
             UiHelper.showDecoderCrashDialog(activity)
             manager.awaitDeferredWritesForTest()
             shadowOf(Looper.getMainLooper()).idle()
-            val failure = ShadowAlertDialog.getLatestAlertDialog()
-            assertEquals(activity.getString(R.string.title_decoding_reset_failed), shadowOf(failure).title.toString())
+            val failure = surfaces.panel.top as NovaCommonPage.Notice
+            assertEquals(activity.getString(R.string.title_decoding_reset_failed), failure.title)
+            assertEquals(activity.getString(R.string.nova_space_launch_issue_retry), failure.primary!!.label)
             assertEquals(0, tombstone.getInt("LastNotifiedCrashCount", 0))
             manager.openProfileWriter = { FileOutputStream(it) }
-            failure.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+            // Use the panel's actual leave-before-action path, as the Notice retry does.
+            val entry = surfaces.panel.topEntry!!
+            NovaPageExit(
+                mayAct = { surfaces.panel.topEntry === entry },
+                answer = { entry.answered = true },
+                leave = { if (!surfaces.panel.pop()) surfaces.panel.close() },
+            ).leaveThen(failure.primary!!.run)
             // The click may dispatch the retry to the Activity's main thread before
             // that retry submits its file write. Drain it before waiting for the writer.
             shadowOf(Looper.getMainLooper()).idle()
             manager.awaitDeferredWritesForTest()
             shadowOf(Looper.getMainLooper()).idle()
-            val saved = ShadowAlertDialog.getLatestAlertDialog()
-            assertEquals(activity.getString(R.string.title_decoding_reset), shadowOf(saved).title.toString())
-            saved.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            val saved = surfaces.panel.top as NovaCommonPage.Notice
+            assertEquals(activity.getString(R.string.title_decoding_reset), saved.title)
+            assertNull(saved.primary)
+            assertEquals(0, tombstone.getInt("LastNotifiedCrashCount", 0))
+            surfaces.panel.close()
             shadowOf(Looper.getMainLooper()).idle()
             assertEquals(3, tombstone.getInt("LastNotifiedCrashCount", 0))
             ProfilesManager.instance = null
