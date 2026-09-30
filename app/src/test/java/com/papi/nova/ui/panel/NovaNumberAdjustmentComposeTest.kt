@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -17,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import androidx.preference.PreferenceManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -52,7 +52,9 @@ class NovaNumberAdjustmentComposeTest {
     }
 
     private fun track() = rule.onNodeWithTag("nova-number-track", useUnmergedTree = true)
-    private fun tap(fraction: Float) = track().performTouchInput { click(Offset(width * fraction, centerY)) }
+    private fun tap(fraction: Float) = track().performTouchInput {
+        click(Offset((width * fraction).coerceIn(.5f, width - .5f), centerY))
+    }
 
     @Test fun aDragSurvivesDraftRecompositionUntilTheFingerIsReleased() {
         show()
@@ -82,6 +84,7 @@ class NovaNumberAdjustmentComposeTest {
     }
 
     @Test fun visibleTouchStepsHave48DpTargetsAndClampAtBothBounds() {
+        PreferenceManager.getDefaultSharedPreferences(rule.activity).edit().putString("nova_control_size", "compact").commit()
         show(145)
         val increase = rule.onNodeWithContentDescription("Increase value")
         val decrease = rule.onNodeWithContentDescription("Decrease value")

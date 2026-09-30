@@ -31,7 +31,7 @@ class NovaSettingsNumberAdjustmentComposeTest {
         val keys = rule.setPanelContent {
             NovaSettingsContent(
                 state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), "numbers", ""),
-                title = "Settings", subtitle = null, headerActions = emptyList(),
+                title = "Settings", subtitle = "", headerActions = emptyList(),
                 onBack = {}, onOpenLegacy = {}, onSearch = {}, onClearSearch = {}, onCategory = {},
                 onResetSetting = {}, onSetting = {},
                 onValue = { changed, value, done -> writes += changed.key to value; done() },
