@@ -138,10 +138,12 @@ class NovaLegacySettingsPagesTest {
         idle()
 
         val page = top(activity) as NovaCommonPage.Slider
-        assertEquals(500..300_000, page.range)
+        assertEquals(500..500_000, page.range)
         assertEquals("Left and Right move by the preference's key step", 1000, page.step)
         page.onSave(25_000)
         assertEquals(25_000, fragment.getPrefs().getInt(PreferenceConfiguration.BITRATE_PREF_STRING, 0))
+        page.onSave(500_000)
+        assertEquals(500_000, fragment.getPrefs().getInt(PreferenceConfiguration.BITRATE_PREF_STRING, 0))
     }
 
     @Test
