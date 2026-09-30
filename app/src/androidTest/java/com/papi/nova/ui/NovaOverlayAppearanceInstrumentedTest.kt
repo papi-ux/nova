@@ -64,6 +64,11 @@ class NovaOverlayAppearanceInstrumentedTest {
         for (choice in NovaHudMode.entries) {
             rule.runOnIdle { mode = choice }
             rule.waitForIdle()
+            if (choice == NovaHudMode.DEBUG) {
+                val host = rule.onNodeWithText("HOST").getUnclippedBoundsInRoot()
+                val client = rule.onNodeWithText("CLIENT").getUnclippedBoundsInRoot()
+                assertEquals("normal text keeps all three layers together", host.top.value, client.top.value, 1f)
+            }
             shot("hud-${choice.name.lowercase()}-64")
         }
         rule.runOnIdle { mode = NovaHudMode.DEBUG; fontScale = 1.3f }
