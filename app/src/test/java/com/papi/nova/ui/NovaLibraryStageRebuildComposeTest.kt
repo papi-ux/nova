@@ -63,12 +63,14 @@ class NovaLibraryStageRebuildComposeTest {
                       entries: List<PolarisGame> = games, showPosterTitles: Boolean = false, linearFontScaling: Boolean = false) {
         rule.setPanelContent {
             val environmentDensity = LocalDensity.current
+            val resolvedDensity = densityScale ?: environmentDensity.density
+            val resolvedFontScale = fontScale ?: environmentDensity.fontScale
             val testDensity = if (linearFontScaling) object : Density {
-                override val density = densityScale ?: environmentDensity.density
-                override val fontScale = fontScale ?: environmentDensity.fontScale
-                override fun TextUnit.toDp(): Dp = (value * fontScale).dp
-                override fun Dp.toSp(): TextUnit = (value / fontScale).sp
-            } else Density(densityScale ?: environmentDensity.density, fontScale ?: environmentDensity.fontScale)
+                override val density = resolvedDensity
+                override val fontScale = resolvedFontScale
+                override fun TextUnit.toDp(): Dp = (value * resolvedFontScale).dp
+                override fun Dp.toSp(): TextUnit = (value / resolvedFontScale).sp
+            } else Density(resolvedDensity, resolvedFontScale)
             CompositionLocalProvider(LocalDensity provides testDensity,
                 LocalHapticFeedback provides object : HapticFeedback {
                     override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) { hapticCalls += hapticFeedbackType }
