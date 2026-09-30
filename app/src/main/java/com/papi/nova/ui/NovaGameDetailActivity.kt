@@ -6,6 +6,8 @@ import com.papi.nova.NovaActivity
 import com.papi.nova.api.PolarisGameJson
 import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.ViewModelProvider
+import androidx.compose.runtime.collectAsState
+import com.papi.nova.preferences.*
 import android.content.Intent
 import android.content.Context
 import android.os.Bundle
@@ -134,6 +136,7 @@ class NovaGameDetailActivity : NovaActivity() {
     private lateinit var shortcutHelper: ShortcutHelper
     private lateinit var artworkViewModel: NovaArtworkLibraryUpdateViewModel
     private lateinit var launchViewModel: NovaGameDetailLaunchViewModel
+    private lateinit var deviceSettings: NovaSettingsViewModel
     private var directSpaceOpen = false
     private var spaceGame: PolarisGame? = null
     private var spaceLaunchDelivered = false
@@ -309,6 +312,9 @@ class NovaGameDetailActivity : NovaActivity() {
         serverUuid = intent.getStringExtra(EXTRA_SERVER_UUID)
 
         apiClient = PolarisApiClient(this, host, httpsPort, serverCert)
+        deviceSettings = ViewModelProvider(this, NovaSettingsViewModel.Factory(
+            NovaSettingDefinitions.load(this), NovaSettingsRepository.create(this),
+            initialCategoryKey = "category_stream_quality"))["play-device-settings", NovaSettingsViewModel::class.java]
         shortcutHelper = ShortcutHelper(this)
         shortcutGameAppId = game.appId
         refreshShortcutPinState()
@@ -636,7 +642,7 @@ class NovaGameDetailActivity : NovaActivity() {
          */
         fun launchPreview(): NovaGameDetailOptimizationState {
             val launchPreferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
-            return optimizationState.withLaunchProfileSummary(
+            val preview = optimizationState.withLaunchProfileSummary(
                 NovaLaunchProfileText(resources),
                 launchOptimization(),
                 clientAskedFps = (effectiveFpsPin(chosenFps, profilePreference, launchPreferences.fps)
@@ -648,6 +654,15 @@ class NovaGameDetailActivity : NovaActivity() {
                     NovaVideoCodecOverrides.label(effectiveCodec())
                 } else null,
             )
+            val source = launchOptimization()?.let { optimization ->
+                com.papi.nova.manager.NovaStreamSourceLine.fromPreflight(optimization,
+                    com.papi.nova.manager.NovaStreamSourceRequest(launchPreferences.width, launchPreferences.height,
+                        (effectiveFpsPin(chosenFps, profilePreference, launchPreferences.fps) ?: launchPreferences.fps.toInt()).toDouble(),
+                        launchPreferences.bitrate, deviceSettings.pictureTier.name.lowercase().replaceFirstChar(Char::uppercase)))
+            }
+            return if (source == null) preview else preview.copy(profileSummary = preview.profileSummary?.let { summary ->
+                summary.copy(reasonLine=source.text, limitingLine=if(source.limitCodes.isEmpty()) summary.limitingLine else source.text)
+            })
         }
 
         /**
@@ -1909,9 +1924,41 @@ class NovaGameDetailActivity : NovaActivity() {
             onKeepInStep = { hostSyncEngine?.setAutoSync(it) },
         )
 
-        fun buildHostPlaySetupRows(): List<NovaPlaySetupRowState> {
+        fun changeDeviceSetting(definition: NovaSettingDefinition, value: NovaSettingValue) {
+            // Invalidate immediately, before either the settle delay or an asynchronous save.
+            settleThen {
+                kotlinx.coroutines.suspendCancellableCoroutine<Unit> { waiting ->
+                    deviceSettings.setValue(definition, value) {
+                        if (waiting.isActive) waiting.resumeWith(Result.success(Unit))
+                    }
+                }
+                val outcome = deviceSettings.uiState.value.tierSaveResult
+                if (outcome in setOf(NovaTierSaveResult.FAILED, NovaTierSaveResult.PROFILE_FAILED, NovaTierSaveResult.SUPERSEDED)) {
+                    optimizationState = NovaGameDetailOptimizationState(preflightFailed = true,
+                        lastPlan = optimizationState.lastPlan,
+                        preflightMessage = "Could not save this choice. Try again in Quality")
+                } else loadOptimization(profilePreference)
+            }
+        }
+        fun deviceRows(state: NovaSettingsUiState = deviceSettings.uiState.value) =
+            buildNovaDevicePlaySetupRows(state, ::changeDeviceSetting)
+        fun devicePage(row: NovaPlaySetupRow): NovaPage? {
+            val definition = deviceSettings.uiState.value.deviceStreamSettings.firstOrNull {
+                it.key == novaDevicePlaySetupKeys[row] } ?: return null
+            if (row == NovaPlaySetupRow.DEVICE_BITRATE) {
+                val value = (deviceSettings.uiState.value.values[definition.key] as? NovaSettingValue.IntValue)?.value ?: 1000
+                return com.papi.nova.ui.panel.NovaCommonPage.Slider(key="device-bitrate", title=definition.title,
+                    value=value, range=(definition.min ?: 1000)..(definition.max ?: 300000),
+                    step=definition.step ?: 5000, format={ NovaBitrateAdvice.text(it,false) }, exactDivisor=1,
+                    exactLabel="Bitrate (kbps)", onSave={ changeDeviceSetting(definition,NovaSettingValue.IntValue(it)) })
+            }
+            return PlaySetupPage.Options(definition.title, row,
+                bands={ listOf(NovaPlaySetupBand(null,deviceRows().firstOrNull { it.row==row }?.options.orEmpty())) },
+                initialLabel=if(row==NovaPlaySetupRow.DEVICE_QUALITY) "Recommended" else null)
+        }
+        fun buildHostPlaySetupRows(deviceState: NovaSettingsUiState): List<NovaPlaySetupRowState> {
             val sync = hostScopeUiState()
-            return buildNovaPlaySetupHostRows(
+            return deviceRows(deviceState) + buildNovaPlaySetupHostRows(
                 sync = sync,
                 polarisProfileValue = hostPolarisProfileValue(sync),
                 getString = { resId -> getString(resId) },
@@ -2020,7 +2067,7 @@ class NovaGameDetailActivity : NovaActivity() {
             row = NovaPlaySetupRow.HOST_PROFILE,
             bands = {
                 listOfNotNull(
-                    buildHostPlaySetupRows().firstOrNull { it.row == NovaPlaySetupRow.HOST_PROFILE }
+                    buildHostPlaySetupRows(deviceState).firstOrNull { it.row == NovaPlaySetupRow.HOST_PROFILE }
                         ?.let { NovaPlaySetupBand(null, it.options) },
                 )
             },
@@ -2031,6 +2078,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                 setContent {
             NovaComposeTheme {
+                val deviceState by deviceSettings.uiState.collectAsState()
                 // While the plan is rechecked, the last one stands in, dimmed, with Launch's preset.
                 val launchPreview = launchPreview().withLastPlanWhileChecking()
                 if (spaceGame != null && com.papi.nova.manager.WorkerLaunchContract.isLegacyProfileApp(currentGame.id)) {
@@ -2169,6 +2217,10 @@ class NovaGameDetailActivity : NovaActivity() {
                         // A row whose value carries a › opens its page; any other row steps in place.
                         if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
                             when {
+                                row in novaDevicePlaySetupKeys && row != NovaPlaySetupRow.DEVICE_AUTO ->
+                                    devicePage(row)?.let { playSetupPanel.push(it) }
+                                row == NovaPlaySetupRow.DEVICE_AUTO ->
+                                    deviceRows().firstOrNull { it.row==row }?.options?.firstOrNull { !it.current && it.enabled }?.onSelect?.invoke()
                                 row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY &&
                                     novaModePickerEligible(hostScopeUiState().modes.size) ->
                                     playSetupPanel.push(hostPlayInPage())

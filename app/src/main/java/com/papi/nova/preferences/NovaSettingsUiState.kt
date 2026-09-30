@@ -13,6 +13,8 @@ data class NovaSettingsUiState(
     val generatedQuality: Boolean = false,
     val bitrateAuto: Boolean? = null,
     val tierSavePending: Boolean = false,
+    val tierSaveResult: NovaTierSaveResult? = null,
+    val deviceStreamSettings: List<NovaSettingDefinition> = emptyList(),
 ) {
     fun isSearchActive(): Boolean = searchQuery.isNotBlank()
 

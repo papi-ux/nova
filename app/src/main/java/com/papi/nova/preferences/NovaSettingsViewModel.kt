@@ -302,7 +302,9 @@ class NovaSettingsViewModel(
             overrideKeys = overrideKeys,
             resettableKeys = resettableKeys + if (generated && tier != NovaTier.RECOMMENDED &&
                 NovaTierControls.canSelect(tiers, NovaTier.RECOMMENDED)) setOf(NovaTierControls.QUALITY_KEY) else emptySet()
-        ).copy(generatedQuality = generated, tierSavePending = tierPending,
+        ).copy(generatedQuality = generated, tierSavePending = tierPending, tierSaveResult = tierResult,
+            deviceStreamSettings = shownDefinitions.settings.filter { it.key == NovaTierControls.QUALITY_KEY ||
+                it.key in NovaSettingsMigration.STREAM_KEYS || it.key == NovaSettingsMigration.AUTO },
             bitrateAuto = if (generated) tier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues()) else null)
     }
 

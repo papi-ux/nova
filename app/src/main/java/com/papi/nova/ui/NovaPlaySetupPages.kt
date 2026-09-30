@@ -103,6 +103,7 @@ internal sealed interface PlaySetupPage : NovaPage {
         val row: NovaPlaySetupRow,
         val bands: @Composable () -> List<NovaPlaySetupBand>,
         val footer: String = "",
+        val initialLabel: String? = null,
     ) : PlaySetupPage {
         override val key: String get() = "$KEY_OPTIONS:${row.name}"
     }
@@ -437,7 +438,9 @@ internal fun NovaPageScope.NovaPlaySetupOptionsPage(
     val focused = bands.withIndex()
         .flatMap { (index, band) -> band.options.map { novaPlaySetupOptionKey(index, it) to it } }
         .firstOrNull { it.first == focusedKey }?.second
-    val initial = novaPlaySetupInitialOption(bands)
+    val initial = page.initialLabel?.let { label -> bands.withIndex().flatMap { (index,band) ->
+        band.options.map { index to it } }.firstOrNull { it.second.label==label && it.second.enabled }
+        ?.let { novaPlaySetupOptionKey(it.first,it.second) } } ?: novaPlaySetupInitialOption(bands)
     // Drawn here rather than handed to the body, so it follows the cursor on the frame focus moves.
     Column(modifier = Modifier.fillMaxWidth()) {
         if (card != null) {

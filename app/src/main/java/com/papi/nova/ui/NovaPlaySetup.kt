@@ -478,7 +478,7 @@ internal fun NovaPlaySetupSettingRow(
     val currentIndex = options.indexOfFirst { it.current }
     val kind = novaPlaySetupRowKind(state)
     val selectable = options.count { it.enabled && it.onSelect != null }
-    val changes = kind == NovaPlaySetupRowKind.IN_PLACE && state.enabled && selectable > 1
+    val changes = (kind == NovaPlaySetupRowKind.IN_PLACE || state.stepWhileOpensPage) && state.enabled && selectable > 1
     val acts = kind != NovaPlaySetupRowKind.IN_PLACE && state.enabled
     val latestOptions by rememberUpdatedState(options)
     val latestIndex by rememberUpdatedState(currentIndex)
@@ -894,6 +894,7 @@ internal fun NovaPlaySetupBands(
                 option = option,
                 onPick = { onPick(option) },
                 modifier = rowModifier(novaPlaySetupOptionKey(bandIndex, option), option),
+                focusableWhenDisabled = option.focusableWhenDisabled,
             )
         }
     }
@@ -1127,6 +1128,7 @@ internal data class NovaPlaySetupOption(
     val warning: Boolean = false,
     /** What the plan card previews while this option has focus. */
     val preview: NovaPlaySetupPreview? = null,
+    val focusableWhenDisabled: Boolean = false,
 )
 
 /**
@@ -1160,6 +1162,12 @@ internal enum class NovaPlaySetupRow {
     HOST_SCREEN_SCALE,
     HOST_PROFILE,
     HOST_KEEP_IN_STEP,
+    DEVICE_QUALITY,
+    DEVICE_RESOLUTION,
+    DEVICE_FRAME_RATE,
+    DEVICE_VIDEO_CODEC,
+    DEVICE_BITRATE,
+    DEVICE_AUTO,
 }
 
 /**
@@ -1225,6 +1233,7 @@ internal data class NovaPlaySetupRowState(
      * instead of stepping through them in place (R2).
      */
     val opensPage: Boolean = false,
+    val stepWhileOpensPage: Boolean = false,
     /** The unit an ordered strip names once at its end, such as FPS. */
     val unit: String = "",
 )
