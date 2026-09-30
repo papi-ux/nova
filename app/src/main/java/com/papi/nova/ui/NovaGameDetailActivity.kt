@@ -2208,7 +2208,7 @@ class NovaGameDetailActivity : NovaActivity() {
             NovaComposeTheme {
                 val deviceState by deviceSettings.uiState.collectAsState()
                 val needsDeviceCodec = destination == NovaGameDetailDestination.PLAY_SETUP &&
-                    spaceGame == null
+                    com.papi.nova.BuildConfig.EXPERIMENTAL_CODECS && spaceGame == null
                 LaunchedEffect(needsDeviceCodec) {
                     if (needsDeviceCodec) {
                         val availability = withContext(Dispatchers.Default) {
