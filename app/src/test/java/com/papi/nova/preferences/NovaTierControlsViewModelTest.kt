@@ -61,6 +61,18 @@ class NovaTierControlsViewModelTest {
         assertEquals(NovaSettingValue.StringValue("recommended"), vm.uiState.value.values["nova_stream_preset"])
     }
 
+    @Test fun rp6MaxChoiceShowsAboveNativeAlongsideItsDecoderCeiling() {
+        val vm = model(Store(fresh()))
+        val option = quality(vm).options.single { it.value == "max" }
+        assertTrue("Max must explain downscaling in the actual Quality choices: ${option.caption}",
+            option.caption.orEmpty().contains("Sharper than this screen"))
+        assertTrue(option.caption.orEmpty().contains("4K"))
+        assertTrue(option.caption.orEmpty().contains("60 fps"))
+        val selectedCaption = NovaTierControls.caption(vm.streamTiers.value!!, NovaTier.MAX)
+        assertTrue("The selected row must retain the explanation", selectedCaption.contains("Sharper than this screen"))
+        assertTrue("The decoder limit must remain visible in the option", option.caption.orEmpty().contains("decodes"))
+    }
+
     @Test fun choosingRecommendedThroughQualityNeverRewritesCustomPins() {
         val store = Store(custom())
         val before = store.values.filterKeys { it in NovaSettingsMigration.STREAM_KEYS || it == NovaSettingsMigration.CUSTOM_AUTO }
