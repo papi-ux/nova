@@ -76,6 +76,24 @@ class NovaBetaUpdateFeedTest {
         assertFalse(NovaUpdateChecker.isNewerVersion("1.4.14-beta.9+new-build", "1.4.14-beta.10"))
     }
 
+    @Test fun genericBetaOffersTheFirstNumberedBetaOfItsOwnVersion() {
+        val (result, requests) = checkBeta(release("v1.4.14-beta.1"), current = "1.4.14-beta")
+        assertTrue("an unnumbered Beta must not compare as the stable release", result is NovaUpdateCheckResult.UpdateAvailable)
+        assertEquals("v1.4.14-beta.1", chosen(result).tagName)
+        assertEquals("/repos/papi-ux/nova/releases", requests.single().url.encodedPath)
+    }
+
+    @Test fun genericBetaIsOrdinalZeroWithoutChangingStableOrLegacyOrdering() {
+        assertTrue(NovaUpdateChecker.isNewerVersion("1.4.14-beta.1", "1.4.14-beta"))
+        assertTrue(NovaUpdateChecker.isNewerVersion("1.4.14-beta.10", "1.4.14-beta.9"))
+        assertFalse(NovaUpdateChecker.isNewerVersion("1.4.14-beta", "1.4.14-beta.1"))
+        assertFalse(NovaUpdateChecker.isNewerVersion("1.4.14-beta", "1.4.14-beta"))
+        assertFalse(NovaUpdateChecker.isNewerVersion("1.4.14-beta.1", "1.4.14"))
+        assertTrue(NovaUpdateChecker.isNewerVersion("1.4.14", "1.4.14-beta"))
+        assertTrue(NovaUpdateChecker.isNewerVersion("1.4.14-beta.1", "1.4.14-pre"))
+        assertTrue(NovaUpdateChecker.isNewerVersion("1.4.14-rc.1", "1.4.14-beta.49"))
+    }
+
     @Test fun betaWithNoEligiblePrereleaseDoesNotOfferTheStablePackage() {
         try {
             checkBeta(release("v2.0.0", beta = false), release("v1.4.14-beta.2", draft = true), release("unversioned"))

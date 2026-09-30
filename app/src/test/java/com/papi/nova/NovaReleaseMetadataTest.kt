@@ -270,7 +270,7 @@ class NovaReleaseMetadataTest {
         assertTrue(buildGradle.contains("applicationIdSuffix \".pre\""))
         assertTrue(buildGradle.contains("versionNameSuffix novaVersionSuffix"))
         assertTrue(buildGradle.contains(
-            "providers.gradleProperty(\"novaVersionSuffix\").getOrElse(\"-pre\")"
+            "providers.gradleProperty(\"novaVersionSuffix\").getOrElse(\"-beta\")"
         ))
 
         // Nothing downstream may name the stable variant, or a beta tag would ship stable APKs.
