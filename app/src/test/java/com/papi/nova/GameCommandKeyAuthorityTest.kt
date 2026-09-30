@@ -4,6 +4,7 @@ import android.os.Looper
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.binding.input.capture.InputCaptureProvider
+import com.papi.nova.manager.FeatureFlagManager
 import com.papi.nova.nvstream.NvConnection
 import com.papi.nova.nvstream.input.KeyboardPacket
 import com.papi.nova.ui.CommandCenterPage
@@ -81,7 +82,7 @@ class GameCommandKeyAuthorityTest {
         val api = PolarisApiClient(game, "127.0.0.1", 47984)
         val intercepted = OkHttpClient.Builder().addInterceptor { chain ->
             beforeResponse()
-            val next = reading.get()
+            val next = if (chain.request().url.encodedPath.endsWith("/capabilities")) Reading(404, "{}") else reading.get()
             Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
                 .code(next.code).message("fixture").body(ResponseBody.create(null, next.body)).build()
         }.build()
@@ -128,6 +129,65 @@ class GameCommandKeyAuthorityTest {
     }
 
     private fun drainKeys() = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+
+    @Test fun ownerObservedByThePrelaunchCapabilitiesFallbackDoesNotPinTheFollowingOwnerLaunch() {
+        val game = stream()
+        val reading = AtomicReference(Reading(200, status("owner", id = "prior-app", generation = 6)))
+        val api = client(game, reading)
+        game.novaApiClient = api
+        val scope = FeatureFlagManager.beginScope()
+        try {
+            assertTrue(FeatureFlagManager.probe(api, scope))
+            assertEquals("the real capabilities fallback published the prior owner", "prior-app", api.sessionStatusUpdates.value!!.appSessionId)
+        } finally { FeatureFlagManager.reset(scope) }
+
+        reading.set(Reading(200, status("owner")))
+        refresh(game)
+        assertEquals("stream-a", api.sessionStatusUpdates.value!!.appSessionId)
+        val action = existingKeyAction(game)
+        action(); drainKeys()
+        verify(game.conn!!, times(1)).sendKeyboardInput(anyShort(), eq(KeyboardPacket.KEY_DOWN), anyByte(), anyByte())
+        verify(game.conn!!, times(1)).sendKeyboardInput(anyShort(), eq(KeyboardPacket.KEY_UP), anyByte(), anyByte())
+        refresh(game)
+        assertTrue("repeated readings of the legitimate new owner remain allowed", game.canSendCommandKeys())
+
+        reading.set(Reading(200, status("viewer"))); refresh(game)
+        reading.set(Reading(404, "{}")); refresh(game)
+        assertFalse(game.canSendCommandKeys())
+        reading.set(Reading(200, status("owner", id = "prior-app", generation = 6))); refresh(game)
+        assertFalse("the prelaunch owner cannot clear the active viewer's fence", game.canSendCommandKeys())
+        reading.set(Reading(200, status("owner"))); refresh(game)
+        assertTrue(game.canSendCommandKeys())
+        reading.set(Reading(200, status("owner", id = "next-app", generation = 8))); refresh(game)
+        assertTrue("a recovered denial does not pin a later legitimate owner launch", game.canSendCommandKeys())
+    }
+
+    @Test fun initialIdleAndIdentitylessLegacyOwnerDoNotPinAnOwnerLaunch() {
+        val game = stream()
+        val idle = JSONObject(status("none", id = "", generation = 0))
+            .put("state", "idle").put("streaming_active", false).toString()
+        val reading = AtomicReference(Reading(200, idle))
+        game.novaApiClient = client(game, reading)
+        refresh(game)
+        assertTrue(game.canSendCommandKeys())
+        reading.set(Reading(200, status("owner", id = "", generation = 0))); refresh(game)
+        assertTrue(game.canSendCommandKeys())
+        reading.set(Reading(200, status("owner"))); refresh(game)
+        existingKeyAction(game)(); drainKeys()
+        verify(game.conn!!, times(1)).sendKeyboardInput(anyShort(), eq(KeyboardPacket.KEY_DOWN), anyByte(), anyByte())
+    }
+
+    @Test fun anOwnerLaunchAfterARecoveredViewerDenialDoesNotRemainPinned() {
+        val game = stream()
+        val reading = AtomicReference(Reading(200, status("viewer")))
+        game.novaApiClient = client(game, reading)
+        refresh(game)
+        reading.set(Reading(200, status("owner"))); refresh(game)
+        assertTrue(game.canSendCommandKeys())
+        reading.set(Reading(200, status("owner", id = "next-app", generation = 8))); refresh(game)
+        existingKeyAction(game)(); drainKeys()
+        verify(game.conn!!, times(1)).sendKeyboardInput(anyShort(), eq(KeyboardPacket.KEY_DOWN), anyByte(), anyByte())
+    }
 
     @Test fun viewerThenFailedGetKeepsAnExistingKeysPageBlockedUntilTheSameOwnerIsConfirmed() {
         val game = stream()
