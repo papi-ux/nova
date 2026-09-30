@@ -859,6 +859,19 @@ void testNamedFailureGui(const QString& scenario) {
     require(window && preview && play, "production standalone stream route missing");
     QMetaObject::invokeMethod(preview, "open");
     until([&] { return play->isEnabled() && preview->property("opened").toBool(); });
+    if (scenario == "host-capability") {
+        const QString words="PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.";
+        preview->setProperty("streamCapabilities",QVariantMap{{"valid",true},{"h264",true},{"pyrowave",false},
+            {"pyrowaveUnavailableReason","fp16_capture"},{"pyrowaveUnavailableMessage",words}});
+        require(settings.saveChoice("host","game",{{"videoCodec","pyrowave"}}),"cannot choose capability-refused codec");
+        QMetaObject::invokeMethod(preview,"close"); QMetaObject::invokeMethod(preview,"open");
+        QCoreApplication::processEvents();
+        auto* setup=root->findChild<QObject*>("play-setup");
+        require(setup && setup->property("plan").toMap().value("reason")==words,
+            "host capture reason/message did not reach production Play Setup");
+        require(!play->isEnabled() && host.requests==0 && driver.starts==0,"unavailable PyroWave became playable");
+        return;
+    }
     QString expected;
     int stage = -1, error = 0;
     const bool terminal = scenario.startsWith("term-");

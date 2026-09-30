@@ -743,6 +743,12 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 set_tests_properties(nova_deck_failure_gui_${case}_test PROPERTIES
                     TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
             endforeach()
+            if(NOVA_DECK_BUILD_PYROWAVE)
+                add_test(NAME nova_deck_failure_gui_host_capability_test
+                    COMMAND nova_deck_native_session_test --failure-copy host-capability)
+                set_tests_properties(nova_deck_failure_gui_host_capability_test PROPERTIES
+                    TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+            endif()
             add_executable(nova_deck_pairing_qml_test tests/deck_pairing_qml_test.cpp)
             target_link_libraries(nova_deck_pairing_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
             target_compile_definitions(nova_deck_pairing_qml_test PRIVATE
