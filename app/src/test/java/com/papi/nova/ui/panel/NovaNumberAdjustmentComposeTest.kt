@@ -75,6 +75,13 @@ class NovaNumberAdjustmentComposeTest {
         rule.onNodeWithText("120 units").assertIsFocused()
         keys.press(NovaTestKeys.LEFT)
         rule.onNodeWithText("115 units").assertIsFocused()
+        rule.onNodeWithContentDescription("Decrease value").performTouchInput { click(center) }
+        rule.onNodeWithText("110 units").assertIsFocused()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.onNodeWithText("115 units").assertIsFocused()
+        keys.press(NovaTestKeys.DOWN)
+        keys.press(NovaTestKeys.UP)
+        rule.onNodeWithText("115 units").assertIsFocused()
         assertTrue(saves.isEmpty())
         keys.press(NovaTestKeys.DOWN)
         keys.press(NovaTestKeys.DOWN)
@@ -90,8 +97,8 @@ class NovaNumberAdjustmentComposeTest {
         val decrease = rule.onNodeWithContentDescription("Decrease value")
         for (button in listOf(increase, decrease)) {
             val bounds = button.getUnclippedBoundsInRoot()
-            assertTrue("unscaled finger width: $bounds", bounds.width >= 48.dp)
-            assertTrue("unscaled finger height: $bounds", bounds.height >= 48.dp)
+            assertTrue("unscaled finger width: $bounds", bounds.right - bounds.left >= 48.dp)
+            assertTrue("unscaled finger height: $bounds", bounds.bottom - bounds.top >= 48.dp)
         }
         repeat(2) { increase.performTouchInput { click(center) } }
         rule.onNodeWithText("150 units").assertExists()
@@ -139,13 +146,20 @@ class NovaNumberAdjustmentComposeTest {
         val before = rule.onNodeWithText("Save").getUnclippedBoundsInRoot().top
         track().performTouchInput {
             down(center)
-            moveTo(Offset(centerX + 1f, centerY - 90f), 150)
+            moveTo(Offset(centerX + 24f, centerY - 90f), 150)
             up()
         }
         rule.waitForIdle()
         val after = rule.onNodeWithText("Save").getUnclippedBoundsInRoot().top
         assertTrue("the page scrolls: $before -> $after", after < before)
         assertEquals("vertical movement never adjusts the value", listOf(20), previews)
+        assertTrue(saves.isEmpty())
+    }
+
+    @Test fun twoControllerStepsBeforeTheNextFrameBothReachTheDraft() {
+        val keys = show()
+        keys.pressTwiceInOneFrame(NovaTestKeys.RIGHT)
+        rule.onNodeWithText("30 units").assertIsFocused()
         assertTrue(saves.isEmpty())
     }
 }

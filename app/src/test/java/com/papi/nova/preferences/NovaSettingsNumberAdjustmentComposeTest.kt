@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -51,6 +52,11 @@ class NovaSettingsNumberAdjustmentComposeTest {
         keys.press(NovaTestKeys.CENTER)
         rule.onNodeWithText("200").performTextReplacement("215.5")
         assertTrue(writes.isEmpty())
+        rule.onNodeWithContentDescription("Increase value").performTouchInput { click(center) }
+        rule.onNodeWithText("220.5 Mbps").assertExists()
+        keys.press(NovaTestKeys.LEFT)
+        rule.onNodeWithText("215.5 Mbps").assertExists()
+        keys.press(NovaTestKeys.DOWN)
         keys.press(NovaTestKeys.DOWN)
         keys.pressTwiceInOneFrame(NovaTestKeys.CENTER)
         assertEquals(listOf(key to NovaSettingValue.IntValue(215_500)), writes)
