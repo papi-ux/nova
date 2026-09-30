@@ -88,7 +88,8 @@ class NovaTierSaveReceiptTest {
         try {
             vm.setValue(requireNotNull(NovaSettingDefinitions.load(context).find("seekbar_bitrate_kbps")),
                 NovaSettingValue.IntValue(201124)) { completed=true }
-            await { entered.count==0L }
+            await { completed || entered.count==0L }
+            assertEquals("fine edits must reach the participating setup writer",0L,entered.count)
             repeat(20) { shadowOf(Looper.getMainLooper()).idle();Thread.sleep(5) }
             assertFalse("fine edits must await the participating setup as tier choices do",completed)
         } finally { release.countDown() }

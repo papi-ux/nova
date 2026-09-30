@@ -113,6 +113,12 @@ interface NovaSettingsStore {
         set(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)), NovaSettingValue.StringValue(tier.name.lowercase()))
         return NovaTierSaveResult.SAVED
     }
+    suspend fun saveStreamEdits(updates: List<Pair<NovaSettingDefinition, NovaSettingValue>>,
+        removeKeys: Set<String>, expectedOwner: Any?): NovaTierSaveResult {
+        if (tierOwner() != expectedOwner) return NovaTierSaveResult.SUPERSEDED
+        updateAtomically(updates, removeKeys)
+        return NovaTierSaveResult.SAVED
+    }
     val tierUpdates: kotlinx.coroutines.flow.Flow<NovaTierInputs>? get() = null
     suspend fun storedStreamKeys(): Set<String>? = null
     suspend fun deviceTierInputs(): NovaTierInputs? = null
@@ -148,6 +154,39 @@ class NovaSettingsRepository private constructor(
         val result = kotlinx.coroutines.suspendCancellableCoroutine<com.papi.nova.profiles.ProfilesManager.SaveResult> { continuation ->
             NovaStreamSettings.selectActiveSetupTierResult(tier, expectedOwner as? java.util.UUID) {
                 if (continuation.isActive) continuation.resumeWith(Result.success(it))
+            }
+        }
+        return when {
+            tierOwner() != expectedOwner -> NovaTierSaveResult.SUPERSEDED
+            result == com.papi.nova.profiles.ProfilesManager.SaveResult.SAVED -> NovaTierSaveResult.SAVED
+            result == com.papi.nova.profiles.ProfilesManager.SaveResult.SUPERSEDED -> NovaTierSaveResult.SUPERSEDED
+            else -> NovaTierSaveResult.PROFILE_FAILED
+        }
+    }
+    override suspend fun saveStreamEdits(updates: List<Pair<NovaSettingDefinition, NovaSettingValue>>,
+        removeKeys: Set<String>, expectedOwner: Any?): NovaTierSaveResult {
+        val committed = persistSerialized {
+            if (tierOwner() != expectedOwner) return@persistSerialized false
+            val editor = mirrorPrefs.edit()
+            removeKeys.forEach(editor::remove)
+            updates.forEach { (definition, value) -> editor.putSettingValue(definition.key, value) }
+            check(editor.commit()) { "Failed to persist device stream values" }
+            mirrorDataStoreBestEffort { preferences ->
+                removeKeys.forEach(preferences::removeRawSettingKey)
+                updates.forEach { (definition, value) -> preferences.writeSettingValue(definition, value) }
+            }
+            true
+        }
+        if (!committed || tierOwner() != expectedOwner) return NovaTierSaveResult.SUPERSEDED
+        val raw = updates.associate { (definition,value) -> definition.key to when(value) {
+            is NovaSettingValue.BooleanValue -> value.value
+            is NovaSettingValue.IntValue -> value.value
+            is NovaSettingValue.StringValue -> value.value
+            is NovaSettingValue.StringSetValue -> value.value
+        } }
+        val result = kotlinx.coroutines.suspendCancellableCoroutine<com.papi.nova.profiles.ProfilesManager.SaveResult> { waiting ->
+            NovaStreamSettings.updateActiveSetupStreamResult(raw, removeKeys, expectedOwner as? java.util.UUID) {
+                if (waiting.isActive) waiting.resumeWith(Result.success(it))
             }
         }
         return when {

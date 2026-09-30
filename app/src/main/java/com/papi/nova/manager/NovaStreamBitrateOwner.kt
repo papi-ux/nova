@@ -162,7 +162,7 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
         try {
             val outcome=when { direction!=null -> captured.step(direction);kbps!=null -> captured.setBitrate(kbps);else -> captured.useRecommended() }
             synchronized(lock) {
-                if (controller===captured && token==mutableState.value.token && menuCurrent()) result=when(outcome) {
+                if (controller===captured && token==mutableState.value.token) result=when(outcome) {
                     NovaBitrateChange.APPLIED -> "Changed for this stream"
                     NovaBitrateChange.AT_LIMIT -> "This stream is already at that bitrate"
                     NovaBitrateChange.SESSION_CHANGED -> "Stream changed. Reopen Command Center"

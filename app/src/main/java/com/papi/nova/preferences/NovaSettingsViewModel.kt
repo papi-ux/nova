@@ -68,6 +68,7 @@ class NovaSettingsViewModel(
     private var tierIntent: TierIntent? = null
     private var tierResult: NovaTierSaveResult? = null
     private var tierPending = false
+    private var pendingFineEdit: Pair<NovaSettingDefinition,NovaSettingValue>? = null
 
     private val mutableUiState = MutableStateFlow(
         NovaSettingsUiStateFactory.build(
@@ -128,7 +129,9 @@ class NovaSettingsViewModel(
             if (intent == null || intent.owner != store.tierOwner() || intent.revision != tierRevision) {
                 tierIntent = null; tierResult = NovaTierSaveResult.SUPERSEDED; emit(); onCompleted(); return
             }
-            setValue(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)),
+            val fine = pendingFineEdit
+            if (fine != null) setValue(fine.first, fine.second, onCompleted)
+            else setValue(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)),
                 NovaSettingValue.StringValue(intent.tier.name.lowercase()), onCompleted)
             return
         }
@@ -136,7 +139,9 @@ class NovaSettingsViewModel(
         val selection = tier != null && definition.key in setOf(NovaTierControls.QUALITY_KEY, NovaSettingsMigration.TIER)
         val revision = if (selection || definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO)
             ++tierRevision else tierRevision
-        val intent = if (selection) TierIntent(tier!!, store.tierOwner(), revision) else null
+        val owner = store.tierOwner()
+        val intent = if (selection) TierIntent(tier!!, owner, revision) else null
+        if (selection) pendingFineEdit = null
         if (!selection && revision == tierRevision && (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO)) {
             tierIntent = null; tierResult = null
         }
@@ -146,7 +151,20 @@ class NovaSettingsViewModel(
                     if (intent != null) {
                         if (NovaTierControls.canSelect(mutableTiers.value, intent.tier)) saveTier(intent)
                     } else if (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO) {
-                        persistStreamEdit(definition, value)
+                        if (revision == tierRevision && owner == store.tierOwner()) {
+                            tierIntent = TierIntent(NovaTier.CUSTOM, owner, revision)
+                            pendingFineEdit = definition to value
+                            tierPending = true; emit()
+                            val result = try { persistStreamEdit(definition, value, owner) }
+                            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                            catch (_: Exception) { NovaTierSaveResult.FAILED }
+                            finally { tierPending = false }
+                            if (revision == tierRevision) {
+                                tierResult = if (owner == store.tierOwner()) result else NovaTierSaveResult.SUPERSEDED
+                                if (tierResult == NovaTierSaveResult.SUPERSEDED) { tierIntent = null; pendingFineEdit = null }
+                                else if (tierResult == NovaTierSaveResult.SAVED) pendingFineEdit = null
+                            }
+                        }
                     } else {
                         store.set(definition, value)
                         values = values + (definition.key to value)
@@ -220,7 +238,7 @@ class NovaSettingsViewModel(
         }
     }
 
-    private suspend fun persistStreamEdit(definition: NovaSettingDefinition, value: NovaSettingValue) {
+    private suspend fun persistStreamEdit(definition: NovaSettingDefinition, value: NovaSettingValue, expectedOwner: Any?): NovaTierSaveResult {
         val updates = mutableMapOf<String, NovaSettingValue>()
         if (pictureTier != NovaTier.CUSTOM) mutableTiers.value?.plan(pictureTier)?.let { plan ->
             updates["list_resolution"] = NovaSettingValue.StringValue("${plan.width}x${plan.height}")
@@ -250,7 +268,7 @@ class NovaSettingsViewModel(
             (definitions.find(key) ?: resetDefinitions.find(key) ?: NovaStreamSettings.definition(key)
                 ?: error("Missing stream definition $key")) to update
         }
-        store.updateAtomically(resolved, remove)
+        return store.saveStreamEdits(resolved, remove, expectedOwner)
     }
 
     private suspend fun applyPresetIfNeeded(

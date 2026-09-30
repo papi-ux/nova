@@ -71,6 +71,19 @@ object NovaStreamSettings {
         manager.updateDeferred(active, onSaved)
     }
 
+    internal fun updateActiveSetupStreamResult(updates: Map<String,Any>, removeKeys: Set<String>,
+        expectedOwner: java.util.UUID?, onSaved: (com.papi.nova.profiles.ProfilesManager.SaveResult) -> Unit) {
+        val manager = com.papi.nova.profiles.ProfilesManager.getInstance()
+        val active = manager.getActive()
+        if (active?.getUuid() != expectedOwner) { onSaved(com.papi.nova.profiles.ProfilesManager.SaveResult.SUPERSEDED); return }
+        if (active == null || active.getOptions()?.keys?.none {
+                it in NovaSettingsMigration.STREAM_KEYS || it == NovaSettingsMigration.TIER } != false) {
+            onSaved(com.papi.nova.profiles.ProfilesManager.SaveResult.SAVED); return
+        }
+        active.setOptions((active.getOptions().orEmpty() - removeKeys) + updates)
+        manager.updateDeferred(active, onSaved)
+    }
+
     fun generatedPlan(prefs: SharedPreferences): NovaStreamPlan? {
         val tier = NovaTier.entries.firstOrNull { it.name.equals(prefs.getString(NovaSettingsMigration.TIER, "custom"), true) } ?: NovaTier.CUSTOM
         if (tier == NovaTier.CUSTOM) return null
