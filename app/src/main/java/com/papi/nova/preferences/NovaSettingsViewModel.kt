@@ -68,12 +68,14 @@ class NovaSettingsViewModel(
     private var tierIntent: TierIntent? = null
     private var tierResult: NovaTierSaveResult? = null
     private var tierPending = false
-    private var pendingFineEdit: Pair<NovaSettingDefinition,NovaSettingValue>? = null
     private data class FineIntent(val definition: NovaSettingDefinition, val value: NovaSettingValue,
         val owner: Any?, val revision: Long, val epoch: Long)
+    private data class FailedFineEdit(val intent: FineIntent, val result: NovaTierSaveResult)
     private var fineEpoch = 0L
     private var snapshotOwner: Any? = null
     private val fineIntents = linkedMapOf<Long, FineIntent>()
+    // Completion of another field does not acknowledge this field's failed write.
+    private val failedFineEdits = linkedMapOf<String, FailedFineEdit>()
     private val streamCompletions = linkedMapOf<Long, kotlinx.coroutines.CompletableDeferred<Unit>>()
 
     private val mutableUiState = MutableStateFlow(
@@ -141,13 +143,26 @@ class NovaSettingsViewModel(
         onCompleted: () -> Unit = {}
     ) {
         if (definition.key == NovaTierControls.QUALITY_KEY && (value as? NovaSettingValue.StringValue)?.value == "retry_tier") {
+            if (failedFineEdits.isNotEmpty()) {
+                val failed = failedFineEdits.values.sortedBy { it.intent.revision }
+                if (failed.any { it.intent.owner != store.tierOwner() || it.intent.epoch != fineEpoch }) {
+                    failedFineEdits.clear(); tierIntent = null
+                    tierResult = NovaTierSaveResult.SUPERSEDED; emit(); onCompleted(); return
+                }
+                var remaining = failed.size
+                failed.forEach { edit ->
+                    setValue(edit.intent.definition, edit.intent.value) {
+                        remaining--
+                        if (remaining == 0) onCompleted()
+                    }
+                }
+                return
+            }
             val intent = tierIntent
             if (intent == null || intent.owner != store.tierOwner() || intent.revision != tierRevision) {
                 tierIntent = null; tierResult = NovaTierSaveResult.SUPERSEDED; emit(); onCompleted(); return
             }
-            val fine = pendingFineEdit
-            if (fine != null) setValue(fine.first, fine.second, onCompleted)
-            else setValue(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)),
+            setValue(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)),
                 NovaSettingValue.StringValue(intent.tier.name.lowercase()), onCompleted)
             return
         }
@@ -160,15 +175,19 @@ class NovaSettingsViewModel(
             tierResult = NovaTierSaveResult.SUPERSEDED; emit(); refresh(); onCompleted(); return
         }
         val intent = if (selection) TierIntent(tier!!, owner, revision) else null
-        if (selection) { pendingFineEdit = null; fineEpoch++; fineIntents.clear() }
+        if (selection) { fineEpoch++; fineIntents.clear(); failedFineEdits.clear() }
         val fine = if (!selection && (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO))
             FineIntent(definition,value,owner,revision,fineEpoch) else null
-        if (fine != null) fineIntents[revision] = fine
+        if (fine != null) {
+            // A deliberate replacement supersedes only the failed choice for this field.
+            failedFineEdits.remove(definition.key)
+            fineIntents[revision] = fine
+        }
         val completion = if (selection || fine != null) kotlinx.coroutines.CompletableDeferred<Unit>().also {
             streamCompletions[revision] = it; tierPending = true
         } else null
         if (!selection && revision == tierRevision && (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO)) {
-            tierIntent = null; tierResult = null
+            tierIntent = null; tierResult = fineFailureResult()
         }
         emit()
         viewModelScope.launch {
@@ -180,20 +199,22 @@ class NovaSettingsViewModel(
                         val newerSameField = fineIntents.values.any { it.revision > revision && it.definition.key == definition.key }
                         if (fine.epoch == fineEpoch && !newerSameField && owner == store.tierOwner()) {
                             loadStoreState()
-                            tierIntent = TierIntent(NovaTier.CUSTOM, owner, revision)
-                            pendingFineEdit = definition to value
                             tierPending = true; emit()
                             val result = try { persistStreamEdit(definition, value, owner) }
                             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                             catch (_: Exception) { NovaTierSaveResult.FAILED }
-                            if (revision == tierRevision) {
-                                tierResult = if (owner == store.tierOwner()) result else NovaTierSaveResult.SUPERSEDED
-                                if (tierResult == NovaTierSaveResult.SUPERSEDED) { tierIntent = null; pendingFineEdit = null }
-                                else if (tierResult == NovaTierSaveResult.SAVED) pendingFineEdit = null
+                            val replaced = fine.epoch != fineEpoch || owner != store.tierOwner() ||
+                                fineIntents.values.any { it.revision > revision && it.definition.key == definition.key }
+                            if (!replaced) {
+                                if (result in setOf(NovaTierSaveResult.FAILED, NovaTierSaveResult.PROFILE_FAILED))
+                                    failedFineEdits[definition.key] = FailedFineEdit(fine, result)
+                                tierResult = fineFailureResult() ?: result
+                            } else if (revision == tierRevision) {
+                                tierResult = fineFailureResult() ?: NovaTierSaveResult.SUPERSEDED
                             }
                         } else if (revision == tierRevision) {
-                            tierResult = NovaTierSaveResult.SUPERSEDED
-                            tierIntent = null; pendingFineEdit = null
+                            tierResult = fineFailureResult() ?: NovaTierSaveResult.SUPERSEDED
+                            tierIntent = null
                         }
                     } else {
                         store.set(definition, value)
@@ -213,6 +234,12 @@ class NovaSettingsViewModel(
                 onCompleted()
             }
         }
+    }
+
+    private fun fineFailureResult(): NovaTierSaveResult? = when {
+        failedFineEdits.values.any { it.result == NovaTierSaveResult.FAILED } -> NovaTierSaveResult.FAILED
+        failedFineEdits.isNotEmpty() -> NovaTierSaveResult.PROFILE_FAILED
+        else -> null
     }
 
     private suspend fun saveTier(intent: TierIntent) {
@@ -265,8 +292,13 @@ class NovaSettingsViewModel(
         do {
             val before = store.tierOwner()
             val next = store.snapshot(definitions)
-            snapshotOwner = store.tierOwner()
-            if (before == snapshotOwner) { values = next; break }
+            val nextOwner = store.tierOwner()
+            if (before == nextOwner) {
+                if (snapshotOwner != nextOwner) {
+                    fineEpoch++; fineIntents.clear(); failedFineEdits.clear(); tierIntent = null
+                }
+                snapshotOwner = nextOwner; values = next; break
+            }
         } while (true)
         values = values + (NovaSettingsMigration.AUTO to NovaSettingValue.BooleanValue(
             NovaStreamSettings.selected(rawValues()) != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues())))
@@ -355,7 +387,8 @@ class NovaSettingsViewModel(
         val shownDefinitions = (if (generated) NovaTierControls.definitions(definitions, tiers!!, tier) else definitions).let { projected ->
             if (tierMessage == null) projected else projected.copy(settings = projected.settings.map { definition ->
                 if (definition.key != NovaTierControls.QUALITY_KEY) definition else definition.copy(summary = tierMessage,
-                    options = definition.options + if (tierIntent != null && tierResult in setOf(NovaTierSaveResult.FAILED,NovaTierSaveResult.PROFILE_FAILED))
+                    options = definition.options + if ((tierIntent != null || failedFineEdits.isNotEmpty()) &&
+                        tierResult in setOf(NovaTierSaveResult.FAILED,NovaTierSaveResult.PROFILE_FAILED))
                         listOf(NovaSettingOption("Try again", "retry_tier", caption = tierMessage)) else emptyList())
             })
         }
