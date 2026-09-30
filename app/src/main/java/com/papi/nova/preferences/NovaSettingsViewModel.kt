@@ -70,7 +70,10 @@ class NovaSettingsViewModel(
     private var tierPending = false
 
     private val mutableUiState = MutableStateFlow(
-        NovaSettingsUiStateFactory.build(definitions, values, selectedCategoryKey, searchQuery)
+        NovaSettingsUiStateFactory.build(
+            NovaTierControls.definitions(definitions,NovaTierRuntime.pendingTiers,NovaTier.CUSTOM),
+            values + (NovaTierControls.QUALITY_KEY to NovaSettingValue.StringValue("custom")), selectedCategoryKey, searchQuery
+        ).copy(generatedQuality = definitions.find(NovaTierControls.QUALITY_KEY) != null)
     )
     val uiState: StateFlow<NovaSettingsUiState> = mutableUiState.asStateFlow()
     private val mutableTiers = MutableStateFlow<NovaStreamTiers?>(null)
