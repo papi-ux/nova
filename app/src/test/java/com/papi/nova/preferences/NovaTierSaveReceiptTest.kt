@@ -80,6 +80,41 @@ class NovaTierSaveReceiptTest {
         assertEquals(350000,(cold.getActive()!!.getOptions()!!["seekbar_bitrate_kbps"] as Number).toInt())
     }
 
+    @Test fun fineControlWaitsForItsSetupReceiptAndWritesTheExactManualPin() {
+        val entered=CountDownLatch(1);val release=CountDownLatch(1)
+        manager.openProfileWriter={ file -> object:FileOutputStream(file) {
+            override fun write(bytes:ByteArray) { entered.countDown();check(release.await(5,TimeUnit.SECONDS));super.write(bytes) }
+        } }
+        try {
+            vm.setValue(requireNotNull(NovaSettingDefinitions.load(context).find("seekbar_bitrate_kbps")),
+                NovaSettingValue.IntValue(201124)) { completed=true }
+            await { entered.count==0L }
+            repeat(20) { shadowOf(Looper.getMainLooper()).idle();Thread.sleep(5) }
+            assertFalse("fine edits must await the participating setup as tier choices do",completed)
+        } finally { release.countDown() }
+        await { completed };manager.awaitDeferredWritesForTest()
+        ProfilesManager.instance=null
+        val cold=ProfilesManager.getInstance();assertTrue(cold.load(context))
+        assertEquals(201124,(cold.getActive()!!.getOptions()!!["seekbar_bitrate_kbps"] as Number).toInt())
+        assertFalse(cold.getActive()!!.getOptions()!![NovaSettingsMigration.CUSTOM_AUTO] as Boolean)
+    }
+
+    @Test fun failedFineControlReceiptOffersRetryOfTheOwnedExactEdit() {
+        manager.openProfileWriter={ throw IOException("injected fine-edit write failure") }
+        vm.setValue(requireNotNull(NovaSettingDefinitions.load(context).find("seekbar_bitrate_kbps")),
+            NovaSettingValue.IntValue(201124)) { completed=true }
+        await { completed };manager.awaitDeferredWritesForTest()
+        assertEquals(NovaTierSaveResult.PROFILE_FAILED,vm.uiState.value.tierSaveResult)
+        assertTrue(quality().options.any { it.value=="retry_tier" })
+        manager.openProfileWriter={ FileOutputStream(it) };completed=false
+        vm.setValue(quality(),NovaSettingValue.StringValue("retry_tier")) { completed=true }
+        await { completed };manager.awaitDeferredWritesForTest()
+        ProfilesManager.instance=null
+        val cold=ProfilesManager.getInstance();assertTrue(cold.load(context))
+        assertEquals(201124,(cold.getActive()!!.getOptions()!!["seekbar_bitrate_kbps"] as Number).toInt())
+        assertFalse(cold.getActive()!!.getOptions()!![NovaSettingsMigration.CUSTOM_AUTO] as Boolean)
+    }
+
     @Test fun setupFailureIsVisibleAndRetrySavesTheCurrentIntentWithoutLosingThePin() {
         manager.openProfileWriter={ throw IOException("injected setup write failure") }
         select();await { completed };manager.awaitDeferredWritesForTest()
