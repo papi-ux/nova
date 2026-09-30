@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import com.papi.nova.ui.compose.novaControlDimension
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -913,7 +914,7 @@ private fun NovaSettingPill(
             )
             .semantics(mergeDescendants = true) { contentDescription = "${definition.title}, $value" }
             .novaClickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+            .padding(horizontal = novaControlDimension(NovaPanelMetrics.SpaceMd), vertical = novaControlDimension(NovaPanelMetrics.SpaceSm)),
         contentAlignment = Alignment.CenterStart
     ) {
         Text(text = label, style = type.value)
@@ -999,7 +1000,7 @@ private fun NovaCategoryRow(
             .novaFocusRing(shape, rest = novaRowRest)
             .semantics { this.selected = selected }
             .novaClickable(role = Role.Tab, onClick = onClick)
-            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+            .padding(horizontal = novaControlDimension(NovaPanelMetrics.SpaceMd), vertical = novaControlDimension(NovaPanelMetrics.SpaceSm)),
         contentAlignment = Alignment.CenterStart
     ) {
         Text(

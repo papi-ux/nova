@@ -269,7 +269,8 @@ fun NovaSplitConfirm(
     val fills = shape != NovaSplitShape.Button || fillSlot
     val minHeight = when (shape) {
         NovaSplitShape.Button -> buttonStyle?.minHeight ?: NovaPanelMetrics.ButtonMinHeight
-        NovaSplitShape.Row -> NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current)
+        // NovaActionSurface scales this base height once, just like the button and tile.
+        NovaSplitShape.Row -> NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current, LocalNovaPanelDensity.current)
         NovaSplitShape.Tile -> NovaPanelMetrics.TileMinHeight
     }
     val motion = tween<Float>(NovaPanelMetrics.SplitMillis)

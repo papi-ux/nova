@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import com.papi.nova.ui.compose.novaControlDimension
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -187,7 +188,7 @@ internal fun NovaRowLayout(
                     Modifier
                 },
             )
-            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+            .padding(horizontal = novaControlDimension(NovaPanelMetrics.SpaceMd), vertical = novaControlDimension(NovaPanelMetrics.SpaceSm)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
     ) {

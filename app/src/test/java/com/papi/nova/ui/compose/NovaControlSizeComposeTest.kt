@@ -23,6 +23,8 @@ import androidx.preference.PreferenceManager
 import com.papi.nova.preferences.NovaSettingDefinitions
 import com.papi.nova.preferences.NovaSettingValue
 import com.papi.nova.preferences.NovaSettingsAvailability
+import com.papi.nova.preferences.NovaSettingApplyTiming
+import com.papi.nova.preferences.isOrderedScale
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -41,6 +43,9 @@ class NovaControlSizeComposeTest {
         assertNotNull("control size is an appearance setting", definition)
         assertEquals(NovaSettingValue.StringValue("standard"), definition!!.defaultValue)
         assertEquals(listOf("Compact", "Standard", "Large"), definition.options.map { it.label })
+        assertEquals("category_nova", definition.categoryKey)
+        assertEquals(NovaSettingApplyTiming.Instant, definition.applyTiming)
+        assertTrue(definition.isOrderedScale)
         assertFalse("a game setup must not change this device's interface size",
             NovaSettingsAvailability.shouldPersistProfileOverride(key))
     }
@@ -48,6 +53,10 @@ class NovaControlSizeComposeTest {
     @Test fun compactAndLargeResizeControlsLiveWithoutResizingTextOrLosingFocus() = checkSizes(1f)
 
     @Test fun enlargedSystemTextAndPhysicalTouchTargetsSurviveCompactControls() = checkSizes(1.3f)
+
+    @Test fun slightlyEnlargedTextKeepsItsNonlinearFontConversion() = checkSizes(1.1f)
+
+    @Test fun largestSystemTextKeepsItsNonlinearFontConversion() = checkSizes(2f)
 
     private fun checkSizes(fontScale: Float) {
         val preferences = PreferenceManager.getDefaultSharedPreferences(compose.activity)
@@ -104,7 +113,7 @@ class NovaControlSizeComposeTest {
             assertEquals(choice, standard * factor, buttonHeight(), 1f)
             assertEquals("nested themes apply the choice once", buttonHeight(),
                 compose.onNodeWithTag("nested-control").fetchSemanticsNode().boundsInRoot.height, 1f)
-            assertEquals("Text Size is independent", physicalTextHeight, textHeight())
+            assertEquals("Text Size is independent at $choice (density=$measuredDensity)", physicalTextHeight, textHeight())
             assertEquals("the physical touch floor does not shrink", originalTouchTarget, touchTargetPixels, 0.1f)
             assertEquals("layout breakpoints use the scaled viewport", baseViewportWidthPixels, viewportWidthPixels, measuredDensity)
             compose.onNodeWithTag("control").assertIsFocused()
