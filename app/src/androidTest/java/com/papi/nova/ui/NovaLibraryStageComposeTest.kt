@@ -273,7 +273,7 @@ class NovaLibraryStageComposeTest {
         assertEquals(1, logoLoads.get())
     }
 
-    @Test fun rp6LargeTextCinematicHintsStayRightAlignedAndClearOfStageRail() {
+    @Test fun largeTextIdentityRailAndCounterStayWithinTheStageContent() {
         stageFixture(fontScale = 2f)
         val stage = composeRule.onNodeWithTag("nova-library-stage").getUnclippedBoundsInRoot()
         val poster = composeRule.onNodeWithTag("nova-poster-art-alpha", true).getUnclippedBoundsInRoot()
@@ -286,6 +286,35 @@ class NovaLibraryStageComposeTest {
         assertTrue(counter.bottom <= stage.bottom + .6.dp)
         composeRule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused()
         capture("large-text")
+    }
+
+    @Test fun longTitleAndMetadataStayWithinTheirBudgetAtModeratelyLargeText() {
+        val many = games().toMutableList().apply {
+            this[0] = this[0].copy(name = "A long game title on its first line\nAnd its second line is visible too",
+                category = "action", playTime = PolarisGame.PlayTime(seconds = 84 * 3600),
+                lastLaunched = System.currentTimeMillis() / 1000 - 3600)
+        }
+        stageFixture(many, fontScale = 1.3f)
+        val title = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        composeRule.onNodeWithTag("nova-stage-title", true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
+        assertEquals("fixture exercises two title lines", 2, title.single().lineCount)
+        val metadata = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        composeRule.onNodeWithTag("nova-stage-metadata", true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(metadata) }
+        val density = ApplicationProvider.getApplicationContext<android.content.Context>().resources.displayMetrics.density
+        assertTrue("metadata fits its 14sp single-line budget",
+            metadata.single().size.height / density <= kotlin.math.ceil(14f * 1.3f) + 1f)
+        val identity = composeRule.onNodeWithTag("nova-stage-identity", true).getUnclippedBoundsInRoot()
+        listOf("nova-stage-title", "nova-stage-metadata", "nova-stage-play-stats").forEach { tag ->
+            val node = composeRule.onNodeWithTag(tag, true)
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertTrue("$tag is not vertically clipped", !layouts.single().didOverflowHeight)
+            val b = node.getUnclippedBoundsInRoot()
+            assertTrue("$tag stays within its identity block", b.top >= identity.top - .6.dp && b.bottom <= identity.bottom + .6.dp)
+        }
+        capture("long-title-text-1_3")
     }
 
     @Test fun changingTheSelectedGameWhileAHeldCancelsThatPress() {

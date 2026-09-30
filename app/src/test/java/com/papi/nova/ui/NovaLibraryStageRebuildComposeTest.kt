@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
@@ -15,13 +18,18 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.panel.setPanelContent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,12 +52,15 @@ class NovaLibraryStageRebuildComposeTest {
     private val focused = mutableListOf<String>()
     private val opened = mutableListOf<String>()
 
-    private fun stage(restore: String? = null) {
+    private fun stage(restore: String? = null, densityScale: Float? = null, fontScale: Float? = null,
+                      entries: List<PolarisGame> = games) {
         rule.setPanelContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(densityScale ?: density.density, fontScale ?: density.fontScale)) {
             Box(Modifier.requiredSize(833.dp, 354.dp)) {
                 NovaLibraryStage(
-                    games = games,
-                    focusedGame = games.firstOrNull { it.id == restore } ?: games.first(),
+                    games = entries,
+                    focusedGame = entries.firstOrNull { it.id == restore } ?: entries.first(),
                     restoreFocusGameId = restore,
                     apiClient = PolarisApiClient(context, ""),
                     showPosterTitles = false,
@@ -59,8 +70,42 @@ class NovaLibraryStageRebuildComposeTest {
                     posterLoader = { _, _ -> },
                 )
             }
+            }
         }
         rule.waitForIdle()
+    }
+
+    @Test fun aFractionalPixelDensityKeepsTheApprovedIntegerContentGeometry() {
+        // 354dp rounds to 929px at density 2.625, then reads back as 353.90476dp.
+        // Truncating that content budget to 353 silently shrinks both selected dimensions.
+        stage(densityScale = 2.625f)
+        val size = rule.onNodeWithTag("nova-poster-art-alpha", useUnmergedTree = true).fetchSemanticsNode().size
+        assertEquals("224dp selected cover at density 2.625", 588, size.width)
+        assertEquals("336dp selected cover at density 2.625", 882, size.height)
+    }
+
+    @Test fun aTwoLineTitleAndMetadataKeepTheirSingleLineBudgetAtModeratelyLargeText() {
+        val entries = games.toMutableList().apply {
+            this[0] = this[0].copy(name = "A long game title on its first line\nAnd its second line is visible too")
+        }
+        stage(fontScale = 1.3f, entries = entries)
+        val title = mutableListOf<TextLayoutResult>()
+        rule.onNodeWithTag("nova-stage-title", true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
+        assertEquals("fixture exercises two title lines", 2, title.single().lineCount)
+        val metadata = mutableListOf<TextLayoutResult>()
+        rule.onNodeWithTag("nova-stage-metadata", true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(metadata) }
+        val density = context.resources.displayMetrics.density
+        assertTrue("metadata fits its 14sp single-line budget, not an inherited 24sp body line",
+            metadata.single().size.height / density <= kotlin.math.ceil(14f * 1.3f) + 1f)
+        listOf("nova-stage-title", "nova-stage-metadata", "nova-stage-play-stats").forEach { tag ->
+            val node = rule.onNodeWithTag(tag, true)
+            val text = mutableListOf<TextLayoutResult>()
+            node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(text) }
+            assertFalse("$tag is not vertically clipped", text.single().didOverflowHeight)
+            val bounds = node.getUnclippedBoundsInRoot()
+            val identity = rule.onNodeWithTag("nova-stage-identity", true).getUnclippedBoundsInRoot()
+            assertTrue("$tag stays within its identity block", bounds.top >= identity.top - .6.dp && bounds.bottom <= identity.bottom + .6.dp)
+        }
     }
 
     @Test fun heightSizedSelectedPosterAndFullSizeNeighboursReplaceTheSmallUniformRail() {
