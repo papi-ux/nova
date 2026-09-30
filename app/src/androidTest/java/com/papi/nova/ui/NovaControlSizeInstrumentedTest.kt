@@ -113,7 +113,7 @@ class NovaControlSizeInstrumentedTest {
             NovaComposeTheme {
                 input = LocalInputModeManager.current
                 NovaSettingsContent(
-                    state = NovaSettingsUiStateFactory.build(definitions, values, selected, "Control Size"),
+                    state = NovaSettingsUiStateFactory.build(definitions, values, selected, ""),
                     title = "Settings", subtitle = "Device appearance", onBack = {}, onOpenLegacy = {},
                     onSearch = {}, onClearSearch = {}, onCategory = { selected = it }, headerActions = emptyList(),
                     onResetSetting = {}, onValue = { definition, value, done ->
@@ -126,8 +126,27 @@ class NovaControlSizeInstrumentedTest {
         }
         compose.runOnIdle { input.requestInputMode(InputMode.Keyboard) }
         compose.waitForIdle()
+        // Settings deliberately rejects direct outside focus requests into its pane. Enter
+        // through its controller path, then reach Control Size like a player does.
+        if (compose.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+            compose.onNodeWithTag("nova-portrait-menu-toggle")
+                .performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            compose.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        } else {
+            compose.onNodeWithTag("nova-settings-category-category_nova")
+                .performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            compose.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        }
+        fun choiceHasFocus() = compose.onAllNodes(hasTestTag("nova-settings-row-$key") and isFocused())
+            .fetchSemanticsNodes().isNotEmpty()
+        repeat(10) {
+            if (!choiceHasFocus()) {
+                compose.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+                compose.waitForIdle()
+            }
+        }
         val row = compose.onNodeWithTag("nova-settings-row-$key")
-        row.assertIsDisplayed().performSemanticsAction(SemanticsActions.RequestFocus) { it() }.assertIsFocused()
+        row.assertIsDisplayed().assertIsFocused()
         for ((direction, choice, stored) in listOf(
             Triple(Key.DirectionLeft, "Compact", "compact"),
             Triple(Key.DirectionRight, "Standard", "standard"),
