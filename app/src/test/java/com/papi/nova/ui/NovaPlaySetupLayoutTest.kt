@@ -152,7 +152,7 @@ class NovaPlaySetupLayoutTest {
         )
         assertTrue(
             "both hosts of Play Setup's pages draw the plan's page, and the plan card opens it",
-            read("NovaGameDetailContent.kt").contains("is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)") &&
+            read("NovaGameDetailContent.kt").contains("is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page, hostCopyRecovery.takeUnless { everyGame })") &&
                 read("NovaLibraryActivity.kt").contains("is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)") &&
                 read("NovaGameDetailContent.kt").contains("playSetupPanel.push(PlaySetupPage.Plan(planTitle, shownPlan))")
         )
