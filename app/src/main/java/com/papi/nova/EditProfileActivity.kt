@@ -521,12 +521,29 @@ class EditProfileActivity : NovaActivity() {
             return super.onCreateView(inflater, container, savedInstanceState, true)
         }
 
+        private val correctedStreamKeys = mutableSetOf<String>()
+
+        override fun onStreamPreferenceCorrected(key: String) { correctedStreamKeys += key }
+
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             val activity = requireActivity() as EditProfileActivity
             val memPrefs = activity.getInMemoryPrefs()
             preferenceManager.preferenceDataStore = InMemoryPreferenceDataStore(memPrefs)
 
+            // AndroidX persists XML defaults during inflation when a data store is installed.
+            // A saved setup must retain only its actual overrides until the player edits it.
+            val overrides = memPrefs.all.filterValues { it != null }.mapValues { it.value!! }
+            correctedStreamKeys.clear()
             super.onCreatePreferences(savedInstanceState, rootKey)
+            val migration = com.papi.nova.preferences.NovaSettingsMigration
+            // Keep corrections to actual overrides, then discard XML-only defaults. A bitrate
+            // calculated during inflation saw those defaults instead of inherited stream values.
+            val corrections = memPrefs.all.filterKeys { it in correctedStreamKeys && it in overrides }
+            memPrefs.edit().clear().apply()
+            migration.writeDifference(memPrefs, overrides + corrections)
+            if (corrections.isNotEmpty()) {
+                resetBitrateToDefault(memPrefs, null, null)
+            }
 
             findPreference<Preference>("nova_ui_font_scale_percent")?.isVisible = false
             findPreference<Preference>("option_reset_osc_preference")?.isVisible = false
@@ -564,15 +581,11 @@ class EditProfileActivity : NovaActivity() {
         private companion object {
             private fun diff(target: Map<String, *>, newPrefs: Map<String, *>): Map<String, Any?> {
                 val patch = HashMap<String, Any?>()
-                for ((key, value) in target) {
-                    if (newPrefs.containsKey(key)) {
-                        val defaultValue = newPrefs[key]
-                        if (value == null || value != defaultValue) {
-                            patch[key] = value
-                        }
-                    } else {
-                        patch[key] = value
-                    }
+                for ((key, value) in newPrefs) {
+                    val inherited = target[key]
+                    val same = if (value is Number && inherited is Number)
+                        value.toDouble() == inherited.toDouble() else value == inherited
+                    if (!target.containsKey(key) || !same) patch[key] = value
                 }
                 return patch
             }

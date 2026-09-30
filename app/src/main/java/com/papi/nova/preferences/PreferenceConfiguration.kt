@@ -421,7 +421,7 @@ class PreferenceConfiguration {
             return isSquarishScreen(width, height)
         }
 
-        private fun convertFromLegacyResolutionString(resString: String): String {
+        internal fun convertFromLegacyResolutionString(resString: String): String {
             return when {
                 resString.equals("360p", ignoreCase = true) -> RES_360P
                 resString.equals("480p", ignoreCase = true) -> RES_480P
@@ -591,18 +591,7 @@ class PreferenceConfiguration {
 
         @JvmStatic
         fun resetStreamingSettings(context: Context) {
-            val prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
-            prefs.edit()
-                .remove(BITRATE_PREF_STRING)
-                .remove(BITRATE_PREF_OLD_STRING)
-                .remove(LEGACY_RES_FPS_PREF_STRING)
-                .remove(RESOLUTION_PREF_STRING)
-                .remove(FPS_PREF_STRING)
-                .remove(VIDEO_FORMAT_PREF_STRING)
-                .remove(ENABLE_HDR_PREF_STRING)
-                .remove(UNLOCK_FPS_STRING)
-                .remove(FULL_RANGE_PREF_STRING)
-                .apply()
+            NovaStreamSettings.resetAfterDecoderCrash(context)
         }
 
         @JvmStatic
@@ -623,15 +612,40 @@ class PreferenceConfiguration {
                 return false
             }
 
+            NovaSettingsMigration.apply(context)
+            val effective = readPreferences(context)
+            val stored = ProfilesManager.getInstance().getOverlayingSharedPreferences(context).all
+            val automatic = NovaStreamSettings.selected(stored) != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(stored)
             val editor = ProfilesManager.getInstance()
                 .getOverlayingSharedPreferences(context)
                 .edit()
+                .putString(NovaSettingsMigration.TIER, "custom")
+                .putBoolean(NovaSettingsMigration.CUSTOM_EXISTS, true)
+                .putBoolean(NovaSettingsMigration.CUSTOM_AUTO, automatic)
+                .putBoolean(NovaSettingsMigration.AUTO, automatic)
+            editor.putString(RESOLUTION_PREF_STRING, "${effective.width}x${effective.height}")
+                .putString(FPS_PREF_STRING, formatFpsValue(effective.fps)).putInt(BITRATE_PREF_STRING, effective.bitrate)
+                .putString("video_format", when (effective.videoFormat) {
+                    FormatOption.FORCE_H264 -> "neverh265"
+                    FormatOption.FORCE_HEVC -> "forceh265"
+                    FormatOption.FORCE_AV1 -> "forceav1"
+                    FormatOption.FORCE_PYROWAVE -> "forcepyrowave"
+                    else -> "auto"
+                })
+            NovaStreamSettings.selectActiveSetupTier(NovaTier.CUSTOM)
             if (mode != null) {
                 editor.putString(RESOLUTION_PREF_STRING, mode.width.toString() + "x" + mode.height)
                 editor.putString(FPS_PREF_STRING, formatFpsValue(mode.fps))
+                if (automatic && bitrateKbps <= 0) editor.putInt(BITRATE_PREF_STRING,
+                    NovaBitrateAdvice.recommend(mode.width,mode.height,mode.fps.roundToInt(),
+                        when(effective.videoFormat) {
+                            FormatOption.FORCE_PYROWAVE -> NovaCodecChoice.PYROWAVE
+                            else -> NovaCodecChoice.AUTO
+                        }, NovaTierRuntime.snapshot()?.inputs?.distance ?: NovaDistance.HAND).kbps)
             }
             if (bitrateKbps > 0) {
-                editor.putInt(BITRATE_PREF_STRING, bitrateKbps)
+                editor.putInt(BITRATE_PREF_STRING, bitrateKbps.coerceAtMost(NovaBitrateAdvice.MANUAL_MAX_KBPS))
+                editor.putBoolean(NovaSettingsMigration.AUTO, false).putBoolean(NovaSettingsMigration.CUSTOM_AUTO, false)
             }
             editor.apply()
             return true
@@ -690,48 +704,11 @@ class PreferenceConfiguration {
         @JvmStatic
         fun migrateLegacyBalancedResolutionDefault(context: Context): Boolean {
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-            if (prefs.getBoolean(LEGACY_BALANCED_RESOLUTION_MIGRATION, false)) {
-                return false
-            }
-
-            val preset = prefs.getString("nova_stream_preset", StreamPreset.BALANCED.key)
-                ?: StreamPreset.BALANCED.key
-            val legacyResFps = prefs.getString(LEGACY_RES_FPS_PREF_STRING, null)
-            val resolution = if (legacyResFps == "720p60") {
-                LEGACY_DEFAULT_RESOLUTION
-            } else {
-                prefs.getString(RESOLUTION_PREF_STRING, DEFAULT_RESOLUTION) ?: DEFAULT_RESOLUTION
-            }
-            val fps = if (legacyResFps == "720p60") {
-                DEFAULT_FPS
-            } else {
-                prefs.getString(FPS_PREF_STRING, DEFAULT_FPS) ?: DEFAULT_FPS
-            }
-            val bitrate = if (prefs.contains(BITRATE_PREF_STRING)) {
-                prefs.getInt(BITRATE_PREF_STRING, StreamPreset.BALANCED.bitrateKbps)
-            } else {
-                prefs.getInt(BITRATE_PREF_OLD_STRING, LEGACY_BALANCED_BITRATE_KBPS / 1000) * 1000
-            }
-            val codec = prefs.getString(VIDEO_FORMAT_PREF_STRING, DEFAULT_VIDEO_FORMAT) ?: DEFAULT_VIDEO_FORMAT
-            val isBalancedDefaultBitrate =
-                bitrate == StreamPreset.BALANCED.bitrateKbps ||
-                    bitrate == LEGACY_BALANCED_BITRATE_KBPS
-            val shouldMigrate =
-                preset == StreamPreset.BALANCED.key &&
-                    resolution == LEGACY_DEFAULT_RESOLUTION &&
-                    fps == DEFAULT_FPS &&
-                    isBalancedDefaultBitrate &&
-                    codec == StreamPreset.BALANCED.codec
-
-            val editor = prefs.edit()
-                .putBoolean(LEGACY_BALANCED_RESOLUTION_MIGRATION, true)
-            if (shouldMigrate) {
-                editor.putString(RESOLUTION_PREF_STRING, StreamPreset.BALANCED.resolution)
-                editor.putString(FPS_PREF_STRING, DEFAULT_FPS)
-                editor.remove(LEGACY_RES_FPS_PREF_STRING)
-            }
-            editor.apply()
-            return shouldMigrate
+            val before = prefs.all
+            val migrated = NovaSettingsMigration.legacyBalanced(before)
+            NovaSettingsMigration.writeDifference(prefs, migrated, before)
+            return before[RESOLUTION_PREF_STRING] != migrated[RESOLUTION_PREF_STRING] ||
+                before[LEGACY_RES_FPS_PREF_STRING] != migrated[LEGACY_RES_FPS_PREF_STRING]
         }
 
         @JvmStatic
@@ -742,7 +719,7 @@ class PreferenceConfiguration {
         @JvmStatic
         fun readPreferences(context: Context, sharedPrefs: SharedPreferences?): PreferenceConfiguration {
             if (sharedPrefs == null) {
-                migrateLegacyBalancedResolutionDefault(context)
+                NovaSettingsMigration.apply(context)
             }
 
             val prefs = sharedPrefs ?: ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
@@ -1051,6 +1028,7 @@ class PreferenceConfiguration {
             config.panOffsetX = prefs.getFloat(NUMBER_PAN_OFFSET_X, DEFAULT_PAN_OFFSET)
             config.panOffsetY = prefs.getFloat(NUMBER_PAN_OFFSET_Y, DEFAULT_PAN_OFFSET)
 
+            NovaStreamSettings.resolveInto(context, prefs, config)
             return config
         }
     }

@@ -14,7 +14,8 @@ object NovaLaunchPolicyGateStore {
     data class Decision(
         val optimizationJson: String?,
         val profilePreference: String,
-        val resolvedProfileTrusted: Boolean
+        val resolvedProfileTrusted: Boolean,
+        val manualBitrateMaximumKbps: Int = com.papi.nova.preferences.NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS
     )
 
     private data class Entry(

@@ -704,13 +704,22 @@ class ShortcutTrampoline : NovaActivity() {
         } ?: return launchPlan
 
         return try {
-            val apiClient = PolarisApiClient(this, activeAddress.address, details.httpsPort, serverCert)
             val isWorkerProfile = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(polarisGame.id)
+            // This runs on the shortcut worker. A failed/unavailable generated plan
+            // must reach Game's refusal without publishing fallback settings to the host.
+            val tier = com.papi.nova.preferences.NovaStreamSettings.selected(
+                com.papi.nova.profiles.ProfilesManager.getInstance().getOverlayingSharedPreferences(this).all)
+            if (!isWorkerProfile && tier != com.papi.nova.preferences.NovaTier.CUSTOM) {
+                val prepared = kotlinx.coroutines.runBlocking {
+                    com.papi.nova.preferences.NovaTierRuntime.prepare(applicationContext)
+                }
+                if (!prepared.tiers.plan(tier).available) return launchPlan
+            }
+            val apiClient = PolarisApiClient(this, activeAddress.address, details.httpsPort, serverCert)
             val mangoHudSynced = isWorkerProfile || apiClient.setMangoHud(polarisGame.id, polarisGame.mangohud)
             if (!mangoHudSynced) {
                 LimeLog.warning("Nova: Shortcut launch MangoHUD state sync failed; continuing launch")
             }
-
             val clientSettings = apiClient.getClientSettings()
             val preferences = PreferenceConfiguration.readPreferences(this)
             val codec = com.papi.nova.ui.NovaVideoCodecOverrides.resolve(
@@ -741,7 +750,7 @@ class ShortcutTrampoline : NovaActivity() {
                 height = preferences.height,
                 fps = preferences.fps,
                 bitrateKbps = requestedBitrateKbps,
-                bitrateLocked = metered,
+                bitrateLocked = com.papi.nova.manager.NovaTierLaunchPolicy.bitrateLocked(codec, isWorkerProfile, metered),
                 hdr = preferences.enableHdr,
                 clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
                     ServerHelper.getActiveDisplay(this, preferences)

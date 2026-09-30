@@ -46,7 +46,9 @@ data class PolarisSessionStatus(
     val health: HealthStatus = HealthStatus(),
     val doctor: DoctorStatus = DoctorStatus(),
     val recovery: RecoveryReceipt = RecoveryReceipt(),
-    val recoveryRecords: List<RecoveryReceipt> = emptyList()
+    val recoveryRecords: List<RecoveryReceipt> = emptyList(),
+    val pyrowaveBitrate: PolarisPyrowaveAdvice? = null,
+    val bitrateUnits: PolarisBitrateUnits? = null
 ) {
     data class RecoveryReceipt(
         val status: Boolean = true,
@@ -415,7 +417,7 @@ data class PolarisSessionStatus(
             verificationEndpoint == "/api/doctor/action"
         private val confirmedMediaLoss get() = evidenceItem("packet_loss").let { item ->
             evidenceSourceIs(item, "media_transport") &&
-                evidenceStatusIs(item, "fail") && (item?.value ?: 0.0) > 2.0
+                evidenceStatusIs(item, "fail")
         }
         private val confirmedRttPressure get() = evidenceItem("latency").let { item ->
             evidenceSourceIs(item, "stream_stats") &&
@@ -447,7 +449,7 @@ data class PolarisSessionStatus(
                     actionKind == "live_tuning" &&
                     primaryIssue == "network_jitter" &&
                     targetBitrateTyped &&
-                    targetBitrateKbps in 1_000..300_000 &&
+                    targetBitrateKbps in 1_000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS &&
                     undoSupported &&
                     undoEndpoint == "/api/doctor/action" &&
                     undoPairedEndpoint.isEmpty() &&
@@ -464,7 +466,7 @@ data class PolarisSessionStatus(
                     actionKind == "live_tuning" &&
                     primaryIssue == "quality_reduced_live" &&
                     targetBitrateTyped &&
-                    targetBitrateKbps in 1_000..300_000 &&
+                    targetBitrateKbps in 1_000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS &&
                     ceiling?.source == "launch_policy" &&
                     evidenceStatusIs(ceiling, "watch") &&
                     ceiling?.value?.toInt() == targetBitrateKbps &&

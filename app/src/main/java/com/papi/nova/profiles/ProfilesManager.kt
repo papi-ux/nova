@@ -18,6 +18,12 @@ class ProfilesManager private constructor() {
     private var activeProfileId: UUID? = null
     private val listeners: MutableList<ProfileChangeListener> = ArrayList()
     private var appContext: Context? = null
+    private val snapshotLock = Any()
+    private val persistenceLock=Any()
+    private val persistenceRevision=java.util.concurrent.atomic.AtomicLong()
+    private val persistenceExecutor=java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+        Thread(task,"NovaProfileWriter").apply { isDaemon=true }
+    }
     internal var openProfileWriter: (File) -> FileOutputStream = { FileOutputStream(it) }
 
     fun load(context: Context?): Boolean {
@@ -43,6 +49,7 @@ class ProfilesManager private constructor() {
             if (!file.exists()) {
                 return true
             }
+            var migrated = false
             try {
                 FileReader(file).use { reader ->
                     val type = object : TypeToken<ProfilesData>() {}.type
@@ -50,11 +57,13 @@ class ProfilesManager private constructor() {
                     if (data?.profiles != null) {
                         profiles.clear()
                         for (profile in data.profiles.orEmpty()) {
+                            migrated = profile.migrateStreamOptions() || migrated
                             profiles[profile.getUuid()] = profile
                         }
                         activeProfileId = data.activeProfileId
                     }
                 }
+                if (migrated && !save(safeContext)) return false
             } catch (e: IOException) {
                 LimeLog.warning("ArtemisProfile: Failed to load profiles from file:$e")
                 e.printStackTrace()
@@ -69,34 +78,31 @@ class ProfilesManager private constructor() {
         return true
     }
 
-    fun save(context: Context?): Boolean {
-        if (context == null) {
-            return false
+    private fun snapshotForPersistence(): Pair<String, Long> = synchronized(snapshotLock) {
+        val data=ProfilesData().apply {
+            profiles=ArrayList(this@ProfilesManager.profiles.values)
+            activeProfileId=this@ProfilesManager.activeProfileId
         }
+        Gson().toJson(data) to persistenceRevision.incrementAndGet()
+    }
 
+    private fun persistSnapshot(context: Context, snapshot: Pair<String, Long>): Boolean = synchronized(persistenceLock) {
+        val (json, revision) = snapshot
+        if (revision != persistenceRevision.get()) return@synchronized true
         try {
-            val dir = File(context.filesDir, PROFILES_DIR)
-            if (!dir.exists() && !dir.mkdirs()) {
-                return false
-            }
-            val file = File(dir, PROFILES_FILE)
-            try {
-                val data = ProfilesData()
-                data.profiles = ArrayList(profiles.values)
-                data.activeProfileId = activeProfileId
-                NovaProfileFile.write(file, Gson().toJson(data), openProfileWriter)
-            } catch (e: IOException) {
-                LimeLog.warning("ArtemisProfile: Failed to save profiles to file:$e")
-                e.printStackTrace()
-                return false
-            }
-        } catch (e: Exception) {
-            LimeLog.warning("ArtemisProfile: Failed to save profiles:$e")
-            e.printStackTrace()
-            return false
+            val dir=File(context.filesDir,PROFILES_DIR)
+            check(dir.exists() || dir.mkdirs())
+            NovaProfileFile.write(File(dir, PROFILES_FILE), json, openProfileWriter)
+            true
+        } catch(error:Exception) {
+            LimeLog.warning("Nova: Could not save profiles: ${error.message}")
+            false
         }
+    }
 
-        return true
+    fun save(context: Context?): Boolean {
+        if (context == null) return false
+        return persistSnapshot(context, snapshotForPersistence())
     }
 
     fun getProfiles(): MutableList<SettingsProfile> = ArrayList(profiles.values)
@@ -112,6 +118,19 @@ class ProfilesManager private constructor() {
         notifyListeners()
         saveIfPossible()
     }
+
+    /** Keep selection immediate; serialize an immutable snapshot before handing disk IO to the worker. */
+    fun updateDeferred(profile: SettingsProfile) {
+        profiles[profile.getUuid()]=profile
+        notifyListeners()
+        val context=appContext ?: return
+        // The snapshot lock is never held by disk IO. Revision checks under the IO lock
+        // serialize writers and prevent an older queued snapshot from replacing a newer one.
+        val snapshot=snapshotForPersistence()
+        persistenceExecutor.execute { persistSnapshot(context, snapshot) }
+    }
+
+    internal fun awaitDeferredWritesForTest() = persistenceExecutor.submit {}.get(5,java.util.concurrent.TimeUnit.SECONDS)
 
     /**
      * Puts [profile] in place of the preset with its id, or adds it, and keeps it only if the file

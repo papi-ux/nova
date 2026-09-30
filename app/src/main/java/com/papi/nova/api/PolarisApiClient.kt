@@ -1229,13 +1229,23 @@ class PolarisApiClient @JvmOverloads constructor(
                     doctorV2ShadowEnabled = features?.optBoolean("doctor_v2_shadow_enabled") ?: false,
                     doctorTrials = features?.optBoolean("doctor_trials_v1") ?: false,
                     doctorTrialsEnabled = features?.optBoolean("doctor_trials_enabled") ?: false,
-                    hostSleep = features?.optBoolean("host_sleep_v1") ?: false
+                    hostSleep = features?.optBoolean("host_sleep_v1") ?: false,
+                    pyrowaveAdviceV1 = strictBoolean(features, "pyrowave_advice_v1"),
+                    bitrateUnitsV1 = strictBoolean(features, "bitrate_units_v1"),
+                    manualBitrateMaxKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
+                        strictIntOrNull(features, "manual_bitrate_max_kbps"))
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
                     compositor = capture?.optString("compositor", "") ?: "",
                     maxResolution = capture?.optString("max_resolution", "") ?: "",
                     maxFps = capture?.optInt("max_fps", 0) ?: 0,
+                    pyrowaveUnavailable = capture?.optJSONObject("pyrowave_unavailable")?.let { unavailable ->
+                        val reason = unavailable.opt("reason") as? String
+                        val message = unavailable.opt("message") as? String
+                        if (reason.isNullOrBlank() || message.isNullOrBlank()) null else
+                            PolarisCapabilities.PyrowaveUnavailable(reason.take(128), message.take(512))
+                    },
                     codecs = capture?.optJSONArray("codecs")?.let { arr ->
                         (0 until arr.length()).map { arr.getString(it) }
                     } ?: emptyList()
@@ -1843,6 +1853,8 @@ class PolarisApiClient @JvmOverloads constructor(
             val sessionGeneration = strictOptionalNonNegativeLong(json, "session_generation")
 
             return PolarisSessionStatus(
+                pyrowaveBitrate = PolarisPyrowaveAdvice.parse(json.optJSONObject("pyrowave_bitrate")),
+                bitrateUnits = PolarisBitrateUnits.parse(json.optJSONObject("bitrate_units")),
                 state = json.optString("state", "unknown"),
                 streamingActive = json.optBoolean("streaming_active", false),
                 shutdownRequested = json.optBoolean("shutdown_requested", false),
@@ -2347,15 +2359,33 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
+    @Volatile private var latestCapabilities: PolarisCapabilities? = null
+
     fun getCapabilities(): PolarisCapabilities? {
+        latestCapabilities = null
         return try {
             val request = Request.Builder().url("$baseUrl/capabilities").build()
             executeGetWithRetry(request).use { response ->
                 if (response.code != 200) return null
-                parseCapabilitiesResponse(JSONObject(response.body?.string() ?: return null))
+                parseCapabilitiesResponse(JSONObject(response.body?.string() ?: return null)).also { latestCapabilities = it }
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Capabilities probe failed: ${errorMessage(e)}")
+            null
+        }
+    }
+
+    /** Launch callers run on IO and share the bounded identity probe's host-local result. */
+    fun getLaunchCapabilities(): PolarisCapabilities? {
+        latestCapabilities?.let { return it }
+        return try {
+            executeLaunchPolicyGet(Request.Builder().url("$baseUrl/capabilities").build()).use { response ->
+                if (response.code != 200) return null
+                parseCapabilitiesResponse(JSONObject(response.body?.string() ?: return null))
+                    .also { latestCapabilities = it }
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: Launch capabilities unavailable: ${errorMessage(e)}")
             null
         }
     }
@@ -2373,6 +2403,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * fail closed.
      */
     fun identifyLaunchHost(): PolarisLaunchHostKind {
+        latestCapabilities = null
         val state = readServerStateForIdentity()
         return when (launchHostFamilyFromServerState(state)) {
             PolarisServerFamily.UNKNOWN -> PolarisLaunchHostKind.UNKNOWN
@@ -2442,7 +2473,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 if (response.code != 200) return PolarisLaunchHostKind.UNKNOWN
                 val body = response.body?.string() ?: return PolarisLaunchHostKind.UNKNOWN
                 val capabilities = runCatching {
-                    parseCapabilitiesResponse(JSONObject(body))
+                    parseCapabilitiesResponse(JSONObject(body)).also { latestCapabilities = it }
                 }.getOrNull() ?: return PolarisLaunchHostKind.UNKNOWN
                 // The serverinfo state said Polaris; a capabilities document that
                 // does not agree is contradictory, so fail closed rather than
@@ -3244,32 +3275,59 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
+    fun getPyrowaveAdvice(width: Int, height: Int, fps: Int, chroma444: Boolean,
+        capabilities: PolarisCapabilities): PolarisPyrowaveAdvice? {
+        if (!capabilities.features.pyrowaveAdviceV1 || width !in 1..16384 ||
+            height !in 1..16384 || fps !in 1..1000) return null
+        return try {
+            val chroma = if (chroma444) "444" else "420"
+            val request = Request.Builder().url("$baseUrl/pyrowave/advice?width=$width&height=$height&fps=$fps&chroma=$chroma").build()
+            executeWithTransientRetry(request).use { response ->
+                if (response.code == 200) PolarisPyrowaveAdvice.parse(JSONObject(response.body?.string().orEmpty())) else null
+            }
+        } catch (_: Exception) { null }
+    }
+
     /**
      * Set the stream bitrate mid-session without reconnecting.
      */
-    fun setBitrate(bitrateKbps: Int): Boolean {
+    fun setBitrate(bitrateKbps: Int): Boolean = setBitrate(bitrateKbps, null)
+
+    /** This route consumes encoder kbps. The stream-tier controller converts request units. */
+    fun setBitrate(bitrateKbps: Int, observed: PolarisSessionStatus?, acknowledged: ((Int) -> Unit)? = null): Boolean {
+        val result = setBitrateResult(bitrateKbps, observed)
+        if (result is PolarisBitrateWriteResult.Applied) {
+            acknowledged?.invoke(result.encoderKbps)
+            return true
+        }
+        return false
+    }
+
+    fun setBitrateResult(encoderKbps: Int, observed: PolarisSessionStatus?): PolarisBitrateWriteResult {
+        if (encoderKbps !in 1000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS) return PolarisBitrateWriteResult.Failed
         return try {
-            val status = getSessionStatus()?.takeIf {
-                it.canAdjustHostTuning && it.appSessionId.isNotBlank() && it.sessionGeneration > 0L
-            } ?: return false
-            val body = org.json.JSONObject().apply {
-                put("bitrate_kbps", bitrateKbps)
-                put("app_session_id", status.appSessionId)
-                put("session_generation", status.sessionGeneration)
-            }
-            val request = Request.Builder()
-                .url("$baseUrl/session/bitrate")
-                .post(okhttp3.RequestBody.create(
-                    "application/json".toMediaTypeOrNull(),
-                    body.toString()
-                ))
-                .build()
-            executeWithTransientRetry(request).use { response ->
-                response.code == 200
+            val status = getSessionStatus() ?: return PolarisBitrateWriteResult.Failed
+            if (!status.streamingActive || status.shutdownRequested || status.isViewer ||
+                (observed != null && (status.appSessionId != observed.appSessionId ||
+                    status.sessionGeneration != observed.sessionGeneration))) return PolarisBitrateWriteResult.SessionChanged
+            if (!status.canAdjustHostTuning || status.appSessionId.isBlank() || status.sessionGeneration <= 0L)
+                return PolarisBitrateWriteResult.Failed
+            val body = JSONObject().put("bitrate_kbps",encoderKbps).put("app_session_id",status.appSessionId)
+                .put("session_generation",status.sessionGeneration)
+            val request = Request.Builder().url("$baseUrl/session/bitrate")
+                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(),body.toString())).build()
+            executeNonRetryable(request).use { response ->
+                if (response.code == 409) return PolarisBitrateWriteResult.SessionChanged
+                if (response.code != 200) return PolarisBitrateWriteResult.Failed
+                val receipt=JSONObject(response.body?.string().orEmpty())
+                val actual=receipt.opt("bitrate_kbps") as? Number ?: return PolarisBitrateWriteResult.Failed
+                if (receipt.opt("status") != true || actual.toDouble()%1.0 != 0.0 || actual.toDouble() !in 1000.0..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS.toDouble())
+                    return PolarisBitrateWriteResult.Failed
+                PolarisBitrateWriteResult.Applied(actual.toInt(),status)
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Bitrate change failed: ${errorMessage(e)}")
-            false
+            PolarisBitrateWriteResult.Failed
         }
     }
 
@@ -3506,9 +3564,15 @@ class PolarisApiClient @JvmOverloads constructor(
         hdr: Boolean? = null,
         clientMaxFps: Float = 0f,
         launchBounded: Boolean = false,
-        encoderBackend: String = ""
+        encoderBackend: String = "",
+        manualBitrateMaximumKbps: Int? = null
     ): org.json.JSONObject? {
         return try {
+            // This API object belongs to one paired host. Shortcut and game-page preflights
+            // may arrive before any feature probe; never borrow another host's ceiling.
+            // Game supplies the same frozen ceiling used by its launch envelope. Other
+            // callers resolve their own paired host here.
+            val observedMaximum = manualBitrateMaximumKbps ?: getLaunchCapabilities()?.features?.manualBitrateMaxKbps
             val url = "$baseUrl${buildOptimizationPath(
                 device = device,
                 game = game,
@@ -3521,7 +3585,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 height = height,
                 fps = fps,
                 displayLocked = displayLocked,
-                bitrateKbps = bitrateKbps,
+                bitrateKbps = bitrateKbps.coerceAtMost(com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
+                    observedMaximum)),
                 bitrateLocked = bitrateLocked,
                 hdr = hdr,
                 clientMaxFps = clientMaxFps,

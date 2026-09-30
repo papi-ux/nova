@@ -17,6 +17,8 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -28,6 +30,8 @@ class NovaSharedPreferencesSettingsStore(
     private val prefs: SharedPreferences,
     private val fallbackPrefs: SharedPreferences? = null
 ) : NovaSettingsStore {
+    override suspend fun storedStreamKeys() = (fallbackPrefs?.all?.keys.orEmpty() + prefs.all.keys)
+
     fun snapshot(): Map<String, NovaSettingValue> {
         return prefs.toSettingsMap()
     }
@@ -99,6 +103,9 @@ class NovaSharedPreferencesSettingsStore(
 }
 
 interface NovaSettingsStore {
+    val tierUpdates: kotlinx.coroutines.flow.Flow<NovaTierInputs>? get() = null
+    suspend fun storedStreamKeys(): Set<String>? = null
+    suspend fun deviceTierInputs(): NovaTierInputs? = null
     suspend fun snapshot(definitions: NovaSettingsDefinitionSet): Map<String, NovaSettingValue>
     suspend fun set(definition: NovaSettingDefinition, value: NovaSettingValue)
     suspend fun updateAtomically(
@@ -113,8 +120,12 @@ interface NovaSettingsStore {
 class NovaSettingsRepository private constructor(
     private val dataStore: DataStore<Preferences>,
     private val mirrorPrefs: SharedPreferences,
-    private val canonicalDefinitions: NovaSettingsDefinitionSet
+    private val canonicalDefinitions: NovaSettingsDefinitionSet,
+    private val context: Context? = null
 ) : NovaSettingsStore {
+    override val tierUpdates get() = NovaTierRuntime.updates.filterNotNull().map { it.inputs }
+    override suspend fun storedStreamKeys() = mirrorPrefs.all.keys
+
     /**
      * Default SharedPreferences is authoritative because legacy/runtime consumers read it
      * synchronously. DataStore is a reconciled typed mirror, never a competing source of truth.
@@ -122,7 +133,7 @@ class NovaSettingsRepository private constructor(
     override suspend fun snapshot(definitions: NovaSettingsDefinitionSet): Map<String, NovaSettingValue> {
         return persistSerialized {
             reconcileDataStoreMirror()
-            definitions.settings.mapNotNull { definition ->
+            (definitions.settings + NovaStreamSettings.metadataDefinitions).distinctBy { it.key }.mapNotNull { definition ->
                 val value = mirrorPrefs.readSettingValue(definition) ?: definition.defaultValue
                 if (value == null) null else definition.key to value
             }.toMap()
@@ -133,6 +144,9 @@ class NovaSettingsRepository private constructor(
         persistSerialized {
             check(mirrorPrefs.edit().putSettingValue(definition.key, value).commit()) {
                 "Failed to persist Nova setting ${definition.key}"
+            }
+            if (definition.key == NovaSettingsMigration.TIER && value is NovaSettingValue.StringValue) {
+                NovaTier.entries.firstOrNull { it.name.equals(value.value, true) }?.let { NovaStreamSettings.selectActiveSetupTier(it) }
             }
             mirrorDataStoreBestEffort {
                 it.writeSettingValue(definition, value)
@@ -151,6 +165,10 @@ class NovaSettingsRepository private constructor(
                 editor.putSettingValue(definition.key, value)
             }
             check(editor.commit()) { "Failed to persist Nova settings batch" }
+            updates.firstOrNull { it.first.key == NovaSettingsMigration.TIER }?.second?.let { value ->
+                if (value is NovaSettingValue.StringValue) NovaTier.entries.firstOrNull { it.name.equals(value.value, true) }
+                    ?.let { NovaStreamSettings.selectActiveSetupTier(it) }
+            }
 
             mirrorDataStoreBestEffort { preferences ->
                 removeKeys.forEach(preferences::removeRawSettingKey)
@@ -175,6 +193,8 @@ class NovaSettingsRepository private constructor(
     override suspend fun overrideKeys(definitions: NovaSettingsDefinitionSet): Set<String> = emptySet()
 
     override suspend fun resettableKeys(definitions: NovaSettingsDefinitionSet): Set<String> = emptySet()
+
+    override suspend fun deviceTierInputs(): NovaTierInputs? = withContext(Dispatchers.IO) { context?.let { NovaTierRuntime.prepare(it).inputs } }
 
     private suspend fun reconcileDataStoreMirror() {
         val current = runCatching { dataStore.data.first() }.getOrElse {
@@ -223,10 +243,12 @@ class NovaSettingsRepository private constructor(
         private const val TAG = "NovaSettingsRepository"
 
         fun create(context: Context): NovaSettingsRepository {
+            NovaSettingsMigration.apply(context)
             return NovaSettingsRepository(
                 dataStore = context.novaSettingsDataStore,
                 mirrorPrefs = PreferenceManager.getDefaultSharedPreferences(context),
-                canonicalDefinitions = NovaSettingDefinitions.load(context)
+                canonicalDefinitions = NovaSettingDefinitions.load(context),
+                context = context.applicationContext
             )
         }
 
@@ -246,7 +268,8 @@ class NovaSettingsRepository private constructor(
             return NovaSettingsRepository(
                 dataStore = dataStore,
                 mirrorPrefs = mirrorPrefs,
-                canonicalDefinitions = NovaSettingDefinitions.load(context)
+                canonicalDefinitions = NovaSettingDefinitions.load(context),
+                context = context.applicationContext
             )
         }
     }

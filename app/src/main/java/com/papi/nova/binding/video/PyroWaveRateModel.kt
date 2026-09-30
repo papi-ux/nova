@@ -13,17 +13,10 @@ import kotlin.math.sqrt
  * and fitted one polynomial per quality, distance and chroma to the bitrate each quality needed. The
  * author reports the fit within about 1%, and calls 35 dB the default good quality curve.
  *
- * Nova's PyroWave bitrate advice, [PyroWaveDecoderRenderer.bitrateAdvice], is this at 35 dB, the owner's
- * choice, in the chroma Nova's offer settles on (4:4:4 today), for H 2.87 on a device's own screen and
- * H 2.0 on a television or an external display. It replaced one bits per pixel figure judged by eye,
- * 0.73. A wavelet codec gives up fine detail first, so what it needs grows much more slowly than the
- * pixel count: at 35 dB and H 2.0 this asks for nearly 2.5 bits per pixel at 720p and under 0.6 at 4K in
- * 4:2:0, and about 3.0 and 0.63 in 4:4:4, where the flat figure asked for 0.73 at both. At that distance
- * the total even stops growing near 1440p, as upstream's notes say it does, because past it the added
- * pixels are finer than an eye at H 2.0 resolves well: in 4:4:4, 1440p60 asks 342 Mbps and 4K60 314,
- * and in 4:2:0 both about 290. So it is not monotone in the size, and a player on a television who drops
- * from 4K to 1440p is advised more, not less. Past the sizes this was fitted on it gives no estimate,
- * and the advice extrapolates from the nearest edge instead.
+ * Nova's advice uses the calibrated 31 dB handheld curve at H 2.87 and the 35 dB room
+ * curve at H 2.0. This estimator returns encoder Mbps. NovaBitrateAdvice and the launch warning
+ * gross that up to requested stream kbps with FEC, audio and overhead before presenting it.
+ * Outside the fitted sizes, callers extrapolate from the nearest edge.
  *
  * Its limits travel with every number it gives. It is upstream's objective metric on four game clips of
  * about ten frames each; it scores luma only, so 4:4:4 shows up as a cost and never as a benefit; it was
@@ -31,8 +24,7 @@ import kotlin.math.sqrt
  * (upstream's earlier power law, which its author now calls obsolete, added a fifth for HDR10, by a
  * factor the same notes call vague); and its sources were downscaled from 4K, which makes small
  * pictures richer in detail, and so harder to code, than a game rendered natively at that size. It is
- * not a measurement on Nova's devices, and Nova's one measurement by eye found less enough at 1080p120
- * on a handheld, by the margin [PyroWaveDecoderRenderer.ADVICE_PSNR_DB] gives.
+ * not a measurement on every Nova device; the handheld target incorporates the owner's RP6 check.
  *
  * Pure Kotlin with no Android API, so it answers the same on a phone, a Deck and a test JVM.
  */

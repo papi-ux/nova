@@ -464,6 +464,20 @@ class StreamSettings : NovaActivity() {
     }
 
     open class SettingsFragment() : PreferenceFragmentCompat() {
+        private val streamTierWriter = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            NovaStreamSettings.classicWrite(prefs, key)
+        }
+
+        override fun onStart() {
+            super.onStart()
+            getPrefs().registerOnSharedPreferenceChangeListener(streamTierWriter)
+        }
+
+        override fun onStop() {
+            getPrefs().unregisterOnSharedPreferenceChangeListener(streamTierWriter)
+            super.onStop()
+        }
+
         private var nativeResolutionStartIndex = Int.MAX_VALUE
         private var nativeFramerateShown = false
         private var prevPrefConfig: PreferenceConfiguration? = null
@@ -605,22 +619,29 @@ class StreamSettings : NovaActivity() {
             pref.entryValues = entryValues.requireNoNulls()
         }
 
-        private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?) {
-            val activeRes = res ?: prefs.getString(
-                PreferenceConfiguration.RESOLUTION_PREF_STRING,
-                PreferenceConfiguration.DEFAULT_RESOLUTION
-            ) ?: PreferenceConfiguration.DEFAULT_RESOLUTION
-            val activeFps = fps ?: prefs.getString(
-                PreferenceConfiguration.FPS_PREF_STRING,
-                PreferenceConfiguration.DEFAULT_FPS
-            ) ?: PreferenceConfiguration.DEFAULT_FPS
+        protected fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?) =
+            resetBitrateToDefault(prefs, res, fps, null)
 
-            prefs.edit()
-                .putInt(
-                    PreferenceConfiguration.BITRATE_PREF_STRING,
-                    PreferenceConfiguration.getDefaultBitrate(activeRes, activeFps)
-                )
-                .apply()
+        private fun resetBitrateToDefault(prefs: SharedPreferences, res: String?, fps: String?, codecValue: String?) {
+            // A saved setup is sparse: inherit untouched fields without pinning them.
+            val base = context?.let { PreferenceManager.getDefaultSharedPreferences(it) }
+            val activeRes = res ?: prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING,
+                base?.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, null)) ?: PreferenceConfiguration.DEFAULT_RESOLUTION
+            val activeFps = fps ?: prefs.getString(PreferenceConfiguration.FPS_PREF_STRING,
+                base?.getString(PreferenceConfiguration.FPS_PREF_STRING, null)) ?: PreferenceConfiguration.DEFAULT_FPS
+            val size = activeRes.split("x").map { it.toInt() }
+            val codec = NovaCodecChoice.fromPreference(codecValue ?: prefs.getString("video_format",
+                base?.getString("video_format", "auto")))
+            val advice = NovaBitrateAdvice.recommend(size[0], size[1], Math.round(activeFps.toFloat()), codec,
+                NovaTierRuntime.snapshot()?.inputs?.distance ?: NovaDistance.HAND)
+            prefs.edit().apply {
+                res?.let { putString(PreferenceConfiguration.RESOLUTION_PREF_STRING, it) }
+                fps?.let { putString(PreferenceConfiguration.FPS_PREF_STRING, it) }
+                putBoolean(NovaSettingsMigration.AUTO, true)
+                putBoolean(NovaSettingsMigration.CUSTOM_AUTO, true)
+                putInt(PreferenceConfiguration.BITRATE_PREF_STRING,
+                    advice.kbps)
+            }.apply()
         }
 
         override fun onCreateView(
@@ -696,6 +717,7 @@ class StreamSettings : NovaActivity() {
                     getPrefs().edit()
                         .putString("list_resolution", preset.resolution)
                         .putInt("seekbar_bitrate_kbps", preset.bitrateKbps)
+                        .putBoolean(NovaSettingsMigration.AUTO, false).putBoolean(NovaSettingsMigration.CUSTOM_AUTO, false)
                         .putString("video_format", preset.codec)
                         .apply()
 
@@ -1070,6 +1092,16 @@ class StreamSettings : NovaActivity() {
                     true
                 }
 
+            findPreference<Preference>("video_format")!!.setOnPreferenceChangeListener { _, newValue ->
+                val prefs = getPrefs()
+                if (NovaStreamSettings.customAutomatic(prefs.all)) {
+                    // ListPreference persists after this callback. Compute against the new
+                    // codec while inheriting untouched size/fps from the raw base settings.
+                    resetBitrateToDefault(prefs, null, null, newValue as String)
+                }
+                true
+            }
+
             findPreference<Preference>("checkbox_enable_perf_logging")!!
                 .setOnPreferenceChangeListener { preference, newValue ->
                     val loggingEnabled = newValue as Boolean
@@ -1177,6 +1209,11 @@ class StreamSettings : NovaActivity() {
                 false
             }
 
+            findPreference<Preference>(PreferenceConfiguration.BITRATE_PREF_STRING)?.setOnPreferenceChangeListener { _, value ->
+                NovaStreamSettings.writeManualBitrate(getPrefs(), value as Int)
+                true
+            }
+
             findPreference<EditTextPreference>(PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING)?.let { bitrateEditPref ->
                 bitrateEditPref.setOnPreferenceChangeListener { _, newValue ->
                     val value = newValue as String
@@ -1185,7 +1222,7 @@ class StreamSettings : NovaActivity() {
                         return@setOnPreferenceChangeListener false
                     }
                     val bitrate = (value.toFloat() * 1000).toInt()
-                    getPrefs().edit().putInt(PreferenceConfiguration.BITRATE_PREF_STRING, bitrate).apply()
+                    NovaStreamSettings.writeManualBitrate(getPrefs(), bitrate)
                     Toast.makeText(activity, getString(R.string.pref_set_success), Toast.LENGTH_SHORT).show()
                     true
                 }
@@ -1271,6 +1308,9 @@ class StreamSettings : NovaActivity() {
             }
         }
 
+        /** Distinguish a real capability correction from XML default writes during inflation. */
+        protected open fun onStreamPreferenceCorrected(key: String) {}
+
         private fun removeEntryFromListAndSetValue(
             resolutionPrefString: String,
             entryToRemove: String,
@@ -1283,6 +1323,7 @@ class StreamSettings : NovaActivity() {
                     val prefs = getPrefs()
                     setValue(resolutionPrefString, nextDefault)
                     resetBitrateToDefault(prefs, null, null)
+                    onStreamPreferenceCorrected(resolutionPrefString)
                 }
             )
         }
