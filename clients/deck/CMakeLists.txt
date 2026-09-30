@@ -635,6 +635,9 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_t32_preview_pump_oracle_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_t32_preview_pump_oracle_test.py
     )
+    add_test(NAME nova_deck_termination_publication_source_guard_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_termination_publication_source_guard_test.py
+    )
     add_test(NAME nova_deck_frontend_smoke_route_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_frontend_smoke_test.py
     )
@@ -737,7 +740,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             foreach(case IN ITEMS stage-platform stage-name stage-audio stage-rtsp stage-refused
                     stage-control stage-video stage-input stage-input-init unknown-start term-no-video term-no-frame
-                    term-early term-protected term-conversion term-unknown host-refusal
+                    term-early term-protected term-conversion term-unknown term-graceful host-refusal
                     unknown-stage mixed-stage-termination cancelled-stage term-fatal)
                 add_test(NAME nova_deck_failure_gui_${case}_test
                     COMMAND nova_deck_native_session_test --failure-copy ${case})

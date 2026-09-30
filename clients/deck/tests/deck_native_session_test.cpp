@@ -935,6 +935,7 @@ void testNamedFailureGui(const QString& scenario) {
     else if (scenario == "mixed-stage-termination") { stage=STAGE_VIDEO_STREAM_START; error=-12; expected="video decoder"; driver.terminateAtStart=true; }
     else if (cancelled) { stage=STAGE_RTSP_HANDSHAKE; error=-408; expected="Stream cancelled."; driver.blockStart=true; }
     else if (scenario == "unknown-start") { driver.startReturnCode=-2222; expected="-2222"; }
+    else if (scenario == "term-graceful") { error=ML_ERROR_GRACEFUL_TERMINATION; expected="PC ended the stream"; }
     else if (scenario == "term-no-video") { error=ML_ERROR_NO_VIDEO_TRAFFIC; expected="No video traffic"; }
     else if (scenario == "term-no-frame") { error=ML_ERROR_NO_VIDEO_FRAME; expected="No complete video frame"; }
     else if (scenario == "term-early") { error=ML_ERROR_UNEXPECTED_EARLY_TERMINATION; expected="shortly after"; }
@@ -989,6 +990,9 @@ void testNamedFailureGui(const QString& scenario) {
         guiRequire(state.value("copy")==expected && state.value("hostReason")=="pyrowave_capture_unreadable" && state.value("hostStatusCode")==503,
             "host refusal text or typed provenance was changed");
         guiRequire(driver.starts==0 && host.cancels==0,"refused launch touched native transport or ended an unstarted game");
+    } else if (scenario=="term-graceful") {
+        guiRequire(phase(controller)=="stopped" && !state.contains("failureSource") && !state.value("canReconnect").toBool() && host.cancels==0,
+            "graceful termination invented a failure, recovery authority, or host cancellation");
     } else if (terminal) {
         guiRequire(state.value("failureSource")=="termination" && state.value("terminationErrorCode")==error,
             "termination code/provenance did not reach GUI state");
