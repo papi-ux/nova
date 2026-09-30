@@ -345,7 +345,7 @@ class NovaSplitConfirmComposeTest {
 
     @Test
     fun anArmedPairKeepsControllerFocusWhenItsWindowAndControlSizeChange() {
-        val end = "${wide("Close")} ${wide("Session")}"
+        val end = "${"Close".repeat(12)} ${"Session".repeat(12)}"
         var width by mutableStateOf(130.dp)
         var size by mutableStateOf(NovaControlSize.Standard)
         val keys = rule.setPanelContent {
