@@ -829,6 +829,11 @@ void testFailures() {
 void guiRequire(bool ok, const char* message) {
     if (!ok) throw std::runtime_error(message);
 }
+template<typename Predicate> void guiUntil(Predicate predicate, int timeoutMs=3000) {
+    QElapsedTimer deadline; deadline.start();
+    while (!predicate() && deadline.elapsed()<timeoutMs) { QCoreApplication::processEvents(); QThread::msleep(1); }
+    guiRequire(predicate(),"timed out waiting for GUI native session");
+}
 // Optional synthetic Qt captures are controller/geometry proof only, not a
 // physical stream, decoder, controller or pairing acceptance check.
 void captureFailure(QQuickWindow& window, const QString& scenario, const QVariantMap& state) {
@@ -850,6 +855,8 @@ void testNamedFailureGui(const QString& scenario) {
     const QString captureWords="PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.";
     if (pyrowave) {
         host.decoderSupport.pyrowave={1920,1200};
+        host.serverInfoOverride="<root status_code=\"200\"><appversion>7.1.431.0</appversion>"
+            "<ServerCodecModeSupport>8388609</ServerCodecModeSupport></root>";
         host.verifyStream=[&](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
             nova::deck::DeckStreamCapabilities caps;
             caps.pyrowave=scenario!="host-capability-launch";
@@ -893,7 +900,7 @@ void testNamedFailureGui(const QString& scenario) {
         preview->setProperty("streamCapabilities",QVariantMap{{"valid",true},{"h264",true},{"pyrowave",true}});
     }
     QMetaObject::invokeMethod(preview, "open");
-    until([&] { return play->isEnabled() && preview->property("opened").toBool(); });
+    guiUntil([&] { return play->isEnabled() && preview->property("opened").toBool(); });
     if (scenario == "host-capability") {
         const QString words="PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.";
         preview->setProperty("streamCapabilities",QVariantMap{{"valid",true},{"h264",true},{"pyrowave",false},
@@ -947,14 +954,14 @@ void testNamedFailureGui(const QString& scenario) {
     driver.failedStage=stage; driver.failedStageCode=error;
     guiRequire(QMetaObject::invokeMethod(play, "clicked"), "controller Play did not activate production QML");
     if (cancelled) {
-        until([&] { return driver.startBarrier.entered.load(); });
+        guiUntil([&] { return driver.startBarrier.entered.load(); });
         controller.stop(); driver.startBarrier.release();
     }
     if (terminal) {
-        until([&] { return phase(controller)=="active"; });
+        guiUntil([&] { return phase(controller)=="active"; });
         driver.terminate(error);
     }
-    settled(controller);
+    guiUntil([&] { return !controller.busy(); });
     captureFailure(*window,scenario,controller.state());
     guiRequire(controller.state().value("copy").toString().contains(expected,Qt::CaseInsensitive),
         qPrintable(QString("%1 lost named cause: %2").arg(scenario,controller.state().value("copy").toString())));
@@ -1003,11 +1010,11 @@ void testNamedFailureGui(const QString& scenario) {
     // failure and typed host reason must not be carried into that generation.
     driver.failStart=false; driver.blockStart=false; driver.terminateAtStart=false; host.refuseLaunch=false;
     guiRequire(controller.start("host","game"),"next generation rejected after failure cleanup");
-    until([&] { return phase(controller)=="active"; });
+    guiUntil([&] { return phase(controller)=="active"; });
     QCoreApplication::processEvents();
     guiRequire(phase(controller)=="active" && !controller.state().contains("failureSource") &&
         !controller.state().contains("hostReason"),"old failure provenance contaminated next stream generation");
-    controller.stop(); settled(controller);
+    controller.stop(); guiUntil([&] { return !controller.busy(); });
 }
 #endif
 
