@@ -4,10 +4,14 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.semantics.SemanticsActions
 import android.view.KeyEvent
 import androidx.compose.ui.test.hasClickAction
@@ -26,6 +30,28 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33], qualifiers = "w412dp-h915dp-port")
 class NovaSettingsPortraitMenuTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test fun enlargedTextCanReachEveryCategoryInTheExpandedMenu() {
+        val definitions = NovaSettingDefinitions.load(rule.activity)
+        var selected by mutableStateOf(definitions.categories.first().key)
+        rule.setPanelContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.3f)) {
+                NovaSettingsContent(
+                    state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), selected, ""),
+                    title = "Settings", subtitle = "Test", onBack = {}, onOpenLegacy = {},
+                    onSearch = {}, onClearSearch = {}, onCategory = { selected = it }, headerActions = emptyList(),
+                    onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Menu").performClick()
+        val last = definitions.categories.last()
+        rule.onNodeWithTag("nova-settings-category-${last.key}").performScrollTo().assertIsDisplayed().performClick()
+        org.junit.Assert.assertEquals(last.key, selected)
+        rule.onNodeWithText("Hide menu").assertIsDisplayed().performClick()
+        rule.onNodeWithText("Menu").assertIsDisplayed()
+    }
 
     @Test fun hidingNavigationKeepsTheChosenSettingsPaneAndItsEdits() {
         val definitions = NovaSettingsDefinitionSet(
