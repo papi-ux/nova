@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusEventModifierNode
 import androidx.compose.ui.focus.FocusState
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.KeyInputModifierNode
 import androidx.compose.ui.input.key.type
@@ -24,6 +25,8 @@ import androidx.compose.ui.node.TraversableNode
 import androidx.compose.ui.node.traverseDescendants
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import com.papi.nova.ui.NovaControllerTouchMode
 import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 
@@ -276,13 +279,19 @@ fun Modifier.novaClickable(
     onClick: () -> Unit,
 ): Modifier = this
     .then(NovaActivatableElement(enabled, onClick, yieldsToContent = true))
+    // Keep the contract's touch-mode focus stop too: clickable otherwise overrides focusable's
+    // canFocus in touch mode, including when its target stays attached during a pending save.
+    .focusProperties { canFocus = enabled || focusableWhenDisabled }
     .clickable(
         interactionSource = interactionSource,
         indication = null,
-        enabled = enabled,
+        // Keep clickable's own focus target attached for a read-only focus stop. Toggling it
+        // off while a write settles otherwise removes the target that currently owns focus.
+        enabled = enabled || focusableWhenDisabled,
         role = role,
-        onClick = onClick,
+        onClick = { if (enabled) onClick() },
     )
+    .semantics { if (!enabled) disabled() }
     .focusable(enabled = enabled || focusableWhenDisabled, interactionSource = interactionSource)
     .then(NovaContentFocusElement)
 

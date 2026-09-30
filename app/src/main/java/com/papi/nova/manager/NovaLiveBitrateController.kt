@@ -129,6 +129,12 @@ class NovaLiveBitrateController(private val transport:NovaLiveBitrateTransport,p
             negotiatedUnits=negotiatedUnits(valid)) }
     }
 
+    /** A consumer can withdraw scoped advice without losing acknowledgement barriers or learned bounds. */
+    fun replaceAdvice(tableRecommendedKbps:Int?,hostMaximumKbps:Int?)=synchronized(observationLock) {
+        tableRecommendation=tableRecommendedKbps?.takeIf { it>=1000 }?.coerceAtMost(NovaBitrateAdvice.AUTOMATIC_MAX_KBPS)
+        hostMaximum=hostMaximumKbps?.takeIf { it>=1000 }?.coerceAtMost(NovaBitrateAdvice.MANUAL_MAX_KBPS)
+    }
+
     suspend fun useRecommended()=change(null,null)
     suspend fun setBitrate(kbps:Int)=change(kbps,null)
     suspend fun step(direction:Int):NovaBitrateChange = if(direction in listOf(-1,1)) change(null,direction) else NovaBitrateChange.UNAVAILABLE

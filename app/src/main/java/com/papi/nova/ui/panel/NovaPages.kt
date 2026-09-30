@@ -143,6 +143,8 @@ sealed interface NovaCommonPage : NovaPage {
         val leading: (@Composable (NovaOption<T>) -> Unit)? = null,
         override val width: NovaPanelWidth = NovaPanelWidth.Standard,
         val useDefault: NovaUseDefault? = null,
+        /** Entry focus may differ from the checked choice, as for Quality's Recommended action. */
+        val initialFocus: T? = current,
     ) : NovaCommonPage
 
     /** Options that each toggle, applied together by [doneLabel]. */

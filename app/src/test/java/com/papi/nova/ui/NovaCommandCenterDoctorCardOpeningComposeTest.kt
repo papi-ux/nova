@@ -143,7 +143,7 @@ class NovaCommandCenterDoctorCardOpeningComposeTest {
     private fun card(finding: String): SemanticsNodeInteraction = rule.onNode(hasText(finding) and hasClickAction())
 
     private val hud get() = string(R.string.nova_quick_menu_nova_hud)
-    private val streamCard get() = string(R.string.nova_quick_menu_stream_card)
+    private val streamCard get() = "Picture"
     private val copies get() = string(R.string.nova_quick_menu_doctor_capability_manual)
 
     private fun top(node: SemanticsNodeInteraction) = node.getUnclippedBoundsInRoot().top.value

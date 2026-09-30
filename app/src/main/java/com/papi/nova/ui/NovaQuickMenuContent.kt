@@ -62,6 +62,8 @@ import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaConfirm
 import com.papi.nova.ui.compose.novaFocusTick
 import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaRow
+import com.papi.nova.ui.panel.NovaStepperRow
 import com.papi.nova.ui.panel.LocalNovaStreamCover
 import com.papi.nova.ui.panel.NovaChevron
 import com.papi.nova.ui.panel.NovaFocusHint
@@ -99,6 +101,9 @@ data class NovaQuickMenuCallbacks(
     val onClearGameProfile: () -> Unit = {},
     val onMangoHud: () -> Unit = {},
     val onProfilePreference: (String) -> Unit = {},
+    val onBitrateStep: (com.papi.nova.manager.NovaLiveBitrateToken?, Int) -> Unit = { _, _ -> },
+    val onBitrateExact: (com.papi.nova.manager.NovaLiveBitratePresentation) -> Unit = {},
+    val onBitrateRecommended: (com.papi.nova.manager.NovaLiveBitrateToken?) -> Unit = {},
     val onQuickKey: (NovaQuickMenuActionId) -> Unit = {},
     val onOverlayAction: (NovaQuickMenuActionId) -> Unit = {},
     val onHudModeSelect: (NovaHudMode) -> Unit = {},
@@ -555,48 +560,47 @@ private fun NovaQuickMenuPostSessionReportCard(ui: State<NovaQuickMenuUiState>) 
     }
 }
 
-/**
- * The Stream card: the profile Nova launches this game with next, as a value that changes in
- * its own row. The current profile carries the check, never a filled button.
- */
+/** The current stream's picture controls. No saved setup or next-launch preference writes. */
 @Composable
 private fun NovaPageScope.NovaQuickMenuStabilityCard(
     ui: State<NovaQuickMenuUiState>,
     callbacks: NovaQuickMenuCallbacks,
 ) {
-    val stability by ui.slice { it.stability }
+    val picture by ui.slice { it.liveBitrate }
     val colors = LocalNovaComposeColors.current
-    val type = novaPanelType
-    val options = remember(stability.profileOptions) {
-        stability.profileOptions.map { NovaOption(it.value, it.label) }
-    }
-    val current = stability.profileOptions.firstOrNull { it.selected }?.value ?: options.firstOrNull()?.value.orEmpty()
-    val enabled = stability.profileOptions.all { it.enabled }
-
-    // The card's text is inset as a row's; the Launch Preset row brings its own inset, so it sits
-    // at the card's edges rather than a second inset deeper than every other row.
+    val rate = picture.rate
+    val enabled = rate.canChange && !rate.busy
     val inset = Modifier.padding(horizontal = NovaPanelMetrics.SpaceMd)
     NovaQuickMenuStaticCard(contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceMd)) {
-        Box(inset) {
-            NovaQuickMenuTitleAndChip(
-                title = { Text(text = stability.title, style = type.rowTitle, fontWeight = FontWeight.SemiBold, color = colors.textPrimary) },
-                chip = stability.chip,
-            )
-        }
-        // No line of its own for a failed status read: the strip says it, and a line that came
-        // and went moved every row under this card (review finding 1).
-        Text(text = stability.targetSummary, style = type.caption, color = colors.textSecondary, modifier = inset)
-        if (options.isNotEmpty()) {
-            NovaValueRow(
-                title = stability.profileTitle,
-                caption = stability.profileCaption,
-                options = options,
-                current = current,
-                onChange = callbacks.onProfilePreference,
-                enabled = enabled,
-                modifier = novaPlaceFocus("launch-preset"),
-            )
-        }
+        Text("Picture", style = novaPanelType.rowTitle, fontWeight = FontWeight.SemiBold,
+            color = colors.textPrimary, modifier = inset)
+        NovaStepperRow(
+            title = if (rate.units == com.papi.nova.manager.NovaBitrateUnits.VIDEO) "Video bitrate" else "Bitrate",
+            value = rate.requestedKbps ?: rate.minimumKbps,
+            range = rate.minimumKbps..maxOf(rate.minimumKbps, rate.maximumKbps),
+            step = 5000,
+            format = { if (rate.requestedKbps == null) "Unavailable" else com.papi.nova.preferences.NovaBitrateAdvice.text(it, false) },
+            onChange = {},
+            onStep = { callbacks.onBitrateStep(picture.token, it) },
+            onExact = { callbacks.onBitrateExact(picture) },
+            enabled = enabled,
+            caption = listOfNotNull(picture.numbers, picture.result ?: picture.reason).filter { it.isNotBlank() }.joinToString("\n"),
+            modifier = novaPlaceFocus("stream-bitrate"),
+        )
+        val recommendation = rate.recommendedKbps
+        val recommendationEnabled = enabled && rate.units == com.papi.nova.manager.NovaBitrateUnits.REQUEST && recommendation != null
+        NovaRow(
+            title = "Use recommended",
+            caption = when {
+                recommendation == null -> "Recommendation unavailable"
+                rate.requestedKbps == recommendation -> "In use"
+                else -> com.papi.nova.preferences.NovaBitrateAdvice.text(recommendation, true)
+            },
+            disabledReason = if (recommendationEnabled) null else
+                if (recommendation == null) "Recommendation unavailable" else picture.reason,
+            onClick = { callbacks.onBitrateRecommended(picture.token) },
+            modifier = novaPlaceFocus("stream-bitrate-recommended"),
+        )
     }
 }
 

@@ -111,17 +111,18 @@ private fun PageColumn(content: @Composable () -> Unit) {
 @Composable
 private fun <T> NovaPageScope.ChoicePage(page: NovaCommonPage.Choice<T>, exit: NovaPageExit) {
     val currentIndex = page.options.indexOfFirst { it.value == page.current }
+    val focusIndex = page.options.indexOfFirst { it.value == page.initialFocus }
     val columns = novaPanelColumns(page.width)
     // Opens on the current option, even one far down the list that has not composed yet: the host
     // scrolls there first, with a row of context above it. A current value that is no longer an
     // option opens on the first row.
-    if (currentIndex >= 0) novaInitialFocusAt(currentIndex, currentIndex / columns)
+    if (focusIndex >= 0) novaInitialFocusAt(focusIndex, focusIndex / columns)
     val lines = remember(page.options.size, columns) { novaGridRows(page.options.indices.toList(), columns) }
     PageList {
         itemsIndexed(lines, key = { line, _ -> line }) { line, indices ->
             NovaGridRow(indices, columns) { index, cell ->
                 val option = page.options[index]
-                val initial = index == currentIndex || (currentIndex < 0 && index == 0)
+                val initial = index == focusIndex || (focusIndex < 0 && index == 0)
                 NovaRowLayout(
                     title = option.label,
                     caption = option.caption,

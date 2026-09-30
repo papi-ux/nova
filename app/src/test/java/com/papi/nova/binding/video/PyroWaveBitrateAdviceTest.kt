@@ -414,23 +414,12 @@ class PyroWaveBitrateAdviceTest {
     }
 
     @Test
-    fun gameLogsEveryWarningButTellsThePlayerOnlyWhenTheyCanAct() {
+    fun gameKeepsDiagnosticWarningsWhileTheActionableAdviceIsInline() {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
-        fun onlyIndexOf(anchor: String): Int {
-            assertEquals("'$anchor' appears in Game.kt once", 1, Regex(Regex.escape(anchor)).findAll(game).count())
-            return game.indexOf(anchor)
-        }
-        val weighed = onlyIndexOf("PyroWaveDecoderRenderer.bitrateWarning(")
-        val logged = onlyIndexOf("LimeLog.warning(pyroWaveWarning.logLine)")
-        val asked = onlyIndexOf("if (pyroWaveWarning.tellPlayer)")
-        val told = onlyIndexOf("R.string.nova_pyrowave_bitrate_low")
-        assertTrue("the warning is logged before it is weighed", weighed < logged)
-        assertTrue("the line is logged only when the player is told", logged < asked)
-        assertTrue("the player is told outside the branch that asks whether to", asked < told)
-        assertFalse(
-            "the branch that asks whether to tell the player closes before telling them",
-            game.substring(asked, told).contains('}'),
-        )
+        val weighed = game.indexOf("PyroWaveDecoderRenderer.bitrateWarning(")
+        val logged = game.indexOf("LimeLog.warning(pyroWaveWarning.logLine)")
+        assertTrue(weighed >= 0 && logged > weighed)
+        assertFalse(game.contains("getString(R.string.nova_pyrowave_bitrate_low"))
     }
 
     @Test
@@ -438,7 +427,7 @@ class PyroWaveBitrateAdviceTest {
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
         val call = "PyroWaveDecoderRenderer.bitrateAdvice("
         assertEquals("the advice is built in one place", 1, Regex(Regex.escape(call)).findAll(game).count())
-        val site = game.substringAfter(call).substringBefore("NovaSnackbar.showQuiet")
+        val site = game.substringAfter(call).substringBefore("doctorTelemetry.reset()")
         assertTrue(
             "the advice no longer reads the chroma from the formats Nova offers",
             site.contains("adviceChroma444(supportedVideoFormats)"),
@@ -462,10 +451,8 @@ class PyroWaveBitrateAdviceTest {
                     "                configuredStreamBitrateKbps, displayWidth, displayHeight, pyroWaveFps, pyroWaveAdvice,",
             ),
         )
-        assertTrue(
-            "the player is no longer told the figure the warning compared",
-            game.contains("getString(R.string.nova_pyrowave_bitrate_low, pyroWaveAdvice.mbps)"),
-        )
+        assertFalse("advice no longer floats over the stream",
+            game.contains("getString(R.string.nova_pyrowave_bitrate_low, pyroWaveAdvice.mbps)"))
         assertTrue(
             game.indexOf("MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444") in
                 0 until game.indexOf(call),
@@ -497,7 +484,7 @@ class PyroWaveBitrateAdviceTest {
         assertTrue("the advice is not inside the PyroWave guard", guard < call)
         assertFalse("the PyroWave guard closes before the advice", game.substring(guard, call).contains('}'))
 
-        val site = game.substring(call).substringBefore("NovaSnackbar.showQuiet")
+        val site = game.substring(call).substringBefore("doctorTelemetry.reset()")
         assertTrue(
             "the advice no longer reads the size and frame rate the stream is sent at",
             site.startsWith("PyroWaveDecoderRenderer.bitrateAdvice(\n                displayWidth, displayHeight, pyroWaveFps,"),

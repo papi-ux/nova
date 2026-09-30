@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.requestFocus
@@ -172,6 +174,28 @@ class NovaActivatableComposeTest {
         rule.onNodeWithTag("button").requestFocus()
         keys.press(NovaTestKeys.CENTER)
         assertEquals("the node latch and clickable's own key handling never both fire", 2, clicks)
+    }
+
+    @Test
+    fun aFocusedReadOnlyRowKeepsFocusWhileItsWriteReceiptSettles() {
+        val enabled = mutableStateOf(true)
+        var clicks = 0
+        val keys = rule.setPanelContent {
+            Box(Modifier.size(48.dp).testTag("receipt-row")
+                .novaClickable(enabled = enabled.value, focusableWhenDisabled = true) { clicks++ })
+        }
+        rule.onNodeWithTag("receipt-row").requestFocus()
+        rule.runOnIdle { enabled.value = false }
+        rule.frames(3)
+        rule.onNodeWithTag("receipt-row").assertIsFocused().assertIsNotEnabled()
+        keys.press(NovaTestKeys.CENTER)
+        rule.onNodeWithTag("receipt-row").performClick()
+        assertEquals("A and accessibility actions cannot write while disabled", 0, clicks)
+        rule.runOnIdle { enabled.value = true }
+        rule.frames(3)
+        rule.onNodeWithTag("receipt-row").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(1, clicks)
     }
 
     @Test

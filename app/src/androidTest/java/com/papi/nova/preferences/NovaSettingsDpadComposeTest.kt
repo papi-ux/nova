@@ -52,7 +52,7 @@ class NovaSettingsDpadComposeTest {
     }
 
     @Test fun quickSettingsAreReachableAndDownReturnsToTheCategory() {
-        showSettings()
+        showSettings(heightDp = 800)
         category("stream").performSemanticsAction(SemanticsActions.RequestFocus)
         category("stream").performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNodeWithTag("nova-settings-quick-quick-0").assertIsFocused()
@@ -66,7 +66,13 @@ class NovaSettingsDpadComposeTest {
         showSettings()
         category("stream").performSemanticsAction(SemanticsActions.RequestFocus)
         category("stream").performKeyInput { pressKey(Key.DirectionRight) }
-        row("stream-18").performScrollTo().performSemanticsAction(SemanticsActions.RequestFocus)
+        // A lazy row outside the viewport is not composed yet. Reach it with real navigation,
+        // exercising the production scroll-and-focus path rather than requesting a missing node.
+        repeat(18) {
+            compose.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+            compose.waitForIdle()
+        }
+        row("stream-18").assertIsFocused().assertIsDisplayed()
         row("stream-18").performKeyInput { pressKey(Key.DirectionLeft) }
         category("stream").assertIsFocused()
         category("stream").performKeyInput { pressKey(Key.DirectionDown) }
@@ -83,10 +89,20 @@ class NovaSettingsDpadComposeTest {
         category("empty").assertIsFocused()
     }
 
+    @Test fun aShortWindowHidesTheRepeatedQuickStripAndRightEntersThePane() {
+        showSettings(heightDp = 420)
+        compose.onNodeWithTag("nova-settings-quick-quick-0").assertDoesNotExist()
+        category("stream").performSemanticsAction(SemanticsActions.RequestFocus)
+        category("stream").performKeyInput { pressKey(Key.DirectionRight) }
+        row("stream-0").assertIsFocused()
+        row("stream-0").performKeyInput { pressKey(Key.DirectionLeft) }
+        category("stream").assertIsFocused()
+    }
+
     private fun category(key: String) = compose.onNodeWithTag("nova-settings-category-$key")
     private fun row(key: String) = compose.onNodeWithTag("nova-settings-row-$key")
 
-    private fun showSettings() {
+    private fun showSettings(heightDp: Int? = null) {
         var selected by mutableStateOf("stream")
         lateinit var inputMode: InputModeManager
         val categories = listOf(
@@ -102,7 +118,10 @@ class NovaSettingsDpadComposeTest {
         val settings = (0..20).map { definition("stream", it) } + (0..4).map { definition("input", it) }
         val quick = (0..2).map { definition("quick", it) }
         compose.setContent {
-            val wideConfig = Configuration(LocalConfiguration.current).apply { screenWidthDp = 900 }
+            val wideConfig = Configuration(LocalConfiguration.current).apply {
+                screenWidthDp = 900
+                if (heightDp != null) screenHeightDp = heightDp
+            }
             CompositionLocalProvider(LocalConfiguration provides wideConfig) {
                 NovaComposeTheme {
                     inputMode = LocalInputModeManager.current

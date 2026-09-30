@@ -68,6 +68,7 @@ class NovaQuickMenu(
      */
     private class MenuSession(val device: GameInputDevice?, val rootKey: String) {
         var scope: NovaPageScope? = null
+        var bitrateJob: kotlinx.coroutines.Job? = null
         var anchorRef: WeakReference<View>? = null
         val anchor: View? get() = anchorRef?.get()
     }
@@ -102,6 +103,7 @@ class NovaQuickMenu(
         // buttons, so the HUD steps away while the Command Center is open.
         game.setNovaHudCovered(true)
         fun onMenuClosed() {
+            menu.bitrateJob?.cancel()
             game.setNovaHudCovered(false)
             game.cancelRuntimeTask("NovaQuickMenuLiveTuning")
             if (doctorMenuRefreshRegistry.close(menuValidationGeneration)) {
@@ -507,7 +509,11 @@ class NovaQuickMenu(
                     validatedScopeId = doctorReceiptDisplayScopeId
                 )
             ).let { state ->
-                if (diagnosticsCopied) state.copy(diagnosis = state.diagnosis.copy(copied = true)) else state
+                (if (diagnosticsCopied) state.copy(diagnosis = state.diagnosis.copy(copied = true)) else state)
+                    .copy(liveBitrate = game.novaLiveBitrate.state.value.let { picture ->
+                        if (game.novaApiClient === commandClient && game.conn === commandConnection) picture
+                        else picture.copy(rate = picture.rate.copy(canChange = false), reason = "Stream changed. Reopen Command Center")
+                    })
             }
         }
 
@@ -852,7 +858,34 @@ class NovaQuickMenu(
             ending = { NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_shutdown_already_running), anchor = menu.anchor) },
         )
 
+        fun bitrateMenuCurrent(): Boolean = menuValidationIsCurrent() && menuShowing() &&
+            game.novaApiClient === commandClient && game.conn === commandConnection
+        val bitrateAction = game.novaBitrateAction(::bitrateMenuCurrent)
+        fun changeBitrate(token: com.papi.nova.manager.NovaLiveBitrateToken?, direction: Int? = null, kbps: Int? = null) =
+            bitrateAction(token, direction, kbps)
         val callbacks = NovaQuickMenuCallbacks(
+            onBitrateStep = { token, direction -> changeBitrate(token, direction = direction) },
+            onBitrateRecommended = { token -> changeBitrate(token) },
+            onBitrateExact = { picture ->
+                val rate = picture.rate
+                if (bitrateMenuCurrent() && rate.canChange && !rate.busy) {
+                    surfaces.panel.push(com.papi.nova.ui.panel.NovaCommonPage.Form(
+                        key = "stream-bitrate-exact", title = "Bitrate for this stream",
+                        fields = listOf(com.papi.nova.ui.panel.NovaField("kbps", "Bitrate (kbps)",
+                            rate.requestedKbps?.toString().orEmpty(), com.papi.nova.ui.panel.NovaFieldKind.Number)),
+                        submitLabel = "Apply for this stream",
+                        warning = "${rate.minimumKbps} to ${rate.maximumKbps} kbps",
+                        onSubmit = { values ->
+                            val value = values["kbps"]?.toIntOrNull()
+                            when {
+                                !bitrateMenuCurrent() || picture.token != game.novaLiveBitrate.state.value.token -> "Stream changed. Reopen Command Center"
+                                value == null || value !in rate.minimumKbps..rate.maximumKbps -> "Enter a bitrate within this range"
+                                else -> { changeBitrate(picture.token, kbps = value); null }
+                            }
+                        },
+                    ))
+                }
+            },
             onDismiss = { dismiss() },
             onDisconnect = {
                 haptic {
@@ -961,24 +994,6 @@ class NovaQuickMenu(
                             refreshState()
                         }
                     }
-                }
-            },
-            onProfilePreference = { preference ->
-                haptic {
-                    val gameName = currentProfileGameName() ?: return@haptic
-                    val gameUuid = currentGameUuid() ?: return@haptic
-                    AutoQualityProfilePreferences.save(game, gameUuid, gameName, preference)
-                    // Said in the row's own caption, where the preset was picked; the last step
-                    // of a held Left or Right is the one whose caption stays for the moment.
-                    launchPresetSaved = true
-                    val save = ++launchPresetSaves
-                    game.window.decorView.postDelayed({
-                        if (launchPresetSaves == save) {
-                            launchPresetSaved = false
-                            refreshState()
-                        }
-                    }, PROFILE_CLEAR_RESULT_SHOWN_MS)
-                    refreshState()
                 }
             },
             onQuickKey = { actionId ->
@@ -1156,6 +1171,9 @@ class NovaQuickMenu(
             onMenuClosed()
         }
 
+        menu.bitrateJob = game.lifecycleScope.launch {
+            game.novaLiveBitrate.state.collect { if (menuValidationIsCurrent() && menuShowing()) refreshState() }
+        }
         if (apiClient != null) {
             game.launchReplacingRuntimeIo("NovaQuickMenuLiveTuning") {
                 apiClient.sessionStatusUpdates.collect {
