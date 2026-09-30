@@ -133,8 +133,14 @@ class NovaControlSizeInstrumentedTest {
                 .performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             compose.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
         } else {
-            compose.onNodeWithTag("nova-settings-category-category_nova")
+            val first = definitions.categories.first().key
+            compose.onNodeWithTag("nova-settings-category-$first")
                 .performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            repeat(definitions.categories.indexOfFirst { it.key == "category_nova" }) {
+                compose.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+                compose.waitForIdle()
+            }
+            compose.onNodeWithTag("nova-settings-category-category_nova").assertIsFocused()
             compose.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
         }
         fun choiceHasFocus() = compose.onAllNodes(hasTestTag("nova-settings-row-$key") and isFocused())
