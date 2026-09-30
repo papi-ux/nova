@@ -195,6 +195,11 @@ class NovaHostCopySyncTest {
         assertEquals(500000,body!!.getInt("target_bitrate_kbps"))
         assertEquals(500000,PreferenceManager.getDefaultSharedPreferences(context).getInt("seekbar_bitrate_kbps",0))
         assertFalse(PreferenceManager.getDefaultSharedPreferences(context).getBoolean(NovaSettingsMigration.CUSTOM_AUTO,true))
+        PreferenceManager.getDefaultSharedPreferences(context).edit().putString(NovaSettingsMigration.TIER,"recommended").commit()
+        body=null;engine.sendNova();await { body!=null && !engine.busy }
+        assertTrue("generated Auto stays capped even though the paused manual Custom pin is 500 Mbps",
+            body!!.getInt("target_bitrate_kbps")<=300000)
+        assertEquals(500000,PreferenceManager.getDefaultSharedPreferences(context).getInt("seekbar_bitrate_kbps",0))
         engine.close();scope.cancel()
     }
 
@@ -218,6 +223,26 @@ class NovaHostCopySyncTest {
         }
         assertFalse(engine.busy)
         assertEquals("admission was valid, but stale authority before dispatch must prevent even the status read",0,calls.get())
+        engine.close();scope.cancel()
+    }
+
+    @Test fun retiredAtomicAuthorityPreventsAnIoDispatchAlreadyQueuedFromMain() {
+        preferences()
+        val calls=AtomicInteger();val current=AtomicBoolean(true)
+        val queue=java.util.concurrent.ConcurrentLinkedQueue<Runnable>()
+        val io=object:CoroutineDispatcher() {
+            override fun dispatch(context:kotlin.coroutines.CoroutineContext,block:Runnable) { queue.add(block) }
+        }
+        val client=api { request -> calls.incrementAndGet();reply(request,confirmed) }
+        val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
+        val engine=NovaPolarisSyncEngine(ApplicationProvider.getApplicationContext(),client,"host-a",scope,ioDispatcher=io)
+        val authority=NovaClientSettingsWriteAuthority()
+        assertTrue(engine.sendDeviceSetting(500000,{current.get()},{fail("stale receipt")},{fail("stale failure")},authority))
+        assertTrue("Main has already queued the IO write",queue.isNotEmpty());assertEquals(0,calls.get())
+        current.set(false);authority.retire()
+        while(true) { val next=queue.poll()?:break;next.run() }
+        await { !engine.busy }
+        assertEquals("the safe token is checked at the actual API dispatch boundary",0,calls.get())
         engine.close();scope.cancel()
     }
 

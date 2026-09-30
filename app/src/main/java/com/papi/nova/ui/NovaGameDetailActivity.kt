@@ -615,6 +615,7 @@ class NovaGameDetailActivity : NovaActivity() {
         var hostCopyWorking by mutableStateOf(false)
         var hostCopyLine by mutableStateOf<com.papi.nova.manager.NovaStreamSourceLine?>(null)
         var hostCopyAbandoned = false
+        var recoveryWriteAuthority: NovaClientSettingsWriteAuthority? = null
         val detailHostUuid = serverUuid
         fun detailHostIsCurrent() = !isFinishing && !isDestroyed && serverUuid == detailHostUuid &&
             this@NovaGameDetailActivity.apiClient === apiClient
@@ -978,6 +979,7 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         fun loadOptimization(preference: String, usesVirtualDisplay: Boolean = uiState.playUsesVirtualDisplay) {
+            recoveryWriteAuthority?.retire()
             hostCopyWorking = false
             hostCopyLine = null
             LimeLog.info(
@@ -1084,6 +1086,7 @@ class NovaGameDetailActivity : NovaActivity() {
 
         retryPreflight = { loadOptimization(profilePreference) }
         onPlaySetupClosed = {
+            recoveryWriteAuthority?.retire()
             if (hostCopyWorking) {
                 hostCopyAbandoned = true
                 preflightRequestFence.invalidate()
@@ -1112,6 +1115,9 @@ class NovaGameDetailActivity : NovaActivity() {
                 isCurrent = ::current,
                 onUseDeviceSetting = {
                     if (current()) {
+                        recoveryWriteAuthority?.retire()
+                        val writeAuthority = NovaClientSettingsWriteAuthority()
+                        recoveryWriteAuthority = writeAuthority
                         hostCopyLine = source
                         hostCopyWorking = true
                         // Retire both the old plan and retained callbacks before a write.
@@ -1133,6 +1139,7 @@ class NovaGameDetailActivity : NovaActivity() {
                                     lastPlan = optimizationState.lastPlan,
                                     preflightMessage = getString(R.string.nova_device_setting_failed))
                             } else if (!engine.sendDeviceSetting(
+                                writeAuthority = writeAuthority,
                                 manualMaximumKbps = hostCaptureCapabilities?.features?.manualBitrateMaxKbps
                                     ?: NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS,
                                 isCurrent = { detailHostIsCurrent() && preflightRequestFence.owns(recoveryGeneration) &&
@@ -1176,6 +1183,9 @@ class NovaGameDetailActivity : NovaActivity() {
          * same rule as the preflight guard, applied to a gap this introduces.
          */
         fun settleThen(work: suspend () -> Unit) {
+            recoveryWriteAuthority?.retire()
+            hostCopyWorking = false
+            hostCopyLine = null
             optimizationState = recheckState()
             preflightRequestFence.invalidate()
             preflightJob?.cancel()

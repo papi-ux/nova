@@ -15,6 +15,7 @@ import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.manager.PolarisProfileSync
 import com.papi.nova.manager.PolarisSettingsSyncManager
 import com.papi.nova.preferences.PreferenceConfiguration
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -38,6 +39,7 @@ internal class NovaPolarisSyncEngine(
     private val onSettingsChanged: (PolarisClientSettings) -> Unit = {},
     private val onMessage: (messageRes: Int, isError: Boolean) -> Unit = { _, _ -> },
     private val onTextMessage: ((message: String, isError: Boolean) -> Unit)? = null,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     var currentSettings by mutableStateOf<PolarisClientSettings?>(null)
         private set
@@ -147,6 +149,7 @@ internal class NovaPolarisSyncEngine(
         isCurrent: () -> Boolean,
         onConfirmed: () -> Unit,
         onFailed: () -> Unit,
+        writeAuthority: NovaClientSettingsWriteAuthority = NovaClientSettingsWriteAuthority(),
     ): Boolean {
         if (closed || busy || !isCurrent() || serverUuid.isNullOrBlank() || apiClient == null) return false
         val prefs = PreferenceConfiguration.readPreferences(context)
@@ -158,6 +161,7 @@ internal class NovaPolarisSyncEngine(
             isCurrent = isCurrent,
             onConfirmed = onConfirmed,
             onFailed = onFailed,
+            writeAuthority = writeAuthority,
         )
         return true
     }
@@ -200,8 +204,7 @@ internal class NovaPolarisSyncEngine(
         val prefs = PreferenceConfiguration.readPreferences(context)
         updatePolarisSettings(
             displayMode = PreferenceConfiguration.formatStreamingDisplayMode(prefs.width, prefs.height, prefs.fps),
-            targetBitrateKbps = if (showMessage) prefs.bitrate else prefs.bitrate.coerceAtMost(
-                com.papi.nova.preferences.NovaBitrateAdvice.AUTOMATIC_MAX_KBPS),
+            targetBitrateKbps = prefs.bitrate,
             successMessage = successMessage,
             showMessage = showMessage
         )
@@ -225,6 +228,7 @@ internal class NovaPolarisSyncEngine(
         isCurrent: () -> Boolean = { true },
         onConfirmed: () -> Unit = {},
         onFailed: () -> Unit = {},
+        writeAuthority: NovaClientSettingsWriteAuthority = NovaClientSettingsWriteAuthority(),
     ) {
         if (closed || busy || !isCurrent()) return
         val client = apiClient ?: return
@@ -243,10 +247,14 @@ internal class NovaPolarisSyncEngine(
         }
         busy = true
         scope.launch {
+            // Scope is Main for the UI owners. Recheck there before scheduling IO; the
+            // atomic token also fences a dispatch which was queued while Main moved on.
+            if (closed || lifecycleGeneration != generation) return@launch
+            if (!isCurrent() || !writeAuthority.valid) { busy = false; return@launch }
             var rejectionMessage: String? = null
-            val confirmed = withContext(Dispatchers.IO) {
+            val confirmed = withContext(ioDispatcher) {
                 try {
-                    if (closed || lifecycleGeneration != generation) return@withContext null
+                    if (closed || lifecycleGeneration != generation || !writeAuthority.valid) return@withContext null
                     client.updateClientSettings(
                         streamDisplayMode = streamDisplayMode,
                         displayMode = displayMode,
@@ -272,7 +280,7 @@ internal class NovaPolarisSyncEngine(
             }
             if (closed || lifecycleGeneration != generation) return@launch
             busy = false
-            if (!isCurrent()) return@launch
+            if (!isCurrent() || !writeAuthority.valid) return@launch
             if (confirmed == null) {
                 currentSettings = previousSettings
                 val exactRejection = rejectionMessage
@@ -301,8 +309,7 @@ internal class NovaPolarisSyncEngine(
         }
         val prefs = PreferenceConfiguration.readPreferences(context)
         val novaDisplayMode = PreferenceConfiguration.formatStreamingDisplayMode(prefs.width, prefs.height, prefs.fps)
-        val profileState = PolarisProfileSync.compare(novaDisplayMode, prefs.bitrate.coerceAtMost(
-            com.papi.nova.preferences.NovaBitrateAdvice.AUTOMATIC_MAX_KBPS), settings)
+        val profileState = PolarisProfileSync.compare(novaDisplayMode, prefs.bitrate, settings)
         if (profileState != PolarisProfileSync.ProfileState.DIFFERENT &&
             profileState != PolarisProfileSync.ProfileState.POLARIS_UNSET
         ) {

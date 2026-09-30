@@ -12,6 +12,13 @@ import com.papi.nova.manager.NovaStreamSource
 import com.papi.nova.manager.NovaStreamSourceLine
 import com.papi.nova.ui.compose.NovaActionButton
 
+/** Main retires this token; IO only reads its atomic authority immediately before dispatch. */
+internal class NovaClientSettingsWriteAuthority {
+    private val active = java.util.concurrent.atomic.AtomicBoolean(true)
+    val valid: Boolean get() = active.get()
+    fun retire() { active.set(false) }
+}
+
 internal data class NovaHostCopyRecovery(val line: String, val enabled: Boolean, val busy: Boolean,
     val onUseDeviceSetting: () -> Unit)
 
