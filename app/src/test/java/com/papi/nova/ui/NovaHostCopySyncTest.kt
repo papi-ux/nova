@@ -246,4 +246,30 @@ class NovaHostCopySyncTest {
         engine.close();scope.cancel()
     }
 
+    private fun retirementDuringStatusRead(close:Boolean) {
+        preferences()
+        val entered=CountDownLatch(1);val release=CountDownLatch(1);val returned=CountDownLatch(1)
+        val posts=AtomicInteger()
+        val client=api { request ->
+            if(request.method=="POST") { posts.incrementAndGet();reply(request,confirmed) }
+            else { entered.countDown();assertTrue(release.await(5,TimeUnit.SECONDS));returned.countDown()
+                reply(request,"{\"state\":\"idle\",\"streaming_active\":false}") }
+        }
+        val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
+        var published=0;var rechecks=0
+        val engine=NovaPolarisSyncEngine(ApplicationProvider.getApplicationContext(),client,"host-a",scope,
+            onSettingsChanged={published++})
+        val authority=NovaClientSettingsWriteAuthority()
+        engine.sendDeviceSetting(500000,{true},{rechecks++},{fail("retired authority is silent")},authority)
+        await { entered.count==0L }
+        if(close) engine.close() else authority.retire()
+        release.countDown();await { returned.count==0L }
+        repeat(20) { shadowOf(Looper.getMainLooper()).idle();Thread.sleep(5) }
+        assertEquals("only the status GET was on wire: retirement must prevent the still-pending POST",0,posts.get())
+        assertEquals(0,published);assertEquals(0,rechecks)
+        engine.close();scope.cancel()
+    }
+    @Test fun planRetiredDuringFreshStatusReadCannotDispatchTheStillPendingPost() = retirementDuringStatusRead(false)
+    @Test fun panelClosedDuringFreshStatusReadCannotDispatchTheStillPendingPost() = retirementDuringStatusRead(true)
+
 }
