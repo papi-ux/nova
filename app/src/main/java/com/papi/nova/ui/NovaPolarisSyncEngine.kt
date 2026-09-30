@@ -151,7 +151,7 @@ internal class NovaPolarisSyncEngine(
         onFailed: () -> Unit,
         writeAuthority: NovaClientSettingsWriteAuthority = NovaClientSettingsWriteAuthority(),
     ): Boolean {
-        if (closed || busy || !isCurrent() || serverUuid.isNullOrBlank() || apiClient == null) return false
+        if (closed || busy || !isCurrent() || !writeAuthority.valid || serverUuid.isNullOrBlank() || apiClient == null) return false
         val prefs = PreferenceConfiguration.readPreferences(context)
         updatePolarisSettings(
             displayMode = PreferenceConfiguration.formatStreamingDisplayMode(prefs.width, prefs.height, prefs.fps),
@@ -230,7 +230,7 @@ internal class NovaPolarisSyncEngine(
         onFailed: () -> Unit = {},
         writeAuthority: NovaClientSettingsWriteAuthority = NovaClientSettingsWriteAuthority(),
     ) {
-        if (closed || busy || !isCurrent()) return
+        if (closed || busy || !isCurrent() || !writeAuthority.valid) return
         val client = apiClient ?: return
         val generation = lifecycleGeneration
         val previousSettings = currentSettings

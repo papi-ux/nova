@@ -71,6 +71,8 @@ class NovaTierControlsViewModelTest {
         val selectedCaption = NovaTierControls.caption(vm.streamTiers.value!!, NovaTier.MAX)
         assertTrue("The selected row must retain the explanation", selectedCaption.contains("Sharper than this screen"))
         assertTrue("The decoder limit must remain visible in the option", option.caption.orEmpty().contains("decodes"))
+        val selectedDefinition = NovaTierControls.definitions(definitions,vm.streamTiers.value!!,NovaTier.MAX).find("nova_stream_preset")!!
+        assertEquals("The actual Settings consumer joins option and summary: above-native is read once", "", selectedDefinition.summary)
     }
 
     @Test fun choosingRecommendedThroughQualityNeverRewritesCustomPins() {

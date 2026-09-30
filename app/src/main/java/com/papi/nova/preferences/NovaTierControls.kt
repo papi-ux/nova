@@ -42,7 +42,11 @@ internal object NovaTierControls {
         val category = original.find(QUALITY_KEY)?.categoryKey ?: return original
         val settings = original.settings.flatMap { definition ->
             when (definition.key) {
-                QUALITY_KEY -> listOf(definition.copy(title = "Quality", summary = caption(tiers, tier), options = options(tiers)))
+                QUALITY_KEY -> listOf(definition.copy(title = "Quality",
+                    // The selected option already carries Max's numbers and both explanations.
+                    // Settings joins option caption and summary: do not read the same reason twice.
+                    summary = if (tiers.plan(tier).reasons.any { it.code == "above_native" }) "" else caption(tiers, tier),
+                    options = options(tiers)))
                 PreferenceConfiguration.BITRATE_PREF_STRING -> listOf(definition,
                     requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.AUTO)).copy(categoryKey = category))
                 else -> listOf(definition)
