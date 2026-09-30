@@ -62,6 +62,8 @@ import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.novaConfirm
 import com.papi.nova.ui.compose.novaFocusTick
 import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaRow
+import com.papi.nova.ui.panel.NovaStepperRow
 import com.papi.nova.ui.panel.LocalNovaStreamCover
 import com.papi.nova.ui.panel.NovaChevron
 import com.papi.nova.ui.panel.NovaFocusHint

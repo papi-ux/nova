@@ -510,7 +510,10 @@ class NovaQuickMenu(
                 )
             ).let { state ->
                 (if (diagnosticsCopied) state.copy(diagnosis = state.diagnosis.copy(copied = true)) else state)
-                    .copy(liveBitrate = game.novaLiveBitrate.state.value)
+                    .copy(liveBitrate = game.novaLiveBitrate.state.value.let { picture ->
+                        if (game.novaApiClient === commandClient && game.conn === commandConnection) picture
+                        else picture.copy(rate = picture.rate.copy(canChange = false), reason = "Stream changed. Reopen Command Center")
+                    })
             }
         }
 
