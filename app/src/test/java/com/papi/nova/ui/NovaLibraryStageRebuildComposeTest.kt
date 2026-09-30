@@ -96,6 +96,18 @@ class NovaLibraryStageRebuildComposeTest {
 
     @Test fun posterCaptionsPreserveTheModeratelyLargeIdentityBudget() = assertModeratelyLargeIdentity(true)
 
+    @Test fun aLongNeighbourCaptionResolvesItsOwnTwoLineStageBudget() {
+        val entries = games.toMutableList().apply {
+            this[1] = this[1].copy(name = "A long neighbour title\nWith a second visible line")
+        }
+        stage(fontScale = 1.3f, entries = entries, showPosterTitles = true)
+        val layouts = mutableListOf<TextLayoutResult>()
+        rule.onNodeWithTag("nova-poster-caption-bravo", true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertEquals("Stage reserves two 17sp caption lines", 17.sp, layouts.single().layoutInput.style.lineHeight)
+        assertEquals(2, layouts.single().lineCount)
+    }
+
     private fun assertModeratelyLargeIdentity(showPosterTitles: Boolean) {
         val entries = games.toMutableList().apply {
             this[0] = this[0].copy(name = "A game with a longer title\nAnd a visible second line")
