@@ -4,6 +4,10 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.ceil
 
+internal const val NOVA_STAGE_CAPTION_FONT_SIZE_SP = 12f
+internal const val NOVA_STAGE_CAPTION_LINE_HEIGHT_SP = 17f
+internal const val NOVA_STAGE_CAPTION_TOP_PADDING_DP = 6f
+
 /** Sizes from the actual Stage content height. Posters stay exactly 2:3, without focus gutters. */
 internal data class NovaLibraryStageGeometry(
     val selected: NovaPortraitPosterSize,
@@ -20,6 +24,11 @@ internal fun novaLibraryStageCaptionHeightDp(lineHeightPx: Float, topPaddingPx: 
     // The separately rounded art width/aspect and card height can consume up to two pixels.
     return ceil((twoLinesPx + topPaddingPx + 2) / density).toInt()
 }
+
+/** Compose 1.9.5 resolves scaled line height relative to this caption's explicit font size. */
+internal fun novaLibraryStageCaptionLineHeightPx(fontScale: Float, fontSizePx: Float, directLineHeightPx: Float): Float =
+    if (fontScale > 1.05f) (NOVA_STAGE_CAPTION_LINE_HEIGHT_SP / NOVA_STAGE_CAPTION_FONT_SIZE_SP) * fontSizePx
+    else directLineHeightPx
 
 internal fun novaLibraryStageGeometry(widthDp: Int, heightDp: Int, fontScale: Float, captionHeightDp: Int = 0): NovaLibraryStageGeometry {
     val positionHeight = max(18, ceil(14f * fontScale).toInt())

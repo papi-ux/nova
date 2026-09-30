@@ -787,7 +787,9 @@ internal fun NovaLibraryStage(
         sortLabel ?: stringResource(R.string.nova_library_options_sort_library_order))
     BoxWithConstraints(Modifier.fillMaxSize().testTag("nova-library-stage").padding(horizontal = 10.dp)) {
         val captionHeightDp = if (showPosterTitles) with(density) {
-            novaLibraryStageCaptionHeightDp(17.sp.toPx(), 6.dp.roundToPx(), this.density)
+            val lineHeightPx = novaLibraryStageCaptionLineHeightPx(this.fontScale,
+                NOVA_STAGE_CAPTION_FONT_SIZE_SP.sp.toPx(), NOVA_STAGE_CAPTION_LINE_HEIGHT_SP.sp.toPx())
+            novaLibraryStageCaptionHeightDp(lineHeightPx, NOVA_STAGE_CAPTION_TOP_PADDING_DP.dp.roundToPx(), this.density)
         } else 0
         // Pixel rounding can report an intended 354dp budget as 353.90476dp at density
         // 2.625. Recover its nearest integer dp rather than dropping a whole 2:3 rung.

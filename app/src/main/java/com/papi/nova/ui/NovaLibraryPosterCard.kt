@@ -314,17 +314,21 @@ private fun NovaLibraryPosterCaption(
     Text(
         text = title,
         color = color,
-        fontSize = if (layoutMode == NovaLibraryLayoutMode.COMPACT) 11.sp else 12.sp,
+        fontSize = when (layoutMode) {
+            NovaLibraryLayoutMode.COMPACT -> 11.sp
+            NovaLibraryLayoutMode.STAGE -> NOVA_STAGE_CAPTION_FONT_SIZE_SP.sp
+            else -> 12.sp
+        },
         // Stage reserves two 17sp lines beside the selected cover. Other layouts retain
         // their inherited body line height and existing row geometry.
-        lineHeight = if (layoutMode == NovaLibraryLayoutMode.STAGE) 17.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
+        lineHeight = if (layoutMode == NovaLibraryLayoutMode.STAGE) NOVA_STAGE_CAPTION_LINE_HEIGHT_SP.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
         fontWeight = FontWeight.SemiBold,
         maxLines = if (layoutMode == NovaLibraryLayoutMode.COMPACT) 1 else 2,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .padding(
                 start = NovaLibraryUiStateMapper.posterPresentationSpec(layoutMode).focusGutterDp.dp,
-                top = 6.dp,
+                top = if (layoutMode == NovaLibraryLayoutMode.STAGE) NOVA_STAGE_CAPTION_TOP_PADDING_DP.dp else 6.dp,
                 end = NovaLibraryUiStateMapper.posterPresentationSpec(layoutMode).focusGutterDp.dp,
             )
             .widthIn(min = 0.dp)

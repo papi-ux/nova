@@ -34,6 +34,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -54,6 +55,7 @@ import org.junit.runner.RunWith
 class NovaLibraryStageComposeTest {
     @get:Rule
     val composeRule = createComposeRule()
+    private var observedStageDensity: Density? = null
 
     @Test
     fun normalTextLandscapeToolbarKeepsRightAlignedOrderedTouchTargets() {
@@ -197,7 +199,9 @@ class NovaLibraryStageComposeTest {
         composeRule.setContent {
             NovaComposeTheme {
                 val density = LocalDensity.current
-                CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                val fixtureDensity = Density(density.density, fontScale)
+                observedStageDensity = fixtureDensity
+                CompositionLocalProvider(LocalDensity provides fixtureDensity) {
                     Box(Modifier.requiredSize(833.dp, 354.dp)) {
                         NovaLibraryStage(many, many.firstOrNull { it.id == restore }, restore,
                             apiClient = PolarisApiClient(context, ""), showPosterTitles = showPosterTitles,
@@ -303,8 +307,34 @@ class NovaLibraryStageComposeTest {
             this[1] = this[1].copy(name = "A long neighbour title\nWith a second visible line")
         }
         stageFixture(many, fontScale = fontScale, showPosterTitles = showPosterTitles)
-        // Capture even when a measured-text assertion fails; every native red needs a frame.
-        capture("long-title-text-${if (fontScale == 2f) "2_0" else "1_3"}-${if (showPosterTitles) "captions" else "plain"}")
+        // Retain the real factory conversion and paragraph-relative line height before
+        // any assertion, including failed native runs. Direct SP conversion differs here.
+        val suppliedDensity = checkNotNull(observedStageDensity)
+        val convertedLinePx = with(suppliedDensity) { NOVA_STAGE_CAPTION_LINE_HEIGHT_SP.sp.toPx() }
+        val fontSizePx = with(suppliedDensity) { NOVA_STAGE_CAPTION_FONT_SIZE_SP.sp.toPx() }
+        val fontRelativeLinePx = (NOVA_STAGE_CAPTION_LINE_HEIGHT_SP / NOVA_STAGE_CAPTION_FONT_SIZE_SP) * fontSizePx
+        val resolvedLinePx = novaLibraryStageCaptionLineHeightPx(suppliedDensity.fontScale, fontSizePx, convertedLinePx)
+        val reservedDp = novaLibraryStageCaptionHeightDp(resolvedLinePx,
+            with(suppliedDensity) { NOVA_STAGE_CAPTION_TOP_PADDING_DP.dp.roundToPx() }, suppliedDensity.density)
+        val metrics = buildString {
+            append("factory=${suppliedDensity.javaClass.name}, density=${suppliedDensity.density}, ")
+            append("fontScale=${suppliedDensity.fontScale}, converter17spPx=$convertedLinePx, ")
+            append("font12spPx=$fontSizePx, fontRelative17spPx=$fontRelativeLinePx, ")
+            append("resolvedLinePx=$resolvedLinePx, captionReserveDp=$reservedDp")
+            if (showPosterTitles) {
+                val result = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+                composeRule.onNodeWithTag("nova-poster-caption-bravo", true)
+                    .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(result) }
+                val laid = result.single()
+                append("\ncaptionConstraints=${laid.layoutInput.constraints}, captionSize=${laid.size}, ")
+                append("lineCount=${laid.lineCount}, lastLineBottom=${laid.getLineBottom(laid.lineCount - 1)}, ")
+                append("paragraph17spPx=${with(laid.layoutInput.density) { 17.sp.toPx() }}, ")
+                append("didExceedMaxLines=${laid.multiParagraph.didExceedMaxLines}, ")
+                append("cardPx=${composeRule.onNodeWithTag("nova-poster-bravo").fetchSemanticsNode().size}, ")
+                append("artPx=${composeRule.onNodeWithTag("nova-poster-art-bravo", true).fetchSemanticsNode().size}")
+            }
+        }
+        capture("long-title-text-${if (fontScale == 2f) "2_0" else "1_3"}-${if (showPosterTitles) "captions" else "plain"}", metrics)
         val title = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         composeRule.onNodeWithTag("nova-stage-title", true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
@@ -405,11 +435,15 @@ class NovaLibraryStageComposeTest {
     }
 
     /** Synthetic cover fixtures prove layout/focus; they do not prove a live library or stream. */
-    private fun capture(name: String) {
+    private fun capture(name: String, metrics: String? = null) {
         composeRule.waitForIdle()
         val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
         val suffix = androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("screenshotSuffix") ?: "stage"
         val directory = java.io.File(instrumentation.targetContext.getExternalFilesDir(null), "stage-131").apply { mkdirs() }
+        if (metrics != null) {
+            java.io.File(directory, "$name-$suffix.txt").writeText(metrics + "\n")
+            android.util.Log.i("NovaStageCaption", metrics)
+        }
         val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
         java.io.File(directory, "$name-$suffix.png").outputStream().use {
             check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
