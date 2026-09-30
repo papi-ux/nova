@@ -34,7 +34,6 @@ import com.papi.nova.preferences.*
 import com.papi.nova.ui.compose.NovaActionSurface
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.ui.panel.NovaPanelDensityHost
-import com.papi.nova.ui.panel.LocalNovaPanelDensity
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaValueRow
 import com.papi.nova.ui.panel.NovaValueStyle
@@ -118,9 +117,9 @@ class NovaControlSizeInstrumentedTest {
             NovaComposeTheme {
                 NovaPanelDensityHost {
                     val density = LocalDensity.current
-                    edgePixels = with(density) {
-                        (NovaPanelMetrics.valueControlHeight(LocalNovaPanelDensity.current) / 2 - 1.dp).toPx()
-                    }
+                    // Exercise the real 48dp hit boundary, including the short landscape
+                    // control. This is outside a minimum target shrunk to 42.24dp.
+                    edgePixels = with(density) { 23.dp.toPx() }
                     arrowHalfWidthPixels = with(density) { (NovaPanelMetrics.ArrowTarget / 2).toPx() }
                     Column(Modifier.padding(24.dp).width(300.dp)) {
                         NovaValueRow("Cycle", listOf(NovaOption(0, "Low"), NovaOption(1, "Middle"), NovaOption(2, "High")),
@@ -145,6 +144,7 @@ class NovaControlSizeInstrumentedTest {
         compose.onRoot().performTouchInput { click(Offset(two.center.x, two.center.y + edgePixels)) }
         compose.waitForIdle()
         assertEquals("the segment edge chooses Two instead of wrapping the parent's Three to One", 1, segment)
+        sizeShot("picker-touch-boundary")
     }
 
     @Test fun settingsChoiceChangesInPlaceAndKeepsControllerFocus() = withRestoredChoice {
