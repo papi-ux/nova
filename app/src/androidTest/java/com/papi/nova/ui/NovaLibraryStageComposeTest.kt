@@ -49,6 +49,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+@OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class NovaLibraryStageComposeTest {
     @get:Rule
@@ -216,10 +217,10 @@ class NovaLibraryStageComposeTest {
         val cover = composeRule.onNodeWithTag("nova-poster-art-alpha", true).getUnclippedBoundsInRoot()
         val next = composeRule.onNodeWithTag("nova-poster-art-bravo", true).getUnclippedBoundsInRoot()
         val after = composeRule.onNodeWithTag("nova-poster-art-charlie", true).getUnclippedBoundsInRoot()
-        assertEquals(224f, cover.width.value, 0.6f)
-        assertEquals(336f, cover.height.value, 0.6f)
-        assertEquals(120f, next.width.value, 0.6f)
-        assertEquals(180f, next.height.value, 0.6f)
+        assertEquals(224f, (cover.right - cover.left).value, 0.6f)
+        assertEquals(336f, (cover.bottom - cover.top).value, 0.6f)
+        assertEquals(120f, (next.right - next.left).value, 0.6f)
+        assertEquals(180f, (next.bottom - next.top).value, 0.6f)
         assertEquals(12f, (after.left - next.right).value, 0.6f)
         composeRule.onNodeWithTag("nova-stage-selected-focus").assertIsFocused().performKeyInput { pressKey(Key.Enter) }
         assertEquals("alpha", opened.get())
@@ -247,7 +248,8 @@ class NovaLibraryStageComposeTest {
         composeRule.onNodeWithTag("nova-poster-bravo").performClick()
         composeRule.waitForIdle()
         assertEquals(0, opened.get())
-        assertEquals(224f, composeRule.onNodeWithTag("nova-poster-art-bravo", true).getUnclippedBoundsInRoot().width.value, .6f)
+        val b = composeRule.onNodeWithTag("nova-poster-art-bravo", true).getUnclippedBoundsInRoot()
+        assertEquals(224f, (b.right - b.left).value, .6f)
         composeRule.onNodeWithTag("nova-poster-bravo").performClick()
         assertEquals(1, opened.get())
     }

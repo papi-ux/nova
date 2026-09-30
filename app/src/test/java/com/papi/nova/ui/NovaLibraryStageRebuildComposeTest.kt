@@ -29,6 +29,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /** The approved Stage geometry and navigation, measured on the real composable. */
+@OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], qualifiers = "w833dp-h468dp-land")
 class NovaLibraryStageRebuildComposeTest {
@@ -67,10 +68,10 @@ class NovaLibraryStageRebuildComposeTest {
         val selected = rule.onNodeWithTag("nova-poster-art-alpha", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val next = rule.onNodeWithTag("nova-poster-art-bravo", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val after = rule.onNodeWithTag("nova-poster-art-charlie", useUnmergedTree = true).getUnclippedBoundsInRoot()
-        assertEquals(224f, selected.width.value, 0.6f)
-        assertEquals(336f, selected.height.value, 0.6f)
-        assertEquals(120f, next.width.value, 0.6f)
-        assertEquals(180f, next.height.value, 0.6f)
+        assertEquals(224f, (selected.right - selected.left).value, 0.6f)
+        assertEquals(336f, (selected.bottom - selected.top).value, 0.6f)
+        assertEquals(120f, (next.right - next.left).value, 0.6f)
+        assertEquals(180f, (next.bottom - next.top).value, 0.6f)
         assertEquals(12f, (after.left - next.right).value, 0.6f)
         rule.onNodeWithText("Review & Launch").assertDoesNotExist()
         rule.onNodeWithTag("nova-stage-title", useUnmergedTree = true).assertTextEquals("Alpha")
@@ -94,13 +95,27 @@ class NovaLibraryStageRebuildComposeTest {
         assertEquals("charlie", focused.last())
     }
 
+    @Test fun changingTheSelectedGameWhileAHeldCancelsThatPress() {
+        stage()
+        rule.onNodeWithTag("nova-stage-selected-focus").performKeyInput {
+            keyDown(Key.Enter)
+            pressKey(Key.DirectionRight)
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { keyUp(Key.Enter) }
+        assertEquals("a release belongs to the game on which the press began", emptyList<String>(), opened)
+        rule.onNodeWithTag("nova-stage-selected-focus").performKeyInput { pressKey(Key.Enter) }
+        assertEquals(listOf("bravo"), opened)
+    }
+
     @Test fun touchingANeighbourSelectsItBeforeOpeningItsDetails() {
         stage()
         rule.onNodeWithTag("nova-poster-bravo").assertIsDisplayed().performClick()
         rule.waitForIdle()
         assertEquals(emptyList<String>(), opened)
         assertEquals("bravo", focused.last())
-        assertEquals(224f, rule.onNodeWithTag("nova-poster-art-bravo", useUnmergedTree = true).getUnclippedBoundsInRoot().width.value, 0.6f)
+        val b = rule.onNodeWithTag("nova-poster-art-bravo", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertEquals(224f, (b.right - b.left).value, 0.6f)
         rule.onNodeWithTag("nova-poster-bravo").performClick()
         assertEquals(listOf("bravo"), opened)
     }
