@@ -85,6 +85,7 @@ class NovaPortraitLibraryInstrumentedTest {
                 compose.onNodeWithText("Continue").assertDoesNotExist()
                 compose.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
                 compose.onNodeWithTag("nova-poster-game-0").assertIsDisplayed()
+                compose.onNodeWithText("Library · Test host").assertIsDisplayed()
                 val collapsedPoster = compose.onNodeWithTag("nova-poster-game-0").getUnclippedBoundsInRoot()
                 val bar = compose.onNodeWithTag("nova-portrait-menu-bar").getUnclippedBoundsInRoot()
                 assertTrue("the menu leaves most portrait height for the grid", (bar.bottom - bar.top).value < 100)
@@ -93,6 +94,7 @@ class NovaPortraitLibraryInstrumentedTest {
                 compose.onNodeWithTag("nova-portrait-menu-toggle").performClick()
                 settle()
                 compose.onNodeWithText("Options").assertIsDisplayed()
+                compose.onNodeWithText("Library · Test host").assertIsDisplayed()
                 portraitShot("regular-expanded")
                 val instrumentation = InstrumentationRegistry.getInstrumentation()
                 instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP)
@@ -166,10 +168,14 @@ class NovaPortraitSettingsInstrumentedTest {
         portraitShot("settings-expanded")
         val lastCategory = definitions.categories.last().key
         compose.onNodeWithTag("nova-settings-category-$lastCategory").performScrollTo().assertIsDisplayed().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("nova-settings-category-$lastCategory").assertIsSelected()
         assertEquals(lastCategory, selected)
         portraitShot("settings-all-categories")
         val firstCategory = definitions.categories.first().key
         compose.onNodeWithTag("nova-settings-category-$firstCategory").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("nova-settings-category-$firstCategory").assertIsSelected()
         compose.onNodeWithTag("nova-portrait-menu-toggle").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         // The fixture activity has no Nova key gate. Exercise Android Back dispatch explicitly.
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
