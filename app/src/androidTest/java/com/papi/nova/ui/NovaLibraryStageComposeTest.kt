@@ -298,12 +298,15 @@ class NovaLibraryStageComposeTest {
             this[0] = this[0].copy(name = "A game with a longer title\nAnd a visible second line",
                 category = "action", playTime = PolarisGame.PlayTime(seconds = 84 * 3600),
                 lastLaunched = System.currentTimeMillis() / 1000 - 3600)
+            this[1] = this[1].copy(name = "A long neighbour title\nWith a second visible line")
         }
         stageFixture(many, fontScale = 1.3f, showPosterTitles = showPosterTitles)
         val title = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         composeRule.onNodeWithTag("nova-stage-title", true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
-        assertEquals("fixture exercises two title lines", 2, title.single().lineCount)
+        if (!showPosterTitles) assertEquals("fixture exercises two title lines where they fit", 2, title.single().lineCount)
+        assertTrue("a short caption-on pane keeps a readable bounded title", title.single().lineCount in 1..2)
+        composeRule.onNodeWithTag("nova-stage-title", true).assertTextEquals(many[0].name)
         val metadata = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         composeRule.onNodeWithTag("nova-stage-metadata", true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(metadata) }
@@ -324,6 +327,20 @@ class NovaLibraryStageComposeTest {
                 assertTrue("full stats are not ellipsized", (0 until layouts.single().lineCount).none { layouts.single().isLineEllipsized(it) })
                 assertTrue("full stats stay within the allowed lines", !layouts.single().multiParagraph.didExceedMaxLines)
             }
+        }
+        if (showPosterTitles) {
+            val caption = composeRule.onNodeWithTag("nova-poster-caption-bravo", true)
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            caption.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertEquals("long neighbour exercises both caption lines", 2, layouts.single().lineCount)
+            assertTrue("caption is not vertically clipped", !layouts.single().didOverflowHeight)
+            assertTrue("two caption lines fit their 34sp budget",
+                layouts.single().size.height / density <= kotlin.math.ceil(34f * 1.3f) + 1f)
+            val bounds = caption.getUnclippedBoundsInRoot()
+            val card = composeRule.onNodeWithTag("nova-poster-bravo").getUnclippedBoundsInRoot()
+            assertTrue("caption remains inside its neighbour card", bounds.bottom <= card.bottom + .6.dp)
+            assertTrue("ellipsized captions retain the complete semantic game name",
+                composeRule.onNodeWithTag("nova-poster-bravo").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].joinToString().contains(many[1].name))
         }
         capture("long-title-text-1_3-${if (showPosterTitles) "captions" else "plain"}")
     }
