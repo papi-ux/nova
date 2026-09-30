@@ -61,7 +61,7 @@ class NovaPlaySetupDeviceEditsTest {
     }
 
     @Test fun activityUsesTheOwnedAdapterAndAwaitsItBeforeReadingLaunchPreferences() {
-        val source=readSource("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt")
+        val source=java.io.File("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt").readText()
         assertTrue(source.contains("deviceEdits::change"))
         assertTrue(source.contains("onSave={ deviceEdits.change("))
         val load=source.substringAfter("fun loadOptimization(").substringBefore("retryPreflight =")

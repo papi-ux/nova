@@ -191,6 +191,9 @@ class NovaSettingsViewModel(
                                 if (tierResult == NovaTierSaveResult.SUPERSEDED) { tierIntent = null; pendingFineEdit = null }
                                 else if (tierResult == NovaTierSaveResult.SAVED) pendingFineEdit = null
                             }
+                        } else if (revision == tierRevision) {
+                            tierResult = NovaTierSaveResult.SUPERSEDED
+                            tierIntent = null; pendingFineEdit = null
                         }
                     } else {
                         store.set(definition, value)
