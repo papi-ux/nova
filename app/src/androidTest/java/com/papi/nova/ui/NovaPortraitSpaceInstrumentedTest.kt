@@ -78,7 +78,7 @@ class NovaPortraitLibraryInstrumentedTest {
                 compose.onNodeWithTag("nova-poster-game-0").assertIsDisplayed()
                 val collapsedPoster = compose.onNodeWithTag("nova-poster-game-0").getUnclippedBoundsInRoot()
                 val bar = compose.onNodeWithTag("nova-portrait-menu-bar").getUnclippedBoundsInRoot()
-                assertTrue("the menu leaves most portrait height for the grid", bar.height.value < 100)
+                assertTrue("the menu leaves most portrait height for the grid", (bar.bottom - bar.top).value < 100)
                 portraitShot("regular-collapsed")
 
                 compose.onNodeWithTag("nova-portrait-menu-toggle").performClick()

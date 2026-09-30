@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.content.Context
 import android.content.Intent
 import android.os.Looper
+import android.os.Bundle
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -92,6 +93,29 @@ class NovaPortraitLibraryActivityTest {
         rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertIsDisplayed()
         rule.onNodeWithText("Resume Stream").assertIsDisplayed()
         rule.onNodeWithText("Continue").assertDoesNotExist()
+    }
+
+    @Test fun searchAndFocusSurviveActivityRecreation() {
+        val intent = Intent(context, NovaLibraryActivity::class.java)
+            .putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
+            .putExtra(NovaLibraryActivity.EXTRA_HTTPS_PORT, 9)
+            .putExtra(NovaLibraryActivity.EXTRA_HTTP_PORT, 9)
+        val controller = Robolectric.buildActivity(NovaLibraryActivity::class.java, intent).create()
+        val saved = Bundle()
+        try {
+            state<String>(controller.get(), "searchQuery").value = "recent"
+            state<String?>(controller.get(), "lastFocusedGameId").value = "recent"
+            controller.saveInstanceState(saved)
+        } finally {
+            controller.destroy()
+        }
+        val restored = Robolectric.buildActivity(NovaLibraryActivity::class.java, intent).create(saved)
+        try {
+            org.junit.Assert.assertEquals("recent", state<String>(restored.get(), "searchQuery").value)
+            org.junit.Assert.assertEquals("recent", state<String?>(restored.get(), "lastFocusedGameId").value)
+        } finally {
+            restored.destroy()
+        }
     }
 
     companion object {
