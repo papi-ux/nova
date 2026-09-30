@@ -54,6 +54,10 @@ class NovaPortraitLibraryInstrumentedTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
         val previousLayout = preferences.getString("nova_library_layout_mode", null)
+        val previousTheme = NovaThemeManager.getTheme(context)
+        // Aurora's continuous View particle draw prevents Espresso's main-looper idle gate.
+        // OLED is an actual supported theme with the same layout and no particle animation.
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_OLED)
         preferences.edit().putString("nova_library_layout_mode", NovaLibraryLayoutMode.GRID.name).commit()
         val intent = Intent(context, NovaLibraryActivity::class.java)
             .putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
@@ -115,6 +119,7 @@ class NovaPortraitLibraryInstrumentedTest {
                 portraitShot("regular-active-session")
             }
         } finally {
+            NovaThemeManager.setTheme(context, previousTheme)
             preferences.edit().apply {
                 if (previousLayout == null) remove("nova_library_layout_mode") else putString("nova_library_layout_mode", previousLayout)
             }.commit()
