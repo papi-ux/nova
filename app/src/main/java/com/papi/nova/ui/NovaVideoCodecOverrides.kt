@@ -104,14 +104,35 @@ internal fun novaPlaySetupCodecRow(
     preview: (FormatOption) -> NovaPlaySetupPreview? = { null },
     onSelect: (String?) -> Unit,
 ): NovaPlaySetupRowState {
+    return novaPlaySetupHostCodecRow(context, selected, appSetting,
+        availability = { PyroWaveAvailability.inspect(context.applicationContext) },
+        hostUnavailable = { null }, isCurrent = { true }, preview = preview, onSelect = onSelect)
+}
+
+/** A host refusal is launch advice for this host/game, never a global device preference. */
+internal fun novaPlaySetupHostCodecRow(
+    context: Context,
+    selected: String?,
+    appSetting: FormatOption?,
+    availability: () -> PyroWaveAvailability.Status,
+    hostUnavailable: () -> com.papi.nova.api.PolarisCapabilities.PyrowaveUnavailable?,
+    isCurrent: () -> Boolean,
+    preview: (FormatOption) -> NovaPlaySetupPreview? = { null },
+    onSelect: (String?) -> Unit,
+): NovaPlaySetupRowState {
     val values = context.resources.getStringArray(R.array.video_format_values)
     val labels = context.resources.getStringArray(R.array.video_format_names)
     val effective = NovaVideoCodecOverrides.resolve(selected, appSetting)
     val options = values.zip(labels).filter { NovaVideoCodecOverrides.normalize(it.first) != null }
-    val availability = if (options.any { it.first == "forcepyrowave" })
-        PyroWaveAvailability.inspect(context.applicationContext)
+    val deviceStatus = if (options.any { it.first == "forcepyrowave" }) availability()
         else PyroWaveAvailability.Status.AVAILABLE
-    val unavailableReason = PyroWaveAvailability.reason(context, availability)
+    val unavailableReason = hostUnavailable()?.message?.takeIf { it.isNotBlank() }
+        ?: PyroWaveAvailability.reason(context, deviceStatus)
+    fun canChoose(format: FormatOption?): Boolean = isCurrent() &&
+        (format != FormatOption.FORCE_PYROWAVE ||
+            (hostUnavailable() == null && PyroWaveAvailability.canLaunch(format, availability())))
+    fun guarded(value: String?, format: FormatOption?): (() -> Unit)? =
+        if (canChoose(format)) ({ if (canChoose(format)) onSelect(value) }) else null
     return NovaPlaySetupRowState(
         row = NovaPlaySetupRow.VIDEO_CODEC,
         label = context.getString(R.string.nova_play_setup_video_codec),
@@ -123,12 +144,11 @@ internal fun novaPlaySetupCodecRow(
         options = listOf(NovaPlaySetupOption(
             label = context.getString(R.string.nova_play_setup_codec_app_setting),
             value = NovaVideoCodecOverrides.label(appSetting),
-            consequence = if (!PyroWaveAvailability.canLaunch(appSetting, availability))
+            consequence = if (!canChoose(appSetting))
                 unavailableReason else context.getString(R.string.nova_play_setup_codec_inherit_detail),
             current = selected == null,
-            enabled = PyroWaveAvailability.canLaunch(appSetting, availability),
-            onSelect = if (PyroWaveAvailability.canLaunch(appSetting, availability))
-                ({ onSelect(null) }) else null,
+            enabled = canChoose(appSetting),
+            onSelect = guarded(null, appSetting),
         )) + options.map { (value, label) ->
             val format = NovaVideoCodecOverrides.resolve(value, null)
             NovaPlaySetupOption(
@@ -136,9 +156,8 @@ internal fun novaPlaySetupCodecRow(
                 consequence = if (value == "forcepyrowave" && unavailableReason.isNotEmpty())
                     unavailableReason else novaCodecOptionDetail(context, value),
                 current = value == selected,
-                enabled = PyroWaveAvailability.canSelect(value, availability),
-                onSelect = if (PyroWaveAvailability.canSelect(value, availability))
-                    ({ onSelect(value) }) else null,
+                enabled = canChoose(format),
+                onSelect = guarded(value, format),
                 preview = format?.takeIf { it != FormatOption.AUTO }?.let(preview),
             )
         },

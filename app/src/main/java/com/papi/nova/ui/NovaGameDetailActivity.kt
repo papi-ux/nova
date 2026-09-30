@@ -256,11 +256,12 @@ class NovaGameDetailActivity : NovaActivity() {
     private val playButtonFocus = FocusRequester()
 
     /**
-     * The Polaris Sync sheet's engine, as Every Game's second surface. Started when
-     * that scope first opens so the panel does not poll the host for people who never
-     * flip it, and closed with the panel.
+     * The client-scoped writer shared by Every Game and stale-copy recovery.
+     * Started with Play Setup and closed with the panel.
      */
     private var hostSyncEngine: NovaPolarisSyncEngine? = null
+    private var onPlaySetupClosed: () -> Unit = {}
+    private var onPlaySetupOpened: () -> Unit = {}
 
     /**
      * The host scope's last result, said under Every Game's plan until the next one replaces it:
@@ -437,7 +438,11 @@ class NovaGameDetailActivity : NovaActivity() {
      * otherwise, unless it already shows that page at its root.
      */
     private fun openPlaySetup(returnTo: FocusRequester = playSetupButtonFocus) {
+        val opening = destination != NovaGameDetailDestination.PLAY_SETUP
         destination = NovaGameDetailDestination.PLAY_SETUP
+        // Recovery uses the same client-scoped writer and lifecycle as Every Game.
+        hostSyncEngine?.start(clientSettings)
+        if (opening) onPlaySetupOpened()
         val root: NovaPage = if (steamDecision != null) {
             // The decision's own card names what the host reported, so the panel keeps its name.
             PlaySetupPage.SteamDecision(getString(R.string.nova_play_setup_title))
@@ -464,6 +469,7 @@ class NovaGameDetailActivity : NovaActivity() {
         // someone flips to, not a place the panel should quietly resume in.
         playSetupScope = NovaPlaySetupScope.THIS_GAME
         hostSyncEngine?.close()
+        onPlaySetupClosed()
     }
 
     /**
@@ -518,6 +524,7 @@ class NovaGameDetailActivity : NovaActivity() {
         pinShortcutJob?.cancel()
         pinShortcutJob = null
         hostSyncEngine?.close()
+        onPlaySetupClosed()
         super.onDestroy()
     }
 
@@ -604,6 +611,15 @@ class NovaGameDetailActivity : NovaActivity() {
         // request may publish settings/optimization state or replay a held Play press.
         val preflightRequestFence = NovaLaunchPreflightRequestFence()
         var preflightJob: Job? = null
+        var preflightGeneration = 0L
+        var hostCaptureCapabilities by mutableStateOf<com.papi.nova.api.PolarisCapabilities?>(null)
+        var hostCopyWorking by mutableStateOf(false)
+        var hostCopyLine by mutableStateOf<com.papi.nova.manager.NovaStreamSourceLine?>(null)
+        var hostCopyAbandoned = false
+        var recoveryWriteAuthority: NovaClientSettingsWriteAuthority? = null
+        val detailHostUuid = serverUuid
+        fun detailHostIsCurrent() = !isFinishing && !isDestroyed && serverUuid == detailHostUuid &&
+            this@NovaGameDetailActivity.apiClient === apiClient
         // The retained ViewModel owns the actual Steam mutation. This Activity job only
         // waits to publish its result; recreation may cancel the waiter without losing
         // host ordering or allowing the replacement window to launch stale state.
@@ -666,7 +682,7 @@ class NovaGameDetailActivity : NovaActivity() {
                             setupParticipates = com.papi.nova.profiles.ProfilesManager.getInstance().getActive()?.getOptions()?.keys?.any {
                                 it in com.papi.nova.preferences.NovaSettingsMigration.STREAM_KEYS } == true)))
             }
-            return if (source == null) preview else preview.copy(profileSummary = preview.profileSummary?.let { summary ->
+            return if (source == null) preview else preview.copy(streamSource = source, profileSummary = preview.profileSummary?.let { summary ->
                 summary.copy(reasonLine=source.text, limitingLine=if(source.limitCodes.isEmpty()) summary.limitingLine else source.text)
             })
         }
@@ -964,6 +980,9 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         fun loadOptimization(preference: String, usesVirtualDisplay: Boolean = uiState.playUsesVirtualDisplay) {
+            recoveryWriteAuthority?.retire()
+            hostCopyWorking = false
+            hostCopyLine = null
             LimeLog.info(
                 "Nova: Preflight optimization requested game=${currentGame.name} " +
                     "preference=$preference virtualDisplay=$usesVirtualDisplay"
@@ -977,9 +996,11 @@ class NovaGameDetailActivity : NovaActivity() {
             // settled answer of "nothing to guard" -- for as long as the round-trip took.
             preflightJob?.cancel()
             val requestGeneration = preflightRequestFence.begin()
+            preflightGeneration = requestGeneration
             optimizationState = recheckState()
             preflightJob = lifecycleScope.launch {
                 var launchCanReplay = false
+                var observedCapabilities: com.papi.nova.api.PolarisCapabilities? = null
                 val nextOptimizationState = try {
                     deviceSettings.awaitStreamWrites()
                     check(deviceSettings.uiState.value.tierSaveResult !in setOf(
@@ -1002,6 +1023,8 @@ class NovaGameDetailActivity : NovaActivity() {
                     val optimizationMode = uiState.playMode
                     val optimizationEncoder = selectedEncoderBackend()
                     val opt = withContext(Dispatchers.IO) {
+                        // A fresh answer belongs to this paired API and this fenced preflight.
+                        observedCapabilities = apiClient.getCapabilities()
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
                         val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
                         val spaceRequest = if (spaceGame != null) NovaSpaceUiState.request(
@@ -1023,6 +1046,7 @@ class NovaGameDetailActivity : NovaActivity() {
                             encoderBackend = optimizationEncoder,
                         )
                     }
+                    observedCapabilities = observedCapabilities ?: withContext(Dispatchers.IO) { apiClient.getLaunchCapabilities() }
                     check(StreamSyncManager.hasTrustedResolvedProfile(opt)) {
                         "trusted launch profile unavailable"
                     }
@@ -1047,7 +1071,8 @@ class NovaGameDetailActivity : NovaActivity() {
                         preflightMessage = getString(R.string.nova_game_detail_launch_preflight_unavailable),
                     )
                 }
-                if (!preflightRequestFence.owns(requestGeneration)) return@launch
+                if (!preflightRequestFence.owns(requestGeneration) || !detailHostIsCurrent()) return@launch
+                hostCaptureCapabilities = observedCapabilities
                 optimizationState = nextOptimizationState
                 if (pendingLaunch) {
                     if (launchCanReplay) {
@@ -1061,6 +1086,92 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         retryPreflight = { loadOptimization(profilePreference) }
+        onPlaySetupClosed = {
+            recoveryWriteAuthority?.retire()
+            if (hostCopyWorking) {
+                hostCopyAbandoned = true
+                preflightRequestFence.invalidate()
+            }
+            hostCopyWorking = false
+            hostCopyLine = null
+        }
+        onPlaySetupOpened = {
+            if (hostCopyAbandoned) {
+                hostCopyAbandoned = false
+                loadOptimization(profilePreference)
+            }
+        }
+
+        fun hostCopyRecovery(source: com.papi.nova.manager.NovaStreamSourceLine?): NovaHostCopyRecovery? {
+            val rowGeneration = preflightGeneration
+            val rowGameId = currentGame.id
+            fun current() = detailHostIsCurrent() && currentGame.id == rowGameId &&
+                preflightRequestFence.owns(rowGeneration) && destination == NovaGameDetailDestination.PLAY_SETUP
+            return novaHostCopyRecovery(hostCopyLine ?: source, clientSettings,
+                space = spaceGame != null || com.papi.nova.manager.WorkerLaunchContract.isProfileApp(currentGame.id),
+                watch = activeSession?.watchOnly == true,
+                metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity),
+                checking = optimizationState.preflightInFlight || optimizationState.preflightFailed,
+                busy = hostCopyWorking || hostSyncEngine?.busy == true,
+                isCurrent = ::current,
+                onUseDeviceSetting = {
+                    if (current()) {
+                        recoveryWriteAuthority?.retire()
+                        val writeAuthority = NovaClientSettingsWriteAuthority()
+                        recoveryWriteAuthority = writeAuthority
+                        hostCopyLine = source
+                        hostCopyWorking = true
+                        // Retire both the old plan and retained callbacks before a write.
+                        preflightJob?.cancel()
+                        val recoveryGeneration = preflightRequestFence.begin()
+                        preflightGeneration = recoveryGeneration
+                        optimizationState = recheckState()
+                        lifecycleScope.launch {
+                            deviceSettings.awaitStreamWrites()
+                            if (!detailHostIsCurrent() || !preflightRequestFence.owns(recoveryGeneration) ||
+                                destination != NovaGameDetailDestination.PLAY_SETUP) return@launch
+                            val engine = hostSyncEngine
+                            if (engine == null || deviceSettings.uiState.value.tierSaveResult in setOf(
+                                NovaTierSaveResult.FAILED, NovaTierSaveResult.PROFILE_FAILED, NovaTierSaveResult.SUPERSEDED)) {
+                                hostCopyWorking = false
+                                hostCopyLine = null
+                                pendingLaunch = false
+                                optimizationState = NovaGameDetailOptimizationState(preflightFailed = true,
+                                    lastPlan = optimizationState.lastPlan,
+                                    preflightMessage = getString(R.string.nova_device_setting_failed))
+                            } else if (!engine.sendDeviceSetting(
+                                writeAuthority = writeAuthority,
+                                manualMaximumKbps = hostCaptureCapabilities?.features?.manualBitrateMaxKbps
+                                    ?: NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS,
+                                isCurrent = { detailHostIsCurrent() && preflightRequestFence.owns(recoveryGeneration) &&
+                                    currentGame.id == rowGameId && destination == NovaGameDetailDestination.PLAY_SETUP &&
+                                    activeSession?.watchOnly != true &&
+                                    !StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity) },
+                                onConfirmed = {
+                                    hostCopyWorking = false
+                                    hostCopyLine = null
+                                    loadOptimization(profilePreference)
+                                },
+                                onFailed = {
+                                    hostCopyWorking = false
+                                    hostCopyLine = null
+                                    pendingLaunch = false
+                                    optimizationState = NovaGameDetailOptimizationState(preflightFailed = true,
+                                        lastPlan = optimizationState.lastPlan,
+                                        preflightMessage = hostSyncNotice?.message ?: getString(R.string.nova_device_setting_failed))
+                                },
+                            )) {
+                                hostCopyWorking = false
+                                hostCopyLine = null
+                                pendingLaunch = false
+                                optimizationState = NovaGameDetailOptimizationState(preflightFailed = true,
+                                    lastPlan = optimizationState.lastPlan,
+                                    preflightMessage = getString(R.string.nova_device_setting_failed))
+                            }
+                        }
+                    }
+                })
+        }
 
         /**
          * Tell the host once the presses stop.
@@ -1073,6 +1184,9 @@ class NovaGameDetailActivity : NovaActivity() {
          * same rule as the preflight guard, applied to a gap this introduces.
          */
         fun settleThen(work: suspend () -> Unit) {
+            recoveryWriteAuthority?.retire()
+            hostCopyWorking = false
+            hostCopyLine = null
             optimizationState = recheckState()
             preflightRequestFence.invalidate()
             preflightJob?.cancel()
@@ -1684,10 +1798,17 @@ class NovaGameDetailActivity : NovaActivity() {
                 // The size the launch will ask for, which PyroWave's advice is judged at, by the same
                 // verdict the plan reads (#10).
                 val askedSize = launchSize(preferences)
-                rows += novaPlaySetupCodecRow(
+                val rowGeneration = preflightGeneration
+                val rowGameId = currentGame.id
+                rows += novaPlaySetupHostCodecRow(
                     this@NovaGameDetailActivity,
                     chosenCodec,
                     preferences.videoFormat,
+                    availability = { devicePyroWave },
+                    hostUnavailable = { hostCaptureCapabilities?.capture?.pyrowaveUnavailable },
+                    isCurrent = { detailHostIsCurrent() && currentGame.id == rowGameId &&
+                        preflightGeneration == rowGeneration && !optimizationState.preflightInFlight &&
+                        !optimizationState.preflightFailed },
                     preview = { format ->
                         NovaPlaySetupPreview(
                             part = NovaPlaySetupPreviewPart.CODEC,
@@ -2087,7 +2208,7 @@ class NovaGameDetailActivity : NovaActivity() {
             NovaComposeTheme {
                 val deviceState by deviceSettings.uiState.collectAsState()
                 val needsDeviceCodec = destination == NovaGameDetailDestination.PLAY_SETUP &&
-                    playSetupScope == NovaPlaySetupScope.EVERY_GAME && spaceGame == null
+                    com.papi.nova.BuildConfig.EXPERIMENTAL_CODECS && spaceGame == null
                 LaunchedEffect(needsDeviceCodec) {
                     if (needsDeviceCodec) {
                         val availability = withContext(Dispatchers.Default) {
@@ -2194,6 +2315,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         null
                     },
                     hostPlaySetupNotice = hostSyncNotice.takeIf { playSetupScope == NovaPlaySetupScope.EVERY_GAME },
+                    hostCopyRecovery = hostCopyRecovery(launchPreview.streamSource),
                     playSetupBitrateShortfallMbps = planShortfallMbps(),
                     playSetupPanel = playSetupPanel,
                     playLabel = if (environmentChanging) {

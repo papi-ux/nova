@@ -2204,8 +2204,12 @@ class PolarisApiClient @JvmOverloads constructor(
         synchronized(this) { perCallClientCache = null }
     }
 
-    private fun executeWithTransientRetry(request: Request): okhttp3.Response =
-        runWithTransientTlsRetry(onTransient = { resetCallClient() }) { execute(request) }
+    private fun executeWithTransientRetry(request: Request, beforeDispatch: (() -> Boolean)? = null): okhttp3.Response =
+        runWithTransientTlsRetry(onTransient = { resetCallClient() }) {
+            // Recovery authority can be retired while a preceding read or TLS retry is on wire.
+            check(beforeDispatch?.invoke() != false) { "Client settings write authority retired" }
+            execute(request)
+        }
 
     private fun newNonRetryableCall(request: Request): okhttp3.Call =
         buildNonRetryableHttpClient(clientForCall()).newCall(
@@ -2605,7 +2609,8 @@ class PolarisApiClient @JvmOverloads constructor(
         adaptiveBitrateEnabled: Boolean? = null,
         aiOptimizerEnabled: Boolean? = null,
         aiAutoQualityEnabled: Boolean? = null,
-        disconnectResumeTimeoutSeconds: Int? = null
+        disconnectResumeTimeoutSeconds: Int? = null,
+        mutationAuthority: (() -> Boolean)? = null,
     ): PolarisClientSettings? {
         return try {
             val body = buildClientSettingsUpdateBody(
@@ -2638,6 +2643,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.put("session_generation", status.sessionGeneration)
                 }
             }
+            if (mutationAuthority?.invoke() == false) return null
             val request = Request.Builder()
                 .url("$baseUrl/client-settings")
                 .post(okhttp3.RequestBody.create(
@@ -2645,7 +2651,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     body.toString()
                 ))
                 .build()
-            executeWithTransientRetry(request).use { response ->
+            executeWithTransientRetry(request, mutationAuthority).use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (response.code != 200) {
                     LimeLog.warning("Nova: Client settings update rejected code=${response.code}")

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nova_use_device_setting">Use device setting</string>
+    <string name="nova_device_setting_saving">Saving device setting…</string>
+    <string name="nova_device_setting_failed">Could not save this device’s setting. Retry the host check.</string>
+</resources>

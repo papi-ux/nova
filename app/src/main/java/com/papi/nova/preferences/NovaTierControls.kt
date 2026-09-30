@@ -15,7 +15,9 @@ internal object NovaTierControls {
                 else -> null
             }
             add(NovaSettingOption(tier.name.lowercase().replaceFirstChar(Char::uppercase), tier.name.lowercase(),
-                caption = if (missingCustom) null else plan.numbers, disabledReason = reason))
+                caption = if (missingCustom) null else listOfNotNull(plan.numbers,
+                    plan.reasons.firstOrNull { it.code == "above_native" }?.message,
+                    plan.limits.firstOrNull()?.message).joinToString(" · "), disabledReason = reason))
         }
         (tiers.fourK as? NovaFourK.Unavailable)?.let {
             add(NovaSettingOption("4K", "four_k", disabledReason = it.because.message))
@@ -29,7 +31,10 @@ internal object NovaTierControls {
         val plan = tiers.plan(tier)
         val source = if (tier == NovaTier.RECOMMENDED) "Recommended for this device" else "Your device setting"
         if (tier == NovaTier.CUSTOM && tiers.custom != null) return NovaStreamTiers.customDelta(tiers.custom, tiers.recommended)
-        return plan.limits.firstOrNull()?.message?.takeIf { it.length <= 56 }
+        // Max is an explicit above-panel choice. Keep that explanation even when its
+        // requested cadence also hit a decoder ceiling; the option retains both facts.
+        return plan.reasons.firstOrNull { it.code == "above_native" }?.message
+            ?: plan.limits.firstOrNull()?.message?.takeIf { it.length <= 56 }
             ?: plan.reasons.firstOrNull()?.message?.takeIf { it.length <= 56 } ?: source
     }
 
@@ -37,7 +42,11 @@ internal object NovaTierControls {
         val category = original.find(QUALITY_KEY)?.categoryKey ?: return original
         val settings = original.settings.flatMap { definition ->
             when (definition.key) {
-                QUALITY_KEY -> listOf(definition.copy(title = "Quality", summary = caption(tiers, tier), options = options(tiers)))
+                QUALITY_KEY -> listOf(definition.copy(title = "Quality",
+                    // The selected option already carries Max's numbers and both explanations.
+                    // Settings joins option caption and summary: do not read the same reason twice.
+                    summary = if (tiers.plan(tier).reasons.any { it.code == "above_native" }) "" else caption(tiers, tier),
+                    options = options(tiers)))
                 PreferenceConfiguration.BITRATE_PREF_STRING -> listOf(definition,
                     requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.AUTO)).copy(categoryKey = category))
                 else -> listOf(definition)

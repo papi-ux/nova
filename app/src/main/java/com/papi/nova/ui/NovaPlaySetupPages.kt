@@ -514,7 +514,7 @@ internal fun NovaPageScope.NovaSteamDecisionPage(
  * by itself. The page opens on the statement.
  */
 @Composable
-internal fun NovaPageScope.NovaPlaySetupPlanPage(page: PlaySetupPage.Plan) {
+internal fun NovaPageScope.NovaPlaySetupPlanPage(page: PlaySetupPage.Plan, recovery: NovaHostCopyRecovery? = null) {
     val scroll = rememberScrollState()
     Column(
         modifier = Modifier
@@ -527,6 +527,7 @@ internal fun NovaPageScope.NovaPlaySetupPlanPage(page: PlaySetupPage.Plan) {
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
     ) {
         NovaPlaySetupReadStop(Modifier.novaInitialFocus()) { NovaPlaySetupPlanStatement(page.plan) }
+        recovery?.let { NovaHostCopyRecoveryRow(it) }
         page.plan.facts.forEach { fact ->
             NovaPlaySetupReadStop { NovaPlaySetupFact(fact) }
         }

@@ -92,6 +92,8 @@ data class NovaGameDetailOptimizationState(
      * at all the page said "Profile / 120 FPS" and Launch lost its preset (in-game smoke #18).
      */
     val lastPlan: NovaLaunchProfileSummary? = null,
+    /** Typed provenance; rendered copy is never launch or recovery authority. */
+    val streamSource: com.papi.nova.manager.NovaStreamSourceLine? = null,
 )
 
 /** A recheck is in flight and the plan on screen is the last one, kept until the host answers. */
@@ -154,6 +156,7 @@ internal fun NovaGameDetailContent(
     hostPlaySetupPlan: NovaPlaySetupPlan?,
     /** The host scope's last result, said under its plan until the next one; null says nothing. */
     hostPlaySetupNotice: NovaPolarisSyncNotice? = null,
+    hostCopyRecovery: NovaHostCopyRecovery? = null,
     /**
      * What PyroWave asks for past the bitrate setting for this launch's plan, in Mbps, or 0: the
      * verdict the codec preview reads, so What Will Happen and the status line say it too (#10).
@@ -529,7 +532,7 @@ internal fun NovaGameDetailContent(
                     },
                 )
                 is PlaySetupPage.Options -> NovaPlaySetupOptionsPage(page, card = pinnedCard)
-                is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page)
+                is PlaySetupPage.Plan -> NovaPlaySetupPlanPage(page, hostCopyRecovery.takeUnless { everyGame })
                 is PlaySetupPage.SteamDecision -> steamDecision?.let { decision ->
                     NovaSteamDecisionPage(decision = decision, onChoice = onSteamChoice)
                 }
@@ -569,6 +572,7 @@ internal fun NovaGameDetailContent(
                                 checking = checking,
                                 modifier = Modifier.novaRestorableFocus("plan"),
                             )
+                            hostCopyRecovery?.takeUnless { everyGame }?.let { NovaHostCopyRecoveryRow(it) }
                             // Every Game's last result, in place under its plan and announced, as
                             // Polaris Sync says it in the library: it floated in a snackbar (X2).
                             hostPlaySetupNotice?.takeIf { everyGame }?.let { notice ->
