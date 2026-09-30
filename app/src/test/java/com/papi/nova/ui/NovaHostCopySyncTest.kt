@@ -79,6 +79,7 @@ class NovaHostCopySyncTest {
         preferences()
         val context=ApplicationProvider.getApplicationContext<Context>()
         val prefs=PreferenceManager.getDefaultSharedPreferences(context)
+        PreferenceConfiguration.readPreferences(context) // Settle existing first-read migrations before measuring this action.
         val before=prefs.all
         val paths=CopyOnWriteArrayList<String>()
         var body:JSONObject?=null
@@ -177,7 +178,7 @@ class NovaHostCopySyncTest {
         assertEquals(0,published);assertEquals(0,rechecks);assertNull(engine.currentSettings)
         scope.cancel()
     }
-    @Test fun automaticMirrorNeverRaisesA500MbpsPinPast300Mbps() {
+    @Test fun keepInStepMirrorsManualPinsAndGeneratedAutoStaysBelow300Mbps() {
         preferences()
         var body:JSONObject?=null
         val client=api { request -> if(request.method=="POST") {
@@ -191,9 +192,32 @@ class NovaHostCopySyncTest {
             Boolean::class.javaPrimitiveType).apply { isAccessible=true }
             .invoke(engine,com.papi.nova.R.string.nova_polaris_sync_matched_to_nova,false)
         await { body!=null && !engine.busy }
-        assertEquals(300000,body!!.getInt("target_bitrate_kbps"))
+        assertEquals(500000,body!!.getInt("target_bitrate_kbps"))
         assertEquals(500000,PreferenceManager.getDefaultSharedPreferences(context).getInt("seekbar_bitrate_kbps",0))
         assertFalse(PreferenceManager.getDefaultSharedPreferences(context).getBoolean(NovaSettingsMigration.CUSTOM_AUTO,true))
+        engine.close();scope.cancel()
+    }
+
+    @Test fun currentHostInvalidatedWhileWriteIsQueuedMakesNoApiCall() {
+        preferences()
+        val calls=AtomicInteger();val current=AtomicBoolean(true)
+        val queue=java.util.concurrent.ConcurrentLinkedQueue<Runnable>()
+        val dispatcher=object:CoroutineDispatcher() {
+            override fun dispatch(context:kotlin.coroutines.CoroutineContext,block:Runnable) { queue.add(block) }
+        }
+        val client=api { request -> calls.incrementAndGet();reply(request,
+            if(request.method=="POST") confirmed else "{\"state\":\"idle\",\"streaming_active\":false}") }
+        val scope=CoroutineScope(SupervisorJob()+dispatcher)
+        val engine=NovaPolarisSyncEngine(ApplicationProvider.getApplicationContext(),client,"host-a",scope)
+        assertTrue(engine.sendDeviceSetting(500000,{current.get()},{fail("stale receipt")},{fail("stale failure")}))
+        assertTrue(engine.busy);assertEquals(0,calls.get())
+        current.set(false)
+        val deadline=System.nanoTime()+5_000_000_000L
+        while(engine.busy && System.nanoTime()<deadline) {
+            while(true) { val next=queue.poll()?:break;next.run() };Thread.sleep(5)
+        }
+        assertFalse(engine.busy)
+        assertEquals("admission was valid, but stale authority before dispatch must prevent even the status read",0,calls.get())
         engine.close();scope.cancel()
     }
 
