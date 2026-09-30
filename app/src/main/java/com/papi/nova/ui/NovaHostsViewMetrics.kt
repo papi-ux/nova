@@ -62,7 +62,8 @@ internal class NovaHostsViewMetrics(context: Context) {
             view.setPaddingRelative(scaled(base.start), scaled(base.top - base.insetTop) + insetTop,
                 scaled(base.end), scaled(base.bottom - base.insetBottom) + insetBottom)
             view.minimumWidth = max(scaled(base.minWidth), if (target) hitFloor else 0)
-            view.minimumHeight = max(scaled(base.minHeight), if (target) hitFloor else 0)
+            val originalHeight = if (base.height > 0) base.height else base.minHeight
+            view.minimumHeight = max(scaled(originalHeight), if (target) hitFloor else 0)
             val params = view.layoutParams ?: continue
             if (target && base.width > 0) params.width = max(scaled(base.width), hitFloor)
             val containsTargets = view is ViewGroup && (0 until view.childCount).any {
