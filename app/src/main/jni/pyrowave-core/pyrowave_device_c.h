@@ -18,6 +18,10 @@ extern "C" {
  */
 void *pyrowave_device_acquire(bool want_presentation, pyrowave_device *out_codec_device);
 
+// As above, with a per-call missing-feature mask. Zero means no specific diagnosis.
+void *pyrowave_device_acquire_diagnosed(bool want_presentation, pyrowave_device *out_codec_device,
+                                      uint32_t *missing_features);
+
 void pyrowave_device_release(void *handle);
 
 #ifdef __cplusplus

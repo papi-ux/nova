@@ -22,11 +22,15 @@ class DeviceUtilsPairingNameTest {
     @Test
     fun aBuildBesideTheReleaseAppAddsWhatItIs() {
         assertEquals("RetroidPocket6 Debug", DeviceUtils.pairingName("RetroidPocket6", "com.papi.nova.debug"))
-        assertEquals("RetroidPocket6 Pre", DeviceUtils.pairingName("RetroidPocket6", "com.papi.nova.pre"))
+        assertEquals(
+            "The existing .pre package is named Beta for players without changing its install identity",
+            "RetroidPocket6 Beta", DeviceUtils.pairingName("RetroidPocket6", "com.papi.nova.pre"),
+        )
         assertEquals("RetroidPocket6 Dirty", DeviceUtils.pairingName("RetroidPocket6", "com.papi.nova.dirty"))
         assertEquals("RetroidPocket6 Benchmark", DeviceUtils.pairingName("RetroidPocket6", "com.papi.nova.benchmark"))
         assertEquals("RetroidPocket6 Root", DeviceUtils.pairingName("RetroidPocket6", "com.papi.nova.root"))
         assertEquals("RetroidPocket6 Root Debug", DeviceUtils.pairingName("RetroidPocket6", "com.papi.nova.root.debug"))
+        assertEquals("RetroidPocket6 Root Beta", DeviceUtils.pairingName("RetroidPocket6", "com.papi.nova.root.pre"))
     }
 
     @Test

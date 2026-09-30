@@ -105,10 +105,14 @@ class NovaUpdateDashboardAffordanceTest {
             "Dashboard check failures should not spawn a centered card dialog; keep the pill in Retry state",
             errorHandler.contains("AlertDialog.Builder") || errorHandler.contains("NovaSheetChrome.applyAlertDialogChrome")
         )
+        assertFalse(
+            "Dashboard check failures leave the pill in Retry state, which says it in place; a snackbar said it again and floated (audit X2)",
+            errorHandler.contains("NovaSnackbar") || errorHandler.contains("Toast.makeText")
+        )
         assertTrue(
-            "Dashboard check failures may use lightweight NovaSnackbar feedback while leaving the pill in Retry state",
-            errorHandler.contains("NovaSnackbar.showError") &&
-                errorHandler.contains("R.string.pcview_update_pill_retry_snackbar")
+            "the pill is what says Retry",
+            source.contains("updateDashboardUpdatePill(DashboardUpdatePillStatus.ERROR)") &&
+                source.contains("DashboardUpdatePillStatus.ERROR -> getString(R.string.pcview_update_status_retry)")
         )
         val checkMethod = source.substringAfter("private fun checkNovaUpdateFromDashboard")
             .substringBefore("private fun showNovaUpdateDashboardResult")

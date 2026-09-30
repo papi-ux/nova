@@ -7,11 +7,9 @@
     <string name="pcview_menu_send_wol">Stuur Wake-On-LAN aanvraag</string>
     <string name="pcview_menu_delete_pc">Verwijder PC</string>
     <!-- Pair messages -->
-    <string name="pairing">Koppelen…</string>
     <string name="pair_pc_offline">Computer is onbereikbaar</string>
     <string name="pair_pc_ingame">Computer is op dit moment in een spel. Sluit het spel voordat je koppelt.</string>
     <string name="pair_pairing_title">Koppelen</string>
-    <string name="pair_pairing_msg">Voer de volgende PIN in op de doel PC:</string>
     <string name="pair_incorrect_pin">Ongeldige PIN</string>
     <string name="pair_fail">Koppelen mislukt</string>
     <!-- WOL messages -->
@@ -51,9 +49,6 @@
     <string name="searching_pc">Zoeken naar PCs met GeForce Experience actief…
 \n
 \n Controleer dat GameStream is ingeschakeld in de GeForce Experience SHIELD instellingen.</string>
-    <string name="yes">Ja</string>
-    <string name="no">Nee</string>
-    <string name="lost_connection">Verbinding met PC verloren</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">Hervat Sessie</string>
     <string name="applist_menu_quit">Stop Sessie</string>
@@ -63,17 +58,13 @@
     <string name="applist_refresh_msg">Apps Verversen…</string>
     <string name="applist_refresh_error_title">Fout</string>
     <string name="applist_refresh_error_msg">App lijst ophalen mislukt</string>
-    <string name="applist_quit_app">Stoppen</string>
     <string name="applist_quit_success">Succesvol gestopt</string>
     <string name="applist_quit_fail">Stoppen mislukt</string>
-    <string name="applist_quit_confirmation">Weet je het zeker dat je de app wilt sluiten? Alle niet-opgeslagen gegevens gaan verloren.</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Voeg handmatig PC toe</string>
     <string name="msg_add_pc">Verbinding maken met PC…</string>
     <string name="addpc_fail">Verbinden mislukt. Controleer of de benodigde poorten openstaan in de firewall.</string>
-    <string name="addpc_success">Computer toevoegen succesvol</string>
     <string name="addpc_unknown_host">Adres achterhalen is mislukt. Controleer het ingevoerde adres op typfouten.</string>
-    <string name="addpc_enter_ip">IP-adres invoeren is verplicht</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Algemene Instellingen</string>
     <string name="title_resolution_list">Selecteer resolutie en FPS doel</string>
@@ -175,9 +166,7 @@
     <string name="summary_enable_hdr">Stream HDR als het spel en de GPU van de PC dit ondersteund. HDR vereist een GTX 1000-reeks GPU of later.</string>
     <string name="title_enable_perf_overlay">Prestatiestatistieken tonen tijdens het streamen</string>
     <string name="title_details">Details</string>
-    <string name="delete_pc_msg">Bent u zeker dat u deze PC wilt verwijderen\?</string>
     <string name="resolution_prefix_native_fullscreen">Oorspronkelijk Volledig Scherm</string>
-    <string name="help">Help</string>
     <string name="perf_overlay_streamdetails">Video stream: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_incomingfps">Binnenkomende frame rate van het netwerk: %1$.2f FPS</string>
     <string name="early_termination_error">Er is iets misgegaan op de host PC bij het starten van de stream.

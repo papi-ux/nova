@@ -7,11 +7,9 @@
     <string name="pcview_menu_send_wol">Enviar petición Wake-On-LAN</string>
     <string name="pcview_menu_delete_pc">Eliminar PC</string>
     <!-- Pair messages -->
-    <string name="pairing">Emparejando…</string>
     <string name="pair_pc_offline">El ordenador está apagado</string>
     <string name="pair_pc_ingame">El ordenador está actualmente en un juego. Debes cerrar el juego antes de emparejar.</string>
     <string name="pair_pairing_title">Emparejando</string>
-    <string name="pair_pairing_msg">Por favor, introduce el siguiente PIN en el PC destino:</string>
     <string name="pair_incorrect_pin">PIN incorrecto</string>
     <string name="pair_fail">Fallo al emparejar</string>
     <!-- WOL messages -->
@@ -51,9 +49,6 @@
     <string name="searching_pc">Buscando el hostal del PC en tu red local...
 \n
 \n Asegúrate de que Sunshine se está ejecutando en el PC anfitrión o de que GameStream está activado en los ajustes de GeForce Experience SHIELD.</string>
-    <string name="yes">Si</string>
-    <string name="no">No</string>
-    <string name="lost_connection">Conexión perdida</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">Reanudar sesión</string>
     <string name="applist_menu_quit">Cerrar sesión</string>
@@ -63,17 +58,13 @@
     <string name="applist_refresh_msg">Actualizando lista de aplicaciones…</string>
     <string name="applist_refresh_error_title">Error</string>
     <string name="applist_refresh_error_msg">Error al cargar lista de aplicaciones</string>
-    <string name="applist_quit_app">Cerrando</string>
     <string name="applist_quit_success">Cerrado satisfactoriamente</string>
     <string name="applist_quit_fail">Error al cerrar</string>
-    <string name="applist_quit_confirmation">¿Estás seguro que deseas quitar la aplicación en ejecución? Todo dato sin salvar se perderá.</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Añadir PC manualmente</string>
     <string name="msg_add_pc">Conectando al PC…</string>
     <string name="addpc_fail">Imposible conectar al ordenador indicado. Asegurate que los puertos necesarios están permitidos a través del firewall.</string>
-    <string name="addpc_success">Ordenador añadido satisfactoriamente</string>
     <string name="addpc_unknown_host">Imposible resolver la dirección del PC. Asegúrate que no hay ningún error en la dirección.</string>
-    <string name="addpc_enter_ip">Debes introducir una dirección IP</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Configuración básica</string>
     <string name="title_resolution_list">Seleccionar resolución</string>
@@ -210,8 +201,6 @@
     <string name="summary_unlock_fps">Transmitir a 90 o 120 FPS puede reducir latencia en dispositivos de gama alta pero puede causar retrasos en dispositivos que no lo soporten</string>
     <string name="title_enable_perf_overlay">Mostrar estadísticas de rendimiento mientras la transmisión está activa</string>
     <string name="summary_enable_post_stream_toast">Mostrar un mensaje sobre la información de latencia cuando la transmisión termine</string>
-    <string name="help">Ayuda</string>
-    <string name="delete_pc_msg">¿Estás seguro de eliminar este PC\?</string>
     <string name="slow_connection_msg">Conexión lenta al PC
 \nReduce la tasa de bits</string>
     <string name="addpc_wrong_sitelocal">La dirección no luce correcta. Debes usar la dirección IP Pública de tu Rúter para la transmisión por Internet.</string>
@@ -262,7 +251,6 @@
     <string name="title_checkbox_reduce_refresh_rate">Permitir reducción de la tasa de refresco</string>
     <string name="title_full_range">Forzar video de rango completo (Experimental)</string>
     <string name="summary_full_range">Esto provocará la pérdida de detalles en las áreas claras y oscuras si su dispositivo no muestra correctamente el contenido de video de rango completo.</string>
-    <string name="pair_pairing_help">Si el hostal del ordenador ejecuta Sunshine, navegue a la interfaz de usuario web de Sunshine para ingresar el PIN.</string>
     <string name="pcview_menu_eol">Fin de servicio de NVIDIA GameStream</string>
     <string name="fps_suffix_fps">FPS</string>
     <string name="title_native_fps_dialog">Advertencia sobre FPS nativos</string>

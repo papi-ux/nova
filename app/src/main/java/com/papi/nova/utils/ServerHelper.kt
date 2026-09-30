@@ -3,10 +3,12 @@ package com.papi.nova.utils
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.hardware.display.DisplayManager
 import android.os.Build
 import android.view.Display
-import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
 import com.papi.nova.AppView
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
@@ -21,6 +23,14 @@ import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaSurfaces
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParserException
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -30,6 +40,8 @@ import java.util.ArrayList
 
 object ServerHelper {
     const val CONNECTION_TEST_SERVER: String = "android.conntest.moonlight-stream.org"
+    private const val NETWORK_TEST_PAGE_KEY = "nova-network-test"
+    private const val NETWORK_RESULT_PAGE_KEY = "nova-network-test-result"
 
     @JvmStatic
     @Throws(IOException::class)
@@ -374,7 +386,13 @@ object ServerHelper {
         watchOnly: Boolean,
     ) {
         if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
-            Toast.makeText(parent, parent.getString(R.string.pair_pc_offline), Toast.LENGTH_SHORT).show()
+            // On a Notice in the screen's right edge panel, where it can be read (audit X2).
+            Dialog.displayDialog(
+                parent,
+                parent.getString(R.string.hosts_offline_title),
+                parent.getString(R.string.hosts_offline_message),
+                false,
+            )
             return
         }
 
@@ -548,42 +566,71 @@ object ServerHelper {
         NovaThemeManager.applyFadeTransition(parent)
     }
 
+    /**
+     * Tests whether this network lets Nova's streaming ports through, as a Busy page pushed in the
+     * open panel (or a right-edge panel of its own) that becomes the result once the test ends, so
+     * B from the result returns to whatever pushed it. Cancel leaves the page; the test itself
+     * cannot be stopped, and an answer that arrives after the page has gone is dropped.
+     */
     @JvmStatic
     fun doNetworkTest(parent: Activity) {
-        Thread {
-            val spinnerDialog = SpinnerDialog.displayDialog(
-                parent,
-                parent.resources.getString(R.string.nettest_title_waiting),
-                parent.resources.getString(R.string.nettest_text_waiting),
-                false,
-            )
-
-            val ret = MoonBridge.testClientConnectivity(
-                CONNECTION_TEST_SERVER,
-                443,
-                MoonBridge.ML_PORT_FLAG_ALL,
-            )
-            spinnerDialog.dismiss()
-
-            var dialogSummary = when {
-                ret == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE ->
-                    parent.resources.getString(R.string.nettest_text_inconclusive)
-                ret == 0 ->
-                    parent.resources.getString(R.string.nettest_text_success)
-                else ->
-                    parent.resources.getString(R.string.nettest_text_failure) +
-                        MoonBridge.stringifyPortFlags(ret, "\n")
+        val activity = parent as? ComponentActivity ?: return
+        val surfaces = NovaSurfaces.of(activity)
+        val resources = activity.resources
+        var test: Job? = null
+        lateinit var busy: NovaCommonPage.Busy
+        busy = NovaCommonPage.Busy(
+            key = NETWORK_TEST_PAGE_KEY,
+            title = resources.getString(R.string.nettest_title_waiting),
+            message = MutableStateFlow(resources.getString(R.string.nettest_text_waiting)),
+            cancel = NovaAction(resources.getString(R.string.nova_panel_cancel)) {
+                test?.cancel()
+                if (surfaces.panel.top === busy && !surfaces.panel.pop()) surfaces.panel.close()
+            },
+        )
+        surfaces.present(busy)
+        test = activity.lifecycleScope.launch {
+            val summary = networkTest(resources)
+            if (surfaces.panel.top === busy) {
+                surfaces.panel.replaceTop(
+                    NovaCommonPage.Notice(
+                        key = NETWORK_RESULT_PAGE_KEY,
+                        title = resources.getString(R.string.nettest_title_done),
+                        message = summary,
+                        closeLabel = resources.getString(R.string.nova_panel_close),
+                    ),
+                )
             }
-
-            Dialog.displayDialog(
-                parent,
-                parent.resources.getString(R.string.nettest_title_done),
-                dialogSummary,
-                false,
-            )
-        }.start()
+        }
     }
 
+    /**
+     * Which of Nova's streaming ports this network lets through, as the sentence the result page
+     * shows. The test blocks for a few seconds, so it runs on the IO dispatcher.
+     */
+    suspend fun networkTest(resources: Resources): String = withContext(Dispatchers.IO) {
+        val ret = MoonBridge.testClientConnectivity(
+            CONNECTION_TEST_SERVER,
+            443,
+            MoonBridge.ML_PORT_FLAG_ALL,
+        )
+        when {
+            ret == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE ->
+                resources.getString(R.string.nettest_text_inconclusive)
+            ret == 0 ->
+                resources.getString(R.string.nettest_text_success)
+            else ->
+                resources.getString(R.string.nettest_text_failure) +
+                    MoonBridge.stringifyPortFlags(ret, "\n")
+        }
+    }
+
+    /**
+     * Quits the running app, then runs [onComplete] or [onFail] on the main thread. Nothing floats
+     * (audit X2): the caller's own list shows a quit that worked once it refreshes, as the running
+     * mark goes, and a refusal is said on a Notice in the screen's right edge panel, where it can be
+     * read. It floated as a Toast, as did a "Quitting" Toast before it.
+     */
     @JvmStatic
     fun doQuit(
         parent: Activity,
@@ -592,69 +639,95 @@ object ServerHelper {
         onComplete: Runnable?,
         onFail: Runnable?,
     ) {
-        parent.runOnUiThread {
-            Toast.makeText(
-                parent,
-                parent.resources.getString(R.string.applist_quit_app) + " " + appName + "...",
-                Toast.LENGTH_SHORT,
-            ).show()
+        doQuit(parent, httpConn, appName) { refusal ->
+            if (refusal == null) {
+                onComplete?.run()
+            } else {
+                showQuitRefused(parent, appName, refusal.reason)
+                onFail?.run()
+            }
         }
+    }
 
+    /** Why the host did not quit [appName], on a Notice page; [reason] may be blank. Any thread. */
+    private fun showQuitRefused(parent: Activity, appName: String, reason: String?) {
+        Dialog.displayDialog(
+            parent,
+            parent.getString(R.string.nova_library_end_failed),
+            reason?.takeIf { it.isNotBlank() } ?: parent.getString(R.string.hosts_end_failed_message, appName),
+            false,
+        )
+    }
+
+    /**
+     * Why the host did not quit a session: its [reason], in the host's own words where it gave some
+     * and in Nova's plain words otherwise; whether the session was [startedElsewhere], by another
+     * device, which this one can never quit however often it asks; and whether the game is
+     * [stillClosing] after this device's own End, which asking again after a moment can finish.
+     */
+    data class QuitRefusal(
+        val reason: String,
+        val startedElsewhere: Boolean = false,
+        val stillClosing: Boolean = false,
+    )
+
+    /**
+     * Quits the running app as the doQuit above does, but floats nothing: [onResult] runs on the
+     * main thread with null once the host has quit it, or with the host's refusal when it did not,
+     * for the caller to say in place. The library strip says it where End was pressed, and offers
+     * Try Again only where asking again could work.
+     */
+    fun doQuit(
+        parent: Activity,
+        httpConn: NvHTTP,
+        appName: String,
+        onResult: (refusal: QuitRefusal?) -> Unit,
+    ) {
         Thread {
-            var message: String? = null
-            var failed = false
-            try {
-                val serverInfo = httpConn.getServerInfo(true)
-                val owned = httpConn.getCurrentGameOwned(serverInfo)
-                val sessionToken = httpConn.getCurrentGameSessionToken(serverInfo)
-
-                if (owned == false) {
-                    throw HostHttpResponseException(599, "")
-                }
-
-                val quitSucceeded = httpConn.quitApp(sessionToken)
-                failed = !quitSucceeded
-                message = if (quitSucceeded) {
-                    parent.resources.getString(R.string.applist_quit_success) + " " + appName
-                } else {
-                    parent.resources.getString(R.string.applist_quit_fail) + " " + appName
-                }
-            } catch (e: HostHttpResponseException) {
-                failed = true
-                message = if (e.getErrorCode() == 599) {
-                    "This session wasn't started by this device," +
-                        " so it cannot be quit. End streaming on the original " +
-                        "device or the PC itself. (Error code: " + e.getErrorCode() + ")"
-                } else {
-                    e.message
-                }
-            } catch (_: UnknownHostException) {
-                failed = true
-                message = parent.resources.getString(R.string.error_unknown_host)
-            } catch (_: FileNotFoundException) {
-                failed = true
-                message = parent.resources.getString(R.string.error_404)
-            } catch (e: XmlPullParserException) {
-                failed = true
-                message = e.message
-                e.printStackTrace()
-            } catch (e: IOException) {
-                failed = true
-                message = e.message
-                e.printStackTrace()
-            } finally {
-                if (failed) {
-                    onFail?.run()
-                } else {
-                    onComplete?.run()
-                }
-            }
-
-            val toastMessage = message
-            parent.runOnUiThread {
-                Toast.makeText(parent, toastMessage, Toast.LENGTH_LONG).show()
-            }
+            val refusal = quitOnHost(parent, httpConn, appName)
+            parent.runOnUiThread { onResult(refusal) }
         }.start()
+    }
+
+    /**
+     * Asks the host to quit, on the calling thread: null once it has, or why it did not (XR3). The
+     * reason is the host's own status message where it sent one, and Nova's plain words otherwise:
+     * never "Host returned error: ... (Error code: N)". Only the host's own word that the session is
+     * not this device's says another device started it. A 599 after this device's own cancel is
+     * NvHTTP's, when the game still runs just after the host accepted the cancel: Polaris answers a
+     * cancel before it has closed the game, so the game is still closing.
+     */
+    private fun quitOnHost(parent: Activity, httpConn: NvHTTP, appName: String): QuitRefusal? {
+        val resources = parent.resources
+        return try {
+            val serverInfo = httpConn.getServerInfo(true)
+            if (httpConn.getCurrentGameOwned(serverInfo) == false) {
+                return QuitRefusal(resources.getString(R.string.nova_library_end_started_elsewhere), startedElsewhere = true)
+            }
+            val sessionToken = httpConn.getCurrentGameSessionToken(serverInfo)
+            if (httpConn.quitApp(sessionToken)) {
+                null
+            } else {
+                QuitRefusal(resources.getString(R.string.applist_quit_fail) + " " + appName)
+            }
+        } catch (e: HostHttpResponseException) {
+            val hostWords = e.getHostStatusMessage()
+            when {
+                hostWords != null -> QuitRefusal(hostWords)
+                e.getErrorCode() == 599 -> QuitRefusal(resources.getString(R.string.nova_library_end_still_closing), stillClosing = true)
+                else -> QuitRefusal(resources.getString(R.string.nova_library_end_failed))
+            }
+        } catch (_: UnknownHostException) {
+            QuitRefusal(resources.getString(R.string.error_unknown_host))
+        } catch (_: FileNotFoundException) {
+            QuitRefusal(resources.getString(R.string.error_404))
+        } catch (e: XmlPullParserException) {
+            e.printStackTrace()
+            QuitRefusal(resources.getString(R.string.nova_library_end_failed))
+        } catch (e: IOException) {
+            e.printStackTrace()
+            QuitRefusal(resources.getString(R.string.nova_library_end_unreachable))
+        }
     }
 
     @JvmStatic
@@ -695,11 +768,7 @@ object ServerHelper {
         } catch (e: Exception) {
             e.printStackTrace()
             onFail?.run()
-
-            val toastMessage = e.message
-            parent.runOnUiThread {
-                Toast.makeText(parent, toastMessage, Toast.LENGTH_LONG).show()
-            }
+            showQuitRefused(parent, app.appName, e.message)
         }
     }
 }

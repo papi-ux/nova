@@ -55,11 +55,14 @@ import com.papi.nova.ui.NovaCompanionCommandDeckState
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudUiState
 import com.papi.nova.ui.NovaLaunchStreamOverride
+import com.papi.nova.ui.novaLaunchIssuePage
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
-import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.StreamContainer
-import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.papi.nova.ui.NovaMouseModeChoices
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.DisplayFocusTelemetry
@@ -68,11 +71,11 @@ import com.papi.nova.utils.CompanionControlLifecyclePolicy
 import com.papi.nova.utils.CompanionControlReopenGeneration
 import com.papi.nova.utils.DualScreenQuickMenuPolicy
 import com.papi.nova.utils.ExternalDisplayControlActivity
+import com.papi.nova.utils.ExternalDisplayControlController
 import com.papi.nova.utils.ExternalDisplayControlHost
 import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
 import com.papi.nova.utils.AndroidStreamDisplayTarget
-import com.papi.nova.utils.MouseModeOption
 import com.papi.nova.utils.PanZoomHandler
 import com.papi.nova.utils.PerformanceDataTracker
 import com.papi.nova.utils.ServerHelper
@@ -84,7 +87,6 @@ import org.json.JSONObject
 
 import android.annotation.SuppressLint
 import android.annotation.TargetApi
-import android.app.AlertDialog
 import android.app.PictureInPictureParams
 import android.app.Service
 import android.content.ClipData
@@ -133,8 +135,6 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
@@ -277,6 +277,8 @@ com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfil
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
 private var launchResolvedProfileTrusted:Boolean = false
+/** The preset this launch was resolved to, for the HUD's stream line; empty when it has none. */
+private var novaHudLaunchPresetLabel:String = ""
 private val launchPolicyGateGeneration = AtomicLong(0L)
 private val launchPolicyGatePending = AtomicBoolean(false)
 private var launchPolicyHandoffRecreation:Boolean = false
@@ -434,6 +436,14 @@ MoonBridge.sendEmptyPayload()
 get() {
 return keyBoardLayoutController != null && keyBoardLayoutController!!.shown
 }
+
+ /** Whether the on-screen special keys layout is showing. */
+ val isKeyboardControllerShown:Boolean
+get() = keyBoardController?.shown == true
+
+ /** Whether the touch menu button, which opens the Command Center, is showing. */
+ val isFloatingButtonVisible:Boolean
+get() = floatingMenuButton?.getVisibility() == View.VISIBLE
 
 private val streamingDisplay:Display?
 get() {
@@ -832,12 +842,10 @@ if (prefConfig!!.fullScreen)
  // Full-screen
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
- // If we're going to use immersive mode, we want to have
-            // the entire screen
-            getWindow().getDecorView().setSystemUiVisibility(
-(View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN))
+// Immersive from the first frame, not only laid out for it: with the layout flags alone the
+// navigation bar's gesture handle was drawn over the stream until hideSystemUi ran, a second
+// after the connection started (in-game #19). The same flags hideSystemUi keeps setting.
+hideSystemUi.run()
 }
 
 getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
@@ -1139,7 +1147,7 @@ e!!.printStackTrace()
 novaFeatureScope = com.papi.nova.manager.FeatureFlagManager.beginScope()
 novaApiClient = com.papi.nova.api.PolarisApiClient(this, host ?: "", httpsPort, serverCert)
 novaLockScreenOverlay = com.papi.nova.ui.LockScreenOverlay(this, novaApiClient!!)
-novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this)
+novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this) { disconnect() }
 val reconnectAttemptsUsed:Int = this@Game.getIntent().getIntExtra(EXTRA_RECONNECT_ATTEMPT, 0)
 if (reconnectAttemptsUsed > 0)
 {
@@ -1393,14 +1401,12 @@ if (policyMessage != null) {
 (policyReason?.name ?: "unproven deterministic launch authority")
 }
 )
-Toast.makeText(
-this@Game,
+// A state page with Retry and Back, not a Toast cut off by its ellipsis as the page closed.
+refuseAtLaunchPolicyGate(
 policyMessage ?: getString(
 policyReason?.messageRes() ?: R.string.nova_launch_deterministic_host_required
-),
-Toast.LENGTH_LONG
-).show()
-finish()
+)
+)
 }
 return@launchRuntimeIo
 }
@@ -1451,8 +1457,12 @@ if (launchPolicyTokenInvalid)
 {
 // The one-shot handoff token was stale or already spent, which says nothing about the host.
 LimeLog.severe("Nova: Refusing launch because the one-shot launch policy handoff was not valid")
-Toast.makeText(this, R.string.nova_launch_retry, Toast.LENGTH_LONG).show()
-finish()
+// The launch issue page with Try Again and Back, not a Toast floated as the screen closed. A
+// Space launch retries through the library's Space path, which checks the Space again; the
+// handoff that would have said it was one is the part that failed, so the app it asked for says
+// so (X1).
+spaceSession = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())
+showNovaLaunchIssueSheet(getString(R.string.nova_launch_retry))
 return
 }
 val workerLaunch = com.papi.nova.manager.WorkerLaunchContract.parse(launchOptimization)
@@ -1467,11 +1477,13 @@ com.papi.nova.manager.LaunchTopologyEnvelope.resolvedSelection(launchOptimizatio
 if (launchResolvedProfileTrusted && expectedLaunchTopology.isBlank())
 {
 LimeLog.severe("Nova: Refusing launch because the deterministic topology assertion is missing")
-Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
-finish()
+// The host answered as a current Polaris and left the display topology unsettled, so "Update
+// Polaris" named the one cause it was not. It says what happened, on the launch issue page.
+showNovaLaunchIssueSheet(getString(R.string.nova_launch_profile_not_settled))
 return
 }
 launchInitializationCommitted = true
+novaHudLaunchPresetLabel = com.papi.nova.ui.NovaLaunchPresetLabel.resolved(resources, launchOptimization, launchResolvedProfileTrusted)
 startNovaFeatureProbe()
 willStreamHdr = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeHdr(
 willStreamHdr,
@@ -1890,7 +1902,7 @@ spinner = null
 
  // If we can't find an AVC decoder, we can't proceed
             Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title),
-"This device or ROM doesn't support hardware accelerated H.264 playback.", true)
+getResources().getString(R.string.nova_stream_h264_unsupported), true)
 return
 }
 
@@ -4047,7 +4059,19 @@ return modifier
 override fun onKeyDown(keyCode:Int, event:KeyEvent):Boolean {
 return handleKeyDown(event) || super.onKeyDown(keyCode, event)
 }
+/**
+ * The stream container gets its input callbacks in onCreate, long before the controller handler
+ * and the connection exist, and a refused launch calls finish() with both still unset. A key in
+ * either window must pass through instead of reaching a partial session.
+ */
+private fun isKeyInputReady():Boolean =
+    !isFinishing && !isDestroyed && ::prefConfig.isInitialized &&
+        controllerHandler != null && conn != null
 override fun handleKeyDown(event:KeyEvent):Boolean {
+if (!isKeyInputReady())
+{
+return false
+}
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
@@ -4169,6 +4193,10 @@ return true
 return handleKeyUp(event) || super.onKeyUp(keyCode, event)
 }
 override fun handleKeyUp(event:KeyEvent):Boolean {
+if (!isKeyInputReady())
+{
+return false
+}
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
@@ -4270,12 +4298,21 @@ conn!!.sendUtf8Text(event!!.getCharacters())
 return true
 }
 
+internal fun canSendCommandKeys(): Boolean {
+if (watchOnlyRequested || isFinishing || isDestroyed) return false
+val client = novaApiClient
+return if (client != null) client.commandKeysAllowed && client.sessionStatusUpdates.value?.isViewer != true
+else lastPolarisSessionStatus?.isViewer != true
+}
+
  fun sendKeys(keys:ShortArray?) {
+if (!canSendCommandKeys() || keys == null) return
+val keyConnection = conn ?: return
 	var modifier:ByteArray = byteArrayOf(0.toByte())
 
 for (key:Short in keys!!)
 {
-	conn!!.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], 0.toByte())
+	keyConnection.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], 0.toByte())
 
  // Apply the modifier of the pressed key, e.g. CTRL first issues a CTRL event (without
             // modifier) and then sends the following keys with the CTRL modifier applied
@@ -4289,8 +4326,8 @@ var key:Short = keys!![pos]
  // Remove the keys modifier before releasing the key
                 modifier[0] = (modifier[0].toInt() and KeyboardTranslator.getModifier(key).toInt().inv()).toByte()
 
-	conn!!.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], 0.toByte())
-} }), GameMenu.KEY_UP_DELAY)
+	keyConnection.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], 0.toByte())
+} }), SENT_KEY_UP_DELAY_MS)
 }
 
 override fun handleFocusChange(hasFocus:Boolean):Boolean {
@@ -4803,6 +4840,13 @@ else
  // Returns true if the event was consumed
     // NB: View is only present if called from a view callback
      fun handleMotionEvent(view:View?, event:MotionEvent?):Boolean {
+// Android can dispatch controller motion while onCreate is still setting up input,
+// or after a refused launch has called finish(). Nothing may reach a partial session.
+if (event == null || isFinishing || isDestroyed || !::prefConfig.isInitialized ||
+    controllerHandler == null || conn == null || inputCaptureProvider == null || streamContainer == null)
+{
+return false
+}
 view?.display?.displayId?.let(::recordQuickMenuInteraction)
  // Pass through mouse/touch/joystick input if we're not grabbing
         if (!grabbedInput)
@@ -5505,6 +5549,8 @@ aTouchContext!!.setPointerCount(0)
 }
 // The hat is controller input for the host here, never a press to spend on focus.
 override val hatPressLeavesTouchMode: Boolean = false
+// The same for A and B: the stream hands them to the host, so the screen's key gate stays off.
+override val novaKeyGate: Boolean = false
 
 override fun onGenericMotionEvent(event:MotionEvent?):Boolean {
 return handleMotionEvent(null, event) || super.onGenericMotionEvent(event)
@@ -5652,9 +5698,15 @@ this@Game.runOnUiThread({ Toast.makeText(this@Game, e!!.message, Toast.LENGTH_LO
 }
 }
 override fun stageFailed(stage:String, portFlags:Int, errorCode:Int):Boolean {
+// A 503 is the host answering and refusing, so the network reached it. "Failed to start RTSP
+// handshake (error 503)" and a list of firewall ports sent someone to fix a network that worked;
+// Mirror Desktop with PyroWave on pc-papi was refused because KDE's HDR desktop could not be read.
+val hostAnswered = errorCode == RTSP_SERVICE_UNAVAILABLE
  // Perform a connection test if the failure could be due to a blocked port
-        // This does network I/O, so don't do it on the main thread.
-        var portTestResult:Int = MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443, portFlags)
+        // This does network I/O, so don't do it on the main thread. Not for a host that answered:
+        // the outside test has nothing to say about it, and its "blocking Nova" sentence under the
+        // host's refusal sent people to their network (XR4).
+        var portTestResult:Int = if (hostAnswered) MoonBridge.ML_TEST_RESULT_INCONCLUSIVE else MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443, portFlags)
 
 if (errorCode == 0 && portFlags != 0 && (portTestResult == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE || portTestResult == 0))
 {
@@ -5689,6 +5741,10 @@ var dialogText:String = getResources().getString(R.string.conn_error_msg) + " " 
 {
 dialogText = getResources().getString(R.string.nova_pyrowave_profile_unavailable)
 }
+if (hostAnswered)
+{
+dialogText = getResources().getString(R.string.nova_launch_host_refused_stream)
+}
  // A Polaris host says why it refused; that beats "error 503" and a generic sentence.
 val hostRefusal = conn?.lastHostRefusal
 if (hostRefusal != null && errorCode != 0)
@@ -5718,13 +5774,13 @@ else -> {
  // Not when the refusal was about the codec. The ports are reported for whatever the handshake
                     // happened to be using, and listing them under a sentence that just said the network is
                     // fine sends someone to open ports that are already open.
-                    if (portFlags != 0 && errorCode != MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE)
+                    if (portFlags != 0 && errorCode != MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE && !hostAnswered)
 {
 dialogText += ("\n\n" + getResources().getString(R.string.check_ports_msg) + "\n" +
 MoonBridge.stringifyPortFlags(portFlags, "\n"))
 }
 
-if (portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE && portTestResult != 0)
+if (!hostAnswered && portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE && portTestResult != 0)
 {
 dialogText += "\n\n" + getResources().getString(R.string.nettest_text_blocked)
 }
@@ -5738,6 +5794,22 @@ finishSecondScreen()
 return false
 }
 
+/**
+ * The launch policy gate refused this launch, for [message]: the launch issue page says so. A Space
+ * refused here retries through the library's Space path, which checks the Space again, as a stale
+ * handoff does: the page is built before the launch is set up, so the app it asked for says
+ * whether it was a Space (X1).
+ */
+internal fun refuseAtLaunchPolicyGate(message: String) {
+spaceSession = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())
+showNovaLaunchIssueSheet(message)
+}
+
+/**
+ * A launch the host refused or Nova gave up on, as a full-screen state page over the stream
+ * ([novaLaunchIssuePage]): Try Again is focused, and B returns to Nova without retrying. In a
+ * Space the retry is the library's, which checks the Space again before it starts anything.
+ */
 private fun showNovaLaunchIssueSheet(message: String) {
 runOnUiThread {
 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -5745,78 +5817,27 @@ if (spinner != null) {
 spinner!!.dismiss()
 spinner = null
 }
-val sheet = BottomSheetDialog(this@Game)
-val density = resources.displayMetrics.density
-fun dp(value: Int): Int = (value * density).toInt()
-val container = LinearLayout(this@Game).apply {
-orientation = LinearLayout.VERTICAL
-setPadding(dp(18), dp(14), dp(18), dp(18))
-background = NovaSheetChrome.createSheetBackground(this@Game)
-}
-val handle = View(this@Game).apply {
-background = NovaSheetChrome.createHandleBackground(this@Game)
-}
-NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)
-container.addView(handle, LinearLayout.LayoutParams(dp(42), dp(4)).apply {
-gravity = Gravity.CENTER_HORIZONTAL
-bottomMargin = dp(14)
-})
-val title = TextView(this@Game).apply {
-text = if (spaceSession) getString(R.string.nova_space_launch_issue_title) else getString(R.string.nova_launch_issue_title)
-setTextColor(NovaThemeManager.getTextPrimaryColor(this@Game))
-textSize = 20f
-}
-container.addView(title)
-val body = TextView(this@Game).apply {
-text = if (spaceSession) listOfNotNull(conn?.lastHostRefusal?.message,
-    conn?.lastHostRefusal?.action ?: getString(R.string.nova_space_launch_issue_default))
-    .joinToString("\n\n") else message
-setTextColor(NovaThemeManager.getTextSecondaryColor(this@Game))
-textSize = 14f
-setPadding(0, dp(10), 0, dp(12))
-}
-val scroll = ScrollView(this@Game).apply {
-addView(body)
-}
-container.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
- // Every action wears the sheet chrome; a stock Button read as a stranger here.
-fun sheetAction(label: String, onClick: () -> Unit): TextView = TextView(this@Game).apply {
-text = label
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this)
-setOnClickListener { onClick() }
-}
-fun addAction(action: TextView) {
-container.addView(action, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
-}
-if (spaceSession) {
-val explanation = body.text
-var detailsVisible = false
-val details = sheetAction(getString(R.string.nova_space_launch_issue_details)) {}
-details.setOnClickListener {
-detailsVisible = !detailsVisible
-body.text = if (detailsVisible) "$explanation\n\n$message" else explanation
-details.text = getString(if (detailsVisible) R.string.nova_space_launch_issue_hide_details else R.string.nova_space_launch_issue_details)
-}
-addAction(details)
- // Try Again hands the retry to the library, which re-checks the Space before it starts anything.
-addAction(sheetAction(getString(R.string.nova_space_launch_issue_retry)) {
-NovaSpaceRetrySignal.mark(this@Game, this@Game.getIntent().getStringExtra(EXTRA_PC_UUID), host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST))
-sheet.dismiss()
+// The startup card stayed up behind the page and ghosted through it.
+novaProgressOverlay?.dismiss()
+val surfaces = novaSurfaces
+val page = novaLaunchIssuePage(
+context = this,
+key = LAUNCH_ISSUE_PAGE,
+message = message,
+space = spaceSession,
+refusal = if (spaceSession) conn?.lastHostRefusal else null,
+retry = if (spaceSession) {
+{
+NovaSpaceRetrySignal.mark(this@Game, this@Game.getIntent().getStringExtra(EXTRA_PC_UUID), host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST), appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())
 finish()
-})
 }
-addAction(sheetAction(if (spaceSession) getString(R.string.nova_space_launch_issue_back) else getString(R.string.nova_launch_issue_dismiss)) {
-sheet.dismiss()
-finish()
-})
-sheet.setContentView(container)
- // A tap beside the sheet is not a decision to leave the failure behind; Back and the actions are.
-sheet.setCanceledOnTouchOutside(false)
-sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
-sheet.setOnDismissListener { finish() }
-sheet.show()
-NovaSheetChrome.applyBottomSheetChrome(sheet, container)
+} else {
+{ relaunchStream() }
+},
+leave = { finish() },
+takeDown = { surfaces.dismiss(LAUNCH_ISSUE_PAGE) },
+)
+surfaces.show(page)
 }
 }
 
@@ -5904,7 +5925,8 @@ MoonBridge.stringifyPortFlags(portFlags, "\n"))
 Dialog.displayDialog(this@Game, getResources().getString(R.string.conn_terminated_title),
 message, true,
 getResources().getString(R.string.nova_conn_reconnect),
-Runnable { relaunchStream() })
+Runnable { relaunchStream() },
+help = true)
 }
 else
 {
@@ -5922,7 +5944,12 @@ if (prefConfig!!.disableWarnings)
 return
 }
 
-if (connectionStatus == MoonBridge.CONN_STATUS_POOR)
+if (connectionStatus == MoonBridge.CONN_STATUS_POOR && com.papi.nova.ui.NovaLegacyConnectionWarning.suppressed(lastPolarisSessionStatus))
+{
+// Live Tuning owns the bitrate, or Doctor reads the stream: the legacy advice contradicted them.
+requestedNotificationOverlayVisibility = View.GONE
+}
+else if (connectionStatus == MoonBridge.CONN_STATUS_POOR)
 {
 if (configuredStreamBitrateKbps > 5000)
 {
@@ -5995,7 +6022,7 @@ gyroAimController!!.start()
 com.papi.nova.service.NovaStreamNotification.show(
 this@Game,
 if (appName != null) appName!! else "Streaming",
-if (pcName != null) pcName!! else "Server"
+if (pcName != null) pcName!! else "Host"
 )
 updatePipAutoEnter()
 
@@ -6489,64 +6516,43 @@ else
 applyMouseMode(savedMouseModeIndex)
 }
 }
-// Converted JavaDoc marker retained as a line comment.
-     @JvmOverloads
-     fun selectMouseMode(context:Context?, dialogWindowType:Int? = null, dialogWindowToken:IBinder? = null) {
-var allModes:Array<String?>? = getResources().getStringArray(R.array.mouse_mode_names)
-
-var allowedLabels:Set<String> = HashSet(Arrays.asList(
+/**
+ * The mouse modes this display allows, with their original indexes as values. On an external
+ * display only the touchpad modes and Disabled make sense. The local cursor is a row of its own.
+ */
+fun mouseModeChoices():List<NovaOption<Int>> = NovaMouseModeChoices.options(
+modeNames = getResources().getStringArray(R.array.mouse_mode_names).toList(),
+onExternalDisplay = isOnExternalDisplay,
+externalModes = setOf(
 getString(R.string.mouse_mode_track_pad_natural),
 getString(R.string.mouse_mode_track_pad_gaming),
 getString(R.string.mouse_mode_disabled)
-))
+),
+)
 
-var options:MutableList<MouseModeOption> = ArrayList()
+/** Whether the local mouse cursor is drawn on this device, for the Mouse Mode page's switch. */
+val isLocalCursorShown:Boolean
+get() = cursorVisible
 
-for (i:Int in allModes!!.indices)
-{
-var label:String = allModes!![i]!!
-var isAllowed:Boolean = !isOnExternalDisplay || allowedLabels.contains(label)
-if (isAllowed)
-{
-options.add(MouseModeOption(i, label))
-}
-}
+/** The mouse mode in use, as the value [mouseModeChoices] marks current. */
+val currentMouseModeChoice:Int
+get() = currentMouseModeIndex
 
-options.add(MouseModeOption(-1, getString(R.string.toggle_local_mouse_cursor)))
-
-var labels:Array<String?> = arrayOfNulls<String?>(options.size)
-for (i:Int in 0 until options.size)
-{
-labels[i] = options[i].label
-}
-var optionArray:Array<MouseModeOption> = options.toTypedArray()
-
-val mouseModeDialog = AlertDialog.Builder(context)
-.setTitle(getString(R.string.game_menu_select_mouse_mode))
-.setItems(labels, { dialog, which->
-dialog!!.dismiss()
-var selected:MouseModeOption = optionArray[which]
-if (selected.index == -1)
+/** Applies a choice from [mouseModeChoices], remembering the mode when Settings asks to. */
+fun chooseMouseMode(choice:Int) {
+if (choice == NovaMouseModeChoices.LocalCursor)
 {
 toggleMouseLocalCursor()
+return
 }
-else
-{
-applyMouseMode(selected.index)
+applyMouseMode(choice)
 if (prefConfig!!.rememberMouseMode)
 {
 ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
 .edit()
-.putString("mouse_mode_list", java.lang.String.valueOf(selected.index))
+.putString("mouse_mode_list", java.lang.String.valueOf(choice))
 .apply()
 }
-} })
-.create()
-dialogWindowType?.let { windowType ->
-mouseModeDialog.window?.setType(windowType)
-}
-mouseModeDialog.window?.attributes?.token = dialogWindowToken
-mouseModeDialog.show()
 }
 
  //本地鼠标光标切换
@@ -6661,7 +6667,7 @@ block()
 private fun currentNovaCapabilities():com.papi.nova.api.PolarisCapabilities? =
 com.papi.nova.manager.FeatureFlagManager.capabilitiesForScope(novaFeatureScope)
 
-private fun novaIsPolarisServer():Boolean = currentNovaCapabilities() != null
+internal fun novaIsPolarisServer():Boolean = currentNovaCapabilities() != null
 
 private fun novaHasCursorVisibilityControl():Boolean =
 currentNovaCapabilities()?.features?.cursorVisibilityControl == true
@@ -7186,7 +7192,7 @@ val diagnosticText:String = novaHud?.getDiagnosticSummaryText()
     ?: "Nova stream diagnostics\nNo active Nova HUD sample yet. Enable Nova HUD during a stream and try again."
 val clipboard:ClipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 clipboard.setPrimaryClip(ClipData.newPlainText("Nova HUD diagnostics", diagnosticText))
-Toast.makeText(this, R.string.nova_quick_menu_hud_diagnostics_copied, Toast.LENGTH_SHORT).show()
+// The Command Center says Copied on the card that was pressed; a Toast floated over it (R6).
 }
 
 fun showNovaHud():com.papi.nova.ui.NovaStreamHud {
@@ -7206,6 +7212,8 @@ hud = com.papi.nova.ui.NovaStreamHud(this@Game) {
 showGameMenu(null)
 }
 novaHud = hud
+// A HUD turned on from the Command Center starts as dim as the panel keeps the one it replaces (XR2).
+applyNovaHudCovered()
 hud!!.show()
 syncPerfTextWanted()
 configureNovaHud(hud!!)
@@ -7215,12 +7223,65 @@ return hud!!
 private fun configureNovaHud(hud:com.papi.nova.ui.NovaStreamHud) {
 hud.setTargetFps(configuredHudTargetFps.toDouble())
 hud.setTargetBitrateKbps(configuredStreamBitrateKbps)
+hud.setLaunchPresetLabel(novaHudLaunchPresetLabel)
 if (lastPolarisSessionStatus != null)
 {
 hud.applySessionStatus(lastPolarisSessionStatus)
 }
 
 schedulePolarisLiveSessionStatusRefresh(true)
+}
+
+/**
+ * Dims the HUD while a panel over the stream covers it, and brings it back after. Kept here, not
+ * only in the HUD, so a HUD made while the panel is open is dimmed as well (XR2).
+ */
+fun setNovaHudCovered(covered:Boolean) {
+novaHudCovered = covered
+// A panel that closes takes its focused rows with it.
+if (!covered) novaHudPreviewing = false
+applyNovaHudCovered()
+}
+
+private var novaHudCovered:Boolean = false
+
+/**
+ * While a Command Center row that changes the HUD has focus (HUD Mode, HUD Opacity), the HUD shows
+ * at full strength, so the change can be seen as it is made (in-game #4).
+ */
+fun setNovaHudPreviewing(previewing:Boolean) {
+novaHudPreviewing = previewing
+applyNovaHudCovered()
+}
+
+private var novaHudPreviewing:Boolean = false
+
+private fun applyNovaHudCovered() {
+novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)
+}
+
+val novaHudPositionCorner:com.papi.nova.ui.NovaHudCorner?
+get() = novaHud?.positionCorner
+
+fun setNovaHudPosition(corner:com.papi.nova.ui.NovaHudCorner) {
+novaHud?.setPosition(corner)
+}
+
+fun resetNovaHudPosition() {
+novaHud?.resetPosition()
+}
+
+/**
+ * Where the HUD's left edge sits across the stream window, in pixels, for the Command Center's HUD
+ * rows to compare with the part of the stream the panel covers. Ask the laid-out HUD, since its
+ * saved position is relative to its safe surface and changes with layout and display size.
+ */
+val novaHudLeftPx:Float
+get() {
+return com.papi.nova.ui.NovaCommandCenterHudCorner.leftPx(
+measuredX = novaHud?.leftPx ?: Float.NaN,
+density = resources.displayMetrics.density,
+television = UiHelper.isTvDevice(this))
 }
 
 override fun cycleNovaHudFromController() {
@@ -7466,68 +7527,47 @@ return
 novaReconnectOverlay?.dismiss()
 connectionTerminated(errorCode)
 }
+ /**
+  * Ends the session for good: the host closes the app and the resumable stream goes with it.
+  * Every button that asks first (the Command Center's End Session split, the companion deck's
+  * End tile) has already asked, so this does not ask again.
+  */
+ fun endSession() {
+quitOnStop = true
+markLocalSessionEnd()
+finish()
+}
+
+ /**
+  * Asks, then ends the session. Only for paths with no button to split, such as Disconnect in a
+  * Space, which would end the Space's game session: a Confirm page with Stay focused, on the
+  * companion display when its controls are showing, and over the stream otherwise.
+  */
  fun quit() {
 val companionPresentation:ExternalDisplayControlHost? = externalDisplayControlPresentation
 ?.takeIf { it.isHostShowing() }
-val context:Context = companionPresentation?.companionDialogContext ?: this
-
-val sheet = BottomSheetDialog(context)
-if (companionPresentation != null)
-{
-sheet.window?.setType(companionPresentation.companionDialogWindowType)
-sheet.window?.attributes?.token = companionPresentation.companionDialogWindowToken()
-}
-val container = NovaSheetChrome.createSheetContainer(context)
-
-val title = TextView(context).apply {
-if (spaceSession) setText(R.string.nova_space_leave_title) else setText(R.string.game_dialog_title_quit_confirm)
-textSize = 20f
-NovaSheetChrome.styleSheetTitle(this)
-}
-container.addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-val message = TextView(context).apply {
-if (spaceSession) setText(R.string.nova_space_leave_message)
-else setText(R.string.game_dialog_message_quit_confirm)
-textSize = 15f
-setPadding(0, UiHelper.dpToPx(context, 10f).toInt(), 0, UiHelper.dpToPx(context, 18f).toInt())
-setTextColor(com.papi.nova.ui.NovaThemeManager.getTextSecondaryColor(context))
-}
-container.addView(message, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-val stay = TextView(context).apply {
-text = getString(R.string.game_dialog_action_stay_in_game)
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this)
-setOnClickListener { sheet.dismiss() }
-}
-container.addView(stay, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()))
-
-val endSession = TextView(context).apply {
-text = if (spaceSession) getString(R.string.nova_space_leave_action) else getString(R.string.game_dialog_action_end_session)
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this, destructive = true)
-setOnClickListener {
-quitOnStop = true
-markLocalSessionEnd()
-sheet.dismiss()
-finish()
-}
-}
-container.addView(endSession, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()).apply {
-topMargin = UiHelper.dpToPx(context, 10f).toInt()
-})
-
-sheet.setContentView(container)
-sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
-sheet.show()
-NovaSheetChrome.applyBottomSheetChrome(sheet, container)
+val surfaces = companionPresentation?.let { ExternalDisplayControlController.surfacesFor(it) } ?: novaSurfaces
+surfaces.present(
+NovaCommonPage.Confirm(
+key = END_SESSION_PAGE,
+title = getString(if (spaceSession) R.string.nova_space_leave_title else R.string.game_dialog_title_quit_confirm),
+message = androidx.compose.ui.text.AnnotatedString(
+getString(if (spaceSession) R.string.nova_space_leave_message else R.string.game_dialog_message_quit_confirm)
+),
+stayLabel = getString(R.string.nova_panel_stay),
+actionLabel = getString(if (spaceSession) R.string.nova_space_leave_action else R.string.game_dialog_action_end_session),
+destructive = true,
+onConfirm = { endSession() },
+)
+)
 }
 override fun showGameMenu(device:GameInputDevice?) {
 showGameMenuFromDisplay(INVALID_DISPLAY_ID, device)
 }
 
 fun showGameMenuFromDisplay(originDisplayId:Int, device:GameInputDevice?) {
+// An on-screen keys editor's Clear All left armed under the Command Center is taken back first.
+keyBoardController?.disarmEditControls()
 val companionPresentation = externalDisplayControlPresentation
 val presentation = companionPresentation?.takeIf { it.isCompanionDisplayAvailable() }
 val companionDisplayId = if (presentation != null && companionControlDisplayId != INVALID_DISPLAY_ID)
@@ -7579,7 +7619,8 @@ externalDisplayControlPresentation?.hideGameMenu()
 }
 
 private fun updateFloatingButtonVisibility(show:Boolean) {
-floatingMenuButton!!.setVisibility(if (show) View.VISIBLE else View.GONE)
+// The touch menu button is for touch players: never shown without a touchscreen or on a TV.
+floatingMenuButton!!.setVisibility(if (show && com.papi.nova.ui.NovaTouchMenuButton.available(this)) View.VISIBLE else View.GONE)
 }
  fun toggleFloatingButtonVisibility() {
 if (floatingMenuButton != null)
@@ -7671,6 +7712,8 @@ return null
 }
 
 companion object {
+/** The RTSP answer of a host that reached the launch and refused to start the stream. */
+private const val RTSP_SERVICE_UNAVAILABLE = 503
  @JvmField var instance:Game? = null
  @JvmField @Volatile var isStreamActive:Boolean = false
 
@@ -7713,6 +7756,10 @@ companion object {
  private const val FIVE_FINGER_TAP_THRESHOLD:Int = 300
  private const val NOVA_PROGRESS_READY_DISMISS_DELAY_MS:Long = 350L
  private const val INVALID_DISPLAY_ID:Int = -1
+ private const val LAUNCH_ISSUE_PAGE:String = "nova-launch-issue"
+ private const val END_SESSION_PAGE:String = "nova-end-session"
+ /** How long a sent key combination is held before its keys are released, last first. */
+ const val SENT_KEY_UP_DELAY_MS:Long = 25
 
  const val EXTRA_HOST:String = "Host"
  const val EXTRA_PORT:String = "Port"

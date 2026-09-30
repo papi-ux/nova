@@ -1028,7 +1028,8 @@ class NvHTTP @Throws(IOException::class) constructor(
             // old .toLong() threw). It is just another error status, so surface it as
             // the HostHttpResponseException the connect/launch path already catches
             // (displayMessage + stageFailed + retry) instead of taking down the app.
-            var statusMsg = xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "status_message")
+            val hostMessage = xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "status_message")
+            var statusMsg = hostMessage
                 ?: "Unknown error (host response was missing status_message)"
             var statusCode = xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "status_code")?.toLongOrNull()?.toInt()
                 ?: throw HostHttpResponseException(418, "Malformed response from host (missing status_code): $statusMsg")
@@ -1049,7 +1050,9 @@ class NvHTTP @Throws(IOException::class) constructor(
                     xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "watch_bit_depth"),
                     xpp.getAttributeValue(XmlPullParser.NO_NAMESPACE, "watch_codec"),
                 )
-                throw HostHttpResponseException(statusCode, statusMsg, hostCode, hostAction, watchProfile)
+                // The host's own words, unless Nova put its own in their place above.
+                val statusMessage = hostMessage.takeIf { statusMsg == it }
+                throw HostHttpResponseException(statusCode, statusMsg, hostCode, hostAction, watchProfile, statusMessage)
             }
         }
 

@@ -73,7 +73,7 @@ class NovaDisplayResolutionPlannerTest {
 
         // Native is this device's own size, so This Device is that row and it is not offered twice.
         assertEquals(
-            listOf("This Device", "Balanced", "Sharp", "Performance"),
+            listOf("Saved Size", "Balanced", "Sharp", "Performance"),
             planner.visibleChoices.map { it.title },
         )
         assertEquals(
@@ -156,11 +156,69 @@ class NovaDisplayResolutionPlannerTest {
     @Test
     fun resolutionLabelDropsTheHostRateAndKeepsOddModesVerbatim() {
         // The trailing rate is the host's plan, not this row's decision; a mode the
-        // parser does not recognize is shown as served rather than mangled.
-        assertEquals("1280x800", NovaDisplayResolutionPlanner.resolutionLabel("1280x800x90"))
-        assertEquals("1920x1080", NovaDisplayResolutionPlanner.resolutionLabel("1920x1080x59.94"))
-        assertEquals("1920x1080", NovaDisplayResolutionPlanner.resolutionLabel("1920x1080"))
+        // parser does not recognize is shown as served rather than mangled. A size is
+        // written with the one multiplication sign Play Setup uses everywhere.
+        assertEquals("1280\u00d7800", NovaDisplayResolutionPlanner.resolutionLabel("1280x800x90"))
+        assertEquals("1920\u00d71080", NovaDisplayResolutionPlanner.resolutionLabel("1920x1080x59.94"))
+        assertEquals("1920\u00d71080", NovaDisplayResolutionPlanner.resolutionLabel("1920x1080"))
+        assertEquals("native", NovaDisplayResolutionPlanner.resolutionLabel("native"))
         assertEquals("", NovaDisplayResolutionPlanner.resolutionLabel(""))
+        assertEquals(3840 to 2160, NovaDisplayResolutionPlanner.resolutionSize("3840x2160x120"))
+        assertEquals(null, NovaDisplayResolutionPlanner.resolutionSize("native"))
+    }
+
+    /** The host's own scale factors, as Polaris serves them beside its presets. */
+    private fun scaleFactors(vararg scales: Pair<Double, Boolean>) = scales.map { (scale, safe) ->
+        PolarisGame.DisplayPlannerScaleChoice(
+            scaleFactor = scale,
+            label = if (scale % 1.0 == 0.0) "${scale.toInt()}x" else "${scale}x",
+            targetMode = "",
+            safe = safe,
+        )
+    }
+
+    // The mockup's Resolution page: 2x is 4K on a 1080p handheld, and no preset reaches it. The
+    // host has sent advanced_scale_factors all along, and nothing read them.
+    @Test
+    fun theHostsScaleFactorsAreOfferedFromThisDeviceWhereNoPresetAlreadyIs() {
+        val planner = NovaDisplayResolutionPlanner.from(
+            contract = hostContract().copy(
+                advancedScaleFactors = scaleFactors(0.5 to true, 0.75 to true, 1.0 to true, 1.25 to true, 1.5 to true, 2.0 to true),
+            ),
+            fallbackMode = "",
+            includeAdvanced = true,
+            device = NovaDisplayResolutionPlanner.DeviceMode(1920, 1080, 120),
+        )
+
+        assertEquals(
+            "a scale that lands on This Device or a preset's size is that row, not a second one",
+            listOf("device_settings", "balanced", "sharp", "performance", "scale_1.25x", "scale_2x"),
+            planner.visibleChoices.map { it.id },
+        )
+        val twice = planner.visibleChoices.first { it.id == "scale_2x" }
+        assertEquals("2x", twice.title)
+        // Shown with the multiplication sign; the id a saved choice is found by keeps the x.
+        assertEquals("2×", NovaDisplayResolutionPlanner.displayTitle(twice.title))
+        assertEquals("1.25×", NovaDisplayResolutionPlanner.displayTitle("1.25x"))
+        assertEquals("Sharp", NovaDisplayResolutionPlanner.displayTitle("Sharp"))
+        assertEquals("3840x2160x120", twice.targetMode)
+        assertTrue("a scale is never the default", !twice.recommended && twice.advanced)
+        assertEquals("a saved 2x comes back on the next open", twice, resolveSavedResolutionChoice("scale_2x", planner.visibleChoices))
+    }
+
+    @Test
+    fun aScaleTheHostCallsUnsafeOrPastTheEnvelopeIsNotOffered() {
+        val contract = hostContract().copy(advancedScaleFactors = scaleFactors(2.0 to false, 3.0 to true, 5.0 to true))
+        val planner = NovaDisplayResolutionPlanner.from(contract, "", includeAdvanced = true, device = NovaDisplayResolutionPlanner.DeviceMode(1920, 1080, 60))
+
+        assertTrue("the host said 2x is unsafe", planner.visibleChoices.none { it.id == "scale_2x" })
+        assertEquals("5760x3240x60", planner.visibleChoices.first { it.id == "scale_3x" }.targetMode)
+        assertTrue("5x of 1080p is past 8K", planner.visibleChoices.none { it.id == "scale_5x" })
+        assertTrue(
+            "scales are advanced, so they wait until asked for like the host's Sharp preset",
+            NovaDisplayResolutionPlanner.from(contract, "", includeAdvanced = false, device = NovaDisplayResolutionPlanner.DeviceMode(1920, 1080, 60))
+                .visibleChoices.none { it.id.startsWith(NovaDisplayResolutionPlanner.SCALE_ID_PREFIX) },
+        )
     }
 
     @Test

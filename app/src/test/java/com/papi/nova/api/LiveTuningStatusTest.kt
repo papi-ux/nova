@@ -108,6 +108,33 @@ class LiveTuningStatusTest {
         } finally { release.countDown(); pool.shutdownNow() }
     }
 
+    /**
+     * Review finding 7 at the HTTP layer: the save asks the host for the state it was given, Off
+     * for Off and On for On, for the session it was asked about. A body that flipped it turned
+     * Turn Off into On with every test above it still passing.
+     */
+    @Test fun aLiveTuningSaveAsksTheHostForTheStateItWasGiven() {
+        val client = PolarisApiClient(androidx.test.core.app.ApplicationProvider.getApplicationContext(), "127.0.0.1", 47984)
+        val bodies = java.util.Collections.synchronizedList(mutableListOf<JSONObject>())
+        val intercepted = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            val sent = okio.Buffer()
+            request.body?.writeTo(sent)
+            bodies.add(JSONObject(sent.readUtf8()))
+            okhttp3.Response.Builder().request(request).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK")
+                .body(okhttp3.ResponseBody.create(null, "{\"status\":true}")).build()
+        }.build()
+        PolarisApiClient::class.java.getDeclaredField("client").apply { isAccessible = true }.set(client, intercepted)
+        val status = PolarisSessionStatus(state = "streaming", ownedByClient = true, appSessionId = "owner", sessionGeneration = 7)
+
+        assertTrue(client.setLiveTuningEnabled(false, status))
+        assertTrue(client.setLiveTuningEnabled(true, status))
+
+        assertEquals(listOf(false, true), bodies.map { it.getBoolean("enabled") })
+        assertEquals(listOf("owner", "owner"), bodies.map { it.getString("app_session_id") })
+        assertEquals(listOf(7L, 7L), bodies.map { it.getLong("session_generation") })
+    }
+
     @Test fun menuConsumerDoesNotHoldTheApiMonitorWhileWaitingForDoctorState() {
         val client = PolarisApiClient(androidx.test.core.app.ApplicationProvider.getApplicationContext(), "127.0.0.1", 47984)
         val publish = PolarisApiClient::class.java.getDeclaredMethod("publishStatus", PolarisSessionStatus::class.java).apply { isAccessible = true }

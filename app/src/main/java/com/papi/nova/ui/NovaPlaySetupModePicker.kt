@@ -1,54 +1,28 @@
 package com.papi.nova.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.papi.nova.R
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.shared.polaris.model.PolarisGame
-import com.papi.nova.ui.compose.LocalNovaComposeColors
-import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
-import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.NovaSectionLabel
 
 /** One selectable mode in the picker: the host catalog entry plus its standing here. */
 internal data class NovaPlaySetupModeChoice(
     val id: String,
     val label: String,
-    /** What choosing it means — or, when unavailable, the host's reason it cannot be. */
+    /** What choosing it means, or, when unavailable, the host's reason it cannot be. */
     val detail: String,
     /** Registry grouping: "private" or "host"; anything else bands together at the end. */
     val group: String,
@@ -60,6 +34,8 @@ internal data class NovaPlaySetupModeChoice(
     val hostDefaultOnly: Boolean = false,
     /** The provider's advisory pick from the current optimization payload; never auto-applied. */
     val aiRecommended: Boolean = false,
+    /** Nova's own recommendation, which leads its note with "Recommended" in accent. */
+    val recommended: Boolean = false,
 )
 
 internal data class NovaPlaySetupModeBand(
@@ -107,7 +83,7 @@ internal fun novaModePickerBands(choices: List<NovaPlaySetupModeChoice>): List<N
     return bands
 }
 
-/** Every Game: the host catalog verbatim — pick sets the host's Default Display. */
+/** Every Game: the host catalog verbatim; a pick sets the host's Default Display. */
 internal fun buildHostModePickerState(
     modes: List<NovaPolarisModeUiState>,
     title: String,
@@ -134,7 +110,7 @@ internal fun buildHostModePickerState(
 
 /**
  * This Game: the host catalog cut down to what this game's contract allows, with the
- * saved per-game override (not the resolved playMode) as the current card — because the
+ * saved per-game override (not the resolved playMode) as the current card, because the
  * picker edits the override, and the pinned Host default entry is "no override".
  */
 internal fun buildGameModePickerState(
@@ -147,6 +123,8 @@ internal fun buildGameModePickerState(
     aiRecommendedMode: String = "",
     hostDefaultOnlyDetail: String = "",
     plainModeDetails: Map<String, String> = emptyMap(),
+    /** The modes Nova recommends: the private one, which leaves the host's desktop alone. */
+    recommendedModes: Set<String> = setOf(PolarisClientSettings.MODE_HEADLESS_STREAM),
 ): NovaPlaySetupModePickerState {
     val allowed = allowedModes.map { PolarisGame.normalizeLaunchMode(it) }.toSet()
     return NovaPlaySetupModePickerState(
@@ -183,278 +161,121 @@ internal fun buildGameModePickerState(
                     hostDefaultOnly = hostDefaultOnly,
                     aiRecommended = mode.available && !hostDefaultOnly &&
                         aiRecommendedMode.isNotBlank() && mode.mode == aiRecommendedMode,
+                    recommended = mode.available && !hostDefaultOnly && normalizedMode in recommendedModes,
                 )
             },
     )
 }
 
 /**
- * The picker owns the panel body the way the desktop-Steam decision does: choosing where
- * a game runs is the one moment nothing else on the screen matters. Unlike the
- * comparison strip below the rows — a legend, deliberately not a focus target — these
- * cards ARE the surface, so they take d-pad focus; a disabled card still takes it so a
- * controller can read the host's reason in the footer, it just does nothing on press.
+ * One row per mode, banded private first and host display second, with the pinned Host default
+ * entry above them when there is a host to follow.
+ *
+ * Focus and current are two things (R9): the ring and the selection fill are focus, and the one
+ * current choice carries the trailing check, a SemiBold label and Current for TalkBack. Each row
+ * says in full what choosing it means, so there is no footer to read it from. A mode the host will
+ * not take stays a stop so its reason can be read, and swallows A; a mode that is only a host
+ * default opens Polaris settings instead of picking. [rowModifier] marks a row by its key, and
+ * whether it is the one that should take focus when the list opens: the current choice, or the
+ * first that can be chosen.
+ *
+ * Every entry is a Play Setup option row, as the places above it are, so the page has one row
+ * style: title and check on the first line, the note under it, "Recommended" leading Nova's own
+ * pick in accent. With [bandHostDefault], as when the places are drawn above, Host default heads
+ * a band of its own, so it never reads as a fourth place.
  */
 @Composable
-internal fun NovaPlaySetupModePicker(
+internal fun NovaPlaySetupModeList(
     state: NovaPlaySetupModePickerState,
     onPick: (String) -> Unit,
     onPickHostDefault: (() -> Unit)?,
     onConfigureHost: () -> Unit = {},
+    rowModifier: (key: String, initial: Boolean) -> Modifier = { _, _ -> Modifier },
+    bandHostDefault: Boolean = false,
 ) {
-    val colors = LocalNovaComposeColors.current
-    var footer by remember(state) {
-        mutableStateOf(state.choices.firstOrNull { it.current }?.detail.orEmpty())
+    val hostDefaultShown = state.hostDefaultLabel != null && onPickHostDefault != null
+    val initialKey = when {
+        hostDefaultShown && state.hostDefaultCurrent -> HOST_DEFAULT_KEY
+        else -> state.choices.firstOrNull { it.current }?.id
+            ?: state.choices.firstOrNull { it.enabled || it.hostDefaultOnly }?.id
+            ?: HOST_DEFAULT_KEY.takeIf { hostDefaultShown }
     }
+    val hostDefaultTitle = stringResource(R.string.nova_play_setup_fact_host_default)
+    val activeNow = stringResource(R.string.nova_polaris_sync_status_active_now)
+    val aiPick = stringResource(R.string.nova_play_setup_ai_pick)
+    val openSettings = stringResource(R.string.nova_play_setup_mode_open_host_settings)
+    val hostOnlyBadge = stringResource(R.string.nova_play_setup_mode_host_default_only_badge)
+    val currentHostBadge = stringResource(R.string.nova_play_setup_mode_current_host_default_badge)
+    val bandLabels = mapOf(
+        "private" to stringResource(R.string.nova_play_setup_band_private),
+        "host" to stringResource(R.string.nova_play_setup_band_host),
+    )
+    val hostDefaultBand = stringResource(R.string.nova_play_setup_band_how_it_runs)
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        NovaPlaySetupColumnHead(state.title)
-
-        if (state.hostDefaultLabel != null && onPickHostDefault != null) {
-            NovaPlaySetupModeHostDefaultCard(
-                label = stringResource(R.string.nova_play_setup_fact_host_default),
-                detail = state.hostDefaultLabel,
-                current = state.hostDefaultCurrent,
-                onPick = onPickHostDefault,
-                onFocusedDetail = { footer = it },
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        novaModePickerBands(state.choices).forEach { band ->
-            when (band.group) {
-                "private" -> NovaPlaySetupColumnHead(stringResource(R.string.nova_play_setup_band_private))
-                "host" -> NovaPlaySetupColumnHead(stringResource(R.string.nova_play_setup_band_host))
-                // A blank or future group carries no header rather than a made-up one.
-                else -> Unit
-            }
-            band.choices.chunked(3).forEachIndexed { chunkIndex, chunk ->
-                if (chunkIndex > 0) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    chunk.forEach { choice ->
-                        NovaPlaySetupModeCard(
-                            choice = choice,
-                            onPick = { onPick(choice.id) },
-                            onConfigureHost = onConfigureHost,
-                            onFocusedDetail = { footer = it },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // The focused card's full story — this line is why the cards themselves can stay
-        // one status line tall, and where an unavailable mode's host reason is quoted.
-        Text(
-            text = footer,
-            color = colors.textMuted,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 28.dp)
-                .padding(top = 2.dp),
-        )
-    }
-}
-
-@Composable
-private fun NovaPlaySetupModeCard(
-    choice: NovaPlaySetupModeChoice,
-    onPick: () -> Unit,
-    onConfigureHost: () -> Unit,
-    onFocusedDetail: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(NovaRadius.row)
-    var focused by remember { mutableStateOf(false) }
-    val interactive = choice.enabled || choice.hostDefaultOnly
     Column(
-        modifier = modifier
-            .onFocusChanged {
-                focused = it.isFocused
-                if (it.isFocused) {
-                    onFocusedDetail(choice.detail)
-                }
-            }
-            // One focus target per card: clickable() brings its own, and stacking a
-            // bare focusable() in front of it gave the d-pad a second, click-less stop.
-            // Focus parked there, so A/DPAD_CENTER activated nothing and traversal
-            // stepped twice per card. Disabled cards keep the plain focusable() so a
-            // controller can still read the host's reason in the footer.
-            .then(
-                if (interactive) {
-                    Modifier.clickable(role = Role.Button) {
-                        if (choice.enabled) onPick() else onConfigureHost()
-                    }
-                } else {
-                    Modifier
-                        // A disabled card remains focusable so its host-supplied reason
-                        // can be read, but activation must stop here. Otherwise Compose
-                        // bubbles the controller key to an ancestor, which can activate
-                        // the mode row underneath the full-panel picker.
-                        .onPreviewKeyEvent { event ->
-                            event.key == Key.ButtonA ||
-                                event.key == Key.DirectionCenter ||
-                                event.key == Key.Enter ||
-                                event.key == Key.NumPadEnter ||
-                                event.key == Key.Spacebar
-                        }
-                        .focusable()
-                }
-            )
-            .heightIn(min = NovaGameDetailActionHeight)
-            .clip(shape)
-            .background(if (choice.current) colors.accentSurface else surfaces.tile)
-            .border(
-                1.dp,
-                when {
-                    focused -> colors.accent
-                    choice.current -> colors.accent.copy(alpha = 0.58f)
-                    choice.active -> colors.accent.copy(alpha = 0.34f)
-                    else -> surfaces.tileBorder
-                },
-                shape,
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .semantics {
-                contentDescription = when {
-                    choice.hostDefaultOnly -> {
-                        val state = if (choice.active) {
-                            "Current host default"
-                        } else {
-                            "Host default only"
-                        }
-                        "${choice.label}. $state. ${choice.detail} Open Polaris Settings."
-                    }
-                    choice.aiRecommended -> "${choice.label}. Host match. ${choice.detail}"
-                    else -> "${choice.label}. ${choice.detail}"
-                }
-                if (choice.current) selected = true
-            },
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = choice.label,
-                color = if (interactive) colors.textPrimary else colors.textMuted,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+        if (hostDefaultShown) {
+            val detail = state.hostDefaultLabel.orEmpty()
+            if (bandHostDefault) NovaSectionLabel(hostDefaultBand)
+            NovaPlaySetupOptionRow(
+                option = NovaPlaySetupOption(
+                    label = hostDefaultTitle,
+                    consequence = detail,
+                    current = state.hostDefaultCurrent,
+                    onSelect = { onPickHostDefault() },
+                ),
+                onPick = { onPickHostDefault() },
+                modifier = rowModifier(HOST_DEFAULT_KEY, initialKey == HOST_DEFAULT_KEY)
+                    .semantics { contentDescription = "$hostDefaultTitle. $detail" },
             )
-            if (choice.hostDefaultOnly) {
-                Text(
-                    text = stringResource(
-                        if (choice.active) {
-                            R.string.nova_play_setup_mode_current_host_default_badge
-                        } else {
-                            R.string.nova_play_setup_mode_host_default_only_badge
-                        },
+        }
+        novaModePickerBands(state.choices).forEach { band ->
+            // A blank or future group carries no label rather than a made-up one.
+            bandLabels[band.group]?.let { NovaSectionLabel(it) }
+            band.choices.forEach { choice ->
+                val badge = when {
+                    choice.hostDefaultOnly -> if (choice.active) currentHostBadge else hostOnlyBadge
+                    choice.aiRecommended -> aiPick
+                    choice.active && !choice.current -> activeNow
+                    else -> null
+                }
+                val caption = listOfNotNull(badge, choice.detail.takeIf { it.isNotBlank() }).joinToString(" · ")
+                val interactive = choice.enabled || choice.hostDefaultOnly
+                val act = { if (choice.enabled) onPick(choice.id) else if (choice.hostDefaultOnly) onConfigureHost() }
+                NovaPlaySetupOptionRow(
+                    option = NovaPlaySetupOption(
+                        label = choice.label,
+                        consequence = caption,
+                        current = choice.current,
+                        // A host-only mode is pressed to open the host's settings, so it acts.
+                        enabled = interactive,
+                        onSelect = if (interactive) act else null,
+                        recommended = choice.recommended,
                     ),
-                    color = if (choice.active) colors.accent else colors.textMuted,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    modifier = Modifier.padding(start = 6.dp),
-                )
-            } else if (choice.aiRecommended) {
-                Text(
-                    text = stringResource(R.string.nova_play_setup_ai_pick),
-                    color = colors.accent,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    modifier = Modifier.padding(start = 6.dp),
+                    onPick = act,
+                    // A mode the host will not take stays a stop, so its reason can be read.
+                    focusableWhenDisabled = true,
+                    opens = choice.hostDefaultOnly && !choice.current,
+                    modifier = rowModifier(choice.id, initialKey == choice.id)
+                        .semantics {
+                            contentDescription = when {
+                                choice.hostDefaultOnly -> {
+                                    "${choice.label}. $badge. ${choice.detail} $openSettings."
+                                }
+                                choice.aiRecommended -> "${choice.label}. $aiPick. ${choice.detail}"
+                                else -> "${choice.label}. ${choice.detail}"
+                            }
+                        }
+                        // A row that cannot be chosen keeps every key a card would have acted on,
+                        // so none reaches the row that opened this list.
+                        .then(if (interactive) Modifier else Modifier.onPreviewKeyEvent { it.key == Key.Spacebar }),
                 )
             }
-        }
-        Text(
-            text = choice.detail,
-            color = if (choice.active && !choice.current) colors.accent else colors.textMuted,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        if (choice.hostDefaultOnly) {
-            Text(
-                text = stringResource(R.string.nova_play_setup_mode_open_host_settings),
-                color = colors.accent,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                modifier = Modifier.padding(top = 3.dp),
-            )
         }
     }
 }
 
-@Composable
-private fun NovaPlaySetupModeHostDefaultCard(
-    label: String,
-    detail: String,
-    current: Boolean,
-    onPick: () -> Unit,
-    onFocusedDetail: (String) -> Unit,
-) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    val shape = RoundedCornerShape(NovaRadius.row)
-    var focused by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .onFocusChanged {
-                focused = it.isFocused
-                if (it.isFocused) {
-                    onFocusedDetail(detail)
-                }
-            }
-            .clickable(role = Role.Button) { onPick() }
-            .clip(shape)
-            .background(if (current) colors.accentSurface else surfaces.tile)
-            .border(
-                1.dp,
-                when {
-                    focused -> colors.accent
-                    current -> colors.accent.copy(alpha = 0.58f)
-                    else -> surfaces.tileBorder
-                },
-                shape,
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .semantics {
-                contentDescription = "$label. $detail"
-                if (current) selected = true
-            },
-    ) {
-        Text(
-            text = label,
-            color = colors.textPrimary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = detail,
-            color = colors.textMuted,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
+/** The key of the pinned Host default entry among the mode ids. */
+private const val HOST_DEFAULT_KEY = "nova-host-default"

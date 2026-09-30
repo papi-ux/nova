@@ -2,13 +2,14 @@ package com.papi.nova.ui.compose
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Focus and selection are different states and have to look different.
  *
- * Nothing enforced that, and five places had merged them — two of them by writing
+ * Nothing enforced that, and five places had merged them, two of them by writing
  * `focused || selected` as a single branch, which is the merge stated outright.
  */
 class NovaFocusSelectionTest {
@@ -32,7 +33,7 @@ class NovaFocusSelectionTest {
                 "says what is chosen. A condition that covers both draws them identically, " +
                 "so an unfocused selected item reads as focused and two things on screen " +
                 "claim to be where you are. Give them separate branches: focus takes the " +
-                "fill and the ring, selection takes accentSurface and the accent border.\n" +
+                "fill and the ring, and the current value takes the one check (R9).\n" +
                 offenders.joinToString("\n"),
             emptyList<String>(),
             offenders
@@ -60,8 +61,8 @@ class NovaFocusSelectionTest {
 
         assertEquals(
             "Two `when` arms, one testing focus and one testing selection, returning the " +
-                "same colour is the same merge written out longhand — NovaSelectableChip " +
-                "did exactly this, and it backs every filter, sort and layout chip.\n" +
+                "same colour is the same merge written out longhand. NovaSelectableChip " +
+                "did exactly this, and it backed every filter, sort and layout chip.\n" +
                 offenders.joinToString("\n"),
             emptyList<String>(),
             offenders
@@ -69,16 +70,21 @@ class NovaFocusSelectionTest {
     }
 
     @Test
-    fun theActionButtonSelectedFlagIsVisibleAndNotJustSemantic() {
+    fun theActionButtonSelectedFlagIsTheCheckAndNeverAFill() {
         val source = File("src/main/java/com/papi/nova/ui/compose/NovaFocusComponents.kt").readText()
-        val button = source.substringAfter("fun NovaActionButton(")
+        val surface = source.substringAfter("fun NovaActionSurface(")
 
-        // `selected` reached the semantics tree and no colour branch, so it was announced to
-        // TalkBack and invisible on screen. Call sites compensated by passing `primary = true`
-        // to mean selected, which is how that flag came to carry two meanings.
+        // `selected` once reached the semantics tree and no drawing at all, so it was announced to
+        // TalkBack and invisible on screen, and call sites passed `primary = true` to mean selected,
+        // which is how that flag came to carry two meanings. It then took the accentSurface fill,
+        // but fills and borders only ever mean focus (R9), so it now draws the one current mark.
         assertTrue(
-            "NovaActionButton's selected flag has to change what is drawn, not only what is announced",
-            button.contains("selected && enabled -> colors.accentSurface")
+            "NovaActionButton's selected flag has to change what is drawn, not only what is announced: the check",
+            surface.contains("if (selected)") && surface.contains("NovaCurrentMark()")
+        )
+        assertFalse(
+            "a selected button takes no fill of its own; the fill means focus (R9)",
+            surface.contains("selected && enabled ->") || surface.contains("colors.accentSurface")
         )
     }
 

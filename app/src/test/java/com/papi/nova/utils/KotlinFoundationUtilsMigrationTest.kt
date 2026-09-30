@@ -18,7 +18,6 @@ class KotlinFoundationUtilsMigrationTest {
             "NetHelper",
             "TrafficStatsHelper",
             "Vector2d",
-            "MouseModeOption",
             "KeyConfigHelper"
         )
 
@@ -64,11 +63,9 @@ class KotlinFoundationUtilsMigrationTest {
     }
 
     @Test
-    fun mouseModeOptionKeepsPublicFieldsAndLabelString() {
-        val option = MouseModeOption(2, "Trackpad")
-
-        assertEquals(2, option.index)
-        assertEquals("Trackpad", option.label)
-        assertEquals("Trackpad", option.toString())
+    fun mouseModeOptionWentWithTheLegacyMouseList() {
+        // Mouse Mode is a Choice page built by NovaMouseModeChoices; nothing reads MouseModeOption.
+        assertFalse(File("src/main/java/com/papi/nova/utils/MouseModeOption.kt").exists())
+        assertFalse(File("src/main/java/com/papi/nova/utils/MouseModeOption.java").exists())
     }
 }

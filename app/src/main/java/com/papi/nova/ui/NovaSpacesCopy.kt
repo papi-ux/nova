@@ -79,7 +79,7 @@ internal object NovaSpacesCopy {
      * What the library's Space control shows, from the host's words only: a caption, the
      * current name, an optional status and whether there is anything to choose.
      *
-     * Desktop is not a Space, so its caption names the computer instead of calling it "Your
+     * Desktop is not a Space, so its caption names the host instead of calling it "Your
      * Space". While a change is on the wire the caption says so in place of the usual word.
      */
     fun environmentLabel(snapshot: PolarisSpaces, statusKnown: Boolean = true, changing: Boolean = false): NovaEnvironmentLabel {

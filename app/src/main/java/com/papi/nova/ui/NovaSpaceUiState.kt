@@ -5,6 +5,12 @@ import com.papi.nova.shared.polaris.model.PolarisGame
 
 /** Space identity comes from the paired host contract, never a display name. */
 internal object NovaSpaceUiState {
+    /** Resolve the original retry title, without changing the dedicated legacy home layout. */
+    fun retryTarget(games: List<PolarisGame>, identity: String): PolarisGame? =
+        games.firstOrNull { game ->
+            isSpace(game) && (game.id == identity ||
+                WorkerLaunchContract.isLegacyProfileApp(identity) && WorkerLaunchContract.isLegacyProfileApp(game.id))
+        }
     enum class Availability { AVAILABLE, RESUMABLE, IN_USE }
 
     fun isSpace(game: PolarisGame): Boolean = WorkerLaunchContract.isProfileApp(game.id)

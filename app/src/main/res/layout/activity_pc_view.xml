@@ -616,10 +616,15 @@
                         android:textColor="?android:textColorSecondary"
                         android:textSize="12sp" />
 
+                    <!-- Not a focus stop itself: it took focus and drew the grey default
+                         highlight, and the chips inside could not be reached (R7). -->
                     <HorizontalScrollView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
+                        android:defaultFocusHighlightEnabled="false"
+                        android:descendantFocusability="afterDescendants"
+                        android:focusable="false"
                         android:scrollbars="none">
 
                         <LinearLayout

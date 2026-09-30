@@ -9,7 +9,7 @@ import com.google.gson.reflect.TypeToken
 import com.papi.nova.LimeLog
 import java.io.File
 import java.io.FileReader
-import java.io.FileWriter
+import java.io.FileOutputStream
 import java.io.IOException
 import java.util.UUID
 
@@ -24,6 +24,7 @@ class ProfilesManager private constructor() {
     private val persistenceExecutor=java.util.concurrent.Executors.newSingleThreadExecutor { task ->
         Thread(task,"NovaProfileWriter").apply { isDaemon=true }
     }
+    internal var openProfileWriter: (File) -> FileOutputStream = { FileOutputStream(it) }
 
     fun load(context: Context?): Boolean {
         LimeLog.info("ArtemisProfile: Loading profile...")
@@ -91,7 +92,7 @@ class ProfilesManager private constructor() {
         try {
             val dir=File(context.filesDir,PROFILES_DIR)
             check(dir.exists() || dir.mkdirs())
-            File(dir,PROFILES_FILE).writeText(json)
+            NovaProfileFile.write(File(dir, PROFILES_FILE), json, openProfileWriter)
             true
         } catch(error:Exception) {
             LimeLog.warning("Nova: Could not save profiles: ${error.message}")
@@ -130,6 +131,23 @@ class ProfilesManager private constructor() {
     }
 
     internal fun awaitDeferredWritesForTest() = persistenceExecutor.submit {}.get(5,java.util.concurrent.TimeUnit.SECONDS)
+
+    /**
+     * Puts [profile] in place of the preset with its id, or adds it, and keeps it only if the file
+     * saves. A failed save puts back what was there and returns false, so the list never shows a
+     * preset the file does not have. Listeners hear only a change that was kept.
+     */
+    fun commit(context: Context, profile: SettingsProfile): Boolean {
+        val id = profile.getUuid()
+        val previous = profiles[id]
+        profiles[id] = profile
+        if (!save(context)) {
+            if (previous != null) profiles[id] = previous else profiles.remove(id)
+            return false
+        }
+        notifyListeners()
+        return true
+    }
 
     fun delete(uuid: UUID?) {
         profiles.remove(uuid)

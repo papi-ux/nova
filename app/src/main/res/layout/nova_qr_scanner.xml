@@ -12,34 +12,47 @@
         android:layout_height="match_parent"
         app:zxing_scanner_layout="@layout/nova_qr_viewfinder" />
 
-    <!-- Bottom instruction card -->
+    <!-- What to do, on a panel attached to the bottom edge. NovaQrScanActivity gives it the
+         theme's panel colour and drawer corners, and pads it clear of the navigation bar. -->
     <LinearLayout
+        android:id="@+id/qr_panel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:background="@drawable/nova_sheet_bg"
         android:padding="24dp"
         android:gravity="center">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Scan Pairing Code"
+            android:text="@string/hosts_qr_title"
             android:textSize="18sp"
             android:textColor="?attr/colorOnSurface"
             android:fontFamily="sans-serif-medium"
+            android:gravity="center"
             android:paddingBottom="8dp" />
 
         <TextView
             android:id="@+id/scanner_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Point camera at the QR code on your Polaris server"
+            android:text="@string/hosts_qr_hint"
             android:textSize="13sp"
             android:textColor="?android:attr/textColorSecondary"
             android:fontFamily="sans-serif"
             android:gravity="center" />
+
+        <!-- Close, for touch: B already leaves, and a phone with no controller had no way out
+             but the system Back. -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/qr_close"
+            style="@style/NovaTonalPillButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginTop="16dp"
+            android:focusable="true"
+            android:text="@string/nova_panel_close" />
     </LinearLayout>
 
 </FrameLayout>

@@ -55,10 +55,10 @@ class NovaGameDetailOverviewLayoutTest {
         // The Retroid ships at 0.85: the circle the hint row lines up on stays its size.
         assertEquals(20.dp, novaKeyChipSize(20.dp, fontScale = 0.85f))
         assertTrue(
-            "the page's footer and the library's hint row both cut their letters in half at a font scale of 1.5",
+            "the page's footer and the library's hint row both cut their letters in half at a font scale of 1.5; " +
+                "the library's row is the panel hint bar now (N13), whose key chips are padded text that grows with it",
             read("NovaGameDetailOverview.kt").contains("val chip = novaKeyChipSize(20.dp)") &&
-                read("NovaLibraryCinematicChrome.kt")
-                    .contains(".size(novaKeyChipSize(if (hint.key.length <= 2) 20.dp else 28.dp))")
+                read("NovaLibraryCinematicChrome.kt").contains("NovaPanelHintBar(hints = hints)")
         )
     }
 
@@ -75,8 +75,8 @@ class NovaGameDetailOverviewLayoutTest {
         assertTrue(
             "one margin for the page and the panels that open over it, and a television keeps the wider one",
             page.contains("val inset = novaGameDetailWindowInset()") &&
-                page.contains(".padding(start = inset, end = inset, bottom = NOVA_GAME_DETAIL_FLOOR_GAP)") &&
-                page.contains(".padding(horizontal = inset, vertical = NOVA_GAME_DETAIL_FLOOR_GAP)") &&
+                page.contains(".padding(start = inset, end = inset, bottom = floorGap)") &&
+                page.contains(".padding(horizontal = inset, vertical = floorGap)") &&
                 read("NovaGameDetailDestinations.kt").contains("internal fun novaGameDetailWindowInset(): Dp {")
         )
     }
@@ -88,7 +88,14 @@ class NovaGameDetailOverviewLayoutTest {
         assertTrue(
             "it was one line ending in an ellipsis, and what it lost is the part that says what limited the launch",
             status.contains("NovaRevealingText(") &&
-                status.contains("text = novaBreakAtDots(novaGameDetailStatusText(uiState, summary).uppercase()),") &&
+                // Packed whole parts to a line, so no line ends in a dangling dot (N22).
+                // A failed host check says why in the same line, packed the same way (audit X2).
+                // What Play Setup's plan says would hold the launch back is in it too, joined to
+                // the host's own limit so "Limited by" is said once (#10).
+                status.contains("val limit = novaGameDetailLimit(summary, planLimit)") &&
+                status.contains("val line = novaInstrumentCase(failure ?: novaGameDetailStatusText(uiState, summary, limit))") &&
+                status.contains("novaPackAtDots(novaDottedParts(line), NOVA_GAME_DETAIL_STATUS_SEPARATOR)") &&
+                status.contains("text = packed,") &&
                 status.contains("maxLines = maxLines,") &&
                 !status.contains("maxLines = 1,")
         )
@@ -99,7 +106,7 @@ class NovaGameDetailOverviewLayoutTest {
                 status.contains("passes = 2,") &&
                 overview.contains("revealing = primaryFocused,") &&
                 overview.contains("onPrimaryFocus = { primaryFocused = it },") &&
-                overview.contains(".onFocusChanged { onPrimaryFocus(it.isFocused) }")
+                overview.contains("onPrimaryFocus(it.isFocused)")
         )
         assertTrue(
             "upright there is room under the hero for a third line, and a finger has no cursor to reveal with",
@@ -116,9 +123,11 @@ class NovaGameDetailOverviewLayoutTest {
         val overview = read("NovaGameDetailOverview.kt")
         val action = overview.section("private fun NovaGameDetailAction(", "private fun LaunchProfileReviewNotice(")
         assertTrue(
-            "two actions share a row upright, and \"Reset Game Profile\" did not fit its half",
-            action.contains("overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis,") &&
-                action.contains("modifier = if (focused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier,")
+            "two actions share a row upright, and \"Reset Game Profile\" did not fit its half; the label " +
+                "is whole on the lines it needs, at rest as well as under the cursor (C25)",
+            action.contains("textAlign = TextAlign.Center,") &&
+                !action.contains("TextOverflow.Ellipsis") &&
+                !action.contains("maxLines = 1")
         )
         val gauge = overview.section("private fun NovaGameDetailBeatGauge(", "private fun novaSameTitle(")
         assertTrue(

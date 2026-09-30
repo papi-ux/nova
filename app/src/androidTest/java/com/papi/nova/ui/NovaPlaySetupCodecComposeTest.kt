@@ -46,6 +46,7 @@ class NovaPlaySetupCodecComposeTest {
 
     @Test fun controllerAndTouchChooseTheLaunchCodecAndCanReturnToAppSettings() {
         var selected by mutableStateOf<String?>(null)
+        var opened = 0
         lateinit var inputMode: InputModeManager
         compose.setContent {
             NovaComposeTheme {
@@ -54,18 +55,17 @@ class NovaPlaySetupCodecComposeTest {
                     selected = it
                     NovaVideoCodecOverrides.save(context, host, game, 1, it)
                 }
-                Column(Modifier.width(440.dp).background(LocalNovaComposeColors.current.window).padding(16.dp)) {
-                    NovaSteamChoiceRow(
-                        label = row.label, caption = row.caption, value = row.value,
-                        enabled = row.enabled, selected = row.overridden,
-                        firstPressFocuses = true, modifier = Modifier.testTag("codec-row"),
-                        onClick = {
-                            val next = (row.options.indexOfFirst { it.current } + 1) % row.options.size
-                            row.options[next].onSelect?.invoke()
-                        },
+                Column(Modifier.width(476.dp).background(LocalNovaComposeColors.current.window).padding(12.dp)) {
+                    // The production row, which opens the codec page, and the page's own option rows.
+                    NovaPlaySetupSettingRow(
+                        state = row, onAdvance = { opened++ },
+                        modifier = Modifier.testTag("codec-row"),
                     )
-                    NovaPlaySetupComparison(row.stripTitle, row.options,
-                        consequenceMaxLines = 1, perRow = row.optionsPerRow)
+                    NovaPlaySetupBands(
+                        bands = listOf(NovaPlaySetupBand(null, row.options)),
+                        onPick = { it.onSelect?.invoke() },
+                        rowModifier = { key, _ -> Modifier.testTag("codec-option-$key") },
+                    )
                 }
             }
         }
@@ -76,9 +76,15 @@ class NovaPlaySetupCodecComposeTest {
         control.performSemanticsAction(SemanticsActions.RequestFocus)
         control.assertIsFocused()
         control.performKeyInput { keyDown(Key.DirectionCenter); keyUp(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals("A opens the codec page rather than stepping in place", 1, opened) }
+
+        val automatic = context.getString(com.papi.nova.R.string.videoformat_auto)
+        val option = compose.onNodeWithTag("codec-option-0:$automatic")
+        option.performSemanticsAction(SemanticsActions.RequestFocus)
+        option.performKeyInput { keyDown(Key.DirectionCenter); keyUp(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals("auto", selected) }
 
-        compose.onNodeWithContentDescription("PyroWave", substring = true)
+        compose.onNode(hasText("PyroWave", substring = true) and hasClickAction() and !hasTestTag("codec-row"))
             .assertIsDisplayed().performTouchInput { click() }
         compose.runOnIdle {
             assertEquals("forcepyrowave", NovaVideoCodecOverrides.load(context, host, game, 1))
@@ -87,12 +93,12 @@ class NovaPlaySetupCodecComposeTest {
                 .putExtra(Game.EXTRA_APP_UUID, game).putExtra(Game.EXTRA_APP_ID, 1), launch)
             assertEquals(FormatOption.FORCE_PYROWAVE, launch.videoFormat)
         }
-        // Keep a device rendering of the production row and legend alongside the test result.
+        // Keep a device rendering of the production row and its page's options alongside the test result.
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
         File(context.getExternalFilesDir(null), "play-setup-codec.png").outputStream().use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
-        compose.onNodeWithContentDescription("App setting.", substring = true)
+        compose.onNodeWithTag("codec-option-0:" + context.getString(com.papi.nova.R.string.nova_play_setup_codec_app_setting))
             .assertIsDisplayed().performTouchInput { click() }
         compose.runOnIdle {
             assertNull(NovaVideoCodecOverrides.load(context, host, game, 1))

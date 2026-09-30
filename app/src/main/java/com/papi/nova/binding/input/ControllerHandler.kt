@@ -31,7 +31,6 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import com.google.android.material.snackbar.Snackbar
-import com.papi.nova.GameMenu
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.binding.input.driver.AbstractController
@@ -44,6 +43,8 @@ import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaSnackbar
+import com.papi.nova.ui.panel.NovaMenuItem
+import com.papi.nova.ui.panel.NovaOption
 import com.papi.nova.utils.Vector2d
 import java.lang.reflect.InvocationTargetException
 import kotlin.math.abs
@@ -2545,23 +2546,19 @@ class ControllerHandler(
                 }
             }
 
-        override fun getGameMenuOptions(): List<GameMenu.MenuOption> {
-            val options = ArrayList<GameMenu.MenuOption>()
-            options.add(
-                GameMenu.MenuOption(
-                    activityContext.getString(
-                        if (mouseEmulationActive) {
-                            R.string.game_menu_toggle_mouse_off
-                        } else {
-                            R.string.game_menu_toggle_mouse_on
-                        },
-                    ),
-                    true,
-                    Runnable { toggleMouseEmulation() },
+        // Mouse emulation is a setting of this controller, so it switches in its own row.
+        override fun getGameMenuOptions(): List<NovaMenuItem> = listOf(
+            NovaMenuItem.Value(
+                key = "controller-mouse-$id",
+                label = activityContext.getString(R.string.nova_cc_controller_mouse),
+                options = listOf(
+                    NovaOption(false, activityContext.getString(R.string.nova_cc_off)),
+                    NovaOption(true, activityContext.getString(R.string.nova_cc_on)),
                 ),
-            )
-            return options
-        }
+                current = mouseEmulationActive,
+                onChange = { active -> if (active != mouseEmulationActive) toggleMouseEmulation() },
+            ),
+        )
 
         override fun supportsControllerMouseEmulation(): Boolean = true
 

@@ -308,7 +308,8 @@ object DeviceUtils {
         val builds = applicationId.removePrefix("$RELEASE_APPLICATION_ID.")
             .split('.')
             .filter { it.isNotBlank() }
-            .map { part -> part.replaceFirstChar { it.uppercase() } }
+            // Keep the installed package/data identity; "pre" is the Beta channel's ID.
+            .map { part -> if (part == "pre") "Beta" else part.replaceFirstChar { it.uppercase() } }
         return (listOf(model) + builds).filter { it.isNotBlank() }.joinToString(" ")
     }
 

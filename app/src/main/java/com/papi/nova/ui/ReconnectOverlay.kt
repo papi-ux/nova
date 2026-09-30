@@ -1,85 +1,66 @@
 package com.papi.nova.ui
 
 import android.app.Activity
-import android.view.View
-import android.view.ViewGroup
-import android.widget.FrameLayout
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.preference.PreferenceManager
 import com.papi.nova.LimeLog
-import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.R
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaStatePage
+import com.papi.nova.ui.panel.NovaSurfaces
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
- * Calm, non-alarming overlay shown during stream reconnection.
+ * The stream is reconnecting: a full-screen Busy page over the stream, with Disconnect focused as
+ * its way out, because a host set to unlimited retries would otherwise hold the player here for
+ * good. B does what Disconnect does. Once the player has left, later attempts show nothing.
  */
-class ReconnectOverlay(private val activity: Activity) {
-    private var overlayView: ComposeView? = null
-    private var backgroundBlurLeases: List<NovaMenuBlur.BlurLease> = emptyList()
-    private val overlayState = mutableStateOf(NovaReconnectOverlayState(attempt = 1, maxAttempts = 1))
+class ReconnectOverlay(
+    private val activity: Activity,
+    private val onDisconnect: () -> Unit,
+) {
+    private val message = MutableStateFlow("")
+
+    // Main thread only.
+    private var shown = false
+    private var leftByPlayer = false
 
     fun show(attempt: Int, maxAttempts: Int) {
         activity.runOnUiThread {
-            overlayState.value = NovaReconnectOverlayState(attempt = attempt, maxAttempts = maxAttempts)
-            if (overlayView != null) {
-                return@runOnUiThread
-            }
-
-            val composeView = ComposeView(activity).apply {
-                setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-                NovaMenuBlur.releaseOnUnexpectedDetach(this) {
-                    if (overlayView === this) {
-                        overlayView = null
-                        releaseBackgroundBlur()
-                    }
-                }
-                setContent {
-                    NovaComposeTheme {
-                        NovaReconnectOverlayContent(state = overlayState.value)
-                    }
-                }
-            }
-            val params = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+            if (leftByPlayer || activity.isFinishing) return@runOnUiThread
+            message.value = activity.getString(
+                R.string.nova_stream_reconnect_message,
+                activity.getString(R.string.nova_reconnect_subtitle),
+                activity.getString(R.string.nova_reconnect_attempt, attempt, maxAttempts),
             )
-            val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
-            val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
-            backgroundBlurLeases = NovaMenuBlur.acquireChildren(
-                rootView,
-                NovaMenuPreferences.readOpacityPercent(prefs)
+            if (shown) return@runOnUiThread
+            shown = true
+            NovaSurfaces.of(activity).show(
+                NovaStatePage.Busy(
+                    key = PAGE_KEY,
+                    title = activity.getString(R.string.nova_reconnect_title),
+                    message = message,
+                    cancel = NovaAction(activity.getString(R.string.game_menu_disconnect)) {
+                        leftByPlayer = true
+                        dismiss()
+                        onDisconnect()
+                    },
+                ),
             )
-            rootView.addView(composeView, params)
-            overlayView = composeView
-            LimeLog.info("Nova: Reconnect overlay shown (attempt $attempt)")
+            LimeLog.info("Nova: Reconnect page shown (attempt $attempt)")
         }
     }
 
     fun dismiss() {
         activity.runOnUiThread {
-            val view = overlayView
-            overlayView = null
-            releaseBackgroundBlur()
-            view?.let {
-                safeRemoveFromParent(it)
-                LimeLog.info("Nova: Reconnect overlay dismissed")
-            }
+            if (!shown) return@runOnUiThread
+            shown = false
+            NovaSurfaces.existing(activity)?.dismiss(PAGE_KEY)
+            LimeLog.info("Nova: Reconnect page dismissed")
         }
     }
 
-    private fun releaseBackgroundBlur() {
-        NovaMenuBlur.releaseAll(backgroundBlurLeases)
-        backgroundBlurLeases = emptyList()
-    }
+    val isShowing get() = shown
 
-    private fun safeRemoveFromParent(view: View) {
-        val parent = view.parent as? ViewGroup ?: return
-        parent.post {
-            val currentParent = view.parent as? ViewGroup
-            currentParent?.removeView(view)
-        }
+    private companion object {
+        const val PAGE_KEY = "nova-reconnecting"
     }
-
-    val isShowing get() = overlayView != null
 }

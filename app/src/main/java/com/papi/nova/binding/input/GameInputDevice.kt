@@ -1,9 +1,10 @@
 package com.papi.nova.binding.input
 
-import com.papi.nova.GameMenu
+import com.papi.nova.ui.panel.NovaMenuItem
 
 interface GameInputDevice {
-    fun getGameMenuOptions(): List<GameMenu.MenuOption>
+    /** Rows this controller adds to the Command Center's More Controls page. */
+    fun getGameMenuOptions(): List<NovaMenuItem>
 
     fun supportsControllerMouseEmulation(): Boolean = false
 

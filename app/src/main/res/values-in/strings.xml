@@ -25,7 +25,6 @@
     <string name="nettest_text_blocked">Koneksi jaringan perangkat anda memblokir Nova. Streaming lewat Internet mungkin tidak bekerja ketika terhubung dengan jaringan ini.</string>
     <string name="pair_pc_offline">Komputer tidak tersedia</string>
     <string name="pair_pairing_title">Memasang</string>
-    <string name="pair_pairing_msg">Mohon isi PIN ini di komputer target:</string>
     <string name="pair_incorrect_pin">PIN salah</string>
     <string name="pair_fail">Pemasangan gagal</string>
     <string name="pair_already_in_progress">Pemasangan sedang berlangsung</string>
@@ -60,11 +59,7 @@
     <string name="searching_pc">Mencari komputer yang menjalankan GameStream...
 \n
 \nPastikan GameStream diaktifkan pada pengaturan SHIELD GeForce Experience.</string>
-    <string name="yes">Ya</string>
-    <string name="no">Tidak</string>
-    <string name="lost_connection">Koneksi dengan komputer hilang</string>
     <string name="title_details">Rincian</string>
-    <string name="delete_pc_msg">Apakah Anda yakin ingin menghapus komputer ini\?</string>
     <string name="slow_connection_msg">Koneksi terhadap komputer lambat
 \nKurangi bitrate anda</string>
     <string name="poor_connection_msg">Koneksi dengan komputer buruk</string>
@@ -76,7 +71,6 @@
     <string name="pcview_menu_test_network">Uji koneksi jaringan</string>
     <string name="pcview_menu_details">Lihat rincian</string>
     <string name="nettest_title_done">Uji jaringan selesai</string>
-    <string name="pairing">Memasang…</string>
     <string name="nettest_text_success">Jaringan Anda sepertinya tidak memblokir Nova. Jika Anda masih mengalami masalah menghubungkan, cek pengaturan firewall komputer Anda.
 \n
 \nJika anda mencoba stream lewat internet, install Nova Internet Hosting Tool pada komputer anda dan jalankan Internet Streaming Tester untuk mengecek koneksi Internet komputer Anda.</string>
@@ -90,12 +84,10 @@
     <string name="early_termination_error">Ada yang salah dengan komputer host Anda ketika memulai stream.
 \n
 \nPastikan tidak ada konten yang dilindungi DRM yang terbuka di komputer host Anda. Coba mulai ulang komputer host.</string>
-    <string name="help">Bantuan</string>
     <string name="pcview_menu_eol">NVIDIA GameStream End-of-Service</string>
     <string name="applist_menu_resume">Lanjutkan Sesi</string>
     <string name="applist_menu_quit_and_start">Keluar dari Game Saat Ini dan Mulai</string>
     <string name="applist_menu_quit">Keluar dari Sesi</string>
-    <string name="applist_quit_confirmation">Anda yakin ingin keluar dari aplikasi yang sedang berjalan\? Semua data yang belum disimpan akan hilang.</string>
     <string name="applist_details_id">ID Aplikasi:</string>
     <string name="addpc_wrong_sitelocal">Alamat itu sepertinya salah. Anda harus menggunakan alamat IP publik perute untuk streaming melalui Internet.</string>
     <string name="category_basic_settings">Pengaturan dasar</string>
@@ -140,8 +132,6 @@
     <string name="title_add_pc">Tambahkan PC Secara Manual</string>
     <string name="msg_add_pc">Menghubungkan ke PC…</string>
     <string name="addpc_fail">Tidak dapat terhubung ke komputer yang ditentukan. Pastikan port yang diperlukan diizinkan melalui firewall.</string>
-    <string name="addpc_success">Berhasil menambahkan komputer</string>
-    <string name="addpc_enter_ip">Anda harus memasukkan alamat IP</string>
     <string name="title_resolution_list">Resolusi video</string>
     <string name="summary_resolution_list">Tingkatkan untuk meningkatkan kejernihan gambar. Turunkan untuk kinerja yang lebih baik pada perangkat kelas bawah dan jaringan yang lebih lambat.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
@@ -182,8 +172,6 @@
     <string name="title_checkbox_reduce_refresh_rate">Izinkan pengurangan kecepatan penyegaran</string>
     <string name="summary_checkbox_reduce_refresh_rate">Kecepatan refresh tampilan yang lebih rendah dapat menghemat daya dengan mengorbankan beberapa latensi video tambahan</string>
     <string name="applist_refresh_error_title">Kesalahan</string>
-    <string name="pair_pairing_help">Jika PC host Anda menjalankan Sunshine, buka UI web Sunshine untuk memasukkan PIN.</string>
-    <string name="applist_quit_app">Berhenti</string>
     <string name="perf_overlay_renderingfps">Frekuensi gambar rendering: %1$.2f FPS</string>
     <string name="perf_overlay_netlatency">Rata-rata latensi jaringan: %1$d ms (variasi: %2$d ms)</string>
     <string name="perf_overlay_netdrops">Bingkai hilang oleh koneksi jaringan Anda: %1$.2f%%</string>

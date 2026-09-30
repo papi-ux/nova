@@ -20,7 +20,11 @@ class NovaFrameRateRowSourceGuardTest {
 
         val preview = source.lastIndexOf("val effectiveFps =", frameRateRow)
         assertTrue(preview >= 0)
-        val previewBody = source.substring(preview, frameRateRow)
+        // The row reads the one rate the plan's PyroWave verdict reads too (#10), from launchFps().
+        assertTrue(source.substring(preview, frameRateRow).contains("val effectiveFps = launchFps(preferences)"))
+        val cadence = source.indexOf("fun launchFps(preferences: PreferenceConfiguration): Int {")
+        assertTrue("The rate a launch will run at must be one function.", cadence in 0 until preview)
+        val previewBody = source.substring(cadence, source.indexOf("fun launchSize(", cadence))
         assertTrue(
             "Auto FPS must come from NovaLaunchStreamOverride.automaticFps(), the same " +
                 "authority compose() uses for an unpinned launch.",
@@ -67,7 +71,9 @@ class NovaFrameRateRowSourceGuardTest {
         assertTrue(
             "When the planner is unavailable, the else branch must check chosenFps != null so a " +
                 "pin from an earlier session with a planner is not left stuck.",
-            elseBranch in plannerGate until (plannerGate + 6000),
+            // The Resolution row's options sort by size since the 2026-09-29 smoke test, which
+            // added a few lines between the gate and its else branch.
+            elseBranch in plannerGate until (plannerGate + 8000),
         )
 
         val retireCall = source.indexOf("chooseFrameRate(null)", elseBranch)

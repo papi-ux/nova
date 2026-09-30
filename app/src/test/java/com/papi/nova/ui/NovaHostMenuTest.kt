@@ -1,0 +1,222 @@
+package com.papi.nova.ui
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import com.papi.nova.R
+import com.papi.nova.nvstream.http.ComputerDetails
+import com.papi.nova.nvstream.http.PairingManager
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaMenuItem
+import com.papi.nova.ui.panel.NovaPage
+import com.papi.nova.ui.panel.NovaTone
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.mockito.Mockito.mock
+import java.security.cert.X509Certificate
+
+/**
+ * The host menu's rows for each state a host can be in (spec 9.1, group 2): which rows it offers,
+ * in what order, and which kind of row each is. Destructive rows split in place (R3), rows that
+ * push a page keep the panel open (R4), and everything else closes it before it acts.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
+class NovaHostMenuTest {
+    private val context: Context = ApplicationProvider.getApplicationContext()
+    private val ran = mutableListOf<String>()
+    private val console = NovaCommonPage.Notice(key = "host-console", title = "Host Console", message = "", closeLabel = "Close")
+
+    private val actions = object : NovaHostMenuActions {
+        override fun wake() { ran += "wake" }
+        override fun sendWakeOnLan() { ran += "send_wol" }
+        override fun pair() { ran += "pair" }
+        override fun otpPairPage(): NovaPage =
+            NovaCommonPage.Form(key = "pair_otp", title = "OTP Pair", fields = emptyList(), submitLabel = "Pair") { null }
+        override fun scanQr() { ran += "scan_qr" }
+        override fun hostConsolePage(): NovaPage = console
+        override fun openLibrary() { ran += "open_library" }
+        override fun checkLibrary() { ran += "checking_library" }
+        override fun watch() { ran += "watch" }
+        override fun resume() { ran += "resume" }
+        override fun endSession() { ran += "end_session" }
+        override fun sleep() { ran += "sleep" }
+        override fun appList() { ran += "app_list" }
+        override fun testNetwork() { ran += "test_network" }
+        override fun editWakeAddress() { ran += "wake_address" }
+        override fun delete() { ran += "delete" }
+    }
+
+    private fun host(edit: ComputerDetails.() -> Unit = {}) = ComputerDetails().apply {
+        name = "pc-papi"
+        state = ComputerDetails.State.ONLINE
+        pairState = PairingManager.PairState.PAIRED
+        libraryState = ComputerDetails.LibraryState.AVAILABLE
+        edit()
+    }
+
+    private fun menu(details: ComputerDetails, needsPairing: Boolean = false, sleepOffered: Boolean = false) =
+        novaHostMenuItems(context, details, needsPairing, sleepOffered, actions)
+
+    private fun List<NovaMenuItem>.keys() = map { it.key }
+
+    @Test
+    fun wakeAddressEditingKeepsTheHostPanelOpenForItsForm() {
+        val row = menu(host()).first { it.key == "wake_address" } as NovaMenuItem.Action
+        assertFalse(row.closesPanel)
+        row.onClick()
+        assertEquals(listOf("wake_address"), ran)
+    }
+
+    @Test
+    fun anOfflineHostOffersWakingItFirst() {
+        val items = menu(host { state = ComputerDetails.State.OFFLINE })
+        assertEquals(listOf("wake", "send_wol", "test_network", "wake_address", "details", "delete"), items.keys())
+        assertTrue((items[0] as NovaMenuItem.Action).emphasis)
+        assertEquals(context.getString(R.string.pcview_menu_start_polaris), (items[0] as NovaMenuItem.Action).label)
+    }
+
+    @Test
+    fun anOfflineHostThatWantsPairingCanOnlyBeSentAWakePacket() {
+        val items = menu(host { state = ComputerDetails.State.OFFLINE }, needsPairing = true)
+        assertEquals(listOf("send_wol", "test_network", "wake_address", "details", "delete"), items.keys())
+        assertTrue("the wake packet is the primary when it is all there is", (items[0] as NovaMenuItem.Action).emphasis)
+    }
+
+    @Test
+    fun anUnpairedHostOffersPairingAndOtpPairingIsAFormPage() {
+        // A host never paired has no certificate to check its console by. Its console is still
+        // offered, where its pairing code comes from: the console's page says Nova cannot check the
+        // host before it opens anything (N6).
+        val items = menu(host { pairState = PairingManager.PairState.NOT_PAIRED }, needsPairing = true)
+        assertEquals(listOf("pair", "pair_otp", "scan_qr", "server_config", "test_network", "wake_address", "details", "delete"), items.keys())
+        assertTrue(items.first { it.key == "server_config" } is NovaMenuItem.Opens)
+        val otp = items[1] as NovaMenuItem.Opens
+        assertTrue("OTP pairing pushes its form in the host panel", otp.page() is NovaCommonPage.Form)
+    }
+
+    @Test
+    fun anNvidiaHostHasNoServerConfigRow() {
+        val items = menu(host { pairState = PairingManager.PairState.NOT_PAIRED; nvidiaServer = true }, needsPairing = true)
+        assertFalse(items.keys().contains("server_config"))
+    }
+
+    @Test
+    fun anIdleHostWithALibraryLeadsWithTheLibrary() {
+        val items = menu(host())
+        assertEquals(listOf("open_library", "app_list", "server_config", "test_network", "wake_address", "details", "delete"), items.keys())
+        assertTrue((items[0] as NovaMenuItem.Action).emphasis)
+    }
+
+    @Test
+    fun aHostStillCheckingItsLibraryOffersToAskAgain() {
+        val items = menu(host { libraryState = ComputerDetails.LibraryState.UNKNOWN })
+        assertEquals("checking_library", items.first().key)
+    }
+
+    @Test
+    fun aStreamThisDeviceLeftRunningLeadsWithResumeAndEndSplits() {
+        val items = menu(
+            host {
+                runningGameId = 42
+                currentGameOwnedByClient = true
+                libraryState = ComputerDetails.LibraryState.UNAVAILABLE
+            },
+        )
+        assertEquals(listOf("resume", "end_session", "app_list", "server_config", "test_network", "wake_address", "details", "delete"), items.keys())
+        val end = items[1] as NovaMenuItem.Destructive
+        assertEquals(context.getString(R.string.game_dialog_action_end_session), end.confirmLabel)
+        assertEquals("ending a session stays on Stay", null, end.stayLabel)
+        assertEquals(context.getString(R.string.nova_panel_end_session_message), end.consequence)
+        end.onConfirm()
+        assertEquals(listOf("end_session"), ran)
+    }
+
+    @Test
+    fun anAwakeHostIsOfferedSleepOnlyWhenAHoldWouldWork() {
+        assertFalse(menu(host()).keys().contains("sleep"))
+        assertTrue(menu(host(), sleepOffered = true).keys().contains("sleep"))
+        assertFalse("an awake host is never offered waking", menu(host(), sleepOffered = true).keys().contains("wake"))
+    }
+
+    @Test
+    fun sleepHostSplitsInItsRowAndOneANeverSleepsAHost() {
+        // One A put the host to sleep behind a snackbar with a timer (M12). Now it splits in its
+        // row, as ending a session and deleting do: A arms it, the safe half is focused, and only
+        // A, Right, A confirms. The split is the confirm, so what it runs is the request itself.
+        val sleep = menu(host(), sleepOffered = true).first { it.key == "sleep" }
+        assertTrue("Sleep Host splits in its row", sleep is NovaMenuItem.Destructive)
+        sleep as NovaMenuItem.Destructive
+        assertEquals(context.getString(R.string.pcview_quick_sleep_host), sleep.label)
+        assertEquals(context.getString(R.string.pcview_quick_sleep_host), sleep.confirmLabel)
+        assertEquals("the safe half says what it keeps", context.getString(R.string.pcview_sleep_keep_awake), sleep.stayLabel)
+        assertEquals("the line under the pair says what happens", context.getString(R.string.pcview_sleep_consequence), sleep.consequence)
+        assertEquals(R.drawable.ic_eye_closed, sleep.icon)
+        sleep.onConfirm()
+        assertEquals(listOf("sleep"), ran)
+    }
+
+    @Test
+    fun theHostConsoleIsAPageInThisPanel() {
+        // Go to Server Config sent a browser to the host's console, where it met a certificate
+        // error (N6). The console is a page pushed in this panel now, so B comes back here.
+        val row = menu(host()).first { it.key == "server_config" }
+        assertTrue("the host's console is pushed in this panel", row is NovaMenuItem.Opens)
+        row as NovaMenuItem.Opens
+        assertEquals(context.getString(R.string.pcview_menu_open_management_page), row.label)
+        assertEquals(context.getString(R.string.pcview_sheet_caption_server_config), row.caption)
+        assertTrue("the screen builds the page", row.page() === console)
+        assertTrue("pushing it runs nothing else", ran.isEmpty())
+
+        // Waiting on pairing: offered only while Nova still holds the certificate it paired with.
+        val repair = host { pairState = PairingManager.PairState.NOT_PAIRED; serverCert = mock(X509Certificate::class.java) }
+        assertTrue(menu(repair, needsPairing = true).first { it.key == "server_config" } is NovaMenuItem.Opens)
+    }
+
+    @Test
+    fun theNetworkTestStaysInThePanelAndDetailsIsAReadableNotice() {
+        val items = menu(host())
+        val test = items.first { it.key == "test_network" } as NovaMenuItem.Action
+        assertFalse(test.closesPanel)
+        test.onClick()
+        assertEquals(listOf("test_network"), ran)
+
+        val details = (items.first { it.key == "details" } as NovaMenuItem.Opens).page() as NovaCommonPage.Notice
+        // Labelled lines in the panel's own type since the 2026-09-29 smoke test, not a monospace dump.
+        assertFalse(details.monospace)
+        assertFalse(details.message.contains("null"))
+        assertEquals(context.getString(R.string.title_details), details.title)
+    }
+
+    @Test
+    fun deletingSaysWhatItDoesBeyondThisDevice() {
+        fun consequence(details: ComputerDetails) =
+            (menu(details).last() as NovaMenuItem.Destructive).consequence
+
+        // Without a pinned certificate there is nobody to ask the host to forget this device.
+        assertEquals(context.getString(R.string.hosts_delete_consequence), consequence(host { serverCert = null }))
+        assertEquals(R.string.hosts_delete_consequence, novaHostDeleteConsequence(host { serverCert = null }))
+        val removal = menu(host()).last() as NovaMenuItem.Destructive
+        assertEquals("delete", removal.key)
+        assertEquals(context.getString(R.string.pcview_menu_delete_pc), removal.confirmLabel)
+        assertEquals("deleting keeps the host on Keep (spec 9.3, row 2)", context.getString(R.string.nova_panel_keep), removal.stayLabel)
+
+        // Its labels are not enough: confirming it has to delete the host, and nothing else.
+        removal.onConfirm()
+        assertEquals(listOf("delete"), ran)
+    }
+
+    @Test
+    fun theHeaderNamesTheHostAndReadsItsStateInItsTone() {
+        val header = novaHostMenuHeader(context, host { state = ComputerDetails.State.OFFLINE; macAddress = "00:11:22:33:44:55" })
+        assertEquals("pc-papi", header.title)
+        assertEquals(context.getString(R.string.pcview_card_status_offline), header.status)
+        assertEquals(NovaTone.Neutral, header.tone)
+        assertEquals(context.getString(R.string.pcview_card_hint_wake), header.hint)
+        assertEquals(R.drawable.ic_computer, header.icon)
+    }
+}

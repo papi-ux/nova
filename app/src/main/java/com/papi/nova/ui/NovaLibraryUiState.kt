@@ -2,14 +2,21 @@ package com.papi.nova.ui
 
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.api.PolarisSessionStatus
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.ceil
 
+/**
+ * The library's filters. There is no HDR filter until Polaris knows HDR per title (N14): it sets
+ * hdr_supported for every app from the host's HEVC Main10 mode, so the filter matched every title,
+ * launchers included. A filter saved as HDR reads back as All.
+ */
 enum class NovaLibraryPrimaryFilter {
     ALL,
     RECENT,
     SOURCES,
-    HDR,
     MORE
 }
 
@@ -23,13 +30,13 @@ data class NovaLibraryFilterState(
         get() = primary != NovaLibraryPrimaryFilter.ALL
 }
 
+/** The library's orders. HDR First went with the HDR filter (N14); saved, it reads back as Library Order. */
 enum class NovaLibrarySortMode {
     LIBRARY_ORDER,
     RECENT,
     NAME_ASC,
     NAME_DESC,
     SOURCE,
-    HDR_FIRST
 }
 
 enum class NovaLibraryLayoutMode {
@@ -108,7 +115,6 @@ enum class NovaLibraryEmptyState {
 data class NovaLibrarySummary(
     val totalCount: Int,
     val recentCount: Int,
-    val hdrCount: Int
 )
 
 enum class NovaLibraryHeroReason {
@@ -165,8 +171,92 @@ data class NovaLibraryHeroState(
     val artworkFallbackTitle: String,
     val artworkFallbackSubtitle: String,
     val secondaryActionLabel: String? = null,
-    val secondaryAction: NovaLibraryHeroSecondaryAction? = null
+    val secondaryAction: NovaLibraryHeroSecondaryAction? = null,
+    /** Where an End asked for from the library stands, while the session is still on screen. */
+    val endStatus: NovaLibraryEndStatus? = null,
 )
+
+/**
+ * An End the library asked the host for, for the session of [gameId]: still on the wire, or
+ * refused with [line] to show in place of the eyebrow, in the host's words where it gave some. A
+ * refused End offers Try Again in End's slot only where asking again [canRetry]: a session another
+ * device started, or one whose details Nova no longer holds, keeps its reason and loses End
+ * instead of offering a button that cannot work (XR3). Nothing floats, and the strip never stays
+ * on "Ending session" once the host has answered.
+ */
+sealed interface NovaLibraryEndStatus {
+    val gameId: Int
+
+    data class Ending(override val gameId: Int) : NovaLibraryEndStatus
+
+    data class Failed(override val gameId: Int, val line: String, val canRetry: Boolean = true) : NovaLibraryEndStatus
+}
+
+/**
+ * What a refused End says in the library: the host's own words, or [fallback] when it gave none,
+ * and Try Again only when the session is this device's to end. A game still closing gets its Try
+ * Again after a wait ([novaLibraryOfferRetryAfterWait]): asked at once, the host would only find it
+ * closing still.
+ */
+internal fun novaLibraryEndRefused(
+    gameId: Int,
+    refusal: com.papi.nova.utils.ServerHelper.QuitRefusal,
+    fallback: String,
+): NovaLibraryEndStatus.Failed = NovaLibraryEndStatus.Failed(
+    gameId = gameId,
+    line = refusal.reason.trim().ifBlank { fallback },
+    canRetry = !refusal.startedElsewhere && !refusal.stillClosing,
+)
+
+/** How long a game still closing waits before its refused End offers Try Again. */
+internal const val NOVA_LIBRARY_END_RETRY_WAIT_MS = 3_000L
+
+/**
+ * Offers Try Again on [refused], an End refused while the game was still closing, once [waitMillis]
+ * has passed, if the library still shows that refusal then ([current]); [set] puts the new status.
+ */
+internal suspend fun novaLibraryOfferRetryAfterWait(
+    refused: NovaLibraryEndStatus.Failed,
+    current: () -> NovaLibraryEndStatus?,
+    set: (NovaLibraryEndStatus) -> Unit,
+    waitMillis: Long = NOVA_LIBRARY_END_RETRY_WAIT_MS,
+) {
+    kotlinx.coroutines.delay(waitMillis)
+    if (current() === refused) set(refused.copy(canRetry = true))
+}
+
+/**
+ * The library's End (XR3): where it stands for the session it was asked for, [status], which the
+ * strip and the Stage read, and what the host's answer does to it. The library keeps one.
+ */
+@androidx.compose.runtime.Stable
+internal class NovaLibraryEnd {
+    var status: NovaLibraryEndStatus? by androidx.compose.runtime.mutableStateOf(null)
+
+    /**
+     * The host answered End for [gameId]: it ended, with no [refusal], and the status goes; or it
+     * refused, and the status says so in the host's words, or [fallback] when it gave none. A game
+     * the host found still closing offers Try Again after a moment, on [scope], if the library still
+     * shows that refusal then. Returns the refusal shown, or null when the host ended it.
+     */
+    fun answer(
+        scope: kotlinx.coroutines.CoroutineScope,
+        gameId: Int,
+        refusal: com.papi.nova.utils.ServerHelper.QuitRefusal?,
+        fallback: String,
+    ): NovaLibraryEndStatus.Failed? {
+        if (refusal == null) {
+            status = null
+            return null
+        }
+        val refused = novaLibraryEndRefused(gameId, refusal, fallback)
+        status = refused
+        if (refusal.stillClosing) {
+            scope.launch { novaLibraryOfferRetryAfterWait(refused, current = { status }, set = { status = it }) }
+        }
+        return refused
+    }
+}
 
 data class NovaLibraryUiModel(
     val allGames: List<PolarisGame>,
@@ -461,6 +551,39 @@ object NovaLibraryUiStateMapper {
         ).let { focusSpace(it, focusedGameId) }
     }
 
+    /**
+     * The session hero with [status] applied, when it is about [session]'s game: Ending while the
+     * host is asked, and after a refusal the refusal as the eyebrow and [tryAgainLabel] on End, so
+     * the strip, the home hero and the stage all say what happened where it happened. A refusal
+     * asking again cannot fix takes End away and leaves Resume. Anything else, or a status about a
+     * session that has gone, leaves [model] as it is.
+     */
+    fun withEndStatus(
+        model: NovaLibraryUiModel,
+        session: NovaLibraryActiveSessionUiState?,
+        status: NovaLibraryEndStatus?,
+        tryAgainLabel: String,
+    ): NovaLibraryUiModel {
+        val hero = model.hero
+        if (status == null || session == null || status.gameId != session.gameId) return model
+        if (hero.reason != NovaLibraryHeroReason.ACTIVE_SESSION ||
+            hero.secondaryAction != NovaLibraryHeroSecondaryAction.END_SESSION
+        ) {
+            return model
+        }
+        return model.copy(
+            hero = when (status) {
+                is NovaLibraryEndStatus.Ending -> hero.copy(endStatus = status)
+                is NovaLibraryEndStatus.Failed -> hero.copy(
+                    endStatus = status,
+                    eyebrow = status.line,
+                    secondaryActionLabel = tryAgainLabel.takeIf { status.canRetry },
+                    secondaryAction = hero.secondaryAction.takeIf { status.canRetry },
+                )
+            },
+        )
+    }
+
     /** Focus changes only the banner; filtering and sorting keep their cached model. */
     fun focusSpace(model: NovaLibraryUiModel, focusedGameId: String?): NovaLibraryUiModel {
         if (model.hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION) return model
@@ -738,9 +861,6 @@ object NovaLibraryUiStateMapper {
             NovaLibraryPrimaryFilter.SOURCES -> searched
                 .filter { it.source == filterState.source }
                 .toList()
-            NovaLibraryPrimaryFilter.HDR -> searched
-                .filter { it.hdrSupported }
-                .toList()
             NovaLibraryPrimaryFilter.MORE -> when {
                 filterState.category.isNotBlank() -> searched
                     .filter { it.category == filterState.category }
@@ -777,10 +897,6 @@ object NovaLibraryUiStateMapper {
                         .thenBy { it.index }
                 )
                 .map { it.value }
-            NovaLibrarySortMode.HDR_FIRST -> games.sortedWith(
-                compareByDescending<PolarisGame> { it.hdrSupported }
-                    .thenBy { it.name.lowercase() }
-            )
         }
     }
 
@@ -795,7 +911,6 @@ object NovaLibraryUiStateMapper {
         return NovaLibrarySummary(
             totalCount = games.size,
             recentCount = games.count { it.lastLaunched > 0 },
-            hdrCount = games.count { it.hdrSupported }
         )
     }
 
@@ -873,7 +988,7 @@ object NovaLibraryUiStateMapper {
             return NovaLibraryRecoveryUiState(
                 eyebrow = "Connection",
                 title = "Host offline",
-                message = "Nova cannot reach this host right now. Wake the PC or check the network, then retry.",
+                message = "Nova cannot reach this host right now. Wake the host or check the network, then retry.",
                 primaryActionLabel = "Retry",
                 primaryAction = NovaLibraryRecoveryAction.RETRY,
                 detail = detail
@@ -895,7 +1010,7 @@ object NovaLibraryUiStateMapper {
                 eyebrow = "Polaris",
                 title = "Polaris unavailable",
                 message = "The host answered, but the Polaris library API did not. Start or repair Polaris, then return to Nova.",
-                primaryActionLabel = "Manage Server",
+                primaryActionLabel = "Manage Host",
                 primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
                 detail = detail
             )
@@ -916,7 +1031,7 @@ object NovaLibraryUiStateMapper {
             eyebrow = "Launch recovery",
             title = "Launch blocked",
             message = "Nova could not start the stream before leaving Library. Review host and library setup, then try again.",
-            primaryActionLabel = "Manage Server",
+            primaryActionLabel = "Manage Host",
             primaryAction = NovaLibraryRecoveryAction.MANAGE_LIBRARY,
             detail = message.takeIf { it.isNotBlank() }
         )
@@ -1542,7 +1657,6 @@ object NovaLibraryUiStateMapper {
             NovaLibraryPrimaryFilter.ALL -> 112
             NovaLibraryPrimaryFilter.RECENT -> 132
             NovaLibraryPrimaryFilter.SOURCES -> 144
-            NovaLibraryPrimaryFilter.HDR -> 112
             NovaLibraryPrimaryFilter.MORE -> 120
         }
     }
@@ -1558,6 +1672,60 @@ object NovaLibraryUiStateMapper {
     fun categoryFilters(games: List<PolarisGame>): List<String> {
         return listOf("fast_action", "cinematic", "desktop", "vr")
             .filter { category -> games.any { it.category == category } }
+    }
+
+    /**
+     * More Filters' entries, the categories then the genres, with a name shown once. The
+     * fast_action category and a launcher's Action genre read as one filter listed twice (N16).
+     * Where one's games are all in the other, only the wider stays; two that each hold games the
+     * other lacks both stay, and their captions tell them apart.
+     */
+    internal fun moreFilterEntries(
+        games: List<PolarisGame>,
+        categoryLabel: (String) -> String,
+        genreLabel: (String) -> String,
+    ): List<NovaLibraryMoreFilter> {
+        fun inCategory(id: String) = games.filter { it.category.equals(id, ignoreCase = true) }.map { it.id }.toSet()
+        fun inGenre(name: String) = games.filter { game -> game.genres.any { it.equals(name, ignoreCase = true) } }.map { it.id }.toSet()
+        val categories = categoryFilters(games)
+        val genres = genreFilters(games)
+        val dropped = mutableSetOf<NovaLibraryMoreFilter>()
+        categories.forEach { category ->
+            val genre = genres.firstOrNull { genreLabel(it).equals(categoryLabel(category), ignoreCase = true) } ?: return@forEach
+            val categoryGames = inCategory(category)
+            val genreGames = inGenre(genre)
+            when {
+                genreGames.containsAll(categoryGames) -> dropped += NovaLibraryMoreFilter.Category(category)
+                categoryGames.containsAll(genreGames) -> dropped += NovaLibraryMoreFilter.Genre(genre)
+            }
+        }
+        return (categories.map { NovaLibraryMoreFilter.Category(it) } + genres.map { NovaLibraryMoreFilter.Genre(it) })
+            .filterNot { it in dropped }
+    }
+
+    /**
+     * The More Filters entries among [entries] whose name another entry shares: a category and a
+     * genre that both stay, because each holds games the other lacks, and read the same, as the
+     * fast_action category and a launcher's Action genre both read Action. Their row titles say
+     * which is which, since two rows titled Action were told apart only by their captions (N16).
+     */
+    internal fun moreFilterClashes(
+        entries: List<NovaLibraryMoreFilter>,
+        categoryLabel: (String) -> String,
+        genreLabel: (String) -> String,
+    ): Set<NovaLibraryMoreFilter> {
+        fun name(entry: NovaLibraryMoreFilter): String? = when (entry) {
+            is NovaLibraryMoreFilter.Category -> categoryLabel(entry.id)
+            is NovaLibraryMoreFilter.Genre -> genreLabel(entry.name)
+            NovaLibraryMoreFilter.Clear -> null
+        }?.trim()?.lowercase()
+        return entries
+            .filter { name(it) != null }
+            .groupBy { name(it) }
+            .values
+            .filter { it.size > 1 }
+            .flatten()
+            .toSet()
     }
 
     fun genreFilters(games: List<PolarisGame>): List<String> {
@@ -1578,4 +1746,14 @@ object NovaLibraryUiStateMapper {
             else -> 3
         }
     }
+}
+
+/**
+ * The first item a library grid shows so that the card at [focusedIndex] stands with one row of
+ * context above it: the start of the row before its own, or the top when it is in the first two.
+ */
+internal fun novaLibraryGridContextIndex(focusedIndex: Int, columns: Int): Int {
+    if (focusedIndex < 0 || columns <= 0) return 0
+    val row = focusedIndex / columns
+    return ((row - 1).coerceAtLeast(0)) * columns
 }

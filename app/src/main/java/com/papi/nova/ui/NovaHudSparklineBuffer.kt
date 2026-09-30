@@ -2,11 +2,11 @@ package com.papi.nova.ui
 
 internal class NovaHudSparklineBuffer(private val capacity: Int = 60) {
     private val values = FloatArray(capacity)
-    private val scratch = FloatArray(capacity)
     private var nextIndex = 0
     private var sampleCount = 0
 
     fun add(value: Float) {
+        if (!value.isFinite() || value < 0f) return
         values[nextIndex] = value
         nextIndex = (nextIndex + 1) % capacity
         if (sampleCount < capacity) {
@@ -27,16 +27,12 @@ internal class NovaHudSparklineBuffer(private val capacity: Int = 60) {
         return output
     }
 
+    // Source-compatible accessor: a minimum of periodic FPS samples, not frame-time 1% low.
     fun lowOnePercent(): Double {
-        if (sampleCount < 3) {
-            return 0.0
-        }
-        for (i in 0 until sampleCount) {
-            scratch[i] = valueAt(i)
-        }
-        java.util.Arrays.sort(scratch, 0, sampleCount)
-        val index = (sampleCount * 0.01f).toInt().coerceIn(0, sampleCount - 1)
-        return scratch[index].toDouble()
+        if (sampleCount == 0) return Double.NaN
+        var minimum = Float.POSITIVE_INFINITY
+        for (i in 0 until sampleCount) minimum = minOf(minimum, valueAt(i))
+        return minimum.toDouble()
     }
 
     private fun valueAt(offset: Int): Float {

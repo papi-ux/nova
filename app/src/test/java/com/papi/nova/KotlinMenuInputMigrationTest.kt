@@ -17,7 +17,6 @@ class KotlinMenuInputMigrationTest {
     @Test
     fun menuInputClassesAreKotlinSources() {
         val names = arrayOf(
-            "GameMenu",
             "binding/input/KeyboardTranslator",
             "utils/KeyMapper"
         )
@@ -34,19 +33,19 @@ class KotlinMenuInputMigrationTest {
     fun menuInputClassesKeepJavaCompatibleApis() {
         val intType = Int::class.javaPrimitiveType!!
         val shortType = Short::class.javaPrimitiveType!!
-        val booleanType = Boolean::class.javaPrimitiveType!!
 
-        assertTrue(Game.GameMenuCallbacks::class.java.isAssignableFrom(GameMenu::class.java))
-        assertEquals(25L, GameMenu.KEY_UP_DELAY)
-        assertEquals("specialPrefs", GameMenu.PREF_NAME)
-        assertEquals("special_key", GameMenu.KEY_NAME)
-        GameMenu::class.java.getConstructor(Game::class.java)
-        GameMenu::class.java.getConstructor(Game::class.java, android.content.Context::class.java)
-        GameMenu::class.java.getMethod("showMenu", GameInputDevice::class.java)
-        GameMenu::class.java.getMethod("hideMenu")
-        GameMenu::class.java.getMethod("isMenuOpen")
-        GameMenu.MenuOption::class.java.getConstructor(String::class.java, booleanType, Runnable::class.java)
-        GameMenu.MenuOption::class.java.getConstructor(String::class.java, Runnable::class.java)
+        // The legacy Quick Menu is gone: its extras are pages of the Command Center, which is the
+        // one Game.GameMenuCallbacks on the stream and on a companion display. The stored names of
+        // the special keys must not move, or imported shortcuts would vanish.
+        assertTrue(Game.GameMenuCallbacks::class.java.isAssignableFrom(com.papi.nova.ui.NovaQuickMenu::class.java))
+        assertFalse(File("src/main/java/com/papi/nova/GameMenu.kt").exists())
+        assertEquals(25L, Game.SENT_KEY_UP_DELAY_MS)
+        assertEquals("specialPrefs", com.papi.nova.ui.NovaSpecialKeyPrefs.PREF_NAME)
+        assertEquals("special_key", com.papi.nova.ui.NovaSpecialKeyPrefs.KEY_NAME)
+        com.papi.nova.ui.NovaQuickMenu::class.java.getMethod("showMenu", GameInputDevice::class.java)
+        com.papi.nova.ui.NovaQuickMenu::class.java.getMethod("showKeys")
+        com.papi.nova.ui.NovaQuickMenu::class.java.getMethod("hideMenu")
+        com.papi.nova.ui.NovaQuickMenu::class.java.getMethod("isMenuOpen")
 
         assertEquals(27, KeyboardTranslator.VK_ESCAPE)
         assertEquals(122, KeyboardTranslator.VK_F11)

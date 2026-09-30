@@ -9,6 +9,7 @@
     android:gravity="center_vertical">
 
     <LinearLayout
+        android:id="@+id/profileDetails"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
@@ -20,9 +21,7 @@
             android:layout_height="wrap_content"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="16sp"
-            android:fontFamily="sans-serif-medium"
-            android:singleLine="true"
-            android:ellipsize="end" />
+            android:fontFamily="sans-serif-medium" />
 
         <TextView
             android:id="@+id/profileTimestamp"
@@ -35,31 +34,35 @@
 
     </LinearLayout>
 
-    <RadioButton
-        android:id="@+id/profileActive"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <!-- The one mark for the preset in use: a trailing accent check (R9). ProfilesAdapter shows it
+         only on that row, tints it, and says Current on the row itself. -->
+    <ImageView
+        android:id="@+id/profileCurrent"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
         android:layout_marginStart="8dp"
         android:layout_marginLeft="8dp"
         android:layout_marginEnd="8dp"
-        android:layout_marginRight="8dp" />
+        android:layout_marginRight="8dp"
+        android:importantForAccessibility="no"
+        android:visibility="gone"
+        app:srcCompat="@drawable/ic_check" />
 
     <ImageButton
         android:id="@+id/editProfile"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:background="?android:attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Edit profile"
+        android:contentDescription="@string/nova_profiles_edit"
         app:srcCompat="@drawable/ic_edit"
         app:tint="?android:attr/textColorSecondary" />
 
-    <ImageButton
+    <!-- Delete, a split confirm drawn by ProfilesAdapter: armed, it takes the whole row. -->
+    <androidx.compose.ui.platform.ComposeView
         android:id="@+id/deleteProfile"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="?android:attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Delete profile"
-        app:srcCompat="@drawable/ic_delete"
-        app:tint="?android:attr/textColorSecondary" />
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:layout_marginLeft="4dp" />
 
 </LinearLayout>

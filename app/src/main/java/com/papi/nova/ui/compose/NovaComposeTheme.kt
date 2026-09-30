@@ -1,7 +1,10 @@
 package com.papi.nova.ui.compose
 
+import android.content.Context
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -14,8 +17,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
@@ -24,7 +29,20 @@ import com.papi.nova.ui.NovaMenuOpacityPreview
 import com.papi.nova.ui.NovaMenuPreferences
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaSheetChrome
+import com.papi.nova.utils.UiHelper
 
+/**
+ * Nova's colour roles for Compose.
+ *
+ * [destructive], [onDestructive] and [positive] come last and default to [textPrimary], [window]
+ * and [textPrimary], so a palette built by hand before they existed still compiles.
+ * [novaComposeColors] fills them from the theme.
+ *
+ * [destructive] is for words and hairlines, and falls back to the text colour where red text
+ * would not read. [destructiveFill] is the armed destructive action's fill, always a red that
+ * stands out from the panel, with [onDestructiveFill] for its label; they default to the text
+ * roles for the same reason as the others.
+ */
 @Immutable
 data class NovaComposeColors(
     val window: Color,
@@ -38,7 +56,72 @@ data class NovaComposeColors(
     val textPrimary: Color,
     val textSecondary: Color,
     val textMuted: Color,
-    val onAccent: Color
+    val onAccent: Color,
+    val destructive: Color = textPrimary,
+    val onDestructive: Color = window,
+    /** Something on or healthy, such as an active status chip; checked for contrast like [destructive]. */
+    val positive: Color = textPrimary,
+    val destructiveFill: Color = destructive,
+    val onDestructiveFill: Color = onDestructive,
+    /**
+     * The accent for words on a tile or the panel, such as a primary button's label at rest:
+     * the accent, lifted toward the text colour where it would read under 4.5:1.
+     */
+    val accentText: Color = accent,
+)
+
+/** Handhelds, phones and tablets share one scale; a television reads from further away. */
+enum class NovaFormFactor { Handheld, Television }
+
+/** Which form factor the UI is drawn for. Panel sizes and the type scale grow on a television. */
+val LocalNovaFormFactor = staticCompositionLocalOf { NovaFormFactor.Handheld }
+
+/**
+ * The theme's colour roles, read from [context] outside composition.
+ *
+ * [NovaComposeTheme] builds its palette here, and so does View code that draws the same look,
+ * so the two cannot drift. Destructive is the theme's error colour for text, which falls back to
+ * the text colour where it would not read against the card and focused surfaces; the destructive
+ * fill is the theme's red whatever that check says, with a label chosen to read on it.
+ */
+fun novaComposeColors(context: Context): NovaComposeColors {
+    val destructive = Color(NovaThemeManager.getErrorColor(context))
+    val destructiveFill = Color(NovaThemeManager.getDestructiveFillColor(context))
+    return NovaComposeColors(
+        window = Color(NovaThemeManager.getWindowBackgroundColor(context)),
+        card = Color(NovaThemeManager.getCardBackgroundColor(context)),
+        dialog = Color(NovaThemeManager.getDialogBackgroundColor(context)),
+        badge = Color(NovaThemeManager.getBadgeBackgroundColor(context)),
+        divider = Color(NovaThemeManager.getDividerColor(context)),
+        accent = Color(NovaThemeManager.getAccentColor(context)),
+        accentSurface = Color(NovaThemeManager.getAccentSurfaceColor(context)),
+        warning = Color(ContextCompat.getColor(context, R.color.nova_warning)),
+        textPrimary = Color(NovaThemeManager.getTextPrimaryColor(context)),
+        textSecondary = Color(NovaThemeManager.getTextSecondaryColor(context)),
+        textMuted = Color(NovaThemeManager.getTextMutedColor(context)),
+        onAccent = Color(NovaThemeManager.getOnAccentColor(context)),
+        destructive = destructive,
+        onDestructive = readableOn(destructive),
+        positive = Color(NovaThemeManager.getPositiveColor(context)),
+        destructiveFill = destructiveFill,
+        onDestructiveFill = readableOn(destructiveFill),
+        accentText = Color(NovaThemeManager.getAccentTextColor(context)),
+    )
+}
+
+/**
+ * Black or white, whichever contrasts more with [background]. At a relative luminance of 0.179
+ * the contrast against black and against white is equal.
+ */
+private fun readableOn(background: Color): Color =
+    if (background.luminance() > 0.179f) Color.Black else Color.White
+
+private val NovaShapes = Shapes(
+    extraSmall = RoundedCornerShape(NovaRadius.chip),
+    small = RoundedCornerShape(NovaRadius.row),
+    medium = RoundedCornerShape(NovaRadius.hero),
+    large = RoundedCornerShape(NovaRadius.drawer),
+    extraLarge = RoundedCornerShape(NovaRadius.drawer),
 )
 
 @Immutable
@@ -90,9 +173,30 @@ val LocalNovaLibrarySurfaces = staticCompositionLocalOf {
 
 val LocalNovaMenuOpacityScale = staticCompositionLocalOf { 1f }
 
+/** The least a panel's fill may be where nothing blurs what is behind it. */
+const val NO_BLUR_MIN_PANEL_ALPHA = 0.9f
+
+/**
+ * The least a panel's fill may be over the stream. Nothing blurs a stream's video surface, and at
+ * 90% menu opacity the game's own text read through the Command Center's rows: Control's "Press
+ * RETURN to Start" lined up with the Menu Opacity value as "Press 90% to Start" (in-game #12). At
+ * this fill the brightest game text behind the panel differs from black by under 2 of 255 levels.
+ */
+const val STREAM_MIN_PANEL_ALPHA = 0.99f
+
+/** These surfaces for a panel over the stream, whose fill is at least [STREAM_MIN_PANEL_ALPHA]. */
+fun NovaLibrarySurfaces.overStream(): NovaLibrarySurfaces =
+    copy(panel = panel.copy(alpha = maxOf(panel.alpha, STREAM_MIN_PANEL_ALPHA)))
+
 fun NovaComposeColors.librarySurfaces(
     theme: String,
-    menuOpacityScale: Float = 1f
+    menuOpacityScale: Float = 1f,
+    /**
+     * Whether the window behind a panel can be blurred (API 31 and later). Without blur the glass
+     * showed poster art and host buttons sharp through the rows on the Shield (API 30), so the
+     * panel keeps at least [NO_BLUR_MIN_PANEL_ALPHA] of its fill there.
+     */
+    blurAvailable: Boolean = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S,
 ): NovaLibrarySurfaces {
     val opacityScale = menuOpacityScale.coerceIn(0f, 1f)
     val isOled = theme == NovaThemeManager.THEME_OLED
@@ -220,7 +324,7 @@ fun NovaComposeColors.librarySurfaces(
                 alpha = NovaMenuPreferences.outerSurfaceAlpha(
                     opacityScale = opacityScale,
                     usesDarkText = textPrimary.luminance() < 0.5f
-                )
+                ).let { alpha -> if (blurAvailable) alpha else maxOf(alpha, NO_BLUR_MIN_PANEL_ALPHA) }
             ),
             panelBorder = surfaces.panelBorder.copy(alpha = surfaces.panelBorder.alpha * opacityScale),
             tile = surfaces.tile.copy(alpha = surfaces.tile.alpha * opacityScale),
@@ -260,20 +364,13 @@ fun NovaComposeTheme(
         ?: previewMenuOpacityPercent
         ?: observedMenuOpacityPercent
     val menuOpacityScale = NovaMenuPreferences.opacityScale(resolvedMenuOpacityPercent)
-    val colors = NovaComposeColors(
-        window = Color(NovaThemeManager.getWindowBackgroundColor(context)),
-        card = Color(NovaThemeManager.getCardBackgroundColor(context)),
-        dialog = Color(NovaThemeManager.getDialogBackgroundColor(context)),
-        badge = Color(NovaThemeManager.getBadgeBackgroundColor(context)),
-        divider = Color(NovaThemeManager.getDividerColor(context)),
-        accent = Color(NovaThemeManager.getAccentColor(context)),
-        accentSurface = Color(NovaThemeManager.getAccentSurfaceColor(context)),
-        warning = Color(ContextCompat.getColor(context, R.color.nova_warning)),
-        textPrimary = Color(NovaThemeManager.getTextPrimaryColor(context)),
-        textSecondary = Color(NovaThemeManager.getTextSecondaryColor(context)),
-        textMuted = Color(NovaThemeManager.getTextMutedColor(context)),
-        onAccent = Color(NovaThemeManager.getOnAccentColor(context))
-    )
+    // The palette reads resources and runs contrast checks, so it is built once per theme and
+    // night mode rather than on every recomposition of the tree below.
+    val uiMode = LocalConfiguration.current.uiMode
+    val colors = remember(context, theme, uiMode) { novaComposeColors(context) }
+    val formFactor = remember(context, uiMode) {
+        if (UiHelper.isTvDevice(context)) NovaFormFactor.Television else NovaFormFactor.Handheld
+    }
     val librarySurfaces = colors.librarySurfaces(theme, menuOpacityScale)
 
     // Portable Chrome used to be pinned light here -- the only hardcoded light Material
@@ -293,16 +390,27 @@ fun NovaComposeTheme(
         surfaceVariant = colors.badge,
         onSurfaceVariant = colors.textSecondary,
         outline = colors.divider,
-        error = colors.warning
+        error = colors.destructive,
+        onError = colors.onDestructive,
+        // Every container role is mapped, so no stock M3 piece falls back to the baseline grey.
+        surfaceContainerLowest = colors.window,
+        surfaceContainerLow = colors.card.compositeOver(colors.window),
+        surfaceContainer = colors.dialog.compositeOver(colors.window),
+        surfaceContainerHigh = colors.badge.compositeOver(colors.dialog.compositeOver(colors.window)),
+        surfaceContainerHighest = colors.badge.compositeOver(
+            colors.badge.compositeOver(colors.dialog.compositeOver(colors.window))
+        ),
     )
 
     androidx.compose.runtime.CompositionLocalProvider(
         LocalNovaComposeColors provides colors,
         LocalNovaLibrarySurfaces provides librarySurfaces,
-        LocalNovaMenuOpacityScale provides menuOpacityScale
+        LocalNovaMenuOpacityScale provides menuOpacityScale,
+        LocalNovaFormFactor provides formFactor,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
+            shapes = NovaShapes,
             content = content
         )
     }
