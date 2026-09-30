@@ -318,10 +318,14 @@ class NovaLibraryStageComposeTest {
             val node = composeRule.onNodeWithTag(tag, true)
             val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
             node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-            assertTrue("$tag is not vertically clipped", !layouts.single().didOverflowHeight)
+            val laid = layouts.single()
+            // Bounded titles may deliberately ellipsize extra lines; didOverflowHeight also
+            // reports that. Every line we actually draw must still fit its measured height.
+            assertTrue("$tag shows every drawn line", laid.size.height + 1f >= laid.getLineBottom(laid.lineCount - 1))
             val b = node.getUnclippedBoundsInRoot()
             assertTrue("$tag stays within its identity block", b.top >= identity.top - .6.dp && b.bottom <= identity.bottom + .6.dp)
             if (tag == "nova-stage-play-stats") {
+                assertTrue("the complete stats are not vertically clipped", !laid.didOverflowHeight)
                 node.assertTextEquals(layouts.single().layoutInput.text.text)
                 assertTrue("populated playtime and last-played remain present", layouts.single().layoutInput.text.text.contains("84 h played") && layouts.single().layoutInput.text.text.contains("Last played"))
                 assertTrue("full stats are not ellipsized", (0 until layouts.single().lineCount).none { layouts.single().isLineEllipsized(it) })
@@ -333,7 +337,8 @@ class NovaLibraryStageComposeTest {
             val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
             caption.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
             assertEquals("long neighbour exercises both caption lines", 2, layouts.single().lineCount)
-            assertTrue("caption is not vertically clipped", !layouts.single().didOverflowHeight)
+            val laid = layouts.single()
+            assertTrue("both visible caption lines fit vertically", laid.size.height + 1f >= laid.getLineBottom(laid.lineCount - 1))
             assertTrue("two caption lines fit their 34sp budget",
                 layouts.single().size.height / density <= kotlin.math.ceil(34f * 1.3f) + 1f)
             val bounds = caption.getUnclippedBoundsInRoot()
