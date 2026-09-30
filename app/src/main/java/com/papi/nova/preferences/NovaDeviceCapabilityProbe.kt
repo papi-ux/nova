@@ -112,12 +112,13 @@ object NovaCapabilityProbe {
         val display = (context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
         val room = (context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager)?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-        val current = if (Build.VERSION.SDK_INT >= 23) display?.mode else null
         val available = if (Build.VERSION.SDK_INT >= 23) display?.supportedModes.orEmpty().map {
             NovaDisplayMode(NovaSize(maxOf(it.physicalWidth,it.physicalHeight),minOf(it.physicalWidth,it.physicalHeight)),it.refreshRate.roundToInt().coerceIn(1,240))
         } else emptyList()
         fun aspect(mode: NovaDisplayMode) = mode.size.width.toDouble()/mode.size.height
-        val currentAspect = current?.let { maxOf(it.physicalWidth,it.physicalHeight).toDouble()/minOf(it.physicalWidth,it.physicalHeight) }
+        val currentAspect = if (Build.VERSION.SDK_INT >= 23) display?.mode?.let {
+            maxOf(it.physicalWidth,it.physicalHeight).toDouble()/minOf(it.physicalWidth,it.physicalHeight)
+        } else null
         // Prefer UHD on TVs that also advertise DCI cinema modes, while retaining the
         // actual aspect family on 16:10, ultrawide and DCI-only sinks.
         val aspect = when {
