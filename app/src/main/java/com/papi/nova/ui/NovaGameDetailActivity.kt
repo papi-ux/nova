@@ -524,6 +524,7 @@ class NovaGameDetailActivity : NovaActivity() {
         pinShortcutJob?.cancel()
         pinShortcutJob = null
         hostSyncEngine?.close()
+        onPlaySetupClosed()
         super.onDestroy()
     }
 
@@ -1803,7 +1804,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     this@NovaGameDetailActivity,
                     chosenCodec,
                     preferences.videoFormat,
-                    availability = { com.papi.nova.binding.video.PyroWaveAvailability.inspect(applicationContext) },
+                    availability = { devicePyroWave },
                     hostUnavailable = { hostCaptureCapabilities?.capture?.pyrowaveUnavailable },
                     isCurrent = { detailHostIsCurrent() && currentGame.id == rowGameId &&
                         preflightGeneration == rowGeneration && !optimizationState.preflightInFlight &&
@@ -2207,7 +2208,7 @@ class NovaGameDetailActivity : NovaActivity() {
             NovaComposeTheme {
                 val deviceState by deviceSettings.uiState.collectAsState()
                 val needsDeviceCodec = destination == NovaGameDetailDestination.PLAY_SETUP &&
-                    playSetupScope == NovaPlaySetupScope.EVERY_GAME && spaceGame == null
+                    spaceGame == null
                 LaunchedEffect(needsDeviceCodec) {
                     if (needsDeviceCodec) {
                         val availability = withContext(Dispatchers.Default) {

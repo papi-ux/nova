@@ -228,9 +228,9 @@ internal class NovaPolarisSyncEngine(
         isCurrent: () -> Boolean = { true },
         onConfirmed: () -> Unit = {},
         onFailed: () -> Unit = {},
-        writeAuthority: NovaClientSettingsWriteAuthority = NovaClientSettingsWriteAuthority(),
+        writeAuthority: NovaClientSettingsWriteAuthority? = null,
     ) {
-        if (closed || busy || !isCurrent() || !writeAuthority.valid) return
+        if (closed || busy || !isCurrent() || writeAuthority?.valid == false) return
         val client = apiClient ?: return
         val generation = lifecycleGeneration
         val previousSettings = currentSettings
@@ -250,11 +250,11 @@ internal class NovaPolarisSyncEngine(
             // Scope is Main for the UI owners. Recheck there before scheduling IO; the
             // atomic token also fences a dispatch which was queued while Main moved on.
             if (closed || lifecycleGeneration != generation) return@launch
-            if (!isCurrent() || !writeAuthority.valid) { busy = false; return@launch }
+            if (!isCurrent() || writeAuthority?.valid == false) { busy = false; return@launch }
             var rejectionMessage: String? = null
             val confirmed = withContext(ioDispatcher) {
                 try {
-                    if (closed || lifecycleGeneration != generation || !writeAuthority.valid) return@withContext null
+                    if (closed || lifecycleGeneration != generation || writeAuthority?.valid == false) return@withContext null
                     client.updateClientSettings(
                         streamDisplayMode = streamDisplayMode,
                         displayMode = displayMode,
@@ -267,7 +267,10 @@ internal class NovaPolarisSyncEngine(
                         clearTargetBitrate = clearTargetBitrate,
                         adaptiveBitrateEnabled = adaptiveBitrateEnabled,
                         aiOptimizerEnabled = aiOptimizerEnabled,
-                        aiAutoQualityEnabled = aiAutoQualityEnabled
+                        aiAutoQualityEnabled = aiAutoQualityEnabled,
+                        mutationAuthority = writeAuthority?.let { authority ->
+                            { !closed && lifecycleGeneration == generation && authority.valid }
+                        },
                     )
                 } catch (e: PolarisApiRejectedException) {
                     LimeLog.warning("Nova: Polaris sync update rejected: ${e.rejection.code}")
@@ -280,7 +283,7 @@ internal class NovaPolarisSyncEngine(
             }
             if (closed || lifecycleGeneration != generation) return@launch
             busy = false
-            if (!isCurrent() || !writeAuthority.valid) return@launch
+            if (!isCurrent() || writeAuthority?.valid == false) return@launch
             if (confirmed == null) {
                 currentSettings = previousSettings
                 val exactRejection = rejectionMessage
