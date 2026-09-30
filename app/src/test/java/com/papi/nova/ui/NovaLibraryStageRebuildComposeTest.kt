@@ -58,6 +58,7 @@ class NovaLibraryStageRebuildComposeTest {
     private val focused = mutableListOf<String>()
     private val opened = mutableListOf<String>()
     private val hapticCalls = mutableListOf<HapticFeedbackType>()
+    private var observedCompositionDensity: Density? = null
 
     private fun stage(restore: String? = null, densityScale: Float? = null, fontScale: Float? = null,
                       entries: List<PolarisGame> = games, showPosterTitles: Boolean = false, linearFontScaling: Boolean = false) {
@@ -71,6 +72,7 @@ class NovaLibraryStageRebuildComposeTest {
                 override fun TextUnit.toDp(): Dp = (value * resolvedFontScale).dp
                 override fun Dp.toSp(): TextUnit = (value / resolvedFontScale).sp
             } else Density(resolvedDensity, resolvedFontScale)
+            observedCompositionDensity = testDensity
             CompositionLocalProvider(LocalDensity provides testDensity,
                 LocalHapticFeedback provides object : HapticFeedback {
                     override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) { hapticCalls += hapticFeedbackType }
@@ -129,7 +131,7 @@ class NovaLibraryStageRebuildComposeTest {
         // API33 native uses linear SP conversion and measures two 59px lines here.
         // Robolectric's Density factory instead uses a newer nonlinear converter despite
         // sdk=33; explicitly match the native conversion, not its synthetic glyph metrics.
-        assertEquals(58.0125f, with(layouts.single().layoutInput.density) { 17.sp.toPx() }, .001f)
+        assertEquals(58.0125f, with(checkNotNull(observedCompositionDensity)) { 17.sp.toPx() }, .001f)
         assertTrue("two native lines require 118px; the old caption allocation was 117px",
             layouts.single().layoutInput.constraints.maxHeight >= 118)
     }
