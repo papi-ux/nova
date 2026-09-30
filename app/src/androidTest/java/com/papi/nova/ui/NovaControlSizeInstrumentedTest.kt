@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.graphics.Bitmap
+import android.content.res.Configuration
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -90,7 +91,9 @@ class NovaControlSizeInstrumentedTest {
             assertTrue("the fixture reaches the automatic 48dp touch expansion", bounds.height < 44 * physicalDensity)
             val before = taps
             compose.onRoot().performTouchInput {
-                click(Offset(bounds.center.x, bounds.bottom + 2 * physicalDensity))
+                // 23dp from centre is inside the original 48dp target and outside a
+                // 48dp target incorrectly shrunk to Compact's 42.24dp.
+                click(Offset(bounds.center.x, bounds.center.y + 23 * physicalDensity))
             }
             compose.waitForIdle()
             assertEquals("the area below the visual button still answers touch at $choice", before + 1, taps)
@@ -142,6 +145,15 @@ class NovaControlSizeInstrumentedTest {
     }
 
     private fun withRestoredChoice(block: () -> Unit) {
+        val arguments = InstrumentationRegistry.getArguments()
+        val config = compose.activity.resources.configuration
+        when (arguments.getString("orientation")) {
+            "portrait" -> assertEquals(Configuration.ORIENTATION_PORTRAIT, config.orientation)
+            "landscape" -> assertEquals(Configuration.ORIENTATION_LANDSCAPE, config.orientation)
+        }
+        arguments.getString("fontScale")?.toFloatOrNull()?.let {
+            assertEquals("the fixture uses the requested system font scale", it, config.fontScale, .01f)
+        }
         val prefs = PreferenceManager.getDefaultSharedPreferences(compose.activity)
         val previous = prefs.getString(key, null)
         prefs.edit().putString(key, "standard").commit()
