@@ -159,8 +159,10 @@ class PyroWaveBitrateAdviceTest {
         assertEquals(593890, advice(1920,1080,120,true,acrossTheRoom).kbps)
         for (limit in listOf(300000,500000)) {
             val wanted=advice(1920,1080,120,true,acrossTheRoom)
-            assertFalse(PyroWaveDecoderRenderer.bitrateWarning(300000,1920,1080,120,wanted,limit)!!.tellPlayer)
-            assertTrue(PyroWaveDecoderRenderer.bitrateWarning(299999,1920,1080,120,wanted,limit)!!.tellPlayer)
+            assertFalse(PyroWaveDecoderRenderer.bitrateWarning(limit,1920,1080,120,wanted,limit)!!.tellPlayer)
+            assertTrue(PyroWaveDecoderRenderer.bitrateWarning(limit-1,1920,1080,120,wanted,limit)!!.tellPlayer)
+            assertFalse(PyroWaveDecoderRenderer.bitrateWarning(300000,1920,1080,120,wanted,limit,automatic=true)!!.tellPlayer)
+            assertTrue(PyroWaveDecoderRenderer.bitrateWarning(299999,1920,1080,120,wanted,limit,automatic=true)!!.tellPlayer)
         }
     }
 
@@ -357,7 +359,7 @@ class PyroWaveBitrateAdviceTest {
     @Test
     fun theSettingsMaximumIsTheSlidersAndTheCustomEntrys() {
         val top = PreferenceConfiguration.MAX_BITRATE_KBPS
-        assertEquals(300_000, top)
+        assertEquals(500_000, top)
         assertEquals("the bitrate slider", top, sliderMaxKbps())
         assertEquals("the metered bitrate slider", top, sliderMaxKbps("seekbar_metered_bitrate_kbps"))
         val custom = PreferenceConfiguration.CUSTOM_BITRATE_PREF_STRING
@@ -374,11 +376,11 @@ class PyroWaveBitrateAdviceTest {
         assertEquals(594, wanted.mbps)
         val top = PreferenceConfiguration.MAX_BITRATE_KBPS
         for (streamKbps in listOf(top, top + 1, top + 50_000)) {
-            val warning = PyroWaveDecoderRenderer.bitrateWarning(streamKbps, 1920, 1080, 120, wanted)
+            val warning = PyroWaveDecoderRenderer.bitrateWarning(streamKbps, 1920, 1080, 120, wanted,maximumKbps=500000)
             assertNotNull("$streamKbps kbps under $wanted is no longer logged", warning)
             assertFalse("$streamKbps kbps: the player is told to pass the top of the slider", warning!!.tellPlayer)
             assertEquals(
-                "PyroWave: $streamKbps kbps for 1920x1080 at 120 fps; it wants about 594 Mbps, over the 300 " +
+                "PyroWave: $streamKbps kbps for 1920x1080 at 120 fps; it wants about 594 Mbps, over the 500 " +
                     "Mbps maximum of the bitrate setting, so the player is not told",
                 warning.logLine,
             )
@@ -389,10 +391,11 @@ class PyroWaveBitrateAdviceTest {
     fun oneUnderTheTopThePlayerIsToldAsBefore() {
         val warning = PyroWaveDecoderRenderer.bitrateWarning(
             PreferenceConfiguration.MAX_BITRATE_KBPS - 1, 1920, 1080, 120, pastTheTop(),
+            maximumKbps=500000,
         )
         assertNotNull(warning)
         assertTrue("one kbps under the top, the player is no longer told", warning!!.tellPlayer)
-        assertEquals("PyroWave: 299999 kbps for 1920x1080 at 120 fps; it wants about 594 Mbps", warning.logLine)
+        assertEquals("PyroWave: 499999 kbps for 1920x1080 at 120 fps; it wants about 594 Mbps", warning.logLine)
 
         val ordinary = PyroWaveDecoderRenderer.bitrateWarning(
             20_000, 1920, 1080, 60, advice(1920, 1080, 60, true, ownScreen),

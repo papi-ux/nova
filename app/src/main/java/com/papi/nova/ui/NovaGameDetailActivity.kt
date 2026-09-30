@@ -1955,7 +1955,7 @@ class NovaGameDetailActivity : NovaActivity() {
             if (row == NovaPlaySetupRow.DEVICE_BITRATE) {
                 val value = (deviceSettings.uiState.value.values[definition.key] as? NovaSettingValue.IntValue)?.value ?: 1000
                 return com.papi.nova.ui.panel.NovaCommonPage.Slider(key="device-bitrate", title=definition.title,
-                    value=value, range=(definition.min ?: 1000)..(definition.max ?: 300000),
+                    value=value, range=(definition.min ?: 1000)..(definition.max ?: PreferenceConfiguration.MAX_BITRATE_KBPS),
                     step=definition.step ?: 5000, format={ NovaBitrateAdvice.text(it,false) }, exactDivisor=1,
                     exactLabel="Bitrate (kbps)", onSave={ deviceEdits.change(definition,NovaSettingValue.IntValue(it)) })
             }
