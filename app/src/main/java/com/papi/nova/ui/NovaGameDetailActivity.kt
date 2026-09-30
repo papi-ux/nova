@@ -1956,7 +1956,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 bands={ listOf(NovaPlaySetupBand(null,deviceRows().firstOrNull { it.row==row }?.options.orEmpty())) },
                 initialLabel=if(row==NovaPlaySetupRow.DEVICE_QUALITY) "Recommended" else null)
         }
-        fun buildHostPlaySetupRows(deviceState: NovaSettingsUiState): List<NovaPlaySetupRowState> {
+        fun buildHostPlaySetupRows(deviceState: NovaSettingsUiState = deviceSettings.uiState.value): List<NovaPlaySetupRowState> {
             val sync = hostScopeUiState()
             return deviceRows(deviceState) + buildNovaPlaySetupHostRows(
                 sync = sync,
@@ -2067,7 +2067,7 @@ class NovaGameDetailActivity : NovaActivity() {
             row = NovaPlaySetupRow.HOST_PROFILE,
             bands = {
                 listOfNotNull(
-                    buildHostPlaySetupRows(deviceState).firstOrNull { it.row == NovaPlaySetupRow.HOST_PROFILE }
+                    buildHostPlaySetupRows().firstOrNull { it.row == NovaPlaySetupRow.HOST_PROFILE }
                         ?.let { NovaPlaySetupBand(null, it.options) },
                 )
             },
@@ -2165,7 +2165,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     playSetupScope = playSetupScope,
                     onPlaySetupScopeSelected = { selectPlaySetupScope(it) },
                     hostPlaySetupRows = if (playSetupScope == NovaPlaySetupScope.EVERY_GAME) {
-                        buildHostPlaySetupRows()
+                        buildHostPlaySetupRows(deviceState)
                     } else {
                         emptyList()
                     },
