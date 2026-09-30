@@ -192,8 +192,8 @@ class PolarisApiClient @JvmOverloads constructor(
     /** A failed reading removes telemetry, but cannot grant input after a viewer/denied reading. */
     val commandKeysAllowed: Boolean get() = !commandKeysRestricted
 
-    // This client belongs to one Game/stream. A replacement stream gets a fresh client; an owner
-    // reading for another session cannot remove this stream's previously observed restriction.
+    // A client can observe the previous owned session before its new stream launches. Only an
+    // actual denial binds a session; another session's owner cannot clear that standing denial.
     private fun updateCommandKeyAuthority(status: PolarisSessionStatus) {
         val session = commandKeySession
         val owner = status.authorityContractValid && status.isStreaming &&
@@ -201,16 +201,11 @@ class PolarisApiClient @JvmOverloads constructor(
         if (status.isViewer || (status.authorityContractValid && status.isStreaming && !status.ownedByClient)) {
             if (session == null) commandKeySession = CommandKeySession(status.appSessionId, status.sessionGeneration)
             commandKeysRestricted = true
-        } else if (owner) {
-            if (session == null && !commandKeysRestricted) {
-                // Older owner endpoints may have no identity. Preserve their existing allowance,
-                // but a subsequent viewer reading without identity cannot be cleared by guessing.
-                if (status.appSessionId.isNotBlank()) {
-                    commandKeySession = CommandKeySession(status.appSessionId, status.sessionGeneration)
-                }
-            } else {
-                commandKeysRestricted = session?.matches(status) != true
-            }
+        } else if (owner && commandKeysRestricted && session?.matches(status) == true) {
+            // Retire the recovered denial so a later legitimate owner launch is not pinned here.
+            // An identityless denial never matches and cannot be cleared by guessing.
+            commandKeySession = null
+            commandKeysRestricted = false
         }
     }
 
