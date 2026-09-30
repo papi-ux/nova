@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -357,7 +359,8 @@ internal fun NovaSettingsContent(
                 toggleModifier = Modifier.focusRequester(portraitMenuFocus),
                 onBack = onBack,
             )
-            if (showNavigation) NovaSettingsCompactHeader(
+            val navigationHeader: @Composable () -> Unit = {
+            NovaSettingsCompactHeader(
                 title = title,
                 subtitle = subtitle.takeIf { !compact },
                 query = state.searchQuery,
@@ -390,6 +393,19 @@ internal fun NovaSettingsContent(
             Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
             } else {
                 Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+            }
+
+            }
+            if (showNavigation) {
+                if (portrait) Column(
+                    Modifier.fillMaxWidth()
+                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp)
+                        .verticalScroll(rememberScrollState())
+                        .testTag("nova-portrait-settings-navigation")
+                ) {
+                    navigationHeader()
+                    NovaSettingsCategoryChips(state, onCategory)
+                } else navigationHeader()
             }
 
             val paneHost: @Composable (Modifier) -> Unit = { modifier ->
@@ -456,7 +472,7 @@ internal fun NovaSettingsContent(
                     paneHost(Modifier.weight(1f).fillMaxHeight())
                 }
             } else {
-                if (showNavigation) NovaSettingsCategoryChips(state, onCategory)
+                if (!portrait && showNavigation) NovaSettingsCategoryChips(state, onCategory)
                 Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
                 paneHost(Modifier.fillMaxWidth().weight(1f))
             }

@@ -164,6 +164,12 @@ class NovaPortraitSettingsInstrumentedTest {
         compose.onNodeWithText("Menu").performClick()
         compose.onNodeWithText("Legacy").assertIsDisplayed()
         portraitShot("settings-expanded")
+        val lastCategory = definitions.categories.last().key
+        compose.onNodeWithTag("nova-settings-category-$lastCategory").performScrollTo().assertIsDisplayed().performClick()
+        assertEquals(lastCategory, selected)
+        portraitShot("settings-all-categories")
+        val firstCategory = definitions.categories.first().key
+        compose.onNodeWithTag("nova-settings-category-$firstCategory").performScrollTo().performClick()
         compose.onNodeWithTag("nova-portrait-menu-toggle").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         // The fixture activity has no Nova key gate. Exercise Android Back dispatch explicitly.
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
