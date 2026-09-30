@@ -45,9 +45,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -93,12 +95,16 @@ private fun rememberHudOpacityScale(opacityScale: Float): Float {
 
 // Debug is Slim's line with the whole stream under it. The facts sit under the layer they
 // belong to, HOST, NET and CLIENT. Groups wrap at larger font sizes; text keeps its
-// readability backing even when the player's panel glass is clear.
+// contrast outline even when the player's panel glass is clear.
 @Composable
 private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
+    // Grow with accessible type, then wrap only when the available screen cannot hold it.
+    // The old widthIn(520dp) expanded to its maximum and could still wrap the third group.
+    val textScale = LocalDensity.current.fontScale.coerceAtLeast(1f) *
+        if (LocalNovaFormFactor.current == NovaFormFactor.Television) 14f / 11f else 1f
     // Wrap the layer groups when font scale or the usable surface cannot hold all three.
     HudPanel(
-        modifier = modifier.widthIn(max = 520.dp),
+        modifier = modifier.widthIn(max = (336f * textScale).dp),
         cornerRadius = NovaRadius.hero,
         padding = 10.dp
     ) {
@@ -170,10 +176,15 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
         HudDiagnosticStrip(state.healthReasonLabel, state.healthReasonTone, state.streamTruthLabel)
 
         BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            val minimum = (120 * LocalDensity.current.fontScale).dp
+            val minimum = (100f * textScale).dp
             val columns = ((maxWidth.value + 8) / (minimum.value + 8)).toInt().coerceIn(1, 3)
-            val columnWidth = (maxWidth - 8.dp * (columns - 1)) / columns
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val density = LocalDensity.current
+            val columnWidth = with(density) {
+                // Round once in pixels, then divide down. Rounding three fractional dp widths
+                // independently could add a pixel and push CLIENT onto a second row.
+                ((maxWidth.roundToPx() - 8.dp.roundToPx() * (columns - 1)) / columns).toDp()
+            }
+            val layers: @Composable () -> Unit = {
                 val host = state.layerHealth.getOrNull(0)
                 val net = state.layerHealth.getOrNull(1)
                 val client = state.layerHealth.getOrNull(2)
@@ -186,7 +197,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 HudLayerColumn(net?.label ?: "NET", net?.tone ?: NovaHudTone.MUTED, Modifier.width(columnWidth)) {
                     HudFact("RTT", state.latencyLabel, state.latencyTone)
                     HudFact("JITTER", state.jitterLabel)
-                    HudFact("FRAME LOSS\nLATEST WINDOW", state.packetLossLabel, state.packetLossTone)
+                    HudFact("FRAME LOSS\nLAST SAMPLE", state.packetLossLabel, state.packetLossTone)
                     HudFact("MISSING", state.framesLostLabel)
                     HudFact("IN", state.incomingFpsLabel)
                 }
@@ -197,6 +208,14 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                     // A rate gap can include intentional pacing. It is not a cumulative drop counter.
                     HudFact("RENDER GAP", state.renderGapLabel)
                 }
+            }
+            if (columns == 3) {
+                // The three known layers fit. Row avoids FlowRow's intrinsic remeasurement
+                // wrapping the third layer differently on real fonts and density 2.3.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { layers() }
+            } else {
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) { layers() }
             }
         }
         HudEventBreadcrumb(state.eventBreadcrumbLabel)
@@ -658,7 +677,7 @@ private fun NovaHudTone.hudColor(): Color {
     }
 }
 
-/** Each text run has its own small backing, independent of the adjustable panel glass. */
+/** Keep the glass clear and the labels cohesive; outline the glyphs instead of boxing each run. */
 @Composable
 private fun HudText(
     text: String, color: Color, fontSize: TextUnit, lineHeight: TextUnit,
@@ -668,12 +687,12 @@ private fun HudText(
 ) {
     val minimum = if (LocalNovaFormFactor.current == NovaFormFactor.Television) 14f else 11f
     val size = fontSize.value.coerceAtLeast(minimum)
+    val outlineRadius = with(LocalDensity.current) { 2.dp.toPx() }
     MaterialText(text = text, color = remember(color) { NovaHudReadability.foreground(color) },
+        style = TextStyle(shadow = Shadow(NovaHudReadability.outline, Offset.Zero, outlineRadius)),
         fontSize = size.sp, lineHeight = maxOf(lineHeight.value, size * 1.25f).sp,
         fontWeight = fontWeight, fontFamily = fontFamily, maxLines = maxLines, overflow = overflow,
-        modifier = modifier.background(NovaHudReadability.backing, RoundedCornerShape(NovaRadius.chip))
-            .padding(horizontal = NovaRadius.chip, vertical = 1.dp)
-            .testTag("nova_hud_readability_backing"))
+        modifier = modifier)
 }
 
 internal fun hudMetricDescription(label: String, value: String): String {
@@ -685,7 +704,7 @@ internal fun hudMetricDescription(label: String, value: String): String {
         "IN" -> "Received frame rate"
         "OUT" -> "Rendered frame rate"
         "WINDOW MIN" -> "Minimum of the last 60 FPS samples"
-        "FRAME LOSS\nLATEST WINDOW" -> "Video frames missing in the latest sample window"
+        "FRAME LOSS\nLAST SAMPLE" -> "Video frames missing in the latest sample window"
         "MISSING" -> "Video frames missing this session"
         "RENDER GAP" -> "Receive minus render rate, including intentional pacing"
         "BIT" -> "Bitrate"

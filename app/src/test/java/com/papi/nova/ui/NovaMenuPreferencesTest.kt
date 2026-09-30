@@ -1,8 +1,6 @@
 package com.papi.nova.ui
 
 import android.content.Context
-import android.graphics.Color
-import androidx.core.graphics.ColorUtils
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.preferences.NOVA_STREAM_UI_DEFAULT_UPDATES
 import com.papi.nova.preferences.NOVA_STREAM_UI_RESET_REMOVALS
@@ -37,9 +35,9 @@ class NovaMenuPreferencesTest {
         assertEquals(listOf(0, 25, 64, 90, 100), NovaMenuPreferences.OPACITY_PRESETS)
         assertEquals(0.62f, NovaMenuPreferences.scaleAlpha(0.62f, 100), 0.001f)
         assertEquals(0.31f, NovaMenuPreferences.scaleAlpha(0.62f, 50), 0.001f)
-        assertEquals(1f, NovaMenuPreferences.outerSurfaceAlpha(100, usesDarkText = false), 0.001f)
-        assertEquals(0.64f, NovaMenuPreferences.outerSurfaceAlpha(64, usesDarkText = false), 0.001f)
-        assertEquals(0f, NovaMenuPreferences.outerSurfaceAlpha(0, usesDarkText = false), 0.001f)
+        assertEquals(1f, NovaMenuPreferences.outerSurfaceAlpha(100), 0.001f)
+        assertEquals(0.64f, NovaMenuPreferences.outerSurfaceAlpha(64), 0.001f)
+        assertEquals(0f, NovaMenuPreferences.outerSurfaceAlpha(0), 0.001f)
 
         NovaMenuPreferences.writeOpacityPercent(prefs, -10)
 
@@ -86,44 +84,12 @@ class NovaMenuPreferencesTest {
     }
 
     @Test
-    fun darkTextContrastFloorsMeetWcagAgainstABlackScene() {
-        assertEquals(0.71f, NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA, 0.001f)
-        assertEquals(0.57f, NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA, 0.001f)
-        assertEquals(
-            NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA,
-            NovaMenuPreferences.outerSurfaceAlpha(0, usesDarkText = true),
-            0.001f
-        )
-        assertEquals(
-            0f,
-            NovaMenuPreferences.outerSurfaceAlpha(0, usesDarkText = false),
-            0.001f
-        )
-        assertEquals(1f, NovaMenuPreferences.outerSurfaceAlpha(100, usesDarkText = true), 0.001f)
-
-        val text = Color.rgb(0x1F, 0x2A, 0x35)
-        val portableSurface = Color.rgb(0xC4, 0xCD, 0xD8)
-        val nativeComposite = ColorUtils.compositeColors(
-            ColorUtils.setAlphaComponent(
-                portableSurface,
-                (NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA * 255f).toInt()
-            ),
-            Color.BLACK
-        )
-        val dialogBackdrop = ColorUtils.compositeColors(
-            ColorUtils.setAlphaComponent(
-                Color.WHITE,
-                (NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA * 255f).toInt()
-            ),
-            Color.BLACK
-        )
-        assertTrue(ColorUtils.calculateContrast(text, nativeComposite) >= 4.5)
-        assertTrue(ColorUtils.calculateContrast(text, dialogBackdrop) >= 4.5)
-        assertEquals(
-            NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA,
-            NovaMenuPreferences.readabilityScrimAlpha(0.58f, 0f, usesDarkText = true),
-            0.001f
-        )
+    fun opacityEndpointsAreLiteralWhileTheLightTextScrimStaysSeparate() {
+        assertEquals(0f, NovaMenuPreferences.outerSurfaceAlpha(0), 0.001f)
+        assertEquals(0.25f, NovaMenuPreferences.outerSurfaceAlpha(25), 0.005f)
+        assertEquals(1f, NovaMenuPreferences.outerSurfaceAlpha(100), 0.001f)
+        assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA,
+            NovaMenuPreferences.readabilityScrimAlpha(0.58f, 0f, usesDarkText = true), 0.001f)
     }
 
     @Test

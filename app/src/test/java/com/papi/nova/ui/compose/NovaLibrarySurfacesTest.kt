@@ -49,15 +49,14 @@ class NovaLibrarySurfacesTest {
 
     @Test
     fun menuOpacityUsesAbsoluteOuterPanelWhileScalingNestedChromeAndPreservingFocus() {
-        // A dark-text palette, which is what these floors are about. This used to borrow
+        // A dark-text palette. This used to borrow
         // Portable Chrome's, and kept passing after Portable Chrome went graphite only
         // because the fixture was a hardcoded copy -- it was exercising a theme that no
         // longer exists. Material You in light mode is the real dark-text case.
         val colors = darkTextColors()
-        // With blur, as on API 31 and later: without it a panel keeps at least 0.9 of its fill.
-        val full = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 1f, blurAvailable = true)
-        val half = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0.5f, blurAvailable = true)
-        val zero = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0f, blurAvailable = true)
+        val full = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 1f)
+        val half = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0.5f)
+        val zero = colors.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU, menuOpacityScale = 0f)
 
         assertEquals(
             NovaMenuPreferences.readabilityScrimAlpha(
@@ -69,7 +68,7 @@ class NovaLibrarySurfacesTest {
             0.005f
         )
         assertEquals(1f, full.panel.alpha, 0.005f)
-        assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA, half.panel.alpha, 0.005f)
+        assertEquals(0.5f, half.panel.alpha, 0.005f)
         assertEquals(full.panelBorder.alpha * 0.5f, half.panelBorder.alpha, 0.005f)
         assertEquals(full.tile.alpha * 0.5f, half.tile.alpha, 0.005f)
         assertEquals(full.tileBorder.alpha * 0.5f, half.tileBorder.alpha, 0.005f)
@@ -77,7 +76,7 @@ class NovaLibrarySurfacesTest {
         assertEquals(full.selectedControl.alpha * 0.5f, half.selectedControl.alpha, 0.005f)
         assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SCRIM_ALPHA, zero.backgroundScrim.alpha, 0.005f)
         assertEquals(Color.White, zero.backgroundScrim.copy(alpha = 1f))
-        assertEquals(NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA, zero.panel.alpha, 0.001f)
+        assertEquals(0f, zero.panel.alpha, 0.001f)
         assertEquals(0f, zero.control.alpha, 0.001f)
         assertEquals(full.focusRing, zero.focusRing)
         assertEquals(full.focusHalo, zero.focusHalo)
@@ -106,19 +105,12 @@ class NovaLibrarySurfacesTest {
             "the focus halo is no longer the faintest in the app",
             portableChrome.focusHalo.alpha >= 0.20f
         )
-        // At full opacity every theme's outer panel is absolute, so the light/dark-text
-        // split only shows once the user turns menus down. Dark text floored Portable at
-        // MIN_DARK_TEXT_SURFACE_ALPHA; silver text is free to go further, which is the
-        // contract rule about not becoming an opaque slab that it had been breaking.
+        // The outer panel follows the percentage in every palette.
         val dimmed = portableColors.librarySurfaces(
             NovaThemeManager.THEME_PORTABLE_CHROME,
             menuOpacityScale = 0.5f,
-            blurAvailable = true,
         )
-        assertTrue(
-            "a turned-down Portable Chrome panel is no longer held above the dark-text floor",
-            dimmed.panel.alpha < NovaMenuPreferences.MIN_DARK_TEXT_SURFACE_ALPHA
-        )
+        assertEquals(0.5f, dimmed.panel.alpha, 0.005f)
         assertEquals(
             "missing artwork sits on graphite. Portable was the only theme putting its " +
                 "window colour here, because its window used to be light",
