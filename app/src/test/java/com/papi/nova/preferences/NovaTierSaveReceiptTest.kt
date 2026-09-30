@@ -3,6 +3,7 @@ package com.papi.nova.preferences
 import android.content.Context
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
+import androidx.lifecycle.ViewModelStore
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.profiles.SettingsProfile
 import java.io.File
@@ -28,6 +29,7 @@ class NovaTierSaveReceiptTest {
     private lateinit var profile: SettingsProfile
     private lateinit var vm: NovaSettingsViewModel
     private var completed = false
+    private val models = ViewModelStore()
     @Before fun prepare() {
         ProfilesManager.instance = null
         manager = ProfilesManager.getInstance()
@@ -46,9 +48,10 @@ class NovaTierSaveReceiptTest {
             .putInt("seekbar_bitrate_kbps",350000).putBoolean(NovaSettingsMigration.CUSTOM_AUTO,false).commit()
         val repo = NovaSettingsRepository.createForTest(context,prefs,File(context.filesDir,"tier-${UUID.randomUUID()}.preferences_pb"))
         vm = NovaSettingsViewModel(NovaSettingDefinitions.load(context),repo)
+        models.put("settings",vm)
         await { vm.streamTiers.value != null }
     }
-    @After fun finish() { manager.awaitDeferredWritesForTest(); NovaTierRuntime.installForTest(null) }
+    @After fun finish() { models.clear(); manager.awaitDeferredWritesForTest(); NovaTierRuntime.installForTest(null) }
     private fun await(done: () -> Boolean) {
         val end=System.nanoTime()+5_000_000_000L
         while(!done() && System.nanoTime()<end) { shadowOf(Looper.getMainLooper()).idle();Thread.sleep(5) }
@@ -65,6 +68,7 @@ class NovaTierSaveReceiptTest {
         try {
             select()
             await { entered.count==0L }
+            repeat(20) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5) }
             assertFalse("base commit is not the setup save receipt",completed)
             assertTrue(quality().summary.contains("Saving"))
         } finally { release.countDown() }
