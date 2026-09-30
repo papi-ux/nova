@@ -45,6 +45,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -522,6 +523,7 @@ private fun NovaSliderTrack(value: Int, range: IntRange, step: Int, label: Strin
     val fraction = (value - range.first).toFloat() / span
     Column(
         modifier = modifier
+            .testTag("nova-number-slider")
             .fillMaxWidth()
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
@@ -545,6 +547,7 @@ private fun NovaSliderTrack(value: Int, range: IntRange, step: Int, label: Strin
         Text(text = label, style = novaPanelType.value, color = colors.textPrimary)
         Box(
             modifier = Modifier
+                .testTag("nova-number-track")
                 .fillMaxWidth()
                 .heightIn(min = NovaPanelMetrics.SliderTrackHeight)
                 .clip(RoundedCornerShape(NovaRadius.pill))
