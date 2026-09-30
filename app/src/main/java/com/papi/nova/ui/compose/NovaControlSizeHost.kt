@@ -74,6 +74,11 @@ private class NovaControlDensity(private val original: Density, private val scal
     override val density = original.density * scale
     override val fontScale = original.fontScale / scale
 
+    override fun TextUnit.toPx(): Float {
+        val text = this
+        return with(original) { text.toPx() }
+    }
+
     override fun TextUnit.toDp(): Dp {
         val text = this
         return with(original) { text.toDp() } / scale
