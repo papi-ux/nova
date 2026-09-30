@@ -38,11 +38,11 @@ class NovaControlSizeComposeTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val key = "nova_control_size"
 
-    @Test fun regularIsTheCompatibleDefaultAndThePreferenceStaysOutOfSavedGameSetups() {
+    @Test fun standardIsTheCompatibleDefaultAndThePreferenceStaysOutOfSavedGameSetups() {
         val definition = NovaSettingDefinitions.load(compose.activity).find(key)
         assertNotNull("control size is an appearance setting", definition)
         assertEquals(NovaSettingValue.StringValue("standard"), definition!!.defaultValue)
-        assertEquals(listOf("Compact", "Regular", "Large"), definition.options.map { it.label })
+        assertEquals(listOf("Compact", "Standard", "Large"), definition.options.map { it.label })
         assertEquals("category_nova", definition.categoryKey)
         assertEquals(NovaSettingApplyTiming.Instant, definition.applyTiming)
         assertTrue(definition.isOrderedScale)
@@ -124,8 +124,8 @@ class NovaControlSizeComposeTest {
             compose.onNodeWithTag("control").assertIsFocused()
             assertEquals("stream/device resources are unchanged", resourceConfiguration, compose.activity.resources.configuration)
         }
-        assertTrue("Regular is visibly larger than Compact", standard >= compactHeight * 1.2f)
-        assertTrue("Large is visibly larger than Regular", largeHeight >= standard * 1.3f)
+        assertTrue("Standard is visibly larger than Compact", standard >= compactHeight * 1.2f)
+        assertTrue("Large is visibly larger than Standard", largeHeight >= standard * 1.3f)
         preferences.edit().remove(key).commit()
     }
 }

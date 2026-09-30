@@ -2,7 +2,7 @@
 <resources>
     <string-array name="nova_control_size_names">
         <item>Compact</item>
-        <item>Regular</item>
+        <item>Standard</item>
         <item>Large</item>
     </string-array>
     <string-array name="nova_control_size_values">
