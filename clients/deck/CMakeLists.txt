@@ -732,6 +732,17 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 
         if(BUILD_TESTING)
+            target_link_libraries(nova_deck_native_session_test PRIVATE Qt6::QuickControls2)
+            target_compile_definitions(nova_deck_native_session_test PRIVATE
+                NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+            foreach(case IN ITEMS stage-platform stage-name stage-audio stage-rtsp stage-refused
+                    stage-control stage-video stage-input unknown-start term-no-video term-no-frame
+                    term-early term-protected term-conversion term-unknown host-refusal)
+                add_test(NAME nova_deck_failure_gui_${case}_test
+                    COMMAND nova_deck_native_session_test --failure-copy ${case})
+                set_tests_properties(nova_deck_failure_gui_${case}_test PROPERTIES
+                    TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+            endforeach()
             add_executable(nova_deck_pairing_qml_test tests/deck_pairing_qml_test.cpp)
             target_link_libraries(nova_deck_pairing_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
             target_compile_definitions(nova_deck_pairing_qml_test PRIVATE

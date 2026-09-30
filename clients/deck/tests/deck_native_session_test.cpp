@@ -1,4 +1,10 @@
 #include <QFile>
+#ifdef NOVA_DECK_QML_DIRECTORY
+#include <QQmlComponent>
+#include <QQmlContext>
+#include <QQmlEngine>
+#include <QKeyEvent>
+#endif
 #include <QDir>
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_native_session.h"
@@ -69,6 +75,7 @@ struct Driver final : DeckMoonlightConnectionDriver {
     bool blockStart = false, blockStop = false;
     Barrier stopBarrier;
     bool failStart = false;
+    int failedStage = -1, failedStageCode = -1, startReturnCode = -1;
     Barrier startBarrier;
     QThread* startThread = nullptr;
     QThread* stopThread = nullptr;
@@ -86,7 +93,10 @@ struct Driver final : DeckMoonlightConnectionDriver {
         feedback = listener.rumble;
         ++starts;
         if (blockStart) { startBarrier.wait(); return -1; }
-        if (failStart) return -1;
+        if (failStart) {
+            if (failedStage >= 0) listener.stageFailed(failedStage, failedStageCode);
+            return startReturnCode;
+        }
         end = disconnect = false;
         listenerThread = std::thread([this, callback = listener.connectionTerminated]() {
             std::unique_lock lock(mutex);
@@ -119,7 +129,7 @@ struct Host {
     bool missingUrl = false;
     bool refuseCancel = false;
     Driver* driver = nullptr;
-    std::string launchRequest, resumeRequest, serverInfoOverride;
+    std::string launchRequest, resumeRequest, serverInfoOverride, refusalResponse;
     int appId = 17;
     std::string appUuid;
     std::string launchToken = "private-token";
@@ -170,7 +180,8 @@ struct Host {
                     DeckHttpResponse{true, 200, "<root status_code=\"200\"><appversion>7.1.431.0</appversion></root>"};
                 if (path == "/launch") {
                     launchRequest = request;
-                    if (refuseLaunch) return DeckHttpResponse{true, 200, "<root status_code=\"503\"><gamesession>0</gamesession></root>"};
+                    if (refuseLaunch) return DeckHttpResponse{true, 200, refusalResponse.empty()
+                        ? "<root status_code=\"503\"><gamesession>0</gamesession></root>" : refusalResponse};
                     return DeckHttpResponse{true, 200, std::string("<root status_code=\"200\"><gamesession>1</gamesession><sessionToken>") + launchToken + "</sessionToken>"
                         + (missingUrl ? "" : "<sessionUrl0>rtsp://192.0.2.10:48010</sessionUrl0>") + "</root>"};
                 }
@@ -810,6 +821,121 @@ void testFailures() {
         require(!publicJson.contains("private-token") && !publicJson.contains("192.0.2.10"), "private session material leaked to UI");
     }
 }
+
+
+#ifdef NOVA_DECK_QML_DIRECTORY
+// The same native worker, real GUI state publication and production QML that
+// standalone uses. Only the host HTTP and moonlight driver are synthetic.
+void testNamedFailureGui(const QString& scenario) {
+    Host host; Driver driver; host.driver = &driver;
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    QTemporaryDir preferences;
+    DeckPlaySettings settings(preferences.filePath("play.ini"));
+    settings.setVideoDecodeSupport(host.decoderSupport);
+    qmlRegisterType<DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream", 0, 1, "DeckVaapiPreviewSurface");
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty("testSession", &controller);
+    engine.rootContext()->setContextProperty("testSettings", &settings);
+    QQmlComponent component(&engine);
+    const QByteArray imports = "import QtQuick\nimport QtQuick.Controls\nimport \"" +
+        QUrl::fromLocalFile(NOVA_DECK_QML_DIRECTORY).toEncoded() + "\"\n";
+    component.setData(imports + R"(
+        ApplicationWindow {
+            width:1280; height:800; visible:true
+            title:"Synthetic standalone failure route"
+            NativeStreamPreview {
+                session:testSession; settingsProvider:testSettings
+                hostId:"host"; gameId:"game"; hostName:"Living Room PC"; gameTitle:"Moonlit Harbor"
+            }
+
+        }
+    )", QUrl());
+    require(component.isReady(), qPrintable(component.errorString()));
+    std::unique_ptr<QObject> root(component.create());
+    require(root != nullptr, qPrintable(component.errorString()));
+    auto* window = qobject_cast<QQuickWindow*>(root.get());
+    auto* preview = root->findChild<QObject*>("native-stream-preview");
+    auto* play = root->findChild<QQuickItem*>("native-preview-action");
+    require(window && preview && play, "production standalone stream route missing");
+    QMetaObject::invokeMethod(preview, "open");
+    until([&] { return play->isEnabled() && preview->property("opened").toBool(); });
+    QString expected;
+    int stage = -1, error = 0;
+    const bool terminal = scenario.startsWith("term-");
+    bool hostRefusal = scenario == "host-refusal";
+    if (scenario == "stage-platform") { stage=STAGE_PLATFORM_INIT; error=-12; expected="platform"; }
+    else if (scenario == "stage-name") { stage=STAGE_NAME_RESOLUTION; error=-2; expected="PC name"; }
+    else if (scenario == "stage-audio") { stage=STAGE_AUDIO_STREAM_INIT; error=-12; expected="audio decoder"; }
+    else if (scenario == "stage-rtsp") { stage=STAGE_RTSP_HANDSHAKE; error=-408; expected="RTSP handshake"; }
+    else if (scenario == "stage-refused") { stage=STAGE_RTSP_HANDSHAKE; error=503; expected="PC refused"; }
+    else if (scenario == "stage-control") { stage=STAGE_CONTROL_STREAM_START; error=-99; expected="control connection"; }
+    else if (scenario == "stage-video") { stage=STAGE_VIDEO_STREAM_INIT; error=-12; expected="video decoder"; }
+    else if (scenario == "stage-input") { stage=STAGE_INPUT_STREAM_INIT; error=-12; expected="game input"; }
+    else if (scenario == "unknown-start") { driver.startReturnCode=-2222; expected="-2222"; }
+    else if (scenario == "term-no-video") { error=ML_ERROR_NO_VIDEO_TRAFFIC; expected="No video traffic"; }
+    else if (scenario == "term-no-frame") { error=ML_ERROR_NO_VIDEO_FRAME; expected="No complete video frame"; }
+    else if (scenario == "term-early") { error=ML_ERROR_UNEXPECTED_EARLY_TERMINATION; expected="shortly after"; }
+    else if (scenario == "term-protected") { error=ML_ERROR_PROTECTED_CONTENT; expected="protected content"; }
+    else if (scenario == "term-conversion") { error=ML_ERROR_FRAME_CONVERSION; expected="convert"; }
+    else if (scenario == "term-unknown") { error=-7009; expected="-7009"; }
+    else if (hostRefusal) {
+        expected="PyroWave cannot read this HDR desktop. Choose HEVC or use a Private Stream.";
+        host.refuseLaunch=true;
+        host.refusalResponse="<root status_code=\"503\" status_message=\"" + expected.toStdString() +
+            "\" error_code=\"pyrowave_capture_unreadable\" error_action=\"Choose HEVC or use a Private Stream.\"><gamesession>0</gamesession></root>";
+    } else require(false, "unknown failure fixture");
+    driver.failStart = !terminal && !hostRefusal;
+    driver.failedStage=stage; driver.failedStageCode=error;
+    require(QMetaObject::invokeMethod(play, "clicked"), "controller Play did not activate production QML");
+    if (terminal) {
+        until([&] { return phase(controller)=="active"; });
+        driver.terminate(error);
+    }
+    settled(controller);
+    require(controller.state().value("copy").toString().contains(expected,Qt::CaseInsensitive),
+        qPrintable(QString("%1 lost named cause: %2").arg(scenario,controller.state().value("copy").toString())));
+    require(!controller.state().value("copy").toString().contains("preview",Qt::CaseInsensitive), "working app still calls failure a preview");
+    if (scenario=="stage-rtsp" || scenario=="term-no-video") {
+        require(controller.state().value("copy").toString().contains("47998") &&
+            controller.state().value("copy").toString().contains("48010"), "transport cause lost actionable port guidance");
+    }
+    if (scenario=="stage-refused" || hostRefusal) require(!controller.state().value("copy").toString().contains("47998"), "host refusal blames firewall ports");
+    const auto state=controller.state();
+    if (hostRefusal) {
+        require(state.value("copy")==expected && state.value("hostReason")=="pyrowave_capture_unreadable" && state.value("hostStatusCode")==503,
+            "host refusal text or typed provenance was changed");
+        require(driver.starts==0 && host.cancels==0,"refused launch touched native transport or ended an unstarted game");
+    } else if (terminal) {
+        require(state.value("failureSource")=="termination" && state.value("terminationErrorCode")==error,
+            "termination code/provenance did not reach GUI state");
+        require(state.value("canReconnect").toBool() && host.cancels==0,"named termination changed safe existing-game recovery");
+    } else {
+        require(state.value("failureSource")== (scenario=="unknown-start" ? "start" : "stage") && state.value("failedStage")==stage && state.value("failedStageErrorCode")==error &&
+            (scenario!="unknown-start" || state.value("connectionStartCode")==-2222),
+            "stage code/provenance did not reach GUI state");
+    }
+    bool drawn=false;
+    for (auto* item : root->findChildren<QQuickItem*>()) {
+        if (item->property("text").toString()==state.value("copy").toString() && item->isVisible() && item->width()>0 && item->height()>0) {
+            const auto pos=item->mapToScene({0,0});
+            drawn=pos.y()>=0 && pos.y()+item->height()<=window->height();
+        }
+    }
+    require(drawn,"native failure did not reach the visible production QML status label");
+    require(play->isEnabled(),"named failure stranded the controller action");
+    const auto json=QJsonDocument::fromVariant(state).toJson();
+    require(!json.contains("private-token") && !json.contains("192.0.2.10"),"failure diagnostics leaked private session material");
+    // The previous worker must settle before a new stream starts. Its published
+    // failure and typed host reason must not be carried into that generation.
+    driver.failStart=false; host.refuseLaunch=false;
+    require(controller.start("host","game"),"next generation rejected after failure cleanup");
+    until([&] { return phase(controller)=="active"; });
+    QCoreApplication::processEvents();
+    require(phase(controller)=="active" && !controller.state().contains("failureSource") &&
+        !controller.state().contains("hostReason"),"old failure provenance contaminated next stream generation");
+    controller.stop(); settled(controller);
+}
+#endif
 
 void testShutdownAndGlobalExclusion() {
     Host host;
@@ -2252,6 +2378,12 @@ int main(int argc, char** argv) {
     require(deckSupportReportDirectory().startsWith(settingsDirectory.path()+"/"), "support report destination is not isolated");
     QCoreApplication::setOrganizationName("NovaDeckTests");
     QCoreApplication::setApplicationName("NativeSession");
+    #ifdef NOVA_DECK_QML_DIRECTORY
+    if (const auto index=app.arguments().indexOf("--failure-copy"); index>=0) {
+        require(index+1<app.arguments().size(),"missing failure case");
+        testNamedFailureGui(app.arguments().at(index+1)); return 0;
+    }
+#endif
     if (app.arguments().contains("--desktop-only")) { testDesktopWindowRouting(); return 0; }
     testDesktopWorkerOwnership();
     testDesktopWindowRouting();
