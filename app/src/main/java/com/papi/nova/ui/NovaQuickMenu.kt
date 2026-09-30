@@ -860,12 +860,9 @@ class NovaQuickMenu(
 
         fun bitrateMenuCurrent(): Boolean = menuValidationIsCurrent() && menuShowing() &&
             game.novaApiClient === commandClient && game.conn === commandConnection
-        fun changeBitrate(token: com.papi.nova.manager.NovaLiveBitrateToken?, direction: Int? = null, kbps: Int? = null) {
-            if (!bitrateMenuCurrent()) return
-            game.launchRuntimeIo("NovaQuickMenuBitrate") {
-                game.novaLiveBitrate.change(token, ::bitrateMenuCurrent, direction, kbps)
-            }
-        }
+        val bitrateAction = game.novaBitrateAction(::bitrateMenuCurrent)
+        fun changeBitrate(token: com.papi.nova.manager.NovaLiveBitrateToken?, direction: Int? = null, kbps: Int? = null) =
+            bitrateAction(token, direction, kbps)
         val callbacks = NovaQuickMenuCallbacks(
             onBitrateStep = { token, direction -> changeBitrate(token, direction = direction) },
             onBitrateRecommended = { token -> changeBitrate(token) },

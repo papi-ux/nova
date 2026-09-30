@@ -177,6 +177,7 @@ class Game : NovaActivity(), SurfaceHolder.Callback, OnGenericMotionListener, On
 
 
 private val runtimeTasks:NovaRuntimeTasks = NovaRuntimeTasks(this, "Nova runtime")
+private var novaStreamHostMaximumKbps: Int? = null
 internal val novaLiveBitrate by lazy {
     com.papi.nova.manager.NovaStreamBitrateOwner(lifecycleScope,
         { novaApiClient }, { conn }, { isStreamActive && connected && !isFinishing && !isDestroyed },
@@ -189,7 +190,19 @@ internal val novaLiveBitrate by lazy {
                 when { watchOnlyRequested -> "Watching another player's stream"
                     spaceSession -> "Space manages picture settings"
                     else -> null })
-        })
+        }, { novaStreamHostMaximumKbps })
+}
+/** Captures this opening's actual API/connection, including the final dispatch standing check. */
+internal fun novaBitrateAction(menuCurrent: () -> Boolean):
+    (com.papi.nova.manager.NovaLiveBitrateToken?, Int?, Int?) -> Unit {
+    val client = novaApiClient
+    val connection = conn
+    fun standing() = menuCurrent() && novaApiClient === client && conn === connection
+    return { token, direction, kbps ->
+        if (standing()) launchRuntimeIo("NovaQuickMenuBitrate") {
+            novaLiveBitrate.change(token, ::standing, direction, kbps)
+        }
+    }
 }
 private fun attachNovaLiveBitrate() {
     val client = novaApiClient ?: return
@@ -1688,6 +1701,9 @@ chosenFrameRate *= prefConfig!!.framePacingWarpFactor
 }
 
 configureLaunchBitrate(isMetered, launchOptimization)
+novaStreamHostMaximumKbps = launchOptimization?.let {
+    com.papi.nova.manager.NovaStreamSourceLine.fromPreflight(it).capKbps
+}
 var autoSafeResolution:com.papi.nova.manager.StreamSyncManager.StreamResolution? = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeResolution(
 displayWidth,
 displayHeight,
