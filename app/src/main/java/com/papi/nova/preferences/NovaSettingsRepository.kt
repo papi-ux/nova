@@ -28,8 +28,11 @@ private val novaSettingsWriteMutex = Mutex()
 
 class NovaSharedPreferencesSettingsStore(
     private val prefs: SharedPreferences,
-    private val fallbackPrefs: SharedPreferences? = null
+    private val fallbackPrefs: SharedPreferences? = null,
+    private val context: Context? = null,
 ) : NovaSettingsStore {
+    override val tierUpdates get() = if (context == null) null else NovaTierRuntime.updates.filterNotNull().map { it.inputs }
+    override suspend fun deviceTierInputs() = withContext(Dispatchers.IO) { context?.let { NovaTierRuntime.prepare(it).inputs } }
     override suspend fun storedStreamKeys() = (fallbackPrefs?.all?.keys.orEmpty() + prefs.all.keys)
 
     fun snapshot(): Map<String, NovaSettingValue> {

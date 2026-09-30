@@ -9,7 +9,9 @@ data class NovaSettingsUiState(
     val visibleSettings: List<NovaSettingDefinition>,
     val values: Map<String, NovaSettingValue>,
     val overrideKeys: Set<String> = emptySet(),
-    val resettableKeys: Set<String> = emptySet()
+    val resettableKeys: Set<String> = emptySet(),
+    val generatedQuality: Boolean = false,
+    val bitrateAuto: Boolean? = null,
 ) {
     fun isSearchActive(): Boolean = searchQuery.isNotBlank()
 

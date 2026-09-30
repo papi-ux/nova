@@ -98,8 +98,8 @@ internal fun novaSelectOptions(
     NovaOption(
         value = option.value,
         label = option.label,
-        caption = if (key == VIDEO_FORMAT_KEY) com.papi.nova.ui.novaCodecOptionDetail(context, option.value) else null,
-        disabledReason = if (blocked) PyroWaveAvailability.reason(context, pyroWave) else null,
+        caption = option.caption ?: if (key == VIDEO_FORMAT_KEY) com.papi.nova.ui.novaCodecOptionDetail(context, option.value) else null,
+        disabledReason = option.disabledReason ?: if (blocked) PyroWaveAvailability.reason(context, pyroWave) else null,
     )
 }
 

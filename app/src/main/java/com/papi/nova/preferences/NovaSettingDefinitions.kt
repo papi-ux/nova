@@ -28,7 +28,9 @@ enum class NovaSettingApplyTiming(val label: String) {
 
 data class NovaSettingOption(
     val label: String,
-    val value: String
+    val value: String,
+    val caption: String? = null,
+    val disabledReason: String? = null,
 )
 
 data class NovaSettingCategory(

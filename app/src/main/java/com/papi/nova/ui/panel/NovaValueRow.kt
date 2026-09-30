@@ -121,6 +121,7 @@ fun <T> NovaValueRow(
     enabled: Boolean = true,
     onOpenList: (() -> Unit)? = null,
     wrapUnderTitle: Boolean = true,
+    onActivateChoice: (() -> Unit)? = null,
 ) {
     val resolved = remember(options, style) { resolveNovaValueStyle(options, style) }
     val labelWidths = rememberNovaLabelWidths(remember(options) { options.map { it.label } })
@@ -163,7 +164,9 @@ fun <T> NovaValueRow(
         // A on a switch flips it, as its hint says: stepping forward only ever turned it on, so
         // HDR and every other switch could be turned off with Left alone.
         onActivate = {
-            if (isSwitch) {
+            if (onActivateChoice != null) {
+                onActivateChoice()
+            } else if (isSwitch) {
                 step(if (options.getOrNull(latestIndex)?.value == true) -1 else 1, wrap = false)
             } else {
                 step(1, wrap = true)

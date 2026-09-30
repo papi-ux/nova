@@ -143,7 +143,8 @@ class EditProfileActivity : NovaActivity() {
         )
         val store = NovaSharedPreferencesSettingsStore(
             prefs = draftPrefs,
-            fallbackPrefs = PreferenceManager.getDefaultSharedPreferences(this)
+            fallbackPrefs = PreferenceManager.getDefaultSharedPreferences(this),
+            context = applicationContext,
         )
         val viewModel = ViewModelProvider(
             this,

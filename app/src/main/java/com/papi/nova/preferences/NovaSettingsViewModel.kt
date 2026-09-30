@@ -118,7 +118,16 @@ class NovaSettingsViewModel(
         viewModelScope.launch {
             try {
                 stateMutex.withLock {
-                    if (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO) {
+                    val tier = (value as? NovaSettingValue.StringValue)?.value?.let { name ->
+                        NovaTier.entries.firstOrNull { it.name.equals(name, true) }
+                    }
+                    if (definition.key == NovaTierControls.QUALITY_KEY && tier != null) {
+                        if (NovaTierControls.canSelect(mutableTiers.value, tier)) {
+                            store.set(requireNotNull(NovaStreamSettings.definition(NovaSettingsMigration.TIER)), value)
+                        }
+                    } else if (definition.key == NovaSettingsMigration.TIER && tier != null) {
+                        if (NovaTierControls.canSelect(mutableTiers.value, tier)) store.set(definition, value)
+                    } else if (definition.key in NovaSettingsMigration.STREAM_KEYS || definition.key == NovaSettingsMigration.AUTO) {
                         persistStreamEdit(definition, value)
                     } else {
                         store.set(definition, value)
@@ -135,6 +144,7 @@ class NovaSettingsViewModel(
     }
 
     fun resetValue(definition: NovaSettingDefinition) {
+        if (definition.key == NovaTierControls.QUALITY_KEY) { useRecommended(); return }
         viewModelScope.launch {
             stateMutex.withLock {
                 store.reset(definition)
@@ -234,14 +244,21 @@ class NovaSettingsViewModel(
     }
 
     private fun emit() {
+        val tiers = mutableTiers.value
+        val tier = pictureTier
+        val generated = tiers != null && definitions.find(NovaTierControls.QUALITY_KEY) != null
+        val shownDefinitions = if (generated) NovaTierControls.definitions(definitions, tiers!!, tier) else definitions
+        val shownValues = if (generated) NovaTierControls.displayValues(values, tiers!!, tier) else values
         mutableUiState.value = NovaSettingsUiStateFactory.build(
-            definitions = definitions,
-            values = values,
+            definitions = shownDefinitions,
+            values = shownValues,
             selectedCategoryKey = selectedCategoryKey,
             searchQuery = searchQuery,
             overrideKeys = overrideKeys,
-            resettableKeys = resettableKeys
-        )
+            resettableKeys = resettableKeys + if (generated && tier != NovaTier.RECOMMENDED &&
+                NovaTierControls.canSelect(tiers, NovaTier.RECOMMENDED)) setOf(NovaTierControls.QUALITY_KEY) else emptySet()
+        ).copy(generatedQuality = generated,
+            bitrateAuto = if (generated) tier != NovaTier.CUSTOM || NovaStreamSettings.customAutomatic(rawValues()) else null)
     }
 
     class Factory(

@@ -569,8 +569,11 @@ private class NovaSettingsPageOpener(
     private fun useDefault(definition: NovaSettingDefinition, state: NovaSettingsUiState): NovaUseDefault? =
         if (state.canReset(definition)) {
             NovaUseDefault(
-                label = context.getString(R.string.nova_settings_use_preset_default),
-                caption = context.getString(R.string.nova_settings_use_preset_default_caption),
+                label = if (state.generatedQuality && definition.key == NovaTierControls.QUALITY_KEY) "Use recommended"
+                    else context.getString(R.string.nova_settings_use_preset_default),
+                caption = if (state.generatedQuality && definition.key == NovaTierControls.QUALITY_KEY)
+                    definition.options.firstOrNull { it.value == "recommended" }?.caption
+                    else context.getString(R.string.nova_settings_use_preset_default_caption),
             ) { onReset(definition) }
         } else {
             null
@@ -596,6 +599,17 @@ private class NovaSettingsPageOpener(
     }
 
     private fun openSelect(definition: NovaSettingDefinition, state: NovaSettingsUiState) {
+        if (state.generatedQuality && definition.key == NovaTierControls.QUALITY_KEY) {
+            pane.push(NovaCommonPage.Choice(
+                key = "choice:" + definition.key, title = definition.title,
+                options = novaSelectOptions(context, definition.key, definition.options, null),
+                current = state.stringValue(definition),
+                initialFocus = if (definition.options.any { it.value == "recommended" && it.disabledReason == null }) "recommended"
+                    else state.stringValue(definition),
+                onChoose = { value -> onValue(definition, NovaSettingValue.StringValue(value)) {} },
+                useDefault = useDefault(definition, state)))
+            return
+        }
         val current = state.stringValue(definition)
         if (definition.key == PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING) {
             pane.push(
@@ -655,8 +669,8 @@ private class NovaSettingsPageOpener(
                 step = definition.step ?: 1,
                 format = { value -> formatSettingInt(context, definition, value) },
                 onPreview = if (opacity) menuOpacity::update else null,
-                exactDivisor = if (definition.isBitrateKbps()) 1000 else 1,
-                exactLabel = if (definition.isBitrateKbps()) context.getString(R.string.nova_settings_bitrate_exact_mbps) else null,
+                exactDivisor = 1,
+                exactLabel = if (definition.isBitrateKbps()) "kbps" else null,
                 onSave = { value ->
                     val previewOwnerAtSave = if (opacity) menuOpacity.takeForSave() else null
                     onValue(definition, NovaSettingValue.IntValue(value)) {
@@ -1134,8 +1148,11 @@ private fun NovaSettingRow(
     modifier: Modifier = Modifier,
 ) {
     val enabled = state.isEnabled(definition)
+    val quality = state.generatedQuality && definition.key == NovaTierControls.QUALITY_KEY
     val disabledReason = if (enabled) null else state.disabledReason(context, definition)
-    val caption = disabledReason ?: state.caption(context, definition)
+    val caption = disabledReason ?: if (quality) listOfNotNull(
+        definition.options.firstOrNull { it.value == state.stringValue(definition) }?.caption,
+        state.caption(context, definition)).joinToString("\n") else state.caption(context, definition)
     val canReset = state.canReset(definition)
     val reset by rememberUpdatedState({ onReset(definition) })
     val resetLatch = remember { NovaPressLatch() }
@@ -1257,17 +1274,19 @@ private fun NovaSettingRow(
                     modifier = valueModifier,
                 )
             }
-            NovaSettingType.Select -> if (definition.selectPresentation == NovaSelectPresentation.InPlace) {
+            NovaSettingType.Select -> if (quality || definition.selectPresentation == NovaSelectPresentation.InPlace) {
                 splitRow { valueModifier ->
                     NovaValueRow(
                         title = definition.title,
-                        options = remember(definition.options) { definition.options.map { NovaOption(it.value, it.label) } },
+                        options = remember(definition.options) { definition.options.map {
+                            NovaOption(it.value, it.label, it.caption, it.disabledReason) } },
                         current = (shown as? NovaSettingValue.StringValue)?.value.orEmpty(),
                         onChange = { write(NovaSettingValue.StringValue(it)) },
                         caption = caption,
                         ordered = definition.isOrderedScale,
                         enabled = enabled,
                         onOpenList = { onOpen(definition) },
+                        onActivateChoice = if (quality) ({ onOpen(definition) }) else null,
                         modifier = valueModifier,
                     )
                 }
@@ -1286,10 +1305,11 @@ private fun NovaSettingRow(
                 val max = (definition.max ?: 100).coerceAtLeast(min)
                 NovaStepperRow(
                     title = definition.title,
-                    value = ((shown as? NovaSettingValue.IntValue)?.value ?: min).coerceIn(min, max),
+                    value = (shown as? NovaSettingValue.IntValue)?.value ?: min,
                     range = min..max,
                     step = definition.step ?: 1,
-                    format = { formatSettingInt(context, definition, it) },
+                    format = { value -> if (definition.key == PreferenceConfiguration.BITRATE_PREF_STRING &&
+                        state.bitrateAuto == true) NovaBitrateAdvice.text(value, true) else formatSettingInt(context, definition, value) },
                     onChange = { write(NovaSettingValue.IntValue(it)) },
                     caption = caption,
                     enabled = enabled,
