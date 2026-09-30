@@ -322,7 +322,7 @@ class NovaLibraryStageSourceTest {
         assertTrue(source.contains("NovaLibraryUiStateMapper.posterAspectRatio()"))
         assertTrue(source.contains("NovaPosterAnimationDurationMillis = 180"))
         assertTrue(source.contains("animationSpec = tween(durationMillis = NovaPosterAnimationDurationMillis)"))
-        assertTrue(source.contains(".zIndex(if (focused) 1f else 0f)"))
+        assertTrue(source.contains(".zIndex(if (visualFocused) 1f else 0f)"))
         // Lift plus the one ring (spec section 2), no scale.
         assertFalse(source.contains("scaleX = scale") || source.contains("scaleY = scale"))
         assertTrue(source.contains("NovaPanelMetrics.FocusRingWidth"))
