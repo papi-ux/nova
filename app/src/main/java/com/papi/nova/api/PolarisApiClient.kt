@@ -3303,10 +3303,12 @@ class PolarisApiClient @JvmOverloads constructor(
         return false
     }
 
-    fun setBitrateResult(encoderKbps: Int, observed: PolarisSessionStatus?): PolarisBitrateWriteResult {
+    fun setBitrateResult(encoderKbps: Int, observed: PolarisSessionStatus?, currentTarget: (() -> Boolean)? = null): PolarisBitrateWriteResult {
         if (encoderKbps !in 1000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS) return PolarisBitrateWriteResult.Failed
+        if (currentTarget?.invoke() == false) return PolarisBitrateWriteResult.SessionChanged
         return try {
             val status = getSessionStatus() ?: return PolarisBitrateWriteResult.Failed
+            if (currentTarget?.invoke() == false) return PolarisBitrateWriteResult.SessionChanged
             if (!status.streamingActive || status.shutdownRequested || status.isViewer ||
                 (observed != null && (status.appSessionId != observed.appSessionId ||
                     status.sessionGeneration != observed.sessionGeneration))) return PolarisBitrateWriteResult.SessionChanged
@@ -3316,6 +3318,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 .put("session_generation",status.sessionGeneration)
             val request = Request.Builder().url("$baseUrl/session/bitrate")
                 .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(),body.toString())).build()
+            if (currentTarget?.invoke() == false) return PolarisBitrateWriteResult.SessionChanged
             executeNonRetryable(request).use { response ->
                 if (response.code == 409) return PolarisBitrateWriteResult.SessionChanged
                 if (response.code != 200) return PolarisBitrateWriteResult.Failed
