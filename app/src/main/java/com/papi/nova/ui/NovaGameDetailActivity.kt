@@ -663,7 +663,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         launchPreferences.bitrate, com.papi.nova.manager.novaLaunchChoiceAttribution(
                             deviceSettings.pictureTier.name.lowercase().replaceFirstChar(Char::uppercase),
                             gamePinned = chosenResolution != null || chosenFps != null || chosenCodec != null || profilePreference != "auto",
-                            setupParticipates = ProfilesManager.getInstance().getActive()?.getOptions()?.keys?.any {
+                            setupParticipates = com.papi.nova.profiles.ProfilesManager.getInstance().getActive()?.getOptions()?.keys?.any {
                                 it in com.papi.nova.preferences.NovaSettingsMigration.STREAM_KEYS } == true)))
             }
             return if (source == null) preview else preview.copy(profileSummary = preview.profileSummary?.let { summary ->
