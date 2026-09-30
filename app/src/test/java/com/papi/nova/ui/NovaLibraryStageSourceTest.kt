@@ -63,7 +63,11 @@ class NovaLibraryStageSourceTest {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
         val poster = read("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
         assertTrue(stage.contains("onOpenDetail: (PolarisGame) -> Unit"))
-        assertTrue(stage.contains(".novaClickable(role = Role.Button) { onOpenDetail(selected) }"))
+        val selectedClick = stage.substringAfter("internal fun NovaLibraryStage(")
+            .substringAfter(".novaClickable(role = Role.Button)")
+            .substringBefore(".testTag(\"nova-stage-selected-focus\")")
+        assertTrue(selectedClick.contains("onOpenDetail(selected)"))
+        assertTrue(selectedClick.contains("haptics.novaConfirm()"))
         assertTrue(stage.contains(".focusRequester(stageFocus)"))
         assertTrue(stage.contains("Key.DirectionLeft -> -1; Key.DirectionRight -> 1"))
         assertTrue(stage.contains("key = { _, game -> game.id }"))
@@ -305,7 +309,7 @@ class NovaLibraryStageSourceTest {
     fun stageLandscapeRailConsumesMapperOwnedRatioAndPresentationContracts() {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
         val geometry = read("src/main/java/com/papi/nova/ui/NovaLibraryStageGeometry.kt")
-        assertTrue(stage.contains("novaLibraryStageGeometry((maxWidth + 20.dp).value.toInt(), maxHeight.value.toInt(), density.fontScale, captionHeightDp)"))
+        assertTrue(stage.contains("novaLibraryStageGeometry((maxWidth + 20.dp).value.roundToInt(), maxHeight.value.roundToInt(), density.fontScale, captionHeightDp)"))
         assertTrue(geometry.contains("NovaPortraitPosterSize(selectedUnits * 2, selectedUnits * 3)"))
         assertTrue(geometry.contains("posterGapDp: Int = 12"))
         assertFalse(stage.contains("STAGE_POSTER_WIDTH_FRACTION"))
@@ -527,12 +531,12 @@ class NovaLibraryStageSourceTest {
     }
 
     @Test
-    fun cinematicControllerHintComposeFixtureProvesSafeBoundsSemanticsAndStageSeparation() {
+    fun stageComposeFixtureProvesLargeTextIdentityCounterAndRailSeparation() {
         val stage = read("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
         val native = read("src/androidTest/java/com/papi/nova/ui/NovaLibraryStageComposeTest.kt")
         assertTrue(stage.contains("lineHeight = 14.sp"))
         assertTrue(stage.contains(".testTag(\"nova-stage-position\")"))
-        assertTrue(native.contains("rp6LargeTextCinematicHintsStayRightAlignedAndClearOfStageRail"))
+        assertTrue(native.contains("largeTextIdentityRailAndCounterStayWithinTheStageContent"))
     }
 
     @Test
