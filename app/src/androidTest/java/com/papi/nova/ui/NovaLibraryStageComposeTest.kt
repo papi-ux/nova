@@ -301,6 +301,8 @@ class NovaLibraryStageComposeTest {
             this[1] = this[1].copy(name = "A long neighbour title\nWith a second visible line")
         }
         stageFixture(many, fontScale = 1.3f, showPosterTitles = showPosterTitles)
+        // Capture even when a measured-text assertion fails; every native red needs a frame.
+        capture("long-title-text-1_3-${if (showPosterTitles) "captions" else "plain"}")
         val title = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         composeRule.onNodeWithTag("nova-stage-title", true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(title) }
@@ -336,18 +338,28 @@ class NovaLibraryStageComposeTest {
             val caption = composeRule.onNodeWithTag("nova-poster-caption-bravo", true)
             val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
             caption.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-            assertEquals("long neighbour exercises both caption lines", 2, layouts.single().lineCount)
             val laid = layouts.single()
+            val art = composeRule.onNodeWithTag("nova-poster-art-bravo", true).getUnclippedBoundsInRoot()
+            val bounds = caption.getUnclippedBoundsInRoot()
+            val card = composeRule.onNodeWithTag("nova-poster-bravo").getUnclippedBoundsInRoot()
+            val diagnostics = "text=${laid.layoutInput.text.text}, constraints=${laid.layoutInput.constraints}, " +
+                "size=${laid.size}, paragraphHeight=${laid.multiParagraph.height}, " +
+                "lineHeight=${laid.layoutInput.style.lineHeight}, density=${laid.layoutInput.density.density}, " +
+                "fontScale=${laid.layoutInput.density.fontScale}, maxLines=${laid.layoutInput.maxLines}, " +
+                "didExceedMaxLines=${laid.multiParagraph.didExceedMaxLines}, " +
+                "lastLineBottom=${laid.getLineBottom(laid.lineCount - 1)}, " +
+                "cardDp=$card, artDp=$art, captionDp=$bounds, " +
+                "cardPx=${composeRule.onNodeWithTag("nova-poster-bravo").fetchSemanticsNode().size}, " +
+                "artPx=${composeRule.onNodeWithTag("nova-poster-art-bravo", true).fetchSemanticsNode().size}, " +
+                "captionPx=${caption.fetchSemanticsNode().size}"
+            assertEquals("long neighbour exercises both caption lines: $diagnostics", 2, laid.lineCount)
             assertTrue("both visible caption lines fit vertically", laid.size.height + 1f >= laid.getLineBottom(laid.lineCount - 1))
             assertTrue("two caption lines fit their 34sp budget",
                 layouts.single().size.height / density <= kotlin.math.ceil(34f * 1.3f) + 1f)
-            val bounds = caption.getUnclippedBoundsInRoot()
-            val card = composeRule.onNodeWithTag("nova-poster-bravo").getUnclippedBoundsInRoot()
             assertTrue("caption remains inside its neighbour card", bounds.bottom <= card.bottom + .6.dp)
             assertTrue("ellipsized captions retain the complete semantic game name",
                 composeRule.onNodeWithTag("nova-poster-bravo").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].joinToString().contains(many[1].name))
         }
-        capture("long-title-text-1_3-${if (showPosterTitles) "captions" else "plain"}")
     }
 
     @Test fun changingTheSelectedGameWhileAHeldCancelsThatPress() {
