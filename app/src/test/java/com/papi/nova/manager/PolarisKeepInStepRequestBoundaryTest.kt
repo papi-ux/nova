@@ -18,7 +18,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@Config(sdk = [33], shadows = [com.papi.nova.shadows.ShadowMoonBridge::class])
 class PolarisKeepInStepRequestBoundaryTest {
     @Test fun syncedProfileAndPyrowaveRequestKeepTheirSeparateBitratesAndLaunchLock() {
         val context: Context = ApplicationProvider.getApplicationContext()
