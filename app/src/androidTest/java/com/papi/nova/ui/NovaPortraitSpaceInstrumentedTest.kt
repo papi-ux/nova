@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
@@ -84,13 +85,14 @@ class NovaPortraitLibraryInstrumentedTest {
                 compose.onNodeWithTag("nova-portrait-menu-toggle").performClick()
                 compose.onNodeWithText("Options").assertIsDisplayed()
                 portraitShot("regular-expanded")
+                val instrumentation = InstrumentationRegistry.getInstrumentation()
+                instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP)
                 compose.onNodeWithTag("nova-portrait-menu-toggle")
-                    .performSemanticsAction(SemanticsActions.RequestFocus) { it() }
-                scenario.onActivity { activity ->
-                    for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
-                        activity.dispatchKeyEvent(KeyEvent(0, 0, action, KeyEvent.KEYCODE_BUTTON_B,
-                            0, 0, -1, 0, 0, InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_DPAD))
-                    }
+                    .performSemanticsAction(SemanticsActions.RequestFocus) { it() }.assertIsFocused()
+                val time = SystemClock.uptimeMillis()
+                for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+                    instrumentation.sendKeySync(KeyEvent(time, time, action, KeyEvent.KEYCODE_BUTTON_B,
+                        0, 0, -1, 0, 0, InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_DPAD))
                 }
                 compose.onNodeWithText("Menu").assertIsDisplayed().assertIsFocused()
                 compose.onNodeWithText("Options").assertDoesNotExist()
@@ -143,8 +145,10 @@ class NovaPortraitSettingsInstrumentedTest {
         compose.onNodeWithText("Menu").assertIsDisplayed()
         compose.onNodeWithTag("nova-settings-row-$firstKey").assertIsDisplayed()
         val collapsedTop = compose.onNodeWithTag("nova-settings-row-$firstKey").getUnclippedBoundsInRoot().top.value
-        assertTrue("rows start near the top in portrait", collapsedTop < 180)
         portraitShot("settings-collapsed")
+        val root = compose.onRoot().getUnclippedBoundsInRoot()
+        assertTrue("the first setting stays in the upper 40 percent even with enlarged text",
+            collapsedTop < (root.bottom - root.top).value * 0.4f)
         compose.onNodeWithText("Menu").performClick()
         compose.onNodeWithText("Legacy").assertIsDisplayed()
         portraitShot("settings-expanded")
