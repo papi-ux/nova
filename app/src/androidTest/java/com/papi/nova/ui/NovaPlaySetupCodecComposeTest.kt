@@ -28,6 +28,9 @@ import com.papi.nova.Game
 import com.papi.nova.binding.video.PyroWaveAvailability
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.preferences.PreferenceConfiguration.FormatOption
+import com.papi.nova.preferences.NovaSettingDefinitions
+import com.papi.nova.preferences.NovaSettingsUiStateFactory
+import com.papi.nova.preferences.NovaSettingValue
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import org.junit.After
@@ -46,6 +49,48 @@ class NovaPlaySetupCodecComposeTest {
     private val game = "codec-compose-test-game"
 
     @After fun clearTestChoice() { NovaVideoCodecOverrides.save(context, host, game, 1, null) }
+
+    @Test fun everyGameCodecUsesTheActualDeviceGateForTouchAndController() {
+        val availability=PyroWaveAvailability.inspect(context.applicationContext)
+        val reason=PyroWaveAvailability.reason(context,availability)
+        val prefs=context.getSharedPreferences("device-codec-compose-fixture",0)
+        prefs.edit().clear().putString("video_format","auto").commit()
+        val definitions=NovaSettingDefinitions.load(context)
+        val definition=requireNotNull(definitions.find("video_format"))
+        var selected by mutableStateOf("auto")
+        lateinit var inputMode: InputModeManager
+        compose.setContent {
+            NovaComposeTheme {
+                inputMode=LocalInputModeManager.current
+                val state=NovaSettingsUiStateFactory.build(definitions,
+                    mapOf("video_format" to NovaSettingValue.StringValue(selected)),"category_stream_quality","")
+                    .copy(deviceStreamSettings=listOf(definition))
+                val row=buildNovaDevicePlaySetupRows(state,{ _,value ->
+                    selected=(value as NovaSettingValue.StringValue).value
+                    prefs.edit().putString("video_format",selected).commit()
+                },availability,reason).single()
+                Column(Modifier.width(476.dp).verticalScroll(rememberScrollState())) {
+                    NovaPlaySetupBands(listOf(NovaPlaySetupBand(null,row.options)),{ it.onSelect?.invoke() },
+                        rowModifier={ key,_ -> Modifier.testTag("device-codec-$key") })
+                }
+            }
+        }
+        val pyroLabel=definition.options.first { it.value=="forcepyrowave" }.label
+        val pyro=compose.onNodeWithTag("device-codec-0:$pyroLabel").performScrollTo().assertIsDisplayed()
+        compose.runOnIdle { inputMode.requestInputMode(InputMode.Keyboard) }
+        pyro.performSemanticsAction(SemanticsActions.RequestFocus)
+        pyro.performKeyInput { keyDown(Key.DirectionCenter);keyUp(Key.DirectionCenter) }
+        if (availability==PyroWaveAvailability.Status.AVAILABLE) {
+            compose.runOnIdle { assertEquals("forcepyrowave",prefs.getString("video_format",null)) }
+        } else {
+            pyro.assertIsNotEnabled().performTouchInput { click() }
+            compose.runOnIdle { assertEquals("auto",prefs.getString("video_format",null));assertTrue(reason.isNotBlank()) }
+        }
+        val hevcLabel=definition.options.first { it.value=="forceh265" }.label
+        compose.onNodeWithTag("device-codec-0:$hevcLabel").performScrollTo().performTouchInput { click() }
+        compose.runOnIdle { assertEquals("forceh265",prefs.getString("video_format",null)) }
+        prefs.edit().clear().commit()
+    }
 
     @Test fun controllerAndTouchChooseTheLaunchCodecAndCanReturnToAppSettings() {
         var selected by mutableStateOf<String?>(null)
