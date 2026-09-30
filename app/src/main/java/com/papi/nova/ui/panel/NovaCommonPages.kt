@@ -1,5 +1,28 @@
 package com.papi.nova.ui.panel
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.papi.nova.ui.compose.novaControlDimension
+import com.papi.nova.ui.compose.novaFocusTick
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -435,6 +458,7 @@ private fun NovaPageScope.SliderPage(page: NovaCommonPage.Slider, exit: NovaPage
             range = page.range,
             step = page.step,
             label = page.format(value),
+            readValue = { value },
             onChange = {
                 value = it
                 typed = novaExactScaledValue(it, divisor)
@@ -513,55 +537,161 @@ internal fun novaExactDecimalText(text: String): String {
 }
 
 
-/** A focused track moved with Left and Right by [step], stopping at the ends of [range]. */
+/** Touch, accessibility and controller steps all edit the same unsaved number. */
 @Composable
-private fun NovaSliderTrack(value: Int, range: IntRange, step: Int, label: String, onChange: (Int) -> Unit, modifier: Modifier) {
+private fun NovaSliderTrack(value: Int, range: IntRange, step: Int, label: String, readValue: () -> Int, onChange: (Int) -> Unit, modifier: Modifier) {
     val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(NovaRadius.row)
-    val span = (range.last - range.first).coerceAtLeast(1)
-    val fraction = (value - range.first).toFloat() / span
+    val focus = remember { FocusRequester() }
+    val read by rememberUpdatedState(readValue)
+    val change by rememberUpdatedState(onChange)
+    val decrease = stringResource(R.string.nova_panel_decrease_value)
+    val increase = stringResource(R.string.nova_panel_increase_value)
+    val span = (range.last.toLong() - range.first).coerceAtLeast(1L)
+    val fraction = ((value.toLong() - range.first).toDouble() / span).toFloat()
+    fun edit(target: Int): Boolean {
+        val bounded = target.coerceIn(range)
+        if (bounded == read()) return false
+        change(bounded)
+        return true
+    }
+    fun move(direction: Int) = edit(novaNumberStep(read(), direction, range, step))
     Column(
         modifier = modifier
             .testTag("nova-number-slider")
             .fillMaxWidth()
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
+            .focusRequester(focus)
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)
-            // Left and Right move it; A has nothing to do on the track.
             .novaFocusHint(NovaFocusHint.Change)
-            .semantics(mergeDescendants = true) { stateDescription = label }
+            .semantics(mergeDescendants = true) {
+                stateDescription = label
+                progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), range.first.toFloat()..range.last.toFloat(),
+                    ((span + step.coerceAtLeast(1) - 1) / step.coerceAtLeast(1) - 1).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
+                setProgress { requested ->
+                    requested.isFinite() && edit(novaNumberAt(requested.toDouble(), range, step))
+                }
+                customActions = listOf(
+                    CustomAccessibilityAction(decrease) { move(-1) },
+                    CustomAccessibilityAction(increase) { move(1) },
+                )
+            }
             .onPreviewKeyEvent { event ->
                 val direction = when (event.key) {
                     Key.DirectionLeft -> -1
                     Key.DirectionRight -> 1
                     else -> return@onPreviewKeyEvent false
                 }
-                if (event.type == KeyEventType.KeyDown) onChange((value + direction * step).coerceIn(range))
+                if (event.type == KeyEventType.KeyDown) move(direction)
                 true
             }
+            // A still does nothing here; Down reaches exact entry and then Save.
             .novaClickable(onClick = {})
             .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
     ) {
-        Text(text = label, style = novaPanelType.value, color = colors.textPrimary)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+            Text(text = label, style = novaPanelType.value, color = colors.textPrimary, modifier = Modifier.weight(1f))
+            NumberStepButton("−", decrease, value > range.first) { move(-1); focus.requestFocus() }
+            NumberStepButton("+", increase, value < range.last) { move(1); focus.requestFocus() }
+        }
         Box(
             modifier = Modifier
                 .testTag("nova-number-track")
                 .fillMaxWidth()
-                .heightIn(min = NovaPanelMetrics.SliderTrackHeight)
-                .clip(RoundedCornerShape(NovaRadius.pill))
-                // The whole track shows under the fill, in the divider's colour: the control fill
-                // vanished on the panel and left the fill with no track.
-                .novaTrackFill(fraction, colors.divider, colors.accent),
+                // This is a physical finger target, independent of Compact visual metrics.
+                .heightIn(min = 48.dp)
+                // These handlers keep their pointer across draft recomposition. Only a horizontal
+                // drag consumes motion; a vertical gesture belongs to the page's scroll container.
+                .pointerInput(range, step) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var dragging = false
+                        while (true) {
+                            val pointer = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                            if (pointer.isConsumed) break
+                            val delta = pointer.position - down.position
+                            if (!dragging && delta.getDistance() > viewConfiguration.touchSlop) {
+                                // A predominantly vertical swipe never becomes a value edit,
+                                // even when the page has reached its scroll boundary.
+                                if (kotlin.math.abs(delta.x) <= kotlin.math.abs(delta.y)) break
+                                dragging = true
+                                focus.requestFocus()
+                            }
+                            if (dragging || !pointer.pressed) {
+                                pointer.consume()
+                                edit(novaNumberAtTouch(pointer.position.x, size.width, range, step))
+                                if (!dragging) focus.requestFocus()
+                            }
+                            if (!pointer.pressed) break
+                            if (!dragging) {
+                                // The scroll parent can claim movement after our Main pass.
+                                val final = awaitPointerEvent(PointerEventPass.Final)
+                                if (final.changes.firstOrNull { it.id == down.id }?.isConsumed == true) break
+                            }
+                        }
+                    }
+                }
+                .novaTrackFill(fraction, colors.divider, colors.accent, NovaPanelMetrics.SliderTrackHeight),
         )
     }
 }
 
-/** The track, with the share of [fraction] filled from the start. */
-private fun Modifier.novaTrackFill(fraction: Float, track: Color, fill: Color): Modifier = drawBehind {
-    drawRect(track)
-    drawRect(fill, size = size.copy(width = size.width * fraction.coerceIn(0f, 1f)))
+/** Touch and TalkBack buttons; keyboard focus stays on the track's single Left/Right stop. */
+@Composable
+private fun NumberStepButton(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val haptics = LocalHapticFeedback.current
+    val shape = RoundedCornerShape(NovaRadius.hero)
+    val minimum = novaControlDimension(48.dp).coerceAtLeast(48.dp)
+    Box(
+        modifier = Modifier
+            .sizeIn(minWidth = minimum, minHeight = minimum)
+            .focusProperties { canFocus = false }
+            .clip(shape)
+            .novaFocusRing(shape, restFill = if (pressed) surfaces.selectedControl else surfaces.control,
+                restBorder = surfaces.tileBorder, restBorderWidth = NovaPanelMetrics.Hairline)
+            .clickable(enabled = enabled, role = Role.Button, interactionSource = interactions, indication = null) {
+                haptics.novaFocusTick()
+                onClick()
+            }
+            .semantics { contentDescription = label }
+            .padding(novaControlDimension(NovaPanelMetrics.SpaceSm)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(glyph, style = novaPanelType.value, color = if (enabled) colors.textPrimary else colors.textMuted)
+    }
+}
+
+private fun novaNumberStep(value: Int, direction: Int, range: IntRange, step: Int): Int =
+    (value.toLong() + direction.toLong() * step.coerceAtLeast(1)).coerceIn(range.first.toLong(), range.last.toLong()).toInt()
+
+private fun novaNumberAtTouch(x: Float, width: Int, range: IntRange, step: Int): Int {
+    val fraction = if (width > 0) (x.toDouble() / width).coerceIn(0.0, 1.0) else 0.0
+    return novaNumberAt(range.first.toDouble() + fraction * (range.last.toLong() - range.first), range, step)
+}
+
+private fun novaNumberAt(requested: Double, range: IntRange, step: Int): Int {
+    val bounded = requested.coerceIn(range.first.toDouble(), range.last.toDouble())
+    if (bounded <= range.first) return range.first
+    if (bounded >= range.last) return range.last
+    val stride = step.coerceAtLeast(1).toLong()
+    val steps = kotlin.math.round((bounded - range.first) / stride).toLong()
+    return (range.first.toLong() + steps * stride).coerceIn(range.first.toLong(), range.last.toLong()).toInt()
+}
+
+/** A thin filled track and a visible thumb inside its larger touch target. */
+private fun Modifier.novaTrackFill(fraction: Float, track: Color, fill: Color, thickness: Dp): Modifier = drawBehind {
+    val y = size.height / 2f
+    val x = size.width * fraction.coerceIn(0f, 1f)
+    drawLine(track, Offset(0f, y), Offset(size.width, y), strokeWidth = thickness.toPx(), cap = StrokeCap.Round)
+    drawLine(fill, Offset(0f, y), Offset(x, y), strokeWidth = thickness.toPx(), cap = StrokeCap.Round)
+    val radius = minOf(8.dp.toPx(), size.width / 2f, size.height / 2f)
+    drawCircle(fill, radius = radius, center = Offset(x.coerceIn(radius, size.width - radius), y))
 }
 
 @Composable
