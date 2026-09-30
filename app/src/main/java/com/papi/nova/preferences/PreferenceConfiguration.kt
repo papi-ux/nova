@@ -179,14 +179,12 @@ class PreferenceConfiguration {
         const val BITRATE_PREF_STRING = "seekbar_bitrate_kbps"
 
         /**
-         * The most the bitrate setting reaches, in kbps: 300 Mbps. The custom entry reads it, in whole
-         * Mbps, in NovaSettingsValidator and in the message that names its range. The sliders in
-         * preferences.xml, for the bitrate and the metered bitrate, cannot read a Kotlin constant and
-         * say it as android:max, so PyroWaveBitrateAdviceTest holds them to this one. StreamSyncManager
-         * and PolarisSessionStatus check the same figure in what a Polaris host sends, which is the
-         * host's contract and moves only with it.
+         * Device-only manual settings reach 500 Mbps. The text validator, its range message and
+         * Play Setup use this ceiling; tests keep both XML sliders in sync with it. Host-specific
+         * launch and live-write limits still require the numeric manual_bitrate_max_kbps capability
+         * and otherwise stop at 300 Mbps. Automatic advice has its separate 300 Mbps ceiling.
          */
-        const val MAX_BITRATE_KBPS = 300_000
+        const val MAX_BITRATE_KBPS = NovaBitrateAdvice.MANUAL_MAX_KBPS
         private const val BITRATE_PREF_OLD_STRING = "seekbar_bitrate"
         private const val METERED_BITRATE_PREF_STRING = "seekbar_metered_bitrate_kbps"
         private const val ENABLE_ULTRA_LOW_LATENCY_PREF_STRING = "checkbox_ultra_low_latency"

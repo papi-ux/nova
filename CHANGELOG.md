@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Android's manual bitrate sliders and exact entry now reach 500 Mbps, including Every Game in Play Setup. A host must advertise the higher limit to use it; older hosts remain capped at 300 Mbps. Automatic advice and Use recommended stay capped at 300 Mbps, and changing hosts or selecting Recommended keeps your saved Custom bitrate.
+
 - Nova Beta identifies new pairings as “Beta” instead of “Pre”, keeping the same installed app and data. Existing pairings keep their stored host name until the device pairs again.
 **Nova Linux (Alpha)**
 
