@@ -14,6 +14,7 @@ import android.widget.TextView
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.computers.ComputerManagerService
+import com.papi.nova.preferences.AddComputerManually
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -46,7 +47,7 @@ class PcViewPortraitNavigationTest {
             ComponentName(context, ComputerManagerService::class.java),
             mock(ComputerManagerService.ComputerManagerBinder::class.java),
         )
-        shadowOf(context.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA, true)
+        shadowOf(context.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, true)
     }
 
     @After fun close() {
