@@ -198,14 +198,17 @@ class NovaValueRowComposeTest {
         var on by mutableStateOf(false)
         rule.setPanelContent {
             Column {
+                NovaRow("Size", onClick = {}, modifier = Modifier.testTag("plain"))
                 NovaValueRow("Size", sizes, current, { current = it }, style = NovaValueStyle.Segmented, modifier = Modifier.testTag("segments"))
                 NovaValueRow("Size", sizes, current, { current = it }, style = NovaValueStyle.Cycler, modifier = Modifier.testTag("cycler"))
                 NovaValueRow("HUD", listOf(NovaOption(false, "Off"), NovaOption(true, "On")), on, { on = it }, modifier = Modifier.testTag("switch"))
             }
         }
+        val plain = rule.onNodeWithTag("plain").getUnclippedBoundsInRoot()
         for (tag in listOf("segments", "cycler", "switch")) {
             val bounds = rule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
-            assertEquals("$tag row height", NovaPanelMetrics.RowMinHeight, bounds.bottom - bounds.top)
+            assertEquals("$tag matches the actual plain row, allowing readable text to grow past the minimum",
+                (plain.bottom - plain.top).value, (bounds.bottom - bounds.top).value, 0.5f)
         }
     }
 
