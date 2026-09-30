@@ -78,7 +78,7 @@ class NovaBetaVersionLabelTest {
         val page = NovaLibraryActivity::class.java.getDeclaredMethod("aboutNovaPage")
             .apply { isAccessible = true }.invoke(activity) as NovaCommonPage.Notice
         val expected = activity.getString(R.string.nova_system_menu_about_version, expectedLabel)
-        compose.activity.setPanelContent { }
+        compose.setPanelContent { }
         compose.activity.novaSurfaces.panel.open(page)
         compose.onNodeWithText(expected).assertIsDisplayed()
     }
