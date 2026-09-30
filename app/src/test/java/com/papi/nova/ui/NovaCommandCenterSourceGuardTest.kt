@@ -382,10 +382,10 @@ class NovaCommandCenterSourceGuardTest {
                 !commandCenter.contains("NovaInGameOverlayAlpha.")
         )
         assertTrue(
-            "NovaHUD keeps adjustable panel glass and the shared border; text has an independent readability backing",
+            "NovaHUD keeps adjustable panel glass and the shared border; text has a glyph outline",
             hud.contains(".background(surfaces.panel.copy(alpha = hudOpacityScale))") &&
                 hud.contains("NovaInGameOverlayAlpha.Border") &&
-                hud.contains("NovaHudReadability.backing")
+                hud.contains("Shadow(NovaHudReadability.outline")
         )
         assertFalse(
             "NovaHUD does not use the retired nested tile/control fills",
@@ -691,7 +691,7 @@ class NovaCommandCenterSourceGuardTest {
         )
         assertTrue(
             "Debug keeps the network's facts: loss in the current window graded so zero is the only green, round-trip jitter, and the session's lost-frame count",
-            debugHud.contains("HudFact(\"FRAME LOSS\\nLATEST WINDOW\", state.packetLossLabel, state.packetLossTone)") &&
+            debugHud.contains("HudFact(\"FRAME LOSS\\nLAST SAMPLE\", state.packetLossLabel, state.packetLossTone)") &&
                 debugHud.contains("HudFact(\"JITTER\", state.jitterLabel)") &&
                 debugHud.contains("HudFact(\"MISSING\", state.framesLostLabel)")
         )

@@ -7,11 +7,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.text.AnnotatedString
 import com.papi.nova.Game
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
-import com.papi.nova.ui.compose.STREAM_MIN_PANEL_ALPHA
 import com.papi.nova.utils.ExternalDisplayControlHost
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,15 +17,7 @@ import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * In-game #12 with review finding 3: over the stream nothing blurs the video, so every panel in
- * the stream's own window keeps the solid floor, whoever opened it. Round 2 gave the floor only to
- * the opening that asked for it, the Command Center, and a notice, the keys editor's Add Keys and
- * the confirm a Space's Disconnect leads to went back to glass over a live game. A panel anywhere
- * else, the companion display included, keeps the glass Menu Opacity chose (Play Setup's own test
- * covers the game page). The fill is read from the panel the frame draws, in the window's content
- * as the window composes it.
- */
+/** Every actual window keeps the selected opacity, including stream notices and confirmations. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class NovaPanelOverStreamComposeTest {
@@ -77,11 +67,6 @@ class NovaPanelOverStreamComposeTest {
     private fun fill(): Float =
         rule.onNode(SemanticsMatcher.keyIsDefined(NovaPanelPlacementKey)).fetchSemanticsNode().config[NovaPanelPlacementKey].fill.alpha
 
-    private fun assertFloor(what: String) {
-        val fill = fill()
-        assertTrue("$what keeps the floor over the stream, not $fill", fill >= STREAM_MIN_PANEL_ALPHA - 1f / 255f)
-    }
-
     private fun assertGlass(what: String) = assertEquals("$what keeps Menu Opacity's glass", GLASS, fill(), 0.01f)
 
     /** Dialog.displayDialog's non-blocking notice, which Game posts over the stream. */
@@ -114,36 +99,36 @@ class NovaPanelOverStreamComposeTest {
     )
 
     @Test
-    fun theCommandCenterAndItsPagesKeepTheFloorOverTheStream() {
+    fun theCommandCenterAndItsPagesKeepTheGlassOverTheStream() {
         val stream = draw(streamWindow())
         ui { stream.open(Page("command-center"), NovaEdge.Start) }
-        assertFloor("the Command Center")
+        assertGlass("the Command Center")
         ui { stream.panel.push(Page("mouse-mode")) }
-        assertFloor("a page it pushes")
+        assertGlass("a page it pushes")
     }
 
     @Test
-    fun aNoticePostedOverTheStreamKeepsTheFloor() {
+    fun aNoticePostedOverTheStreamKeepsTheGlass() {
         val stream = draw(streamWindow())
         ui { stream.present(notice()) }
-        assertFloor("a notice from Dialog.displayDialog")
+        assertGlass("a notice from Dialog.displayDialog")
     }
 
     @Test
-    fun theKeysEditorsAddKeysKeepsTheFloor() {
+    fun theKeysEditorsAddKeysKeepsTheGlass() {
         val stream = draw(streamWindow())
         ui { stream.present(addKeys()) }
-        assertFloor("Add Keys")
+        assertGlass("Add Keys")
     }
 
     @Test
-    fun theConfirmASpacesDisconnectLeadsToKeepsTheFloor() {
+    fun theConfirmASpacesDisconnectLeadsToKeepsTheGlass() {
         val stream = draw(streamWindow())
         ui { stream.open(Page("command-center"), NovaEdge.Start) }
         // Disconnect closes the Command Center, then quit() asks on a panel that opens afresh.
         ui { stream.panel.close() }
         ui { stream.present(leaveSpace()) }
-        assertFloor("the Leave Space confirm")
+        assertGlass("the Leave Space confirm")
     }
 
     @Test

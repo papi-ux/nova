@@ -173,30 +173,9 @@ val LocalNovaLibrarySurfaces = staticCompositionLocalOf {
 
 val LocalNovaMenuOpacityScale = staticCompositionLocalOf { 1f }
 
-/** The least a panel's fill may be where nothing blurs what is behind it. */
-const val NO_BLUR_MIN_PANEL_ALPHA = 0.9f
-
-/**
- * The least a panel's fill may be over the stream. Nothing blurs a stream's video surface, and at
- * 90% menu opacity the game's own text read through the Command Center's rows: Control's "Press
- * RETURN to Start" lined up with the Menu Opacity value as "Press 90% to Start" (in-game #12). At
- * this fill the brightest game text behind the panel differs from black by under 2 of 255 levels.
- */
-const val STREAM_MIN_PANEL_ALPHA = 0.99f
-
-/** These surfaces for a panel over the stream, whose fill is at least [STREAM_MIN_PANEL_ALPHA]. */
-fun NovaLibrarySurfaces.overStream(): NovaLibrarySurfaces =
-    copy(panel = panel.copy(alpha = maxOf(panel.alpha, STREAM_MIN_PANEL_ALPHA)))
-
 fun NovaComposeColors.librarySurfaces(
     theme: String,
     menuOpacityScale: Float = 1f,
-    /**
-     * Whether the window behind a panel can be blurred (API 31 and later). Without blur the glass
-     * showed poster art and host buttons sharp through the rows on the Shield (API 30), so the
-     * panel keeps at least [NO_BLUR_MIN_PANEL_ALPHA] of its fill there.
-     */
-    blurAvailable: Boolean = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S,
 ): NovaLibrarySurfaces {
     val opacityScale = menuOpacityScale.coerceIn(0f, 1f)
     val isOled = theme == NovaThemeManager.THEME_OLED
@@ -322,9 +301,8 @@ fun NovaComposeColors.librarySurfaces(
             ),
             panel = surfaces.panel.copy(
                 alpha = NovaMenuPreferences.outerSurfaceAlpha(
-                    opacityScale = opacityScale,
-                    usesDarkText = textPrimary.luminance() < 0.5f
-                ).let { alpha -> if (blurAvailable) alpha else maxOf(alpha, NO_BLUR_MIN_PANEL_ALPHA) }
+                    opacityScale = opacityScale
+                )
             ),
             panelBorder = surfaces.panelBorder.copy(alpha = surfaces.panelBorder.alpha * opacityScale),
             tile = surfaces.tile.copy(alpha = surfaces.tile.alpha * opacityScale),

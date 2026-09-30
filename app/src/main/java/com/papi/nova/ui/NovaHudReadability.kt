@@ -1,22 +1,20 @@
 package com.papi.nova.ui
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 
-/** Preserve theme hue but guarantee small-text contrast even over an all-white game frame. */
+/** Keep themed text distinct from its dark glyph outline, including light Material You palettes. */
 internal object NovaHudReadability {
-    val backing = Color.Black.copy(alpha = 0.86f)
-    private val brightestBackground = backing.compositeOver(Color.White)
+    val outline = Color.Black
 
     fun foreground(themeColor: Color): Color {
         val opaque = themeColor.copy(alpha = 1f)
-        if (contrast(opaque, brightestBackground) >= 4.5f) return opaque
+        if (contrast(opaque, outline) >= 4.5f) return opaque
         var result = opaque
         for (step in 1..20) {
             result = lerp(opaque, Color.White, step / 20f)
-            if (contrast(result, brightestBackground) >= 4.5f) break
+            if (contrast(result, outline) >= 4.5f) break
         }
         return result
     }
