@@ -3,12 +3,35 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 from tools import nova_flatpak_feed as feed
 
 
 class FeedTests(unittest.TestCase):
+    def test_generated_appstream_changes_only_the_current_release_version(self):
+        project = Path(__file__).resolve().parents[1] / "clients/deck"
+        source = project / "packaging/flatpak/com.papi_ux.Nova.metainfo.xml"
+        original = source.read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "com.papi_ux.Nova.metainfo.xml"
+            script = root / "metadata.cmake"
+            script.write_text('set(PROJECT_VERSION "1.4.14")\ninclude("' + str(project / "cmake/NovaReleaseVersion.cmake") + '")\n'
+                              'include("' + str(project / "cmake/NovaAppStream.cmake") + '")\n'
+                              'nova_deck_configure_appstream("' + str(source) + '" "' + str(output) + '")\n')
+            for suffix in ["", "-beta.1", "-rc.2"]:
+                with self.subTest(suffix=suffix):
+                    subprocess.run(["cmake", "-DNOVA_DECK_VERSION_SUFFIX=" + suffix, "-P", str(script)], check=True, capture_output=True, text=True)
+                    metadata = ET.fromstring(output.read_bytes())
+                    releases = metadata.findall("./releases/release")
+                    self.assertEqual(releases[0].attrib["version"], "1.4.14" + suffix)
+                    self.assertEqual(releases[0].attrib["type"], "development")
+                    self.assertEqual(releases[1].attrib["version"], "1.4.13")
+                    self.assertEqual(output.read_bytes(), original.replace(b'version="1.4.14"', ('version="1.4.14' + suffix + '"').encode(), 1))
+            self.assertEqual(source.read_bytes(), original)
+
     def test_release_manifest_preserves_the_numbered_tag_without_enabling_updates(self):
         root = Path(__file__).resolve().parents[1]
         source = json.loads((root / "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").read_text())
