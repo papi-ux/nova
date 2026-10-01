@@ -126,6 +126,13 @@ FocusScope {
         grid.forceActiveFocus()
         if (grid.currentItem) grid.currentItem.forceActiveFocus()
     }
+    function page(direction) {
+        if (interactionPaused || !visibleGames.length) return
+        const count = stageMode ? Math.max(1, Math.floor(grid.width / grid.cellWidth))
+            : grid.layoutColumns * Math.max(1, Math.floor(grid.height / grid.cellHeight))
+        selectIndex(Math.max(0, Math.min(visibleGames.length - 1, grid.currentIndex + direction * count)))
+        focusGame()
+    }
     function move(index, key) {
         if (stageMode) {
             if (key === Qt.Key_Up) { stageReview.forceActiveFocus(); return }
@@ -302,6 +309,12 @@ FocusScope {
         Qt.callLater(focusGame)
     }
     Keys.onEscapePressed: back()
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown) {
+            page(event.key === Qt.Key_PageUp ? -1 : 1)
+            event.accepted = true
+        }
+    }
 
     component ChromeButton: NovaButton {
         unit: browser.unit
@@ -940,7 +953,7 @@ FocusScope {
             }
             CopyLabel {
                 text: search.activeFocus ? "A  Games     B  Clear search"
-                    : (browsing && visibleGames.length ? "A  Details" : "A  Select") + "     B  Back     D-pad  Navigate"
+                    : (browsing && visibleGames.length ? "A  Details" : "A  Select") + "     B  Back     D-pad / Stick  Navigate     LB / RB  Page"
                 color: NovaTheme.secondary
                 font.pixelSize: 16 * unit * NovaTheme.fontScale
             }
@@ -1005,6 +1018,12 @@ FocusScope {
                 else contentY = Math.min(contentHeight - height, contentY + 80 * unit)
             }
             Keys.onEscapePressed: back()
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown) {
+            page(event.key === Qt.Key_PageUp ? -1 : 1)
+            event.accepted = true
+        }
+    }
             ColumnLayout {
                 id: detailBody
                 width: Math.min(parent.width, 900 * unit)

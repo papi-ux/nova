@@ -22,6 +22,28 @@ def command(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True, timeout=15).stdout.strip()
 
 
+def paging_navigation(wait, keys, state):
+    before = state()
+    index = before["visibleGames"].index(before["game"])
+    count = before["columns"] * max(1, before["rowsVisible"])
+    expected = before["visibleGames"][min(len(before["visibleGames"]) - 1, index + count)]
+    keys("Page_Down")
+    wait(lambda s: s.get("game") == expected and s.get("focus") == expected and s.get("selectionVisible"))
+    keys("Page_Up")
+    wait(lambda s: s.get("game") == before["visibleGames"][max(0, min(len(before["visibleGames"]) - 1, index + count) - count)])
+    selected = state()["game"]
+    keys("Return")
+    wait(lambda s: s.get("detailOpen"))
+    keys("Page_Down")
+    assert state()["game"] == selected, "shoulder paged behind details"
+    keys("Escape")
+    wait(lambda s: not s.get("detailOpen") and s.get("focus") == selected)
+    keys("Up", "Up", "Up", "Return")
+    wait(lambda s: s.get("optionsOpen"))
+    keys("Escape")
+    wait(lambda s: not s.get("optionsOpen"))
+
+
 def experience_navigation(wait, keys, state, save_capture, window):
     keys("Return")
     focus_game_play(wait, keys)
@@ -1617,6 +1639,7 @@ def main():
     parser.add_argument("--audio-settings", action="store_true")
     parser.add_argument("--appearance", action="store_true")
     parser.add_argument("--host-power", action="store_true")
+    parser.add_argument("--paging", action="store_true")
     args = parser.parse_args()
     args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
@@ -1987,7 +2010,9 @@ def main():
             wait(lambda s: s.get("windowActive"))
             keys("Right")
             wait(lambda s: s.get("game") == ("space.room-a.7" if args.spaces else prefix+"42"))
-            if args.readability:
+            if args.paging:
+                paging_navigation(wait, keys, state)
+            elif args.readability:
                 readability_navigation(wait, keys, state, save_capture, window)
             elif args.background_sync:
                 background_sync_navigation(wait, keys, state, fixtures, save_capture, window)
