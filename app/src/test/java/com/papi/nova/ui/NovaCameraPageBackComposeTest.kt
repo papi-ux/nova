@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -58,7 +59,7 @@ class NovaCameraPageBackComposeTest {
                 LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
                 LocalNovaCameraWindow provides NovaCameraWindow(Rect(0f, 0f, 400 * pixels, 800 * pixels), cameras.value),
             ) {
-                Box(Modifier.width(width.value.dp)) {
+                Box(Modifier.width(width.value.dp).height(600.dp)) {
                     NovaPageStackHost(state = state) { page ->
                         NovaRow("${page.key} action", {}, modifier = Modifier.novaInitialFocus().testTag("${page.key}-action"))
                     }
@@ -71,6 +72,7 @@ class NovaCameraPageBackComposeTest {
         val originalTarget = bounds(NovaPageBackTag)
         val originalGlyph = bounds(NovaChevronBackTag)
         val originalTitle = title()
+        println("pageback-initial rtl=$rtl glyph=$originalGlyph title=$originalTitle target=$originalTarget floor=$minimumTouchWidth/$minimumTouchHeight")
         assertTrue("wide real title prevents horizontal minimum-touch expansion from masking the hanging glyph", originalTarget.width > minimumTouchWidth)
         assertTrue("Back keeps its real48dp target height", originalTarget.height >= minimumTouchHeight - 0.5f)
         rule.onNodeWithTag("detail-action").assertIsFocused()
