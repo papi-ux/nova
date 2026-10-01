@@ -70,8 +70,9 @@ class NovaPortraitMenuCameraTest {
         }
         val normal = contentBounds()
         val camera = if (fullNotch) Rect(0f, 0f, 400f * pixels, 68f * pixels)
-            else Rect(182f * pixels, 0f, 218f * pixels, 68f * pixels)
-        assertTrue("The unprotected actual title initially intersects this camera", normal.first().overlaps(camera))
+            else Rect(normal.first().center.x - 18f * pixels, 0f,
+                normal.first().center.x + 18f * pixels, 68f * pixels)
+        assertTrue("The unprotected actual title $normal initially intersects camera $camera", normal.first().overlaps(camera))
         rule.runOnIdle { cameras.value = listOf(camera) }
         rule.waitForIdle()
         val cleared = contentBounds()
@@ -111,6 +112,6 @@ class NovaPortraitMenuCameraTest {
         same(normal, contentBounds())
     }
 
-    @Test fun centeredHeaderClearsACentralCameraAndSettlesAfterRemeasure() = scene(fullNotch = false)
+    @Test fun centeredHeaderClearsATitleHoleAndSettlesAfterRemeasure() = scene(fullNotch = false)
     @Test fun centeredHeaderClearsATopNotchWithoutShrinkingEitherAction() = scene(fullNotch = true)
 }
