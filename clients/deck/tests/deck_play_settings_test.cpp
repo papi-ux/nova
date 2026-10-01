@@ -301,7 +301,7 @@ int main(int argc, char** argv) {
         require(global.defaultsFromHost("", 40000)->value("width") == 1920 && global.defaultsFromHost("1280x720x60", 0)->value("bitrateKbps") == 30000,
             "partial host profile removed unspecified local defaults");
         require(!global.defaultsFromHost("1920x1080x59.94", 30000) && !global.defaultsFromHost("8192x4320x60", 30000) &&
-            !global.defaultsFromHost("1280x800x60", 300001) && !global.defaultsFromHost("", 0), "unsupported host profile partly imported");
+            !global.defaultsFromHost("1280x800x60", 500001) && !global.defaultsFromHost("", 0), "unsupported host profile partly imported");
         auto extra = *imported; extra["hostId"] = "one";
         require(!global.saveStreamDefaults(extra) && global.streamDefaults() == *imported, "malformed defaults changed preference");
         require(global.resetStreamDefaults() && global.streamDefaults() == initial, "device defaults reset failed");
@@ -446,7 +446,7 @@ int main(int argc, char** argv) {
     auto values = chosen;
     values["height"] = 801;
     require(!DeckPlayConfiguration::fromMap(values), "unsupported resolution combination accepted");
-    values = chosen; values["bitrateKbps"] = 300001;
+    values = chosen; values["bitrateKbps"] = 500001;
     require(!DeckPlayConfiguration::fromMap(values), "unsupported bitrate accepted");
     values = chosen; values["hostId"] = "other-host";
     require(!DeckPlayConfiguration::fromMap(values), "transport/identity field accepted in settings");

@@ -665,6 +665,11 @@ void DeckNativeSessionController::poll() {
     const auto hostView = !finished && !shared_->cancelled && next.value("phase") == "active"
         ? hostHud : DeckHudHostReducer::unavailable();
     for (auto it = hostView.cbegin(); it != hostView.cend(); ++it) nextHud.insert(it.key(), it.value());
+    if (nextHud.value("hostFresh").toBool() && nextHud.value("bitrateUnitsMode") == "request" &&
+        nextHud.value("suggestedBitrateKbps").toInt() == 0 && hudSample && hudSample->codec == "PyroWave") {
+        nextHud["suggestedBitrateKbps"] = std::min(nextHud.value("maximumBitrateKbps",300000).toInt(),
+            polaris::bitrateAdvice(hudSample->width,hudSample->height,hudSample->targetFps).value("kbps").toInt());
+    }
     if (nextHud != hud_) { hud_ = std::move(nextHud); emit hudChanged(); }
     if (next != state_) {
         state_ = next;
@@ -808,6 +813,9 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         target->request.videoFormat = selectSdrVideoFormat(configuration ? configuration->videoCodec.toStdString() : "h264",
             capabilities->h264, capabilities->hevc && !polaris::isSpaceGame(gameId.toStdString()), videoSupport,
             target->request.width, target->request.height, capabilities->pyrowave && !polaris::isSpaceGame(gameId.toStdString()));
+        if (target->request.bitrateKbps > capabilities->manualMaximumKbps) {
+            finish("failed", "The PC bitrate limit changed. Review Play Setup before starting."); return;
+        }
         if (!target->request.videoFormat) {
             if (configuration && configuration->videoCodec == "pyrowave" && !capabilities->pyrowave &&
                     !capabilities->pyrowaveUnavailableMessage.empty()) {

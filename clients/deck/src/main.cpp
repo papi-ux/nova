@@ -820,7 +820,8 @@ QVariantList toLibraryGameModel(const std::vector<nova::deck::backend::DeckPubli
             {"h264", game.streamCapabilities.h264}, {"hevc", game.streamCapabilities.hevc},
             {"pyrowave", game.streamCapabilities.pyrowave}, {"maxFps", game.streamCapabilities.maxFps},
             {"pyrowaveUnavailableReason",QString::fromStdString(game.streamCapabilities.pyrowaveUnavailableReason)},
-            {"pyrowaveUnavailableMessage",QString::fromStdString(game.streamCapabilities.pyrowaveUnavailableMessage)}});
+            {"pyrowaveUnavailableMessage",QString::fromStdString(game.streamCapabilities.pyrowaveUnavailableMessage)},
+            {"manualMaximumKbps", game.streamCapabilities.manualMaximumKbps}});
         QVariantList resolutions;
         for (const auto& choice : game.displayPlanner.choices)
             resolutions.append(QVariantMap{{"width", choice.width}, {"height", choice.height},

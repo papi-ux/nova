@@ -5,6 +5,7 @@
 #include <optional>
 #include <string_view>
 #include "polaris/deck_doctor_action.h"
+#include "polaris/deck_bitrate_advice.h"
 
 namespace nova::deck::polaris {
 // Backend-only status identity. Never register this object or its tokens with QML.
@@ -20,6 +21,11 @@ struct DeckHostTelemetry {
     int gameId = 0;
     int eventsHttpsPort = 0;
     std::optional<qint64> generation;
+    QString encoderCodec;
+    bool bitrateUnitsSupported = false;
+    int manualMaximumKbps = 300000;
+    std::optional<DeckBitrateUnits> bitrateUnits;
+    std::optional<DeckPyrowaveAdvice> pyrowaveAdvice;
     bool livePresent = false;
     std::optional<DeckLiveTuningTelemetry> live;
     std::optional<bool> legacyTuning;

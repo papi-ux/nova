@@ -62,6 +62,7 @@ public:
     Q_INVOKABLE bool reset(const QString& hostId, const QString& gameId);
     Q_INVOKABLE QVariantMap streamPlan(const QVariantMap& configuration,
         const QVariantMap& capabilities, const QVariantMap& planner, const QVariantMap& display = {}, bool spaceSession = false);
+    Q_INVOKABLE QVariantMap bitrateAdvice(const QVariantMap& configuration, const QVariantMap& hostAdvice = {}) const;
     Q_INVOKABLE int displayRateLimit(double refreshHz) const;
     QVariantMap streamLimits() const;
     QString mouseMode() const;

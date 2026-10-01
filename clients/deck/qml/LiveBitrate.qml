@@ -8,9 +8,13 @@ Popup {
     required property var session
     property real unit: 1
     readonly property var status: session && session.hud ? session.hud : ({})
+    readonly property string draftUnits: status.bitrateUnitsMode === "request" ? "Request budget" : status.bitrateUnitsMode === "video" ? "Video bitrate" : "Bitrate units unavailable"
     property int draftKbps: 20000
     property string error: ""
-    function clamp(value) { return Math.max(1000, Math.min(300000, Math.round(value / 1000) * 1000)) }
+    readonly property int minimumKbps: status.minimumBitrateKbps || 1000
+    readonly property int maximumKbps: status.maximumBitrateKbps || 300000
+    readonly property int suggestedKbps: status.bitrateUnitsMode === "request" ? Math.min(status.suggestedBitrateKbps || 0, maximumKbps, 300000) : 0
+    function clamp(value) { return Math.max(minimumKbps, Math.min(maximumKbps, Math.round(value))) }
     function adjust(delta) { if (!status.tuningBusy) draftKbps = clamp(draftKbps + delta) }
     function format(kbps) { return kbps > 0 ? (kbps / 1000).toFixed(kbps % 1000 ? 1 : 0) + " Mbps" : "Unavailable" }
     anchors.centerIn: Overlay.overlay
@@ -20,7 +24,7 @@ Popup {
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    onAboutToShow: { error = ""; draftKbps = clamp(status.appliedBitrateKbps > 0 ? status.appliedBitrateKbps : 20000) }
+    onAboutToShow: { error = ""; draftKbps = clamp(status.requestedBitrateKbps > 0 ? status.requestedBitrateKbps : status.appliedBitrateKbps > 0 ? status.appliedBitrateKbps : 20000) }
     onOpened: decrease.forceActiveFocus()
     background: Rectangle { color: NovaTheme.panel; radius: 12 * bitrate.unit; border.color: NovaTheme.divider }
     contentItem: NovaScrollColumn {
@@ -36,7 +40,7 @@ Popup {
             objectName: "live-bitrate-applied"
             Layout.fillWidth: true
             text: (bitrate.status.bitrateRequestKbps > 0 ? "Your last request: " + bitrate.format(bitrate.status.bitrateRequestKbps) + "\n" : "")
-                + "PC target: " + bitrate.format(bitrate.status.requestedBitrateKbps || 0)
+                + (bitrate.status.bitrateUnitsMode === "request" ? "PC request budget: " : "PC video target: ") + bitrate.format(bitrate.status.requestedBitrateKbps || 0)
                 + "\nEncoder applied: " + bitrate.format(bitrate.status.appliedBitrateKbps || 0)
             color: NovaTheme.secondary; wrapMode: Text.WordWrap
             font.pixelSize: 18 * bitrate.unit * NovaTheme.fontScale
@@ -49,6 +53,23 @@ Popup {
             color: NovaTheme.secondary; wrapMode: Text.WordWrap
             font.pixelSize: 16 * bitrate.unit * NovaTheme.fontScale
         }
+        Label {
+            objectName: "live-bitrate-received"
+            Layout.fillWidth: true
+            text: "Received video: " + (bitrate.status.fresh === true && bitrate.status.receivedBitrateKbps !== undefined ? (Number(bitrate.status.receivedBitrateKbps) / 1000).toFixed(1) + " Mbps" : "Unavailable")
+            color: NovaTheme.secondary; font.pixelSize: 18 * bitrate.unit * NovaTheme.fontScale
+            wrapMode: Text.WordWrap
+        }
+        NovaButton {
+            id: suggested
+            objectName: "live-bitrate-suggested"
+            visible: bitrate.suggestedKbps > 0
+            enabled: !bitrate.status.tuningBusy && bitrate.status.canSetBitrate === true
+            Layout.fillWidth: true; unit: bitrate.unit
+            text: "Use recommended · " + bitrate.format(bitrate.suggestedKbps)
+            onClicked: bitrate.draftKbps = bitrate.clamp(bitrate.suggestedKbps)
+            Keys.onDownPressed: decrease.forceActiveFocus()
+        }
         RowLayout {
             Layout.fillWidth: true
             spacing: 12 * bitrate.unit
@@ -56,15 +77,17 @@ Popup {
                 id: decrease
                 objectName: "live-bitrate-minus"
                 Layout.fillWidth: true; unit: bitrate.unit
-                text: "− 1 Mbps"
-                onClicked: bitrate.adjust(-1000)
-                Keys.onLeftPressed: bitrate.adjust(-1000)
+                text: "− 10 Mbps"
+                onClicked: bitrate.adjust(-10000)
+                Keys.onLeftPressed: bitrate.adjust(-10000)
                 Keys.onRightPressed: increase.forceActiveFocus()
+                Keys.onUpPressed: if (suggested.visible) suggested.forceActiveFocus()
                 Keys.onDownPressed: apply.forceActiveFocus()
             }
             Label {
                 objectName: "live-bitrate-draft"
                 Layout.preferredWidth: 140 * bitrate.unit
+                Accessible.name: bitrate.draftUnits + ": " + bitrate.format(bitrate.draftKbps)
                 text: bitrate.format(bitrate.draftKbps)
                 color: NovaTheme.text; font.bold: true
                 font.pixelSize: 22 * bitrate.unit * NovaTheme.fontScale
@@ -74,21 +97,22 @@ Popup {
                 id: increase
                 objectName: "live-bitrate-plus"
                 Layout.fillWidth: true; unit: bitrate.unit
-                text: "+ 1 Mbps"
-                onClicked: bitrate.adjust(1000)
+                text: "+ 10 Mbps"
+                onClicked: bitrate.adjust(10000)
                 Keys.onLeftPressed: decrease.forceActiveFocus()
-                Keys.onRightPressed: bitrate.adjust(1000)
+                Keys.onRightPressed: bitrate.adjust(10000)
+                Keys.onUpPressed: if (suggested.visible) suggested.forceActiveFocus()
                 Keys.onDownPressed: apply.forceActiveFocus()
             }
         }
         Slider {
             objectName: "live-bitrate-slider"
             Layout.fillWidth: true
-            from: 1000; to: 300000; stepSize: 1000; snapMode: Slider.SnapAlways
+            from: bitrate.minimumKbps; to: bitrate.maximumKbps; stepSize: 1000; snapMode: Slider.SnapAlways
             value: bitrate.draftKbps
             enabled: !bitrate.status.tuningBusy
             activeFocusOnTab: false
-            Accessible.name: "Fixed bitrate in kilobits per second"
+            Accessible.name: bitrate.draftUnits + " in kilobits per second"
             onMoved: bitrate.draftKbps = bitrate.clamp(value)
             Keys.onDownPressed: apply.forceActiveFocus()
             Keys.onUpPressed: decrease.forceActiveFocus()
