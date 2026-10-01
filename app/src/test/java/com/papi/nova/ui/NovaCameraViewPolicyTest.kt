@@ -205,16 +205,23 @@ class NovaCameraViewPolicyTest {
             cameras = emptyList()
             repeat(4) { relayout() }
             val profileBeforeScroll = IntArray(2).also { action.getLocationInWindow(it) }
-            val scrollCamera = Rect(0, profileBeforeScroll[1] - 2, profileBeforeScroll[0] + 4, profileBeforeScroll[1] - 1)
+            val baselineMargin = (action.layoutParams as ViewGroup.MarginLayoutParams).topMargin
+            assertEquals("the actual profile row keeps its XML 2dp gap", (2 * activity.resources.displayMetrics.density + 0.5f).toInt(), baselineMargin)
+            val physicalFloor = kotlin.math.ceil(48 * activity.resources.displayMetrics.density).toInt()
+            val extraReach = ((physicalFloor - action.height).coerceAtLeast(0) + 1) / 2
+            val scrollCamera = Rect(0, profileBeforeScroll[1] - extraReach - 2,
+                profileBeforeScroll[0] + 4, profileBeforeScroll[1] - extraReach - 1)
             cameras = listOf(scrollCamera)
-            relayout()
+            repeat(5) { relayout() }
+            assertEquals("the gap camera adds no pending clearance before scrolling", baselineMargin,
+                (action.layoutParams as ViewGroup.MarginLayoutParams).topMargin)
             assertEquals("the gap camera leaves the profile's initial placement intact", profileBeforeScroll.toList(),
                 IntArray(2).also { action.getLocationInWindow(it) }.toList())
             val scrollRail = rail as androidx.core.widget.NestedScrollView
             scrollRail.scrollTo(0, 24)
             assertEquals("the real rail can scroll", 24, scrollRail.scrollY)
             org.robolectric.util.ReflectionHelpers.callInstanceMethod<Void>(root.viewTreeObserver, "dispatchOnScrollChanged")
-            assertTrue("scroll alone requests local action clearance", (action.layoutParams as ViewGroup.MarginLayoutParams).topMargin > 0)
+            assertTrue("scroll alone requests local action clearance", (action.layoutParams as ViewGroup.MarginLayoutParams).topMargin > baselineMargin)
             repeat(5) { relayout() }
             val profileAfterScroll = IntArray(2).also { action.getLocationInWindow(it) }
             assertTrue("scrolling a real target into a side camera refreshes local clearance", profileAfterScroll[1] >= scrollCamera.bottom)

@@ -120,22 +120,22 @@ class NovaCameraModifierComposeTest {
         }
         val cameraBottom = if (oddPixels) 96f else 18 * density
         try {
-        rule.runOnIdle { cameras.value = listOf(Rect(0f, 0f, 240 * density, cameraBottom)) }
-        rule.waitForIdle()
-        val bounds = rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot
-        val top = bounds.center.y - 23 * density
-        assertTrue("camera clearance covers the actual expanded touch floor, not just the small visual surface: $bounds / $top", top >= cameraBottom)
-        val glyph = rule.onNodeWithTag("small-camera-glyph").fetchSemanticsNode().boundsInRoot
-        assertTrue("visible content remains nonzero below the camera", glyph.height > 0 && glyph.top >= cameraBottom)
-        repeat(4) {
-            rule.runOnIdle { width.value = if (width.value == 240) 241 else 240 }
+            rule.runOnIdle { cameras.value = listOf(Rect(0f, 0f, 240 * density, cameraBottom)) }
             rule.waitForIdle()
-            assertEquals("odd-pixel clearance settles across forced layouts", bounds,
-                rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot)
-        }
-        rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, top)) }
-        rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, bounds.center.y + 23 * density)) }
-        assertEquals(2, calls)
+            val bounds = rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot
+            val top = bounds.center.y - 23 * density
+            assertTrue("camera clearance covers the actual expanded touch floor, not just the small visual surface: $bounds / $top", top >= cameraBottom)
+            val glyph = rule.onNodeWithTag("small-camera-glyph", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            assertTrue("visible content remains nonzero below the camera", glyph.height > 0 && glyph.top >= cameraBottom)
+            repeat(4) {
+                rule.runOnIdle { width.value = if (width.value == 240) 241 else 240 }
+                rule.waitForIdle()
+                assertEquals("odd-pixel clearance settles across forced layouts", bounds,
+                    rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot)
+            }
+            rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, top)) }
+            rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, bounds.center.y + 23 * density)) }
+            assertEquals(2, calls)
         } finally {
             cameras.value = emptyList()
             println("camera-small-action density=$density minHeight=$minHeight actualGlyphPlacements=${synchronized(placements) { placements.toList() }}")
