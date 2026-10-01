@@ -27,9 +27,11 @@ class PyroWavePacketGuardTest(unittest.TestCase):
                         str(ROOT / "tools/pyrowave_packet_guard_harness.c"), "-o", str(binary),
                     ], capture_output=True, text=True)
                     self.assertEqual(built.returncode, 0, built.stderr)
-                    ran = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)
-                    self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
-                    self.assertIn("all packet length cases passed", ran.stdout)
+                    for case in ("short", "zero"):
+                        with self.subTest(case=case):
+                            ran = subprocess.run([str(binary), case], capture_output=True, text=True, timeout=10)
+                            self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+                            self.assertIn("all packet length cases passed", ran.stdout)
 
 
 if __name__ == "__main__":

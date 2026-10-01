@@ -10,8 +10,13 @@ static void block(uint8_t *out, unsigned words, unsigned index) {
     out[5] = (uint8_t)index;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     uint8_t bytes[16384 + 24] = {0};
+    if (argc > 1 && strcmp(argv[1], "zero") == 0) {
+        block(bytes, 2, 7);
+        block(bytes + 8, 0, 7);
+        assert(!pyrowave_packet_has_safe_lengths(bytes, 16));
+    }
     assert(!pyrowave_packet_has_safe_lengths(NULL, 8));
     assert(!pyrowave_packet_has_safe_lengths(bytes, 0));
     for (size_t size = 1; size < 8; ++size)
