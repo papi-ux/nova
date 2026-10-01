@@ -186,7 +186,11 @@ class NovaSplitConfirmToneComposeTest {
         assertTrue("The exposed panel separates the warm-white ring", ColorUtils.calculateContrast(surfaces.focusRing.toArgb(), surfaces.panel.copy(alpha = 1f).toArgb()) >= 3.0)
 
         rule.mainClock.autoAdvance = false
-        arm(keys)
+        rule.onNodeWithText("Live Tuning").requestFocus()
+        rule.frames(2)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+        rule.onNodeWithText("Stay").assertIsFocused()
         assertEquals(NovaSurfaceLook(surfaces.selectedControl, surfaces.focusRing, false), look("Stay"))
         assertEquals(NovaSurfaceLook(colors.destructiveFill, Color.Unspecified, false), look("Turn Off"))
         assertEquals(colors.onDestructiveFill, labelColour("Turn Off"))
