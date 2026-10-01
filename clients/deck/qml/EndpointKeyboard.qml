@@ -16,14 +16,16 @@ Popup {
     property var targetField: null
     property bool digitsOnly: false
     property bool decimalEntry: false
+    property bool hexEntry: false
     property string entryTitle: ""
     property bool alphabet: false
     property bool titleEntry: false
-    readonly property var characters: alphabet
+    readonly property var characters: hexEntry ? "0123456789ABCDEF:".split("") : alphabet
         ? (titleEntry ? "qwertyuiopasdfghjkl⌫zxcvbnm '&" : "qwertyuiopasdfghjkl⌫zxcvbnm-.:").split("")
         : ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", ":"]
 
-    function edit(field, port, heading = "", decimal = false) {
+    function edit(field, port, heading = "", decimal = false, hex = false) {
+        hexEntry = hex
         entryTitle = heading
         decimalEntry = decimal
         targetField = field
@@ -86,9 +88,9 @@ Popup {
             Layout.preferredHeight: 58
             color: NovaTheme.text; font.pixelSize: 24 * NovaTheme.fontScale
             selectByMouse: true
-            maximumLength: keyboard.decimalEntry ? 8 : keyboard.digitsOnly ? 5 : 253
+            maximumLength: keyboard.hexEntry ? 17 : keyboard.decimalEntry ? 8 : keyboard.digitsOnly ? 5 : 253
             inputMethodHints: keyboard.decimalEntry ? Qt.ImhFormattedNumbersOnly : keyboard.digitsOnly ? Qt.ImhDigitsOnly : Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
-            validator: RegularExpressionValidator { regularExpression: keyboard.decimalEntry ? /[0-9.]{0,8}/ : keyboard.digitsOnly ? /[0-9]{0,5}/ : keyboard.titleEntry ? /[A-Za-z0-9 .:\-&']{0,253}/ : /[A-Za-z0-9.:-]{0,253}/ }
+            validator: RegularExpressionValidator { regularExpression: keyboard.hexEntry ? /[0-9a-fA-F:]{0,17}/ : keyboard.decimalEntry ? /[0-9.]{0,8}/ : keyboard.digitsOnly ? /[0-9]{0,5}/ : keyboard.titleEntry ? /[A-Za-z0-9 .:\-&']{0,253}/ : /[A-Za-z0-9.:-]{0,253}/ }
             background: Rectangle {
                 color: NovaTheme.panel; radius: 10
                 border.color: entry.activeFocus ? NovaTheme.focus : NovaTheme.divider; border.width: entry.activeFocus ? 4 : 1
@@ -100,7 +102,7 @@ Popup {
         GridLayout {
             id: grid
             Layout.fillWidth: true
-            columns: keyboard.alphabet ? 10 : 3
+            columns: keyboard.hexEntry ? 6 : keyboard.alphabet ? 10 : 3
             columnSpacing: 8; rowSpacing: 8
             Repeater {
                 id: keys
@@ -118,7 +120,7 @@ Popup {
                     Keys.onUpPressed: { if (index < grid.columns) entry.forceActiveFocus(); else keyboard.focusKey(index - grid.columns) }
                     Keys.onDownPressed: {
                         if (index + grid.columns < keys.count && keys.itemAt(index + grid.columns).enabled) keyboard.focusKey(index + grid.columns)
-                        else if (keyboard.digitsOnly) backspace.forceActiveFocus()
+                        else if (keyboard.digitsOnly || keyboard.hexEntry) backspace.forceActiveFocus()
                         else mode.forceActiveFocus()
                     }
                 }
@@ -130,7 +132,7 @@ Popup {
                 id: mode
                 objectName: "endpoint-keyboard-mode"
                 text: keyboard.alphabet ? "#123" : "ABC"
-                visible: !keyboard.digitsOnly
+                visible: !keyboard.digitsOnly && !keyboard.hexEntry
                 onClicked: keyboard.alphabet = !keyboard.alphabet
                 Keys.onRightPressed: backspace.forceActiveFocus()
                 Keys.onUpPressed: keyboard.focusKey(0)

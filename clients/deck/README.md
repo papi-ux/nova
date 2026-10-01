@@ -1803,3 +1803,16 @@ routes; physical controllers and installed first-run acceptance remain separate.
 H.264/HEVC failures distinguish the PC's codec offer, the local VA-API decoder,
 and local decoder size limits. A missing decoder points to the Linux driver and
 Flatpak graphics runtime before retrying.
+
+
+**Wake PC** is available from the library's System menu, including when the saved
+PC is offline. Enter the wired network adapter's MAC address using the hex
+keyboard or a physical keyboard, then Save. A separate Wake PC action sends one
+standard magic packet by UDP broadcast on port 9. Nova stores the MAC locally
+for the selected saved PC; another PC cannot inherit it. Back cancels an unsaved
+edit, and closing the hex keyboard returns to the MAC field. Clear and Save
+removes that PC's saved MAC. A sent packet does not prove the PC woke: wait, then
+refresh. Wake-on-LAN must be enabled in the PC firmware and wired adapter, and
+the network must permit local Wake packets. Wi-Fi and routed networks may not
+support it. Loopback UDP, persistence/failure and UI tests cover software
+behavior; physical sleeping-PC acceptance remains unrun.
