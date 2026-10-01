@@ -118,14 +118,39 @@ class NovaCameraPageBackComposeTest {
         assertEquals("removal restores actual no-camera glyph bounds", originalGlyph, bounds(NovaChevronBackTag))
         assertEquals("removal restores actual no-camera title bounds", originalTitle, title())
         assertEquals("removal restores original pointer/semantics envelope", originalTarget, bounds(NovaPageBackTag))
-        rule.runOnIdle { cameras.value = listOf(camera) }
+        // A second real side hole intersects both the outer Back target and its hanging icon.
+        // Keep both existing helpers' geometry under test, not only the icon-only gap.
+        val widerCamera = if (rtl) Rect(originalTarget.right - 10 * pixels, 1f, 400 * pixels, camera.bottom)
+            else Rect(0f, 1f, originalTarget.left + 10 * pixels, camera.bottom)
+        assertTrue(originalTarget.overlaps(widerCamera) && originalGlyph.overlaps(widerCamera))
+        rule.runOnIdle { cameras.value = listOf(widerCamera) }
+        rule.waitForIdle()
+        val widerGlyph = bounds(NovaChevronBackTag)
+        val widerTarget = bounds(NovaPageBackTag)
+        val widerGlyphClear = !widerGlyph.overlaps(widerCamera)
+        assertTrue("combined protection clears the real Back target", !widerTarget.overlaps(widerCamera))
+        assertTrue("combined protection clears the real title", !title().overlaps(widerCamera))
+        assertTrue("combined protection retains the48dp target", widerTarget.height >= minimumTouchHeight - 0.5f)
+        repeat(2) {
+            rule.runOnIdle { width.value = if (width.value == 320) 321 else 320 }
+            rule.waitForIdle()
+        }
+        assertEquals(widerGlyph, bounds(NovaChevronBackTag))
+        assertEquals(widerTarget, bounds(NovaPageBackTag))
+        rule.runOnIdle { cameras.value = emptyList() }
+        rule.waitForIdle()
+        assertEquals(originalGlyph, bounds(NovaChevronBackTag))
+        assertEquals(originalTitle, title())
+        assertEquals(originalTarget, bounds(NovaPageBackTag))
+        rule.runOnIdle { cameras.value = listOf(widerCamera) }
         rule.waitForIdle()
         val back = bounds(NovaPageBackTag)
         rule.onRoot().performTouchInput { click(Offset(back.center.x, back.top + 0.5f)) }
         rule.waitForIdle()
         assertEquals("camera-on Back edge invokes the real page pop", "root", state.topEntry?.page?.key)
-        println("pageback rtl=$rtl originalGlyph=$originalGlyph originalTarget=$originalTarget camera=$camera protectedGlyph=$protectedGlyph protectedTarget=$protectedTarget")
+        println("pageback rtl=$rtl originalGlyph=$originalGlyph originalTarget=$originalTarget camera=$camera protectedGlyph=$protectedGlyph protectedTarget=$protectedTarget widerCamera=$widerCamera widerGlyph=$widerGlyph widerTarget=$widerTarget")
         assertTrue("the actual hanging chevron clears the side camera", glyphClear)
+        assertTrue("the actual chevron clears when the outer Back target also overlaps", widerGlyphClear)
     }
 
     @Test fun pushedPageBackClearsItsHangingLeadingGlyph() = pushedPage(rtl = false)
