@@ -1,6 +1,5 @@
 package com.papi.nova.ui.panel
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -8,7 +7,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -658,11 +656,10 @@ private fun NumberStepButton(glyph: String, label: String, enabled: Boolean, onC
     Box(
         modifier = Modifier
             .sizeIn(minWidth = minimum, minHeight = minimum)
-            .focusProperties { canFocus = false }
             .clip(shape)
             .novaFocusRing(shape, restFill = if (pressed) surfaces.selectedControl else surfaces.control,
                 restBorder = surfaces.tileBorder, restBorderWidth = NovaPanelMetrics.Hairline)
-            .clickable(enabled = enabled, role = Role.Button, interactionSource = interactions, indication = null) {
+            .novaClickable(enabled = enabled, role = Role.Button, interactionSource = interactions, controllerFocusable = false) {
                 haptics.novaFocusTick()
                 onClick()
             }
