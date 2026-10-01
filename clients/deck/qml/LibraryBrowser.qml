@@ -19,6 +19,7 @@ FocusScope {
     property var updateController: null
     required property var settingsProvider
     property var hostPower: null
+    property var hostWake: null
     property var gamepad: null
     property string settingsError: ""
     property bool sessionBusy: false
@@ -67,7 +68,7 @@ FocusScope {
         || emptyState.activeFocus
     readonly property bool interactionPaused: detailOpen || destinations.opened || options.opened || systemMenu.opened
         || sourcePicker.opened || morePicker.opened || sortPicker.opened || faceDefaultPicker.opened
-        || settingsHub.opened || polarisSync.opened || audioSettings.opened || rumbleSettings.opened || appearanceSettings.opened || powerSheet.opened || !browsing
+        || settingsHub.opened || polarisSync.opened || audioSettings.opened || rumbleSettings.opened || appearanceSettings.opened || powerSheet.opened || wakeSheet.opened || !browsing
     readonly property string layoutMode: preferences.layoutMode
     readonly property bool stageMode: layoutMode === "stage"
     signal selected(var game)
@@ -195,6 +196,7 @@ FocusScope {
         if (spaceArtwork.opened) { spaceArtwork.leave(); return }
         if (destinations.opened) { destinations.close(); return }
         if (powerSheet.opened) { powerSheet.requestClose(); return }
+        if (wakeSheet.opened) { wakeSheet.back(); return }
         for (const picker of [sortPicker, sourcePicker, morePicker, faceDefaultPicker])
             if (picker.opened) { picker.close(); return }
         if (options.opened) { options.close(); return }
@@ -260,6 +262,7 @@ FocusScope {
             settingsHub: settingsHub.state(), syncNeedsReview: syncNeedsReview,
             audio: audioSettings.state(),
             rumble: rumbleSettings.state(),
+            hostWake: wakeSheet.observation(),
             hostPowerUi: powerSheet.interactionState(), hostPowerOpen: powerSheet.opened, hostPower: hostPower ? hostPower.state : ({}), appearanceOpen: appearanceSettings.opened, polarisSync: polarisSync.state(), theme: NovaTheme.themeId, fontScale: NovaTheme.fontScale,
             cards: visibleGames.map((game, index) => {
                 const tile = grid.itemAtIndex(index)
@@ -1276,7 +1279,13 @@ FocusScope {
             Qt.callLater(() => grid.positionViewAtIndex(grid.currentIndex, GridView.Contain))
         }
     }
-    onSessionBusyChanged: if (sessionBusy) settingsHub.close()
+    onSessionBusyChanged: if (sessionBusy) { settingsHub.close(); wakeSheet.close() }
+    HostWake {
+        id: wakeSheet
+        controller: browser.hostWake
+        unit: browser.unit
+        onClosed: wakeButton.forceActiveFocus()
+    }
     HostPower {
         id: powerSheet
         controller: browser.hostPower
@@ -1462,6 +1471,16 @@ FocusScope {
                 enabled: browser.hostPower !== null && !sessionBusy && !refreshState.busy
                 onClicked: powerSheet.open()
                 Keys.onUpPressed: appearanceButton.forceActiveFocus()
+                Keys.onDownPressed: wakeButton.forceActiveFocus()
+            }
+            ChromeButton {
+                id: wakeButton
+                objectName: "library-wake-pc"
+                Layout.fillWidth: true
+                text: "Wake PC"
+                enabled: !!browser.hostWake && !sessionBusy && !refreshState.busy
+                onClicked: wakeSheet.open()
+                Keys.onUpPressed: sleepButton.forceActiveFocus()
                 Keys.onDownPressed: systemDone.forceActiveFocus()
             }
             ChromeButton {
@@ -1469,7 +1488,7 @@ FocusScope {
                 Layout.fillWidth: true
                 text: "Back to games"
                 onClicked: { systemMenu.close(); focusGame() }
-                Keys.onUpPressed: sleepButton.forceActiveFocus()
+                Keys.onUpPressed: wakeButton.forceActiveFocus()
             }
         }
     }

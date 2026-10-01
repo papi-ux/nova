@@ -965,6 +965,43 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     visible([7, 106], filter="genre", filterValue="Puzzle", sort="hdr")
 
 
+def wake_pc_navigation(wait, keys, state, save_capture, window):
+    keys("Up", "Up", "Up", "Right", "Return")
+    wait(lambda s: s.get("systemOpen"))
+    for _ in range(12):
+        if state().get("focus") == "library-wake-pc":
+            break
+        keys("Down")
+    wait(lambda s: s.get("focus") == "library-wake-pc")
+    keys("Return")
+    wait(lambda s: s.get("hostWake", {}).get("opened") and s.get("focus") == "host-wake-mac")
+    assert state()["hostWake"]["status"]["hostId"] == "a" and not state()["hostWake"]["status"]["canWake"]
+    save_capture("wake-first-open-1280.png")
+    keys("Return")
+    wait(lambda s: s.get("hostWake", {}).get("keyboardOpen"))
+    command("xdotool", "type", "--clearmodifiers", "02:11:22:33:44:55")
+    keys("Return")
+    wait(lambda s: not s.get("hostWake", {}).get("keyboardOpen") and s.get("hostWake", {}).get("dirty"))
+    assert not state()["hostWake"]["status"]["canWake"], "editor Done saved a MAC"
+    keys("Down", "Return")
+    wait(lambda s: s.get("hostWake", {}).get("status", {}).get("mac") == "02:11:22:33:44:55" and s.get("focus") == "host-wake-send")
+    save_capture("wake-saved-1280.png")
+    keys("Escape")
+    wait(lambda s: not s.get("hostWake", {}).get("opened") and s.get("focus") == "library-wake-pc")
+    keys("Return")
+    wait(lambda s: s.get("hostWake", {}).get("opened") and s.get("focus") == "host-wake-send")
+    command("xdotool", "windowsize", window, "960", "600")
+    save_capture("wake-saved-960.png")
+    keys("Up", "Up", "Return")
+    wait(lambda s: s.get("hostWake", {}).get("keyboardOpen"))
+    keys("Escape")
+    wait(lambda s: s.get("hostWake", {}).get("opened") and not s.get("hostWake", {}).get("keyboardOpen") and s.get("focus") == "host-wake-mac")
+    keys("Escape")
+    wait(lambda s: not s.get("hostWake", {}).get("opened") and s.get("focus") == "library-wake-pc")
+    keys("Escape")
+    wait(lambda s: not s.get("systemOpen") and s.get("focus") == "library-system")
+
+
 def host_power_navigation(wait, keys, state, fixtures, save_capture, window):
     def power_phase(value):
         return lambda s: s.get("hostPower", {}).get("phase") == value
@@ -1650,7 +1687,9 @@ def main():
     parser.add_argument("--appearance", action="store_true")
     parser.add_argument("--host-power", action="store_true")
     parser.add_argument("--paging", action="store_true")
+    parser.add_argument("--wake-pc", action="store_true")
     args = parser.parse_args()
+    args.host_power = args.host_power or args.wake_pc
     args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
     args.artwork = args.artwork or args.readability
@@ -1968,7 +2007,7 @@ def main():
         # retain the independent 70-second CTest deadline and per-state waits.
         app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
                                env=env, stdout=output, stderr=output)
 
         def state():
@@ -2037,6 +2076,8 @@ def main():
                 setup_parity_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.spaces:
                 spaces_navigation(wait, keys, state, fixtures, save_capture, window)
+            elif args.wake_pc:
+                wake_pc_navigation(wait, keys, state, save_capture, window)
             elif args.host_power:
                 host_power_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.appearance:

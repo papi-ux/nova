@@ -105,6 +105,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_display_capabilities.cpp
     src/runtime/deck_frame_delivery.cpp
     src/runtime/deck_host_power.cpp
+    src/runtime/deck_host_wake.cpp
     src/runtime/deck_host_settings.cpp
     src/polaris/deck_host_settings.cpp
     src/runtime/deck_hud_metrics.cpp
@@ -303,6 +304,10 @@ if(BUILD_TESTING)
     add_executable(nova_deck_library_artwork_test tests/deck_library_artwork_test.cpp)
     target_link_libraries(nova_deck_library_artwork_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_library_artwork_test COMMAND nova_deck_library_artwork_test)
+    add_executable(nova_deck_host_wake_test tests/deck_host_wake_test.cpp)
+    target_link_libraries(nova_deck_host_wake_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_host_wake_test COMMAND nova_deck_host_wake_test)
+    set_tests_properties(nova_deck_host_wake_test PROPERTIES TIMEOUT 15)
     add_executable(nova_deck_host_power_test tests/deck_host_power_test.cpp)
     add_executable(nova_deck_game_tools_test tests/deck_game_tools_test.cpp)
     target_link_libraries(nova_deck_game_tools_test PRIVATE nova_deck_core)
@@ -689,6 +694,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/NovaButton.qml
                 qml/NovaScrollColumn.qml
                 qml/HostPower.qml
+                qml/HostWake.qml
                 qml/HostDefaults.qml
                 qml/SessionSyncActions.qml
                 qml/StreamProfileEditor.qml
@@ -785,6 +791,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
                         $<TARGET_FILE:nova-deck> --paging)
                 set_tests_properties(nova_deck_library_paging_route_test PROPERTIES TIMEOUT 40 RESOURCE_LOCK nova_deck_x11)
+                add_test(NAME nova_deck_host_wake_route_test
+                    COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
+                        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
+                        $<TARGET_FILE:nova-deck> --wake-pc)
+                set_tests_properties(nova_deck_host_wake_route_test PROPERTIES TIMEOUT 45 RESOURCE_LOCK nova_deck_x11)
                 add_test(NAME nova_deck_host_power_route_test
                     COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
@@ -936,6 +947,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             set_tests_properties(nova_deck_host_power_qml_test PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 15)
             find_package(Qt6 REQUIRED COMPONENTS Test)
+            add_executable(nova_deck_host_wake_qml_test tests/deck_host_wake_qml_test.cpp)
+            target_link_libraries(nova_deck_host_wake_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
+            target_compile_definitions(nova_deck_host_wake_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+            add_test(NAME nova_deck_host_wake_qml_test COMMAND nova_deck_host_wake_qml_test)
+            set_tests_properties(nova_deck_host_wake_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 20)
             add_executable(nova_deck_space_artwork_qml_test tests/deck_space_artwork_qml_test.cpp)
             target_link_libraries(nova_deck_space_artwork_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
             target_compile_definitions(nova_deck_space_artwork_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
