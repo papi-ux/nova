@@ -749,12 +749,12 @@ int main(int argc, char** argv) {
     key(*window, Qt::Key_Return); focused(*window, bitrateMinus, "picker did not focus the decrement control");
     require(bitratePopup->findChild<QQuickItem*>("live-bitrate-pyrowave-guidance")->isVisible(), "PyroWave bitrate guidance missing");
     key(*window, Qt::Key_Right); key(*window, Qt::Key_Return);
-    require(bitratePopup->property("draftKbps") == 21000 && session.bitrateWrites == 0, "draft adjustment mutated host");
+    require(bitratePopup->property("draftKbps") == 30000 && session.bitrateWrites == 0, "draft adjustment mutated host");
     key(*window, Qt::Key_Down); focused(*window, bitrateApply, "Apply not reachable from increment");
     window->resize(1280, 800); settle(); screenshot("live-bitrate-review-1280.png");
     window->resize(960, 600); settle(); screenshot("live-bitrate-review-large-960.png");
     key(*window, Qt::Key_Return); key(*window, Qt::Key_Return);
-    require(session.bitrateWrites == 1 && session.requestedBitrate == 21000 && session.tuning.value("appliedBitrateKbps") == 20000,
+    require(session.bitrateWrites == 1 && session.requestedBitrate == 30000 && session.tuning.value("appliedBitrateKbps") == 20000,
         "Apply duplicated a mutation or optimistically painted requested bitrate");
     focused(*window, bitrateApply, "pending fixed bitrate lost controller focus");
     screenshot("live-bitrate-pending-960.png");
@@ -787,7 +787,7 @@ int main(int argc, char** argv) {
     QMouseEvent plusDown(QEvent::MouseButtonPress, plusPoint, window->mapToGlobal(plusPoint), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
     QMouseEvent plusUp(QEvent::MouseButtonRelease, plusPoint, window->mapToGlobal(plusPoint), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QCoreApplication::sendEvent(window, &plusDown); QCoreApplication::sendEvent(window, &plusUp); settle();
-    require(bitratePopup->property("draftKbps") == 22000 && session.bitrateWrites == 1, "touch adjustment sent a mutation or failed");
+    require(bitratePopup->property("draftKbps") == 31000 && session.bitrateWrites == 1, "touch adjustment sent a mutation or failed");
     session.tuning["canSetBitrate"] = false; session.tuning["bitrateCopy"] = "This session doesn't allow host tuning.";
     emit session.hudChanged(); bitrateApply->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
     require(session.bitrateWrites == 1 && bitrateApply->property("text") == "Unavailable", "permission withdrawal allowed fixed-rate save");

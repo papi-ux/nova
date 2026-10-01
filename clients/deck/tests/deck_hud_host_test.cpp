@@ -63,6 +63,11 @@ void parserAndReducer() {
     auto actual = view(o);
     require(actual.value("tuningLabel") == "Tuning: Applying" && actual.value("appliedBitrate") == "20.0M" &&
         actual.value("qualityLimit") == "20.0M", "requested bitrate substituted for encoder acknowledgement");
+    auto adviceEnvelope = o;
+    adviceEnvelope["pyrowave_bitrate"] = QJsonObject{{"version",1},{"width",1920},{"height",1080},{"fps",120},
+        {"raise_goal_kbps",201125},{"cap_kbps",300000},{"raise_goal_limited_by","advice"}};
+    require(view(adviceEnvelope).value("suggestedBitrateKbps").toInt() == 201125,
+        "session PyroWave request advice missing from live controls");
     auto requested = applying; requested["requested_bitrate_kbps"] = 150000;
     o["live_tuning"] = requested;
     const auto pending = view(o);
