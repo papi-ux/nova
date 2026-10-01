@@ -151,8 +151,8 @@ class NovaSpacesVocabularyTest {
         )
         assertTrue("what gives way is decided by the tested fit, from measured text", strip.contains("rememberNovaLibraryTopBarFit(") && strip.contains("novaLibraryTopBarFit("))
         assertTrue(
-            "the host side is the weighted part, so Row measures the right-hand cluster first and the menus never shrink",
-            strip.contains("modifier = Modifier.weight(1f).fillMaxHeight()"),
+            "the host side stays weighted so menus measure first, and wraps camera clearance vertically",
+            strip.contains("modifier = Modifier.weight(1f).wrapContentHeight()"),
         )
     }
 

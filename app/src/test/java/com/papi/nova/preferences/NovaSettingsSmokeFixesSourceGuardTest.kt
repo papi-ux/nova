@@ -37,7 +37,10 @@ class NovaSettingsSmokeFixesSourceGuardTest {
     fun searchTypesInPlaceAndItsClearIsReachable() {
         val field = screen.substringAfter("private fun NovaSettingsSearchField(").substringBefore("private fun NovaSettingsQuickStrip(")
         assertTrue(field.indexOf("NovaInPlaceKeyboard {") in 0 until field.indexOf("NovaSearchTextField("))
-        assertTrue("B clears a query first", field.contains("NovaBackHandler(active = query.isNotBlank()) { onClear() }"))
+        assertFalse("The field leaves root Back ordering to the page host", field.contains("NovaBackHandler("))
+        val rootBack = screen.substringAfter("onCloseRequest = {").substringBefore("hints = hints,")
+        assertTrue("Root B clears search before hiding navigation or leaving Settings",
+            rootBack.contains("if (latestState.isSearchActive()) {\n                            clearSearch()\n                        } else if (portrait"))
         val decoration = field.substringAfter("{ innerTextField ->").substringBefore("// Beside the field")
         assertFalse("Clear sits beside the field, not inside its decoration", decoration.contains("nova_settings_search_clear"))
     }
