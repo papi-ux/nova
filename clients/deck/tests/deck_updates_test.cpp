@@ -93,6 +93,8 @@ int main(int argc, char** argv) {
     QTemporaryDir dir; require(dir.isValid(), "temp settings");
     QFile file(dir.filePath("flatpak-info")); require(file.open(QIODevice::WriteOnly), "instance fixture");
     file.write(("[Application]\nname=com.papi_ux.Nova\n[Instance]\narch=x86_64\nbranch=beta\napp-commit=" + a + "\n").toUtf8()); file.close();
+    const auto installed=DeckUpdates::installedOptions(true);
+    require(installed.feedUrl == QStringLiteral(NOVA_DECK_EXPECTED_UPDATE_URL), "installed update feed differs from configured production base");
     DeckUpdateOptions options;
     options.instanceFile = file.fileName(); options.settingsFile = dir.filePath("settings.ini");
     options.channel = "beta"; options.feedUrl = "https://127.0.0.1:1"; options.idleDelayMs = 40;
