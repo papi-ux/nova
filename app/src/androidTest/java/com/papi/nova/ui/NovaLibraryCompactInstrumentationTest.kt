@@ -71,10 +71,9 @@ class NovaLibraryCompactInstrumentationTest {
                 val options = context.getString(R.string.nova_library_options_title)
                 rule.onNodeWithContentDescription(options).assertIsDisplayed().performClick()
                 rule.onNodeWithText(options).assertIsDisplayed()
-                scenario.onActivity {
-                    it.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_B))
-                    it.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_B))
-                }
+                // Send the key through Android's active window: the Options dialog
+                // owns input here, so direct Activity dispatch would bypass its gate.
+                InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BUTTON_B)
                 rule.waitForIdle()
                 rule.onNodeWithText(options).assertDoesNotExist()
                 rule.onNodeWithContentDescription(options).assertIsDisplayed()
