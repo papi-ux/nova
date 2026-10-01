@@ -640,7 +640,9 @@ private fun NovaPageBack(title: String, modifier: Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.offset(x = -NovaPageBackHang),
     ) {
-        NovaChevron(back = true, tint = colors.accent)
+        // The glyph hangs beyond the unchanged Back pointer envelope. Protect its actual
+        // shifted region separately; moving the outer target would change ordinary edge taps.
+        NovaChevron(back = true, tint = colors.accent, modifier = Modifier.novaAvoidCameraCutout())
         Text(text = title, style = novaPanelType.pageTitle, color = colors.textPrimary)
     }
 }
