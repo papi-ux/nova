@@ -1,10 +1,12 @@
 package com.papi.nova.preferences
 
 import android.widget.TextView
+import android.content.pm.ActivityInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.BuildConfig
 import com.papi.nova.PcView
 import com.papi.nova.R
@@ -15,17 +17,33 @@ import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.ui.panel.setPanelContent
 import org.junit.Assert.*
 import org.junit.Rule
+import org.junit.rules.ExternalResource
+import org.junit.rules.RuleChain
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /** Actual variant metadata reaches its existing app consumers, without a display-only rename. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], qualifiers = "w412dp-h915dp-port")
 class NovaBetaVersionLabelTest {
-    @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+    private val compose = createAndroidComposeRule<ComponentActivity>()
+    // ComponentActivity is normally declared by the Debug test manifest. The real Beta variant
+    // intentionally does not ship that test-only declaration, so register the fixture in its PM.
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(object : ExternalResource() {
+        override fun before() {
+            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+            shadowOf(context.packageManager).addOrUpdateActivity(ActivityInfo().apply {
+                name = ComponentActivity::class.java.name
+                packageName = context.packageName
+                applicationInfo = context.applicationInfo
+                exported = true
+            })
+        }
+    }).around(compose)
 
     // The evidence-only Gradle init hook supplies fixed independent expectations for numbered
     // suffix/release runs. Normal Debug and unnumbered Beta runs need no override.
