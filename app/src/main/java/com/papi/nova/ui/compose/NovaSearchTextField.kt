@@ -149,7 +149,7 @@ fun NovaSearchTextField(
             }
         ),
         modifier = modifier
-            .novaAvoidCameraCutout()
+            .novaAvoidCameraCutout(touchTarget = true)
             .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
                 val native = event.nativeKeyEvent

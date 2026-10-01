@@ -2,6 +2,10 @@ package com.papi.nova.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
@@ -12,6 +16,12 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.platform.testTag
+import com.papi.nova.ui.compose.NovaActionSurface
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.papi.nova.ui.panel.NovaPanelButton
@@ -50,14 +60,15 @@ class NovaCameraModifierComposeTest {
             }
         }
         fun textLeft(label: String) = rule.onNodeWithText(label, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.left
-        val nearbyBefore = textLeft("Nearby")
+        val nearbyBeforeBounds = rule.onNodeWithText("Nearby", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val nearbyBefore = nearbyBeforeBounds.left
         val belowBefore = textLeft("Below")
         rule.runOnIdle { camera.value = true }
         rule.waitForIdle()
         val nearbyAfter = textLeft("Nearby")
         val label = rule.onNodeWithText("Nearby", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         if (rtl) {
-            assertTrue("RTL fixture begins with its label under the physical-right camera", nearbyBefore < 240f * pixels && label.right > 0)
+            assertTrue("RTL fixture begins with its label under the physical-right camera", nearbyBeforeBounds.overlaps(Rect(208f * pixels, 1f * pixels, 240f * pixels, 48f * pixels)))
             assertTrue("the actual RTL label clears the physical-right camera", label.right <= 208f * pixels + 1)
             assertTrue("RTL clearance changes the actual label position", nearbyAfter < nearbyBefore)
         } else assertTrue("the actual row/button label stays outside the camera", nearbyAfter >= 32f * pixels)
@@ -68,6 +79,30 @@ class NovaCameraModifierComposeTest {
         rule.runOnIdle { camera.value = false }
         rule.waitForIdle()
         assertEquals("removing the camera restores normal placement", nearbyBefore, textLeft("Nearby"), 0.5f)
+    }
+
+    @Test fun smallActionProtectsItsInflated48dpTouchEdges() {
+        val cameras = mutableStateOf<List<Rect>>(emptyList())
+        var density = 1f
+        var calls = 0
+        rule.setPanelContent {
+            density = LocalDensity.current.density
+            CompositionLocalProvider(LocalNovaCameraWindow provides NovaCameraWindow(
+                Rect(0f, 0f, 240 * density, 800 * density), cameras.value)) {
+                Column(Modifier.width(240.dp).padding(top = 20.dp)) {
+                    NovaActionSurface(onClick = { calls++ }, modifier = Modifier.width(160.dp).testTag("small-camera-action"),
+                        minHeight = 32.dp, contentPadding = PaddingValues(0.dp)) { _, _ -> Box(Modifier.size(2.dp)) }
+                }
+            }
+        }
+        rule.runOnIdle { cameras.value = listOf(Rect(0f, 0f, 240 * density, 18 * density)) }
+        rule.waitForIdle()
+        val bounds = rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot
+        val top = bounds.center.y - 23 * density
+        assertTrue("camera clearance covers the actual expanded touch floor, not just the small visual surface: $bounds / $top", top >= 18 * density)
+        rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, top)) }
+        rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, bounds.center.y + 23 * density)) }
+        assertEquals(2, calls)
     }
 
     @Test fun menuRowClearsOnlyItsIntersectingCameraRegion() = scene()

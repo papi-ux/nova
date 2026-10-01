@@ -11,12 +11,16 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.papi.nova.ui.panel.setPanelContent
@@ -36,11 +40,13 @@ class NovaCameraLibraryToolbarComposeTest {
     private fun toolbar(kind: Int, notch: Boolean, rtl: Boolean = false) {
         val camera = mutableStateOf<List<Rect>>(emptyList())
         var density = 1f
+        var touchFloor = 0f
         var origin = androidx.compose.ui.geometry.Offset.Zero
         var calls = 0
         val width = if (kind == 0) 360f else 900f
         rule.setPanelContent {
             density = LocalDensity.current.density
+            touchFloor = with(LocalDensity.current) { LocalViewConfiguration.current.minimumTouchTargetSize.height.toPx() }
             CompositionLocalProvider(
                 LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
                 LocalNovaCameraWindow provides NovaCameraWindow(
@@ -85,8 +91,18 @@ class NovaCameraLibraryToolbarComposeTest {
         val surface = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
         assertTrue("toolbar remains bounded rather than filling the screen", surface.height < 200 * density)
         repeat(3) { rule.waitForIdle(); assertEquals(after.top, options.fetchSemanticsNode().boundsInRoot.top, 1f) }
-        options.performClick()
-        assertEquals(1, calls)
+        if (notch) {
+            assertEquals("the real physical touch floor remains 48dp", 48 * density, touchFloor, 0.5f)
+            val topEdge = after.center.y - 23 * density
+            val bottomEdge = after.center.y + 23 * density
+            assertTrue("the inflated upper touch edge also clears the notch: $after / $topEdge", topEdge >= rectangle.bottom)
+            rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(after.center.x, topEdge)) }
+            rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(after.center.x, bottomEdge)) }
+            assertEquals("both physical 48dp target edges execute the actual callback", 2, calls)
+        } else {
+            options.performClick()
+            assertEquals(1, calls)
+        }
         rule.runOnIdle { camera.value = emptyList() }
         rule.waitForIdle()
         assertEquals("removing camera restores toolbar target size", before.height, options.fetchSemanticsNode().boundsInRoot.height, 1f)

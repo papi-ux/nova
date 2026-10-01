@@ -156,7 +156,7 @@ internal fun NovaRowLayout(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .novaAvoidCameraCutout()
+            .novaAvoidCameraCutout(touchTarget = true)
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(

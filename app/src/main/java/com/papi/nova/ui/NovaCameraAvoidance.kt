@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.preference.PreferenceManager
@@ -143,10 +144,13 @@ private val cameraWindows = WeakHashMap<View, CameraWindowTracker>()
  * toolbar fixtures check that centered placement settles and keeps the inner target intact.
  */
 @Composable
-fun Modifier.novaAvoidCameraCutout(): Modifier {
+fun Modifier.novaAvoidCameraCutout(touchTarget: Boolean = false): Modifier {
     val view = LocalView.current
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
+    val minimumTouch = LocalViewConfiguration.current.minimumTouchTargetSize
+    val touchWidth = if (touchTarget) with(density) { minimumTouch.width.toPx() } else 0f
+    val touchHeight = if (touchTarget) with(density) { minimumTouch.height.toPx() } else 0f
     val tracker = remember(view) { cameraWindows.getOrPut(view) { CameraWindowTracker(view) } }
     DisposableEffect(tracker) {
         tracker.retain()
@@ -165,7 +169,15 @@ fun Modifier.novaAvoidCameraCutout(): Modifier {
     return this
         .onGloballyPositioned { coordinates ->
             val at = coordinates.positionInWindow()
-            target = Rect(at.x, at.y, at.x + coordinates.size.width, at.y + coordinates.size.height)
+            // Foundation expands a small clickable control to its physical minimum target.
+            // Account for that same floor around the inner control, excluding our own padding
+            // from its visual size so repeated layouts cannot shrink/grow the floor estimate.
+            val contentWidth = (coordinates.size.width - padding.left - padding.right).coerceAtLeast(0f)
+            val contentHeight = (coordinates.size.height - padding.top - padding.bottom).coerceAtLeast(0f)
+            val horizontalReach = ((touchWidth - contentWidth) / 2f).coerceAtLeast(0f)
+            val verticalReach = ((touchHeight - contentHeight) / 2f).coerceAtLeast(0f)
+            target = Rect(at.x - horizontalReach, at.y - verticalReach,
+                at.x + coordinates.size.width + horizontalReach, at.y + coordinates.size.height + verticalReach)
         }
         .absolutePadding(
             left = with(density) { padding.left.toDp() }, top = with(density) { padding.top.toDp() },

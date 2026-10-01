@@ -7,12 +7,15 @@ import android.view.ViewTreeObserver
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.AdapterView
+import android.widget.ScrollView
+import android.widget.HorizontalScrollView
+import androidx.core.widget.NestedScrollView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.core.view.ViewCompat
 import java.util.WeakHashMap
 import kotlin.math.ceil
 
-/** A local camera slot in the legacy Hosts rail/header; neither the surface nor its side moves. */
+/** Bounded Hosts control/header reflow; collection positioning and outer side edges stay intact. */
 internal object NovaCameraViewAvoidance {
     fun install(root: View, cameraBounds: () -> List<Rect> = {
         ViewCompat.getRootWindowInsets(root)?.displayCutout?.boundingRects.orEmpty()
@@ -22,7 +25,7 @@ internal object NovaCameraViewAvoidance {
             val cameras = cameraBounds()
             val wanted = linkedMapOf<View, Margin>()
             visit(root) { view ->
-                if (view.visibility != View.VISIBLE || view is RecyclerView || view is AdapterView<*>) return@visit
+                if (view.visibility != View.VISIBLE || isViewport(view)) return@visit
                 val interactive = view.isClickable || view.isFocusable
                 if (!interactive && (view !is TextView || interactiveAncestor(view, root))) return@visit
                 val slot = verticalFlowSlot(view, root) ?: return@visit
@@ -33,6 +36,12 @@ internal object NovaCameraViewAvoidance {
                 val at = IntArray(2)
                 view.getLocationInWindow(at)
                 val bounds = Rect(at[0], at[1] - ownCamera, at[0] + view.width, at[1] - ownCamera + view.height)
+                if (interactive) {
+                    val floor = ceil(48 * view.resources.displayMetrics.density).toInt()
+                    val horizontal = ((floor - view.width).coerceAtLeast(0) + 1) / 2
+                    val vertical = ((floor - view.height).coerceAtLeast(0) + 1) / 2
+                    bounds.inset(-horizontal, -vertical)
+                }
                 // A plain label's allocated width can include empty space beside the camera. Its
                 // actual glyph bounds matter; a clickable button keeps its entire target clear.
                 if (!interactive && view is TextView && view.layout != null && view.layout.lineCount > 0) {
@@ -85,7 +94,7 @@ internal object NovaCameraViewAvoidance {
             val parent = slot.parent as? ViewGroup ?: return null
             // A collection owns item positioning. Never climb through it and insert a camera
             // gap before the whole list; keep clearance inside this item's nearest flow slot.
-            if (parent is RecyclerView || parent is AdapterView<*>) return localMargin
+            if (isViewport(parent)) return localMargin
                 ?: slot.takeIf { it.layoutParams is ViewGroup.MarginLayoutParams }
             if (parent is LinearLayout && parent.orientation == LinearLayout.VERTICAL) return slot
             if (localMargin == null && slot.layoutParams is ViewGroup.MarginLayoutParams) localMargin = slot
@@ -96,10 +105,15 @@ internal object NovaCameraViewAvoidance {
 
     private data class Margin(val base: Int, val camera: Int)
 
+    // Scroll views can take focus for navigation, but are not bounded action targets. Their
+    // children keep independent camera protection; their viewport position must stay unchanged.
+    private fun isViewport(view: View): Boolean = view is RecyclerView || view is AdapterView<*> ||
+        view is NestedScrollView || view is ScrollView || view is HorizontalScrollView
+
     private fun interactiveAncestor(view: View, root: View): Boolean {
         var ancestor = view.parent as? View
         while (ancestor != null && ancestor !== root) {
-            if (ancestor is RecyclerView || ancestor is AdapterView<*>) return false
+            if (isViewport(ancestor)) return false
             if (ancestor.isClickable || ancestor.isFocusable) return true
             ancestor = ancestor.parent as? View
         }
