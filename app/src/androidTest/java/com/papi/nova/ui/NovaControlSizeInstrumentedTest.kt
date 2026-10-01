@@ -238,7 +238,7 @@ class NovaControlSizeInstrumentedTest {
 private fun sizeShot(name: String) {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     val suffix = InstrumentationRegistry.getArguments().getString("shotSuffix", "normal")
-    val directory = File(instrumentation.targetContext.getExternalFilesDir(null), "control-size")
+    val directory = File(instrumentation.targetContext.filesDir, "native-smoke/control-size")
     check(directory.mkdirs() || directory.isDirectory)
     val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
     File(directory, "$name-$suffix.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }

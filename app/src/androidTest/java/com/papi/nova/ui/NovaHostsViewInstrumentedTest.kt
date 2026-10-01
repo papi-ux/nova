@@ -426,7 +426,7 @@ class NovaHostsViewInstrumentedTest {
                 }
             }
             val suffix = InstrumentationRegistry.getArguments().getString("shotSuffix", "native")
-            val directory = File(context.getExternalFilesDir(null), "hosts-view").apply { mkdirs() }
+            val directory = File(context.filesDir, "native-smoke/hosts-view").apply { mkdirs() }
             File(directory, "hosts-card-geometry-$suffix.json").writeText(JSONObject()
                 .put("compiled_version", BuildConfig.VERSION_NAME).put("build_type", BuildConfig.BUILD_TYPE)
                 .put("font_percent", fontPercent).put("geometry", geometry).toString(2))
@@ -551,7 +551,7 @@ class NovaHostsViewInstrumentedTest {
 
     private fun shot(name: String) {
         val suffix = InstrumentationRegistry.getArguments().getString("shotSuffix", "native")
-        val directory = File(context.getExternalFilesDir(null), "hosts-view").apply { mkdirs() }
+        val directory = File(context.filesDir, "native-smoke/hosts-view").apply { mkdirs() }
         instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
             File(directory, "$name-$suffix.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             bitmap.recycle()

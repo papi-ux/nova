@@ -82,7 +82,8 @@ class NovaLibraryCompactInstrumentationTest {
                 val orientation = if (context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
                     "landscape" else "portrait"
                 val screenshot = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-                File(context.getExternalFilesDir(null), "library-compact-$orientation.png").outputStream().use {
+                val directory = File(context.filesDir, "native-smoke").apply { mkdirs() }
+                File(directory, "library-compact-$orientation.png").outputStream().use {
                     screenshot.compress(Bitmap.CompressFormat.PNG, 100, it)
                 }
                 screenshot.recycle()

@@ -312,7 +312,7 @@ class NovaStreamHudPositionInstrumentedTest {
 
     private fun capture(name: String, geometry: Geometry) {
         val suffix = InstrumentationRegistry.getArguments().getString("shotSuffix", "native")
-        val directory = File(instrumentation.targetContext.getExternalFilesDir(null), "hud-position")
+        val directory = File(instrumentation.targetContext.filesDir, "native-smoke/hud-position")
         check(directory.mkdirs() || directory.isDirectory)
         val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
         try { File(directory, "$name-$suffix.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } }

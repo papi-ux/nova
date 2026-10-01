@@ -244,7 +244,7 @@ class NovaSettingsActivityInstrumentedTest {
 
     private fun shot(name: String) {
         val suffix = InstrumentationRegistry.getArguments().getString("shotSuffix", "native")
-        val directory = File(context.getExternalFilesDir(null), "settings-activity").apply { mkdirs() }
+        val directory = File(context.filesDir, "native-smoke/settings-activity").apply { mkdirs() }
         val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot()) { "Native screenshot unavailable" }
         File(directory, "$name-$suffix.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()

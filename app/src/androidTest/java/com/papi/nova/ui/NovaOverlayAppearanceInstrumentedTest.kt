@@ -41,7 +41,7 @@ class NovaOverlayAppearanceInstrumentedTest {
 
     private fun shot(name: String) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val directory = File(instrumentation.targetContext.getExternalFilesDir(null), "overlay-appearance")
+        val directory = File(instrumentation.targetContext.filesDir, "native-smoke/overlay-appearance")
         check(directory.mkdirs() || directory.isDirectory)
         val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
         File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
