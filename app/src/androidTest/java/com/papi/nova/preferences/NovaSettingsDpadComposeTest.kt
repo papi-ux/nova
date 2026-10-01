@@ -1,6 +1,12 @@
 package com.papi.nova.preferences
 
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
+import android.view.KeyEvent
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,18 +18,23 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
 import com.papi.nova.ui.compose.NovaComposeTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import java.io.File
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class NovaSettingsDpadComposeTest {
-    @get:Rule val compose = createComposeRule()
+    @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+    private lateinit var inputMode: InputModeManager
 
     @Test fun leftReturnsToThePaneOwnerAndRightRestoresItsLastRow() {
         showSettings()
@@ -102,12 +113,13 @@ class NovaSettingsDpadComposeTest {
     @Test fun touchingAnotherCategoryHandsTheNextControllerMoveToItsPane() {
         showSettings(heightDp = 420)
         category("stream").performSemanticsAction(SemanticsActions.RequestFocus)
-        // Actual pointer dispatch changes Android's input mode; a semantics click does not.
-        category("input").performTouchInput { click() }
+        touchCategory("input")
         category("input").assertIsSelected()
         row("input-1").assertExists()
         row("stream-0").assertDoesNotExist()
-        compose.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        shot("rail-touch-selected")
+        controllerRight()
+        shot("rail-touch-then-right")
         row("input-1").assertIsFocused()
         category("input").assertIsSelected()
         row("input-1").performKeyInput { pressKey(Key.DirectionLeft) }
@@ -120,13 +132,15 @@ class NovaSettingsDpadComposeTest {
         category("stream").performKeyInput { pressKey(Key.DirectionRight) }
         repeat(3) { compose.onRoot().performKeyInput { pressKey(Key.DirectionDown) } }
         row("stream-3").assertIsFocused()
-        category("input").performTouchInput { click() }
+        touchCategory("input")
         category("input").assertIsSelected()
-        compose.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        shot("pane-touch-selected")
+        controllerRight()
+        shot("pane-touch-then-right")
         row("input-1").assertIsFocused()
-        category("stream").performTouchInput { click() }
+        touchCategory("stream")
         category("stream").assertIsSelected()
-        compose.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        controllerRight()
         row("stream-3").assertIsFocused()
         row("stream-3").performKeyInput { pressKey(Key.DirectionLeft) }
         category("stream").assertIsFocused()
@@ -135,9 +149,43 @@ class NovaSettingsDpadComposeTest {
     private fun category(key: String) = compose.onNodeWithTag("nova-settings-category-$key")
     private fun row(key: String) = compose.onNodeWithTag("nova-settings-row-$key")
 
+    private fun touchCategory(key: String) {
+        val bounds = category(key).fetchSemanticsNode().boundsInRoot
+        val origin = IntArray(2)
+        compose.runOnIdle {
+            compose.activity.findViewById<android.view.View>(android.R.id.content).getLocationOnScreen(origin)
+        }
+        val x = origin[0] + bounds.center.x
+        val y = origin[1] + bounds.center.y
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val down = SystemClock.uptimeMillis()
+        for ((action, delay) in listOf(MotionEvent.ACTION_DOWN to 0L, MotionEvent.ACTION_UP to 120L)) {
+            if (delay > 0) SystemClock.sleep(delay)
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0)
+            event.source = InputDevice.SOURCE_TOUCHSCREEN
+            try { assertTrue("Real touchscreen event injected", instrumentation.uiAutomation.injectInputEvent(event, true)) }
+            finally { event.recycle() }
+        }
+        compose.waitForIdle()
+        compose.runOnIdle { assertEquals("Real touchscreen entered touch mode", InputMode.Touch, inputMode.inputMode) }
+    }
+
+    private fun controllerRight() {
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitForIdle()
+        compose.runOnIdle { assertEquals("Real D-pad entered keyboard mode", InputMode.Keyboard, inputMode.inputMode) }
+    }
+
+    private fun shot(name: String) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val directory = File(instrumentation.targetContext.filesDir, "native-smoke/settings-handoff").apply { mkdirs() }
+        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
+        File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+    }
+
     private fun showSettings(heightDp: Int? = null) {
         var selected by mutableStateOf("stream")
-        lateinit var inputMode: InputModeManager
         val categories = listOf(
             NovaSettingCategory("stream", "Client Stream Defaults", "Stream settings"),
             NovaSettingCategory("input", "Input & Controllers", "Controller settings"),
