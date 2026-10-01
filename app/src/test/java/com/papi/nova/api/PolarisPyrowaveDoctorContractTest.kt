@@ -63,7 +63,13 @@ class PolarisPyrowaveDoctorContractTest {
             targetBitrateKbps = doctor.targetBitrateKbps, controllerRevision = doctor.actionControllerRevision,
             evidenceRevision = doctor.actionEvidenceRevision, requestId = "fixture-request", goalSource = doctor.actionGoalSource)
         val expected = payload(json)
-        for (key in expected.keys()) assertEquals("Exact host field $key", expected.get(key), body.get(key))
+        for (key in expected.keys()) {
+            val value = expected.get(key)
+            if (value is Number) {
+                assertTrue("Typed host number $key", body.get(key) is Number)
+                assertEquals("Exact host field $key", value.toLong(), (body.get(key) as Number).toLong())
+            } else assertEquals("Exact host field $key", value, body.get(key))
+        }
         assertEquals("fixture-request", body.getString("request_id"))
         for (source in listOf("launch_bitrate", "launch_ceiling")) {
             assertEquals(source, PolarisApiClient.buildDoctorActionBody("restore_quality", "fixture-session", goalSource = source).getString("goal_source"))
