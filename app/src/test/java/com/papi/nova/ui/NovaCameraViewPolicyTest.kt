@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.LayoutInflater
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.graphics.Insets
@@ -111,7 +112,9 @@ class NovaCameraViewPolicyTest {
         try {
             activity.setTheme(R.style.AppTheme)
             val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-            val list = RecyclerView(activity)
+            val list = object : RecyclerView(activity) {
+                override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) { }
+            }.apply { layoutManager = LinearLayoutManager(activity) }
             val item = LayoutInflater.from(activity).inflate(R.layout.pc_grid_item, list, false)
             val manage = item.findViewById<View>(R.id.server_actions_button)
             var calls = 0
