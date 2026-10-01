@@ -8,6 +8,7 @@ import android.view.KeyEvent
 import android.view.View
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.preference.PreferenceManager
@@ -18,6 +19,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.R
 import com.papi.nova.ui.NovaFontScalePreferences
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.panel.NovaPageBackTag
 import java.io.File
 import org.junit.Assert.*
 import org.junit.Rule
@@ -177,6 +179,10 @@ class NovaSettingsActivityInstrumentedTest {
             requestFocus(firstQuick)
             shot("settings-shortcuts-reached")
             key(KeyEvent.KEYCODE_BUTTON_A)
+            compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Quality")).assertIsDisplayed()
+            compose.onNodeWithTag(NovaPageBackTag).assertIsDisplayed()
+            shot("settings-quality-choice")
+            key(KeyEvent.KEYCODE_BUTTON_B)
             compose.onNodeWithTag("nova-settings-row-nova_stream_preset").assertIsFocused().assertIsDisplayed()
             scenario.onActivity { assertFalse(it.isFinishing) }
         } else {
@@ -201,18 +207,21 @@ class NovaSettingsActivityInstrumentedTest {
             key(KeyEvent.KEYCODE_BUTTON_A)
         }
         val search = compose.onNodeWithContentDescription("Search Settings")
-        search.assertIsDisplayed().performClick().performTextInput("bitrate")
+        search.assertIsDisplayed()
+        requestFocus(search)
+        key(KeyEvent.KEYCODE_BUTTON_A)
+        search.assert(hasSetTextAction()).performTextInput("bitrate")
         settle()
         compose.onNodeWithText("Clear").assertIsDisplayed()
         // B closes the open editor before the query or menu; Right then exits the field to Clear.
         key(KeyEvent.KEYCODE_BUTTON_B)
-        search.assertTextContains("bitrate")
+        search.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("bitrate")))
         key(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.onNodeWithText("Clear").assertIsFocused()
         shot("settings-search")
         key(KeyEvent.KEYCODE_BUTTON_A)
         compose.onNodeWithText("Clear").assertDoesNotExist()
-        search.assertTextEquals("")
+        search.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         val legacy = compose.onNodeWithText("Legacy")
         if (portrait) legacy.performScrollTo()
         requestFocus(legacy)
