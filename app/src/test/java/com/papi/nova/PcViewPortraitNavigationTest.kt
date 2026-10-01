@@ -23,7 +23,6 @@ import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager
 import java.security.cert.X509Certificate
 import java.time.Duration
-import org.robolectric.shadows.ShadowDrawable
 import com.papi.nova.preferences.AddComputerManually
 import org.junit.After
 import org.junit.Assert.*
@@ -265,7 +264,7 @@ class PcViewPortraitNavigationTest {
             idleAndLayout(activity)
             val expectedIcon = if (online) R.drawable.ic_host_sleep else R.drawable.ic_host_wake
             val expectedText = activity.getString(if (online) R.string.pcview_quick_sleep_host else R.string.pcview_quick_start_polaris)
-            assertEquals("The actual runtime refresh supplies the state's glyph", expectedIcon, ShadowDrawable.extract(button.icon).createdFromResId)
+            assertEquals("The actual runtime refresh supplies the state's glyph", expectedIcon, shadowOf(button.icon).createdFromResId)
             assertEquals(expectedText, button.text.toString())
             toggle.performClick()
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
@@ -273,12 +272,12 @@ class PcViewPortraitNavigationTest {
             idleAndLayout(activity)
             assertEquals("", button.text.toString())
             assertEquals(expectedText, button.contentDescription.toString())
-            assertEquals(expectedIcon, ShadowDrawable.extract(button.icon).createdFromResId)
+            assertEquals(expectedIcon, shadowOf(button.icon).createdFromResId)
             toggle.performClick()
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
             idleAndLayout(activity)
             assertEquals(expectedText, button.text.toString())
-            assertEquals(expectedIcon, ShadowDrawable.extract(button.icon).createdFromResId)
+            assertEquals(expectedIcon, shadowOf(button.icon).createdFromResId)
         }
     }
 
