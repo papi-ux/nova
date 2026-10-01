@@ -1816,3 +1816,5 @@ refresh. Wake-on-LAN must be enabled in the PC firmware and wired adapter, and
 the network must permit local Wake packets. Wi-Fi and routed networks may not
 support it. Loopback UDP, persistence/failure and UI tests cover software
 behavior; physical sleeping-PC acceptance remains unrun.
+
+The in-stream Command Center uses compact 16px gutters, 8px spacing and a 64px minimum header at the default scale. At 1280×800 with three controller rows, NovaHUD fits on the first page. The same scroll column reveals focused controls at 130% text on 960×600; buttons retain a 48px minimum touch target. Players and keyboard/mouse guidance remain available, and Reassign shows the join-order prompt when chosen. Headless QML tests verify geometry and lifecycle boundaries; physical 800p readability remains an acceptance check.

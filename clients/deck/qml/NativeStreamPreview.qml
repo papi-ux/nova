@@ -342,30 +342,30 @@ Popup {
             Label {
                 id: commandTitle
                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-                anchors.margins: 24 * nativePreview.unit
+                anchors.margins: 16 * nativePreview.unit
                 text: "Command Center"
                 wrapMode: Text.Wrap
                 color: NovaTheme.text
-                font.pixelSize: 28 * nativePreview.unit * NovaTheme.fontScale
+                font.pixelSize: 24 * nativePreview.unit * NovaTheme.fontScale
                 font.bold: true
             }
             Label {
                 id: commandGame
                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: commandTitle.bottom
-                anchors.leftMargin: 24 * nativePreview.unit; anchors.rightMargin: 24 * nativePreview.unit
-                anchors.topMargin: 12 * nativePreview.unit
+                anchors.leftMargin: 16 * nativePreview.unit; anchors.rightMargin: 16 * nativePreview.unit
+                anchors.topMargin: 6 * nativePreview.unit
                 text: reviewedGameTitle + " · " + reviewedHostName
                 textFormat: Text.PlainText
                 color: NovaTheme.secondary
-                font.pixelSize: 18 * nativePreview.unit * NovaTheme.fontScale
+                font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
                 wrapMode: Text.Wrap
             }
             Item {
                 id: commandHeader
                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: commandGame.bottom
-                anchors.margins: 24 * nativePreview.unit
-                anchors.topMargin: 16 * nativePreview.unit
-                height: Math.max(90 * nativePreview.unit, nativePreviewAction.implicitHeight,
+                anchors.margins: 16 * nativePreview.unit
+                anchors.topMargin: 8 * nativePreview.unit
+                height: Math.max(64 * nativePreview.unit, nativePreviewAction.implicitHeight,
                     nativeDisconnectAction.implicitHeight, nativeEndAction.implicitHeight)
                 readonly property real buttonWidth: (width - (nativeDisconnectAction.visible ? 24 : 12) * nativePreview.unit)
                     / (nativeDisconnectAction.visible ? 3 : 2)
@@ -373,23 +373,23 @@ Popup {
             NovaScrollColumn {
                 anchors.left: parent.left; anchors.right: parent.right
                 anchors.top: commandHeader.bottom; anchors.bottom: parent.bottom
-                anchors.margins: 24 * nativePreview.unit
-                spacing: 16 * nativePreview.unit
+                anchors.margins: 16 * nativePreview.unit
+                spacing: 8 * nativePreview.unit
                 Label {
                     Layout.fillWidth: true
                     text: nativeSessionState.copy + (nativeSessionState.audioCopy ? "\n" + nativeSessionState.audioCopy : "")
                     textFormat: Text.PlainText
                     wrapMode: Text.WordWrap
                     color: NovaTheme.secondary
-                    font.pixelSize: 18 * nativePreview.unit * NovaTheme.fontScale
+                    font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
                 }
                 Rectangle { Layout.fillWidth: true; height: 1; color: NovaTheme.divider }
                 Label {
                     objectName: "native-desktop-input-help"
                     Layout.fillWidth: true
-                    text: "Keyboard: Ctrl + Alt + Shift + M opens Command Center and releases the mouse. Ctrl + Alt + Shift + F switches fullscreen. Escape goes to your game.\nMouse: " + (nativePreview.settingsProvider.mouseMode === "relative"
-                        ? "Relative Aiming. Resume captures the mouse for aiming without screen edges."
-                        : "Direct Pointer for desktop apps and menus.")
+                    text: "Keyboard: Ctrl + Alt + Shift + M: menu; Ctrl + Alt + Shift + F: fullscreen. Escape returns to your game.\nMouse: " + (nativePreview.settingsProvider.mouseMode === "relative"
+                        ? "Relative Aiming · Resume captures the mouse."
+                        : "Direct Pointer for apps and menus.")
                     textFormat: Text.PlainText
                     wrapMode: Text.WordWrap
                     color: NovaTheme.secondary
@@ -405,14 +405,14 @@ Popup {
                 }
                 Label {
                     text: "Players"; color: NovaTheme.text
-                    font.pixelSize: 24 * nativePreview.unit * NovaTheme.fontScale; font.bold: true
+                    font.pixelSize: 20 * nativePreview.unit * NovaTheme.fontScale; font.bold: true
                 }
                 Label {
                     Layout.fillWidth: true
                     visible: nativePreview.players.length === 0
                     text: "Connect a controller to join the game."
                     color: NovaTheme.secondary
-                    font.pixelSize: 18 * nativePreview.unit * NovaTheme.fontScale
+                    font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
                     wrapMode: Text.WordWrap
                 }
                 Repeater {
@@ -424,7 +424,7 @@ Popup {
                             : "P" + (modelData.player + 1) + "  " + modelData.name
                         textFormat: Text.PlainText
                         color: modelData.waiting ? NovaTheme.secondary : NovaTheme.text
-                        font.pixelSize: 18 * nativePreview.unit * NovaTheme.fontScale
+                        font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
                         wrapMode: Text.WordWrap
                     }
                 }
@@ -434,17 +434,11 @@ Popup {
                     Layout.fillWidth: true
                     unit: nativePreview.unit
                     text: "Reassign players"
+                    Accessible.description: "Press a button on each controller in the order you want to play."
                     enabled: nativePreview.players.some(player => !player.waiting)
                     onClicked: if (inputHub && inputHub.reassignPlayers()) reassignNotice.restart()
                     Keys.onUpPressed: nativeEndAction.forceActiveFocus()
                     Keys.onDownPressed: inGameAppearance.forceActiveFocus()
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: "Choose Reassign, then press a button on each controller in the order you want to play."
-                    color: NovaTheme.secondary
-                    font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
-                    wrapMode: Text.WordWrap
                 }
                 NovaButton {
                     id: inGameAppearance
