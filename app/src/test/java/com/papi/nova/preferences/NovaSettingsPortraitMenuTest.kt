@@ -102,7 +102,7 @@ class NovaSettingsPortraitMenuTest {
             titleBounds.left >= header.left && titleBounds.right <= header.right && titleBounds.top >= header.top && titleBounds.bottom <= header.bottom)
         org.junit.Assert.assertTrue("The complete header is inside the real narrow viewport: $header / $screen",
             header.left >= screen.left && header.right <= screen.right && header.top >= screen.top && header.bottom <= screen.bottom)
-        println("saved-header titleSize=${layouts.single().size} overflow=${layouts.single().hasVisualOverflow} lines=${layouts.single().lineCount} bar=$bar title=$titleBounds screen=$screen")
+        println("saved-header titleSize=${layouts.single().size} overflow=${layouts.single().hasVisualOverflow} widthOverflow=${layouts.single().didOverflowWidth} heightOverflow=${layouts.single().didOverflowHeight} paragraph=${layouts.single().multiParagraph.width}/${layouts.single().multiParagraph.height} exceeded=${layouts.single().multiParagraph.didExceedMaxLines} lineEnd=${layouts.single().getLineEnd(0)} lines=${layouts.single().lineCount} bar=$bar title=$titleBounds screen=$screen")
         org.junit.Assert.assertFalse("The complete saved-setup name wraps without clipping", layouts.single().hasVisualOverflow)
     }
 

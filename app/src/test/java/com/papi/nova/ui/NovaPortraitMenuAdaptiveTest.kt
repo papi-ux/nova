@@ -70,6 +70,7 @@ class NovaPortraitMenuAdaptiveTest {
             val results = mutableListOf<TextLayoutResult>()
             rule.onNodeWithText("Settings").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
             assertEquals(1, results.size)
+            println("threshold-title size=${results.single().size} widthOverflow=${results.single().didOverflowWidth} heightOverflow=${results.single().didOverflowHeight} paragraph=${results.single().multiParagraph.width}/${results.single().multiParagraph.height} exceeded=${results.single().multiParagraph.didExceedMaxLines}")
             assertFalse("Actual header text remains complete", results.single().hasVisualOverflow)
             val bar = rule.onNodeWithTag("nova-portrait-menu-bar").fetchSemanticsNode().boundsInRoot
             for (b in bounds()) assertTrue("Real title/action remains within the header: $b / $bar",
