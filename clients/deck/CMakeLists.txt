@@ -114,6 +114,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_hud_metrics.cpp
     src/runtime/deck_hud_host.cpp
     src/polaris/deck_host_telemetry.cpp
+    src/polaris/deck_client_media.cpp
     src/polaris/deck_doctor.cpp
     src/polaris/deck_doctor_action.cpp
     src/runtime/deck_doctor_actions.cpp
@@ -358,6 +359,10 @@ if(BUILD_TESTING)
     add_executable(nova_deck_hud_metrics_test tests/deck_hud_metrics_test.cpp)
     target_link_libraries(nova_deck_hud_metrics_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_hud_metrics_test COMMAND nova_deck_hud_metrics_test)
+    add_executable(nova_deck_client_media_test tests/deck_client_media_test.cpp)
+    target_link_libraries(nova_deck_client_media_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_client_media_test COMMAND nova_deck_client_media_test)
+    set_tests_properties(nova_deck_client_media_test PROPERTIES TIMEOUT 15)
     target_link_libraries(nova_deck_host_power_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_host_power_test COMMAND nova_deck_host_power_test)
     set_tests_properties(nova_deck_host_power_test PROPERTIES TIMEOUT 25)

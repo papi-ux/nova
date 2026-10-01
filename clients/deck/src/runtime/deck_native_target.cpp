@@ -115,6 +115,11 @@ DeckNativeTargetResolver nativeTargetResolver(
                 const auto caps=observerClient->fetchCapabilities();
                 // Optional metadata failures keep the legacy300Mbps/video-unit path.
                 // A later status read still owns permission, identity and retry admission.
+                std::function<polaris::DeckPolarisResult<bool>(const polaris::DeckClientMediaSample&, const polaris::DeckClientMediaScope&, const std::function<bool()>&)> upload;
+                if (caps.ok() && caps.value->liveMediaTelemetry)
+                    upload = [observerClient](const polaris::DeckClientMediaSample& sample, const polaris::DeckClientMediaScope& scope, const std::function<bool()>& cancelled) {
+                        return observerClient->uploadClientMedia(sample, scope, cancelled);
+                    };
                 return DeckHudHostTarget{
                     [observerClient, supported=caps.ok() && caps.value->bitrateUnitsV1, maximum=caps.ok() ? caps.value->streamCapabilities.manualMaximumKbps : 300000](const std::function<bool()>& cancelled) {
                         auto result=observerClient->fetchHostTelemetry(cancelled);
@@ -142,7 +147,7 @@ DeckNativeTargetResolver nativeTargetResolver(
                     [observerClient](const QString& display, int bitrate, bool clear, const polaris::DeckLiveTuningTelemetry& observed,
                         const std::function<bool()>& cancelled) {
                         return observerClient->setSessionProfile(display, bitrate, clear, observed, cancelled);
-                    }};
+                    }, std::move(upload)};
             };
             target.authorizeLaunchMode = [client, id = game->id, appId = game->appId, destination]
                 (const std::string& mode, const std::function<bool()>& cancelled) {

@@ -1668,6 +1668,7 @@ int DeckVaapiFfmpegRenderer::setup(
     lifecycle_.decodedHardwareFrames = 0;
     lifecycle_.presentedHardwareFrames = 0;
     lifecycle_.incomingFrames = lifecycle_.videoBytes = 0;
+    mediaCounters_.reset(); lifecycle_.media = mediaCounters_.counts();
     lifecycle_.videoWorkMicros = lifecycle_.videoWorkSamples = lifecycle_.refusedFrames = 0;
     lifecycle_.hostLatencyTenths = lifecycle_.hostLatencySamples = 0;
     lifecycle_.lastFrameWasHardwareBacked = false;
@@ -1806,6 +1807,8 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         return DR_NEED_IDR;
     }
 
+    mediaCounters_.receive(decodeUnit->frameNumber, polaris::clientMediaMonotonicMs());
+    lifecycle_.media = mediaCounters_.counts();
     ++lifecycle_.incomingFrames;
     lifecycle_.videoBytes += bytes.size();
     if (decodeUnit->frameHostProcessingLatency) {

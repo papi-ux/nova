@@ -342,6 +342,7 @@ std::optional<DeckPolarisCapabilities> parseCapabilities(const std::string_view 
     capabilities.server = toStd(object->value(QStringLiteral("server")).toString());
     capabilities.version = toStd(object->value(QStringLiteral("version")).toString());
     const auto features = object->value(QStringLiteral("features")).toObject();
+    capabilities.liveMediaTelemetry = features.value("live_media_telemetry_v1") == true;
     capabilities.gameLibrary = features.value(QStringLiteral("game_library")).toBool(false);
     capabilities.sessionLifecycle = features.value(QStringLiteral("session_lifecycle")).toBool(false);
     capabilities.clientSettings = features.value(QStringLiteral("client_settings_v1")).toBool(false);
@@ -1088,6 +1089,21 @@ DeckPolarisResult<std::vector<DeckPolarisGame>> DeckPolarisClient::fetchAllGames
 DeckPolarisResult<DeckPolarisSessionStatus> DeckPolarisClient::fetchSessionStatus() const {
     return parsed<DeckPolarisSessionStatus>(get("/polaris/v1/session/status"), [](const std::string& body) {
         return parseSessionStatus(body);
+    });
+}
+
+DeckPolarisResult<bool> DeckPolarisClient::uploadClientMedia(const DeckClientMediaSample& sample, const DeckClientMediaScope& scope,
+    const std::function<bool()>& cancelled) const {
+    const auto body = clientMediaBody(sample, scope);
+    const auto stop = [&] { return (cancelled && cancelled()) || !freshClientMedia(sample, clientMediaMonotonicMs()); };
+    if (!body || stop()) return {.status = DeckPolarisRequestStatus::MalformedBody};
+    auto response = request("/polaris/v1/session/telemetry", 16384, true, stop, body->toStdString());
+    if (response.ok() && response.httpStatus != 200) { response.status = DeckPolarisRequestStatus::HttpError; response.value.reset(); }
+    return parsed<bool>(std::move(response), [](const std::string& raw) -> std::optional<bool> {
+        const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(raw));
+        const auto value = document.object().value("status");
+        if (!document.isObject() || !value.isBool()) return {};
+        return value.toBool();
     });
 }
 

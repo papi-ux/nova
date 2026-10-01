@@ -961,6 +961,11 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 const auto renderer = producer.rendererLifecycle();
                 DeckHudSample sample;
                 sample.atMs = lastHudSample;
+                const polaris::DeckClientMediaSample media{polaris::clientMediaMonotonicMs(), renderer.media};
+                if (polaris::freshClientMedia(media, media.atMs)) {
+                    sample.media = media;
+                    if (hostObserver) hostObserver->submitClientMedia(media);
+                }
                 sample.incoming = renderer.incomingFrames; sample.bytes = renderer.videoBytes;
                 sample.decoded = std::max(0, renderer.decodedHardwareFrames);
                 sample.videoWorkMicros = renderer.videoWorkMicros;

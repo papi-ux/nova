@@ -136,6 +136,11 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
 }
 
 struct DeckHudHostObserver::Shared {
+    struct MediaIntent { polaris::DeckClientMediaSample sample; polaris::DeckClientMediaScope scope; quint64 version = 0; };
+    std::optional<MediaIntent> mediaPending;
+    std::optional<polaris::DeckClientMediaScope> mediaScope, mediaPinned;
+    bool mediaSupported = false;
+    qint64 mediaLastQueued = 0;
     struct Profile { QString display; bool clear = false; QVariantMap reviewed; };
     struct Intent { bool enabled; DeckLiveTuningTelemetry observed; int bitrateKbps = 0; std::optional<Profile> profile; std::optional<DeckBitrateUnits> units; QString mode; int requestKbps = 0; };
     std::atomic_bool stopped{false};
@@ -184,6 +189,7 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
             QJsonObject lastSaved = savedReceipt;
             {
                 const std::lock_guard lock(state->mutex);
+                state->mediaSupported = bool(target->uploadMedia);
                 state->doctorStorageReady = !target->doctorReceipts || target->doctorReceipts->ready();
                 if (!state->doctorStorageReady) state->doctor.storageFailure();
             }
@@ -287,6 +293,14 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 state->units = view.value("hostFresh").toBool() && result.ok() ? conversion(*result.value) : std::nullopt;
                 state->view = view; state->observed = Clock::now();
                 const bool current = state->refreshVersion == version && !state->eventFatal;
+                state->mediaScope.reset();
+                if (current && view.value("hostFresh").toBool() && state->mediaSupported && result.ok() && result.value->generation &&
+                    *result.value->generation > 0 && !result.value->appSession.isEmpty() && result.value->appSession == context.sessionToken) {
+                    const polaris::DeckClientMediaScope scope{result.value->appSession, *result.value->generation};
+                    if (!state->mediaPinned) state->mediaPinned = scope;
+                    if (*state->mediaPinned == scope) state->mediaScope = scope;
+                }
+
                 const bool doctorAuthorized = current && view.value("canTune").toBool() && bool(target->doctorAction);
                 if (recoveryPending && doctorAuthorized && result.value->live) {
                     const auto recovered = state->doctor.restore(savedReceipt, *result.value->live, QDateTime::currentMSecsSinceEpoch());
@@ -334,10 +348,13 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 }
                 if (applied || !matching || expired) { awaiting.reset(); state->busy = false; }
             };
+            Clock::time_point nextMediaUpload{};
+            std::optional<polaris::DeckClientMediaSample> lastMediaAttempt;
             int delay = timing.intervalMs;
             while (valid()) {
                 std::optional<Shared::Intent> intent;
-                { const std::lock_guard lock(state->mutex); intent = std::exchange(state->pending, {}); }
+                std::optional<Shared::MediaIntent> media;
+                { const std::lock_guard lock(state->mutex); intent = std::exchange(state->pending, {}); media = std::exchange(state->mediaPending, {}); }
                 auto version = beginRead();
                 auto result = target->fetch(cancelled);
                 if (!valid()) break;
@@ -345,6 +362,24 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 publish(result, view, version);
                 bool stop = permanent(result);
                 confirmBitrate(result, view, version);
+                if (media && target->uploadMedia && !stop && Clock::now() >= nextMediaUpload &&
+                    polaris::clientMediaEpochReady(media->sample, lastMediaAttempt)) {
+                    const auto mediaCancelled = [&] {
+                        if (!valid() || !polaris::freshClientMedia(media->sample, polaris::clientMediaMonotonicMs())) return true;
+                        const std::lock_guard lock(state->mutex);
+                        return !state->mediaScope || *state->mediaScope != media->scope || state->refreshVersion != media->version ||
+                            state->eventFatal || !state->mediaSupported;
+                    };
+                    if (!mediaCancelled()) {
+                        nextMediaUpload = Clock::now() + std::chrono::milliseconds(900);
+                        lastMediaAttempt = media->sample;
+                        const auto uploaded = target->uploadMedia(media->sample, media->scope, mediaCancelled);
+                        // Each sample is attempted once. Unsupported/revoked transport
+                        // disables uploads without failing the optional host observer.
+                        if (permanent(uploaded)) { const std::lock_guard lock(state->mutex); state->mediaSupported = false; state->mediaScope.reset(); }
+                    }
+                }
+
                 if (intent && intent->profile) {
                     const auto requested = *intent;
                     const auto profile = *requested.profile;
@@ -495,12 +530,12 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 // a short floor to keep a noisy peer from spinning status GETs.
                 if (state->refreshRequested) state->wake.wait_for(lock, std::chrono::milliseconds(50), [&] { return state->stopped || state->eventFatal; });
                 else state->wake.wait_for(lock, std::chrono::milliseconds(delay), [&] {
-                    return state->stopped || state->eventFatal || state->pending.has_value() || state->refreshRequested || state->doctor.busy();
+                    return state->stopped || state->eventFatal || state->pending.has_value() || state->mediaPending.has_value() || state->refreshRequested || state->doctor.busy();
                 });
             }
         } catch (...) { /* No raw network/identity exception enters the HUD. */ }
         const std::lock_guard lock(state->mutex);
-        state->view = DeckHudHostReducer::unavailable(); state->live.reset(); state->pending.reset();
+        state->view = DeckHudHostReducer::unavailable(); state->live.reset(); state->pending.reset(); state->mediaPending.reset(); state->mediaScope.reset();
         if (state->busy) state->message = "Couldn't confirm the change. Check the connection before trying again.";
         if (state->busy && state->syncChange) state->syncResult("unconfirmed", "The session ended or became unavailable. The profile change wasn't confirmed. Review it after reconnecting; Nova will not resend it.");
         state->busy = false;
@@ -508,6 +543,17 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
         state->doctor = {};
     }));
     worker_->start();
+}
+bool DeckHudHostObserver::submitClientMedia(const polaris::DeckClientMediaSample& sample) {
+    if (!polaris::freshClientMedia(sample, polaris::clientMediaMonotonicMs())) return false;
+    const std::lock_guard lock(shared_->mutex);
+    if (shared_->stopped || shared_->eventFatal || !shared_->mediaSupported || !shared_->mediaScope ||
+        !shared_->view.value("hostFresh").toBool() || Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs) ||
+        sample.atMs <= shared_->mediaLastQueued || !polaris::clientMediaBody(sample, *shared_->mediaScope)) return false;
+    shared_->mediaLastQueued = sample.atMs;
+    shared_->mediaPending = Shared::MediaIntent{sample, *shared_->mediaScope, shared_->refreshVersion};
+    shared_->wake.notify_all();
+    return true;
 }
 DeckHudHostObserver::~DeckHudHostObserver() {
     shared_->stopped = true;

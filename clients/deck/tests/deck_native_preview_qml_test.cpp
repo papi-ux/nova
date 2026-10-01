@@ -861,6 +861,17 @@ int main(int argc, char** argv) {
     require(doctorPopup->property("page") == 2 && root->findChild<QObject*>("doctor-host-readings")->property("text").toString().contains("20.0Mbps"),
         "Session page lost separate applied bitrate");
     screenshot("doctor-session-large-960.png");
+    auto* limits = root->findChild<QObject*>("doctor-client-measurement-limits");
+    require(limits && limits->property("text").toString().contains("unavailable until fresh video sequence"), "absent loss presented as measured");
+    session.tuning["fresh"] = true; session.tuning["mediaLossFresh"] = true;
+    session.tuning["mediaLossSource"] = "Video frame sequence"; session.tuning["mediaLoss"] = "2.5%";
+    emit session.hudChanged(); settle();
+    require(limits->property("text").toString().contains("2.5% from video frame sequence gaps"), "Doctor lost measured loss provenance");
+    screenshot("doctor-client-loss-large-960.png");
+    session.tuning["mediaLossSource"] = "Control channel"; emit session.hudChanged(); settle();
+    require(limits->property("text").toString().contains("unavailable until fresh video sequence"), "control loss entered client media reading");
+    session.tuning["mediaLossSource"] = "Video frame sequence"; session.tuning["fresh"] = false; emit session.hudChanged(); settle();
+    require(limits->property("text").toString().contains("unavailable until fresh video sequence"), "stale loss remained visible");
     // Touch uses the same tab/refresh routes.
     const auto tap = [&](QQuickItem* item) {
         const auto point = item->mapToScene(QPointF(item->width()/2, item->height()/2));
