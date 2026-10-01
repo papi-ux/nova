@@ -985,7 +985,7 @@ private fun NovaSettingsCategoryRail(
     onCategory: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
+    val inputMode = LocalInputModeManager.current
     // It scrolls as the pane's rows do, a row of context past the focused category, so the edge
     // fade only ever covers the category beyond it and the last one never runs into the screen.
     NovaRowContextScrolling {
@@ -1005,7 +1005,7 @@ private fun NovaSettingsCategoryRail(
                         focus.pane.popToRoot()
                         onCategory(category.key)
                         // A on a category enters its rows, as Right does; a tap only shows them.
-                        if (keyboard) {
+                        if (inputMode.inputMode == InputMode.Keyboard) {
                             focus.enterPane(category.key)
                         } else {
                             // Keep the next controller move with the pane that touch selected.
