@@ -351,6 +351,9 @@ data class PolarisSessionStatus(
         val targetBitrateKbps: Int = 0,
         val targetBitratePresent: Boolean = false,
         val targetBitrateTyped: Boolean = false,
+        val actionGoalSource: String = "",
+        val actionGoalSourcePresent: Boolean = false,
+        val actionGoalSourceTyped: Boolean = false,
         val verificationDelaySeconds: Int = 0,
         val undoSupported: Boolean = false,
         val undoEndpoint: String = "",
@@ -376,7 +379,8 @@ data class PolarisSessionStatus(
             val status: String = "",
             val source: String = "",
             val value: Double? = null,
-            val detail: String = ""
+            val detail: String = "",
+            val valueValid: Boolean = true
         )
 
         data class AiExplanation(
@@ -417,23 +421,29 @@ data class PolarisSessionStatus(
             verificationEndpoint == "/api/doctor/action"
         private val confirmedMediaLoss get() = evidenceItem("packet_loss").let { item ->
             evidenceSourceIs(item, "media_transport") &&
-                evidenceStatusIs(item, "fail")
+                evidenceStatusIs(item, "fail") && item?.valueValid == true &&
+                // Polaris's steady verdict can remain failed after the latest sample improves.
+                item.value?.let { it.isFinite() && it >= 0.0 && it <= 100.0 } == true
         }
         private val confirmedRttPressure get() = evidenceItem("latency").let { item ->
             evidenceSourceIs(item, "stream_stats") &&
-                evidenceStatusIs(item, "fail") && (item?.value ?: 0.0) >= 45.0
+                evidenceStatusIs(item, "fail") && item?.valueValid == true &&
+                item.value?.let { it.isFinite() && it >= 45.0 } == true
         }
         private val cleanRtt get() = evidenceItem("latency").let { item ->
             evidenceSourceIs(item, "stream_stats") && evidenceStatusIs(item, "pass") &&
-                (item?.value ?: Double.POSITIVE_INFINITY) < 45.0
+                item?.valueValid == true && item.value?.let { it.isFinite() && it >= 0.0 && it < 45.0 } == true
         }
         private val lossEvidenceAllowsQualityRetry get() = evidenceItem("packet_loss").let { item ->
             (evidenceSourceIs(item, "media_transport") && evidenceStatusIs(item, "pass") &&
-                (item?.value ?: Double.POSITIVE_INFINITY) <= 2.0) ||
+                item?.valueValid == true && item.value?.let { it.isFinite() && it >= 0.0 && it <= 2.0 } == true) ||
                 (evidenceSourceIs(item, "unavailable") && evidenceStatusIs(item, "unknown") &&
-                    item?.value == null)
+                    item?.valueValid == true && item.value == null)
         }
         val networkPressureConfirmed get() = confirmedMediaLoss || confirmedRttPressure
+        fun canExecuteWithLiveTuning(enabled: Boolean): Boolean = canExecuteAction &&
+            (!enabled || actionId in setOf("recheck_network", "recheck_pacing") ||
+                (actionId == "lower_bitrate" && confirmedMediaLoss))
         val canExecuteAction get() = when (actionId) {
             "recheck_network", "recheck_pacing" ->
                 actionEnvelopeValid &&
@@ -461,15 +471,23 @@ data class PolarisSessionStatus(
                     networkPressureConfirmed
             "restore_quality" -> {
                 val ceiling = evidenceItem("effective_quality_ceiling")
+                val launchGoal = primaryIssue == "quality_reduced_live" &&
+                    (!actionGoalSourcePresent || (actionGoalSourceTyped && actionGoalSource in setOf("launch_bitrate", "launch_ceiling"))) &&
+                    ceiling?.source == "launch_policy" && evidenceStatusIs(ceiling, "watch") &&
+                    ceiling?.value?.toInt() == targetBitrateKbps
+                val pyrowaveGoal = primaryIssue == "pyrowave_starved" && actionGoalSourcePresent &&
+                    actionGoalSourceTyped && actionGoalSource == "pyrowave_advice" &&
+                    targetBitrateKbps <= com.papi.nova.preferences.NovaBitrateAdvice.AUTOMATIC_MAX_KBPS &&
+                    evidenceItem("bitrate").let { bitrate ->
+                        evidenceSourceIs(bitrate, "stream_stats") && evidenceStatusIs(bitrate, "watch") &&
+                            bitrate?.valueValid == true && bitrate.value?.let { it.isFinite() && it > 0.0 } == true
+                    }
                 actionEnvelopeValid &&
                     actionCapability == "auto_fix" &&
                     actionKind == "live_tuning" &&
-                    primaryIssue == "quality_reduced_live" &&
+                    (launchGoal || pyrowaveGoal) &&
                     targetBitrateTyped &&
                     targetBitrateKbps in 1_000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS &&
-                    ceiling?.source == "launch_policy" &&
-                    evidenceStatusIs(ceiling, "watch") &&
-                    ceiling?.value?.toInt() == targetBitrateKbps &&
                     cleanRtt &&
                     lossEvidenceAllowsQualityRetry &&
                     undoSupported &&
@@ -511,6 +529,9 @@ data class PolarisSessionStatus(
                 targetBitrateKbps == confirmed.targetBitrateKbps &&
                 targetBitratePresent == confirmed.targetBitratePresent &&
                 targetBitrateTyped == confirmed.targetBitrateTyped &&
+                actionGoalSource == confirmed.actionGoalSource &&
+                actionGoalSourcePresent == confirmed.actionGoalSourcePresent &&
+                actionGoalSourceTyped == confirmed.actionGoalSourceTyped &&
                 verificationDelaySeconds == confirmed.verificationDelaySeconds &&
                 verificationMode == confirmed.verificationMode &&
                 verificationEndpoint == confirmed.verificationEndpoint &&
@@ -543,6 +564,9 @@ data class PolarisSessionStatus(
                 actionAppUuid == displayed.actionAppUuid &&
                 actionAppSessionId == displayed.actionAppSessionId &&
                 actionSessionGeneration == displayed.actionSessionGeneration &&
+                actionGoalSource == displayed.actionGoalSource &&
+                actionGoalSourcePresent == displayed.actionGoalSourcePresent &&
+                actionGoalSourceTyped == displayed.actionGoalSourceTyped &&
                 verificationMode == displayed.verificationMode &&
                 verificationEndpoint == displayed.verificationEndpoint &&
                 undoEndpoint == displayed.undoEndpoint
