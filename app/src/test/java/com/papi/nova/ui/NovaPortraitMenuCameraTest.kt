@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsFocused
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.papi.nova.ui.panel.setPanelContent
 import org.junit.Assert.assertEquals
@@ -76,7 +78,7 @@ class NovaPortraitMenuCameraTest {
         assertFalse("The actual title glyph region clears the camera", cleared.first().overlaps(camera))
         for (target in cleared.drop(1)) {
             assertFalse("The actual action target clears the camera", target.overlaps(camera))
-            assertTrue("Menu and Back keep their 48dp target height", target.height >= 48f * pixels - 0.5f)
+            assertTrue("The smaller visual control is not clipped", target.height > 0f)
         }
         // Force actual parent and sibling remeasurement; idle-only checks cannot catch feedback.
         repeat(3) {
@@ -90,8 +92,20 @@ class NovaPortraitMenuCameraTest {
         keys.press(KeyEvent.KEYCODE_BUTTON_A)
         menu.assertIsFocused()
         assertEquals("Controller A still opens the actual Menu", 1, menus)
+        for ((node, bounds) in listOf(menu to cleared[1], back to cleared[2])) {
+            for (sign in listOf(-1, 1)) {
+                // Compact visuals still have Android's 48dp minimum touch area. Exercise its
+                // physical edges, including points beyond the visible bounds when necessary.
+                val point = Offset(bounds.width / 2f, bounds.height / 2f + sign * 23f * pixels)
+                assertFalse("The effective touch edge clears the camera", camera.contains(
+                    Offset(bounds.left + point.x, bounds.top + point.y)))
+                node.performTouchInput { click(point) }
+            }
+        }
+        assertEquals("Both edges of Menu's minimum touch target activate", 3, menus)
+        assertEquals("Both edges of Back's minimum touch target activate", 2, backs)
         back.performClick()
-        assertEquals("Touch still activates the actual Back action", 1, backs)
+        assertEquals("Touch still activates the actual Back action", 3, backs)
         rule.runOnIdle { cameras.value = emptyList() }
         rule.waitForIdle()
         same(normal, contentBounds())
