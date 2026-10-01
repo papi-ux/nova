@@ -7,7 +7,7 @@ import org.junit.Test
 
 class NovaUpdateDashboardAffordanceTest {
     @Test
-    fun mainDashboardPlacesUpdatePillNextToProfilesInHeader() {
+    fun mainDashboardKeepsUpdateStatusNextToGroupedActionsInHeader() {
         val layouts = listOf(
             File("src/main/res/layout/activity_pc_view.xml"),
             File("src/main/res/layout-land/activity_pc_view.xml")
@@ -38,12 +38,12 @@ class NovaUpdateDashboardAffordanceTest {
                 "${layout.path} should not leave the update control in the Server/Library selector cluster",
                 selectorXml.contains("@+id/actionNovaUpdate")
             )
-            val expectedActionHeight = if (layout.path.contains("layout-land")) "34dp" else "@dimen/nova_dashboard_top_action_height"
-            val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "@dimen/nova_dashboard_top_action_radius"
-            val expectedUpdateRadius = if (layout.path.contains("layout-land")) "19dp" else "@dimen/nova_dashboard_top_action_radius"
+            val expectedActionHeight = if (layout.path.contains("layout-land")) "wrap_content" else "@dimen/nova_dashboard_top_action_height"
+            val expectedActionRadius = "@dimen/nova_radius_row"
+            val expectedUpdateRadius = "@dimen/nova_radius_hero"
             assertTrue(
-                "${layout.path} should make top actions pilled instead of squat rounded-square buttons",
-                headerXml.contains("@+id/profilesButton") &&
+                "${layout.path} should group top actions with the shared Nova row corners",
+                headerXml.contains("@+id/hostsNavigationActions") && headerXml.contains("@+id/profilesButton") &&
                     headerXml.contains("""android:layout_height="$expectedActionHeight"""") &&
                     headerXml.contains("""app:cornerRadius="$expectedActionRadius"""")
             )
