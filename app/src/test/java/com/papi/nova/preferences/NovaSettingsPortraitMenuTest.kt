@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.semantics.SemanticsActions
@@ -30,6 +31,37 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33], qualifiers = "w412dp-h915dp-port")
 class NovaSettingsPortraitMenuTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test fun portraitMenuGroupsSearchAndLegacyAndShowsCategoriesBeforeShortcuts() {
+        val definitions = NovaSettingDefinitions.load(rule.activity)
+        var selected by mutableStateOf(definitions.categories.first().key)
+        var legacy = 0
+        rule.setPanelContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 0.8f)) {
+                NovaSettingsContent(
+                    state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), selected, ""),
+                    title = "Settings", subtitle = "Test", onBack = {}, onOpenLegacy = { legacy++ },
+                    onSearch = {}, onClearSearch = {}, onCategory = { selected = it }, headerActions = emptyList(),
+                    onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Menu").performClick()
+        val search = rule.onNodeWithContentDescription("Search Settings").fetchSemanticsNode().boundsInRoot
+        val legacyButton = rule.onNodeWithText("Legacy").fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertTrue("Search and Legacy belong to one navigation row",
+            legacyButton.center.y in search.top..search.bottom)
+        val navigation = rule.onNodeWithTag("nova-portrait-settings-navigation").fetchSemanticsNode().boundsInRoot
+        val first = rule.onNodeWithTag("nova-settings-category-${definitions.categories.first().key}").fetchSemanticsNode().boundsInRoot
+        val last = rule.onNodeWithTag("nova-settings-category-${definitions.categories.last().key}").fetchSemanticsNode().boundsInRoot
+        val quick = rule.onNodeWithTag("nova-settings-quick-nova_stream_preset").fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertTrue("Categories come before repeated stream shortcuts", last.bottom <= quick.top + 1f)
+        org.junit.Assert.assertTrue("All default-size category rows are wholly in the bounded menu",
+            first.top >= navigation.top - 1f && last.bottom <= navigation.bottom + 1f)
+        rule.onNodeWithText("Legacy").assertIsDisplayed().performClick()
+        org.junit.Assert.assertEquals(1, legacy)
+    }
 
     @Test fun enlargedTextCanReachEveryCategoryInTheExpandedMenu() {
         val definitions = NovaSettingDefinitions.load(rule.activity)
