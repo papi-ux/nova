@@ -149,6 +149,55 @@ class NovaCameraViewPolicyTest {
         } finally { controller.pause().stop().destroy() }
     }
 
+    @Test @Config(qualifiers = "w1000dp-h600dp-land")
+    fun actualLandscapeRailKeepsViewportAndProtectsBoundedChildren() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        try {
+            activity.setTheme(R.style.AppTheme)
+            val root = LayoutInflater.from(activity).inflate(R.layout.activity_pc_view, null)
+            val rail = root.findViewById<View>(R.id.dashboardCockpitRail)
+            val action = root.findViewById<View>(R.id.profilesButton)
+            val label = root.findViewById<TextView>(R.id.pcViewSectionLabel)
+            var calls = 0
+            action.setOnClickListener { calls++ }
+            activity.setContentView(root)
+            fun relayout() {
+                root.measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+                root.layout(0, 0, 1000, 600)
+                root.viewTreeObserver.dispatchOnGlobalLayout()
+            }
+            relayout()
+            assertTrue("actual NestedScrollView is a focusable viewport", rail.isFocusable)
+            val railAt = IntArray(2).also { rail.getLocationInWindow(it) }
+            val actionAt = IntArray(2).also { action.getLocationInWindow(it) }
+            val targetHeight = action.height
+            val camera = Rect(0, actionAt[1] + 2, actionAt[0] + 4, actionAt[1] + 22)
+            var cameras = listOf(camera)
+            NovaCameraViewAvoidance.install(root) { cameras }
+            repeat(5) { relayout() }
+            assertEquals("camera clearance cannot move the entire scrolling viewport", 0,
+                (rail.layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+            assertEquals(railAt.toList(), IntArray(2).also { rail.getLocationInWindow(it) }.toList())
+            val after = IntArray(2).also { action.getLocationInWindow(it) }
+            assertTrue(after[1] >= camera.bottom)
+            assertEquals(targetHeight, action.height)
+            assertTrue(action.requestFocus())
+            action.performClick()
+            assertEquals(1, calls)
+            cameras = emptyList()
+            repeat(4) { relayout() }
+            val labelAt = IntArray(2).also { label.getLocationInWindow(it) }
+            val labelCamera = Rect(0, labelAt[1], labelAt[0] + 2, labelAt[1] + label.height)
+            cameras = listOf(labelCamera)
+            repeat(5) { relayout() }
+            val labelAfter = IntArray(2).also { label.getLocationInWindow(it) }
+            assertTrue("a viewport's focusability cannot suppress its ordinary status glyph", labelAfter[1] >= labelCamera.bottom)
+            assertEquals(0, (rail.layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+        } finally { controller.pause().stop().destroy() }
+    }
+
     private fun cardHeader(fullNotch: Boolean) {
         val controller = Robolectric.buildActivity(Activity::class.java).setup()
         val activity = controller.get()
