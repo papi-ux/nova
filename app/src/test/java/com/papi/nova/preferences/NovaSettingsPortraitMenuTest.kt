@@ -49,14 +49,14 @@ class NovaSettingsPortraitMenuTest {
         val menu = rule.onNodeWithTag("nova-portrait-menu-toggle")
         val menuBounds = menu.fetchSemanticsNode().boundsInRoot
         val titleBounds = rule.onNodeWithText("Settings").fetchSemanticsNode().boundsInRoot
-        val backBounds = rule.onNodeWithText("Back").fetchSemanticsNode().boundsInRoot
+        val backBounds = rule.onNode(hasClickAction() and hasText("Back")).fetchSemanticsNode().boundsInRoot
         org.junit.Assert.assertTrue("The portrait navigation opens from the left", menuBounds.right <= titleBounds.left)
         org.junit.Assert.assertTrue("Back remains a separate complete control", titleBounds.right <= backBounds.left)
         menu.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
         keys.press(KeyEvent.KEYCODE_DPAD_CENTER)
         rule.onNodeWithText("Hide menu").assertIsDisplayed()
         menu.assertIsFocused()
-        rule.onNodeWithText("Back").performClick()
+        rule.onNode(hasClickAction() and hasText("Back")).performClick()
         org.junit.Assert.assertEquals(1, backs)
     }
 
