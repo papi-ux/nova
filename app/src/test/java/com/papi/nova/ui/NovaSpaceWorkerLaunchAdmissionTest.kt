@@ -1,6 +1,8 @@
 package com.papi.nova.ui
 
 import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.api.PolarisSpace
+import com.papi.nova.api.PolarisSpaces
 import com.papi.nova.api.isLaunchModeAvailable
 import com.papi.nova.shared.polaris.model.PolarisGame
 import org.junit.Assert.*
@@ -66,6 +68,29 @@ class NovaSpaceWorkerLaunchAdmissionTest {
             space.copy(id = "ordinary"),
             space.copy(space = space.space!!.copy(id = "other")),
         )) assertFalse(game.isLaunchModeAvailable(PolarisGame.MODE_GAMESCOPE_STREAM, host(false)))
+    }
+
+    @Test fun aWorkerModeStillRequiresTheFreshSelectedSpaceAuthorityAtLaunch() {
+        val ready = PolarisSpaces(enabled = true, available = true, canSwitch = false,
+            selectedId = "living-room", spaces = listOf(
+                PolarisSpace("living-room", "Living room", "ready", selected = true, canOpen = true)))
+        assertTrue(NovaSpacesCopy.canLaunchSpace(ready, "living-room"))
+        val denied = listOf(
+            null,
+            ready.copy(enabled = false),
+            ready.copy(available = false),
+            ready.copy(selectedId = "another-space"),
+            ready.copy(spaces = emptyList()),
+            ready.copy(spaces = listOf(ready.spaces.single().copy(id = "another-space"))),
+            ready.copy(spaces = listOf(ready.spaces.single().copy(canOpen = false))),
+        )
+        for ((index, snapshot) in denied.withIndex()) {
+            assertFalse("Fresh authority denial $index must stop the actual launch guard",
+                NovaSpacesCopy.canLaunchSpace(snapshot, "living-room"))
+        }
+        val running = ready.copy(spaces = listOf(ready.spaces.single().copy(state = "running", canOpen = false)))
+        assertTrue("The separate session-owner guard decides Resume for a running Space",
+            NovaSpacesCopy.canLaunchSpace(running, "living-room"))
     }
 
     @Test fun workerPermissionDoesNotAdmitOtherUnavailableDesktopModes() {

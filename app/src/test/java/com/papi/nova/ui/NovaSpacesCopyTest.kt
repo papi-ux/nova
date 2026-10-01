@@ -61,7 +61,7 @@ class NovaSpacesCopyTest {
     }
 
     @Test
-    fun aReadySpaceWithNoAvailableLaunchModeGetsAReasonAndStaysBlocked() {
+    fun aReadyWorkerSpaceDoesNotDependOnTheDesktopCaptureMode() {
         val game = PolarisGame(
             id = "space.a.big-picture-v1", name = "Steam Big Picture", source = "steam",
             space = PolarisGame.SpaceContext(id = "a", name = "Alex", target = "big-picture-v1"),
@@ -78,10 +78,13 @@ class NovaSpacesCopyTest {
         ), "auto")
         assertTrue(snapshot().selected!!.openable)
         assertTrue(state.runsInSpace)
-        assertFalse("a desktop mode must not enable a blocked Space launch", state.playEnabled)
-        assertEquals(R.string.nova_space_launch_mode_unavailable,
-            NovaSpacesCopy.launchBlockedReason(snapshot(), "a", false, state.playEnabled))
-        assertFalse("readout must not change the admission decision", state.playEnabled)
+        assertTrue("the explicit worker mode admits the ready Space", state.playEnabled)
+        assertNull(NovaSpacesCopy.launchBlockedReason(snapshot(), "a", false, state.playEnabled))
+        val unavailable = snapshot(available = false, unavailableReason = "controller_missing")
+        assertEquals(R.string.nova_space_unavailable_controller_missing,
+            NovaSpacesCopy.launchBlockedReason(unavailable, "a", false, state.playEnabled))
+        assertEquals(R.string.nova_space_status_changed,
+            NovaSpacesCopy.launchBlockedReason(snapshot(), "another-space", false, state.playEnabled))
     }
 
     @Test
