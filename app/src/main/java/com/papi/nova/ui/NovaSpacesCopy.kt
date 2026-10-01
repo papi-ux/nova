@@ -160,7 +160,9 @@ internal object NovaSpacesCopy {
 
     /** The environment guard shared by Play's enabled state and the launch attempt. */
     fun canLaunchSpace(snapshot: PolarisSpaces?, spaceId: String): Boolean =
-        snapshot?.selectedId == spaceId && snapshot.selected?.openable == true
+        snapshot != null && snapshot.enabled && snapshot.available &&
+            snapshot.selectedId == spaceId && snapshot.selected?.id == spaceId &&
+            snapshot.selected?.openable == true
 
     /** Explain the existing Space launch gate without changing its admission decision. */
     @StringRes
