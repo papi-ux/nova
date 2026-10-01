@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -34,6 +35,8 @@ import org.junit.runner.RunWith
 class NovaHostsViewInstrumentedTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context: Context = ApplicationProvider.getApplicationContext()
+    private val fontPercent: Int
+        get() = InstrumentationRegistry.getArguments().getString("fontPercent", "80").toInt()
 
     private fun settle() {
         instrumentation.waitForIdleSync()
@@ -51,7 +54,8 @@ class NovaHostsViewInstrumentedTest {
         // A supported static theme keeps the fixture's idle gate independent of particle draws.
         NovaThemeManager.setTheme(context, NovaThemeManager.THEME_OLED)
         preferences.edit().putString("nova_control_size", "standard")
-            .putBoolean("nova_dashboard_rail_collapsed", false).commit()
+            .putBoolean("nova_dashboard_rail_collapsed", false)
+            .putInt(NovaFontScalePreferences.KEY_SCALE_PERCENT, fontPercent).commit()
         welcome.edit().putBoolean("welcome_seen", true).commit()
         context.getSharedPreferences("GlPreferences", Context.MODE_PRIVATE).edit()
             .putString("Renderer", "OwnedHostsFixture").putString("Fingerprint", android.os.Build.FINGERPRINT).commit()
@@ -76,6 +80,9 @@ class NovaHostsViewInstrumentedTest {
             var portrait = false
             scenario.onActivity { activity ->
                 portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+                assertEquals("The actual Hosts Activity uses the requested Nova text size",
+                    NovaFontScalePreferences.resolveFontScale(NovaFontScalePreferences.readSystemFontScale(activity), fontPercent),
+                    activity.resources.configuration.fontScale, .001f)
                 val toggle = activity.findViewById<TextView>(R.id.dashboardRailToggle)
                 assertNotNull(toggle)
                 if (portrait) {
@@ -166,6 +173,42 @@ class NovaHostsViewInstrumentedTest {
                 }
                 shot("hosts-$size")
             }
+        }
+    }
+
+    @Test fun portraitSupportingActionsScrollWhollyIntoTheBoundedNavigationPane() = withPreferences {
+        ActivityScenario.launch(PcView::class.java).use { scenario ->
+            settle()
+            var portrait = false
+            scenario.onActivity { activity ->
+                portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+                if (portrait) activity.findViewById<View>(R.id.dashboardRailToggle).performClick()
+            }
+            if (!portrait) return@withPreferences
+            settle()
+            val rows = listOf(R.id.actionStartPolaris, R.id.profilesButton, R.id.actionTheme,
+                R.id.actionGithub, R.id.actionSettings, R.id.actionNovaUpdate, R.id.modeServers,
+                R.id.modeLibrary, R.id.actionAddServer, R.id.actionScanPair)
+            for (id in rows) {
+                scenario.onActivity { activity ->
+                    val action = activity.findViewById<View>(id)
+                    assertTrue("Visible supporting action $id accepts focus", action.isShown && action.requestFocus())
+                }
+                settle()
+                scenario.onActivity { activity ->
+                    val action = activity.findViewById<View>(id)
+                    val pane = activity.findViewById<View>(R.id.dashboardPortraitNavigation)
+                    val visible = Rect()
+                    assertEquals("Supporting action keeps actual Activity focus", id, activity.currentFocus?.id)
+                    assertTrue("Focused action has visible pixels", action.getGlobalVisibleRect(visible))
+                    assertTrue("Focused action is not clipped above or below the navigation viewport",
+                        visible.height() >= action.height - 1)
+                    val density = activity.resources.displayMetrics.density
+                    assertTrue("Supporting navigation leaves a computer pane", pane.height < activity.window.decorView.height * .4f)
+                    assertTrue("Supporting action retains its own touch target", action.width >= 48 * density - 1 && action.height >= 48 * density - 1)
+                }
+            }
+            shot("hosts-navigation-last-action")
         }
     }
 
