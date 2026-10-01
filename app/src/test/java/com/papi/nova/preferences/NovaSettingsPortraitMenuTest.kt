@@ -7,6 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.onNodeWithTag
@@ -55,8 +57,10 @@ class NovaSettingsPortraitMenuTest {
         val navigation = rule.onNodeWithTag("nova-portrait-settings-navigation").fetchSemanticsNode().boundsInRoot
         val first = rule.onNodeWithTag("nova-settings-category-${definitions.categories.first().key}").fetchSemanticsNode().boundsInRoot
         val last = rule.onNodeWithTag("nova-settings-category-${definitions.categories.last().key}").fetchSemanticsNode().boundsInRoot
-        val quick = rule.onNodeWithTag("nova-settings-quick-nova_stream_preset").fetchSemanticsNode().boundsInRoot
-        org.junit.Assert.assertTrue("Categories come before repeated stream shortcuts", last.bottom <= quick.top + 1f)
+        val categoryLayout = rule.onNodeWithTag("nova-settings-category-${definitions.categories.last().key}").getUnclippedBoundsInRoot()
+        val quickLayout = rule.onNodeWithTag("nova-settings-quick-nova_stream_preset").getUnclippedBoundsInRoot()
+        org.junit.Assert.assertTrue("Categories come before repeated stream shortcuts: $categoryLayout / $quickLayout",
+            categoryLayout.bottom <= quickLayout.top + 1.dp)
         org.junit.Assert.assertTrue("All default-size category rows are wholly in the bounded menu",
             first.top >= navigation.top - 1f && last.bottom <= navigation.bottom + 1f)
         rule.onNodeWithText("Legacy").assertIsDisplayed().performClick()

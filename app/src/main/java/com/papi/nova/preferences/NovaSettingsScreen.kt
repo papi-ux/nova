@@ -408,7 +408,7 @@ internal fun NovaSettingsContent(
                 ) {
                     navigationHeader()
                     Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
-                    NovaSettingsCategoryChips(state, onCategory)
+                    NovaSettingsCategoryChips(state, onCategory, onEnterPane = { focus.enterPane(latestState.paneKey()) })
                     if (showQuickStrip) {
                         Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
                         Text(stringResource(R.string.nova_settings_stream_shortcuts),
@@ -987,18 +987,29 @@ private fun NovaSettingsCategoryRail(
 @Composable
 private fun NovaSettingsCategoryChips(
     state: NovaSettingsUiState,
-    onCategory: (String) -> Unit
+    onCategory: (String) -> Unit,
+    onEnterPane: (() -> Unit)? = null,
 ) {
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
         verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)
     ) {
-        for (category in state.categories) {
+        val lastRowStart = ((state.categories.size - 1).coerceAtLeast(0) / 2) * 2
+        for ((index, category) in state.categories.withIndex()) {
             NovaCategoryRow(
                 category = category,
                 selected = category.key == state.selectedCategoryKey && state.searchQuery.isBlank(),
                 onClick = { onCategory(category.key) },
-                modifier = Modifier.fillMaxWidth(0.48f)
+                modifier = Modifier.fillMaxWidth(0.48f).then(
+                    // Keep Down from the bottom category row entering the selected pane even
+                    // though the repeated shortcuts now follow the categories visually.
+                    if (onEnterPane != null && index >= lastRowStart) Modifier.onPreviewKeyEvent {
+                        if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionDown) {
+                            onEnterPane()
+                            true
+                        } else false
+                    } else Modifier
+                )
             )
         }
     }
