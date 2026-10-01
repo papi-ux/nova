@@ -31,7 +31,8 @@ QJsonObject pyrowaveDoctor() {
     return QJsonDocument::fromJson(fixture.readAll()).object();
 }
 void steadyLossWithTuningOwner() {
-    for (const double value : {0.0, 1.5, 2.0, 100.0}) {
+    require(parseDoctorOffer(steadyLossDoctor()).has_value(), "host-offered steady media-loss fail at 1.5 percent was rejected");
+    for (const double value : {1.5, 0.0, 2.0, 100.0}) {
         const auto offer = parseDoctorOffer(steadyLossDoctor(value));
         require(offer && offer->mediaLossStep, "steady host media-loss fail was reclassified by the current sample");
     }
