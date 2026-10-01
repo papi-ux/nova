@@ -69,6 +69,25 @@ void testParsesCapabilities() {
     assert(parseCapabilities("{}")->streamCapabilities.supports(1280, 800, 60));
 }
 
+void testPyrowaveCaptureRefusalContract() {
+    const auto parsed = parseCapabilities(R"({"capture":{"codecs":["h264","hevc"],"max_fps":120,
+        "pyrowave_unavailable":{"reason":"fp16_capture","message":"PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route."}}})");
+    assert(parsed && parsed->streamCapabilities.valid && parsed->streamCapabilities.h264 && parsed->streamCapabilities.hevc);
+    assert(!parsed->streamCapabilities.pyrowave);
+    assert(parsed->streamCapabilities.pyrowaveUnavailableReason == "fp16_capture");
+    assert(parsed->streamCapabilities.pyrowaveUnavailableMessage == "PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.");
+    // Unknown future machine reasons remain typed, without inventing their meaning.
+    const auto future = parseCapabilities(R"({"capture":{"codecs":["h264"],"pyrowave_unavailable":{"reason":"future_capture_route","message":"The PC supplied this exact reason."}}})");
+    assert(future->streamCapabilities.pyrowaveUnavailableReason == "future_capture_route");
+    for (const auto* unavailable : {"false", R"({"reason":true,"message":"No support"})",
+        R"({"reason":"FP16 Capture","message":"No support"})", R"({"reason":"fp16_capture","message":12})",
+        R"({"reason":"fp16_capture","message":""})", R"({"reason":"fp16_capture","message":"bad\u0001text"})"}) {
+        const auto malformed = parseCapabilities(std::string(R"({"capture":{"codecs":["h264"],"pyrowave_unavailable":)") + unavailable + "}}");
+        assert(malformed && malformed->streamCapabilities.valid && malformed->streamCapabilities.h264);
+        assert(malformed->streamCapabilities.pyrowaveUnavailableReason.empty() && malformed->streamCapabilities.pyrowaveUnavailableMessage.empty());
+    }
+}
+
 void testDisplayRecommendations() {
     const auto page = parseGamesPage(R"({"games":[{"id":"game","name":"Fixture","display_planner":{
         "available":true,"recommended_id":"balanced","choices":[
@@ -396,6 +415,7 @@ int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     testParsesCapabilities();
     testLaunchModeAuthority();
+    testPyrowaveCaptureRefusalContract();
     testDisplayRecommendations();
     testParsesGamesPageFromHostShape();
     testGameTimeMetadata();

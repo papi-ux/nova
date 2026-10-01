@@ -635,6 +635,9 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_t32_preview_pump_oracle_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_t32_preview_pump_oracle_test.py
     )
+    add_test(NAME nova_deck_termination_publication_source_guard_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_termination_publication_source_guard_test.py
+    )
     add_test(NAME nova_deck_frontend_smoke_route_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_frontend_smoke_test.py
     )
@@ -732,6 +735,26 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 
         if(BUILD_TESTING)
+            target_link_libraries(nova_deck_native_session_test PRIVATE Qt6::QuickControls2)
+            target_compile_definitions(nova_deck_native_session_test PRIVATE
+                NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+            foreach(case IN ITEMS stage-platform stage-name stage-audio stage-rtsp stage-refused
+                    stage-control stage-video stage-input stage-input-init unknown-start term-no-video term-no-frame
+                    term-early term-protected term-conversion term-unknown term-graceful host-refusal
+                    unknown-stage mixed-stage-termination cancelled-stage term-fatal)
+                add_test(NAME nova_deck_failure_gui_${case}_test
+                    COMMAND nova_deck_native_session_test --failure-copy ${case})
+                set_tests_properties(nova_deck_failure_gui_${case}_test PROPERTIES
+                    TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+            endforeach()
+            if(NOVA_DECK_BUILD_PYROWAVE)
+                foreach(case IN ITEMS host-capability host-capability-launch pyro-stage-refused pyro-term-fatal)
+                    add_test(NAME nova_deck_failure_gui_${case}_test
+                        COMMAND nova_deck_native_session_test --failure-copy ${case})
+                    set_tests_properties(nova_deck_failure_gui_${case}_test PROPERTIES
+                        TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+                endforeach()
+            endif()
             add_executable(nova_deck_pairing_qml_test tests/deck_pairing_qml_test.cpp)
             target_link_libraries(nova_deck_pairing_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
             target_compile_definitions(nova_deck_pairing_qml_test PRIVATE

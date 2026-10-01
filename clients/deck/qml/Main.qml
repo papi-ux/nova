@@ -1530,7 +1530,7 @@ ApplicationWindow {
                                 enabled: !novaStandalone || (!libraryBusy && !novaLibraryRefresh.state.failed && novaLibraryGames.length > 0)
                                 Layout.preferredWidth: detailTextWidth
                                 Layout.minimumHeight: 48
-                                text: novaStandalone ? "Preview in Nova" : !handoffState.available ? "Copy safe launch plan"
+                                text: novaStandalone ? "Play in Nova" : !handoffState.available ? "Copy safe launch plan"
                                     : handoffState.running ? "End current session"
                                     : handoffState.armed ? "Confirm launch in Moonlight" : "Play in Moonlight"
                                 contentItem: Text {
@@ -1568,7 +1568,7 @@ ApplicationWindow {
                                 Layout.minimumHeight: 48
                                 visible: novaNativeSession.enabled && !novaStandalone && !diagnosticsExpanded
                                 enabled: !handoffState.running && !handoffState.armed
-                                text: "Preview in Nova"
+                                text: "Play in Nova"
                                 contentItem: Text {
                                     text: nativePreviewButton.text
                                     color: nativePreviewButton.activeFocus ? NovaTheme.window : "white"

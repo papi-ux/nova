@@ -31,16 +31,19 @@ int main() {
   refusedResume.resumed = true;
   require(deckSessionFailureMessage(refusedResume) == hostWords, "a refused resume must still quote the host");
 
-  // A refusal with nothing said falls back rather than showing an empty dialog.
+  // A silent refusal is a host refusal, not an invented pairing failure.
   DeckSessionFailure silent;
   silent.launchRefused = true;
-  require(deckSessionFailureMessage(silent).find("Check pairing") != std::string::npos,
-          "a silent refusal must fall back to the generic line");
+  silent.hostStatusCode = 503;
+  require(deckSessionFailureMessage(silent).find("PC refused") != std::string::npos &&
+          deckSessionFailureMessage(silent).find("503") != std::string::npos &&
+          deckSessionFailureMessage(silent).find("pairing") == std::string::npos,
+          "a silent refusal must preserve its host status without guessing pairing");
 
   // Everything the client knows better than the host still wins.
   DeckSessionFailure cancelled = refused;
   cancelled.cancelled = true;
-  require(deckSessionFailureMessage(cancelled) == "Preview cancelled.", "cancelling wins over a refusal");
+  require(deckSessionFailureMessage(cancelled) == "Stream cancelled.", "cancelling wins over a refusal");
 
   DeckSessionFailure rateChanged = refused;
   rateChanged.displayRateChanged = true;

@@ -152,6 +152,13 @@ DeckLaunchResult parseLaunchResponse(bool resume, std::string_view xml) {
     const QString startedTag = resume ? QStringLiteral("resume") : QStringLiteral("gamesession");
     if (!reader.readNextStartElement() || reader.name() != QStringLiteral("root")) return {};
     readRootStatus(reader, result.statusCode, result.statusMessage);
+    const auto reason = reader.attributes().value("error_code").toString();
+    bool validReason = !reason.isEmpty() && reason.size() <= 80;
+    for (const auto c : reason) validReason &= (c >= QLatin1Char('a') && c <= QLatin1Char('z')) ||
+        (c >= QLatin1Char('0') && c <= QLatin1Char('9')) || c == QLatin1Char('_');
+    if (validReason) result.errorCode = reason.toStdString();
+    const auto action = reader.attributes().value("error_action").toString();
+    if (action.size() <= 4096) result.errorAction = action.toStdString();
     QSet<QString> seen;
     while (reader.readNextStartElement()) {
         const auto name = reader.name().toString();

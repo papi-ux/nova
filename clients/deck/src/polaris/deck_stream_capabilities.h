@@ -39,6 +39,7 @@ struct DeckStreamCapabilities {
     double maxFps = 0; // Zero means not advertised, never inferred from a game HDR badge.
     bool hevc = false; // Explicit 8-bit HEVC support only.
     bool pyrowave = false; // Requires the exact pinned native extension.
+    std::string pyrowaveUnavailableReason, pyrowaveUnavailableMessage; // host-wide public refusal, when supplied
     bool supports(int width, int height, int fps) const {
         return valid && (h264 || hevc || pyrowave) && supportedDeckResolution(width, height) &&
             supportedDeckProfileRate(fps) && (maxFps == 0 || fps <= maxFps) &&

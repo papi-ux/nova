@@ -184,6 +184,8 @@ DeckSessionBuildResult buildStreamConnection(
     const DeckLaunchResult launch = parseLaunchResponse(selected.resume, launchReply.body);
     result.launchStatusCode = launch.statusCode;
     result.launchStatusMessage = launch.statusMessage;
+    result.launchErrorCode = launch.errorCode;
+    result.launchErrorAction = launch.errorAction;
     if (!launch.started || launch.statusCode != 200) {
         result.launchRefused = true;
         result.error = "the host did not start the session";

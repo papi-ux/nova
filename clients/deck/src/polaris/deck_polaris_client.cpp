@@ -320,6 +320,16 @@ std::optional<DeckPolarisCapabilities> parseCapabilities(const std::string_view 
     capabilities.captureBackend = toStd(capture.value(QStringLiteral("backend")).toString());
     capabilities.codecs = stringList(capture.value(QStringLiteral("codecs")));
     auto& stream = capabilities.streamCapabilities;
+    const auto unavailable = capture.value("pyrowave_unavailable").toObject();
+    const auto reason=unavailable.value("reason"), message=unavailable.value("message");
+    if (reason.isString() && message.isString()) {
+        const auto code=reason.toString(), words=message.toString();
+        bool valid=!code.isEmpty() && code.size()<=80 && !words.isEmpty() && words.size()<=4096;
+        for (const auto c : code) valid &= (c>=QLatin1Char('a') && c<=QLatin1Char('z')) ||
+            (c>=QLatin1Char('0') && c<=QLatin1Char('9')) || c==QLatin1Char('_');
+        for (const auto c : words) if (c.unicode()<32 && c!=QLatin1Char('\n') && c!=QLatin1Char('\r') && c!=QLatin1Char('\t')) valid=false;
+        if (valid) { stream.pyrowaveUnavailableReason=code.toStdString(); stream.pyrowaveUnavailableMessage=words.toStdString(); }
+    }
     if (object->contains("capture") && !object->value("capture").isObject()) stream.valid = false;
     if (capture.contains("codecs")) {
         const auto codecs = capture.value("codecs");
