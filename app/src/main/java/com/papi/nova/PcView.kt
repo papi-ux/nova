@@ -585,6 +585,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             findViewById<View>(R.id.dashboardCockpit)
                 ?: findViewById<View>(R.id.dashboardContent)
                 ?: findViewById<View>(android.R.id.content),
+            localizeCamera = true,
         )
 
         val header = findViewById<View>(R.id.pcViewHeader)

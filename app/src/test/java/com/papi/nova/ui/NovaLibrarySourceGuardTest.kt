@@ -745,7 +745,7 @@ class NovaLibrarySourceGuardTest {
             "Options scrolls its own list, padded at both ends, inside a frame that keeps clear of the safe area, so the last rows scroll above gesture and nav chrome",
             options.contains("LazyColumn(\n        state = listState,") &&
                 options.contains("contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm)") &&
-                frame.contains(".windowInsetsPadding(WindowInsets.safeDrawing.only(outer + WindowInsetsSides.Vertical))")
+                frame.contains(".novaScreenInsets(outer + WindowInsetsSides.Vertical)")
         )
     }
 

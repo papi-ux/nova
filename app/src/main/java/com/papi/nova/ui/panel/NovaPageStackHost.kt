@@ -1,5 +1,7 @@
 package com.papi.nova.ui.panel
 
+import com.papi.nova.ui.novaAvoidCameraCutout
+
 import android.util.Log
 import android.view.View
 import android.view.ViewTreeObserver
@@ -613,11 +615,11 @@ private fun NovaPageHeader(
     ) {
         Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.weight(1f)) {
             if (parentTitle == null) {
-                Text(text = title, style = type.panelTitle, color = colors.textPrimary)
+                Text(text = title, modifier = Modifier.novaAvoidCameraCutout(), style = type.panelTitle, color = colors.textPrimary)
             } else {
                 // The ‹ hangs into the gutter, so the title starts on the text line of the rows
                 // under it, as the mockup draws it. As tall as the line, for the touch B.
-                NovaPageBack(title = title, modifier = Modifier.novaTouchReach(reach, backTarget).heightIn(min = height))
+                NovaPageBack(title = title, modifier = Modifier.novaAvoidCameraCutout().novaTouchReach(reach, backTarget).heightIn(min = height))
             }
         }
         end?.let {

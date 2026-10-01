@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.papi.nova.R
 import com.papi.nova.ui.NovaMenuPreferences
+import com.papi.nova.ui.novaScreenInsets
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
@@ -362,7 +363,7 @@ private fun BoxScope.NovaEdgePanel(
                     },
                 )
             }
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(outer + WindowInsetsSides.Vertical))
+            .novaScreenInsets(outer + WindowInsetsSides.Vertical)
             .imePadding()
             .then(tvPadding),
     ) {
@@ -422,7 +423,7 @@ private fun BoxScope.NovaPanelSheet(
                     },
                 )
             }
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+            .novaScreenInsets(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
             .imePadding()
             .then(tvPadding)
             .animateContentSize(),
