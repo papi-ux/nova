@@ -101,7 +101,7 @@ class PolarisPyrowaveDoctorContractTest {
             put("primary_issue", "network_jitter")
             val action = getJSONObject("safe_recovery_action")
             action.put("id", "lower_bitrate")
-            payload(this).put("action_id", "lower_bitrate").remove("goal_source")
+            payload(this).put("action_id", "lower_bitrate").put("target_bitrate_kbps", 16000).remove("goal_source")
             action.getJSONObject("verification").put("mode", "live_telemetry")
             getJSONArray("evidence").getJSONObject(if (loss) 0 else 1).put("status", "fail").put("value", if (loss) 5 else 60)
         }
