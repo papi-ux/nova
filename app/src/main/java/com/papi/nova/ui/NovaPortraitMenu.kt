@@ -68,6 +68,7 @@ internal fun NovaPortraitMenuBar(
         val menu = children[0].measure(loose.copy(maxWidth = (width - (back?.width ?: -gap) - gap).coerceAtLeast(0)))
         val availableTitle = (width - menu.width - (back?.width ?: 0) - gap * if (back == null) 1 else 2).coerceAtLeast(0)
         val ownTitleRow = titleWidth > availableTitle
+        println("header-fit title=$title natural=$titleWidth available=$availableTitle own=$ownTitleRow headingIntrinsic=${children[1].maxIntrinsicWidth(Constraints.Infinity)} constraints=$constraints")
         val heading = children[1].measure(loose.copy(
             maxWidth = if (ownTitleRow) width else availableTitle,
             maxHeight = Constraints.Infinity,
