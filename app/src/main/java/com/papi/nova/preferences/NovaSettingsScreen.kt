@@ -1005,7 +1005,12 @@ private fun NovaSettingsCategoryRail(
                         focus.pane.popToRoot()
                         onCategory(category.key)
                         // A on a category enters its rows, as Right does; a tap only shows them.
-                        if (keyboard) focus.enterPane(category.key)
+                        if (keyboard) {
+                            focus.enterPane(category.key)
+                        } else {
+                            // Keep the next controller move with the pane that touch selected.
+                            focus.focusRail(category.key)
+                        }
                     }
                 )
             }
