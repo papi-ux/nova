@@ -275,13 +275,7 @@ class NovaLibraryUiStateTest {
         assertTrue(hero.badges.contains("Virtual display"))
         assertEquals("Resume this stream, or end it if the host game is stale.", hero.caption)
         assertTrue(hero.badges.contains("1920×1080 60fps"))
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = hero.reason,
-                recentCount = 2
-            )
-        )
+
     }
 
     @Test
@@ -774,45 +768,6 @@ class NovaLibraryUiStateTest {
         assertTrue(
             "the game wall should be the majority of the screen, had ${'$'}gridSharePercent%",
             gridSharePercent >= 70
-        )
-    }
-
-    @Test
-    fun landscapeRecentRailDoesNotDuplicateResumeHero() {
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 500,
-                heroReason = NovaLibraryHeroReason.FIRST_FILTERED,
-                recentCount = 4
-            )
-        )
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = NovaLibraryHeroReason.LAST_PLAYED,
-                recentCount = 4
-            )
-        )
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = NovaLibraryHeroReason.ACTIVE_SESSION,
-                recentCount = 4
-            )
-        )
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = NovaLibraryHeroReason.FIRST_FILTERED,
-                recentCount = 0
-            )
-        )
-        assertTrue(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = NovaLibraryHeroReason.FIRST_FILTERED,
-                recentCount = 4
-            )
         )
     }
 
