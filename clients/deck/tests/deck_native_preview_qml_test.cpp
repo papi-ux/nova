@@ -1103,6 +1103,20 @@ int main(int argc, char** argv) {
         !setup->property("notice").toString().isEmpty() && setup->property("error").toString().isEmpty(),
         "retiring a launch mode reset the codec or failed to save");
 
+    // Per-app refusal outranks a mode which is generally available on the PC.
+    preview->setProperty("launchPolicy", QVariantMap{{"known", true}, {"hostDefault", "windowed_stream"},
+        {"followsHostDefault", false}, {"defaultAvailable", false},
+        {"unavailableReason", "The app's compositor is unavailable."}, {"allowed", QVariantList{}}});
+    settle();
+    require(!setup->property("launchModeAllowed").toBool(), "an explicitly unavailable app default remained accepted");
+    preview->setProperty("launchPolicy", QVariantMap{{"known", true}, {"hostDefault", "windowed_stream"},
+        {"followsHostDefault", false}, {"defaultAvailable", true}, {"allowed", QVariantList{"windowed_stream"}}});
+    settle();
+    require(setup->property("launchChoices").toList().front().toMap().value("label") == "App default",
+        "a fixed app pin was labelled Host default");
+    require(setup->property("planHeadline").toString() == "Private Stream (GPU-native)",
+        "a fixed private app pin was presented as Play on Desktop");
+
     // Hiding the two decorations must not hide menu access, diagnostics or
     // controller recovery. Exercise the actual Appearance controls at 130%/960.
     preview->setProperty("attempted", true);
