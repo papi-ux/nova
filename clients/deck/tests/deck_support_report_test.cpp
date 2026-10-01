@@ -29,7 +29,19 @@ int main(int argc, char** argv) {
         report["client_readings"].toObject()["decoder_callback_ms"] == 1.25 &&
         report["client_readings"].toObject()["decoder_refused_frames"] == 2, "PyroWave diagnostic provenance missing");
     require(!QJsonDocument(report).toJson().contains("private-"), "private free-form content exported");
-    for (const auto* field : {"fps", "incoming", "decoded", "bitrate", "host", "rtt", "jitter", "resolution", "codec", "appliedBitrate", "requestedBitrate", "videoWork", "refused", "qualityLimit", "doctorActionState"}) {
+    auto measured = hud; measured["mediaLossFresh"] = true; measured["mediaLossSource"] = "Video frame sequence"; measured["mediaLoss"] = "2.5%";
+    require(deckSupportReport(measured)["network"].toObject()["client_media_loss_percent"] == 2.5, "fresh video sequence loss missing");
+    measured["mediaLoss"] = "0.0%";
+    require(deckSupportReport(measured)["network"].toObject()["client_media_loss_percent"] == 0.0, "measured zero loss became unavailable");
+    for (const auto* value : {"nan%", "inf%", "-1%", "100.1%", "0%private-token"}) {
+        measured["mediaLoss"] = value;
+        require(deckSupportReport(measured)["network"].toObject()["client_media_loss_percent"].isNull(), "malformed media loss exported");
+    }
+    measured["mediaLoss"] = "2.5%"; measured["mediaLossSource"] = "Control channel";
+    require(deckSupportReport(measured)["network"].toObject()["client_media_loss_percent"].isNull(), "control loss promoted to media loss");
+    measured["mediaLossSource"] = "Video frame sequence"; measured["fresh"] = false;
+    require(deckSupportReport(measured)["network"].toObject()["client_media_loss_percent"].isNull(), "stale media loss exported");
+    for (const auto* field : {"fps", "incoming", "decoded", "bitrate", "host", "rtt", "jitter", "resolution", "codec", "appliedBitrate", "requestedBitrate", "videoWork", "refused", "qualityLimit", "doctorActionState", "mediaLoss", "mediaLossSource"}) {
         auto attack = hud; attack[field] = secret;
         require(!QJsonDocument(deckSupportReport(attack)).toJson().contains("private-"), "tainted top-level value exported");
     }

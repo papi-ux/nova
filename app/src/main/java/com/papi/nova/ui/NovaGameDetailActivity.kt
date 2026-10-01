@@ -898,7 +898,7 @@ class NovaGameDetailActivity : NovaActivity() {
         fun playEnvironmentReady(): Boolean {
             val space = currentGame.space ?: return true
             val snapshot = environmentSnapshot ?: return false
-            return snapshot.selectedId == space.id && snapshot.selected?.openable == true
+            return NovaSpacesCopy.canLaunchSpace(snapshot, space.id)
         }
 
         fun attemptLaunch() {
@@ -2077,8 +2077,8 @@ class NovaGameDetailActivity : NovaActivity() {
                 val value = (deviceSettings.uiState.value.values[definition.key] as? NovaSettingValue.IntValue)?.value ?: 1000
                 return com.papi.nova.ui.panel.NovaCommonPage.Slider(key="device-bitrate", title=definition.title,
                     value=value, range=(definition.min ?: 1000)..(definition.max ?: PreferenceConfiguration.MAX_BITRATE_KBPS),
-                    step=definition.step ?: 5000, format={ NovaBitrateAdvice.text(it,false) }, exactDivisor=1,
-                    exactLabel="Bitrate (kbps)", onSave={ deviceEdits.change(definition,NovaSettingValue.IntValue(it)) })
+                    step=definition.step ?: 5000, format={ NovaBitrateAdvice.text(it,false) }, exactDivisor=1000,
+                    exactLabel=getString(R.string.nova_settings_bitrate_exact_mbps), onSave={ deviceEdits.change(definition,NovaSettingValue.IntValue(it)) })
             }
             return PlaySetupPage.Options(definition.title, row,
                 bands={ listOf(NovaPlaySetupBand(null,deviceRows().firstOrNull { it.row==row }?.options.orEmpty())) },

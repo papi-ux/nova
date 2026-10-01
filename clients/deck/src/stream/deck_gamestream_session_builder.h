@@ -67,6 +67,7 @@ struct DeckSessionBuildResult {
     bool launchRefused = false;
     int launchStatusCode = 0;        ///< the launch answer's root status_code, when parsed
     std::string launchStatusMessage; ///< the launch answer's status_message, when present
+    std::string launchErrorCode, launchErrorAction;
     DeckStreamConnectionInfo connectionInfo;  ///< carries the host session token when the host returned one
 };
 

@@ -109,7 +109,7 @@ class NovaLibraryLayoutV2Test {
         }
         assertFalse(NovaLibraryUiStateMapper.showStandaloneHomeHero(NovaLibraryLayoutMode.STAGE, false))
         assertFalse(NovaLibraryUiStateMapper.showStandaloneHomeHero(NovaLibraryLayoutMode.GRID, false))
-        assertTrue(NovaLibraryUiStateMapper.showStandaloneHomeHero(NovaLibraryLayoutMode.COMPACT, false))
+        assertFalse(NovaLibraryUiStateMapper.showStandaloneHomeHero(NovaLibraryLayoutMode.COMPACT, false))
     }
 
     @Test

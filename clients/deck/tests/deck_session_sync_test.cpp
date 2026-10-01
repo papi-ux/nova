@@ -25,6 +25,7 @@ DeckHostTelemetry sample() {
     s.active = s.owned = s.authorityValid = s.hostTuningAllowed = s.livePresent = true;
     s.role = "owner"; s.gameUuid = "private-game"; s.sessionToken = "private-token"; s.appSession = "private-session";
     s.gameId = 17; s.generation = 41;
+    s.encoderCodec = "h264"; // Classic telemetry without a split uses VIDEO units.
     s.live = DeckLiveTuningTelemetry{true, true, "stable", QString(64, 'a'), "private-instance", "private-session", 1, 41, 20000, 20000, 20000};
     return s;
 }
@@ -37,6 +38,7 @@ void outcomesAndPreflight() {
         const auto reviewed = profile.profileReview();
         std::atomic<int> reads{0}, profileReads{0}, writes{0}, otherWrites{0};
         std::atomic<bool> armed{false}, committed{false}, ack{scenario != 1}, identity{true};
+        std::atomic<bool> codecKnown{scenario != 0};
         std::atomic<bool> preflightEntered{false}, releasePreflight{false};
         auto s = sample();
         if (scenario == 4 || scenario == 5) s.live->supported = false;
@@ -49,6 +51,7 @@ void outcomesAndPreflight() {
                     while (!releasePreflight && !stop()) QThread::msleep(1);
                 }
                 auto next = s; next.live->sequence = ++reads;
+                if (!codecKnown) next.encoderCodec.clear();
                 if (armed && scenario >= 12 && scenario <= 18) {
                     if (scenario == 12) next.live->instance = "replacement";
                     if (scenario == 13) { next.generation = 42; next.live->generation = 42; }
@@ -95,6 +98,13 @@ void outcomesAndPreflight() {
             return t;
         }, {17, "private-game", "private-token"}, {100, 1000, 200, 150});
         until([&] { return observer.snapshot().value("canSyncProfile").toBool(); });
+        if (scenario == 0) {
+            require(!observer.snapshot().value("canSetBitrate").toBool() &&
+                !observer.setSyncProfile("1920x1080x60", 15000, false, reviewed) && writes == 0,
+                "UNKNOWN bitrate units accepted a non-clear profile write");
+            codecKnown = true;
+            until([&] { return observer.snapshot().value("canSetBitrate").toBool(); });
+        }
         require(!observer.setSyncProfile("", 0, false, reviewed) && !observer.setSyncProfile("1920x1080x60", 15000, true, reviewed)
             && !observer.setSyncProfile("1920x1080x60", 15000, false, {}), "invalid request accepted");
         if (scenario == 5) {

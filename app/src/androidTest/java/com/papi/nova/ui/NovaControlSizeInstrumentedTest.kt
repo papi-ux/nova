@@ -83,7 +83,7 @@ class NovaControlSizeInstrumentedTest {
             return results.single().size.height
         }
         val originalText = textHeight()
-        for ((choice, factor) in listOf("compact" to .88f, "standard" to 1f, "large" to 1.15f)) {
+        for ((choice, factor) in listOf("compact" to (.72f / .88f), "standard" to 1f, "large" to (1.15f / .88f))) {
             compose.onNodeWithTag("sized-button").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             compose.runOnIdle { prefs.edit().putString(key, choice).commit() }
             compose.waitForIdle()
@@ -97,7 +97,7 @@ class NovaControlSizeInstrumentedTest {
             val before = taps
             compose.onRoot().performTouchInput {
                 // 23dp from centre is inside the original 48dp target and outside a
-                // 48dp target incorrectly shrunk to Compact's 42.24dp.
+                // 48dp target incorrectly shrunk to Compact's 34.56dp.
                 click(Offset(bounds.center.x, bounds.center.y + 23 * physicalDensity))
             }
             compose.waitForIdle()
@@ -118,7 +118,7 @@ class NovaControlSizeInstrumentedTest {
                 NovaPanelDensityHost {
                     val density = LocalDensity.current
                     // Exercise the real 48dp hit boundary, including the short landscape
-                    // control. This is outside a minimum target shrunk to 42.24dp.
+                    // control. This is outside a minimum target shrunk to 34.56dp.
                     edgePixels = with(density) { 23.dp.toPx() }
                     arrowHalfWidthPixels = with(density) { (NovaPanelMetrics.ArrowTarget / 2).toPx() }
                     Column(Modifier.padding(24.dp).width(300.dp)) {
@@ -143,7 +143,8 @@ class NovaControlSizeInstrumentedTest {
         val two = compose.onNodeWithText("Two", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         compose.onRoot().performTouchInput { click(Offset(two.center.x, two.center.y + edgePixels)) }
         compose.waitForIdle()
-        assertEquals("the segment edge chooses Two instead of wrapping the parent's Three to One", 1, segment)
+        assertEquals("the segment edge chooses Two instead of wrapping the parent's Three to One " +
+            "(label=$two, row=${compose.onNodeWithTag("edge-segments").fetchSemanticsNode().boundsInRoot}, edge=$edgePixels)", 1, segment)
         sizeShot("picker-touch-boundary")
     }
 
@@ -237,7 +238,7 @@ class NovaControlSizeInstrumentedTest {
 private fun sizeShot(name: String) {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     val suffix = InstrumentationRegistry.getArguments().getString("shotSuffix", "normal")
-    val directory = File(instrumentation.targetContext.getExternalFilesDir(null), "control-size")
+    val directory = File(instrumentation.targetContext.filesDir, "native-smoke/control-size")
     check(directory.mkdirs() || directory.isDirectory)
     val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
     File(directory, "$name-$suffix.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }

@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.text.TextLayoutResult
+import com.papi.nova.ui.compose.LocalNovaControlSize
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.NovaComposeColors
 import com.papi.nova.ui.panel.NovaPageStackHost
@@ -45,6 +46,7 @@ class NovaCommandCenterSplitRowsComposeTest {
 
     private fun open(
         place: NovaQuickMenuPlace? = null,
+        size: NovaControlSize = NovaControlSize.Standard,
         adjust: (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { it },
     ): NovaTestKeys {
         state = MutableStateFlow(adjust(NovaQuickMenuUiState.preview(rule.activity)))
@@ -58,7 +60,7 @@ class NovaCommandCenterSplitRowsComposeTest {
                 onDestructiveFill = Color(0xFFFFFFFF),
                 onAccent = Color(0xFF101010),
             )
-            CompositionLocalProvider(LocalNovaComposeColors provides roles) {
+            CompositionLocalProvider(LocalNovaComposeColors provides roles, LocalNovaControlSize provides size) {
                 colors = LocalNovaComposeColors.current
                 Box(Modifier.fillMaxSize()) {
                     NovaPageStackHost(state = panel, containFocus = false) { page ->
@@ -117,6 +119,27 @@ class NovaCommandCenterSplitRowsComposeTest {
         rule.frames(16)
         assertEquals("Stay has focus and fills in the accent", colors.onAccent, labelColour("Stay"))
         assertEquals("its confirm rests as a tile, its label in the accent", colors.accentText, labelColour("Turn Off"))
+    }
+
+    @Test
+    fun compactLiveTuningArmsAndControllerTraversesBothHalves() = liveTuningArmsAtSize(NovaControlSize.Compact)
+
+    @Test
+    fun largeLiveTuningArmsAndControllerTraversesBothHalves() = liveTuningArmsAtSize(NovaControlSize.Large)
+
+    private fun liveTuningArmsAtSize(size: NovaControlSize) {
+        val keys = open(size = size, adjust = liveTuning(on = true))
+        focus("Live Tuning")
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        rule.onNodeWithText("Stay").assertIsFocused()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.onNodeWithText("Turn Off").assertIsFocused()
+        keys.press(NovaTestKeys.LEFT)
+        rule.onNodeWithText("Stay").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        rule.onNodeWithText("Live Tuning").assertIsFocused()
     }
 
     /**

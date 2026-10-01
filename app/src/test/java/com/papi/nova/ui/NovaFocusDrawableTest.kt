@@ -212,8 +212,8 @@ class NovaFocusDrawableTest {
             val doc = parseXml(layout)
 
             assertTrue(
-                "$layout host power action should look like a host that is awake, never like bidirectional sync",
-                hasViewAttribute(doc, "actionStartPolaris", "app:icon", "@drawable/ic_eye_open")
+                "$layout host wake action uses the power symbol, never bidirectional sync",
+                hasViewAttribute(doc, "actionStartPolaris", "app:icon", "@drawable/ic_host_wake")
             )
             assertTrue(
                 "$layout Polaris startup action should keep the Start Polaris label",

@@ -7,7 +7,7 @@ import androidx.preference.PreferenceManager
 
 object NovaFontScalePreferences {
     const val KEY_SCALE_PERCENT = "nova_ui_font_scale_percent"
-    const val DEFAULT_SCALE_PERCENT = 100
+    const val DEFAULT_SCALE_PERCENT = 80
     const val MIN_SCALE_PERCENT = 80
     const val MAX_SCALE_PERCENT = 130
     const val SCALE_STEP_PERCENT = 1

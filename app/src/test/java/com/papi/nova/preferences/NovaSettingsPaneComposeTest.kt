@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -26,6 +27,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.performSemanticsAction
@@ -409,13 +411,13 @@ class NovaSettingsPaneComposeTest {
 
     @Test
     @Config(qualifiers = "w480dp-h900dp")
-    fun theQuickStripWrapsSoEveryPillIsWhole() {
+    fun theQuickStripKeepsEveryPillWholeAndReachable() {
         show(widthDp = 480)
         rule.onNodeWithText("Menu").performClick()
         val root = rule.onRoot().getBoundsInRoot()
         val quick = listOf(PreferenceConfiguration.FPS_PREF_STRING, "frame_pacing", PreferenceConfiguration.BITRATE_PREF_STRING)
         quick.forEach { key ->
-            val bounds = rule.onNodeWithTag("nova-settings-quick-$key").getBoundsInRoot()
+            val bounds = rule.onNodeWithTag("nova-settings-quick-$key").performScrollTo().assertIsDisplayed().getBoundsInRoot()
             assertTrue("pill $key ends inside the screen: $bounds", bounds.right <= root.right - 20.dp)
             assertTrue("pill $key starts inside the screen: $bounds", bounds.left >= root.left + 20.dp)
         }

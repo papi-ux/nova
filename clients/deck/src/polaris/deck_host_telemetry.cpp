@@ -64,6 +64,10 @@ std::optional<DeckHostTelemetry> parseHostTelemetry(std::string_view json) {
     t.eventsHttpsPort = static_cast<int>(integer(o.value("events_https_port"), 65535).value_or(0));
     t.gameUuid = text(o, "game_uuid"); t.sessionToken = text(o, "session_token"); t.appSession = text(o, "app_session_id");
     t.generation = integer(o.value("session_generation"));
+    t.encoderCodec = code(o.value("encoder").toObject(), "codec");
+    t.bitrateUnitsSupported = o.contains("bitrate_units");
+    if (o.value("bitrate_units").isObject()) t.bitrateUnits = parseBitrateUnits(o.value("bitrate_units").toObject());
+    if (o.value("pyrowave_bitrate").isObject()) t.pyrowaveAdvice = parsePyrowaveAdvice(o.value("pyrowave_bitrate").toObject());
     t.livePresent = o.contains("live_tuning");
     if (o.value("live_tuning").isObject()) t.live = parseLiveTuningTelemetry(o.value("live_tuning").toObject());
     auto enabled = o.value("tuning").toObject().value("adaptive_bitrate_enabled");

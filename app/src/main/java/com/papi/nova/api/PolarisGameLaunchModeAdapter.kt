@@ -25,13 +25,13 @@ fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, client
         add(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
         contract?.allowedModes.orEmpty().forEach(::add)
     }.asSequence().map(resolveAvailable).firstOrNull { it.isNotBlank() }.orEmpty()
-    val preferredMode = resolveAvailable(contract?.preferredMode.orEmpty()).ifBlank { fallbackMode }
+    val preferredMode = resolveAvailable(contract?.fixedLaunchMode ?: contract?.preferredMode.orEmpty()).ifBlank { fallbackMode }
     // The host's configured display normally wins, because it is a later and more specific answer
     // than an app's stored preference. An entry that states it does not follow the host default is
     // the exception: the Desktop entry is the desktop, so a host configured to make screens for
     // games would otherwise open it on one of those without anybody asking.
-    val contractRecommendedMode = resolveAvailable(contract?.recommendedMode.orEmpty())
-    val recommendedMode = if (contract?.followsHostDefault == false && contractRecommendedMode.isNotBlank()) {
+    val contractRecommendedMode = resolveAvailable(contract?.fixedLaunchMode ?: contract?.recommendedMode.orEmpty())
+    val recommendedMode = if (contract?.followsEffectiveHostDefault == false && contractRecommendedMode.isNotBlank()) {
         contractRecommendedMode
     } else {
         hostDefaultMode
@@ -68,12 +68,32 @@ fun PolarisGame.isLaunchModeAvailable(mode: String, clientSettings: PolarisClien
     val normalizedMode = PolarisGame.normalizeLaunchMode(mode)
     if (normalizedMode.isBlank()) return false
 
+    // App-specific refusal outranks the host's general mode catalog, including worker modes.
+    val contract = launchMode
+    if (contract?.launchAs != null) {
+        if (!contract.hasKnownLaunchAs || contract.launchAsAvailable != true) return false
+        if (contract.fixedLaunchMode != null && normalizedMode != contract.fixedLaunchMode) return false
+    }
+
     val contractModes = launchMode?.allowedModes.orEmpty()
     if (contractModes.isNotEmpty() && launchMode?.allows(normalizedMode) != true) return false
+
+    // A Space's own worker advertises this mode in its entry contract. The desktop
+    // catalog describes another process and may have no gamescope capture at all.
+    // Fresh /spaces identity/openability and session guards still run before launch.
+    if (isSpaceWorkerLaunchMode(normalizedMode)) return true
 
     val catalogModes = clientSettings?.capabilities?.modes.orEmpty()
     if (catalogModes.isNotEmpty() && matchingModes(catalogModes, normalizedMode).none { it.available }) return false
     return true
+}
+
+/** Only a correctly identified Space with an explicit worker contract bypasses desktop capture. */
+fun PolarisGame.isSpaceWorkerLaunchMode(mode: String): Boolean {
+    val context = space ?: return false
+    if (context.id.isBlank() || context.target.isBlank() || id != "space.${context.id}.${context.target}") return false
+    return PolarisGame.normalizeLaunchMode(mode) == PolarisGame.MODE_GAMESCOPE_STREAM &&
+        launchMode?.allows(PolarisGame.MODE_GAMESCOPE_STREAM) == true
 }
 
 /** Whether this available mode may be carried as a one-launch streamMode override. */

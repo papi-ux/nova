@@ -1,0 +1,16 @@
+# Report the same validated version in installed metadata and the application.
+# Keep the checked-in release history and development status unchanged.
+function(nova_deck_configure_appstream source output)
+    file(READ "${source}" metadata)
+    string(REGEX MATCH "<release[ \t\r\n]+version=\"([^\"]+)\"" release "${metadata}")
+    if(NOT release OR NOT CMAKE_MATCH_1 STREQUAL PROJECT_VERSION)
+        message(FATAL_ERROR "Nova AppStream first release must match the numeric project version")
+    endif()
+    string(FIND "${metadata}" "${release}" offset)
+    string(LENGTH "${release}" length)
+    math(EXPR end "${offset} + ${length}")
+    string(SUBSTRING "${metadata}" 0 ${offset} prefix)
+    string(SUBSTRING "${metadata}" ${end} -1 history)
+    string(REPLACE "version=\"${PROJECT_VERSION}\"" "version=\"${NOVA_DECK_FULL_VERSION}\"" release "${release}")
+    file(WRITE "${output}" "${prefix}${release}${history}")
+endfunction()

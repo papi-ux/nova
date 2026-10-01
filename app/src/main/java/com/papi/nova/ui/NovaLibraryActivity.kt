@@ -48,7 +48,6 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -65,7 +64,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -1698,12 +1696,6 @@ class NovaLibraryActivity : NovaActivity() {
         val largeText = LocalDensity.current.fontScale >= 1.5f
         val space = NovaSpaceUiState.singleSpace(model.allGames).takeUnless { isInitialLoading || loadErrorMessage != null }
             ?.let { game -> spacesSnapshot?.selected?.let { game.copy(name = it.name) } ?: game }
-        var portraitMenuExpanded by rememberSaveable { mutableStateOf(false) }
-        val portraitMenuFocus = remember { FocusRequester() }
-        com.papi.nova.ui.panel.NovaBackHandler(active = !isLandscape && portraitMenuExpanded) {
-            portraitMenuExpanded = false
-            portraitMenuFocus.requestFocus()
-        }
         val stageMode = isLandscape && model.optionsState.layoutMode == NovaLibraryLayoutMode.STAGE
         val showLandscapeControlRail = NovaLibraryUiStateMapper.showLandscapeControlRail()
         val layoutSpec = NovaLibraryUiStateMapper.layoutSpec(
@@ -1714,19 +1706,9 @@ class NovaLibraryActivity : NovaActivity() {
         )
         val columns = layoutSpec.gridColumns
         val railWidth = NovaLibraryUiStateMapper.railWidthDp(configuration.screenWidthDp).dp
-        val showLandscapeRecentRail = model.optionsState.layoutMode == NovaLibraryLayoutMode.COMPACT &&
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = configuration.screenHeightDp,
-                heroReason = model.hero.reason,
-                recentCount = model.recentGames.size
-            )
         val colors = LocalNovaComposeColors.current
         val surfaces = LocalNovaLibrarySurfaces.current
         val controllerHintBarBottomPadding = NovaLibraryUiStateMapper.controllerHintBarBottomPaddingDp(isLandscape).dp
-        val showPortraitRecentRail = portraitMenuExpanded &&
-            model.optionsState.layoutMode == NovaLibraryLayoutMode.COMPACT && model.recentGames.isNotEmpty()
-        val restoreFocusGameInRecent = (if (isLandscape) showLandscapeRecentRail else showPortraitRecentRail) && restoreFocusGameId != null &&
-            model.recentGames.any { it.id == restoreFocusGameId }
         val focusedBackdropGame = remember(
             model.filteredGames,
             model.recentGames,
@@ -1910,16 +1892,6 @@ class NovaLibraryActivity : NovaActivity() {
                                 onGameFocused = onGameFocused,
                                 onOpenDetail = onOpenDetail
                             )
-                            if (showLandscapeRecentRail) {
-                                NovaLibraryRecentRail(
-                                    games = model.recentGames,
-                                    apiClient = apiClient,
-                                    restoreFocusGameId = restoreFocusGameId,
-                                    showPosterTitles = model.optionsState.showPosterTitles,
-                                    onGameFocused = onGameFocused,
-                                    onOpenDetail = onOpenDetail
-                                )
-                            }
                         }
                     } else {
                         Column(
@@ -1928,45 +1900,36 @@ class NovaLibraryActivity : NovaActivity() {
                                 .padding(bottom = controllerHintBarBottomPadding),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            NovaPortraitMenuBar(
-                                title = stringResource(R.string.nova_library_title) +
-                                    serverName?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
-                                expanded = portraitMenuExpanded,
-                                onToggle = { portraitMenuExpanded = !portraitMenuExpanded },
-                                toggleModifier = Modifier.focusRequester(portraitMenuFocus),
+                            NovaLibraryTopHeader(
+                                serverName = serverName,
+                                serverHost = serverHost,
+                                model = model,
+                                filterState = filterState,
+                                searchQuery = searchQuery,
+                                clientSettings = clientSettings,
+                                activeSession = activeSession,
+                                onOpenOptions = onOpenOptions,
+                                onOpenSystemMenu = onOpenSystemMenu
                             )
-                            if (portraitMenuExpanded) {
-                                NovaLibraryTopHeader(
-                                    serverName = serverName,
-                                    serverHost = serverHost,
-                                    model = model,
-                                    filterState = filterState,
-                                    searchQuery = searchQuery,
-                                    clientSettings = clientSettings,
-                                    activeSession = activeSession,
-                                    onOpenOptions = onOpenOptions,
-                                    onOpenSystemMenu = onOpenSystemMenu
+                            if (environments != null) {
+                                // Its own row under the header. The 60 dp header cannot hold
+                                // the bar, and the landscape strip it used to borrow pushed
+                                // Options and System off the right edge of a phone.
+                                NovaEnvironmentBar(
+                                    spaces = environments,
+                                    enabled = !choosingSpace,
+                                    statusKnown = spacesChecked,
+                                    changing = choosingSpace,
+                                    onChoose = ::showSpaceChooser,
+                                    compact = true,
+                                    framed = true,
                                 )
-                                if (environments != null) {
-                                    // Its own row under the header. The 60 dp header cannot hold
-                                    // the bar, and the landscape strip it used to borrow pushed
-                                    // Options and System off the right edge of a phone.
-                                    NovaEnvironmentBar(
-                                        spaces = environments,
-                                        enabled = !choosingSpace,
-                                        statusKnown = spacesChecked,
-                                        changing = choosingSpace,
-                                        onChoose = ::showSpaceChooser,
-                                        compact = true,
-                                        framed = true,
-                                    )
-                                }
                             }
                             if (
                                 NovaLibraryUiStateMapper.showStandaloneHomeHero(
                                     layoutMode = model.optionsState.layoutMode,
                                     hasActiveSession = activeSession != null,
-                                ) && (activeSession != null || portraitMenuExpanded)
+                                )
                             ) {
                                 NovaLibraryHomeHero(
                                     hero = model.hero,
@@ -1990,16 +1953,6 @@ class NovaLibraryActivity : NovaActivity() {
                                     },
                                     onOpenDetail = model.hero.game?.let { game -> { onOpenDetail(game) } },
                                     onGameFocused = onGameFocused
-                                )
-                            }
-                            if (showPortraitRecentRail) {
-                                NovaLibraryRecentRail(
-                                    games = model.recentGames,
-                                    apiClient = apiClient,
-                                    restoreFocusGameId = restoreFocusGameId,
-                                    showPosterTitles = model.optionsState.showPosterTitles,
-                                    onGameFocused = onGameFocused,
-                                    onOpenDetail = onOpenDetail
                                 )
                             }
                             // A search in force says so above what it narrows, and A there clears it (N12).
@@ -2027,7 +1980,7 @@ class NovaLibraryActivity : NovaActivity() {
                                 activeSession = activeSession,
                                 onResumeSession = onResumeSession,
                                 onEndSession = onEndSession,
-                                restoreFocusGameId = restoreFocusGameId.takeUnless { restoreFocusGameInRecent },
+                                restoreFocusGameId = restoreFocusGameId,
                                 onRefresh = onRefresh,
                                 onManageServer = onManageServer,
                                 onClearFilters = onClearFilters,
@@ -2620,74 +2573,6 @@ class NovaLibraryActivity : NovaActivity() {
                             }
                         }
                         }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun NovaLibraryRecentRail(
-        games: List<PolarisGame>,
-        apiClient: PolarisApiClient,
-        restoreFocusGameId: String?,
-        showPosterTitles: Boolean,
-        onGameFocused: (PolarisGame) -> Unit,
-        onOpenDetail: (PolarisGame) -> Unit
-    ) {
-        NovaLibraryPanel(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(R.string.nova_library_continue_label),
-                        color = LocalNovaComposeColors.current.textPrimary,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp
-                    )
-                    Text(
-                        text = stringResource(R.string.nova_library_continue_count, games.size),
-                        color = LocalNovaComposeColors.current.textSecondary,
-                        fontSize = 12.sp
-                    )
-                }
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val visibleColumns = NovaLibraryUiStateMapper.RECENT_RAIL_VISIBLE_COLUMNS
-                    val cardWidth = NovaLibraryUiStateMapper.recentRailCardWidthDp(
-                        availableWidthDp = maxWidth.value.toInt(),
-                        visibleColumns = visibleColumns
-                    ).dp
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(
-                            games,
-                            key = { it.id },
-                            contentType = { "recent-game" }
-                        ) { game ->
-                            val focusRequester = rememberLibraryPosterFocusRequester(
-                                restoreFocus = game.id == restoreFocusGameId,
-                            )
-                            NovaLibraryPosterCard(
-                                game = game,
-                                layoutMode = NovaLibraryLayoutMode.COMPACT,
-                                apiClient = apiClient,
-                                modifier = Modifier.width(cardWidth),
-                                showPosterTitle = showPosterTitles,
-                                focusRequester = focusRequester,
-                                onFocused = { onGameFocused(game) },
-                                onOpenDetail = { onOpenDetail(game) },
-                            )
                         }
                     }
                 }

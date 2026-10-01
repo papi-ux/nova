@@ -15,6 +15,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.papi.nova.ui.NovaControlSize
+import com.papi.nova.ui.compose.LocalNovaControlSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.testTag
@@ -335,6 +341,45 @@ class NovaSplitConfirmComposeTest {
         keys.press(NovaTestKeys.CENTER)
         frames()
         assertEquals(1, ended)
+    }
+
+    @Test
+    fun anArmedPairKeepsControllerFocusWhenItsWindowAndControlSizeChange() {
+        val end = "${"Close".repeat(12)} ${"Session".repeat(12)}"
+        var width by mutableStateOf(130.dp)
+        var size by mutableStateOf(NovaControlSize.Standard)
+        val keys = rule.setPanelContent {
+            CompositionLocalProvider(LocalNovaControlSize provides size) {
+                Box(Modifier.width(width)) {
+                    NovaSplitConfirm(label = "End session", confirmLabel = end,
+                        onConfirm = { ended++ }, state = state)
+                }
+            }
+        }
+        rule.onNodeWithText("End session").requestFocus()
+        rule.waitForIdle()
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(16)
+        for (choice in NovaControlSize.entries) {
+            for (room in listOf(130.dp, 600.dp)) {
+                rule.runOnIdle { size = choice; width = room }
+                rule.frames(16)
+                val stay = rule.onNodeWithText("Stay").getUnclippedBoundsInRoot()
+                val action = rule.onNodeWithText(end).getUnclippedBoundsInRoot()
+                if (room == 130.dp) {
+                    assertTrue("narrow pair stacks at $choice", action.top >= stay.bottom)
+                } else {
+                    assertEquals("wide pair shares a row at $choice", stay.top.value, action.top.value, 0.5f)
+                }
+                rule.onNodeWithText("Stay").assertIsFocused()
+                keys.press(NovaTestKeys.RIGHT)
+                rule.onNodeWithText(end).assertIsFocused()
+                keys.press(NovaTestKeys.LEFT)
+                rule.onNodeWithText("Stay").assertIsFocused()
+                assertTrue("resizing never cancels or confirms", state.armed)
+                assertEquals(0, ended)
+            }
+        }
     }
 
     @Test

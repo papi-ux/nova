@@ -1395,6 +1395,9 @@ class PolarisApiClient @JvmOverloads constructor(
                 targetBitrateKbps = strictInt(actionPayload, "target_bitrate_kbps"),
                 targetBitratePresent = targetBitratePresent,
                 targetBitrateTyped = targetBitrateTyped,
+                actionGoalSource = strictString(actionPayload, "goal_source"),
+                actionGoalSourcePresent = actionPayload?.has("goal_source") == true,
+                actionGoalSourceTyped = actionPayload?.opt("goal_source") is String,
                 verificationDelaySeconds = strictInt(actionVerification, "delay_seconds"),
                 undoSupported = strictBoolean(actionUndo, "supported"),
                 undoEndpoint = strictString(actionUndo, "endpoint"),
@@ -1428,7 +1431,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     status = strictString(item, "status"),
                     source = strictString(item, "source"),
                     value = strictDouble(item, "value"),
-                    detail = strictString(item, "detail")
+                    detail = strictString(item, "detail"),
+                    valueValid = item.has("value") && (item.isNull("value") || strictDouble(item, "value") != null)
                 )
             }
         }
@@ -1706,7 +1710,8 @@ class PolarisApiClient @JvmOverloads constructor(
             evidenceRevision: Long = 0L,
             runId: String = "",
             requestId: String = "",
-            confirmed: Boolean = false
+            confirmed: Boolean = false,
+            goalSource: String = ""
         ): JSONObject = JSONObject().apply {
             put("action_id", actionId)
             if (appSessionId.isNotBlank() && sessionGeneration > 0L) {
@@ -1721,6 +1726,7 @@ class PolarisApiClient @JvmOverloads constructor(
             if (runId.isNotBlank()) put("run_id", runId)
             if (requestId.isNotBlank()) put("request_id", requestId)
             if (confirmed) put("confirmed", true)
+            if (goalSource.isNotBlank()) put("goal_source", goalSource)
         }
 
         @JvmStatic
@@ -3068,6 +3074,16 @@ class PolarisApiClient @JvmOverloads constructor(
     internal suspend fun loadShortcutIcon(game: PolarisGame): Bitmap? =
         resolveArtworkBitmap(buildArtworkLoadSpec(game, PolarisGame.ARTWORK_KIND_ICON))
 
+    private fun setArtworkPlaceholder(view: ImageView, spec: ArtworkLoadSpec) {
+        // A poster still names its game while artwork is loading or unavailable. Real
+        // artwork, including the existing stale-disk fallback, replaces this image.
+        if (spec.kind == PolarisGame.ARTWORK_KIND_POSTER) {
+            view.setImageDrawable(com.papi.nova.ui.NovaTitleCardDrawable(view.context, spec.gameName))
+        } else {
+            view.setImageResource(R.drawable.nova_cover_placeholder)
+        }
+    }
+
     fun loadArtworkInto(view: ImageView, game: PolarisGame, kind: String) {
         val space = game.space
         if (kind.trim().lowercase() == PolarisGame.ARTWORK_KIND_POSTER && space?.target == "big-picture-v1" &&
@@ -3090,7 +3106,7 @@ class PolarisApiClient @JvmOverloads constructor(
         val spec = buildArtworkLoadSpec(game, kind)
 
         view.setTag(R.id.nova_artwork_request_key, spec.cacheKey)
-        view.setImageResource(R.drawable.nova_cover_placeholder)
+        setArtworkPlaceholder(view, spec)
         (view.getTag(R.id.nova_artwork_job) as? Job)?.cancel()
         if (spec.imageUrl == null) return
 
@@ -3106,7 +3122,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 if (bitmap != null) {
                     view.setImageBitmap(bitmap)
                 } else {
-                    view.setImageResource(R.drawable.nova_cover_placeholder)
+                    setArtworkPlaceholder(view, spec)
                     LimeLog.warning("Nova: ${spec.kind} artwork load failed for ${spec.gameName}")
                 }
             }
@@ -3229,7 +3245,8 @@ class PolarisApiClient @JvmOverloads constructor(
         evidenceRevision: Long = 0L,
         runId: String = "",
         requestId: String = "",
-        confirmed: Boolean = false
+        confirmed: Boolean = false,
+        goalSource: String = ""
     ): PolarisDoctorActionResult? {
         if (actionId in setOf("lower_bitrate", "restore_quality") && requestId.isBlank()) {
             return PolarisDoctorActionResult(
@@ -3249,7 +3266,8 @@ class PolarisApiClient @JvmOverloads constructor(
                 evidenceRevision = evidenceRevision,
                 runId = runId,
                 requestId = requestId,
-                confirmed = confirmed
+                confirmed = confirmed,
+                goalSource = goalSource
             )
             val request = Request.Builder()
                 .url("$baseUrl/doctor/action")

@@ -1,0 +1,5 @@
+<resources>
+    <string name="nova_hosts_menu">Menu</string>
+    <string name="nova_hosts_hide_menu">Hide menu</string>
+    <item name="dashboardPortraitNavigation" type="id" />
+</resources>

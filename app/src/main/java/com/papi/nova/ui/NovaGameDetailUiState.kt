@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.api.isLaunchModeAvailable
+import com.papi.nova.api.isSpaceWorkerLaunchMode
 import com.papi.nova.api.isLaunchModeSessionOverridable
 import com.papi.nova.api.launchModeUnavailableReason
 import com.papi.nova.api.resolveLaunchModeChoice
@@ -163,13 +164,16 @@ data class NovaGameDetailUiState(
                 choice.virtualDisplayAllowed -> PolarisGame.MODE_HOST_VIRTUAL_DISPLAY
                 else -> ""
             }
-            val hostDefaultUnavailable = hostStreamDisplayMode.isNotBlank() &&
+            val hostDefaultUnavailable = game.launchMode?.followsEffectiveHostDefault != false && hostStreamDisplayMode.isNotBlank() &&
                 choice.hostDefaultMode.isBlank()
             val launchStreamMode = when {
                 !perGameOverride.isNullOrBlank() -> playMode
                 // A stale host default cannot produce the profile Polaris just
                 // recommended. Carry the validated fallback for this launch only;
                 // normal host-default launches still send no streamMode.
+                // A Space carries its worker mode independently of the desktop's
+                // one-launch override catalog; the fresh Space guard owns admission.
+                game.isSpaceWorkerLaunchMode(playMode) -> playMode
                 hostDefaultUnavailable &&
                     clientSettings.isLaunchModeSessionOverridable(playMode) -> playMode
                 else -> ""
@@ -209,7 +213,8 @@ data class NovaGameDetailUiState(
             val steamLaunchWarning = steamLaunchMode == "big-picture"
             val hostStreamDisplayModeLabel = PolarisStreamDisplayMode.labelForMode(hostStreamDisplayMode)
             val hostStreamDisplayModeUnavailableReason =
-                clientSettings.launchModeUnavailableReason(hostStreamDisplayMode)
+                game.launchMode?.launchAsRefusalReason.orEmpty()
+                    .ifBlank { clientSettings.launchModeUnavailableReason(hostStreamDisplayMode) }
 
             return NovaGameDetailUiState(
                 game = game,
@@ -242,7 +247,7 @@ data class NovaGameDetailUiState(
                 hostStreamDisplayMode = hostStreamDisplayMode,
                 hostStreamDisplayModeLabel = hostStreamDisplayModeLabel,
                 hostStreamDisplayModeUnavailableReason = hostStreamDisplayModeUnavailableReason,
-                followsHostDefault = game.launchMode?.followsHostDefault != false,
+                followsHostDefault = game.launchMode?.followsEffectiveHostDefault != false,
                 hasExplicitOverride = !perGameOverride.isNullOrBlank(),
                 hostProfileLabel = hostProfileLabel(clientSettings),
                 runsInSpace = NovaSpaceUiState.isSpace(game),

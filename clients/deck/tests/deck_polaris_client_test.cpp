@@ -69,6 +69,25 @@ void testParsesCapabilities() {
     assert(parseCapabilities("{}")->streamCapabilities.supports(1280, 800, 60));
 }
 
+void testPyrowaveCaptureRefusalContract() {
+    const auto parsed = parseCapabilities(R"({"capture":{"codecs":["h264","hevc"],"max_fps":120,
+        "pyrowave_unavailable":{"reason":"fp16_capture","message":"PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route."}}})");
+    assert(parsed && parsed->streamCapabilities.valid && parsed->streamCapabilities.h264 && parsed->streamCapabilities.hevc);
+    assert(!parsed->streamCapabilities.pyrowave);
+    assert(parsed->streamCapabilities.pyrowaveUnavailableReason == "fp16_capture");
+    assert(parsed->streamCapabilities.pyrowaveUnavailableMessage == "PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.");
+    // Unknown future machine reasons remain typed, without inventing their meaning.
+    const auto future = parseCapabilities(R"({"capture":{"codecs":["h264"],"pyrowave_unavailable":{"reason":"future_capture_route","message":"The PC supplied this exact reason."}}})");
+    assert(future->streamCapabilities.pyrowaveUnavailableReason == "future_capture_route");
+    for (const auto* unavailable : {"false", R"({"reason":true,"message":"No support"})",
+        R"({"reason":"FP16 Capture","message":"No support"})", R"({"reason":"fp16_capture","message":12})",
+        R"({"reason":"fp16_capture","message":""})", R"({"reason":"fp16_capture","message":"bad\u0001text"})"}) {
+        const auto malformed = parseCapabilities(std::string(R"({"capture":{"codecs":["h264"],"pyrowave_unavailable":)") + unavailable + "}}");
+        assert(malformed && malformed->streamCapabilities.valid && malformed->streamCapabilities.h264);
+        assert(malformed->streamCapabilities.pyrowaveUnavailableReason.empty() && malformed->streamCapabilities.pyrowaveUnavailableMessage.empty());
+    }
+}
+
 void testDisplayRecommendations() {
     const auto page = parseGamesPage(R"({"games":[{"id":"game","name":"Fixture","display_planner":{
         "available":true,"recommended_id":"balanced","choices":[
@@ -392,10 +411,66 @@ void testLaunchModeAuthority() {
     }
 }
 
+void testAppLaunchAsAuthority() {
+    const auto catalog = parseLaunchModeCatalog(R"({"version":1,"desired":{"stream_display_mode":"desktop_display"},
+        "effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[
+        {"value":"desktop_display","available":true,"session_overridable":true},
+        {"value":"windowed_stream","available":true,"session_overridable":true},
+        {"value":"host_virtual_display","available":true,"session_overridable":true},
+        {"value":"desktop_takeover","available":true,"session_overridable":true}]}})");
+    assert(catalog);
+    const auto policyFor = [&](QJsonObject contract) {
+        const auto page = parseGamesPage(QJsonDocument(QJsonObject{{"games", QJsonArray{QJsonObject{
+            {"id", "app"}, {"name", "Pinned"}, {"launch_mode", contract}}}}, {"total", 1}}).toJson().toStdString());
+        assert(page && page->games.size() == 1);
+        if (contract.value("launch_as_available") == QJsonValue(false)) {
+            assert(!page->games.front().launchPolicy.defaultAvailable); // Still denied without client-settings.
+        }
+        return launchModePolicy(page->games.front(), *catalog);
+    };
+    QJsonObject pin{{"launch_as", "windowed_stream"}, {"launch_as_available", true},
+        {"launch_as_unavailable_reason", "The app's compositor is unavailable."},
+        {"preferred_mode", "windowed_stream"}, {"recommended_mode", "windowed_stream"},
+        {"allowed_modes", QJsonArray{"windowed_stream"}}, {"follows_host_default", false}};
+    auto policy = policyFor(pin);
+    assert(policy.known && !policy.followsHostDefault && policy.defaultAvailable && policy.hostDefault == "windowed_stream" && policy.allowed == std::vector<std::string>{"windowed_stream"});
+    pin["launch_as_available"] = false;
+    policy = policyFor(pin);
+    assert(policy.known && policy.allowed.empty() && !policy.defaultAvailable && !policy.followsHostDefault);
+    assert(policy.unavailableReason == "The app's compositor is unavailable.");
+    for (const auto& bad : QList<QJsonValue>{"true", 1, QJsonValue()}) {
+        pin["launch_as_available"] = bad;
+        assert(policyFor(pin).allowed.empty() && !policyFor(pin).defaultAvailable);
+    }
+    pin.remove("launch_as_available");
+    assert(policyFor(pin).allowed.empty() && !policyFor(pin).defaultAvailable);
+    pin["launch_as_available"] = true;
+    for (const auto& bad : QList<QJsonValue>{"turbo", "Windowed_Stream", " windowed_stream", "headless_dongle", 3, true, QJsonValue()}) {
+        pin["launch_as"] = bad;
+        assert(policyFor(pin).allowed.empty() && !policyFor(pin).defaultAvailable);
+    }
+    pin.remove("launch_as");
+    assert(policyFor(pin).allowed.empty() && !policyFor(pin).defaultAvailable);
+    pin.remove("launch_as_available");
+    assert(policyFor(pin).allowed.empty() && !policyFor(pin).defaultAvailable);
+    pin["launch_as_available"] = true;
+    pin["launch_as"] = "desktop_display";
+    pin["preferred_mode"] = "desktop_display"; pin["recommended_mode"] = "desktop_display";
+    pin["allowed_modes"] = QJsonArray{"desktop_display", "host_virtual_display", "desktop_takeover"};
+    policy = policyFor(pin);
+    assert(policy.known && policy.hostDefault == "desktop_display" && policy.allowed.size() == 3);
+    pin.remove("launch_as"); pin.remove("launch_as_available"); pin.remove("launch_as_unavailable_reason");
+    pin["follows_host_default"] = true;
+    policy = policyFor(pin);
+    assert(policy.known && policy.hostDefault == "desktop_display" && policy.allowed.size() == 3);
+}
+
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     testParsesCapabilities();
     testLaunchModeAuthority();
+    testPyrowaveCaptureRefusalContract();
+    testAppLaunchAsAuthority();
     testDisplayRecommendations();
     testParsesGamesPageFromHostShape();
     testGameTimeMetadata();

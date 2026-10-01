@@ -19,6 +19,8 @@ FocusScope {
     property var updateController: null
     required property var settingsProvider
     property var hostPower: null
+    property var hostWake: null
+    property var appShortcuts: null
     property var gamepad: null
     property string settingsError: ""
     property bool sessionBusy: false
@@ -67,7 +69,7 @@ FocusScope {
         || emptyState.activeFocus
     readonly property bool interactionPaused: detailOpen || destinations.opened || options.opened || systemMenu.opened
         || sourcePicker.opened || morePicker.opened || sortPicker.opened || faceDefaultPicker.opened
-        || settingsHub.opened || polarisSync.opened || audioSettings.opened || rumbleSettings.opened || appearanceSettings.opened || powerSheet.opened || !browsing
+        || settingsHub.opened || polarisSync.opened || audioSettings.opened || rumbleSettings.opened || appearanceSettings.opened || powerSheet.opened || wakeSheet.opened || appSteamSheet.opened || !browsing
     readonly property string layoutMode: preferences.layoutMode
     readonly property bool stageMode: layoutMode === "stage"
     signal selected(var game)
@@ -125,6 +127,13 @@ FocusScope {
         grid.positionViewAtIndex(grid.currentIndex, GridView.Contain)
         grid.forceActiveFocus()
         if (grid.currentItem) grid.currentItem.forceActiveFocus()
+    }
+    function page(direction) {
+        if (interactionPaused || !visibleGames.length) return
+        const count = stageMode ? Math.max(1, Math.floor(grid.width / grid.cellWidth))
+            : grid.layoutColumns * Math.max(1, Math.floor(grid.height / grid.cellHeight))
+        selectIndex(Math.max(0, Math.min(visibleGames.length - 1, grid.currentIndex + direction * count)))
+        focusGame()
     }
     function move(index, key) {
         if (stageMode) {
@@ -188,6 +197,8 @@ FocusScope {
         if (spaceArtwork.opened) { spaceArtwork.leave(); return }
         if (destinations.opened) { destinations.close(); return }
         if (powerSheet.opened) { powerSheet.requestClose(); return }
+        if (wakeSheet.opened) { wakeSheet.back(); return }
+        if (appSteamSheet.opened) { appSteamSheet.close(); return }
         for (const picker of [sortPicker, sourcePicker, morePicker, faceDefaultPicker])
             if (picker.opened) { picker.close(); return }
         if (options.opened) { options.close(); return }
@@ -253,6 +264,8 @@ FocusScope {
             settingsHub: settingsHub.state(), syncNeedsReview: syncNeedsReview,
             audio: audioSettings.state(),
             rumble: rumbleSettings.state(),
+            hostWake: wakeSheet.observation(),
+            appShortcut: appSteamSheet.observation(),
             hostPowerUi: powerSheet.interactionState(), hostPowerOpen: powerSheet.opened, hostPower: hostPower ? hostPower.state : ({}), appearanceOpen: appearanceSettings.opened, polarisSync: polarisSync.state(), theme: NovaTheme.themeId, fontScale: NovaTheme.fontScale,
             cards: visibleGames.map((game, index) => {
                 const tile = grid.itemAtIndex(index)
@@ -302,6 +315,12 @@ FocusScope {
         Qt.callLater(focusGame)
     }
     Keys.onEscapePressed: back()
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown) {
+            page(event.key === Qt.Key_PageUp ? -1 : 1)
+            event.accepted = true
+        }
+    }
 
     component ChromeButton: NovaButton {
         unit: browser.unit
@@ -940,7 +959,7 @@ FocusScope {
             }
             CopyLabel {
                 text: search.activeFocus ? "A  Games     B  Clear search"
-                    : (browsing && visibleGames.length ? "A  Details" : "A  Select") + "     B  Back     D-pad  Navigate"
+                    : (browsing && visibleGames.length ? "A  Details" : "A  Select") + "     B  Back     D-pad / Stick  Navigate     LB / RB  Page"
                 color: NovaTheme.secondary
                 font.pixelSize: 16 * unit * NovaTheme.fontScale
             }
@@ -1005,6 +1024,12 @@ FocusScope {
                 else contentY = Math.min(contentHeight - height, contentY + 80 * unit)
             }
             Keys.onEscapePressed: back()
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown) {
+            page(event.key === Qt.Key_PageUp ? -1 : 1)
+            event.accepted = true
+        }
+    }
             ColumnLayout {
                 id: detailBody
                 width: Math.min(parent.width, 900 * unit)
@@ -1257,7 +1282,17 @@ FocusScope {
             Qt.callLater(() => grid.positionViewAtIndex(grid.currentIndex, GridView.Contain))
         }
     }
-    onSessionBusyChanged: if (sessionBusy) settingsHub.close()
+    onSessionBusyChanged: if (sessionBusy) { settingsHub.close(); wakeSheet.close() }
+    AppSteamShortcut {
+        id: appSteamSheet; controller: browser.appShortcuts; unit: browser.unit
+        onClosed: steamAppButton.forceActiveFocus()
+    }
+    HostWake {
+        id: wakeSheet
+        controller: browser.hostWake
+        unit: browser.unit
+        onClosed: wakeButton.forceActiveFocus()
+    }
     HostPower {
         id: powerSheet
         controller: browser.hostPower
@@ -1443,6 +1478,26 @@ FocusScope {
                 enabled: browser.hostPower !== null && !sessionBusy && !refreshState.busy
                 onClicked: powerSheet.open()
                 Keys.onUpPressed: appearanceButton.forceActiveFocus()
+                Keys.onDownPressed: wakeButton.forceActiveFocus()
+            }
+            ChromeButton {
+                id: wakeButton
+                objectName: "library-wake-pc"
+                Layout.fillWidth: true
+                text: "Wake PC"
+                enabled: !!browser.hostWake && !sessionBusy && !refreshState.busy
+                onClicked: wakeSheet.open()
+                Keys.onUpPressed: sleepButton.forceActiveFocus()
+                Keys.onDownPressed: steamAppButton.forceActiveFocus()
+            }
+            ChromeButton {
+                id: steamAppButton
+                objectName: "library-add-nova-steam"
+                Layout.fillWidth: true
+                text: "Add Nova to Steam"
+                enabled: !!browser.appShortcuts && !sessionBusy
+                onClicked: appSteamSheet.open()
+                Keys.onUpPressed: wakeButton.forceActiveFocus()
                 Keys.onDownPressed: systemDone.forceActiveFocus()
             }
             ChromeButton {
@@ -1450,7 +1505,7 @@ FocusScope {
                 Layout.fillWidth: true
                 text: "Back to games"
                 onClicked: { systemMenu.close(); focusGame() }
-                Keys.onUpPressed: sleepButton.forceActiveFocus()
+                Keys.onUpPressed: steamAppButton.forceActiveFocus()
             }
         }
     }

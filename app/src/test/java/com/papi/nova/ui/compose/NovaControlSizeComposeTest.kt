@@ -38,7 +38,7 @@ class NovaControlSizeComposeTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val key = "nova_control_size"
 
-    @Test fun standardIsDefaultAndThePreferenceStaysOutOfSavedGameSetups() {
+    @Test fun standardIsTheCompatibleDefaultAndThePreferenceStaysOutOfSavedGameSetups() {
         val definition = NovaSettingDefinitions.load(compose.activity).find(key)
         assertNotNull("control size is an appearance setting", definition)
         assertEquals(NovaSettingValue.StringValue("standard"), definition!!.defaultValue)
@@ -48,6 +48,7 @@ class NovaControlSizeComposeTest {
         assertTrue(definition.isOrderedScale)
         assertFalse("a game setup must not change this device's interface size",
             NovaSettingsAvailability.shouldPersistProfileOverride(key))
+        assertEquals(listOf("compact", "standard", "large"), definition.options.map { it.value })
     }
 
     @Test fun compactAndLargeResizeControlsLiveWithoutResizingTextOrLosingFocus() = checkSizes(1f)
@@ -107,10 +108,14 @@ class NovaControlSizeComposeTest {
         physicalTextHeight = textHeight()
         val originalTouchTarget = touchTargetPixels
         compose.onNodeWithTag("control").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
-        for ((choice, factor) in listOf("compact" to 0.88f, "large" to 1.15f, "standard" to 1f, "invalid" to 1f)) {
+        var compactHeight = 0f
+        var largeHeight = 0f
+        for ((choice, factor) in listOf("compact" to (0.72f / 0.88f), "large" to (1.15f / 0.88f), "standard" to 1f, "invalid" to 1f)) {
             compose.runOnIdle { preferences.edit().putString(key, choice).commit() }
             compose.waitForIdle()
             assertEquals(choice, standard * factor, buttonHeight(), 1f)
+            if (choice == "compact") compactHeight = buttonHeight()
+            if (choice == "large") largeHeight = buttonHeight()
             assertEquals("nested themes apply the choice once", buttonHeight(),
                 compose.onNodeWithTag("nested-control").fetchSemanticsNode().boundsInRoot.height, 1f)
             assertEquals("Text Size is independent at $choice (density=$measuredDensity)", physicalTextHeight, textHeight())
@@ -119,6 +124,8 @@ class NovaControlSizeComposeTest {
             compose.onNodeWithTag("control").assertIsFocused()
             assertEquals("stream/device resources are unchanged", resourceConfiguration, compose.activity.resources.configuration)
         }
+        assertTrue("Standard is visibly larger than Compact", standard >= compactHeight * 1.2f)
+        assertTrue("Large is visibly larger than Standard", largeHeight >= standard * 1.3f)
         preferences.edit().remove(key).commit()
     }
 }

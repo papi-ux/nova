@@ -27,6 +27,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MeasurePolicy
@@ -325,7 +329,16 @@ private fun NovaValueRowFrame(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
-            .clip(shape)
+            // A stacked row is already taller than the 48dp touch floor. A graphics-layer
+            // clip would then stop its compact control's expanded target at the row edge.
+            // Clip the same rounded visuals while leaving hit testing to the controls.
+            .drawWithCache {
+                val outline = shape.createOutline(size, layoutDirection, this)
+                val path = Path().apply { addOutline(outline) }
+                onDrawWithContent {
+                    clipPath(path) { this@onDrawWithContent.drawContent() }
+                }
+            }
             .novaFocusRing(shape, rest = novaRowRest)
             .novaFocusHint(if (enabled) hint else NovaFocusHint.Read)
             .onFocusChanged { focused = it.hasFocus }
@@ -375,18 +388,22 @@ private fun NovaValueRowFrame(
                     },
                     { control(available, focused) },
                 ),
-                measurePolicy = ValueRowMeasurePolicy,
+                measurePolicy = novaValueRowMeasurePolicy(),
             )
         }
     }
 }
 
 // The title keeps a row's usual inset; the control, 4dp in from the top and bottom, keeps a plain row's height.
-private val ValueRowMeasurePolicy = NovaTitleAndValueMeasurePolicy(
-    labelInset = NovaPanelMetrics.SpaceSm,
-    valueInset = NovaPanelMetrics.SpaceXs,
-    stackGap = NovaPanelMetrics.SpaceSm,
-)
+@Composable
+private fun novaValueRowMeasurePolicy(): NovaTitleAndValueMeasurePolicy {
+    val labelInset = novaControlDimension(NovaPanelMetrics.SpaceSm)
+    val valueInset = novaControlDimension(NovaPanelMetrics.SpaceXs)
+    val stackGap = novaControlDimension(NovaPanelMetrics.SpaceSm)
+    return remember(labelInset, valueInset, stackGap) {
+        NovaTitleAndValueMeasurePolicy(labelInset, valueInset, stackGap)
+    }
+}
 
 /**
  * The segments, drawn one way wherever they sit: the labels on the row itself with no box of their

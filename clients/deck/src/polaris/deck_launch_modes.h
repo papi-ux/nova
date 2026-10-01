@@ -9,6 +9,9 @@ struct DeckLaunchModePolicy {
     bool known = false;
     std::string hostDefault;
     std::vector<std::string> allowed;
+    bool followsHostDefault = true;
+    bool defaultAvailable = true;
+    std::string unavailableReason;
 };
 
 namespace polaris {

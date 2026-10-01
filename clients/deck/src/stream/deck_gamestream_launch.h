@@ -74,6 +74,7 @@ struct DeckLaunchResult {
     bool started = false;         ///< gamesession (launch) or resume element was non-zero
     int statusCode = 0;           ///< the root element's status_code attribute
     std::string statusMessage;    ///< the root element's status_message attribute, when present
+    std::string errorCode, errorAction; ///< typed host refusal fields; action is already in statusMessage
     std::string rtspSessionUrl;   ///< sessionUrl0, the RTSP URL for the session
     std::string sessionToken;     ///< sessionToken, when the host returns one
 };

@@ -17,16 +17,21 @@ import androidx.core.widget.ImageViewCompat
 import androidx.core.widget.TextViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import androidx.preference.PreferenceManager
 import com.papi.nova.PcViewModel
 import com.papi.nova.R
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.NovaControlSize
+import com.papi.nova.ui.NovaControlSizePreferences
+import com.papi.nova.ui.NovaHostsViewMetrics
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.novaBreakAtDots
 import com.papi.nova.ui.panel.NovaViewBridge
 import java.util.IdentityHashMap
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class PcGridAdapter(
     context: Context,
@@ -171,6 +176,11 @@ class PcGridAdapter(
         setItems(emptyList())
     }
 
+    /** A device appearance change rebinds existing stable rows without replacing their host IDs. */
+    fun refreshControlSize() {
+        if (itemCount > 0) notifyItemRangeChanged(0, itemCount, SERVER_ROW_REFRESH_PAYLOAD)
+    }
+
     fun setOnServerActionListener(listener: (PcViewModel.ComputerObject) -> Unit) {
         serverActionListener = listener
     }
@@ -191,6 +201,8 @@ class PcGridAdapter(
         var identity: View? = null
         var actions: View? = null
         var watchesWidth = false
+        lateinit var metrics: NovaHostsViewMetrics
+        var controlSize: NovaControlSize? = null
         /** Null until the card has been arranged once, so the first arrangement always applies. */
         var stacked: Boolean? = null
     }
@@ -215,6 +227,7 @@ class PcGridAdapter(
         holder.body = parentView.findViewById(R.id.server_card_body)
         holder.identity = parentView.findViewById(R.id.server_card_identity)
         holder.actions = parentView.findViewById(R.id.server_card_actions)
+        holder.metrics = NovaHostsViewMetrics(context).apply { capture(parentView) }
         parentView.setTag(TAG_PC_HOLDER, holder)
         return holder
     }
@@ -229,6 +242,12 @@ class PcGridAdapter(
         obj: PcViewModel.ComputerObject
     ) {
         val pcHolder = getPcHolder(parentView)
+        val controlSize = NovaControlSizePreferences.read(PreferenceManager.getDefaultSharedPreferences(context))
+        if (pcHolder.controlSize != controlSize) {
+            pcHolder.metrics.apply(controlSize)
+            pcHolder.controlSize = controlSize
+            pcHolder.stacked = null
+        }
         val online = obj.details.state == ComputerDetails.State.ONLINE
         applyCardTheme(parentView, imgView, prgView!!, txtView, pcHolder, online)
         fitCardToWidth(parentView, pcHolder)
@@ -449,8 +468,14 @@ class PcGridAdapter(
         val identity = holder.identity ?: return
         val actions = holder.actions ?: return
         val resources = context.resources
+        val scale = holder.controlSize?.layoutScale ?: 1f
+        val spacing = resources.getDimensionPixelSize(R.dimen.nova_spacing_md)
+        val gap = resources.getDimensionPixelSize(R.dimen.nova_spacing_sm)
+        val actualExtraPadding = holder.metrics.horizontalPaddingDelta(body, holder.primaryAction,
+            holder.serverActions?.findViewById<View>(R.id.server_actions_label)) +
+            (gap * scale).roundToInt() - gap + (spacing * scale).roundToInt() - spacing
         val stacked = novaHostCardStacks(
-            cardWidthDp = widthPx / resources.displayMetrics.density,
+            cardWidthDp = (widthPx - actualExtraPadding) / resources.displayMetrics.density,
             fontScale = resources.configuration.fontScale,
         )
         if (holder.stacked == stacked) return
@@ -465,11 +490,11 @@ class PcGridAdapter(
             // Under the text rather than under the icon: the actions belong to the lines above them.
             marginStart = if (stacked) {
                 resources.getDimensionPixelSize(R.dimen.nova_icon_server_container) +
-                    resources.getDimensionPixelSize(R.dimen.nova_spacing_lg)
+                    (resources.getDimensionPixelSize(R.dimen.nova_spacing_lg) * scale).roundToInt()
             } else {
-                resources.getDimensionPixelSize(R.dimen.nova_spacing_md)
+                (resources.getDimensionPixelSize(R.dimen.nova_spacing_md) * scale).roundToInt()
             }
-            topMargin = if (stacked) resources.getDimensionPixelSize(R.dimen.nova_spacing_sm) else 0
+            topMargin = if (stacked) (resources.getDimensionPixelSize(R.dimen.nova_spacing_sm) * scale).roundToInt() else 0
         }
     }
 

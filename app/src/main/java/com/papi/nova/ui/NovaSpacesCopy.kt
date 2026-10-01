@@ -158,6 +158,12 @@ internal object NovaSpacesCopy {
         else -> R.string.nova_space_blocked_generic
     }
 
+    /** The environment guard shared by Play's enabled state and the launch attempt. */
+    fun canLaunchSpace(snapshot: PolarisSpaces?, spaceId: String): Boolean =
+        snapshot != null && snapshot.enabled && snapshot.available &&
+            snapshot.selectedId == spaceId && snapshot.selected?.id == spaceId &&
+            snapshot.selected?.openable == true
+
     /** Explain the existing Space launch gate without changing its admission decision. */
     @StringRes
     fun launchBlockedReason(snapshot: PolarisSpaces?, spaceId: String, changing: Boolean, launchModeAvailable: Boolean): Int? {

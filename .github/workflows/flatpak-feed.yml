@@ -65,7 +65,7 @@ jobs:
     env:
       NOVA_CHANNEL: ${{ inputs.channel }}
       NOVA_TAG: ${{ inputs.release_tag }}
-      NOVA_FEED_URL: https://papi-ux.github.io/nova
+      NOVA_FEED_URL: https://papi-ux.com/nova
     steps:
       - name: Check signing configuration
         env:
@@ -86,7 +86,7 @@ jobs:
           manifest=source/clients/deck/packaging/flatpak/com.papi_ux.Nova.json
           python3 automation/tools/nova_flatpak_feed.py prepare "$manifest" \
             source/clients/deck/packaging/flatpak/feed-build.json \
-            --channel "$NOVA_CHANNEL" --url "$NOVA_FEED_URL"
+            --channel "$NOVA_CHANNEL" --url "$NOVA_FEED_URL" --version "$NOVA_TAG"
 
       - name: Build the channel without installing it
         run: |

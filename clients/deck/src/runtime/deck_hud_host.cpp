@@ -17,6 +17,25 @@ bool oneOf(const QString& value, std::initializer_list<const char*> values) {
     return false;
 }
 QString bitrate(int kbps) { return kbps > 0 ? QString::number(kbps / 1000.0, 'f', 1) + "M" : "--"; }
+std::optional<DeckBitrateUnits> conversion(const DeckHostTelemetry& s) {
+    if (s.bitrateUnitsSupported) return s.bitrateUnits && s.bitrateUnits->split ? s.bitrateUnits : std::nullopt;
+    if (s.encoderCodec == "pyrowave" && s.pyrowaveAdvice && s.pyrowaveAdvice->assumptionsKnown) {
+        DeckBitrateUnits units; units.audio=s.pyrowaveAdvice->audio;units.fec=s.pyrowaveAdvice->fec;return units;
+    }
+    return {};
+}
+bool sameConversion(const std::optional<DeckBitrateUnits>& a,const std::optional<DeckBitrateUnits>& b) {
+    return a.has_value()==b.has_value() && (!a || (a->audio==b->audio && a->fec==b->fec && a->warp==b->warp &&
+        a->split.has_value()==b->split.has_value() && a->cap==b->cap && a->capSource==b->capSource));
+}
+int manualMaximum(const DeckHostTelemetry& s) {
+    int maximum=s.manualMaximumKbps;
+    if (conversion(s) && s.pyrowaveAdvice && s.pyrowaveAdvice->manualMaximum) maximum=std::min(maximum,*s.pyrowaveAdvice->manualMaximum);
+    return maximum;
+}
+QString unitsMode(const DeckHostTelemetry& s) {
+    return conversion(s) ? "request" : oneOf(s.encoderCodec,{"h264","hevc","av1"}) ? "video" : "unknown";
+}
 using Clock = std::chrono::steady_clock;
 qint64 nowMs() { return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count(); }
 }
@@ -29,6 +48,7 @@ QVariantMap DeckHudHostReducer::unavailable() {
         {"tuningCopy", "Live Tuning is unavailable for this stream."},
         {"canSetBitrate", false}, {"appliedBitrateKbps", 0}, {"requestedBitrateKbps", 0}, {"bitrateRequestKbps", 0}, {"bitrateBusy", false},
         {"bitrateCopy", "Live bitrate is unavailable for this stream."},
+        {"bitrateUnitsMode", "unknown"}, {"maximumBitrateKbps", 300000}, {"minimumBitrateKbps", 1000}, {"suggestedBitrateKbps", 0},
         {"canSyncProfile", false}, {"syncBusy", false}, {"syncPhase", "idle"}, {"syncCopy", ""}, {"syncVersion", 0},
         {"doctor", QVariantMap{}}, {"canRefreshDiagnostics", false}, {"diagnosticsRefreshing", false}};
 }
@@ -67,7 +87,13 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
         out["tuningTone"] = live.enabled ? (live.supported ? "info" : "muted") : "muted";
         out["qualityLimit"] = bitrate(live.qualityLimit);
         out["requestedBitrate"] = bitrate(live.requested);
-        out["requestedBitrateKbps"] = live.requested;
+        const auto convert=conversion(s); const auto mode=unitsMode(s);
+        out["bitrateUnitsMode"] = mode;
+        const int maximum=manualMaximum(s);
+        out["maximumBitrateKbps"] = maximum;
+        out["minimumBitrateKbps"] = convert ? std::max(1000,convert->requestFor(1000)) : 1000;
+        out["requestedBitrateKbps"] = convert ? convert->requestFor(live.requested) : live.requested;
+        if (convert && s.pyrowaveAdvice) out["suggestedBitrateKbps"] = std::min({s.pyrowaveAdvice->goal,maximum,automaticBitrateMaximum});
         out["tuningKnown"] = true; out["tuningEnabled"] = live.enabled;
         out["canTune"] = s.hostTuningAllowed && live.generation > 0;
         out["tuningCopy"] = !s.hostTuningAllowed ? "This session doesn't allow host tuning."
@@ -76,8 +102,9 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
         // Requested, adaptive target and legacy encoder bitrate are never used
         // as acknowledgements. Even a requested > applied transition shows applied.
         if (live.supported) { out["appliedBitrate"] = bitrate(live.applied); out["appliedBitrateKbps"] = live.applied; }
-        out["canSetBitrate"] = out.value("canTune").toBool() && live.supported && live.applied > 0;
+        out["canSetBitrate"] = out.value("canTune").toBool() && live.supported && live.applied > 0 && mode != "unknown";
         out["bitrateCopy"] = !out.value("canTune").toBool() ? out.value("tuningCopy")
+            : mode == "unknown" ? QVariant("Bitrate units are unavailable. Update Polaris and refresh this stream.")
             : !live.supported ? QVariant("This encoder cannot change bitrate during the stream.")
             : !live.applied ? QVariant("Waiting for the encoder's current bitrate.")
             : QVariant("Choose a fixed bitrate. Applying it turns Live Tuning off.");
@@ -109,13 +136,19 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
 }
 
 struct DeckHudHostObserver::Shared {
+    struct MediaIntent { polaris::DeckClientMediaSample sample; polaris::DeckClientMediaScope scope; quint64 version = 0; };
+    std::optional<MediaIntent> mediaPending;
+    std::optional<polaris::DeckClientMediaScope> mediaScope, mediaPinned;
+    bool mediaSupported = false;
+    qint64 mediaLastQueued = 0;
     struct Profile { QString display; bool clear = false; QVariantMap reviewed; };
-    struct Intent { bool enabled; DeckLiveTuningTelemetry observed; int bitrateKbps = 0; std::optional<Profile> profile; };
+    struct Intent { bool enabled; DeckLiveTuningTelemetry observed; int bitrateKbps = 0; std::optional<Profile> profile; std::optional<DeckBitrateUnits> units; QString mode; int requestKbps = 0; };
     std::atomic_bool stopped{false};
     mutable std::mutex mutex;
     std::condition_variable wake;
     QVariantMap view = DeckHudHostReducer::unavailable();
     std::optional<DeckLiveTuningTelemetry> live;
+    std::optional<DeckBitrateUnits> units;
     std::optional<Intent> pending;
     bool busy = false, fixedChange = false;
     int requestedBitrate = 0;
@@ -156,6 +189,7 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
             QJsonObject lastSaved = savedReceipt;
             {
                 const std::lock_guard lock(state->mutex);
+                state->mediaSupported = bool(target->uploadMedia);
                 state->doctorStorageReady = !target->doctorReceipts || target->doctorReceipts->ready();
                 if (!state->doctorStorageReady) state->doctor.storageFailure();
             }
@@ -256,8 +290,17 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                     state->eventsPort = result.value->eventsHttpsPort; ++state->eventEpoch; state->wake.notify_all();
                 }
                 state->live = (view.value("canTune").toBool() || view.value("canSetBitrate").toBool()) && result.ok() ? result.value->live : std::nullopt;
+                state->units = view.value("hostFresh").toBool() && result.ok() ? conversion(*result.value) : std::nullopt;
                 state->view = view; state->observed = Clock::now();
                 const bool current = state->refreshVersion == version && !state->eventFatal;
+                state->mediaScope.reset();
+                if (current && view.value("hostFresh").toBool() && state->mediaSupported && result.ok() && result.value->generation &&
+                    *result.value->generation > 0 && !result.value->appSession.isEmpty() && result.value->appSession == context.sessionToken) {
+                    const polaris::DeckClientMediaScope scope{result.value->appSession, *result.value->generation};
+                    if (!state->mediaPinned) state->mediaPinned = scope;
+                    if (*state->mediaPinned == scope) state->mediaScope = scope;
+                }
+
                 const bool doctorAuthorized = current && view.value("canTune").toBool() && bool(target->doctorAction);
                 if (recoveryPending && doctorAuthorized && result.value->live) {
                     const auto recovered = state->doctor.restore(savedReceipt, *result.value->live, QDateTime::currentMSecsSinceEpoch());
@@ -291,11 +334,13 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                     result.value->live->qualityLimit != awaiting->bitrateKbps;
                 const bool matching = sameOwner && !result.value->live->enabled && result.value->live->qualityLimit == awaiting->bitrateKbps;
                 const bool applied = matching && result.value->live->applied == awaiting->bitrateKbps;
-                if (applied) state->message = "Applied " + bitrate(awaiting->bitrateKbps) + "bps. Live Tuning is off.";
-                else if (differentTarget) state->message = "Your " + bitrate(awaiting->bitrateKbps) + "bps request wasn't confirmed. The PC reports a " +
+                if (applied) state->message = awaiting->requestKbps && awaiting->requestKbps != awaiting->bitrateKbps
+                    ? "Applied encoder " + bitrate(awaiting->bitrateKbps) + "bps for your " + bitrate(awaiting->requestKbps) + "bps request. Live Tuning is off."
+                    : "Applied " + bitrate(awaiting->bitrateKbps) + "bps. Live Tuning is off.";
+                else if (differentTarget) state->message = "Your " + bitrate(awaiting->requestKbps ? awaiting->requestKbps : awaiting->bitrateKbps) + "bps request wasn't confirmed. The PC reports a " +
                     bitrate(result.value->live->qualityLimit) + "bps target. Check the PC's bitrate limits and current settings.";
                 else if (!matching || expired) state->message = "The encoder change wasn't confirmed. Check the current bitrate before trying again.";
-                else state->message = "Requested " + bitrate(awaiting->bitrateKbps) + "bps. Waiting for the encoder…";
+                else state->message = "Requested " + bitrate(awaiting->requestKbps ? awaiting->requestKbps : awaiting->bitrateKbps) + "bps. Waiting for the encoder…";
                 if (awaiting->profile) {
                     if (applied) state->syncResult("confirmed", "Profile saved. Bitrate applied now: " + bitrate(awaiting->bitrateKbps) + "bps. Resolution and frame rate apply to the next stream. Live Tuning is off.");
                     else if (!matching || expired) state->syncResult("unconfirmed", "Profile saved for the next stream. The live encoder change wasn't confirmed; check the current bitrate before trying again.");
@@ -303,10 +348,13 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 }
                 if (applied || !matching || expired) { awaiting.reset(); state->busy = false; }
             };
+            Clock::time_point nextMediaUpload{};
+            std::optional<polaris::DeckClientMediaSample> lastMediaAttempt;
             int delay = timing.intervalMs;
             while (valid()) {
                 std::optional<Shared::Intent> intent;
-                { const std::lock_guard lock(state->mutex); intent = std::exchange(state->pending, {}); }
+                std::optional<Shared::MediaIntent> media;
+                { const std::lock_guard lock(state->mutex); intent = std::exchange(state->pending, {}); media = std::exchange(state->mediaPending, {}); }
                 auto version = beginRead();
                 auto result = target->fetch(cancelled);
                 if (!valid()) break;
@@ -314,6 +362,24 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 publish(result, view, version);
                 bool stop = permanent(result);
                 confirmBitrate(result, view, version);
+                if (media && target->uploadMedia && !stop && Clock::now() >= nextMediaUpload &&
+                    polaris::clientMediaEpochReady(media->sample, lastMediaAttempt)) {
+                    const auto mediaCancelled = [&] {
+                        if (!valid() || !polaris::freshClientMedia(media->sample, polaris::clientMediaMonotonicMs())) return true;
+                        const std::lock_guard lock(state->mutex);
+                        return !state->mediaScope || *state->mediaScope != media->scope || state->refreshVersion != media->version ||
+                            state->eventFatal || !state->mediaSupported;
+                    };
+                    if (!mediaCancelled()) {
+                        nextMediaUpload = Clock::now() + std::chrono::milliseconds(900);
+                        lastMediaAttempt = media->sample;
+                        const auto uploaded = target->uploadMedia(media->sample, media->scope, mediaCancelled);
+                        // Each sample is attempted once. Unsupported/revoked transport
+                        // disables uploads without failing the optional host observer.
+                        if (permanent(uploaded)) { const std::lock_guard lock(state->mutex); state->mediaSupported = false; state->mediaScope.reset(); }
+                    }
+                }
+
                 if (intent && intent->profile) {
                     const auto requested = *intent;
                     const auto profile = *requested.profile;
@@ -386,7 +452,8 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                         result.value->live->revision == intent->observed.revision &&
                         result.value->live->enabled == intent->observed.enabled &&
                         (!intent->bitrateKbps || result.value->live->qualityLimit == intent->observed.qualityLimit) &&
-                        result.value->live->sequence > intent->observed.sequence;
+                        result.value->live->sequence > intent->observed.sequence &&
+                        (!intent->bitrateKbps || intent->profile || (intent->requestKbps <= manualMaximum(*result.value) && sameConversion(conversion(*result.value), intent->units) && unitsMode(*result.value) == intent->mode));
                     if (unchanged && valid()) {
                         { const std::lock_guard lock(state->mutex); state->message = intent->bitrateKbps ? "Requesting fixed bitrate…" : "Saving Live Tuning…"; }
                         // The transport checks this immediately before dispatch, at
@@ -463,12 +530,12 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 // a short floor to keep a noisy peer from spinning status GETs.
                 if (state->refreshRequested) state->wake.wait_for(lock, std::chrono::milliseconds(50), [&] { return state->stopped || state->eventFatal; });
                 else state->wake.wait_for(lock, std::chrono::milliseconds(delay), [&] {
-                    return state->stopped || state->eventFatal || state->pending.has_value() || state->refreshRequested || state->doctor.busy();
+                    return state->stopped || state->eventFatal || state->pending.has_value() || state->mediaPending.has_value() || state->refreshRequested || state->doctor.busy();
                 });
             }
         } catch (...) { /* No raw network/identity exception enters the HUD. */ }
         const std::lock_guard lock(state->mutex);
-        state->view = DeckHudHostReducer::unavailable(); state->live.reset(); state->pending.reset();
+        state->view = DeckHudHostReducer::unavailable(); state->live.reset(); state->pending.reset(); state->mediaPending.reset(); state->mediaScope.reset();
         if (state->busy) state->message = "Couldn't confirm the change. Check the connection before trying again.";
         if (state->busy && state->syncChange) state->syncResult("unconfirmed", "The session ended or became unavailable. The profile change wasn't confirmed. Review it after reconnecting; Nova will not resend it.");
         state->busy = false;
@@ -476,6 +543,17 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
         state->doctor = {};
     }));
     worker_->start();
+}
+bool DeckHudHostObserver::submitClientMedia(const polaris::DeckClientMediaSample& sample) {
+    if (!polaris::freshClientMedia(sample, polaris::clientMediaMonotonicMs())) return false;
+    const std::lock_guard lock(shared_->mutex);
+    if (shared_->stopped || shared_->eventFatal || !shared_->mediaSupported || !shared_->mediaScope ||
+        !shared_->view.value("hostFresh").toBool() || Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs) ||
+        sample.atMs <= shared_->mediaLastQueued || !polaris::clientMediaBody(sample, *shared_->mediaScope)) return false;
+    shared_->mediaLastQueued = sample.atMs;
+    shared_->mediaPending = Shared::MediaIntent{sample, *shared_->mediaScope, shared_->refreshVersion};
+    shared_->wake.notify_all();
+    return true;
 }
 DeckHudHostObserver::~DeckHudHostObserver() {
     shared_->stopped = true;
@@ -494,10 +572,11 @@ bool DeckHudHostObserver::setLiveTuningEnabled(bool enabled) {
 }
 bool DeckHudHostObserver::setFixedBitrate(int bitrateKbps) {
     const std::lock_guard lock(shared_->mutex);
-    if (bitrateKbps < 1000 || bitrateKbps > 300000 || shared_->stopped || shared_->busy || shared_->doctor.busy() ||
+    if (bitrateKbps < shared_->view.value("minimumBitrateKbps",1000).toInt() || bitrateKbps > shared_->view.value("maximumBitrateKbps",300000).toInt() || shared_->stopped || shared_->busy || shared_->doctor.busy() ||
         !shared_->view.value("canSetBitrate").toBool() || !shared_->live ||
         Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs)) return false;
-    shared_->pending = Shared::Intent{false, *shared_->live, bitrateKbps}; shared_->busy = true;
+    const auto encoder = shared_->units ? encoderForRequest(bitrateKbps,shared_->units->audio,shared_->units->fec) : bitrateKbps;
+    shared_->pending = Shared::Intent{false, *shared_->live, encoder, {}, shared_->units, shared_->view.value("bitrateUnitsMode").toString(), bitrateKbps}; shared_->busy = true;
     shared_->fixedChange = true; shared_->requestedBitrate = bitrateKbps;
     shared_->syncChange = false; shared_->syncResult("idle", "");
     shared_->message = "Checking the current session…";

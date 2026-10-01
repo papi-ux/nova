@@ -104,7 +104,7 @@ class NovaLibrarySourceGuardTest {
                 activity.contains("layoutMode == NovaLibraryLayoutMode.STAGE") &&
                 activity.contains("NovaLibraryStage(") &&
                 activity.contains("layoutMode = layoutMode") &&
-                activity.contains("layoutMode = NovaLibraryLayoutMode.COMPACT") &&
+                panels.contains("NovaLibraryLayoutMode.COMPACT") &&
                 activity.contains("showPosterTitle = model.optionsState.showPosterTitles")
         )
         assertTrue(
@@ -469,15 +469,9 @@ class NovaLibrarySourceGuardTest {
                 continueCard.substringAfter("val secondaryLabel").contains("NovaSplitConfirm(") &&
                 !continueCard.substringAfter("val secondaryLabel").contains("primary = true")
         )
-        assertTrue(
-            "landscape library should restore the recent rail after picker/grid content, not between hero and picker",
-            landscape.indexOf("NovaLibraryContent(") in 0 until landscape.indexOf("NovaLibraryRecentRail(")
-        )
-        assertTrue(
-            "landscape recent rail should ask the mapper whether the hero already owns resume/continue instead of duplicating it",
-            screen.contains("NovaLibraryUiStateMapper.showLandscapeRecentRail(") &&
-                screen.contains("heroReason = model.hero.reason") &&
-                screen.contains("recentCount = model.recentGames.size")
+        assertFalse(
+            "Regular and Compact render recent games once in the grid, without the retired Continue rail",
+            screen.contains("NovaLibraryRecentRail(") || screen.contains("showLandscapeRecentRail"),
         )
         assertTrue(
             "hero should use the mapped model hero state instead of recomputing presentation copy",
@@ -593,7 +587,7 @@ class NovaLibrarySourceGuardTest {
         )
         val content = activity.section(
             "private fun NovaLibraryContent(",
-            "private fun NovaLibraryRecentRail("
+            "private fun rememberLibraryPosterFocusRequester("
         )
 
         assertTrue(
@@ -627,7 +621,7 @@ class NovaLibrarySourceGuardTest {
         val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
         val content = activity.section(
             "private fun NovaLibraryContent(",
-            "private fun NovaLibraryRecentRail("
+            "private fun rememberLibraryPosterFocusRequester("
         )
 
         assertTrue(
@@ -800,7 +794,7 @@ class NovaLibrarySourceGuardTest {
             "shared poster call sites should request focus once when they match the remembered game " +
                 "(restore and cold start share the settled request path)",
             source.windowed("rememberLibraryPosterFocusRequester(".length)
-                .count { it == "rememberLibraryPosterFocusRequester(" } == 3 &&
+                .count { it == "rememberLibraryPosterFocusRequester(" } == 2 &&
                 posterFocus.contains("val focusRequester = remember { FocusRequester() }") &&
                 posterFocus.contains("if ((restoreFocus || coldStartFocus) && !restoreAttempted)") &&
                 posterFocus.contains("focusRequester.requestFocus()")
@@ -819,20 +813,15 @@ class NovaLibrarySourceGuardTest {
     }
 
     @Test
-    fun gridCompactAndRecentUseSharedCinematicPosterCallSites() {
+    fun gridAndCompactUseOneSharedCinematicPosterCallSite() {
         val activity = readNovaLibraryActivity()
         val content = activity.section(
             "private fun NovaLibraryContent(",
-            "private fun NovaLibraryRecentRail("
+            "private fun rememberLibraryPosterFocusRequester("
         )
-        val recentRail = activity.section(
-            "private fun NovaLibraryRecentRail(",
-            "@Composable\n    private fun NovaLibraryLoadingGrid("
-        )
-
         assertEquals(
-            "Grid/Compact and Recent should be the Activity's only two shared-poster call sites",
-            2,
+            "Grid and Compact should render each game through one shared-poster call site",
+            1,
             activity.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" },
         )
         assertEquals(
@@ -845,17 +834,6 @@ class NovaLibrarySourceGuardTest {
             content.contains("layoutMode = layoutMode") &&
                 content.contains("showPosterTitle = model.optionsState.showPosterTitles") &&
                 content.contains("onOpenDetail = { onOpenDetail(game) }")
-        )
-        assertEquals(
-            "the Recent/Continue rail should render one shared poster per keyed game",
-            1,
-            recentRail.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" },
-        )
-        assertTrue(
-            "the Recent/Continue rail should use Compact presentation and preserve title/detail callbacks",
-            recentRail.contains("layoutMode = NovaLibraryLayoutMode.COMPACT") &&
-                recentRail.contains("showPosterTitle = showPosterTitles") &&
-                recentRail.contains("onOpenDetail = { onOpenDetail(game) }")
         )
         assertTrue(
             "Stage poster loading should receive a stable remembered loader rather than a new recomposition identity",
@@ -875,7 +853,7 @@ class NovaLibrarySourceGuardTest {
             ".border(4.dp, surfaces.focusRing",
             "R.string.nova_library_card_action_details",
         ).forEach { forbidden ->
-            assertFalse("migrated Activity poster call sites must not render legacy visual chrome: $forbidden", content.contains(forbidden) || recentRail.contains(forbidden))
+            assertFalse("migrated Activity poster call sites must not render legacy visual chrome: $forbidden", content.contains(forbidden))
         }
     }
 
@@ -884,7 +862,7 @@ class NovaLibrarySourceGuardTest {
         val activity = readNovaLibraryActivity()
         val content = activity.section(
             "private fun NovaLibraryContent(",
-            "private fun NovaLibraryRecentRail("
+            "private fun rememberLibraryPosterFocusRequester("
         )
         val loading = activity.section(
             "private fun NovaLibraryLoadingGrid(",
@@ -1126,7 +1104,7 @@ class NovaLibrarySourceGuardTest {
         assertTrue(source.contains("recreateForThemeChangeIfNeeded()"))
         val content = source.section(
             "private fun NovaLibraryContent(",
-            "private fun NovaLibraryRecentRail("
+            "private fun rememberLibraryPosterFocusRequester("
         )
 
         assertTrue(
@@ -1157,7 +1135,7 @@ class NovaLibrarySourceGuardTest {
         val mapper = readSource("src/main/java/com/papi/nova/ui/NovaLibraryUiState.kt")
         val content = source.section(
             "private fun NovaLibraryContent(",
-            "private fun NovaLibraryRecentRail("
+            "private fun rememberLibraryPosterFocusRequester("
         )
 
         assertTrue(
@@ -1204,38 +1182,10 @@ class NovaLibrarySourceGuardTest {
             )
         )
         assertTrue(
-            "recent rail games should declare a stable content type",
-            source.containsRegex(
-                """items\s*\(\s*games\s*,[\s\S]*?contentType\s*=\s*\{\s*"recent-game"\s*\}\s*\)\s*\{"""
-            )
-        )
-        assertTrue(
             "loading grid placeholders should declare a stable content type",
             source.containsRegex(
                 """items\s*\(\s*12\s*,[\s\S]*?contentType\s*=\s*\{\s*"loading-card"\s*\}\s*\)\s*\{"""
             )
-        )
-    }
-
-    @Test
-    fun libraryRecentRailTargetsFourVisibleCards() {
-        val rail = readNovaLibraryActivity().section(
-            "private fun NovaLibraryRecentRail(",
-            "@Composable\n    private fun NovaLibraryLoadingGrid("
-        )
-
-        assertTrue(
-            "continue rail should calculate card width from the available row width",
-            rail.contains("BoxWithConstraints(") &&
-                rail.contains("NovaLibraryUiStateMapper.recentRailCardWidthDp")
-        )
-        assertTrue(
-            "continue rail should target four visible game columns",
-            rail.contains("NovaLibraryUiStateMapper.RECENT_RAIL_VISIBLE_COLUMNS")
-        )
-        assertFalse(
-            "continue rail should not keep the old oversized fixed game card width",
-            rail.contains("Modifier.width(176.dp)")
         )
     }
 
@@ -1716,11 +1666,11 @@ class NovaLibrarySourceGuardTest {
     }
 
     @Test
-    fun task9StageGridCompactAndRecentUseOnlySharedPosterCard() {
+    fun task9StageGridAndCompactUseOnlySharedPosterCard() {
         val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
         val activity = readNovaLibraryActivity()
         assertEquals(2, stage.countOccurrences("NovaLibraryPosterCard("))
-        assertEquals(2, activity.countOccurrences("NovaLibraryPosterCard("))
+        assertEquals(1, activity.countOccurrences("NovaLibraryPosterCard("))
         assertFalse(stage.contains("NovaLibraryStageCard("))
         assertFalse(activity.contains("NovaLibraryGameCard("))
     }
@@ -1742,7 +1692,7 @@ class NovaLibrarySourceGuardTest {
     // Task 9 plain-art/default/semantic source guards: END
 
     @Test
-    fun sharedPosterCardIsCleanOwnerAcrossStageGridAndRecentMigrations() {
+    fun sharedPosterCardIsCleanOwnerAcrossStageAndGridMigrations() {
         val poster = readSource("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
         val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
         val activity = readNovaLibraryActivity()
@@ -1778,7 +1728,7 @@ class NovaLibrarySourceGuardTest {
         assertTrue(focusComponents.contains("const val DurationMillis = 150"))
         assertTrue(focusComponents.contains("const val CardFocusedScale = 1.025f"))
         assertEquals(2, stage.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" })
-        assertEquals(2, activity.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" })
+        assertEquals(1, activity.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" })
     }
 
     @Test
@@ -1807,9 +1757,9 @@ class NovaLibrarySourceGuardTest {
         assertTrue(focusedItem < heroFallback && heroFallback < filteredFallback && filteredFallback < recentFallback)
         assertTrue(backdropCall >= 0 && backdropCall < particles && backdropCall < windowContent)
         assertTrue(
-            "every surface that can focus a game has to report it so the backdrop follows. The count dropped by one when the standalone continue card became a slot in the showcase strip, which has a button rather than a focusable card.",
+            "Stage, grid and live-session surfaces must report game focus after retiring the duplicate recent rail.",
             activity.windowed("onGameFocused = onGameFocused".length)
-                .count { it == "onGameFocused = onGameFocused" } >= 6,
+                .count { it == "onGameFocused = onGameFocused" } == 5,
         )
     }
 

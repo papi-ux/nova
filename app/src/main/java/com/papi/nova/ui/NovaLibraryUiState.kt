@@ -371,8 +371,6 @@ object NovaLibraryUiStateMapper {
     private const val RECENT_LIMIT = 6
     private const val LANDSCAPE_OUTER_PADDING_DP = 20
     private const val LANDSCAPE_RAIL_GAP_DP = 10
-    const val RECENT_RAIL_VISIBLE_COLUMNS = 4
-    private const val RECENT_RAIL_HORIZONTAL_PADDING_DP = 24
     private const val GAME_CARD_GAP_DP = 10
     private const val GRID_CONTENT_PADDING_DP = 10
     private const val GRID_ITEM_SPACING_DP = 6
@@ -401,7 +399,6 @@ object NovaLibraryUiStateMapper {
      */
     private const val LANDSCAPE_GRID_BOTTOM_CONTENT_PADDING_DP = 44
     private const val CONTROLLER_HINT_BAR_MIN_HEIGHT_DP = 34
-    private const val MIN_RECENT_RAIL_CARD_WIDTH_DP = 72
     private const val RAIL_SCROLL_BOTTOM_PADDING_DP = 96
     private const val RAIL_VERTICAL_SPACING_DP = 4
     private const val FILTER_CHIP_HEIGHT_DP = 38
@@ -410,7 +407,6 @@ object NovaLibraryUiStateMapper {
     private const val RAIL_ACTION_BUTTON_MIN_HEIGHT_DP = 38
     private const val RAIL_ACTION_GRID_SPACING_DP = 8
     private const val RAIL_ACTION_GRID_THREE_COLUMN_MIN_WIDTH_DP = 200
-    private const val LANDSCAPE_RECENT_RAIL_MIN_HEIGHT_DP = 560
     private const val LANDSCAPE_SCREEN_PADDING_DP = 8
     private const val PORTRAIT_SCREEN_PADDING_DP = 8
     private const val LANDSCAPE_CONTENT_SPACING_DP = 6
@@ -1147,16 +1143,6 @@ object NovaLibraryUiStateMapper {
         return ((shifted + itemCount) % itemCount).toInt()
     }
 
-    fun recentRailCardWidthDp(
-        availableWidthDp: Int,
-        visibleColumns: Int = RECENT_RAIL_VISIBLE_COLUMNS
-    ): Int {
-        val columns = visibleColumns.coerceAtLeast(1)
-        val gapWidth = GAME_CARD_GAP_DP * (columns - 1)
-        return ((availableWidthDp - RECENT_RAIL_HORIZONTAL_PADDING_DP - gapWidth) / columns)
-            .coerceAtLeast(MIN_RECENT_RAIL_CARD_WIDTH_DP)
-    }
-
     fun gridContentPaddingDp(): Int = GRID_CONTENT_PADDING_DP
 
     fun posterFocusLiftDp(): Int = POSTER_FOCUS_LIFT_DP
@@ -1445,11 +1431,13 @@ object NovaLibraryUiStateMapper {
             ?: filteredGames.firstOrNull()
     }
 
-    /** Regular gives its idle space to the grid; a live stream keeps its Resume/End card. */
+    /** Every layout gives its idle space to the grid; a live stream keeps its Resume/End card. */
     fun showStandaloneHomeHero(
         layoutMode: NovaLibraryLayoutMode,
         hasActiveSession: Boolean,
-    ): Boolean = hasActiveSession || layoutMode == NovaLibraryLayoutMode.COMPACT
+    ): Boolean = when (layoutMode) {
+        NovaLibraryLayoutMode.GRID, NovaLibraryLayoutMode.COMPACT, NovaLibraryLayoutMode.STAGE -> hasActiveSession
+    }
 
     /**
      * Whether the landscape strip's card has something to act on now: a live game to resume or
@@ -1459,23 +1447,6 @@ object NovaLibraryUiStateMapper {
      */
     fun showTopBarCard(hero: NovaLibraryHeroState): Boolean =
         hero.reason == NovaLibraryHeroReason.ACTIVE_SESSION || hero.reason == NovaLibraryHeroReason.EMPTY
-
-    fun showLandscapeRecentRail(
-        screenHeightDp: Int,
-        heroReason: NovaLibraryHeroReason,
-        recentCount: Int
-    ): Boolean {
-        if (recentCount <= 0 || screenHeightDp < LANDSCAPE_RECENT_RAIL_MIN_HEIGHT_DP) {
-            return false
-        }
-        return when (heroReason) {
-            NovaLibraryHeroReason.ACTIVE_SESSION,
-            NovaLibraryHeroReason.LAST_PLAYED -> false
-            NovaLibraryHeroReason.FIRST_FILTERED,
-            NovaLibraryHeroReason.FIRST_LIBRARY_GAME,
-            NovaLibraryHeroReason.EMPTY -> true
-        }
-    }
 
     fun contentWidthDp(
         widthDp: Int,

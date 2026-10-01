@@ -17,6 +17,7 @@ Popup {
     property var returnFocus: null
     property string error: ""
     property real unit: 1
+    property int maximumBitrateKbps: 300000
     readonly property var limits: settingsProvider ? settingsProvider.streamLimits : ({})
     readonly property bool sizeVisible: defaultsScope || field === "resolution"
     readonly property bool rateVisible: defaultsScope || field === "fps"
@@ -68,8 +69,8 @@ Popup {
         }
         if (bitrateVisible) {
             if (!/^[0-9]+(\.[0-9]{1,3})?$/.test(bitrateField.text)
-                    || Number(bitrateField.text) * 1000 < limits.minBitrateKbps || Number(bitrateField.text) * 1000 > limits.maxBitrateKbps) {
-                error = "Polaris accepts " + limits.minBitrateKbps / 1000 + "–" + limits.maxBitrateKbps / 1000 + " Mbps, with up to three decimal places."; return
+                    || Number(bitrateField.text) * 1000 < limits.minBitrateKbps || Number(bitrateField.text) * 1000 > maximumBitrateKbps) {
+                error = "Polaris accepts " + limits.minBitrateKbps / 1000 + "–" + maximumBitrateKbps / 1000 + " Mbps, with up to three decimal places."; return
             }
             values.bitrateKbps = Math.round(Number(bitrateField.text) * 1000)
         }

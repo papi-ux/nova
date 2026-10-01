@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="nova_panel_decrease_value">Decrease value</string>
+    <string name="nova_panel_increase_value">Increase value</string>
     <string name="nova_control_size_title">Control Size</string>
     <string name="nova_control_size_summary">Resize buttons and spacing in the modern interface. Text Size stays independent.</string>
     <!-- Shortcut strings -->
@@ -1771,7 +1773,7 @@
     <string name="nova_artwork_library_update_retry_hint">Checks only the games that failed.</string>
     <string name="nova_artwork_library_update_retry_all">Try again</string>
     <string name="nova_artwork_library_update_retry_all_hint">Starts a new all-games artwork check.</string>
-    <string name="nova_stage_footer_brand">POLARIS CINEMATIC STAGE</string>
+    <string name="nova_library_footer_brand">NOVA LIBRARY</string>
     <!-- Were hardcoded English literals inside the settings search field. -->
     <string name="nova_settings_search_hint">Search Settings</string>
     <string name="nova_settings_search_clear">Clear</string>

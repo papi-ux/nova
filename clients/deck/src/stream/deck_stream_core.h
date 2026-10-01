@@ -99,6 +99,7 @@ struct DeckMoonlightConnectionStatus {
     int lastStage = -1;               ///< the last STAGE_* reported, -1 when none
     int failedStage = -1;             ///< the STAGE_* that failed, -1 when none
     int failedStageErrorCode = 0;     ///< the error code that stage reported
+    int startErrorCode = 0;          ///< LiStartConnection result, including failures without a callback
 };
 
 /// The two moonlight-common-c calls that open and close its single global
@@ -558,6 +559,7 @@ private:
     std::atomic<int> lastStage_ = -1;
     std::atomic<int> failedStage_ = -1;
     std::atomic<int> failedStageErrorCode_ = 0;
+    std::atomic<int> startErrorCode_ = 0;
 };
 
 } // namespace nova::deck::stream

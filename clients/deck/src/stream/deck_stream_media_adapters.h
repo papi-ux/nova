@@ -1,4 +1,5 @@
 #pragma once
+#include "stream/deck_media_counters.h"
 #include "stream/deck_video_scale.h"
 
 #include "stream/deck_audio_output.h"
@@ -226,6 +227,7 @@ struct DeckRendererLifecycle {
     int decodedHardwareFrames = 0;
     int presentedHardwareFrames = 0;
     std::uint64_t incomingFrames = 0, videoBytes = 0;
+    polaris::DeckMediaCounts media;
     // Time in the decoder submission callback, including waits and handoff.
     // These are not GPU-only timings or network-loss counters.
     std::uint64_t videoWorkMicros = 0, videoWorkSamples = 0, refusedFrames = 0;
@@ -433,6 +435,7 @@ private:
 
     mutable std::mutex lifecycleMutex_;
     DeckRendererLifecycle lifecycle_{};
+    DeckVideoFrameCounters mediaCounters_;
     bool ready_ = false;
     AVBufferRef* hardwareDevice_ = nullptr;
     AVCodecContext* codecContext_ = nullptr;

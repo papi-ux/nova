@@ -37,7 +37,7 @@ FocusScope {
         return result
     }
     Timer { id: planRefresh; interval: 150; onTriggered: if (setup.gameTools && setup.visible) setup.gameTools.review(setup.plan.configuration) }
-    function checkPlan() { if (gameTools && !spaceSession) planRefresh.restart() }
+    function checkPlan() { if (gameTools && !spaceSession && planRefresh) planRefresh.restart() }
 
     property string hostId: ""
     property string gameId: ""
@@ -58,6 +58,9 @@ FocusScope {
         const revision = settingsProvider.videoSupportRevision
         return settingsProvider.streamPlan(requestedConfiguration, streamCapabilities, displayPlanner, displayCapabilities, spaceSession)
     }
+    readonly property var bitrateAdvice: settingsProvider.bitrateAdvice(plan.configuration, toolsState.pyrowaveAdvice || ({}))
+    readonly property int recommendedKbps: Math.min(bitrateAdvice.kbps || 0, plan.maxBitrateKbps || 300000, 300000)
+    readonly property bool belowAdvice: codecManagesEncoder && recommendedKbps > 0 && configuration.bitrateKbps < recommendedKbps * 0.8
     readonly property var audioSettings: settingsProvider.audioSettings
     readonly property int audioChannels: spaceSession ? 2 : audioSettings.channels
     readonly property string audioLabel: audioChannels === 8 ? "7.1 surround" : audioChannels === 6 ? "5.1 surround" : "Stereo audio"
@@ -69,10 +72,15 @@ FocusScope {
         { launchMode: "windowed_stream", label: "Private Stream (GPU-native)", detail: "Use the host's GPU-native private streaming path." },
         { launchMode: "gamescope_stream", label: "Gamescope Stream", detail: "Run the game in the host's Gamescope streaming session." }
     ]
-    readonly property var launchChoices: [{ launchMode: "default", label: spaceDestination ? "Space default" : "Host default",
-        detail: spaceDestination ? "Use this Space's launch settings." : "Let your PC choose its configured launch mode. This does not change the PC's settings." }].concat(
+    readonly property string defaultLaunchLabel: spaceDestination ? "Space default"
+        : launchPolicy.followsHostDefault === false ? "App default" : "Host default"
+    readonly property var launchChoices: [{ launchMode: "default", label: defaultLaunchLabel,
+        detail: spaceDestination ? "Use this Space's launch settings."
+            : launchPolicy.defaultAvailable === false ? (launchPolicy.unavailableReason || "This app's Launch As mode is unavailable.")
+            : launchPolicy.followsHostDefault === false ? "Use this app's Launch As mode set on the PC."
+            : "Let your PC choose its configured launch mode. This does not change the PC's settings." }].concat(
             modeOptions.filter(option => !spaceDestination && launchPolicy.known && (launchPolicy.allowed || []).indexOf(option.launchMode) >= 0))
-    readonly property bool launchModeAllowed: configuration.launchMode === "default"
+    readonly property bool launchModeAllowed: (configuration.launchMode === "default" && launchPolicy.defaultAvailable !== false)
         || (!spaceDestination && launchPolicy.known && (launchPolicy.allowed || []).indexOf(configuration.launchMode) >= 0)
     readonly property string effectiveFaceButtonLayout: configuration.faceButtonLayout === "default"
         ? settingsProvider.defaultFaceButtonLayout : configuration.faceButtonLayout
@@ -83,7 +91,7 @@ FocusScope {
     property string error: ""
     property string notice: ""
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
-    readonly property var rows: [resolution, rate, bitrate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible && (row !== encoder || !codecManagesEncoder))
+    readonly property var rows: [resolution, rate, bitrate, recommendedRate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible && (row !== encoder || !codecManagesEncoder))
     signal choiceOpened()
     signal focusPlayRequested()
     signal backRequested()
@@ -102,6 +110,7 @@ FocusScope {
     }
 
     onPlanChanged: {
+        if (visible) checkPlan()
         // A display move or PC refresh can withdraw the focused rate. Return
         // to its row so a copied popup model cannot offer an obsolete choice.
         if (picker && picker.opened && ((picker.returnFocus === rate
@@ -123,8 +132,8 @@ FocusScope {
         notice = ""
         hostPlanKnown = false
         if (gameTools && !spaceSession) gameTools.prepare(hostId, gameId, plan.configuration)
-        if (!launchModeAllowed && launchPolicy.known) {
-            if (save({ launchMode: "default" })) notice = "Your saved launch mode is no longer available. Using host default."
+        if (!launchModeAllowed && launchPolicy.known && configuration.launchMode !== "default") {
+            if (save({ launchMode: "default" })) notice = "Your saved launch mode is no longer available. Using " + defaultLaunchLabel.toLowerCase() + "."
         }
     }
     function save(values) {
@@ -184,6 +193,7 @@ FocusScope {
             choiceCenters: picker.choices.map((choice, index) => center(choiceButtons.itemAt(index))) }
     }
     function modeLabel(mode) {
+        if (mode === "default") return defaultLaunchLabel
         if (spaceDestination && mode === "default") return "Space default"
         return (modeOptions.find(option => option.launchMode === mode) || {}).label
             || (mode === "headless_dongle" ? "Headless Dongle" : "Host default")
@@ -201,6 +211,7 @@ FocusScope {
         return (labels[field.key] || field.key) + ": " + value + " · " + (sources[field.source] || "Host plan") + (field.normalized ? " (adjusted)" : "")
     }
     readonly property string planHeadline: spaceDestination ? "Play in " + destinationName
+        : configuration.launchMode === "default" && launchPolicy.followsHostDefault === false ? modeLabel(launchPolicy.hostDefault)
         : configuration.launchMode === "default" ? "Play on Desktop" : modeLabel(configuration.launchMode)
     readonly property string planIntro: "Start " + gameTitle + (spaceDestination ? " in " + destinationName + " on " : " on ")
         + hostName + " and stream it here."
@@ -209,7 +220,8 @@ FocusScope {
         { key: "Stream", value: plan.configuration.width + " × " + plan.configuration.height + " · " + plan.configuration.fps + " fps",
             detail: plan.adjustment || ((overrides.resolution || overrides.fps) ? "This game's choices" : "Nova defaults"), warning: plan.adjustment.length > 0 },
         { key: "Picture", value: plan.videoLabel + " · " + (plan.configuration.bitrateKbps / 1000) + " Mbps",
-            detail: plan.displayLabel + " · " + plan.codecDetail },
+            detail: belowAdvice ? "Low for PyroWave detail · Recommended " + (recommendedKbps / 1000).toFixed(1) + " Mbps" : plan.displayLabel + " · " + plan.codecDetail,
+            warning: belowAdvice },
         { key: "Audio", value: audioLabel + " · PC audio " + (audioSettings.playHostAudio ? "on" : "off"),
             detail: spaceDestination ? "Spaces use stereo. Your device audio preference stays saved." : "Device setting · System › Audio" },
         { key: "Buttons", value: effectiveFaceButtonLayout === "positions" ? "Match positions" : "Match labels",
@@ -219,7 +231,7 @@ FocusScope {
                 && (!codecManagesEncoder || (f.key !== "preferred_codec" && f.key !== "hdr"))).map(hostPlanFact).join("\n")
                 || (toolsState.copy || "The host confirms its settings when the game starts.") },
         { key: "Launch", value: modeLabel(configuration.launchMode), detail: spaceDestination ? "Uses this Space's launch settings."
-            : configuration.launchMode === "default" ? (launchPolicy.known ? "PC default: " + modeLabel(launchPolicy.hostDefault) : "Uses your PC's launch settings.")
+            : configuration.launchMode === "default" ? (launchPolicy.known ? defaultLaunchLabel + ": " + modeLabel(launchPolicy.hostDefault) : "Uses your PC's launch settings.")
             : "Applies to this launch; the PC default stays unchanged." }
     ]
     component Copy: Label {
@@ -402,11 +414,29 @@ FocusScope {
                     defaultExplanation: "Use Nova's current device-default starting bitrate."
                     label: "Bitrate"; value: (configuration.bitrateKbps / 1000) + " Mbps"
                     onClicked: {
-                        const choices = [10,20,30,40].map(value => ({label: value + " Mbps", detail: "Starting bitrate for this stream.", bitrateKbps: value * 1000}))
+                        const choices = (codecManagesEncoder ? [50,100,150,200,250,300] : [10,20,30,40]).filter(value => value * 1000 <= (plan.maxBitrateKbps || 300000)).map(value => ({label: value + " Mbps", detail: "Starting bitrate for this stream.", bitrateKbps: value * 1000}))
+                        if (codecManagesEncoder && recommendedKbps > 0 && !choices.some(choice => choice.bitrateKbps === recommendedKbps))
+                            choices.unshift({label: "Recommended · " + (recommendedKbps / 1000).toFixed(1) + " Mbps", detail: bitrateAdvice.basis === "host" ? "Advice from this PC." : "Calibrated PyroWave estimate for handheld viewing.", bitrateKbps: recommendedKbps})
                         if (!choices.some(choice => choice.bitrateKbps === configuration.bitrateKbps))
                             choices.push({label: (configuration.bitrateKbps / 1000) + " Mbps", detail: "Your saved custom bitrate.", bitrateKbps: configuration.bitrateKbps})
                         picker.choose(bitrate, "Bitrate", choices, choices.findIndex(choice => choice.bitrateKbps === configuration.bitrateKbps))
                     }
+                }
+                Setting {
+                    id: recommendedRate; objectName: "play-setup-recommended-bitrate"
+                    visible: codecManagesEncoder && recommendedKbps > 0 && configuration.bitrateKbps !== recommendedKbps
+                    enabled: setup.editable
+                    label: "Also use recommended"; value: (recommendedKbps / 1000).toFixed(1) + " Mbps"
+                    explanation: bitrateAdvice.basis === "host" ? "Advice from this PC for the selected picture." : "Calibrated estimate for handheld viewing. Compare fine detail and motion."
+                    Layout.fillWidth: true
+                    onClicked: {
+                        if (setup.save({bitrateKbps: recommendedKbps})) {
+                            setup.checkPlan()
+                            bitrate.forceActiveFocus()
+                        }
+                    }
+                    Keys.onUpPressed: setup.rows[setup.rows.indexOf(this) - 1].forceActiveFocus()
+                    Keys.onDownPressed: setup.rows[setup.rows.indexOf(this) + 1].forceActiveFocus()
                 }
                 Setting {
                     id: faceButtons; objectName: "play-setup-face-buttons"
@@ -493,7 +523,7 @@ FocusScope {
                     Layout.fillWidth: true
                     visible: notice.length > 0 || !launchModeAllowed || !plan.playable || plan.adjustment.length > 0
                     text: (!plan.playable ? plan.reason : "") || (!launchModeAllowed
-                        ? "Refresh this PC to verify your saved launch mode, or choose Host default." : "") || notice || plan.adjustment
+                        ? (launchPolicy.unavailableReason || "Refresh this PC to verify your saved launch mode, or choose " + defaultLaunchLabel + ".") : "") || notice || plan.adjustment
                     color: NovaTheme.warning
                     font.pixelSize: 16 * unit * NovaTheme.fontScale
                 }
@@ -515,6 +545,7 @@ FocusScope {
     }
     StreamProfileEditor {
         id: customEditor
+        maximumBitrateKbps: setup.plan.maxBitrateKbps || 300000
         settingsProvider: setup.settingsProvider; editable: setup.editable; hostId: setup.hostId; gameId: setup.gameId; unit: setup.unit
         onSaved: { setup.reloadChoices(); setup.error = ""; setup.notice = "Saved for this game." }
     }

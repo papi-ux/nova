@@ -11,7 +11,12 @@ class NovaReleaseMetadataTest {
         val workflow = File(root, ".github/workflows/build.yml").readText()
         val standard = workflowJob(workflow, "deck-flatpak")
         val release = workflowJob(workflow, "build")
-        assertTrue(standard.contains("manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.json"))
+        assertTrue(standard.contains("manifest-path: clients/deck/packaging/flatpak/release-build.json"))
+        val metadata = workflowStep(standard, "Prepare Linux release metadata")
+        assertTrue(metadata.contains("shell: bash"))
+        assertTrue(metadata.contains("tools/nova_flatpak_feed.py prepare-release"))
+        assertTrue(metadata.contains("version_args+=(--version \"\$GITHUB_REF_NAME\")"))
+        assertTrue(metadata.contains("clients/deck/packaging/flatpak/com.papi_ux.Nova.json"))
         assertTrue(standard.contains("ref: \${{ github.sha }}"))
         assertTrue(standard.contains("submodules: recursive"))
         assertTrue(standard.contains("if-no-files-found: error"))
@@ -270,7 +275,7 @@ class NovaReleaseMetadataTest {
         assertTrue(buildGradle.contains("applicationIdSuffix \".pre\""))
         assertTrue(buildGradle.contains("versionNameSuffix novaVersionSuffix"))
         assertTrue(buildGradle.contains(
-            "providers.gradleProperty(\"novaVersionSuffix\").getOrElse(\"-pre\")"
+            "providers.gradleProperty(\"novaVersionSuffix\").getOrElse(\"-beta\")"
         ))
 
         // Nothing downstream may name the stable variant, or a beta tag would ship stable APKs.

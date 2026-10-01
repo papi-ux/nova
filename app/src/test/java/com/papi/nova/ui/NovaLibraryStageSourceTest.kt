@@ -415,7 +415,7 @@ class NovaLibraryStageSourceTest {
         assertTrue(source.contains("Key.DirectionLeft -> onNavigate?.invoke(-1) ?: false"))
         assertTrue(source.contains("Key.DirectionRight -> onNavigate?.invoke(1) ?: false"))
         assertTrue(stage.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" } == 2)
-        assertTrue(activity.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" } == 2)
+        assertTrue(activity.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" } == 1)
     }
 
 
@@ -434,7 +434,7 @@ class NovaLibraryStageSourceTest {
                 "fun task9SharedPosterCardKeepsMetadataInAccessibilityOnly()",
                 // Posters moved from a scale to the lift and the one ring (spec section 2).
                 "fun task9SharedPosterCardUsesLiftAndTheOneRingWithoutBadgesOrBorders()",
-                "fun task9StageGridCompactAndRecentUseOnlySharedPosterCard()",
+                "fun task9StageGridAndCompactUseOnlySharedPosterCard()",
                 "fun task9StageIdentityUsesOneManifestIconAndOneRenderedTitle()",
             ),
         )

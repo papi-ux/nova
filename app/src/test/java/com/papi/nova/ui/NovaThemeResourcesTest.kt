@@ -200,15 +200,18 @@ class NovaThemeResourcesTest {
     }
 
     @Test
-    fun serverSelectionAccentsUseThemeAttributesInsteadOfGlobalGreenResource() {
+    fun serverModeFocusAndLabelsUseThemeAttributesInsteadOfGlobalGreenResource() {
         val portrait = File("src/main/res/layout/activity_pc_view.xml").readText()
         val landscape = File("src/main/res/layout-land/activity_pc_view.xml").readText()
         val styles = File("src/main/res/values/styles.xml").readText()
 
-        assertTrue(portrait.contains("app:strokeColor=\"?attr/colorAccent\""))
-        assertTrue(portrait.contains("android:textColor=\"?attr/colorAccent\""))
-        assertTrue(landscape.contains("app:strokeColor=\"?attr/colorAccent\""))
-        assertTrue(landscape.contains("android:textColor=\"?attr/colorAccent\""))
+        for (layout in listOf(portrait, landscape)) {
+            val hosts = layout.substringAfter("@+id/modeServers")
+                .substringBefore("</com.google.android.material.card.MaterialCardView>")
+            assertTrue("Mode focus follows the theme accent", hosts.contains("app:strokeColor=\"?attr/colorAccent\""))
+            assertTrue("Readable mode labels follow the theme's primary text, replacing the old accent dot",
+                hosts.contains("android:textColor=\"?android:textColorPrimary\""))
+        }
         assertTrue(styles.contains("<item name=\"chipBackgroundColor\">@color/nova_chip_bg_selector</item>"))
         assertTrue(styles.contains("<item name=\"chipStrokeColor\">@color/nova_focus_stroke_selector</item>"))
         assertTrue(File("src/main/res/color/nova_focus_stroke_selector.xml").readText().contains("?attr/colorAccent"))

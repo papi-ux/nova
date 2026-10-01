@@ -22,6 +22,28 @@ def command(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True, timeout=15).stdout.strip()
 
 
+def paging_navigation(wait, keys, state):
+    before = state()
+    index = before["visibleGames"].index(before["game"])
+    count = before["columns"] * max(1, before["rowsVisible"])
+    expected = before["visibleGames"][min(len(before["visibleGames"]) - 1, index + count)]
+    keys("Page_Down")
+    wait(lambda s: s.get("game") == expected and s.get("focus") == expected and s.get("selectionVisible"))
+    keys("Page_Up")
+    wait(lambda s: s.get("game") == before["visibleGames"][max(0, min(len(before["visibleGames"]) - 1, index + count) - count)])
+    selected = state()["game"]
+    keys("Return")
+    wait(lambda s: s.get("detailOpen"))
+    keys("Page_Down")
+    assert state()["game"] == selected, "shoulder paged behind details"
+    keys("Escape")
+    wait(lambda s: not s.get("detailOpen") and s.get("focus") == selected)
+    keys("Up", "Up", "Up", "Return")
+    wait(lambda s: s.get("optionsOpen"))
+    keys("Escape")
+    wait(lambda s: not s.get("optionsOpen"))
+
+
 def experience_navigation(wait, keys, state, save_capture, window):
     keys("Return")
     focus_game_play(wait, keys)
@@ -497,8 +519,18 @@ def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window, se
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
         wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
 
+    # Actual standalone HTTP->backend->Main model->Play Setup, beyond the
+    # direct QML/worker fixture. This host hint must not disable ordinary codecs.
+    capture_words = "PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route."
+    host["capture"]["pyrowave_unavailable"] = {"reason": "fp16_capture", "message": capture_words}
+    wait(lambda s: s.get("streamCapabilities", {}).get("pyrowaveUnavailableReason") == "fp16_capture")
+    assert state()["streamCapabilities"]["pyrowaveUnavailableMessage"] == capture_words
     review()
     plan = state()["playSetup"]["streamPlan"]
+    assert state()["playSetup"]["playEnabled"], "capture refusal disabled ordinary H.264"
+    for codec in plan["codecs"]:
+        if codec["videoCodec"] == "pyrowave":
+            assert codec["detail"] == capture_words, "standalone lost the PC's exact PyroWave refusal"
     assert [rate["fps"] for rate in plan["rates"]] == [30, 60], "host rate became unsupported client rate"
     assert plan["videoLabel"] == "H.264 · SDR" and plan["resolutions"][-1]["recommended"], "effective format/recommendation missing"
     resolution()
@@ -522,7 +554,7 @@ def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window, se
     host["capture"]["codecs"] = ["hevc"]
     wait(lambda s: s.get("streamCapabilities", {}).get("h264") is False and not s.get("busy"))
     review()
-    assert not state()["playSetup"]["playEnabled"] and "selected codec" in state()["playSetup"]["streamPlan"]["reason"]
+    assert not state()["playSetup"]["playEnabled"] and "This PC does not offer the selected video codec" in state()["playSetup"]["streamPlan"]["reason"]
     save_capture("stream-plan-codec-unavailable.png")
     close()
     host["capture"]["codecs"] = ["h264", "hevc"]
@@ -931,6 +963,84 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     keys("Return")
     choose(5, "genre")
     visible([7, 106], filter="genre", filterValue="Puzzle", sort="hdr")
+
+
+def steam_app_navigation(wait, keys, state, save_capture, window):
+    keys("Up", "Up", "Up", "Right", "Return")
+    wait(lambda s: s.get("systemOpen"))
+    for _ in range(14):
+        if state().get("focus") == "library-add-nova-steam":
+            break
+        keys("Down")
+    wait(lambda s: s.get("focus") == "library-add-nova-steam")
+    keys("Return")
+    wait(lambda s: s.get("appShortcut", {}).get("opened") and s.get("focus") == "app-steam-add")
+    assert not state()["appShortcut"]["status"]["busy"] and not state()["appShortcut"]["status"]["ok"]
+    save_capture("add-nova-steam-1280.png")
+    command("xdotool", "windowsize", window, "960", "600")
+    save_capture("add-nova-steam-960.png")
+    keys("Escape")
+    wait(lambda s: not s.get("appShortcut", {}).get("opened") and s.get("focus") == "library-add-nova-steam")
+    keys("Escape")
+    wait(lambda s: not s.get("systemOpen"))
+
+def handoff_limits_navigation(wait, keys, state, save_capture, window, record):
+    title = state()["title"]
+    keys("Right")
+    wait(lambda s: s.get("focus") == "handoff-primary-action")
+    keys("Return")
+    wait(lambda s: s.get("handoffReview", {}).get("opened") and s.get("focus") == "moonlight-review-continue")
+    assert not record.exists(), "review started Moonlight before confirmation"
+    limits = state()["handoffReview"]["limits"]
+    assert all(word in limits for word in ("NovaHUD", "Command Center", "Doctor", "Live Bitrate", "PyroWave")), limits
+    save_capture("moonlight-handoff-review-1280.png")
+    keys("Escape")
+    wait(lambda s: not s.get("handoffReview", {}).get("opened") and s.get("focus") == "handoff-primary-action")
+    assert not record.exists(), "Back launched Moonlight"
+    keys("Return")
+    wait(lambda s: s.get("handoffReview", {}).get("opened"))
+    command("xdotool", "windowsize", window, "960", "600")
+    save_capture("moonlight-handoff-review-960.png")
+    keys("Return")
+    wait(lambda s: not s.get("handoffReview", {}).get("opened") and record.exists())
+    assert record.read_text().splitlines() == ["stream", "a", title, "--display-mode", "fullscreen"], record.read_text()
+
+
+def wake_pc_navigation(wait, keys, state, save_capture, window):
+    keys("Up", "Up", "Up", "Right", "Return")
+    wait(lambda s: s.get("systemOpen"))
+    for _ in range(12):
+        if state().get("focus") == "library-wake-pc":
+            break
+        keys("Down")
+    wait(lambda s: s.get("focus") == "library-wake-pc")
+    keys("Return")
+    wait(lambda s: s.get("hostWake", {}).get("opened") and s.get("focus") == "host-wake-mac")
+    assert state()["hostWake"]["status"]["hostId"] == "a" and not state()["hostWake"]["status"]["canWake"]
+    save_capture("wake-first-open-1280.png")
+    keys("Return")
+    wait(lambda s: s.get("hostWake", {}).get("keyboardOpen"))
+    command("xdotool", "type", "--clearmodifiers", "02:11:22:33:44:55")
+    keys("Return")
+    wait(lambda s: not s.get("hostWake", {}).get("keyboardOpen") and s.get("hostWake", {}).get("dirty"))
+    assert not state()["hostWake"]["status"]["canWake"], "editor Done saved a MAC"
+    keys("Down", "Return")
+    wait(lambda s: s.get("hostWake", {}).get("status", {}).get("mac") == "02:11:22:33:44:55" and s.get("focus") == "host-wake-send")
+    save_capture("wake-saved-1280.png")
+    keys("Escape")
+    wait(lambda s: not s.get("hostWake", {}).get("opened") and s.get("focus") == "library-wake-pc")
+    keys("Return")
+    wait(lambda s: s.get("hostWake", {}).get("opened") and s.get("focus") == "host-wake-send")
+    command("xdotool", "windowsize", window, "960", "600")
+    save_capture("wake-saved-960.png")
+    keys("Up", "Up", "Return")
+    wait(lambda s: s.get("hostWake", {}).get("keyboardOpen"))
+    keys("Escape")
+    wait(lambda s: s.get("hostWake", {}).get("opened") and not s.get("hostWake", {}).get("keyboardOpen") and s.get("focus") == "host-wake-mac")
+    keys("Escape")
+    wait(lambda s: not s.get("hostWake", {}).get("opened") and s.get("focus") == "library-wake-pc")
+    keys("Escape")
+    wait(lambda s: not s.get("systemOpen") and s.get("focus") == "library-system")
 
 
 def host_power_navigation(wait, keys, state, fixtures, save_capture, window):
@@ -1617,7 +1727,12 @@ def main():
     parser.add_argument("--audio-settings", action="store_true")
     parser.add_argument("--appearance", action="store_true")
     parser.add_argument("--host-power", action="store_true")
+    parser.add_argument("--paging", action="store_true")
+    parser.add_argument("--wake-pc", action="store_true")
+    parser.add_argument("--steam-app", action="store_true")
+    parser.add_argument("--handoff-limits", action="store_true")
     args = parser.parse_args()
+    args.host_power = args.host_power or args.wake_pc or args.steam_app or args.handoff_limits
     args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
     args.artwork = args.artwork or args.readability
@@ -1689,6 +1804,8 @@ def main():
                 elif secure and path == "/polaris/v1/client-settings" and "catalog" in fixture:
                     status = fixture.get("catalog_status", 200)
                     body = json.dumps(fixture["catalog"])
+                elif args.handoff_limits and secure and path == "/polaris/v1/session/status":
+                    body = json.dumps({"state": "idle", "streaming_active": False})
                 elif args.host_scope and secure and path == "/polaris/v1/session/status":
                     body = json.dumps({"state": "idle" if fixture["host_idle"] else "streaming", "streaming_active": not fixture["host_idle"],
                                        "game_uuid": "" if fixture["host_idle"] else "fixture-active"})
@@ -1917,6 +2034,20 @@ def main():
         env = dict(os.environ, NOVA_DECK_IDENTITY_DIR=str(root), NOVA_DECK_GAMEPAD_DEVICE="/dev/null",
                    XDG_CONFIG_HOME=str(root/"config"), QT_QPA_PLATFORM="xcb", QT_QUICK_BACKEND="software", QT_SCALE_FACTOR="1",
                    QT_SCREEN_SCALE_FACTORS="1", QT_FORCE_STDERR_LOGGING="1")
+        record = root/"moonlight-argv.txt"
+        if args.handoff_limits:
+            def ini_bytes(value):
+                return "@ByteArray(" + value.replace("\\", "\\\\").replace("\n", "\\n") + ")"
+            conf = root/"Moonlight.conf"
+            lines = ["[General]", "certificate="+ini_bytes(client), "key="+ini_bytes((root/"client.key").read_text()), "[hosts]", "size=2"]
+            for index, host in enumerate(hosts, 1):
+                for key, value in {"uuid":host["uuid"], "hostname":host["name"], "customname":"true", "manualaddress":host["address"], "manualport":host["http_port"], "srvcert":ini_bytes(host["server_certificate"])}.items():
+                    lines.append(str(index)+"\\"+key+"="+str(value))
+            conf.write_text("\n".join(lines)+"\n")
+            recorder = root/"moonlight-recorder"
+            recorder.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+str(record)+"'\n")
+            recorder.chmod(0o700)
+            env.update(NOVA_DECK_MOONLIGHT_CONF=str(conf), NOVA_DECK_MOONLIGHT_BIN=str(recorder))
         if args.spaces or args.readability:
             (root/"config/Nova").mkdir(parents=True)
             (root/"config/Nova/NovaDeck.conf").write_text("[Appearance]\ntextScale=1.3\n")
@@ -1933,9 +2064,10 @@ def main():
         # The filter route sends hundreds of keys, each acknowledged by Qt.
         # Its old 42-second lifetime could end before the final host switch;
         # retain the independent 70-second CTest deadline and per-state waits.
-        app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
+        app = subprocess.Popen([str(args.binary.resolve()), "--live" if args.handoff_limits else "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.steam_app or args.handoff_limits else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+
                                env=env, stdout=output, stderr=output)
 
         def state():
@@ -1985,9 +2117,14 @@ def main():
             window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
             command("xdotool", "windowfocus", "--sync", window)
             wait(lambda s: s.get("windowActive"))
-            keys("Right")
-            wait(lambda s: s.get("game") == ("space.room-a.7" if args.spaces else prefix+"42"))
-            if args.readability:
+            if not args.handoff_limits:
+                keys("Right")
+                wait(lambda s: s.get("game") == ("space.room-a.7" if args.spaces else prefix+"42"))
+            if args.handoff_limits:
+                handoff_limits_navigation(wait, keys, state, save_capture, window, record)
+            elif args.paging:
+                paging_navigation(wait, keys, state)
+            elif args.readability:
                 readability_navigation(wait, keys, state, save_capture, window)
             elif args.background_sync:
                 background_sync_navigation(wait, keys, state, fixtures, save_capture, window)
@@ -2002,6 +2139,10 @@ def main():
                 setup_parity_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.spaces:
                 spaces_navigation(wait, keys, state, fixtures, save_capture, window)
+            elif args.steam_app:
+                steam_app_navigation(wait, keys, state, save_capture, window)
+            elif args.wake_pc:
+                wake_pc_navigation(wait, keys, state, save_capture, window)
             elif args.host_power:
                 host_power_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.appearance:

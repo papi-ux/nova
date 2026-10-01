@@ -573,15 +573,20 @@ class NovaStreamHud(
     }
 
     private fun hudSafeMargins(rootView: ViewGroup): Rect {
-        val insets = ViewCompat.getRootWindowInsets(rootView)?.getInsetsIgnoringVisibility(
-            WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+        val windowInsets = ViewCompat.getRootWindowInsets(rootView)
+        // Immersive gameplay hides the bars. Their potential size is not an obstruction
+        // while hidden, but a physical display cutout remains unsafe in either state.
+        val bars = windowInsets?.getInsets(WindowInsetsCompat.Type.systemBars())
+        val cutout = windowInsets?.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.displayCutout())
         // Insets are window-relative; a content root may already sit inside those bars.
         val rootLocation = IntArray(2).also(rootView::getLocationInWindow)
         val decor = activity.window.decorView
-        val leftInset = ((insets?.left ?: 0) - rootLocation[0]).coerceAtLeast(0)
-        val topInset = ((insets?.top ?: 0) - rootLocation[1]).coerceAtLeast(0)
-        val rightInset = ((insets?.right ?: 0) - (decor.width - rootLocation[0] - rootView.width).coerceAtLeast(0)).coerceAtLeast(0)
-        val bottomInset = ((insets?.bottom ?: 0) - (decor.height - rootLocation[1] - rootView.height).coerceAtLeast(0)).coerceAtLeast(0)
+        val leftInset = (maxOf(bars?.left ?: 0, cutout?.left ?: 0) - rootLocation[0]).coerceAtLeast(0)
+        val topInset = (maxOf(bars?.top ?: 0, cutout?.top ?: 0) - rootLocation[1]).coerceAtLeast(0)
+        val rightInset = (maxOf(bars?.right ?: 0, cutout?.right ?: 0) -
+            (decor.width - rootLocation[0] - rootView.width).coerceAtLeast(0)).coerceAtLeast(0)
+        val bottomInset = (maxOf(bars?.bottom ?: 0, cutout?.bottom ?: 0) -
+            (decor.height - rootLocation[1] - rootView.height).coerceAtLeast(0)).coerceAtLeast(0)
         return Rect(leftInset + hudMarginPx(true).toInt(), topInset + hudMarginPx(false).toInt(),
             rightInset + hudMarginPx(true).toInt(), bottomInset + hudMarginPx(false).toInt())
     }

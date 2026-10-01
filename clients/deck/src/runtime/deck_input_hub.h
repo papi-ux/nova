@@ -3,6 +3,7 @@
 #include "stream/deck_players.h"
 #include "stream/deck_controller_input.h"
 #include <QObject>
+#include <QElapsedTimer>
 #include <QPointer>
 #include <QTimer>
 #include <QVariantList>
@@ -40,7 +41,9 @@ private:
     void syncFocus();
     bool neutral(stream::DeckControllerState state) const;
     void navigationKey(int key);
-    QTimer scanTimer_;
+    void updateNavigation();
+    QTimer scanTimer_, navigationTimer_;
+    QElapsedTimer navigationClock_;
     stream::DeckPlayers assignments_;
     std::vector<std::unique_ptr<Device>> devices_;
     QPointer<DeckNativeSessionController> session_;

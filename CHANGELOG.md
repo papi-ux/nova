@@ -2,17 +2,47 @@
 
 ## Unreleased
 
-- Control Size offers Compact, Standard and Large layouts for the modern Android interface, with Standard as the default. Nova Text Size remains independent and follows Android text scaling; smaller controls keep the same minimum touch targets. Control Size belongs to the device, so saved game setups cannot change it.
-- Android: Stage puts one large selected poster up front with a wrapping row beside it, real play time and last played, and a Running badge. A opens the game page; live-session controls stay in the top strip. Portrait uses Regular while keeping your Stage choice for landscape.
-- Portrait Library and Settings start with their supporting menus hidden behind Menu. Hide menu or Back returns the space to games and settings rows. Regular removes the old Continue card and carousel; an active stream keeps its Resume or Watch actions. Library preserves its search and focused game when the screen turns.
-- Android's manual bitrate sliders and exact entry now reach 500 Mbps, including Every Game in Play Setup. A host must advertise the higher limit to use it; older hosts remain capped at 300 Mbps. Automatic advice and Use recommended stay capped at 300 Mbps, and changing hosts or selecting Recommended keeps your saved Custom bitrate.
+## 1.4.14 - 2026-10-01
 
-- Nova Beta identifies new pairings as “Beta” instead of “Pre”, keeping the same installed app and data. Existing pairings keep their stored host name until the device pairs again.
+A Library that fits your screen, stream choices that fit your device, and bitrate controls that explain what the stream needs.
+
+**Library, Hosts and Settings**
+
+- Stage puts the selected game up front with a wrapping poster row, play time, last played and a Running badge. A opens the game page. Portrait uses Regular while keeping your Stage choice for landscape.
+- Regular and Compact show each recent game once in the grid, without the old Continue row. A running stream keeps its Resume and End actions.
+- Loading or failed poster artwork keeps the game's name visible. Portrait's footer names the Library consistently across layouts.
+- Portrait Library keeps Options and System directly available. Settings can hide its supporting menu to give the rows more space. Search and the focused game survive a screen rotation.
+- Hosts, Library and update buttons fit narrow portrait screens. Empty Hosts actions scroll on short screens and remain reachable by touch and controller.
+- Settings, sheets, pickers and Command Center use consistent focus, Back behavior and action styling, including the Mouse Mode picker and End Session confirmation.
+- Control Size offers distinct Compact, Standard and Large layouts, independently of Nova Text Size. Nova text starts at 80 percent; you can change it, and Android text scaling still applies. Smaller layouts keep full touch targets.
+- Text size and bitrate offer buttons for small steps as well as touch adjustment and exact entry.
+
+**Play Setup and live bitrate**
+
+- Stream tiers use this device's display and decoder support to offer Recommended, Max and Custom choices. Custom keeps its own bitrate and automatic setting. Resume follows the running stream's mode.
+- PyroWave offers calibrated advice before launch, with handheld and room viewing targets. Advice and Use recommended stay at or below 300 Mbps. A manual request can reach 500 Mbps when the host advertises that limit; older hosts keep their 300 Mbps limit.
+- Command Center can change bitrate during a stream. PyroWave uses ten-percent steps; H.264 and HEVC use 5 Mbps steps. Host-provided bitrate units keep the request and video rate clear.
+- A manual live change turns Live Tuning off for that stream only. With a compatible host, Doctor can offer a reversible PyroWave quality increase on a clean network, or a lower bitrate for sustained measured media loss. Verify checks the result; Undo restores the previous bitrate and Live Tuning state.
+- NovaHUD keeps its corner position, compact readout and changing sparkline colors. Menu opacity applies to Command Center again.
+
+**Compatibility and Nova Beta**
+
+- PyroWave is hidden with a reason on Android devices missing its Vulkan features. Shield controller motion during stream startup and malformed decoder packets are handled safely.
+- Host-specific Launch As restrictions keep their own reason. Spaces use their worker's allowed mode without borrowing the desktop's choices; an unavailable Space remains unavailable.
+- Keep in Step starts on for new pairings. Nova Beta identifies new pairings as Beta instead of Pre; existing host-stored pairing names change only after pairing again.
+- Numbered beta builds identify themselves as beta builds. Android beta updates follow the beta channel independently of stable Nova.
+
 **Nova Linux (Alpha)**
 
-- The standard `Nova-Linux-x86_64-alpha.flatpak` now includes PyroWave. Nova checks the device only when you choose PyroWave, so H.264 and HEVC do not run that check. The separate PyroWave bundle is retired: if you installed it from 1.4.13, install the standard bundle over it; your pairing and settings stay. Keep app data; do not uninstall with `--delete-data`.
-
-- **Nova Linux (Alpha)** is the name of the native client for x86_64 Linux desktops, laptops and handhelds, including Steam Deck. New release bundles use `Nova-Linux-x86_64-alpha.flatpak` and a matching checksum. Hardware-specific codec, HDR and frame-rate limits still apply.
+- The standard `Nova-Linux-x86_64-alpha.flatpak` includes PyroWave and checks the device only when you choose that codec. The separate PyroWave bundle is retired. Install the standard bundle over the 1.4.13 PyroWave bundle to keep your pairing and settings; keep app data and do not uninstall with `--delete-data`.
+- This PyroWave route supports SDR 8-bit 4:2:0. HDR, 4:4:4 and Spaces remain unsupported, and Auto does not choose PyroWave. Sustained stream quality still depends on the device and network.
+- Play Setup can apply the host's recommended rate when you choose PyroWave, with calibrated local advice if the host has none. A low-rate warning explains when the setting is below that advice. Live controls offer 10 Mbps steps, Use recommended and the measured received rate.
+- A first launch opens pairing instead of a sample Library. Decoder, launch, traffic and capture failures name the cause and a next step.
+- Controller navigation supports held-button repeat, the left stick, shoulder paging and Back. Command Center fits an 800p handheld and scrolls at larger text sizes.
+- Save a PC's MAC address and send Wake PC from its System menu. Nova reports that the wake packet was sent; the PC's connection state determines whether it came online.
+- System offers a reviewed Add Nova to Steam action. The first Moonlight handoff explains its limits before launching; Back cancels it.
+- Compatible Polaris hosts receive fresh measured video-loss evidence from Nova Linux. Decoder errors and control retries stay separate; unavailable link measurements remain unavailable.
+- Linux builds use the production update-feed address and keep a failed check's Retry available.
 
 ## 1.4.13 - 2026-09-24
 

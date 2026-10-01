@@ -17,6 +17,7 @@ APP = "com.papi_ux.Nova"
 CHANNELS = ("stable", "beta")
 COMMIT = re.compile(r"[0-9a-f]{64}\Z")
 TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?\Z")
+BUILD_TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+(?P<suffix>-(?:beta|rc)\.[1-9][0-9]*)?\Z")
 
 
 def feed_url(value):
@@ -38,9 +39,16 @@ def validate_release(release, channel):
         raise ValueError("The beta channel requires an explicitly marked prerelease")
 
 
-def prepare(manifest, channel, url):
-    if channel not in CHANNELS or manifest.get("app-id") != APP:
-        raise ValueError("Wrong app or channel")
+def version_suffix(tag):
+    match = BUILD_TAG.fullmatch(tag)
+    if not match:
+        raise ValueError("Use vMAJOR.MINOR.PATCH with an optional numbered -beta.N or -rc.N suffix")
+    return match.group("suffix") or ""
+
+
+def prepare_release(manifest, version=None):
+    if manifest.get("app-id") != APP:
+        raise ValueError("Wrong app")
     # Work on a copy, so build helpers cannot change the checked-in manifest.
     manifest = json.loads(json.dumps(manifest))
     module = next(item for item in manifest["modules"] if isinstance(item, dict) and item.get("name") == "nova-deck")
@@ -48,6 +56,20 @@ def prepare(manifest, channel, url):
     enabled = "-DNOVA_DECK_BUILD_PYROWAVE=ON" in opts
     if not enabled or "modules/pyrowave.json" not in manifest["modules"]:
         raise ValueError("The standard Linux package must include PyroWave and its lazy probe")
+    suffix = version_suffix(version) if version is not None else ""
+    opts[:] = [v for v in opts if not v.startswith("-DNOVA_DECK_VERSION_SUFFIX=")]
+    opts.append(f"-DNOVA_DECK_VERSION_SUFFIX={suffix}")
+    return manifest
+
+
+def prepare(manifest, channel, url, version):
+    if channel not in CHANNELS:
+        raise ValueError("Wrong channel")
+    if bool(version_suffix(version)) != (channel == "beta"):
+        raise ValueError("The release tag must match the selected update channel")
+    manifest = prepare_release(manifest, version)
+    module = next(item for item in manifest["modules"] if isinstance(item, dict) and item.get("name") == "nova-deck")
+    opts = module["config-opts"]
     opts[:] = [v for v in opts if not v.startswith(("-DNOVA_DECK_UPDATE_CHANNEL=", "-DNOVA_DECK_UPDATE_URL="))]
     opts.extend([f"-DNOVA_DECK_UPDATE_CHANNEL={channel}", f"-DNOVA_DECK_UPDATE_URL={feed_url(url)}"])
     manifest["branch"] = channel
@@ -116,11 +138,18 @@ def main():
     validate = commands.add_parser("validate-release")
     validate.add_argument("release", type=Path)
     validate.add_argument("--channel", choices=CHANNELS, required=True)
+    suffix_cmd = commands.add_parser("version-suffix")
+    suffix_cmd.add_argument("version")
+    release_cmd = commands.add_parser("prepare-release")
+    release_cmd.add_argument("manifest", type=Path)
+    release_cmd.add_argument("output", type=Path)
+    release_cmd.add_argument("--version")
     prepare_cmd = commands.add_parser("prepare")
     prepare_cmd.add_argument("manifest", type=Path)
     prepare_cmd.add_argument("output", type=Path)
     prepare_cmd.add_argument("--channel", choices=CHANNELS, required=True)
     prepare_cmd.add_argument("--url", required=True)
+    prepare_cmd.add_argument("--version", required=True)
     site_cmd = commands.add_parser("site")
     for name in ("repository", "site", "previous", "key"):
         site_cmd.add_argument("--" + name, type=Path, required=True)
@@ -130,10 +159,14 @@ def main():
     args = parser.parse_args()
     if args.command == "validate-release":
         validate_release(json.loads(args.release.read_text()), args.channel)
-    elif args.command == "prepare":
+    elif args.command == "version-suffix":
+        print(version_suffix(args.version))
+    elif args.command in ("prepare", "prepare-release"):
         if args.output.parent.resolve() != args.manifest.parent.resolve():
             raise ValueError("Keep generated manifest beside the original to preserve relative sources")
-        args.output.write_text(json.dumps(prepare(json.loads(args.manifest.read_text()), args.channel, args.url), indent=2) + "\n")
+        manifest = json.loads(args.manifest.read_text())
+        prepared = prepare(manifest, args.channel, args.url, args.version) if args.command == "prepare" else prepare_release(manifest, args.version)
+        args.output.write_text(json.dumps(prepared, indent=2) + "\n")
     else:
         write_site(args.repository, args.site, args.previous, args.channel, args.version, args.url, args.key.read_bytes())
 

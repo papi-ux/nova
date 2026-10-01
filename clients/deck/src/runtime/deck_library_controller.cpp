@@ -211,6 +211,7 @@ DeckGameToolsResolver DeckLibraryController::gameToolsResolver() const {
         DeckGameToolsTarget target;
         target.identityValid = valid;
         target.request = [client](const QString& game, const QString& action, const QVariantMap& values, const auto& cancelled) {
+            if (action == "bitrateAdvice") return client->fetchPyrowaveAdvice(values.value("width").toInt(), values.value("height").toInt(), values.value("fps").toInt(), cancelled);
             if (action == "settings" || action == "plan") {
                 const auto capabilities = client->fetchCapabilities();
                 if (cancelled() || !capabilities.ok()) return polaris::DeckPolarisResult<QVariantMap>{capabilities.status, capabilities.httpStatus, {}, {}};

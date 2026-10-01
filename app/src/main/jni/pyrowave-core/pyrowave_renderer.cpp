@@ -1,6 +1,7 @@
 #include "pyrowave_renderer.h"
 
 #include "pyrowave_renderer_c.h"
+#include "pyrowave_packet_guard.h"
 
 #include "shaders/present_frag_spv.h"
 #include "shaders/present_vert_spv.h"
@@ -900,15 +901,15 @@ namespace nova_vk {
     if (!swapchain || !decoder || !bitstream || size == 0) {
       return false;
     }
+    if (!pyrowave_packet_has_safe_lengths(bitstream, size)) {
+      LOGW("the frame has an invalid PyroWave block length");
+      return false;
+    }
 
     await_last_frame();
 
     // One push for the whole frame. The bitstream delimits itself, so the decoder walks the blocks
     // inside it and this is the same work as pushing each of the codec's packets in turn.
-    //
-    // Complete or nothing. The codec can decode a frame that lost packets, and this transport does
-    // not lose them one at a time: it reassembles a whole frame under FEC or drops it, so a frame
-    // that arrives here incomplete arrived corrupt.
     //
     // The sequence number this frame carries, read the way the decoder reads it.
     //

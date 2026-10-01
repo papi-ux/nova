@@ -13,6 +13,7 @@ import android.view.WindowManager
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
+import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.ComposeView
@@ -82,27 +83,16 @@ internal val NovaWindowPlacement.canShow: Boolean
  * dismisses itself on a Back that no handler takes, which happens during a panel's exit motion and
  * before a Busy page shows, and that would skip handing input back to the stream or the deck.
  */
-internal class NovaPanelWindow(
+internal open class NovaPanelWindow protected constructor(
     private val placement: NovaWindowPlacement,
     private val surfaces: NovaSurfaces,
 ) : ComponentDialog(placement.context, R.style.NovaPanelWindowTheme) {
     private val keyGate = NovaKeyGate()
-    private val backStartGate = NovaBackStartGate()
-    private var startGatedBack: Any? = null
+    protected val backStartGate = NovaBackStartGate()
 
     init {
         setCancelable(false)
     }
-
-    /**
-     * The window's back dispatcher behind [backStartGate]. ComponentDialog hands it to this window's
-     * OnBackPressedDispatcher in onCreate, so on API 34 and later a Back held while this window
-     * appears cannot close it on release.
-     */
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    override fun getOnBackInvokedDispatcher(): OnBackInvokedDispatcher =
-        startGatedBack as? NovaStartGatedBackDispatcher
-            ?: NovaStartGatedBackDispatcher(super.getOnBackInvokedDispatcher(), backStartGate).also { startGatedBack = it }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -205,6 +195,35 @@ internal class NovaPanelWindow(
         is NovaWindowPlacement.Companion -> placement.host::prepareForSoftKeyboard
         else -> NoKeyboardPreparation
     }
+
+    companion object {
+        fun create(placement: NovaWindowPlacement, surfaces: NovaSurfaces): NovaPanelWindow =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                NovaPanelWindowApi33(placement, surfaces)
+            } else {
+                NovaPanelWindow(placement, surfaces)
+            }
+    }
+}
+
+/**
+ * Keep new platform types out of the common window's method signatures: Android verifies those
+ * before any method-level API guard can run. Keeping this small subclass also prevents R8 from
+ * merging its API 33-only override back into the legacy class in the optimized Beta.
+ */
+@Keep
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private class NovaPanelWindowApi33(
+    placement: NovaWindowPlacement,
+    surfaces: NovaSurfaces,
+) : NovaPanelWindow(placement, surfaces) {
+    private var startGatedBack: NovaStartGatedBackDispatcher? = null
+
+    /** ComponentDialog hands this gated dispatcher to its Back owner during onCreate. */
+    override fun getOnBackInvokedDispatcher(): OnBackInvokedDispatcher =
+        startGatedBack
+            ?: NovaStartGatedBackDispatcher(super.getOnBackInvokedDispatcher(), backStartGate)
+                .also { startGatedBack = it }
 }
 
 private val NoKeyboardPreparation: () -> Unit = {}

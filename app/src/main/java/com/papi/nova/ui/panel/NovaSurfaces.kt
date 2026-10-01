@@ -260,7 +260,7 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
 
     private fun ensureWindow() {
         if (disposed || window != null || !placement.canShow) return
-        window = NovaPanelWindow(placement, this).also { created ->
+        window = NovaPanelWindow.create(placement, this).also { created ->
             created.setOnDismissListener {
                 // A dismissal closeWindow did not start (the system took the window away): the
                 // panel goes with it, and input and focus still go back where they belong.
@@ -484,4 +484,3 @@ internal fun NovaSurfacesLayer(
 private class RetainedWidth {
     var width: NovaPanelWidth = NovaPanelWidth.Standard
 }
-

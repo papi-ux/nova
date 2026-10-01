@@ -1,6 +1,8 @@
 package com.papi.nova.ui.panel
 
 import androidx.activity.ComponentActivity
+import com.papi.nova.ui.NovaControlSize
+import com.papi.nova.ui.compose.LocalNovaControlSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -194,18 +196,29 @@ class NovaValueRowComposeTest {
 
     @Test
     fun valueRowsSitOnThePlainRowScale() {
+        var size by mutableStateOf(NovaControlSize.Standard)
         var current by mutableStateOf("M")
         var on by mutableStateOf(false)
         rule.setPanelContent {
-            Column {
-                NovaValueRow("Size", sizes, current, { current = it }, style = NovaValueStyle.Segmented, modifier = Modifier.testTag("segments"))
-                NovaValueRow("Size", sizes, current, { current = it }, style = NovaValueStyle.Cycler, modifier = Modifier.testTag("cycler"))
-                NovaValueRow("HUD", listOf(NovaOption(false, "Off"), NovaOption(true, "On")), on, { on = it }, modifier = Modifier.testTag("switch"))
+            CompositionLocalProvider(LocalNovaControlSize provides size) {
+                Column {
+                    NovaRow("Size", onClick = {}, modifier = Modifier.testTag("plain"))
+                    NovaValueRow("Size", sizes, current, { current = it }, style = NovaValueStyle.Segmented, modifier = Modifier.testTag("segments"))
+                    NovaValueRow("Size", sizes, current, { current = it }, style = NovaValueStyle.Cycler, modifier = Modifier.testTag("cycler"))
+                    NovaValueRow("HUD", listOf(NovaOption(false, "Off"), NovaOption(true, "On")), on, { on = it }, modifier = Modifier.testTag("switch"))
+                }
             }
         }
-        for (tag in listOf("segments", "cycler", "switch")) {
-            val bounds = rule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
-            assertEquals("$tag row height", NovaPanelMetrics.RowMinHeight, bounds.bottom - bounds.top)
+        for (choice in NovaControlSize.entries) {
+            rule.runOnIdle { size = choice }
+            rule.waitForIdle()
+            val plain = rule.onNodeWithTag("plain").getUnclippedBoundsInRoot()
+            for (tag in listOf("segments", "cycler", "switch")) {
+                val bounds = rule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+                assertEquals("$tag at $choice matches the actual plain row, allowing readable text to grow past the minimum",
+                    // The control and its two insets round separately to whole pixels.
+                    (plain.bottom - plain.top).value, (bounds.bottom - bounds.top).value, 1f)
+            }
         }
     }
 

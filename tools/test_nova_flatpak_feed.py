@@ -1,13 +1,77 @@
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 from tools import nova_flatpak_feed as feed
 
 
 class FeedTests(unittest.TestCase):
+    def test_generated_appstream_changes_only_the_current_release_version(self):
+        project = Path(__file__).resolve().parents[1] / "clients/deck"
+        source = project / "packaging/flatpak/com.papi_ux.Nova.metainfo.xml"
+        original = source.read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "com.papi_ux.Nova.metainfo.xml"
+            script = root / "metadata.cmake"
+            script.write_text('set(PROJECT_VERSION "1.4.14")\ninclude("' + str(project / "cmake/NovaReleaseVersion.cmake") + '")\n'
+                              'include("' + str(project / "cmake/NovaAppStream.cmake") + '")\n'
+                              'nova_deck_configure_appstream("' + str(source) + '" "' + str(output) + '")\n')
+            for suffix in ["", "-beta.1", "-rc.2"]:
+                with self.subTest(suffix=suffix):
+                    subprocess.run(["cmake", "-DNOVA_DECK_VERSION_SUFFIX=" + suffix, "-P", str(script)], check=True, capture_output=True, text=True)
+                    metadata = ET.fromstring(output.read_bytes())
+                    releases = metadata.findall("./releases/release")
+                    self.assertEqual(releases[0].attrib["version"], "1.4.14" + suffix)
+                    self.assertEqual(releases[0].attrib["type"], "development")
+                    self.assertEqual(releases[1].attrib["version"], "1.4.13")
+                    self.assertEqual(output.read_bytes(), original.replace(b'version="1.4.14"', ('version="1.4.14' + suffix + '"').encode(), 1))
+            self.assertEqual(source.read_bytes(), original)
+
+    def test_release_manifest_preserves_the_numbered_tag_without_enabling_updates(self):
+        root = Path(__file__).resolve().parents[1]
+        source = json.loads((root / "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").read_text())
+        source["modules"][-1]["config-opts"].append("-DNOVA_DECK_VERSION_SUFFIX=-beta.99")
+        for tag, suffix in [(None, ""), ("v1.4.14", ""), ("v1.4.14-beta.1", "-beta.1"), ("v1.4.14-rc.2", "-rc.2")]:
+            with self.subTest(tag=tag):
+                result = feed.prepare_release(source, tag)
+                opts = result["modules"][-1]["config-opts"]
+                self.assertEqual([v for v in opts if v.startswith("-DNOVA_DECK_VERSION_SUFFIX=")],
+                                 ["-DNOVA_DECK_VERSION_SUFFIX=" + suffix])
+                self.assertFalse(any(v.startswith("-DNOVA_DECK_UPDATE_") for v in opts))
+                self.assertNotIn("branch", result)
+        self.assertIn("-DNOVA_DECK_VERSION_SUFFIX=-beta.99", source["modules"][-1]["config-opts"])
+
+    def test_feed_build_requires_the_exact_release_channel_and_number(self):
+        root = Path(__file__).resolve().parents[1]
+        source = json.loads((root / "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").read_text())
+        for channel, tag, suffix in [("stable", "v1.4.14", ""), ("beta", "v1.4.14-beta.1", "-beta.1"), ("beta", "v1.4.14-rc.2", "-rc.2")]:
+            result = feed.prepare(source, channel, "https://example.org/nova", tag)
+            self.assertIn("-DNOVA_DECK_VERSION_SUFFIX=" + suffix, result["modules"][-1]["config-opts"])
+        for channel, tag in [("stable", "v1.4.14-beta.1"), ("beta", "v1.4.14"), ("beta", "v1.4.14-beta"), ("beta", "v1.4.14-beta.0")]:
+            with self.subTest(channel=channel, tag=tag), self.assertRaises(ValueError):
+                feed.prepare(source, channel, "https://example.org/nova", tag)
+
+    def test_cmake_release_version_validates_the_optional_numbered_suffix(self):
+        module = Path(__file__).resolve().parents[1] / "clients/deck/cmake/NovaReleaseVersion.cmake"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "version.cmake"
+            script.write_text('set(PROJECT_VERSION "1.4.14")\ninclude("' + str(module) + '")\n'
+                              'file(WRITE "' + str(root / "version.txt") + '" "${NOVA_DECK_FULL_VERSION}")\n')
+            for suffix in ["", "-beta.1", "-beta.12", "-rc.2"]:
+                with self.subTest(suffix=suffix):
+                    subprocess.run(["cmake", "-DNOVA_DECK_VERSION_SUFFIX=" + suffix, "-P", str(script)], check=True, capture_output=True, text=True)
+                    self.assertEqual((root / "version.txt").read_text(), "1.4.14" + suffix)
+            for suffix in ["beta.1", "-beta", "-beta.0", "-rc.0", "-beta.1.2", "-alpha.1", "-beta.1\n", '-beta.1";x']:
+                with self.subTest(suffix=suffix):
+                    result = subprocess.run(["cmake", "-DNOVA_DECK_VERSION_SUFFIX=" + suffix, "-P", str(script)], capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0)
+
     def test_release_admission(self):
         release = dict(tag_name="v1.4.13-beta.1", published_at="2026-01-01", draft=False, prerelease=True)
         feed.validate_release(release, "beta")
@@ -25,16 +89,17 @@ class FeedTests(unittest.TestCase):
         for channel in feed.CHANNELS:
             name = "com.papi_ux.Nova.json"
             source = json.loads((root / name).read_text())
-            result = feed.prepare(source, channel, "https://example.org/nova/")
+            tag = "v1.4.14" if channel == "stable" else "v1.4.14-beta.1"
+            result = feed.prepare(source, channel, "https://example.org/nova/", tag)
             self.assertEqual(result["branch"], channel)
             self.assertNotIn("branch", source)
             self.assertEqual(result["finish-args"], source["finish-args"])
             without_codec = json.loads(json.dumps(source))
             without_codec["modules"].remove("modules/pyrowave.json")
             with self.assertRaises(ValueError):
-                feed.prepare(without_codec, channel, "https://example.org/nova")
+                feed.prepare(without_codec, channel, "https://example.org/nova", tag)
             with self.assertRaises(ValueError):
-                feed.prepare(source, "pyrowave", "https://example.org/nova")
+                feed.prepare(source, "pyrowave", "https://example.org/nova", tag)
 
     def test_url_and_signing_metadata(self):
         for bad in ["http://example.org", "https://user:secret@example.org", "https://example.org/#x", "https://example.org/?x"]:
