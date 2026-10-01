@@ -115,4 +115,59 @@ class PolarisPyrowaveDoctorContractTest {
         assertFalse(parse(fixture()).canExecuteWithLiveTuning(true))
         assertTrue(parse(fixture()).canExecuteWithLiveTuning(false))
     }
+
+    @Test fun unavailableLossRequiresAnExplicitNullInsteadOfMalformedEvidence() {
+        for (value in listOf<Any?>(null, "bad", false, JSONObject(), -1, 101)) {
+            val json = fixture()
+            val loss = json.getJSONArray("evidence").getJSONObject(0)
+            loss.put("source", "unavailable").put("status", "unknown")
+            if (value == null) loss.remove("value") else loss.put("value", value)
+            assertFalse("Unknown loss cannot hide invalid value $value", parse(json).canExecuteAction)
+        }
+        val unknown = fixture().apply {
+            getJSONArray("evidence").getJSONObject(0).put("source", "unavailable")
+                .put("status", "unknown").put("value", JSONObject.NULL)
+        }
+        assertTrue("The host's explicit unknown loss remains supported", parse(unknown).canExecuteAction)
+    }
+
+    @Test fun measuredLossAndLatencyMustBeInTheirPhysicalRange() {
+        for (loss in listOf(-1, 101, "0")) {
+            val json = fixture().apply { getJSONArray("evidence").getJSONObject(0).put("value", loss) }
+            assertFalse(parse(json).canExecuteAction)
+        }
+        val negativeRtt = fixture().apply { getJSONArray("evidence").getJSONObject(1).put("value", -1) }
+        assertFalse(parse(negativeRtt).canExecuteAction)
+    }
+
+    @Test fun aLossStepNeedsMeasuredLossAboveTheHostThreshold() {
+        for (loss in listOf<Any>(JSONObject.NULL, "bad", -1, 0, 2, 101)) {
+            val json = fixture().apply {
+                put("primary_issue", "network_jitter")
+                val action = getJSONObject("safe_recovery_action")
+                action.put("id", "lower_bitrate")
+                payload(this).put("action_id", "lower_bitrate").put("target_bitrate_kbps", 16000).remove("goal_source")
+                action.getJSONObject("verification").put("mode", "live_telemetry")
+                getJSONArray("evidence").getJSONObject(0).put("status", "fail").put("value", loss)
+            }
+            val doctor = parse(json)
+            assertFalse("Malformed or non-failing media loss cannot authorize a write: $loss", doctor.canExecuteAction)
+            assertFalse(doctor.canExecuteWithLiveTuning(true))
+        }
+    }
+
+    @Test fun pyrowaveRaiseRequiresAPositiveObservedBitrate() {
+        for (value in listOf<Any?>(null, JSONObject.NULL, "20000", 0, -1)) {
+            val json = fixture()
+            val bitrate = json.getJSONArray("evidence").getJSONObject(2)
+            if (value == null) bitrate.remove("value") else bitrate.put("value", value)
+            assertFalse("No measured bitrate for $value", parse(json).canExecuteAction)
+        }
+        for ((source, status) in listOf("configuration" to "watch", "stream_stats" to "pass")) {
+            val json = fixture().apply { getJSONArray("evidence").getJSONObject(2).put("source", source).put("status", status) }
+            assertFalse(parse(json).canExecuteAction)
+        }
+        val absent = fixture().apply { getJSONArray("evidence").remove(2) }
+        assertFalse(parse(absent).canExecuteAction)
+    }
 }
