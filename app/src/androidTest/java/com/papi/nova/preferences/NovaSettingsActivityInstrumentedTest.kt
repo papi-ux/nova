@@ -267,6 +267,18 @@ class NovaSettingsActivityInstrumentedTest {
             .mapValues { (_, value) -> if (value is Set<*>) value.toSet() else value }
         val saved = savedSettings()
         val search = compose.onNodeWithContentDescription(context.getString(R.string.nova_settings_search_hint))
+        fun assertQueryCharacters(expected: String): SemanticsNodeInteraction {
+            val value = search.fetchSemanticsNode().config[SemanticsProperties.EditableText]
+            fun characters(text: String) = "length=${text.length}, codePoints=" +
+                text.codePoints().toArray().joinToString { "U+" + it.toString(16).uppercase().padStart(4, '0') }
+            val diagnostic = "Native query characters: expected ${characters(expected)}; " +
+                "actual ${characters(value.text)}; spans=${value.spanStyles}; paragraphs=${value.paragraphStyles}"
+            // A native IME's composing underline changes AnnotatedString equality, not the query.
+            // Require every exact character, while leaving touch/editability/IME/Back checks intact.
+            println(diagnostic)
+            assertEquals(diagnostic, expected, value.text)
+            return search
+        }
         if (portrait) search.performScrollTo()
         // No semantics SetText or RequestFocus: this must traverse the real touch gesture and
         // create an editable Android input connection before requesting the visible native IME.
@@ -276,11 +288,11 @@ class NovaSettingsActivityInstrumentedTest {
         shot("settings-search-touch-ime")
         instrumentation.sendStringSync("rum")
         settle()
-        search.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("rum")))
+        assertQueryCharacters("rum")
             .assert(hasSetTextAction())
         instrumentation.sendStringSync("ble")
         settle()
-        search.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("rumble")))
+        assertQueryCharacters("rumble")
             .assert(hasSetTextAction())
         waitForIme(scenario, visible = true)
         compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle,
@@ -289,14 +301,14 @@ class NovaSettingsActivityInstrumentedTest {
         // B first closes the real keyboard/editor, retaining the query and its matching pane.
         key(KeyEvent.KEYCODE_BUTTON_B)
         waitForIme(scenario, visible = false)
-        search.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("rumble")))
+        assertQueryCharacters("rumble")
             .assert(hasSetTextAction().not())
         compose.onNodeWithTag("nova-settings-row-checkbox_enable_rumble").assertIsDisplayed()
         shot("settings-search-rumble-matches")
         scenario.onActivity { assertFalse("Closing search input must retain Settings", it.isFinishing) }
         // The next B clears root search rather than leaving Settings or changing a setting.
         key(KeyEvent.KEYCODE_BUTTON_B)
-        search.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+        assertQueryCharacters("")
         compose.onNodeWithTag(originalCategoryTag).assertIsSelected()
         compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, originalCategory.title))
             .assertIsDisplayed()
