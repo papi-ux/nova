@@ -204,6 +204,21 @@ class NovaCameraViewPolicyTest {
             assertEquals(1, calls)
             cameras = emptyList()
             repeat(4) { relayout() }
+            val profileBeforeScroll = IntArray(2).also { action.getLocationInWindow(it) }
+            val scrollCamera = Rect(0, profileBeforeScroll[1] - 24, profileBeforeScroll[0] + 4, profileBeforeScroll[1] - 4)
+            cameras = listOf(scrollCamera)
+            relayout()
+            val scrollRail = rail as androidx.core.widget.NestedScrollView
+            scrollRail.scrollTo(0, 24)
+            assertEquals("the real rail can scroll", 24, scrollRail.scrollY)
+            root.viewTreeObserver.dispatchOnScrollChanged()
+            assertTrue("scroll alone requests local action clearance", (action.layoutParams as ViewGroup.MarginLayoutParams).topMargin > 0)
+            repeat(5) { relayout() }
+            val profileAfterScroll = IntArray(2).also { action.getLocationInWindow(it) }
+            assertTrue("scrolling a real target into a side camera refreshes local clearance", profileAfterScroll[1] >= scrollCamera.bottom)
+            cameras = emptyList()
+            scrollRail.scrollTo(0, 0)
+            repeat(4) { relayout() }
             val labelAt = IntArray(2).also { label.getLocationInWindow(it) }
             val labelCamera = Rect(0, labelAt[1], labelAt[0] + 2, labelAt[1] + label.height)
             cameras = listOf(labelCamera)
