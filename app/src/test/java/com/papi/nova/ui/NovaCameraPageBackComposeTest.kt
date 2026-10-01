@@ -45,7 +45,7 @@ class NovaCameraPageBackComposeTest {
     private class Page(override val key: String, override val title: String) : NovaPage
 
     private fun pushedPage(rtl: Boolean) {
-        val state = NovaPanelState().apply { open(Page("root", "Root")); push(Page("detail", "Advanced streaming controls")) }
+        val state = NovaPanelState().apply { open(Page("root", "Root")); push(Page("detail", "Advanced streaming and controller session settings")) }
         val cameras = mutableStateOf<List<Rect>>(emptyList())
         val width = mutableStateOf(320)
         var pixels = 1f
@@ -67,7 +67,7 @@ class NovaCameraPageBackComposeTest {
             }
         }
         fun bounds(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        fun title() = rule.onNodeWithText("Advanced streaming controls", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        fun title() = rule.onNodeWithText("Advanced streaming and controller session settings", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         rule.waitForIdle()
         val originalTarget = bounds(NovaPageBackTag)
         val originalGlyph = bounds(NovaChevronBackTag)
@@ -87,7 +87,7 @@ class NovaCameraPageBackComposeTest {
         rule.onRoot().performTouchInput { click(Offset(originalTarget.center.x, originalTarget.top + 0.5f)) }
         rule.waitForIdle()
         assertEquals("original Back edge invokes the real page pop", "root", state.topEntry?.page?.key)
-        rule.runOnIdle { state.push(Page("detail", "Advanced streaming controls")) }
+        rule.runOnIdle { state.push(Page("detail", "Advanced streaming and controller session settings")) }
         rule.waitForIdle()
         assertEquals(originalGlyph, bounds(NovaChevronBackTag))
         assertEquals(originalTitle, title())
