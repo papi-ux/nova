@@ -148,7 +148,7 @@ class NovaSettingsDefinitionsTest {
         assertEquals("Nova Text Size", textSize.title)
         assertEquals("category_nova", textSize.categoryKey)
         assertEquals(NovaSettingType.Slider, textSize.type)
-        assertEquals(NovaSettingValue.IntValue(100), textSize.defaultValue)
+        assertEquals(NovaSettingValue.IntValue(80), textSize.defaultValue)
         assertEquals(80, textSize.min)
         assertEquals(130, textSize.max)
         assertEquals(1, textSize.step)
