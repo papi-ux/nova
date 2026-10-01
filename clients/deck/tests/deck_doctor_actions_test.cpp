@@ -3,6 +3,7 @@
 #include "deck_doctor_fixture.h"
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QFile>
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
@@ -23,6 +24,15 @@ DeckDoctorRequest initial() {
     return {offer.action, offer.appSession, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {}, offer.generation, offer};
 }
 void offerContract() {
+    QFile fixture(QStringLiteral(NOVA_DECK_PYROWAVE_DOCTOR_FIXTURE));
+    require(fixture.open(QIODevice::ReadOnly), "PyroWave Doctor fixture missing");
+    const auto pyro = QJsonDocument::fromJson(fixture.readAll()).object();
+    const auto offer = parseDoctorOffer(pyro);
+    require(offer.has_value(), "current host PyroWave restore offer rejected");
+    const DeckDoctorRequest request{offer->action, offer->appSession, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {}, offer->generation, offer};
+    const auto body = doctorRequestBody(request);
+    require(body && body->value("goal_source") == "pyrowave_advice" && body->value("target_bitrate_kbps") == 100148,
+        "PyroWave reviewed goal source or request units lost");
     require(parseDoctorOffer(doctor()).has_value() && parseDoctorOffer(doctor(true)).has_value(), "host live-fix contract rejected");
     for (const auto* object : {"safe_recovery_action", "payload_preview", "verification", "undo"}) {
         auto d = doctor(); const auto action = d["safe_recovery_action"].toObject();
