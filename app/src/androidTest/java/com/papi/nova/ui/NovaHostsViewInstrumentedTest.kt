@@ -472,10 +472,12 @@ class NovaHostsViewInstrumentedTest {
                             val insets = ViewCompat.getRootWindowInsets(activity.window.decorView)
                             val bottomInset = insets?.getInsets(WindowInsetsCompat.Type.systemBars() or
                                 WindowInsetsCompat.Type.mandatorySystemGestures())?.bottom ?: 0
-                            val screen = Rect()
-                            activity.window.decorView.getWindowVisibleDisplayFrame(screen)
-                            assertTrue("The entire target clears navigation and gesture space",
-                                location[1] + target.height <= activity.resources.displayMetrics.heightPixels - bottomInset + 1)
+                            // Activity display metrics can already exclude system bars. Window
+                            // metrics retain the full physical window so the inset is removed once.
+                            val safeBottom = activity.windowManager.currentWindowMetrics.bounds.bottom - bottomInset
+                            assertTrue("Gesture-navigation fixture supplies a real bottom inset", bottomInset > 0)
+                            assertTrue("The entire target clears gesture space: ${location[1] + target.height} <= $safeBottom",
+                                location[1] + target.height <= safeBottom + 1)
                             if (id == R.id.emptyRefresh) {
                                 val field = PcView::class.java.getDeclaredField("libraryProbeInFlight").apply { isAccessible = true }
                                 @Suppress("UNCHECKED_CAST")
