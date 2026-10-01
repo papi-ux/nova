@@ -7,10 +7,12 @@ import re
 import sys
 from pathlib import Path
 
+from stable_release_notes import findings
+
 
 # A beta reuses the notes of the release it precedes, so the channel suffix is read and dropped.
 VERSION_TAG = re.compile(
-    r"^v(?P<version>[0-9]+(?:\.[0-9]+){2})(?:-(?:beta|rc)\.[0-9]+)?$"
+    r"^v(?P<version>[0-9]+(?:\.[0-9]+){2})(?:-(?P<channel>(?:beta|rc)\.[0-9]+))?$"
 )
 RELEASE_HEADING = re.compile(
     r"^## (?P<version>[0-9]+(?:\.[0-9]+){2}) - (?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})$",
@@ -42,6 +44,14 @@ def extract_release_notes(changelog: str, tag: str) -> str:
     body = changelog[match.end():end].strip()
     if not body:
         raise ValueError(f"release notes for {tag} are empty")
+
+    if tag_match.group("channel") is None:
+        refused = findings(body)
+        if refused:
+            details = "; ".join(
+                f'line {line}: "{phrase}" {reason}' for line, phrase, reason in refused
+            )
+            raise ValueError(f"stable release notes for {tag}: {details}")
 
     return f"{body}\n"
 
