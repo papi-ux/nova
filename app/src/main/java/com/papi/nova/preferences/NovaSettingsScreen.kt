@@ -361,53 +361,60 @@ internal fun NovaSettingsContent(
                 toggleModifier = Modifier.focusRequester(portraitMenuFocus),
                 onBack = onBack,
             )
-            val navigationHeader: @Composable () -> Unit = {
-            NovaSettingsCompactHeader(
-                title = title,
-                subtitle = subtitle.takeIf { !compact },
-                query = state.searchQuery,
-                onQuery = onSearch,
-                onClear = onClearSearch,
-                onBack = onBack,
-                onOpenLegacy = onOpenLegacy,
-                headerActions = headerActions,
-                wide = wide,
-                showIdentity = !portrait
-            )
-            if (showQuickStrip) {
-            Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
-            NovaSettingsQuickStrip(
-                state = state,
-                // Down from the strip lands on the rail; without one it moves on as Compose finds.
-                modifier = if (wide) focus.quickStripModifier { latestState.selectedCategoryKey } else Modifier,
-                firstPillModifier = Modifier.focusRequester(focus.firstQuick),
-                onPill = { definition ->
-                    pane.popToRoot()
-                    if (latestState.isSearchActive()) clearSearch()
-                    select(definition.categoryKey)
-                    focus.enterPane(
-                        paneKey = definition.categoryKey,
-                        rowKey = definition.key,
-                        then = if (definition.opensPageFromRow()) ({ opener.open(definition, latestState) }) else null,
-                    )
-                }
-            )
-            Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
-            } else {
-                Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+            val quickShortcuts: @Composable () -> Unit = {
+                Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
+                NovaSettingsQuickStrip(
+                    state = state,
+                    // Down from the strip lands on the rail; without one it moves on as Compose finds.
+                    modifier = if (wide) focus.quickStripModifier { latestState.selectedCategoryKey } else Modifier,
+                    firstPillModifier = Modifier.focusRequester(focus.firstQuick),
+                    onPill = { definition ->
+                        pane.popToRoot()
+                        if (latestState.isSearchActive()) clearSearch()
+                        select(definition.categoryKey)
+                        focus.enterPane(
+                            paneKey = definition.categoryKey,
+                            rowKey = definition.key,
+                            then = if (definition.opensPageFromRow()) ({ opener.open(definition, latestState) }) else null,
+                        )
+                    }
+                )
+                Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
             }
-
+            val navigationHeader: @Composable () -> Unit = {
+                NovaSettingsCompactHeader(
+                    title = title,
+                    subtitle = subtitle.takeIf { !compact },
+                    query = state.searchQuery,
+                    onQuery = onSearch,
+                    onClear = onClearSearch,
+                    onBack = onBack,
+                    onOpenLegacy = onOpenLegacy,
+                    headerActions = headerActions,
+                    wide = wide,
+                    showIdentity = !portrait,
+                )
+                if (!portrait) {
+                    if (showQuickStrip) quickShortcuts() else Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+                }
             }
             if (showNavigation) {
                 if (portrait) Column(
                     Modifier.fillMaxWidth()
-                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp)
+                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.35f).dp)
                         .novaScrollEdgeFade(navigationScroll)
                         .verticalScroll(navigationScroll)
                         .testTag("nova-portrait-settings-navigation")
                 ) {
                     navigationHeader()
+                    Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
                     NovaSettingsCategoryChips(state, onCategory)
+                    if (showQuickStrip) {
+                        Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+                        Text(stringResource(R.string.nova_settings_stream_shortcuts),
+                            style = novaPanelType.caption, color = colors.textMuted)
+                        quickShortcuts()
+                    }
                 } else navigationHeader()
             }
 
@@ -735,6 +742,27 @@ private fun NovaSettingsCompactHeader(
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
+    // Portrait already has Back/title/Menu above it. Keep its search and Legacy action together;
+    // repeating a header row made Legacy float alone before search and the category navigation.
+    if (!showIdentity) {
+        Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+            ) {
+                NovaSettingsSearchField(query, onQuery, onClear, Modifier.weight(1f))
+                NovaSettingsHeaderButton(stringResource(R.string.nova_settings_legacy), onOpenLegacy)
+            }
+            if (headerActions.isNotEmpty()) FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+                verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+            ) {
+                for (action in headerActions) NovaSettingsHeaderButton(action.label, action.onClick)
+            }
+        }
+        return
+    }
     Column {
         Row(
             modifier = Modifier
