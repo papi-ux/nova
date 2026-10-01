@@ -73,15 +73,23 @@ internal object NovaCameraViewAvoidance {
                 }
             }
         }
+        // Scrolling changes target window coordinates without requiring a layout pass.
+        val scrollListener = ViewTreeObserver.OnScrollChangedListener { listener.onGlobalLayout() }
         var observer: ViewTreeObserver? = null
         fun attach() {
-            observer = root.viewTreeObserver.also { it.addOnGlobalLayoutListener(listener) }
+            observer = root.viewTreeObserver.also {
+                it.addOnGlobalLayoutListener(listener)
+                it.addOnScrollChangedListener(scrollListener)
+            }
         }
         if (ViewCompat.isAttachedToWindow(root)) attach()
         root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) { attach() }
             override fun onViewDetachedFromWindow(view: View) {
-                observer?.takeIf { it.isAlive }?.removeOnGlobalLayoutListener(listener)
+                observer?.takeIf { it.isAlive }?.let {
+                    it.removeOnGlobalLayoutListener(listener)
+                    it.removeOnScrollChangedListener(scrollListener)
+                }
                 observer = null
             }
         })
