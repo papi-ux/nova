@@ -140,8 +140,8 @@ class PolarisPyrowaveDoctorContractTest {
         assertFalse(parse(negativeRtt).canExecuteAction)
     }
 
-    @Test fun aLossStepNeedsMeasuredLossAboveTheHostThreshold() {
-        for (loss in listOf<Any>(JSONObject.NULL, "bad", -1, 0, 2, 101)) {
+    @Test fun aLossStepNeedsValidMeasuredLossWithTheHostFailedVerdict() {
+        for (loss in listOf<Any>(JSONObject.NULL, "bad", -1, 101)) {
             val json = fixture().apply {
                 put("primary_issue", "network_jitter")
                 val action = getJSONObject("safe_recovery_action")
@@ -151,7 +151,7 @@ class PolarisPyrowaveDoctorContractTest {
                 getJSONArray("evidence").getJSONObject(0).put("status", "fail").put("value", loss)
             }
             val doctor = parse(json)
-            assertFalse("Malformed or non-failing media loss cannot authorize a write: $loss", doctor.canExecuteAction)
+            assertFalse("Malformed media loss cannot authorize a write: $loss", doctor.canExecuteAction)
             assertFalse(doctor.canExecuteWithLiveTuning(true))
         }
     }

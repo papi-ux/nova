@@ -422,7 +422,8 @@ data class PolarisSessionStatus(
         private val confirmedMediaLoss get() = evidenceItem("packet_loss").let { item ->
             evidenceSourceIs(item, "media_transport") &&
                 evidenceStatusIs(item, "fail") && item?.valueValid == true &&
-                item.value?.let { it.isFinite() && it > 2.0 && it <= 100.0 } == true
+                // Polaris's steady verdict can remain failed after the latest sample improves.
+                item.value?.let { it.isFinite() && it >= 0.0 && it <= 100.0 } == true
         }
         private val confirmedRttPressure get() = evidenceItem("latency").let { item ->
             evidenceSourceIs(item, "stream_stats") &&
