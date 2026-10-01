@@ -261,7 +261,7 @@ public:
         armTimer_.setInterval(kArmWindowMs);
         QObject::connect(&armTimer_, &QTimer::timeout, this, [this]() {
             armedKey_.clear();
-            statusCopy_ = QStringLiteral("Launch request expired. Press A twice to open it in Moonlight.");
+            statusCopy_ = QStringLiteral("Launch review expired. Choose Play in Moonlight to review again.");
             emit stateChanged();
         });
         sessionTruthTimer_.setInterval(5000);
@@ -313,7 +313,7 @@ public:
         }
         armedKey_ = key;
         armTimer_.start();
-        statusCopy_ = QStringLiteral("Press A again to open \"%1\" in Moonlight. B cancels.").arg(gameTitle);
+        statusCopy_ = QStringLiteral("Review the Moonlight limits, then confirm to open \"%1\". B cancels.").arg(gameTitle);
         emit stateChanged();
         return state();
     }
@@ -365,7 +365,7 @@ signals:
     void stateChanged();
 
 private:
-    static constexpr int kArmWindowMs = 8000;
+    static constexpr int kArmWindowMs = 60000;
 
     [[nodiscard]] bool armed() const {
         return !armedKey_.isEmpty() && armTimer_.isActive();
