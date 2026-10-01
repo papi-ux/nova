@@ -164,7 +164,10 @@ class PcViewPortraitNavigationTest {
         menu(controller.get()).performClick()
         idleAndLayout(controller.get())
         assertTrue(controller.get().findViewById<View>(R.id.actionSettings).requestFocus())
-        assertEquals("The actual Activity owns Settings focus before saving", R.id.actionSettings, controller.get().currentFocus?.id)
+        val focusTarget = controller.get().findViewById<View>(R.id.actionSettings)
+        assertEquals("Activity focus: target=${focusTarget.hasFocus()} attached=${focusTarget.isAttachedToWindow} " +
+            "decor=${controller.get().window.decorView.findFocus()?.id} header=${controller.get().findViewById<View>(R.id.pcViewHeader).findFocus()?.id}",
+            R.id.actionSettings, controller.get().currentFocus?.id)
         val saved = Bundle()
         controller.saveInstanceState(saved)
         assertEquals("Semantic focus is recorded before the lifecycle changes", R.id.actionSettings,
