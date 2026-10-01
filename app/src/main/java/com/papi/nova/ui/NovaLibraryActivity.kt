@@ -1773,7 +1773,7 @@ class NovaLibraryActivity : NovaActivity() {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(surfaces.backgroundScrim)
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .novaScreenInsets()
                     .padding(com.papi.nova.ui.panel.novaScreenPadding(NovaLibraryUiStateMapper.screenPaddingDp(isLandscape).dp))
             ) {
                 val environments = spacesSnapshot?.takeIf { it.spaces.isNotEmpty() }

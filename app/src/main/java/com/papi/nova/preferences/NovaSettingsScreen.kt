@@ -91,6 +91,8 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.NovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.novaAvoidCameraCutout
+import com.papi.nova.ui.novaScreenInsets
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionSurface
 import com.papi.nova.ui.compose.NovaControllerHint
@@ -334,6 +336,8 @@ internal fun NovaSettingsContent(
             modifier = Modifier
                 .fillMaxSize()
                 .background(colors.window)
+                .novaScreenInsets()
+                .padding(com.papi.nova.ui.panel.novaScreenPadding(0.dp))
                 .padding(horizontal = 20.dp, vertical = 12.dp)
                 .onPreviewKeyEvent { event ->
                     val native = event.nativeKeyEvent
@@ -961,6 +965,7 @@ private fun NovaSettingPill(
     Box(
         modifier = modifier
             .testTag("nova-settings-quick-${definition.key}")
+            .novaAvoidCameraCutout()
             .widthIn(max = NovaSettingsMetrics.quickPillMaxWidthDp().dp)
             .heightIn(min = NovaPanelMetrics.ButtonMinHeight)
             .clip(shape)
@@ -1085,6 +1090,7 @@ private fun NovaCategoryRow(
         modifier = modifier
             .testTag("nova-settings-category-${category.key}")
             .fillMaxWidth()
+            .novaAvoidCameraCutout()
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)

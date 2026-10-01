@@ -200,7 +200,7 @@ class StreamSettings : NovaActivity() {
             }
         }
         setContentView(content)
-        UiHelper.notifyNewRootView(this)
+        UiHelper.notifyEdgeToEdgeComposeRoot(this)
     }
 
     // The legacy fragment culls the fps ListPreference to what the panel can present

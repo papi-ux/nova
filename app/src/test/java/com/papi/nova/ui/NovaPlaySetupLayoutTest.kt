@@ -130,7 +130,7 @@ class NovaPlaySetupLayoutTest {
             "Play Setup stands on the panel frame, attached to the end edge and clear of the screen's insets",
             read("NovaPlaySetupPages.kt").contains("edge = NovaEdge.End") &&
                 read("panel/NovaPanelFrame.kt")
-                    .contains(".windowInsetsPadding(WindowInsets.safeDrawing.only(outer + WindowInsetsSides.Vertical))")
+                    .contains(".novaScreenInsets(outer + WindowInsetsSides.Vertical)")
         )
     }
 
