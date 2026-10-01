@@ -443,6 +443,14 @@ class NovaHostsViewInstrumentedTest {
         try {
             ActivityScenario.launch(PcView::class.java).use { scenario ->
                 settle()
+                scenario.onActivity { activity ->
+                    val modelField = PcView::class.java.getDeclaredField("viewModel").apply { isAccessible = true }
+                    val model = modelField.get(activity) as PcViewModel
+                    val listField = PcViewModel::class.java.getDeclaredField("_computersLiveData").apply { isAccessible = true }
+                    @Suppress("UNCHECKED_CAST")
+                    (listField.get(model) as androidx.lifecycle.MutableLiveData<List<PcViewModel.ComputerObject>>).value = emptyList()
+                }
+                settle()
                 for (menuExpanded in listOf(false, true)) {
                     key(KeyEvent.KEYCODE_DPAD_DOWN)
                     scenario.onActivity { activity ->
