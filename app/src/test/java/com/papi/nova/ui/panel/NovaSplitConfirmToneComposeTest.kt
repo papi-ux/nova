@@ -44,8 +44,8 @@ import org.robolectric.annotation.Config
  * the half with focus fills, in the accent, inside the one accent ring: fills and rings only ever
  * mean focus. Round 2 filled its confirm at rest beside a Stay that filled under focus, two accent
  * surfaces; round 3 kept the confirm's fill at rest and took Stay's focus fill away, in every
- * split. A destructive split looks as it did before round 3: its confirm is red at rest and under
- * focus, flush to the accent ring, and its Stay fills as any control does under focus. Each look
+ * split. A destructive split keeps its confirm red at rest and under focus, separating an accent
+ * ring that would read below 3:1 with the existing panel gap; its Stay fills as any control does. Each look
  * is read from the node that draws it. Both tones keep the guard: one A never confirms.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -128,7 +128,7 @@ class NovaSplitConfirmToneComposeTest {
         assertEquals("one A never confirms", 0, confirmed)
     }
 
-    /** The look a destructive split had before round 3 (2ca154a7a), read half by half. */
+    /** Keep the historic red fill, labels and focus roles; a low-contrast ring now needs the panel gap. */
     @Test
     fun aDestructiveSplitLooksAsItDidBeforeRoundThree() {
         val keys = setUp(NovaSplitTone.Destructive)
@@ -141,7 +141,8 @@ class NovaSplitConfirmToneComposeTest {
         assertEquals("in the red fill's label colour", colors.onDestructiveFill, labelColour("Turn Off"))
 
         toConfirm(keys)
-        assertEquals("the confirm has focus: still red, the accent ring flush on it", NovaSurfaceLook(colors.destructiveFill, surfaces.focusRing, false), look("Turn Off"))
+        assertTrue("This synthetic light ring and red fill are below 3:1", ColorUtils.calculateContrast(surfaces.focusRing.toArgb(), colors.destructiveFill.toArgb()) < 3.0)
+        assertEquals("the confirm has focus: still red, with a gap separating the low-contrast accent ring", NovaSurfaceLook(colors.destructiveFill, surfaces.focusRing, true), look("Turn Off"))
         assertEquals(colors.onDestructiveFill, labelColour("Turn Off"))
         assertEquals("Stay rests as a tile", tile, look("Stay"))
         assertEquals("one A never confirms", 0, confirmed)

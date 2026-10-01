@@ -33,6 +33,8 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.hapticfeedback.HapticFeedback
@@ -60,6 +62,8 @@ import com.papi.nova.ui.panel.NovaCurrentMark
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusRing
+import kotlin.math.max
+import kotlin.math.min
 
 internal object NovaFocusMotionSpec {
     const val DurationMillis = 150
@@ -230,9 +234,10 @@ fun NovaActionButton(
  *
  * The ring is the accent ring every control has, on every surface but one: a primary whose accent
  * fill runs flush to its edge under focus rings in its label colour, `onAccent`, where an accent
- * ring would vanish on it. A red fill takes the accent ring flush (in-game #14). An accent fill
- * that is there at rest, or one under [accentUnderFocus], stands off the ring by
- * [NovaPanelMetrics.FocusRingGap] under focus, so the one accent ring reads on it.
+ * ring would vanish on it. A red fill keeps the accent ring (in-game #14), with a panel gap when
+ * ring and fill would read below 3:1. An accent fill that is there at rest, or one under
+ * [accentUnderFocus], also stands off the ring by [NovaPanelMetrics.FocusRingGap] under focus,
+ * so the one accent ring reads on it.
  *
  * A destructive action at rest has destructive text and a hairline in the destructive fill: the
  * text colour falls back to the ordinary text colour on a theme whose red does not read as words,
@@ -290,9 +295,19 @@ fun NovaActionSurface(
     }
     // A surface that fills takes its fill under focus; everything else takes the focused control fill.
     val focusedContainer = if (fills) (if (pressed) pressedFill else fill) else surfaces.selectedControl
-    // An accent fill that is not flush to the edge under focus stands off the accent ring; a red
-    // fill never has.
-    val ringStandsOff = fills && !destructive && (filledAtRest || accentUnderFocus)
+    // Keep the semantic red fill and accent ring. If they cannot stand apart at 3:1, reuse the
+    // panel gap the focus painter already leaves for accent fills. Measure the stable base fill,
+    // never the temporary pressed alpha. Translucent custom roles resolve over panel/window and
+    // an opaque fallback; this scheme calculation does not promise contrast over live video.
+    val destructiveRingNeedsGap = if (fills && destructive) {
+        val backdrop = surfaces.panel.compositeOver(colors.window).compositeOver(Color.Black)
+        val visibleFill = fill.compositeOver(backdrop)
+        val visibleRing = surfaces.focusRing.compositeOver(visibleFill)
+        val fillLuminance = visibleFill.luminance()
+        val ringLuminance = visibleRing.luminance()
+        (max(fillLuminance, ringLuminance) + 0.05f) / (min(fillLuminance, ringLuminance) + 0.05f) < 3f
+    } else false
+    val ringStandsOff = fills && ((!destructive && (filledAtRest || accentUnderFocus)) || destructiveRingNeedsGap)
     val ring = novaActionRing(fills = fills, destructive = destructive, standsOff = ringStandsOff, onFill = onFill, focusRing = surfaces.focusRing)
     val contentColor = when {
         filled -> onFill
