@@ -9,6 +9,7 @@ struct DeckDoctorOffer {
     QString action, result, appSession;
     qint64 generation = 0, controllerRevision = 0, evidenceRevision = 0;
     int targetKbps = 0, delaySeconds = 0;
+    QString goalSource;
 };
 struct DeckDoctorRequest {
     QString action, appSession, requestId, runId;

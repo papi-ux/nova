@@ -1181,13 +1181,29 @@ void testDoctorTransportAndFactory() {
         {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
     require(rejected.runDoctorAction(request).status == DeckPolarisRequestStatus::CertMismatch && wrong.requests == 0);
 
+    QFile pyrowaveFixture(QStringLiteral(NOVA_DECK_PYROWAVE_DOCTOR_FIXTURE));
+    require(pyrowaveFixture.open(QIODevice::ReadOnly));
+    const auto pyrowaveOffer=parseDoctorOffer(QJsonDocument::fromJson(pyrowaveFixture.readAll()).object());
+    require(pyrowaveOffer.has_value());
+    const DeckDoctorRequest pyrowaveRequest{pyrowaveOffer->action,pyrowaveOffer->appSession,
+        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",{},pyrowaveOffer->generation,pyrowaveOffer};
+    https.handler=[&](const QUrl& url) -> std::pair<int,QByteArray> {
+        require(url.path()=="/polaris/v1/doctor/action" && !url.hasQuery());
+        const auto body=QJsonDocument::fromJson(https.bodies.back()).object();
+        require(body.value("goal_source")=="pyrowave_advice" && body.value("target_bitrate_kbps")==100148);
+        return {200,QJsonDocument(doctor_fixture::receipt(pyrowaveRequest)).toJson(QJsonDocument::Compact)};
+    };
+    before=https.requests;
+    require(transport.runDoctorAction(pyrowaveRequest).ok() && https.requests==before+1);
+
     // Exercise the actual native-target factory, including scoped GET preflight,
     // the fixed paired POST and readback, without touching a real host.
-    int sequence = 0, actions = 0; bool owned = true;
+    int sequence = 0, actions = 0; bool owned = true, liveEnabled = true;
     https.handler = [&](const QUrl& url) -> std::pair<int, QByteArray> {
         if (url.path() == "/polaris/v1/capabilities") return {404,R"({})"}; // Legacy status still works.
         if (url.path() == "/polaris/v1/session/status") {
             auto e = doctor_fixture::envelope(++sequence); e["owned_by_client"] = owned;
+            auto live=e["live_tuning"].toObject(); live["enabled"]=liveEnabled; e["live_tuning"]=live;
             return {200, QJsonDocument(e).toJson(QJsonDocument::Compact)};
         }
         require(url.path() == "/polaris/v1/doctor/action"); ++actions;
@@ -1196,6 +1212,8 @@ void testDoctorTransportAndFactory() {
         dispatched.action = body["action_id"].toString(); dispatched.appSession = body["app_session_id"].toString();
         dispatched.generation = body["session_generation"].toInteger(); dispatched.requestId = body["request_id"].toString();
         dispatched.runId = body["run_id"].toString();
+        if (dispatched.action=="lower_bitrate") { require(liveEnabled); liveEnabled=false; }
+        if (dispatched.action=="undo") liveEnabled=true;
         return {200, QJsonDocument(doctor_fixture::receipt(dispatched)).toJson(QJsonDocument::Compact)};
     };
     identity::DeckMoonlightIdentity saved; saved.loaded = true; saved.sourceLabel = "nova-native";
@@ -1226,7 +1244,7 @@ void testDoctorTransportAndFactory() {
     require(observer->checkDoctorResult());
     until([&] { return observer->snapshot().value("doctorActionState") == "resolved" && observer->snapshot().value("doctorCanUndo").toBool(); });
     require(actions == 2 && observer->undoDoctorFix());
-    until([&] { return observer->snapshot().value("doctorActionState") == "undone"; }); require(actions == 3);
+    until([&] { return observer->snapshot().value("doctorActionState") == "undone"; }); require(actions == 3 && liveEnabled);
     owned = false; until([&] { return !observer->snapshot().value("hostFresh").toBool(); });
     require(!observer->applyDoctorFix() && !observer->undoDoctorFix());
     observer.reset();

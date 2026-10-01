@@ -44,7 +44,7 @@ DeckDoctorActions::Recovery DeckDoctorActions::restore(const QJsonObject& saved,
     const auto delay = integer(saved.value("delay_seconds"), 8, 60);
     if (!generation || *generation != current.generation || !controller || !evidence || !target || !delay || body.contains("app_session_id")) return Recovery::Invalid;
     DeckDoctorOffer offer{body.value("action_id").toString(), body.value("source_result_id").toString(), current.appSession,
-        *generation, *controller, *evidence, static_cast<int>(*target), static_cast<int>(*delay)};
+        *generation, *controller, *evidence, static_cast<int>(*target), static_cast<int>(*delay), body.value("goal_source").toString()};
     DeckDoctorRequest request{offer.action, current.appSession, body.value("request_id").toString(), {}, *generation, offer};
     auto reconstructed = doctorRequestBody(request);
     if (!reconstructed) return Recovery::Invalid;
@@ -92,7 +92,7 @@ void DeckDoctorActions::observe(const DeckHostTelemetry* sample, bool authorized
     }
     if (origin_ && !sameScope(*sample->live)) retire("The stream changed. The previous Doctor receipt is no longer active here.");
     live_ = sample->live; observed_ = now;
-    if (sample->doctorOffer && !live_->enabled && live_->supported && live_->applied > 0 &&
+    if (sample->doctorOffer && (!live_->enabled || sample->doctorOffer->action == "lower_bitrate") && live_->supported && live_->applied > 0 &&
         sample->doctorOffer->appSession == live_->appSession && sample->doctorOffer->generation == live_->generation)
         offer_ = sample->doctorOffer;
 }
@@ -126,6 +126,7 @@ std::optional<DeckDoctorRequest> DeckDoctorActions::next(qint64 now) {
     DeckDoctorRequest request;
     if (operation == "apply") {
         if (!offer_ || !reviewed_ || offer_->action != reviewed_->action || offer_->targetKbps != reviewed_->targetKbps ||
+            offer_->goalSource != reviewed_->goalSource ||
             offer_->controllerRevision != reviewed_->controllerRevision || live_->sequence <= origin_->sequence) {
             reviewed_.reset(); origin_.reset(); state_ = "changed";
             message_ = "The proposed fix changed. Review the new recommendation before applying it."; return {};

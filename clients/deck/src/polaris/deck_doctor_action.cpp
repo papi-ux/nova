@@ -46,12 +46,18 @@ std::optional<DeckDoctorOffer> parseDoctorOffer(const QJsonObject& d) {
         !emptyString(a, "paired_endpoint") || p.value("action_id") != offer.action || p.value("source_result_id") != offer.result ||
         v.value("endpoint") != "/api/doctor/action" || !boolean(u, "supported", true) || u.value("endpoint") != "/api/doctor/action" ||
         !emptyString(u, "paired_endpoint")) return {};
-    QJsonObject loss, latency, ceiling;
+    if (p.contains("goal_source")) {
+        offer.goalSource = token(p, "goal_source");
+        if (offer.action != "restore_quality" || (offer.goalSource != "pyrowave_advice"
+            && offer.goalSource != "launch_bitrate" && offer.goalSource != "launch_ceiling")) return {};
+    }
+    QJsonObject loss, latency, ceiling, bitrate;
     for (const auto& item : d.value("evidence").toArray()) {
         const auto e = item.toObject();
         if (e.value("id") == "packet_loss") loss = e;
         if (e.value("id") == "latency") latency = e;
         if (e.value("id") == "effective_quality_ceiling") ceiling = e;
+        if (e.value("id") == "bitrate") bitrate = e;
     }
     const auto measured = [](const QJsonObject& e, const char* source, const char* state, double max) {
         const auto v = e.value("value"); const auto n = v.toDouble(-1);
@@ -64,10 +70,15 @@ std::optional<DeckDoctorOffer> parseDoctorOffer(const QJsonObject& d) {
     } else {
         const bool lossClear = (measured(loss, "media_transport", "pass", 100) && loss.value("value").toDouble() <= 2) ||
             (loss.value("source") == "unavailable" && loss.value("status") == "unknown" && loss.value("value").isNull());
-        if (d.value("primary_issue") != "quality_reduced_live" || v.value("mode") != "graduated_live_telemetry" ||
-            !measured(latency, "stream_stats", "pass", 1000000) || latency.value("value").toDouble() >= 45 || !lossClear ||
-            ceiling.value("source") != "launch_policy" || ceiling.value("status") != "watch" ||
-            number(ceiling.value("value"), 1000, 300000) != target) return {};
+        const bool pyrowave = d.value("primary_issue") == "pyrowave_starved";
+        const bool goalKnown = pyrowave ? offer.goalSource == "pyrowave_advice"
+            : d.value("primary_issue") == "quality_reduced_live" && offer.goalSource != "pyrowave_advice";
+        const bool goalEvidence = pyrowave ? measured(bitrate,"stream_stats","watch",1000000000)
+            && bitrate.value("value").toDouble() > 0
+            : ceiling.value("source") == "launch_policy" && ceiling.value("status") == "watch"
+                && number(ceiling.value("value"),1000,300000) == target;
+        if (!goalKnown || !goalEvidence || v.value("mode") != "graduated_live_telemetry" ||
+            !measured(latency, "stream_stats", "pass", 1000000) || latency.value("value").toDouble() >= 45 || !lossClear) return {};
     }
     offer.generation = *gen; offer.controllerRevision = *controller; offer.evidenceRevision = *evidence;
     offer.targetKbps = static_cast<int>(*target); offer.delaySeconds = static_cast<int>(*delay);
@@ -86,6 +97,11 @@ std::optional<QJsonObject> doctorRequestBody(const DeckDoctorRequest& r) {
         body.insert("request_id", r.requestId); body.insert("source_result_id", o.result);
         body.insert("target_bitrate_kbps", o.targetKbps); body.insert("controller_revision", o.controllerRevision);
         body.insert("evidence_revision", o.evidenceRevision);
+        if (!o.goalSource.isEmpty()) {
+            if (r.action != "restore_quality" || (o.goalSource != "pyrowave_advice"
+                && o.goalSource != "launch_bitrate" && o.goalSource != "launch_ceiling")) return {};
+            body.insert("goal_source",o.goalSource);
+        }
     } else if ((r.action == "verify" || r.action == "undo") && r.runId.startsWith("doctor-run-") &&
         r.runId.size() > 11 && r.runId.size() <= 256 && r.requestId.isEmpty() && !r.offer) body.insert("run_id", r.runId);
     else return {};

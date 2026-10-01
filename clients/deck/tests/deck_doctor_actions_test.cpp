@@ -4,6 +4,8 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QDateTime>
+#include "polaris/deck_doctor.h"
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
@@ -23,6 +25,11 @@ DeckDoctorRequest initial() {
     auto offer = *parseDoctorOffer(doctor());
     return {offer.action, offer.appSession, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {}, offer.generation, offer};
 }
+QJsonObject pyrowaveDoctor() {
+    QFile fixture(QStringLiteral(NOVA_DECK_PYROWAVE_DOCTOR_FIXTURE));
+    require(fixture.open(QIODevice::ReadOnly), "PyroWave Doctor fixture missing");
+    return QJsonDocument::fromJson(fixture.readAll()).object();
+}
 void lossWithTuningOwner() {
     DeckDoctorActions flow; auto s = sample(); s.live->enabled = true;
     flow.observe(&s, true, 1000);
@@ -36,15 +43,33 @@ void lossWithTuningOwner() {
     require(!restore.apply(1000), "quality restore bypassed Live Tuning ownership");
 }
 void offerContract() {
-    QFile fixture(QStringLiteral(NOVA_DECK_PYROWAVE_DOCTOR_FIXTURE));
-    require(fixture.open(QIODevice::ReadOnly), "PyroWave Doctor fixture missing");
-    const auto pyro = QJsonDocument::fromJson(fixture.readAll()).object();
+    const auto pyro = pyrowaveDoctor();
     const auto offer = parseDoctorOffer(pyro);
     require(offer.has_value(), "current host PyroWave restore offer rejected");
     const DeckDoctorRequest request{offer->action, offer->appSession, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {}, offer->generation, offer};
     const auto body = doctorRequestBody(request);
     require(body && body->value("goal_source") == "pyrowave_advice" && body->value("target_bitrate_kbps") == 100148,
         "PyroWave reviewed goal source or request units lost");
+    require(doctorPresentation(pyro).value("title").toString().contains("PyroWave"), "PyroWave cause hidden in generic Doctor title");
+    for (const auto* source : {"", "launch_bitrate", "launch_ceiling", "other"}) {
+        auto bad=pyro; auto action=bad["safe_recovery_action"].toObject(); auto payload=action["payload_preview"].toObject();
+        if (QString(source).isEmpty()) payload.remove("goal_source"); else payload["goal_source"]=source;
+        action["payload_preview"]=payload; bad["safe_recovery_action"]=action;
+        require(!parseDoctorOffer(bad), "PyroWave restore accepted missing or different goal source");
+    }
+    auto bad=pyro; auto evidence=bad["evidence"].toArray(); auto latency=evidence[1].toObject();
+    latency["value"]=45; evidence[1]=latency; bad["evidence"]=evidence;
+    require(!parseDoctorOffer(bad), "PyroWave restore admitted RTT pressure");
+    bad=pyro; evidence=bad["evidence"].toArray(); auto loss=evidence[0].toObject();
+    loss["source"]="enet_control_channel"; evidence[0]=loss; bad["evidence"]=evidence;
+    require(!parseDoctorOffer(bad), "PyroWave restore mistook control loss for media evidence");
+    for (const auto* source : {"launch_bitrate", "launch_ceiling"}) {
+        auto current=doctor(true); auto action=current["safe_recovery_action"].toObject(); auto payload=action["payload_preview"].toObject();
+        payload["goal_source"]=source; action["payload_preview"]=payload; current["safe_recovery_action"]=action;
+        const auto parsed=parseDoctorOffer(current); require(parsed.has_value(), "current host launch restore source rejected");
+        auto launch=request; launch.offer=parsed; require(doctorRequestBody(launch)->value("goal_source")==source,
+            "launch restore dropped reviewed goal source");
+    }
     require(parseDoctorOffer(doctor()).has_value() && parseDoctorOffer(doctor(true)).has_value(), "host live-fix contract rejected");
     for (const auto* object : {"safe_recovery_action", "payload_preview", "verification", "undo"}) {
         auto d = doctor(); const auto action = d["safe_recovery_action"].toObject();
@@ -80,6 +105,28 @@ void offerContract() {
     loss["value"] = 0; evidence[0] = loss; d["evidence"] = evidence; require(!parseDoctorOffer(d), "unavailable media fabricated clean loss");
     auto a = doctor()["safe_recovery_action"].toObject(); a["endpoint"] = "https://other.invalid/action"; d = doctor(); d["safe_recovery_action"] = a;
     require(!parseDoctorOffer(d), "foreign action URL admitted");
+}
+void pyrowaveRecoveryAndGoalFence() {
+    auto s=sample(); s.doctorOffer=parseDoctorOffer(pyrowaveDoctor());
+    DeckDoctorActions flow; flow.observe(&s,true,1000); require(flow.apply(1000), "PyroWave Apply unavailable");
+    ++s.live->sequence; flow.observe(&s,true,1010); const auto request=flow.next(1010);
+    require(request && doctorRequestBody(*request)->value("goal_source")=="pyrowave_advice", "PyroWave dispatch source lost");
+    const auto saved=flow.checkpoint(); DeckDoctorActions recovered;
+    require(recovered.restore(saved,*s.live,QDateTime::currentMSecsSinceEpoch())==DeckDoctorActions::Recovery::Restored,
+        "PyroWave intent recovery rejected");
+    recovered.observe(&s,true,1020); require(!recovered.next(1020) && recovered.check(1020), "PyroWave recovery replayed automatically");
+    const auto replay=recovered.next(1030);
+    require(replay && doctorRequestBody(*replay)==doctorRequestBody(*request), "recovery changed PyroWave source, units or request identity");
+    flow.invalidate(); flow.complete(parseDoctorReceipt(receipt(*request),200,*request),1040);
+    require(!flow.undo(1040), "PyroWave receipt enabled Undo before readback");
+    ++s.live->sequence; flow.observe(&s,true,1050); require(flow.undo(1050), "PyroWave Undo unavailable after fresh readback");
+    const auto undo=flow.next(1060);
+    require(undo && undo->action=="undo" && !doctorRequestBody(*undo)->contains("goal_source"), "Undo inherited restore goal payload");
+    flow.complete(parseDoctorReceipt(receipt(*undo),200,*undo),1070);
+    require(!flow.view(1070).value("doctorCanUndo").toBool(), "confirmed PyroWave Undo remained enabled");
+    DeckDoctorActions changed; changed.observe(&s,true,1100); require(changed.apply(1100), "goal drift fixture unavailable");
+    ++s.live->sequence; s.doctorOffer->goalSource="launch_bitrate"; changed.observe(&s,true,1110);
+    require(!changed.next(1110), "preflight silently rebased same numeric target onto another goal source");
 }
 void receipts() {
     const auto start = initial(); const auto b = receipt(start);
@@ -235,6 +282,6 @@ void observerBoundary() {
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "--loss-owner") { lossWithTuningOwner(); return 0; }
-    offerContract(); lossWithTuningOwner(); receipts(); stateMachine(); observerBoundary(); eventInvalidation();
+    offerContract(); lossWithTuningOwner(); pyrowaveRecoveryAndGoalFence(); receipts(); stateMachine(); observerBoundary(); eventInvalidation();
     std::cout << "Doctor contracts, receipts, verification, Undo and observer boundaries passed\n";
 }
