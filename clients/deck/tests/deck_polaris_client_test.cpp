@@ -404,6 +404,9 @@ void testAppLaunchAsAuthority() {
         const auto page = parseGamesPage(QJsonDocument(QJsonObject{{"games", QJsonArray{QJsonObject{
             {"id", "app"}, {"name", "Pinned"}, {"launch_mode", contract}}}}, {"total", 1}}).toJson().toStdString());
         assert(page && page->games.size() == 1);
+        if (contract.value("launch_as_available") == QJsonValue(false)) {
+            assert(!page->games.front().launchPolicy.defaultAvailable); // Still denied without client-settings.
+        }
         return launchModePolicy(page->games.front(), *catalog);
     };
     QJsonObject pin{{"launch_as", "windowed_stream"}, {"launch_as_available", true},
