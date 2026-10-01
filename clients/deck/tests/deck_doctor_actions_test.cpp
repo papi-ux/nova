@@ -35,7 +35,7 @@ void steadyLossWithTuningOwner() {
         const auto offer = parseDoctorOffer(steadyLossDoctor(value));
         require(offer && offer->mediaLossStep, "steady host media-loss fail was reclassified by the current sample");
     }
-    for (const QJsonValue value : {QJsonValue::Null, QJsonValue("1.5"), QJsonValue(-1), QJsonValue(101), QJsonValue(false)}) {
+    for (const QJsonValue value : {QJsonValue(QJsonValue::Null), QJsonValue("1.5"), QJsonValue(-1), QJsonValue(101), QJsonValue(false)}) {
         auto d = steadyLossDoctor(); auto evidence = d["evidence"].toArray(); auto loss = evidence[0].toObject();
         loss["value"] = value; evidence[0] = loss; d["evidence"] = evidence;
         require(!parseDoctorOffer(d), "malformed steady-loss value authorized a Doctor write");
