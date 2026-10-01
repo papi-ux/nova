@@ -14,7 +14,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -76,7 +76,7 @@ class NovaCameraPageBackComposeTest {
         assertTrue("wide real title prevents horizontal minimum-touch expansion from masking the hanging glyph", originalTarget.width > minimumTouchWidth)
         assertTrue("Back keeps its real48dp target height", originalTarget.height >= minimumTouchHeight - 0.5f)
         rule.onNodeWithTag("detail-action").assertIsFocused()
-        rule.onNodeWithTag(NovaPageBackTag).assertIsNotFocused()
+        assertTrue("Back remains absent from the controller focus stops", !rule.onNodeWithTag(NovaPageBackTag).fetchSemanticsNode().config.contains(SemanticsProperties.Focused))
         val gapEdge = if (rtl) (originalTarget.right + originalGlyph.right) / 2f else (originalTarget.left + originalGlyph.left) / 2f
         val camera = if (rtl) Rect(gapEdge, 1f, 400 * pixels, originalGlyph.bottom + 1f)
             else Rect(0f, 1f, gapEdge, originalGlyph.bottom + 1f)
@@ -102,7 +102,7 @@ class NovaCameraPageBackComposeTest {
         assertTrue("the actual title remains outside the camera", !protectedTitle.overlaps(camera))
         assertTrue("camera-on Back keeps its48dp target", protectedTarget.height >= minimumTouchHeight - 0.5f)
         rule.onNodeWithTag("detail-action").assertIsFocused()
-        rule.onNodeWithTag(NovaPageBackTag).assertIsNotFocused()
+        assertTrue("Back remains absent from the controller focus stops", !rule.onNodeWithTag(NovaPageBackTag).fetchSemanticsNode().config.contains(SemanticsProperties.Focused))
         repeat(4) {
             rule.runOnIdle { width.value = if (width.value == 320) 321 else 320 }
             rule.waitForIdle()
