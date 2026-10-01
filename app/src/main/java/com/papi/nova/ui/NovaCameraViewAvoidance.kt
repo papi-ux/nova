@@ -12,7 +12,7 @@ import androidx.core.view.ViewCompat
 import java.util.WeakHashMap
 import kotlin.math.ceil
 
-/** A local camera slot in the legacy Hosts rail/header; neither the surface nor its side moves. */
+/** Bounded Hosts control/header reflow; collection positioning and outer side edges stay intact. */
 internal object NovaCameraViewAvoidance {
     fun install(root: View, cameraBounds: () -> List<Rect> = {
         ViewCompat.getRootWindowInsets(root)?.displayCutout?.boundingRects.orEmpty()
