@@ -144,7 +144,9 @@ class NovaNumberAdjustmentComposeTest {
     @Test fun aVerticalSwipeScrollsThePageWithoutChangingTheDraft() {
         show(short = true)
         val before = rule.onNodeWithText("Save").getUnclippedBoundsInRoot().top
-        track().performTouchInput {
+        // The 200dp page has a 65px list viewport: the track initially lies below it.
+        // A player can scroll from the visible value row; an offscreen track is not a hit target.
+        rule.onNodeWithTag("nova-number-slider", useUnmergedTree = true).performTouchInput {
             down(center)
             moveTo(Offset(centerX + 24f, centerY - 90f), 150)
             up()
@@ -153,6 +155,22 @@ class NovaNumberAdjustmentComposeTest {
         val after = rule.onNodeWithText("Save").getUnclippedBoundsInRoot().top
         assertTrue("the page scrolls: $before -> $after", after < before)
         assertEquals("vertical movement never adjusts the value", listOf(20), previews)
+        assertTrue(saves.isEmpty())
+        // The same small fixture must then allow reaching and adjusting its touch track.
+        tap(.8f)
+        rule.onNodeWithText("120 units").assertExists()
+        assertTrue(saves.isEmpty())
+    }
+
+    @Test fun aVerticalTrackGestureAtTheScrollBoundaryNeverEditsTheDraft() {
+        show()
+        track().performTouchInput {
+            down(center)
+            moveTo(Offset(centerX + 24f, centerY - 90f), 150)
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals("vertical motion does not become a value edit at a scroll boundary", listOf(20), previews)
         assertTrue(saves.isEmpty())
     }
 
