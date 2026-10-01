@@ -1,4 +1,5 @@
 #pragma once
+#include "polaris/deck_client_media.h"
 #include "polaris/deck_launch_modes.h"
 #include "polaris/deck_stream_capabilities.h"
 
@@ -77,6 +78,7 @@ struct DeckPolarisCapabilities {
     std::string server;
     std::string version;
     bool gameLibrary = false;
+    bool liveMediaTelemetry = false;
     bool sessionLifecycle = false;
     bool clientSettings = false;
     bool resolvedProfileProvenance = false;
@@ -197,6 +199,8 @@ public:
     [[nodiscard]] DeckPolarisResult<std::vector<DeckPolarisGame>> fetchSpaceLibrary(const std::string& id,
         const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckPolarisSessionStatus> fetchSessionStatus() const;
+    [[nodiscard]] DeckPolarisResult<bool> uploadClientMedia(const DeckClientMediaSample& sample, const DeckClientMediaScope& scope,
+        const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckHostTelemetry> fetchHostTelemetry(const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckDoctorReceipt> runDoctorAction(const DeckDoctorRequest& request,
         const std::function<bool()>& cancelled = {}) const;

@@ -156,7 +156,14 @@ Popup {
                     Copy { text: "Received video: " + doctor.metric("bitrate", "bps") + "\nRound trip: " + doctor.metric("rtt") + "\nRTT variation: " + doctor.metric("jitter") }
                     Heading { text: "CLIENT" }
                     Copy { text: "Incoming: " + doctor.metric("incoming", " FPS") + "\nDecoded: " + doctor.metric("decoded", " FPS") + "\nComposed: " + doctor.metric("fps", " FPS") + "\nStream: " + doctor.metric("resolution") + " · " + doctor.metric("codec") }
-                    Copy { text: "Composed FPS measures app draws. Panel presentation, decoder latency and client media loss are not measured in this preview."; color: NovaTheme.secondary }
+                    Copy {
+                        objectName: "doctor-client-measurement-limits"
+                        text: "Composed FPS measures app draws. Client media loss: " +
+                            (doctor.readings.fresh === true && doctor.readings.mediaLossFresh === true && doctor.readings.mediaLossSource === "Video frame sequence"
+                                ? doctor.readings.mediaLoss + " from video frame sequence gaps." : "unavailable until fresh video sequence counters arrive.") +
+                            " Panel presentation and GPU decoder latency are not measured by this client."
+                        color: NovaTheme.secondary
+                    }
                 }
             }
         }

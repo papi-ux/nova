@@ -1,5 +1,6 @@
 #pragma once
 #include <QVariantMap>
+#include "polaris/deck_client_media.h"
 #include <cstdint>
 #include <optional>
 
@@ -13,6 +14,7 @@ struct DeckHudSample {
     std::uint64_t hostLatencyTenths = 0, hostLatencySamples = 0;
     int width = 0, height = 0, targetFps = 0;
     QString codec;
+    std::optional<polaris::DeckClientMediaSample> media;
     bool compositionAvailable = false;
     std::optional<unsigned> rttMs, rttVariationMs;
 };

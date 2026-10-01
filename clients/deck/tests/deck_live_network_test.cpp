@@ -964,6 +964,93 @@ void testFixedBitrateNeverReplays() {
     require(rejected.setFixedBitrate(15000, observed).status == DeckPolarisRequestStatus::CertMismatch && wrong.requests == 0);
 }
 
+void testClientMediaNeverReplays() {
+    using namespace nova::deck::polaris;
+    QTemporaryDir directory;
+    const auto server = createIdentity(directory.path(), "server"), client = createIdentity(directory.path(), "client");
+    TlsServer https(server); https.trustClient(client.cert); require(https.listen(QHostAddress::LocalHost, 0));
+    DeckPolarisClient transport({"127.0.0.1", https.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
+    const auto makeSample = [] { const auto now = clientMediaMonotonicMs(); return DeckClientMediaSample{now, {10, 8, 2, 1, now}}; };
+    const DeckClientMediaScope scope{"fixture-session", 41};
+    for (int status : {200, 202, 307, 401, 403, 409, 500}) {
+        https.redirectLocation = status == 307 ? QByteArray("/must-not-follow") : QByteArray{};
+        https.handler = [status](const QUrl& url) -> std::pair<int, QByteArray> {
+            require(url.path() == "/polaris/v1/session/telemetry" && !url.hasQuery());
+            return {status, R"({"status":true})"};
+        };
+        const int before = https.requests; const auto result = transport.uploadClientMedia(makeSample(), scope);
+        require((result.ok() && *result.value) == (status == 200) && https.requests == before + 1 && https.methods.back() == "POST");
+        const auto body = QJsonDocument::fromJson(https.bodies.back()).object();
+        require(body.size() == 3 && body.value("app_session_id") == "fixture-session" && body.value("session_generation") == 41 &&
+            body.value("sample").toObject().value("frames_lost") == 2);
+    }
+    https.redirectLocation.clear(); https.dropReply = true;
+    int before = https.requests; require(!transport.uploadClientMedia(makeSample(), scope).ok() && https.requests == before + 1);
+    https.dropReply = false; before = https.requests;
+    auto bad = makeSample(); bad.counts.lost = 0;
+    require(!transport.uploadClientMedia(bad, scope).ok() && https.requests == before);
+    auto stale = makeSample(); stale.atMs -= 2600; stale.counts.lastFrameAtMs = stale.atMs;
+    require(!transport.uploadClientMedia(stale, scope).ok() && https.requests == before);
+    require(!transport.uploadClientMedia(makeSample(), {"fixture-session", 0}).ok() && https.requests == before);
+    require(!transport.uploadClientMedia(makeSample(), scope, [] { return true; }).ok() && https.requests == before);
+    for (const auto* body : {R"({"status":false})", R"({"status":"true"})", R"({})"}) {
+        https.handler = [body](const QUrl&) -> std::pair<int, QByteArray> { return {200, body}; };
+        const auto result = transport.uploadClientMedia(makeSample(), scope); require(!result.ok() || !*result.value);
+    }
+    https.handler = [](const QUrl&) -> std::pair<int, QByteArray> { return {200, R"({"status":true})"}; };
+    before = https.requests; https.dribbleReply = true; QElapsedTimer elapsed; elapsed.start();
+    require(!transport.uploadClientMedia(makeSample(), scope, [&] { return elapsed.elapsed() >= 80; }).ok());
+    require(elapsed.elapsed() < 400 && https.requests == before + 1); https.dribbleReply = false;
+    https.handler = [](const QUrl&) -> std::pair<int, QByteArray> { return {200, QByteArray(16385, ' ')}; };
+    require(transport.uploadClientMedia(makeSample(), scope).status == DeckPolarisRequestStatus::MalformedBody);
+    const auto derived = createDerivedServer(directory.path()); TlsServer wrong(derived); wrong.trustClient(client.cert);
+    require(wrong.listen(QHostAddress::LocalHost, 0));
+    DeckPolarisClient rejected({"127.0.0.1", wrong.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
+    require(rejected.uploadClientMedia(makeSample(), scope).status == DeckPolarisRequestStatus::CertMismatch && wrong.requests == 0);
+}
+
+void testMediaProductionFactory() {
+    using namespace nova::deck;
+    using namespace polaris;
+    QTemporaryDir directory;
+    const auto server = createIdentity(directory.path(), "server"), client = createIdentity(directory.path(), "client");
+    TlsServer https(server); https.trustClient(client.cert); require(https.listen(QHostAddress::LocalHost, 0));
+    identity::DeckMoonlightIdentity saved;
+    saved.loaded = true; saved.sourceLabel = "nova-native";
+    saved.clientCertificatePem = client.cert.toStdString(); saved.clientPrivateKeyPemForBackendOnly = client.key.toStdString();
+    identity::DeckMoonlightHostRecord host;
+    host.uuid = "media-host"; host.manualAddress = "127.0.0.1"; host.nativeHttpsPort = https.serverPort();
+    host.serverCertificatePem = server.cert.toStdString(); saved.hosts.push_back(host);
+    backend::DeckLiveHostLibrarySnapshot snapshot; snapshot.selectedHostId = host.uuid;
+    DeckPolarisGame game; game.id = "media-game"; game.appId = 17; game.name = "Fixture";
+    snapshot.library.games.push_back(backend::toLibraryGame(game));
+    const auto target = runtime::nativeTargetResolver(saved, snapshot)("media-host", "media-game");
+    require(target && target->hostTelemetry);
+    const auto until = [](const std::function<bool()>& predicate) {
+        QElapsedTimer timer; timer.start();
+        while (!predicate() && timer.elapsed() < 2000) { QCoreApplication::processEvents(); QThread::msleep(1); }
+        require(predicate());
+    };
+    for (const QJsonValue feature : {QJsonValue(false), QJsonValue("true"), QJsonValue(true)}) {
+        int uploads = 0;
+        https.handler = [&](const QUrl& url) -> std::pair<int, QByteArray> {
+            if (url.path() == "/polaris/v1/capabilities")
+                return {200, QJsonDocument(QJsonObject{{"features", QJsonObject{{"live_media_telemetry_v1", feature}}}}).toJson()};
+            if (url.path() == "/polaris/v1/session/telemetry") { ++uploads; return {200, R"({"status":true})"}; }
+            require(url.path() == "/polaris/v1/session/status");
+            return {200, R"({"streaming_active":true,"owned_by_client":true,"client_role":"owner","controls":{"host_tuning_allowed":false},"game_id":17,"game_uuid":"media-game","session_token":"media-token","session_generation":41,"app_session_id":"media-token"})"};
+        };
+        runtime::DeckHudHostObserver observer(target->hostTelemetry, {17, "media-game", "media-token"}, {50, 250, 100});
+        until([&] { return observer.snapshot().value("hostFresh").toBool(); });
+        const auto now = clientMediaMonotonicMs();
+        require(observer.submitClientMedia({now, {10, 8, 2, 1, now}}) == (feature == true));
+        if (feature == true) until([&] { return uploads == 1; });
+        else { QElapsedTimer timer; timer.start(); while (timer.elapsed() < 70) { QCoreApplication::processEvents(); QThread::msleep(1); } require(uploads == 0); }
+    }
+}
+
 void testPyrowaveAdvicePreflight() {
     using namespace nova::deck::polaris;
     QTemporaryDir directory;
@@ -1435,6 +1522,8 @@ int main(int argc, char** argv) {
     testHudStatusRead();
     testLiveTuningNeverReplays();
     testFixedBitrateNeverReplays();
+    testClientMediaNeverReplays();
+    testMediaProductionFactory();
     testPyrowaveAdvicePreflight();
     testSessionEventTransport();
     testDoctorTransportAndFactory();
