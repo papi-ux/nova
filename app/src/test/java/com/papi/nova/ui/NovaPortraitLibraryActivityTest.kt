@@ -16,6 +16,7 @@ import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.TestLogSuppressor
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.shared.polaris.model.PolarisGame
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -95,7 +96,8 @@ class NovaPortraitLibraryActivityTest {
         it.onBackPressedDispatcher.onBackPressed()
         rule.waitForIdle()
         rule.onNodeWithText("System").assertIsDisplayed().performClick()
-        rule.onNodeWithText("Keep in Step").assertIsDisplayed()
+        org.junit.Assert.assertTrue(it.novaSurfaces.panel.isOpen)
+        rule.onNodeWithText("Polaris Sync").assertIsDisplayed()
     }
 
     @Test fun compactDoesNotRepeatItsRecentGameInPortrait() = library(NovaLibraryLayoutMode.COMPACT) {

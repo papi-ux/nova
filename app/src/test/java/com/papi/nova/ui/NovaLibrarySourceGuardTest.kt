@@ -104,7 +104,7 @@ class NovaLibrarySourceGuardTest {
                 activity.contains("layoutMode == NovaLibraryLayoutMode.STAGE") &&
                 activity.contains("NovaLibraryStage(") &&
                 activity.contains("layoutMode = layoutMode") &&
-                activity.contains("layoutMode = NovaLibraryLayoutMode.COMPACT") &&
+                panels.contains("NovaLibraryLayoutMode.COMPACT") &&
                 activity.contains("showPosterTitle = model.optionsState.showPosterTitles")
         )
         assertTrue(
@@ -794,7 +794,7 @@ class NovaLibrarySourceGuardTest {
             "shared poster call sites should request focus once when they match the remembered game " +
                 "(restore and cold start share the settled request path)",
             source.windowed("rememberLibraryPosterFocusRequester(".length)
-                .count { it == "rememberLibraryPosterFocusRequester(" } == 3 &&
+                .count { it == "rememberLibraryPosterFocusRequester(" } == 2 &&
                 posterFocus.contains("val focusRequester = remember { FocusRequester() }") &&
                 posterFocus.contains("if ((restoreFocus || coldStartFocus) && !restoreAttempted)") &&
                 posterFocus.contains("focusRequester.requestFocus()")
@@ -1179,12 +1179,6 @@ class NovaLibrarySourceGuardTest {
             "main library grid games should declare a stable content type",
             source.containsRegex(
                 """items\s*\(\s*model\.filteredGames\s*,[\s\S]*?contentType\s*=\s*\{\s*"library-game"\s*\}\s*\)\s*\{"""
-            )
-        )
-        assertTrue(
-            "recent rail games should declare a stable content type",
-            source.containsRegex(
-                """items\s*\(\s*games\s*,[\s\S]*?contentType\s*=\s*\{\s*"recent-game"\s*\}\s*\)\s*\{"""
             )
         )
         assertTrue(
@@ -1672,11 +1666,11 @@ class NovaLibrarySourceGuardTest {
     }
 
     @Test
-    fun task9StageGridCompactAndRecentUseOnlySharedPosterCard() {
+    fun task9StageGridAndCompactUseOnlySharedPosterCard() {
         val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
         val activity = readNovaLibraryActivity()
         assertEquals(2, stage.countOccurrences("NovaLibraryPosterCard("))
-        assertEquals(2, activity.countOccurrences("NovaLibraryPosterCard("))
+        assertEquals(1, activity.countOccurrences("NovaLibraryPosterCard("))
         assertFalse(stage.contains("NovaLibraryStageCard("))
         assertFalse(activity.contains("NovaLibraryGameCard("))
     }
@@ -1698,7 +1692,7 @@ class NovaLibrarySourceGuardTest {
     // Task 9 plain-art/default/semantic source guards: END
 
     @Test
-    fun sharedPosterCardIsCleanOwnerAcrossStageGridAndRecentMigrations() {
+    fun sharedPosterCardIsCleanOwnerAcrossStageAndGridMigrations() {
         val poster = readSource("src/main/java/com/papi/nova/ui/NovaLibraryPosterCard.kt")
         val stage = readSource("src/main/java/com/papi/nova/ui/NovaLibraryStage.kt")
         val activity = readNovaLibraryActivity()
@@ -1734,7 +1728,7 @@ class NovaLibrarySourceGuardTest {
         assertTrue(focusComponents.contains("const val DurationMillis = 150"))
         assertTrue(focusComponents.contains("const val CardFocusedScale = 1.025f"))
         assertEquals(2, stage.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" })
-        assertEquals(2, activity.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" })
+        assertEquals(1, activity.windowed("NovaLibraryPosterCard(".length).count { it == "NovaLibraryPosterCard(" })
     }
 
     @Test
@@ -1763,9 +1757,9 @@ class NovaLibrarySourceGuardTest {
         assertTrue(focusedItem < heroFallback && heroFallback < filteredFallback && filteredFallback < recentFallback)
         assertTrue(backdropCall >= 0 && backdropCall < particles && backdropCall < windowContent)
         assertTrue(
-            "every surface that can focus a game has to report it so the backdrop follows. The count dropped by one when the standalone continue card became a slot in the showcase strip, which has a button rather than a focusable card.",
+            "Stage, grid and live-session surfaces must report game focus after retiring the duplicate recent rail.",
             activity.windowed("onGameFocused = onGameFocused".length)
-                .count { it == "onGameFocused = onGameFocused" } >= 6,
+                .count { it == "onGameFocused = onGameFocused" } == 5,
         )
     }
 
