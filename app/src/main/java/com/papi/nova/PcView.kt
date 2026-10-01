@@ -3519,6 +3519,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     setServerFilterNextFocusDown(firstRow)
                 }
             }
+            updateEmptyState()
         }
     }
 
