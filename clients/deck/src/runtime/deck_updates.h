@@ -61,7 +61,7 @@ private:
     QString message_, latestVersion_;
     bool supported_ = false, blocked_ = true, automatic_ = false;
     bool checking_ = false, creating_ = false, installing_ = false, pendingInstall_ = false;
-    bool restartRequired_ = false, checked_ = false;
+    bool restartRequired_ = false, checked_ = false, feedUnavailable_ = false;
     int progress_ = 0;
     quint64 generation_ = 0;
 };
