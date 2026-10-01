@@ -12,13 +12,15 @@ object PolarisGameJsonAdapter {
             throw IllegalArgumentException("Missing Space game context")
         val source = json.optString("source", "other")
         val launchMode = json.optJSONObject("launch_mode")?.let { modeJson ->
+            val hasAppLaunchAsContract = modeJson.has("launch_as") || modeJson.has("launch_as_available") ||
+                modeJson.has("launch_as_unavailable_reason")
             PolarisGame.LaunchModeContract(
                 preferredMode = PolarisGame.normalizeLaunchMode(modeJson.optString("preferred_mode", "")),
                 recommendedMode = PolarisGame.normalizeLaunchMode(modeJson.optString("recommended_mode", "")),
-                allowedModes = PolarisGame.normalizeLaunchModes(fetchStringArray(modeJson.optJSONArray("allowed_modes")), defaultWhenEmpty = !modeJson.has("launch_as")),
+                allowedModes = PolarisGame.normalizeLaunchModes(fetchStringArray(modeJson.optJSONArray("allowed_modes")), defaultWhenEmpty = !hasAppLaunchAsContract),
                 modeReason = modeJson.optString("mode_reason", ""),
                 followsHostDefault = modeJson.optBoolean("follows_host_default", true),
-                launchAs = if (modeJson.has("launch_as")) modeJson.opt("launch_as") as? String ?: "" else null,
+                launchAs = if (hasAppLaunchAsContract) modeJson.opt("launch_as") as? String ?: "" else null,
                 launchAsAvailable = modeJson.opt("launch_as_available") as? Boolean,
                 launchAsUnavailableReason = modeJson.optString("launch_as_unavailable_reason", "")
             )

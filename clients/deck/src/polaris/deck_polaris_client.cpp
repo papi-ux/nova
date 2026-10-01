@@ -147,7 +147,8 @@ DeckPolarisGame parseGame(const QJsonObject& object) {
     const auto contract = object.value("launch_mode");
     game.launchContractValid = contract.isUndefined() || contract.isObject();
     game.launchFollowsHostDefault = launchMode.value("follows_host_default") != QJsonValue(false);
-    game.launchAsPresent = launchMode.contains("launch_as");
+    game.launchAsPresent = launchMode.contains("launch_as") || launchMode.contains("launch_as_available") ||
+        launchMode.contains("launch_as_unavailable_reason");
     if (game.launchAsPresent) {
         const auto pin = launchMode.value("launch_as");
         game.launchAs = toStd(pin.toString());
@@ -213,6 +214,8 @@ DeckPolarisGame parseGame(const QJsonObject& object) {
         QString::fromStdString(game.artwork.logo), QString::fromStdString(game.artwork.icon)};
     game.artwork.key = QCryptographicHash::hash(QJsonDocument(artworkIdentity).toJson(QJsonDocument::Compact),
         QCryptographicHash::Sha256).toHex().toStdString();
+    // A missing/unreadable host mode catalog cannot erase the app's own refusal.
+    game.launchPolicy = launchModePolicy(game, {});
     return game;
 }
 
@@ -276,10 +279,10 @@ DeckLaunchModePolicy launchModePolicy(const DeckPolarisGame& game, const DeckLau
         return denied;
     }
     if (!game.launchContractValid || game.id.starts_with("space.")) return {};
-    DeckLaunchModePolicy result{true, catalog.desired, {}};
+    DeckLaunchModePolicy result{!catalog.modes.empty(), catalog.desired, {}};
     result.followsHostDefault = game.launchFollowsHostDefault;
     if (!result.followsHostDefault) result.hostDefault = game.launchAsPresent ? game.launchAs : normalizeLaunchMode(game.launchRecommendedMode);
-    if (game.launchAsPresent && !result.followsHostDefault) {
+    if (game.launchAsPresent && !result.followsHostDefault && !catalog.modes.empty()) {
         result.defaultAvailable = std::any_of(catalog.modes.begin(), catalog.modes.end(),
             [&](const auto& mode) { return mode.value == result.hostDefault && mode.available; });
         if (!result.defaultAvailable) result.unavailableReason = "This app's Launch As mode is unavailable on this PC.";
