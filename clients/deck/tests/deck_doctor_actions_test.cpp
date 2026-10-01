@@ -43,6 +43,7 @@ void lossWithTuningOwner() {
     require(!restore.apply(1000), "quality restore bypassed Live Tuning ownership");
 }
 void offerContract() {
+    {
     const auto pyro = pyrowaveDoctor();
     const auto offer = parseDoctorOffer(pyro);
     require(offer.has_value(), "current host PyroWave restore offer rejected");
@@ -69,6 +70,7 @@ void offerContract() {
         const auto parsed=parseDoctorOffer(current); require(parsed.has_value(), "current host launch restore source rejected");
         auto launch=request; launch.offer=parsed; require(doctorRequestBody(launch)->value("goal_source")==source,
             "launch restore dropped reviewed goal source");
+    }
     }
     require(parseDoctorOffer(doctor()).has_value() && parseDoctorOffer(doctor(true)).has_value(), "host live-fix contract rejected");
     for (const auto* object : {"safe_recovery_action", "payload_preview", "verification", "undo"}) {
