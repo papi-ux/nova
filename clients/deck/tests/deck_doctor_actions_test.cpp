@@ -30,6 +30,36 @@ QJsonObject pyrowaveDoctor() {
     require(fixture.open(QIODevice::ReadOnly), "PyroWave Doctor fixture missing");
     return QJsonDocument::fromJson(fixture.readAll()).object();
 }
+void steadyLossWithTuningOwner() {
+    require(parseDoctorOffer(steadyLossDoctor()).has_value(), "host-offered steady media-loss fail at 1.5 percent was rejected");
+    for (const double value : {1.5, 0.0, 2.0, 100.0}) {
+        const auto offer = parseDoctorOffer(steadyLossDoctor(value));
+        require(offer && offer->mediaLossStep, "steady host media-loss fail was reclassified by the current sample");
+    }
+    for (const QJsonValue value : {QJsonValue(QJsonValue::Null), QJsonValue("1.5"), QJsonValue(-1), QJsonValue(101), QJsonValue(false)}) {
+        auto d = steadyLossDoctor(); auto evidence = d["evidence"].toArray(); auto loss = evidence[0].toObject();
+        loss["value"] = value; evidence[0] = loss; d["evidence"] = evidence;
+        require(!parseDoctorOffer(d), "malformed steady-loss value authorized a Doctor write");
+    }
+    for (const char* state : {"pass", "unknown"}) {
+        auto d = steadyLossDoctor(); auto evidence = d["evidence"].toArray(); auto loss = evidence[0].toObject();
+        loss["status"] = state; evidence[0] = loss; d["evidence"] = evidence;
+        require(!parseDoctorOffer(d), "a current loss sample invented a host failure verdict");
+    }
+    auto s = sample(); s.live->enabled = true; s.doctorOffer = parseDoctorOffer(steadyLossDoctor());
+    DeckDoctorActions flow; flow.observe(&s, true, 1000);
+    require(flow.apply(1000), "steady host loss step hidden while Live Tuning owns bitrate");
+    ++s.live->sequence; flow.observe(&s, true, 1010); const auto request = flow.next(1010);
+    require(request && request->action == "lower_bitrate", "steady host loss step did not dispatch");
+    flow.complete(parseDoctorReceipt(receipt(*request), 200, *request), 1020);
+    ++s.live->sequence; flow.observe(&s, true, 9000);
+    const auto verify = flow.next(9020); require(verify && verify->action == "verify", "steady loss verification was lost");
+    flow.complete(parseDoctorReceipt(receipt(*verify), 200, *verify), 9030);
+    require(flow.undo(9030), "steady loss lost the reversible Undo flow");
+    const auto undo = flow.next(9040); require(undo && undo->action == "undo", "steady loss Undo did not dispatch");
+    flow.complete(parseDoctorReceipt(receipt(*undo), 200, *undo), 9050);
+    require(!flow.view(9050).value("doctorCanUndo").toBool(), "steady loss confirmed Undo remained enabled");
+}
 void lossWithTuningOwner() {
     DeckDoctorActions flow; auto s = sample(); s.live->enabled = true;
     flow.observe(&s, true, 1000);
@@ -291,7 +321,8 @@ void observerBoundary() {
 }
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "--steady-loss") { steadyLossWithTuningOwner(); return 0; }
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "--loss-owner") { lossWithTuningOwner(); return 0; }
-    offerContract(); lossWithTuningOwner(); pyrowaveRecoveryAndGoalFence(); receipts(); stateMachine(); observerBoundary(); eventInvalidation();
+    offerContract(); steadyLossWithTuningOwner(); lossWithTuningOwner(); pyrowaveRecoveryAndGoalFence(); receipts(); stateMachine(); observerBoundary(); eventInvalidation();
     std::cout << "Doctor contracts, receipts, verification, Undo and observer boundaries passed\n";
 }

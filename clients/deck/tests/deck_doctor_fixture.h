@@ -21,6 +21,12 @@ inline QJsonObject doctor(bool restore = false) {
             {"verification", QJsonObject{{"mode", restore ? "graduated_live_telemetry" : "live_telemetry"}, {"delay_seconds", 8}, {"endpoint", "/api/doctor/action"}}},
             {"undo", QJsonObject{{"supported", true}, {"endpoint", "/api/doctor/action"}, {"paired_endpoint", ""}}}}}};
 }
+// The host's steady failure verdict may outlive a single improved loss sample.
+inline QJsonObject steadyLossDoctor(double value = 1.5) {
+    auto result = doctor(); auto evidence = result["evidence"].toArray();
+    auto loss = evidence[0].toObject(); loss["value"] = value; evidence[0] = loss;
+    result["evidence"] = evidence; return result;
+}
 inline QJsonObject envelope(int sequence = 1) {
     return {{"streaming_active", true}, {"owned_by_client", true}, {"client_role", "owner"},
         {"game_id", 17}, {"game_uuid", "private-game"}, {"session_token", "private-token"},

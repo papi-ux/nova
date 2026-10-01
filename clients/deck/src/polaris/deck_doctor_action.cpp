@@ -64,7 +64,8 @@ std::optional<DeckDoctorOffer> parseDoctorOffer(const QJsonObject& d) {
         return e.value("source") == source && e.value("status") == state && v.isDouble() && std::isfinite(n) && n >= 0 && n <= max;
     };
     if (offer.action == "lower_bitrate") {
-        offer.mediaLossStep = measured(loss,"media_transport","fail",100) && loss.value("value").toDouble() > 2;
+        // The host's sustained verdict can remain failed after the latest sample improves.
+        offer.mediaLossStep = measured(loss,"media_transport","fail",100);
         if (d.value("primary_issue") != "network_jitter" || v.value("mode") != "live_telemetry" ||
             !(offer.mediaLossStep ||
               (measured(latency, "stream_stats", "fail", 1000000) && latency.value("value").toDouble() >= 45))) return {};

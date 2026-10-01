@@ -1290,6 +1290,7 @@ void testDoctorTransportAndFactory() {
         if (url.path() == "/polaris/v1/capabilities") return {404,R"({})"}; // Legacy status still works.
         if (url.path() == "/polaris/v1/session/status") {
             auto e = doctor_fixture::envelope(++sequence); e["owned_by_client"] = owned;
+            e["doctor"] = doctor_fixture::steadyLossDoctor();
             auto live=e["live_tuning"].toObject(); live["enabled"]=liveEnabled; e["live_tuning"]=live;
             return {200, QJsonDocument(e).toJson(QJsonDocument::Compact)};
         }
