@@ -63,6 +63,45 @@ class NovaSettingsPortraitMenuTest {
         org.junit.Assert.assertEquals(1, legacy)
     }
 
+    @Test
+    @Config(sdk = [33], qualifiers = "w320dp-h720dp-port")
+    fun narrowPortraitSearchAndSavedSetupActionsRemainReachable() {
+        val definitions = NovaSettingDefinitions.load(rule.activity)
+        var query by mutableStateOf("bitrate")
+        var selected by mutableStateOf(definitions.categories.first().key)
+        var legacy = 0
+        var renames = 0
+        var saves = 0
+        rule.setPanelContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.3f)) {
+                NovaSettingsContent(
+                    state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), selected, query),
+                    title = "Saved setup", subtitle = "Test", onBack = {}, onOpenLegacy = { legacy++ },
+                    onSearch = { query = it }, onClearSearch = { query = "" },
+                    onCategory = { selected = it; query = "" },
+                    headerActions = listOf(NovaSettingsHeaderAction("Rename") { renames++ },
+                        NovaSettingsHeaderAction("Save") { saves++ }),
+                    onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
+                )
+            }
+        }
+        rule.onNodeWithText("Menu").performClick()
+        rule.onNodeWithText("Clear").assertIsDisplayed().performClick()
+        org.junit.Assert.assertEquals("", query)
+        rule.onNodeWithText("Legacy").assertIsDisplayed().performClick()
+        rule.onNodeWithText("Rename").performScrollTo().assertIsDisplayed().performClick()
+        rule.onNodeWithText("Save").performScrollTo().assertIsDisplayed().performClick()
+        org.junit.Assert.assertEquals(1, legacy)
+        org.junit.Assert.assertEquals(1, renames)
+        org.junit.Assert.assertEquals(1, saves)
+        val last = definitions.categories.last()
+        rule.onNodeWithTag("nova-settings-category-${last.key}").performScrollTo().assertIsDisplayed().performClick()
+        org.junit.Assert.assertEquals(last.key, selected)
+        rule.onNodeWithText("Hide menu").assertIsDisplayed().performClick()
+        rule.onNodeWithText("Menu").assertIsDisplayed()
+    }
+
     @Test fun enlargedTextCanReachEveryCategoryInTheExpandedMenu() {
         val definitions = NovaSettingDefinitions.load(rule.activity)
         var selected by mutableStateOf(definitions.categories.first().key)
