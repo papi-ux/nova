@@ -224,7 +224,7 @@ internal fun NovaLibraryCinematicControllerHints(
         // vertical budget. Dropped on compact shells where that space is not free.
         if (!compact) {
             Text(
-                text = stringResource(R.string.nova_stage_footer_brand),
+                text = stringResource(R.string.nova_library_footer_brand),
                 color = colors.textSecondary.copy(alpha = 0.72f),
                 style = NovaChromeType.label(fontSize = 9.sp, letterSpacing = 0.18.em),
                 lineHeight = 11.sp,
