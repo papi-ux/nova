@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -84,10 +85,24 @@ class NovaSettingsPortraitMenuTest {
             rule.onNode(hasClickAction() and hasText("Back")))) {
             val bounds = node.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             org.junit.Assert.assertTrue("Header action stays inside the narrow surface", bounds.left >= bar.left && bounds.right <= bar.right)
+            val complete = node.getUnclippedBoundsInRoot()
+            val completeBar = rule.onNodeWithTag("nova-portrait-menu-bar").getUnclippedBoundsInRoot()
+            org.junit.Assert.assertTrue("The full action remains inside the header", complete.left >= completeBar.left && complete.right <= completeBar.right && complete.top >= completeBar.top && complete.bottom <= completeBar.bottom)
+            val touch = node.fetchSemanticsNode().touchBoundsInRoot
+            val floor = 48 * rule.activity.resources.displayMetrics.density
+            org.junit.Assert.assertTrue("Large header actions preserve the full 48dp touch target", touch.width >= floor && touch.height >= floor)
         }
         val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         rule.onNodeWithText(title).assertIsDisplayed().performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         org.junit.Assert.assertEquals(1, layouts.size)
+        val titleBounds = rule.onNodeWithText(title).getUnclippedBoundsInRoot()
+        val screen = rule.onRoot().getUnclippedBoundsInRoot()
+        val header = rule.onNodeWithTag("nova-portrait-menu-bar").getUnclippedBoundsInRoot()
+        org.junit.Assert.assertTrue("The complete title is inside the measured header: $titleBounds / $header",
+            titleBounds.left >= header.left && titleBounds.right <= header.right && titleBounds.top >= header.top && titleBounds.bottom <= header.bottom)
+        org.junit.Assert.assertTrue("The complete header is inside the real narrow viewport: $header / $screen",
+            header.left >= screen.left && header.right <= screen.right && header.top >= screen.top && header.bottom <= screen.bottom)
+        println("saved-header titleSize=${layouts.single().size} overflow=${layouts.single().hasVisualOverflow} widthOverflow=${layouts.single().didOverflowWidth} heightOverflow=${layouts.single().didOverflowHeight} paragraph=${layouts.single().multiParagraph.width}/${layouts.single().multiParagraph.height} exceeded=${layouts.single().multiParagraph.didExceedMaxLines} lineEnd=${layouts.single().getLineEnd(0)} lines=${layouts.single().lineCount} bar=$bar title=$titleBounds screen=$screen")
         org.junit.Assert.assertFalse("The complete saved-setup name wraps without clipping", layouts.single().hasVisualOverflow)
     }
 
