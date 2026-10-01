@@ -54,17 +54,45 @@ class NovaSettingsPortraitMenuTest {
         val legacyButton = rule.onNodeWithText("Legacy").fetchSemanticsNode().boundsInRoot
         org.junit.Assert.assertTrue("Search and Legacy belong to one navigation row",
             legacyButton.center.y in search.top..search.bottom)
-        val navigation = rule.onNodeWithTag("nova-portrait-settings-navigation").fetchSemanticsNode().boundsInRoot
-        val first = rule.onNodeWithTag("nova-settings-category-${definitions.categories.first().key}").fetchSemanticsNode().boundsInRoot
-        val last = rule.onNodeWithTag("nova-settings-category-${definitions.categories.last().key}").fetchSemanticsNode().boundsInRoot
+        val navigation = rule.onNodeWithTag("nova-portrait-settings-navigation").getUnclippedBoundsInRoot()
+        val first = rule.onNodeWithTag("nova-settings-category-${definitions.categories.first().key}").getUnclippedBoundsInRoot()
+        val last = rule.onNodeWithTag("nova-settings-category-${definitions.categories.last().key}").getUnclippedBoundsInRoot()
         val categoryLayout = rule.onNodeWithTag("nova-settings-category-${definitions.categories.last().key}").getUnclippedBoundsInRoot()
         val quickLayout = rule.onNodeWithTag("nova-settings-quick-nova_stream_preset").getUnclippedBoundsInRoot()
         org.junit.Assert.assertTrue("Categories come before repeated stream shortcuts: $categoryLayout / $quickLayout",
             categoryLayout.bottom <= quickLayout.top + 1.dp)
         org.junit.Assert.assertTrue("All default-size category rows are wholly in the bounded menu",
-            first.top >= navigation.top - 1f && last.bottom <= navigation.bottom + 1f)
+            first.top >= navigation.top - 1.dp && last.bottom <= navigation.bottom + 1.dp)
         rule.onNodeWithText("Legacy").assertIsDisplayed().performClick()
+        rule.onNodeWithTag("nova-settings-quick-nova_stream_preset").performScrollTo().assertIsDisplayed()
         org.junit.Assert.assertEquals(1, legacy)
+    }
+
+
+    @Test fun portraitControllerCanEnterEveryStreamShortcutFromTheSelectedPane() {
+        val definitions = NovaSettingDefinitions.load(rule.activity)
+        var selected by mutableStateOf(definitions.find("nova_stream_preset")!!.categoryKey)
+        val keys = rule.setPanelContent {
+            NovaSettingsContent(
+                state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), selected, ""),
+                title = "Settings", subtitle = "Test", onBack = {}, onOpenLegacy = {},
+                onSearch = {}, onClearSearch = {}, onCategory = { selected = it }, headerActions = emptyList(),
+                onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
+            )
+        }
+        rule.onNodeWithText("Menu").performClick()
+        val last = rule.onNodeWithTag("nova-settings-category-${definitions.categories.last().key}")
+        last.performScrollTo().performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        keys.press(KeyEvent.KEYCODE_DPAD_DOWN)
+        rule.onNodeWithTag("nova-settings-row-nova_stream_preset").assertIsFocused()
+        keys.press(KeyEvent.KEYCODE_DPAD_UP)
+        val state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), selected, "")
+        for ((index, shortcut) in state.quickSettings.withIndex()) {
+            if (index > 0) keys.press(KeyEvent.KEYCODE_DPAD_DOWN)
+            rule.onNodeWithTag("nova-settings-quick-${shortcut.key}").assertIsFocused().assertIsDisplayed()
+        }
+        keys.press(KeyEvent.KEYCODE_DPAD_DOWN)
+        rule.onNodeWithTag("nova-settings-row-nova_stream_preset").assertIsFocused()
     }
 
     @Test

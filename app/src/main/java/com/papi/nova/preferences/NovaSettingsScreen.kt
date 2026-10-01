@@ -365,6 +365,7 @@ internal fun NovaSettingsContent(
                 Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
                 NovaSettingsQuickStrip(
                     state = state,
+                    portrait = portrait,
                     // Down from the strip lands on the rail; without one it moves on as Compose finds.
                     modifier = if (wide) focus.quickStripModifier { latestState.selectedCategoryKey } else Modifier,
                     firstPillModifier = Modifier.focusRequester(focus.firstQuick),
@@ -423,6 +424,16 @@ internal fun NovaSettingsContent(
                     state = pane,
                     modifier = modifier
                         .then(focus.paneModifier)
+                        .then(if (portrait && showQuickStrip) Modifier.onPreviewKeyEvent {
+                            val firstRow = latestState.visibleSettings.firstOrNull { row ->
+                                latestState.isEnabled(row) && row.takesFocus()
+                            }?.key
+                            if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp &&
+                                pane.depth == 1 && focusedRow != null && focusedRow == firstRow) {
+                                focus.firstQuick.requestFocus()
+                                true
+                            } else false
+                        } else Modifier)
                         .then(if (wide) focus.paneLeftModifier { latestState.selectedCategoryKey } else Modifier),
                     // Pages pushed over the rows keep focus; the rows themselves may give it to the rail.
                     containFocus = pane.depth > 1,
@@ -888,7 +899,27 @@ private fun NovaSettingsQuickStrip(
     onPill: (NovaSettingDefinition) -> Unit,
     modifier: Modifier = Modifier,
     firstPillModifier: Modifier = Modifier,
+    portrait: Boolean = false,
 ) {
+    val pills: @Composable () -> Unit = {
+        for (definition in state.quickSettings) {
+            NovaSettingPill(
+                definition = definition,
+                value = state.valueLabel(LocalContext.current, definition),
+                modifier = (if (portrait) Modifier.fillMaxWidth() else Modifier)
+                    .then(if (definition == state.quickSettings.firstOrNull()) firstPillModifier else Modifier),
+                onClick = { onPill(definition) }
+            )
+        }
+    }
+    if (portrait) {
+        // Portrait shortcuts read as the same rows as the rest of Settings. One column gives
+        // touch and controller users a direct, unclipped route through every shortcut.
+        Column(modifier.fillMaxWidth().focusGroup(), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+            pills()
+        }
+        return
+    }
     FlowRow(
         modifier = modifier
             .fillMaxWidth()
@@ -899,14 +930,7 @@ private fun NovaSettingsQuickStrip(
         // rows; there it keeps the pills that fit on one line, whole, and the rows get the room.
         maxLines = if (LocalNovaFormFactor.current == NovaFormFactor.Television) 1 else Int.MAX_VALUE,
     ) {
-        for (definition in state.quickSettings) {
-            NovaSettingPill(
-                definition = definition,
-                value = state.valueLabel(LocalContext.current, definition),
-                modifier = if (definition == state.quickSettings.firstOrNull()) firstPillModifier else Modifier,
-                onClick = { onPill(definition) }
-            )
-        }
+        pills()
     }
 }
 
@@ -990,27 +1014,28 @@ private fun NovaSettingsCategoryChips(
     onCategory: (String) -> Unit,
     onEnterPane: (() -> Unit)? = null,
 ) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
-        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)
-    ) {
-        val lastRowStart = ((state.categories.size - 1).coerceAtLeast(0) / 2) * 2
-        for ((index, category) in state.categories.withIndex()) {
-            NovaCategoryRow(
-                category = category,
-                selected = category.key == state.selectedCategoryKey && state.searchQuery.isBlank(),
-                onClick = { onCategory(category.key) },
-                modifier = Modifier.fillMaxWidth(0.48f).then(
-                    // Keep Down from the bottom category row entering the selected pane even
-                    // though the repeated shortcuts now follow the categories visually.
-                    if (onEnterPane != null && index >= lastRowStart) Modifier.onPreviewKeyEvent {
-                        if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionDown) {
-                            onEnterPane()
-                            true
-                        } else false
-                    } else Modifier
-                )
-            )
+    val rows = state.categories.chunked(2)
+    Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+        for ((rowIndex, categories) in rows.withIndex()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+                for (category in categories) {
+                    NovaCategoryRow(
+                        category = category,
+                        selected = category.key == state.selectedCategoryKey && state.searchQuery.isBlank(),
+                        onClick = { onCategory(category.key) },
+                        modifier = Modifier.weight(1f).then(
+                            // Keep Down from the bottom category row entering the selected pane.
+                            if (onEnterPane != null && rowIndex == rows.lastIndex) Modifier.onPreviewKeyEvent {
+                                if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionDown) {
+                                    onEnterPane()
+                                    true
+                                } else false
+                            } else Modifier
+                        )
+                    )
+                }
+                if (categories.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
