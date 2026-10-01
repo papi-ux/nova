@@ -41,10 +41,10 @@ class NovaDashboardRevampContractTest {
             assertTrue("${layout.path} should make Theme a labeled pill", headerXml.contains("@string/pcview_quick_theme"))
             assertTrue("${layout.path} should make GitHub a labeled pill", headerXml.contains("@string/pcview_quick_github"))
             val expectedActionHeight = if (layout.path.contains("layout-land")) "wrap_content" else "@dimen/nova_dashboard_top_action_height"
-            val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "@dimen/nova_dashboard_top_action_radius"
-            assertTrue("${layout.path} should use compact pilled top actions", headerXml.contains("""android:layout_height="$expectedActionHeight"""") && headerXml.contains("""app:cornerRadius="$expectedActionRadius""""))
+            val expectedActionRadius = "@dimen/nova_radius_row"
+            assertTrue("${layout.path} should use compact grouped top rows", headerXml.contains("""android:layout_height="$expectedActionHeight"""") && headerXml.contains("""app:cornerRadius="$expectedActionRadius""""))
             if (layout.path.contains("layout-land")) {
-                assertTrue("landscape text actions should grow above their compact baseline", headerXml.contains("""android:minHeight="34dp"""))
+                assertTrue("landscape text actions should grow above their48dp baseline", headerXml.contains("""android:minHeight="48dp"""))
             }
         }
     }
@@ -217,7 +217,7 @@ class NovaDashboardRevampContractTest {
             val selectorXml = xml.substring(selectorIndex, hostsIndex)
             assertTrue("${layout.path} compact selector should keep Servers mode target", selectorXml.contains("@+id/modeServers"))
             assertTrue("${layout.path} compact selector should keep Library mode target", selectorXml.contains("@+id/modeLibrary"))
-            assertTrue("${layout.path} compact selector should use shared pill radius", selectorXml.contains("@dimen/nova_dashboard_pill_radius"))
+            assertTrue("${layout.path} compact selector should use bounded shared group radius", selectorXml.contains("@dimen/nova_radius_hero"))
             assertFalse("${layout.path} should remove hero-mode CURRENT badge copy from dashboard XML", selectorXml.contains("pcview_destination_current"))
             assertFalse("${layout.path} should remove hero-mode OPEN badge copy from dashboard XML", selectorXml.contains("pcview_destination_open"))
             assertFalse("${layout.path} should remove hero-mode summary paragraphs from compact selector", selectorXml.contains("pcview_destination_servers_summary") || selectorXml.contains("pcview_destination_library_summary"))
@@ -249,10 +249,10 @@ class NovaDashboardRevampContractTest {
             if (layout.path.contains("layout-land")) {
                 assertTrue("${layout.path} setup row should fill the compact left rail", setupXml.contains("""android:layout_width="match_parent"""))
                 assertTrue("${layout.path} expanded setup actions should split into compact paired rail pills", setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
-                assertTrue("${layout.path} setup actions should retain compact minimums while growing for larger text", setupXml.contains("""android:layout_height="wrap_content""") && setupXml.contains("""android:minHeight="34dp""") && setupXml.contains("""app:cornerRadius="17dp"""))
+                assertTrue("${layout.path} setup actions should retain compact minimums while growing for larger text", setupXml.contains("""android:layout_height="wrap_content""") && setupXml.contains("""android:minHeight="48dp""") && setupXml.contains("""app:cornerRadius="@dimen/nova_radius_row"""))
             } else {
                 assertTrue("${layout.path} setup row should fill portrait width for large touch targets", setupXml.contains("""android:layout_width="match_parent"""))
-                assertTrue("${layout.path} setup actions should use shared pill tokens", setupXml.contains("@dimen/nova_dashboard_pill_height") && setupXml.contains("@dimen/nova_dashboard_pill_radius"))
+                assertTrue("${layout.path} setup actions should retain their sizing with bounded row corners", setupXml.contains("@dimen/nova_dashboard_pill_height") && setupXml.contains("@dimen/nova_radius_row"))
                 assertTrue("${layout.path} setup actions should split into equal-width portrait targets", setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
             }
         }

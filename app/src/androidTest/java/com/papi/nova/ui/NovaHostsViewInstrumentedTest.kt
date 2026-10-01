@@ -123,6 +123,9 @@ class NovaHostsViewInstrumentedTest {
             } else {
                 scenario.onActivity { activity ->
                     assertEquals("", activity.findViewById<TextView>(R.id.actionAddServer).text.toString())
+                    val toggle = activity.findViewById<MaterialButton>(R.id.dashboardRailToggle)
+                    assertEquals(MaterialButton.ICON_GRAVITY_TEXT_START, toggle.iconGravity)
+                    assertEquals(Gravity.CENTER, toggle.gravity)
                     listOf(R.id.actionStartPolaris, R.id.profilesButton, R.id.actionTheme, R.id.actionGithub, R.id.actionSettings).forEach { id ->
                         val button = activity.findViewById<MaterialButton>(id)
                         assertEquals(MaterialButton.ICON_GRAVITY_TEXT_START, button.iconGravity)
