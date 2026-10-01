@@ -330,7 +330,7 @@ private fun NovaValueRowFrame(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .novaAvoidCameraCutout()
+            .novaAvoidCameraCutout(touchTarget = true)
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             // A stacked row is already taller than the 48dp touch floor. A graphics-layer
             // clip would then stop its compact control's expanded target at the row edge.

@@ -312,7 +312,7 @@ fun NovaActionSurface(
 
     Box(
         modifier = modifier
-            .novaAvoidCameraCutout()
+            .novaAvoidCameraCutout(touchTarget = true)
             .defaultMinSize(minHeight = novaControlDimension(minHeight))
             .clip(shape)
             .novaFocusRing(

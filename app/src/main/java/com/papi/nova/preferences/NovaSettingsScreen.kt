@@ -964,7 +964,7 @@ private fun NovaSettingPill(
     Box(
         modifier = modifier
             .testTag("nova-settings-quick-${definition.key}")
-            .novaAvoidCameraCutout()
+            .novaAvoidCameraCutout(touchTarget = true)
             .widthIn(max = NovaSettingsMetrics.quickPillMaxWidthDp().dp)
             .heightIn(min = NovaPanelMetrics.ButtonMinHeight)
             .clip(shape)
@@ -1089,7 +1089,7 @@ private fun NovaCategoryRow(
         modifier = modifier
             .testTag("nova-settings-category-${category.key}")
             .fillMaxWidth()
-            .novaAvoidCameraCutout()
+            .novaAvoidCameraCutout(touchTarget = true)
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)

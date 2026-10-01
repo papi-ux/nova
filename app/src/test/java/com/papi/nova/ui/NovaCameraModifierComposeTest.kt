@@ -60,14 +60,15 @@ class NovaCameraModifierComposeTest {
             }
         }
         fun textLeft(label: String) = rule.onNodeWithText(label, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.left
-        val nearbyBefore = textLeft("Nearby")
+        val nearbyBeforeBounds = rule.onNodeWithText("Nearby", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val nearbyBefore = nearbyBeforeBounds.left
         val belowBefore = textLeft("Below")
         rule.runOnIdle { camera.value = true }
         rule.waitForIdle()
         val nearbyAfter = textLeft("Nearby")
         val label = rule.onNodeWithText("Nearby", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         if (rtl) {
-            assertTrue("RTL fixture begins with its label under the physical-right camera", nearbyBefore < 240f * pixels && label.right > 0)
+            assertTrue("RTL fixture begins with its label under the physical-right camera", nearbyBeforeBounds.overlaps(Rect(208f * pixels, 1f * pixels, 240f * pixels, 48f * pixels)))
             assertTrue("the actual RTL label clears the physical-right camera", label.right <= 208f * pixels + 1)
             assertTrue("RTL clearance changes the actual label position", nearbyAfter < nearbyBefore)
         } else assertTrue("the actual row/button label stays outside the camera", nearbyAfter >= 32f * pixels)

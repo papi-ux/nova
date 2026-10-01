@@ -8,6 +8,7 @@ import android.graphics.Rect
 import android.view.View
 import android.view.ViewGroup
 import android.view.LayoutInflater
+import android.view.WindowManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.LinearLayoutManager
 import android.widget.LinearLayout
@@ -60,6 +61,21 @@ class NovaCameraViewPolicyTest {
                 assertEquals(if (hidden) caption else maxOf(24, caption), target.paddingTop)
                 assertEquals(if (hidden) ime else maxOf(18, ime), target.paddingBottom)
             }
+        } finally { controller.pause().stop().destroy() }
+    }
+
+    @Test fun legacyRoutesKeepShortEdgesWhileLocalizedRoutesUseAlways() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        try {
+            val target = LinearLayout(activity)
+            activity.setContentView(target)
+            UiHelper.notifyNewRootView(activity, target)
+            assertEquals(WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES,
+                activity.window.attributes.layoutInDisplayCutoutMode)
+            UiHelper.notifyNewRootView(activity, target, localizeCamera = true)
+            assertEquals(WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS,
+                activity.window.attributes.layoutInDisplayCutoutMode)
         } finally { controller.pause().stop().destroy() }
     }
 

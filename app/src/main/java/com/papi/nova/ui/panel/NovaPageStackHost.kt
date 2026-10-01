@@ -619,7 +619,7 @@ private fun NovaPageHeader(
             } else {
                 // The ‹ hangs into the gutter, so the title starts on the text line of the rows
                 // under it, as the mockup draws it. As tall as the line, for the touch B.
-                NovaPageBack(title = title, modifier = Modifier.novaAvoidCameraCutout().novaTouchReach(reach, backTarget).heightIn(min = height))
+                NovaPageBack(title = title, modifier = Modifier.novaAvoidCameraCutout(touchTarget = true).novaTouchReach(reach, backTarget).heightIn(min = height))
             }
         }
         end?.let {
