@@ -10,6 +10,7 @@ A Library that fits your screen, stream choices that fit your device, and bitrat
 
 - Stage puts the selected game up front with a wrapping poster row, play time, last played and a Running badge. A opens the game page. Portrait uses Regular while keeping your Stage choice for landscape.
 - Regular and Compact show each recent game once in the grid, without the old Continue row. A running stream keeps its Resume and End actions.
+- Loading or failed poster artwork keeps the game's name visible. Portrait's footer names the Library consistently across layouts.
 - Portrait Library keeps Options and System directly available. Settings can hide its supporting menu to give the rows more space. Search and the focused game survive a screen rotation.
 - Hosts, Library and update buttons fit narrow portrait screens. Empty Hosts actions scroll on short screens and remain reachable by touch and controller.
 - Settings, sheets, pickers and Command Center use consistent focus, Back behavior and action styling, including the Mouse Mode picker and End Session confirmation.
@@ -40,6 +41,7 @@ A Library that fits your screen, stream choices that fit your device, and bitrat
 - Controller navigation supports held-button repeat, the left stick, shoulder paging and Back. Command Center fits an 800p handheld and scrolls at larger text sizes.
 - Save a PC's MAC address and send Wake PC from its System menu. Nova reports that the wake packet was sent; the PC's connection state determines whether it came online.
 - System offers a reviewed Add Nova to Steam action. The first Moonlight handoff explains its limits before launching; Back cancels it.
+- Compatible Polaris hosts receive fresh measured video-loss evidence from Nova Linux. Decoder errors and control retries stay separate; unavailable link measurements remain unavailable.
 - Linux builds use the production update-feed address and keep a failed check's Retry available.
 
 ## 1.4.13 - 2026-09-24
