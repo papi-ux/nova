@@ -50,7 +50,9 @@ internal class NovaHostsViewMetrics(context: Context) {
                 // delegate. Preserve its original visual height through background insets.
                 val visualHeight = (if (base.height > 0) base.height else base.minHeight)
                     .minus(base.insetTop + base.insetBottom).coerceAtLeast(0)
-                val scaledVisual = scaled(visualHeight)
+                // Grouped navigation rows fill their own >=48dp slot. Insets around a smaller
+                // pill made consecutive accessible rows look like separated floating buttons.
+                val scaledVisual = max(scaled(visualHeight), if (button.tag == "hostsNavigationAction") hitFloor else 0)
                 val extra = (hitFloor - scaledVisual).coerceAtLeast(0)
                 insetTop = scaled(base.insetTop) + extra / 2
                 insetBottom = scaled(base.insetBottom) + extra - extra / 2

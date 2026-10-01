@@ -8,17 +8,27 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.computers.ComputerManagerService
+import com.papi.nova.nvstream.http.ComputerDetails
+import com.papi.nova.nvstream.http.PairingManager
+import java.security.cert.X509Certificate
+import java.time.Duration
 import com.papi.nova.preferences.AddComputerManually
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.BeforeClass
+import kotlin.math.roundToInt
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
@@ -229,6 +239,92 @@ class PcViewPortraitNavigationTest {
             activity.findViewById<TextView>(R.id.actionAddServer).text.toString())
         assertTrue(activity.findViewById<View>(R.id.actionAddServer).bottom <=
             activity.findViewById<View>(R.id.actionScanPair).bottom)
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h480dp-land")
+    fun liveHostPowerGlyphsSurviveStateRefreshAndRailCollapse() {
+        val activity = open().get()
+        val model = ViewModelProvider(activity)[PcViewModel::class.java]
+        @Suppress("UNCHECKED_CAST")
+        val computers = model.computersLiveData as MutableLiveData<List<PcViewModel.ComputerObject>>
+        val update = PcView::class.java.getDeclaredMethod("updateHostPowerAction").apply { isAccessible = true }
+        val button = activity.findViewById<MaterialButton>(R.id.actionStartPolaris)
+        val toggle = activity.findViewById<View>(R.id.dashboardRailToggle)
+        for (online in listOf(false, true, false)) {
+            // A pinned, address-less fixture reaches the actual host-state observer without
+            // allowing any host request. This test never activates the power action.
+            computers.value = listOf(PcViewModel.ComputerObject(ComputerDetails().apply {
+                uuid = "owned-style-power"; name = "Owned style host"
+                state = if (online) ComputerDetails.State.ONLINE else ComputerDetails.State.OFFLINE
+                pairState = PairingManager.PairState.PAIRED
+                serverCert = mock(X509Certificate::class.java)
+            }))
+            update.invoke(activity)
+            idleAndLayout(activity)
+            val expectedIcon = if (online) R.drawable.ic_host_sleep else R.drawable.ic_host_wake
+            val expectedText = activity.getString(if (online) R.string.pcview_quick_sleep_host else R.string.pcview_quick_start_polaris)
+            assertEquals("The actual runtime refresh supplies the state's glyph", expectedIcon, shadowOf(button.icon).createdFromResId)
+            assertEquals(expectedText, button.text.toString())
+            toggle.performClick()
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+            update.invoke(activity)
+            idleAndLayout(activity)
+            assertEquals("", button.text.toString())
+            assertEquals(expectedText, button.contentDescription.toString())
+            assertEquals(expectedIcon, shadowOf(button.icon).createdFromResId)
+            toggle.performClick()
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+            idleAndLayout(activity)
+            assertEquals(expectedText, button.text.toString())
+            assertEquals(expectedIcon, shadowOf(button.icon).createdFromResId)
+        }
+    }
+
+    @Test fun portraitNavigationUsesGroupedRowsWithAlignedIcons() = checkNavigationRows()
+
+    @Test
+    @Config(qualifiers = "w900dp-h480dp-land")
+    fun landscapeNavigationUsesGroupedRowsWithAlignedIcons() = checkNavigationRows()
+
+    private fun checkNavigationRows() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        for (size in listOf("compact", "standard", "large")) {
+            preferences.edit().putString("nova_control_size", size).commit()
+            val activity = open().get()
+            val portrait = activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            if (portrait) menu(activity).performClick()
+            idleAndLayout(activity)
+            val density = activity.resources.displayMetrics.density
+            val group = activity.findViewById<MaterialCardView>(R.id.hostsNavigationActions)
+            assertTrue("Supporting actions share one bounded group", group.isShown)
+            assertTrue("Group corners remain bounded rather than pill-shaped", group.radius <= 10 * density)
+            val buttons = listOf(R.id.actionStartPolaris, R.id.profilesButton, R.id.actionTheme,
+                R.id.actionGithub, R.id.actionSettings).map { activity.findViewById<MaterialButton>(it) }
+            buttons.forEach { button ->
+                assertEquals("Icons use the same start column", MaterialButton.ICON_GRAVITY_START, button.iconGravity)
+                assertEquals("Labels align at the start", Gravity.START, button.gravity and Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK)
+                assertEquals(View.TEXT_ALIGNMENT_GRAVITY, button.textAlignment)
+                assertEquals(0f, button.letterSpacing, 0f)
+                assertEquals((20 * density).roundToInt(), button.iconSize)
+                assertTrue("Rows use bounded corners", button.cornerRadius <= 8 * density)
+                assertTrue("The visible row fills its own 48dp target, without floating-pill gaps",
+                    button.height - button.insetTop - button.insetBottom >= 48 * density - 1)
+                var parent = button.parent
+                while (parent is View && parent !== group) parent = parent.parent
+                assertSame("Rows belong to the same navigation group", group, parent)
+            }
+            val first = IntArray(2); val second = IntArray(2)
+            if (portrait) {
+                buttons[0].getLocationInWindow(first); buttons[2].getLocationInWindow(second)
+                assertTrue("Portrait row gap stays compact", second[1] - first[1] - buttons[0].height in 0..(4 * density).toInt())
+            } else {
+                buttons.zipWithNext().forEach { (a,b) ->
+                    a.getLocationInWindow(first); b.getLocationInWindow(second)
+                    assertTrue("Landscape rows stay together without overlap", second[1] - first[1] - a.height in 0..(4 * density).toInt())
+                }
+            }
+        }
     }
 
     companion object {

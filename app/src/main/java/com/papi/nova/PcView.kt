@@ -835,7 +835,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         styleActionButton(findViewById(R.id.actionStartPolaris), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary)
         styleActionButton(findViewById(R.id.actionTheme), surface, textPrimary)
         styleActionButton(findViewById(R.id.actionGithub), surface, textPrimary)
-        styleActionButton(findViewById(R.id.actionSettings), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary)
+        styleActionButton(findViewById(R.id.actionSettings), surface, textPrimary)
+        findViewById<MaterialCardView>(R.id.hostsNavigationActions)?.let { group ->
+            group.setCardBackgroundColor(surface)
+            group.strokeColor = divider
+            group.strokeWidth = UiHelper.dpToPx(this, 1f).toInt()
+        }
         styleActionButton(findViewById(R.id.dashboardRailToggle), surface, textPrimary)
 
         tintChipRow(
@@ -1040,6 +1045,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         findViewById<MaterialButton>(R.id.dashboardRailToggle)?.let { toggle ->
             toggle.contentDescription = getString(if (collapsed) R.string.pcview_rail_expand else R.string.pcview_rail_collapse)
             toggle.setIconResource(if (collapsed) R.drawable.ic_menu else R.drawable.ic_menu_collapse)
+            toggle.iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
             toggle.gravity = Gravity.CENTER
             toggle.iconPadding = 0
             toggle.setPadding(0, 0, 0, 0)
@@ -1072,7 +1078,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             }
             button.text = if (collapsed) "" else dashboardRailButtonText[id]
             button.iconPadding = if (collapsed) 0 else UiHelper.dpToPx(this, 6f * (hostsControlSize?.layoutScale ?: 1f)).toInt()
-            button.gravity = if (collapsed) Gravity.CENTER else Gravity.CENTER_VERTICAL
+            button.gravity = if (collapsed) Gravity.CENTER else Gravity.START or Gravity.CENTER_VERTICAL
+            button.iconGravity = if (collapsed) MaterialButton.ICON_GRAVITY_TEXT_START else MaterialButton.ICON_GRAVITY_START
         }
         setDashboardRailSetupActionsCollapsed(collapsed)
         // A button that lost its label shows the caption now, and one that got it back hides it.
@@ -2827,13 +2834,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             named == HostPowerAction.SLEEP -> R.string.pcview_quick_sleep_host
             else -> R.string.pcview_quick_start_polaris
         }
-        // The icon follows the label, as an open and closed pair rather than two
-        // unrelated glyphs: a play arrow next to Sleep Host read as though the
-        // button started something, and one icon cannot carry both states.
+        // Power and sleep symbols follow the label through every live refresh,
+        // including the icon-only rail; neither state looks like a launch action.
         val icon = if (busy || named == HostPowerAction.SLEEP) {
-            R.drawable.ic_eye_closed
+            R.drawable.ic_host_sleep
         } else {
-            R.drawable.ic_eye_open
+            R.drawable.ic_host_wake
         }
         // A collapsed rail shows icons only and puts each label back on the way
         // out, so the label goes where it will be put back from.
