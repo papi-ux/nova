@@ -116,7 +116,8 @@ class NovaThemeManagerTest {
         assertEquals(colors.accent, full.focusRing)
         assertFalse("Director's structural red shell has no ambient particle field", full.particlesEnabled)
         assertEquals(1f, full.panel.alpha, 0.001f)
-        assertEquals(0.5f, half.panel.alpha, 0.001f)
+        // Compose sRGB alpha is ARGB8: 50% rounds to 128/255, not an exact 0.5.
+        assertEquals(128f / 255f, half.panel.alpha, 0f)
         assertEquals(0f, zero.panel.alpha, 0.001f)
         assertEquals(0f, zero.control.alpha, 0.001f)
         assertEquals(full.focusRing, zero.focusRing)

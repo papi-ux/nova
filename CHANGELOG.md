@@ -16,6 +16,7 @@ A Library that fits your screen, stream choices that fit your device, and bitrat
 - Phone menus fill the screen edges while nearby controls and text clear camera cutouts. Portrait Settings puts Menu on the left; Hosts combines its identity and Menu in one touch bar.
 - Touch opens the Settings search keyboard and filters as you type. Back closes the keyboard before clearing the search or leaving the screen.
 - Settings, sheets, pickers and Command Center use consistent focus, Back behavior and action styling, including the Mouse Mode picker and End Session confirmation.
+- Android adds `< Congratulations, Director >` in Hosts and Settings, with crimson surfaces, warm white text and black controls.
 - Control Size offers distinct Compact, Standard and Large layouts, independently of Nova Text Size. Nova text starts at 80 percent; you can change it, and Android text scaling still applies. Smaller layouts keep full touch targets.
 - Text size and bitrate offer buttons for small steps as well as touch adjustment and exact entry.
 
