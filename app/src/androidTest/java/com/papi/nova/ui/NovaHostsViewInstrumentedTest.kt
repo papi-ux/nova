@@ -77,6 +77,9 @@ class NovaHostsViewInstrumentedTest {
     @Test fun openingHostsMenuAndControllerFocusUseTheActualActivity() = withPreferences {
         ActivityScenario.launch(PcView::class.java).use { scenario ->
             settle()
+            // A preceding raw-touch test may leave Android in touch mode. Enter controller mode
+            // through real D-pad input before requesting a non-touch-focusable action.
+            key(KeyEvent.KEYCODE_DPAD_DOWN)
             var portrait = false
             scenario.onActivity { activity ->
                 portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -128,6 +131,7 @@ class NovaHostsViewInstrumentedTest {
     @Test fun panelBackKeepsPortraitMenuUntilTheNextBackAndSizingKeepsTargetsSeparate() = withPreferences {
         ActivityScenario.launch(PcView::class.java).use { scenario ->
             settle()
+            key(KeyEvent.KEYCODE_DPAD_DOWN)
             var portrait = false
             scenario.onActivity { activity ->
                 portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -176,15 +180,15 @@ class NovaHostsViewInstrumentedTest {
         }
     }
 
-    @Test fun portraitSupportingActionsScrollWhollyIntoTheBoundedNavigationPane() = withPreferences {
+    @Test fun supportingActionsScrollWhollyIntoTheirNavigationPane() = withPreferences {
         ActivityScenario.launch(PcView::class.java).use { scenario ->
             settle()
+            key(KeyEvent.KEYCODE_DPAD_DOWN)
             var portrait = false
             scenario.onActivity { activity ->
                 portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
                 if (portrait) activity.findViewById<View>(R.id.dashboardRailToggle).performClick()
             }
-            if (!portrait) return@withPreferences
             settle()
             val rows = listOf(R.id.actionStartPolaris, R.id.profilesButton, R.id.actionTheme,
                 R.id.actionGithub, R.id.actionSettings, R.id.actionNovaUpdate, R.id.modeServers,
@@ -197,14 +201,15 @@ class NovaHostsViewInstrumentedTest {
                 settle()
                 scenario.onActivity { activity ->
                     val action = activity.findViewById<View>(id)
-                    val pane = activity.findViewById<View>(R.id.dashboardPortraitNavigation)
+                    val pane = activity.findViewById<View>(if (portrait) R.id.dashboardPortraitNavigation else R.id.dashboardCockpitRail)
                     val visible = Rect()
                     assertEquals("Supporting action keeps actual Activity focus", id, activity.currentFocus?.id)
                     assertTrue("Focused action has visible pixels", action.getGlobalVisibleRect(visible))
                     assertTrue("Focused action is not clipped above or below the navigation viewport",
                         visible.height() >= action.height - 1)
                     val density = activity.resources.displayMetrics.density
-                    assertTrue("Supporting navigation leaves a computer pane", pane.height < activity.window.decorView.height * .4f)
+                    assertTrue("Supporting navigation leaves a computer pane", if (portrait)
+                        pane.height < activity.window.decorView.height * .4f else pane.width < activity.window.decorView.width * .4f)
                     assertTrue("Supporting action retains its own touch target", action.width >= 48 * density - 1 && action.height >= 48 * density - 1)
                 }
             }
