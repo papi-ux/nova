@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,7 +41,7 @@ internal fun NovaPortraitMenuBar(
     val titleWidth = rememberTextMeasurer().measure(
         title, style = LocalTextStyle.current.merge(type.panelTitle), softWrap = false,
     ).size.width
-    val titleMinWidth = with(LocalDensity.current) { titleWidth.toDp() }
+    val titleNaturalWidth = with(LocalDensity.current) { titleWidth.toDp() }
     val label = stringResource(if (expanded) R.string.nova_portrait_hide_menu else R.string.nova_portrait_show_menu)
     // Keep the same composed action nodes in either layout, including their focus owners.
     Layout(
@@ -54,9 +54,9 @@ internal fun NovaPortraitMenuBar(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             ) { color, _ -> Text(label, color = color, style = type.value) }
             Box(Modifier.novaAvoidCameraCutout()) {
-                // Keep the intrinsic child at the measured glyph width, within the parent's
-                // available width. Intrinsic rounding must not discard its last pixel.
-                Text(title, modifier = Modifier.widthIn(min = titleMinWidth),
+                // Measure the intrinsic glyph region, within the real incoming constraints.
+                // A title wider than its row still wraps at the available width.
+                Text(title, modifier = Modifier.width(titleNaturalWidth),
                     color = colors.textPrimary, style = type.panelTitle)
             }
             if (onBack != null) NovaActionSurface(
