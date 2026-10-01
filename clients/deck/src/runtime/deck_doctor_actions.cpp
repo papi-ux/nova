@@ -92,7 +92,7 @@ void DeckDoctorActions::observe(const DeckHostTelemetry* sample, bool authorized
     }
     if (origin_ && !sameScope(*sample->live)) retire("The stream changed. The previous Doctor receipt is no longer active here.");
     live_ = sample->live; observed_ = now;
-    if (sample->doctorOffer && (!live_->enabled || sample->doctorOffer->action == "lower_bitrate") && live_->supported && live_->applied > 0 &&
+    if (sample->doctorOffer && (!live_->enabled || (sample->doctorOffer->action == "lower_bitrate" && sample->doctorOffer->mediaLossStep)) && live_->supported && live_->applied > 0 &&
         sample->doctorOffer->appSession == live_->appSession && sample->doctorOffer->generation == live_->generation)
         offer_ = sample->doctorOffer;
 }
@@ -127,6 +127,7 @@ std::optional<DeckDoctorRequest> DeckDoctorActions::next(qint64 now) {
     if (operation == "apply") {
         if (!offer_ || !reviewed_ || offer_->action != reviewed_->action || offer_->targetKbps != reviewed_->targetKbps ||
             offer_->goalSource != reviewed_->goalSource ||
+            offer_->mediaLossStep != reviewed_->mediaLossStep ||
             offer_->controllerRevision != reviewed_->controllerRevision || live_->sequence <= origin_->sequence) {
             reviewed_.reset(); origin_.reset(); state_ = "changed";
             message_ = "The proposed fix changed. Review the new recommendation before applying it."; return {};
