@@ -135,6 +135,7 @@ class NovaCameraViewPolicyTest {
             cardLayout()
             val before = IntArray(2).also { manage.getLocationInWindow(it) }
             val height = manage.height
+            assertEquals("actual XML Manage target is 48dp", (48 * activity.resources.displayMetrics.density + 0.5f).toInt(), height)
             val camera = Rect(before[0], before[1], before[0] + 2, before[1] + 3)
             NovaCameraViewAvoidance.install(root) { listOf(camera) }
             repeat(5) { cardLayout() }
