@@ -351,6 +351,9 @@ data class PolarisSessionStatus(
         val targetBitrateKbps: Int = 0,
         val targetBitratePresent: Boolean = false,
         val targetBitrateTyped: Boolean = false,
+        val actionGoalSource: String = "",
+        val actionGoalSourcePresent: Boolean = false,
+        val actionGoalSourceTyped: Boolean = false,
         val verificationDelaySeconds: Int = 0,
         val undoSupported: Boolean = false,
         val undoEndpoint: String = "",
@@ -461,15 +464,19 @@ data class PolarisSessionStatus(
                     networkPressureConfirmed
             "restore_quality" -> {
                 val ceiling = evidenceItem("effective_quality_ceiling")
+                val launchGoal = primaryIssue == "quality_reduced_live" &&
+                    (!actionGoalSourcePresent || (actionGoalSourceTyped && actionGoalSource in setOf("launch_bitrate", "launch_ceiling"))) &&
+                    ceiling?.source == "launch_policy" && evidenceStatusIs(ceiling, "watch") &&
+                    ceiling?.value?.toInt() == targetBitrateKbps
+                val pyrowaveGoal = primaryIssue == "pyrowave_starved" && actionGoalSourcePresent &&
+                    actionGoalSourceTyped && actionGoalSource == "pyrowave_advice" &&
+                    targetBitrateKbps <= com.papi.nova.preferences.NovaBitrateAdvice.AUTOMATIC_MAX_KBPS
                 actionEnvelopeValid &&
                     actionCapability == "auto_fix" &&
                     actionKind == "live_tuning" &&
-                    primaryIssue == "quality_reduced_live" &&
+                    (launchGoal || pyrowaveGoal) &&
                     targetBitrateTyped &&
                     targetBitrateKbps in 1_000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS &&
-                    ceiling?.source == "launch_policy" &&
-                    evidenceStatusIs(ceiling, "watch") &&
-                    ceiling?.value?.toInt() == targetBitrateKbps &&
                     cleanRtt &&
                     lossEvidenceAllowsQualityRetry &&
                     undoSupported &&
@@ -511,6 +518,9 @@ data class PolarisSessionStatus(
                 targetBitrateKbps == confirmed.targetBitrateKbps &&
                 targetBitratePresent == confirmed.targetBitratePresent &&
                 targetBitrateTyped == confirmed.targetBitrateTyped &&
+                actionGoalSource == confirmed.actionGoalSource &&
+                actionGoalSourcePresent == confirmed.actionGoalSourcePresent &&
+                actionGoalSourceTyped == confirmed.actionGoalSourceTyped &&
                 verificationDelaySeconds == confirmed.verificationDelaySeconds &&
                 verificationMode == confirmed.verificationMode &&
                 verificationEndpoint == confirmed.verificationEndpoint &&
@@ -543,6 +553,9 @@ data class PolarisSessionStatus(
                 actionAppUuid == displayed.actionAppUuid &&
                 actionAppSessionId == displayed.actionAppSessionId &&
                 actionSessionGeneration == displayed.actionSessionGeneration &&
+                actionGoalSource == displayed.actionGoalSource &&
+                actionGoalSourcePresent == displayed.actionGoalSourcePresent &&
+                actionGoalSourceTyped == displayed.actionGoalSourceTyped &&
                 verificationMode == displayed.verificationMode &&
                 verificationEndpoint == displayed.verificationEndpoint &&
                 undoEndpoint == displayed.undoEndpoint

@@ -777,7 +777,8 @@ class NovaQuickMenu(
                     controllerRevision = latestDoctor.actionControllerRevision,
                     evidenceRevision = latestDoctor.actionEvidenceRevision,
                     requestId = request.requestId,
-                    confirmed = latestDoctor.requiresConfirmation
+                    confirmed = latestDoctor.requiresConfirmation,
+                    goalSource = latestDoctor.actionGoalSource
                 )
                 val readOnlySuccess = result?.let {
                     DoctorActionReceiptStore.successfulReadOnlyNewRunResult(request, it)

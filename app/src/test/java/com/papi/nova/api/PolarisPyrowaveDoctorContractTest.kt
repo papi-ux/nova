@@ -53,4 +53,40 @@ class PolarisPyrowaveDoctorContractTest {
         val overAutoCap = fixture().apply { payload(this).put("target_bitrate_kbps", 300001) }
         assertFalse(parse(overAutoCap).canExecuteAction)
     }
+
+    @Test fun theActionBodyPreservesTheExactHostGoalAndStreamEnvelope() {
+        val json = fixture()
+        val doctor = parse(json)
+        val body = PolarisApiClient.buildDoctorActionBody(
+            actionId = doctor.actionId, appSessionId = doctor.actionAppSessionId,
+            sessionGeneration = doctor.actionSessionGeneration, sourceResultId = doctor.actionSourceResultId,
+            targetBitrateKbps = doctor.targetBitrateKbps, controllerRevision = doctor.actionControllerRevision,
+            evidenceRevision = doctor.actionEvidenceRevision, requestId = "fixture-request", goalSource = doctor.actionGoalSource)
+        val expected = payload(json)
+        for (key in expected.keys()) assertEquals("Exact host field $key", expected.get(key), body.get(key))
+        assertEquals("fixture-request", body.getString("request_id"))
+        for (source in listOf("launch_bitrate", "launch_ceiling")) {
+            assertEquals(source, PolarisApiClient.buildDoctorActionBody("restore_quality", "fixture-session", goalSource = source).getString("goal_source"))
+        }
+        for (action in listOf("verify_run", "undo", "lower_bitrate")) {
+            assertFalse(PolarisApiClient.buildDoctorActionBody(action, "fixture-session", runId = "fixture-run").has("goal_source"))
+        }
+    }
+
+    @Test fun changedScopeOrDirtyNetworkCannotAuthorizeTheAdviceRaise() {
+        for (key in listOf("source_result_id", "app_session_id", "controller_revision", "evidence_revision", "session_generation")) {
+            val json = fixture()
+            payload(json).remove(key)
+            assertFalse("Missing $key fails closed", parse(json).canExecuteAction)
+        }
+        for (latency in listOf(45, 80)) {
+            val json = fixture()
+            json.getJSONArray("evidence").getJSONObject(1).put("value", latency)
+            assertFalse(parse(json).canExecuteAction)
+        }
+        val displayed = parse(fixture())
+        val refreshed = parse(fixture().apply { payload(this).put("session_generation", 42) })
+        assertTrue(refreshed.canExecuteAction)
+        assertFalse(refreshed.matchesExecutableActionIntent(displayed))
+    }
 }
