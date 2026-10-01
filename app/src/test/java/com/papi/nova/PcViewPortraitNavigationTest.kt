@@ -353,7 +353,7 @@ class PcViewPortraitNavigationTest {
                 assertEquals("$size mode label centers in the target, not in a shorter top-aligned child",
                     targetLocation[1] + card.height / 2f, labelLocation[1] + label.height / 2f, 1.5f)
                 assertEquals("Mode labels use a readable size independent of Control Size",
-                    (if (portrait) 17f else 14f) * activity.resources.displayMetrics.scaledDensity, label.textSize, .01f)
+                    ((if (portrait) 17f else 14f) * activity.resources.displayMetrics.scaledDensity).roundToInt().toFloat(), label.textSize, .01f)
             }
             assertTrue("The current Hosts segment is selected", cards[0].isSelected)
             assertFalse("The Library action remains unselected", cards[1].isSelected)

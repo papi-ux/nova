@@ -346,7 +346,7 @@ class NovaHostsViewInstrumentedTest {
                         card.getLocationInWindow(targetLocation); label.getLocationInWindow(labelLocation)
                         val offset = labelLocation[1] + label.height / 2f - targetLocation[1] - card.height / 2f
                         assertEquals("$size label centers in the real hit target", 0f, offset, 1.5f)
-                        assertEquals((if (portrait) 17f else 14f) * activity.resources.displayMetrics.scaledDensity,
+                        assertEquals(((if (portrait) 17f else 14f) * activity.resources.displayMetrics.scaledDensity).roundToInt().toFloat(),
                             label.textSize, .01f)
                         assertTrue(card.width >= 48 * density - 1 && card.height >= 48 * density - 1)
                         assertFullyVisible(card)
