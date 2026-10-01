@@ -8,9 +8,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.computers.ComputerManagerService
@@ -19,6 +22,7 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.BeforeClass
+import kotlin.math.roundToInt
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
@@ -229,6 +233,52 @@ class PcViewPortraitNavigationTest {
             activity.findViewById<TextView>(R.id.actionAddServer).text.toString())
         assertTrue(activity.findViewById<View>(R.id.actionAddServer).bottom <=
             activity.findViewById<View>(R.id.actionScanPair).bottom)
+    }
+
+    @Test fun portraitNavigationUsesGroupedRowsWithAlignedIcons() = checkNavigationRows()
+
+    @Test
+    @Config(qualifiers = "w900dp-h480dp-land")
+    fun landscapeNavigationUsesGroupedRowsWithAlignedIcons() = checkNavigationRows()
+
+    private fun checkNavigationRows() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        for (size in listOf("compact", "standard", "large")) {
+            preferences.edit().putString("nova_control_size", size).commit()
+            val activity = open().get()
+            val portrait = activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            if (portrait) menu(activity).performClick()
+            idleAndLayout(activity)
+            val density = activity.resources.displayMetrics.density
+            val group = activity.findViewById<MaterialCardView>(R.id.hostsNavigationActions)
+            assertTrue("Supporting actions share one bounded group", group.isShown)
+            assertTrue("Group corners remain bounded rather than pill-shaped", group.radius <= 10 * density)
+            val buttons = listOf(R.id.actionStartPolaris, R.id.profilesButton, R.id.actionTheme,
+                R.id.actionGithub, R.id.actionSettings).map { activity.findViewById<MaterialButton>(it) }
+            buttons.forEach { button ->
+                assertEquals("Icons use the same start column", MaterialButton.ICON_GRAVITY_START, button.iconGravity)
+                assertEquals("Labels align at the start", Gravity.START, button.gravity and Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK)
+                assertEquals(View.TEXT_ALIGNMENT_GRAVITY, button.textAlignment)
+                assertEquals(0f, button.letterSpacing, 0f)
+                assertEquals((20 * density).roundToInt(), button.iconSize)
+                assertTrue("Rows use bounded corners", button.cornerRadius <= 8 * density)
+                assertTrue("The visible row fills its own 48dp target, without floating-pill gaps",
+                    button.height - button.insetTop - button.insetBottom >= 48 * density - 1)
+                var parent = button.parent
+                while (parent is View && parent !== group) parent = parent.parent
+                assertSame("Rows belong to the same navigation group", group, parent)
+            }
+            val first = IntArray(2); val second = IntArray(2)
+            if (portrait) {
+                buttons[0].getLocationInWindow(first); buttons[2].getLocationInWindow(second)
+                assertTrue("Portrait row gap stays compact", second[1] - first[1] - buttons[0].height in 0..(4 * density).toInt())
+            } else {
+                buttons.zipWithNext().forEach { (a,b) ->
+                    a.getLocationInWindow(first); b.getLocationInWindow(second)
+                    assertTrue("Landscape rows stay together without overlap", second[1] - first[1] - a.height in 0..(4 * density).toInt())
+                }
+            }
+        }
     }
 
     companion object {

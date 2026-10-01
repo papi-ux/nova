@@ -835,7 +835,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         styleActionButton(findViewById(R.id.actionStartPolaris), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary)
         styleActionButton(findViewById(R.id.actionTheme), surface, textPrimary)
         styleActionButton(findViewById(R.id.actionGithub), surface, textPrimary)
-        styleActionButton(findViewById(R.id.actionSettings), ColorUtils.blendARGB(surface, accent, 0.18f), textPrimary)
+        styleActionButton(findViewById(R.id.actionSettings), surface, textPrimary)
+        findViewById<MaterialCardView>(R.id.hostsNavigationActions)?.let { group ->
+            group.setCardBackgroundColor(surface)
+            group.strokeColor = divider
+            group.strokeWidth = UiHelper.dpToPx(this, 1f).toInt()
+        }
         styleActionButton(findViewById(R.id.dashboardRailToggle), surface, textPrimary)
 
         tintChipRow(
@@ -1072,7 +1077,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             }
             button.text = if (collapsed) "" else dashboardRailButtonText[id]
             button.iconPadding = if (collapsed) 0 else UiHelper.dpToPx(this, 6f * (hostsControlSize?.layoutScale ?: 1f)).toInt()
-            button.gravity = if (collapsed) Gravity.CENTER else Gravity.CENTER_VERTICAL
+            button.gravity = if (collapsed) Gravity.CENTER else Gravity.START or Gravity.CENTER_VERTICAL
+            button.iconGravity = if (collapsed) MaterialButton.ICON_GRAVITY_TEXT_START else MaterialButton.ICON_GRAVITY_START
         }
         setDashboardRailSetupActionsCollapsed(collapsed)
         // A button that lost its label shows the caption now, and one that got it back hides it.

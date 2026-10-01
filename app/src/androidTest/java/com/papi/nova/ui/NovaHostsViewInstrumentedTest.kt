@@ -5,12 +5,15 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.SystemClock
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.lifecycle.Lifecycle
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -27,6 +30,7 @@ import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.panel.NovaSurfaces
 import java.io.File
 import org.junit.Assert.*
+import kotlin.math.roundToInt
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -117,7 +121,18 @@ class NovaHostsViewInstrumentedTest {
                     assertEquals(R.id.actionSettings, activity.currentFocus?.id)
                 }
             } else {
-                scenario.onActivity { assertEquals("", it.findViewById<TextView>(R.id.actionAddServer).text.toString()) }
+                scenario.onActivity { activity ->
+                    assertEquals("", activity.findViewById<TextView>(R.id.actionAddServer).text.toString())
+                    listOf(R.id.actionStartPolaris, R.id.profilesButton, R.id.actionTheme, R.id.actionGithub, R.id.actionSettings).forEach { id ->
+                        val button = activity.findViewById<MaterialButton>(id)
+                        assertEquals(MaterialButton.ICON_GRAVITY_TEXT_START, button.iconGravity)
+                        assertEquals(Gravity.CENTER, button.gravity)
+                        val rect = Rect()
+                        assertTrue(button.getGlobalVisibleRect(rect))
+                        assertTrue("Collapsed icons retain their full horizontal touch slots", rect.width() >= button.width - 1)
+                    }
+                }
+                shot("hosts-collapsed")
                 key(KeyEvent.KEYCODE_BUTTON_A)
                 scenario.onActivity { activity ->
                     assertEquals(activity.getString(R.string.pcview_quick_add_server),
@@ -133,12 +148,17 @@ class NovaHostsViewInstrumentedTest {
             settle()
             key(KeyEvent.KEYCODE_DPAD_DOWN)
             var portrait = false
+            lateinit var themeTarget: View
             scenario.onActivity { activity ->
                 portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
                 if (portrait) activity.findViewById<View>(R.id.dashboardRailToggle).performClick()
-                activity.findViewById<View>(R.id.actionTheme).performClick()
+                themeTarget = activity.findViewById(R.id.actionTheme)
+                assertTrue(themeTarget.requestFocus())
             }
             settle()
+            // A real touch at the lower edge exercises the whole row, including the space that
+            // used to sit outside the smaller pill background, without a host/network action.
+            tapLowerEdge(themeTarget)
             scenario.onActivity { assertTrue(NovaSurfaces.existing(it)?.panel?.isOpen == true) }
             key(KeyEvent.KEYCODE_BUTTON_B)
             scenario.onActivity { activity ->
@@ -167,6 +187,17 @@ class NovaHostsViewInstrumentedTest {
                         val target = activity.findViewById<View>(id)
                         assertTrue("$size action $id width", target.width >= 48 * density - 1)
                         assertTrue("$size action $id height", target.height >= 48 * density - 1)
+                    }
+                    val group = activity.findViewById<MaterialCardView>(R.id.hostsNavigationActions)
+                    assertTrue("One visible navigation group", group.isShown && group.radius <= 10 * density)
+                    listOf(R.id.actionStartPolaris, R.id.profilesButton, R.id.actionTheme, R.id.actionGithub, R.id.actionSettings).forEach { id ->
+                        val row = activity.findViewById<MaterialButton>(id)
+                        assertEquals(MaterialButton.ICON_GRAVITY_START, row.iconGravity)
+                        assertEquals(Gravity.START, row.gravity and Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK)
+                        assertEquals(View.TEXT_ALIGNMENT_GRAVITY, row.textAlignment)
+                        assertTrue("Bounded row corners", row.cornerRadius <= 8 * density)
+                        assertTrue("Visible navigation row fills its full target", row.height - row.insetTop - row.insetBottom >= 48 * density - 1)
+                        assertEquals((20 * density).roundToInt(), row.iconSize)
                     }
                     val theme = activity.findViewById<View>(R.id.actionTheme)
                     val github = activity.findViewById<View>(R.id.actionGithub)
@@ -207,6 +238,7 @@ class NovaHostsViewInstrumentedTest {
                     assertTrue("Focused action has visible pixels", action.getGlobalVisibleRect(visible))
                     assertTrue("Focused action is not clipped above or below the navigation viewport",
                         visible.height() >= action.height - 1)
+                    assertTrue("Focused action is not clipped across the navigation viewport", visible.width() >= action.width - 1)
                     val density = activity.resources.displayMetrics.density
                     assertTrue("Supporting navigation leaves a computer pane", if (portrait)
                         pane.height < activity.window.decorView.height * .4f else pane.width < activity.window.decorView.width * .4f)
@@ -271,6 +303,19 @@ class NovaHostsViewInstrumentedTest {
                 shot("host-card-$size")
             }
         }
+    }
+
+    private fun tapLowerEdge(target: View) {
+        val location = IntArray(2)
+        instrumentation.runOnMainSync { target.getLocationOnScreen(location) }
+        val time = SystemClock.uptimeMillis()
+        val x = location[0] + target.width / 2f
+        val y = location[1] + target.height - 2f
+        val down = MotionEvent.obtain(time, time, MotionEvent.ACTION_DOWN, x, y, 0)
+        val up = MotionEvent.obtain(time, time + 20, MotionEvent.ACTION_UP, x, y, 0)
+        try { instrumentation.sendPointerSync(down); instrumentation.sendPointerSync(up) }
+        finally { down.recycle(); up.recycle() }
+        settle()
     }
 
     private fun shot(name: String) {

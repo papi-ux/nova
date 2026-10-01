@@ -429,14 +429,17 @@ class NovaDashboardRevampContractTest {
 
         listOf(
             "nova_dashboard_top_action_height",
-            "nova_dashboard_top_action_radius",
-            "nova_dashboard_top_action_gap",
             "nova_dashboard_top_action_padding_horizontal",
             "nova_dashboard_top_action_icon_gap",
         ).forEach { token ->
             assertTrue("portrait top action token $token should be defined", dimens.contains(token))
             assertTrue("portrait action grid should use $token instead of hard-coded per-button values", railXml.contains("@dimen/$token"))
         }
+
+        val shapes = File("src/main/res/values/nova_tokens.xml").readText()
+        assertTrue("Nova's row and group tokens remain bounded", shapes.contains("name=\"nova_radius_row\">6dp") && shapes.contains("name=\"nova_radius_hero\">8dp"))
+        assertTrue("Hosts uses the shared row and group shapes", railXml.contains("@dimen/nova_radius_row") && portrait.contains("@dimen/nova_radius_hero"))
+        assertFalse("Hosts action rows no longer use the oversized pill radius", railXml.contains("@dimen/nova_dashboard_top_action_radius"))
 
         assertFalse(
             "portrait action grid should avoid sub-11sp eyebrow text that becomes unreadable on handheld portrait screens",
