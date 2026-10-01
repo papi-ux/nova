@@ -361,53 +361,61 @@ internal fun NovaSettingsContent(
                 toggleModifier = Modifier.focusRequester(portraitMenuFocus),
                 onBack = onBack,
             )
-            val navigationHeader: @Composable () -> Unit = {
-            NovaSettingsCompactHeader(
-                title = title,
-                subtitle = subtitle.takeIf { !compact },
-                query = state.searchQuery,
-                onQuery = onSearch,
-                onClear = onClearSearch,
-                onBack = onBack,
-                onOpenLegacy = onOpenLegacy,
-                headerActions = headerActions,
-                wide = wide,
-                showIdentity = !portrait
-            )
-            if (showQuickStrip) {
-            Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
-            NovaSettingsQuickStrip(
-                state = state,
-                // Down from the strip lands on the rail; without one it moves on as Compose finds.
-                modifier = if (wide) focus.quickStripModifier { latestState.selectedCategoryKey } else Modifier,
-                firstPillModifier = Modifier.focusRequester(focus.firstQuick),
-                onPill = { definition ->
-                    pane.popToRoot()
-                    if (latestState.isSearchActive()) clearSearch()
-                    select(definition.categoryKey)
-                    focus.enterPane(
-                        paneKey = definition.categoryKey,
-                        rowKey = definition.key,
-                        then = if (definition.opensPageFromRow()) ({ opener.open(definition, latestState) }) else null,
-                    )
-                }
-            )
-            Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
-            } else {
-                Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+            val quickShortcuts: @Composable () -> Unit = {
+                Spacer(Modifier.height(NovaSettingsMetrics.headerToQuickStripSpacingDp().dp))
+                NovaSettingsQuickStrip(
+                    state = state,
+                    portrait = portrait,
+                    // Down from the strip lands on the rail; without one it moves on as Compose finds.
+                    modifier = if (wide) focus.quickStripModifier { latestState.selectedCategoryKey } else Modifier,
+                    firstPillModifier = Modifier.focusRequester(focus.firstQuick),
+                    onPill = { definition ->
+                        pane.popToRoot()
+                        if (latestState.isSearchActive()) clearSearch()
+                        select(definition.categoryKey)
+                        focus.enterPane(
+                            paneKey = definition.categoryKey,
+                            rowKey = definition.key,
+                            then = if (definition.opensPageFromRow()) ({ opener.open(definition, latestState) }) else null,
+                        )
+                    }
+                )
+                Spacer(Modifier.height(NovaSettingsMetrics.quickStripToContentSpacingDp().dp))
             }
-
+            val navigationHeader: @Composable () -> Unit = {
+                NovaSettingsCompactHeader(
+                    title = title,
+                    subtitle = subtitle.takeIf { !compact },
+                    query = state.searchQuery,
+                    onQuery = onSearch,
+                    onClear = onClearSearch,
+                    onBack = onBack,
+                    onOpenLegacy = onOpenLegacy,
+                    headerActions = headerActions,
+                    wide = wide,
+                    showIdentity = !portrait,
+                )
+                if (!portrait) {
+                    if (showQuickStrip) quickShortcuts() else Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+                }
             }
             if (showNavigation) {
                 if (portrait) Column(
                     Modifier.fillMaxWidth()
-                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp)
+                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.35f).dp)
                         .novaScrollEdgeFade(navigationScroll)
                         .verticalScroll(navigationScroll)
                         .testTag("nova-portrait-settings-navigation")
                 ) {
                     navigationHeader()
-                    NovaSettingsCategoryChips(state, onCategory)
+                    Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+                    NovaSettingsCategoryChips(state, onCategory, onEnterPane = { focus.enterPane(latestState.paneKey()) })
+                    if (showQuickStrip) {
+                        Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
+                        Text(stringResource(R.string.nova_settings_stream_shortcuts),
+                            style = novaPanelType.caption, color = colors.textMuted)
+                        quickShortcuts()
+                    }
                 } else navigationHeader()
             }
 
@@ -416,6 +424,16 @@ internal fun NovaSettingsContent(
                     state = pane,
                     modifier = modifier
                         .then(focus.paneModifier)
+                        .then(if (portrait && showQuickStrip) Modifier.onPreviewKeyEvent {
+                            val firstRow = latestState.visibleSettings.firstOrNull { row ->
+                                latestState.isEnabled(row) && row.takesFocus()
+                            }?.key
+                            if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp &&
+                                pane.depth == 1 && focusedRow != null && focusedRow == firstRow) {
+                                focus.firstQuick.requestFocus()
+                                true
+                            } else false
+                        } else Modifier)
                         .then(if (wide) focus.paneLeftModifier { latestState.selectedCategoryKey } else Modifier),
                     // Pages pushed over the rows keep focus; the rows themselves may give it to the rail.
                     containFocus = pane.depth > 1,
@@ -735,6 +753,27 @@ private fun NovaSettingsCompactHeader(
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
+    // Portrait already has Back/title/Menu above it. Keep its search and Legacy action together;
+    // repeating a header row made Legacy float alone before search and the category navigation.
+    if (!showIdentity) {
+        Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+            ) {
+                NovaSettingsSearchField(query, onQuery, onClear, Modifier.weight(1f))
+                NovaSettingsHeaderButton(stringResource(R.string.nova_settings_legacy), onOpenLegacy)
+            }
+            if (headerActions.isNotEmpty()) FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+                verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+            ) {
+                for (action in headerActions) NovaSettingsHeaderButton(action.label, action.onClick)
+            }
+        }
+        return
+    }
     Column {
         Row(
             modifier = Modifier
@@ -860,7 +899,27 @@ private fun NovaSettingsQuickStrip(
     onPill: (NovaSettingDefinition) -> Unit,
     modifier: Modifier = Modifier,
     firstPillModifier: Modifier = Modifier,
+    portrait: Boolean = false,
 ) {
+    val pills: @Composable () -> Unit = {
+        for (definition in state.quickSettings) {
+            NovaSettingPill(
+                definition = definition,
+                value = state.valueLabel(LocalContext.current, definition),
+                modifier = (if (portrait) Modifier.fillMaxWidth() else Modifier)
+                    .then(if (definition == state.quickSettings.firstOrNull()) firstPillModifier else Modifier),
+                onClick = { onPill(definition) }
+            )
+        }
+    }
+    if (portrait) {
+        // Portrait shortcuts read as the same rows as the rest of Settings. One column gives
+        // touch and controller users a direct, unclipped route through every shortcut.
+        Column(modifier.fillMaxWidth().focusGroup(), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+            pills()
+        }
+        return
+    }
     FlowRow(
         modifier = modifier
             .fillMaxWidth()
@@ -871,14 +930,7 @@ private fun NovaSettingsQuickStrip(
         // rows; there it keeps the pills that fit on one line, whole, and the rows get the room.
         maxLines = if (LocalNovaFormFactor.current == NovaFormFactor.Television) 1 else Int.MAX_VALUE,
     ) {
-        for (definition in state.quickSettings) {
-            NovaSettingPill(
-                definition = definition,
-                value = state.valueLabel(LocalContext.current, definition),
-                modifier = if (definition == state.quickSettings.firstOrNull()) firstPillModifier else Modifier,
-                onClick = { onPill(definition) }
-            )
-        }
+        pills()
     }
 }
 
@@ -959,19 +1011,31 @@ private fun NovaSettingsCategoryRail(
 @Composable
 private fun NovaSettingsCategoryChips(
     state: NovaSettingsUiState,
-    onCategory: (String) -> Unit
+    onCategory: (String) -> Unit,
+    onEnterPane: (() -> Unit)? = null,
 ) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
-        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)
-    ) {
-        for (category in state.categories) {
-            NovaCategoryRow(
-                category = category,
-                selected = category.key == state.selectedCategoryKey && state.searchQuery.isBlank(),
-                onClick = { onCategory(category.key) },
-                modifier = Modifier.fillMaxWidth(0.48f)
-            )
+    val rows = state.categories.chunked(2)
+    Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+        for ((rowIndex, categories) in rows.withIndex()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
+                for (category in categories) {
+                    NovaCategoryRow(
+                        category = category,
+                        selected = category.key == state.selectedCategoryKey && state.searchQuery.isBlank(),
+                        onClick = { onCategory(category.key) },
+                        modifier = Modifier.weight(1f).then(
+                            // Keep Down from the bottom category row entering the selected pane.
+                            if (onEnterPane != null && rowIndex == rows.lastIndex) Modifier.onPreviewKeyEvent {
+                                if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionDown) {
+                                    onEnterPane()
+                                    true
+                                } else false
+                            } else Modifier
+                        )
+                    )
+                }
+                if (categories.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
