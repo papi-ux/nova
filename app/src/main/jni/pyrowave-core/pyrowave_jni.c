@@ -7,6 +7,7 @@
 #include "pyrowave_device_c.h"
 #include "pyrowave_probe_features.h"
 #include "pyrowave_renderer_c.h"
+#include "pyrowave_packet_guard.h"
 
 #include <android/native_window_jni.h>
 
@@ -128,7 +129,8 @@ Java_com_papi_nova_binding_video_PyroWave_nativeDecodeSelfTest(
             break;
         }
 
-        if (pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS) {
+        if (!pyrowave_packet_has_safe_lengths(payload, (size_t) size) ||
+            pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS) {
             outcome = -14;
             break;
         }
@@ -235,7 +237,8 @@ Java_com_papi_nova_binding_video_PyroWave_nativePresentSelfTest(
         info.fragment_path = false;
         if (pyrowave_decoder_create(&info, &decoder) != PYROWAVE_SUCCESS) { outcome = -23; break; }
 
-        if (pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS ||
+        if (!pyrowave_packet_has_safe_lengths(payload, (size_t) size) ||
+            pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS ||
             !pyrowave_decoder_decode_is_ready(decoder, false)) {
             outcome = -24;
             break;
