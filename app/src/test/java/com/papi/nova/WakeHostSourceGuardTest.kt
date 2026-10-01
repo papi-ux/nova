@@ -66,10 +66,10 @@ class WakeHostSourceGuardTest {
             strings.contains("name=\"pcview_sleep_hold_hint\"")
         )
         assertTrue(
-            "the icon follows the label as an open and closed pair; a play arrow next to Sleep Host read as though the button started something",
-            pcView.contains("R.drawable.ic_eye_closed") && pcView.contains("R.drawable.ic_eye_open") &&
-                File("src/main/res/drawable/ic_eye_closed.xml").exists() &&
-                File("src/main/res/drawable/ic_eye_open.xml").exists()
+            "distinct power and sleep icons follow the live label without looking like a launch action",
+            pcView.contains("R.drawable.ic_host_sleep") && pcView.contains("R.drawable.ic_host_wake") &&
+                File("src/main/res/drawable/ic_host_sleep.xml").exists() &&
+                File("src/main/res/drawable/ic_host_wake.xml").exists()
         )
     }
 

@@ -14,9 +14,16 @@ import android.view.View
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.computers.ComputerManagerService
+import com.papi.nova.nvstream.http.ComputerDetails
+import com.papi.nova.nvstream.http.PairingManager
+import java.security.cert.X509Certificate
+import java.time.Duration
+import org.robolectric.shadows.ShadowDrawable
 import com.papi.nova.preferences.AddComputerManually
 import org.junit.After
 import org.junit.Assert.*
@@ -233,6 +240,46 @@ class PcViewPortraitNavigationTest {
             activity.findViewById<TextView>(R.id.actionAddServer).text.toString())
         assertTrue(activity.findViewById<View>(R.id.actionAddServer).bottom <=
             activity.findViewById<View>(R.id.actionScanPair).bottom)
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h480dp-land")
+    fun liveHostPowerGlyphsSurviveStateRefreshAndRailCollapse() {
+        val activity = open().get()
+        val model = ViewModelProvider(activity)[PcViewModel::class.java]
+        @Suppress("UNCHECKED_CAST")
+        val computers = model.computersLiveData as MutableLiveData<List<PcViewModel.ComputerObject>>
+        val update = PcView::class.java.getDeclaredMethod("updateHostPowerAction").apply { isAccessible = true }
+        val button = activity.findViewById<MaterialButton>(R.id.actionStartPolaris)
+        val toggle = activity.findViewById<View>(R.id.dashboardRailToggle)
+        for (online in listOf(false, true, false)) {
+            // A pinned, address-less fixture reaches the actual host-state observer without
+            // allowing any host request. This test never activates the power action.
+            computers.value = listOf(PcViewModel.ComputerObject(ComputerDetails().apply {
+                uuid = "owned-style-power"; name = "Owned style host"
+                state = if (online) ComputerDetails.State.ONLINE else ComputerDetails.State.OFFLINE
+                pairState = PairingManager.PairState.PAIRED
+                serverCert = mock(X509Certificate::class.java)
+            }))
+            update.invoke(activity)
+            idleAndLayout(activity)
+            val expectedIcon = if (online) R.drawable.ic_host_sleep else R.drawable.ic_host_wake
+            val expectedText = activity.getString(if (online) R.string.pcview_quick_sleep_host else R.string.pcview_quick_start_polaris)
+            assertEquals("The actual runtime refresh supplies the state's glyph", expectedIcon, ShadowDrawable.extract(button.icon).createdFromResId)
+            assertEquals(expectedText, button.text.toString())
+            toggle.performClick()
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+            update.invoke(activity)
+            idleAndLayout(activity)
+            assertEquals("", button.text.toString())
+            assertEquals(expectedText, button.contentDescription.toString())
+            assertEquals(expectedIcon, ShadowDrawable.extract(button.icon).createdFromResId)
+            toggle.performClick()
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+            idleAndLayout(activity)
+            assertEquals(expectedText, button.text.toString())
+            assertEquals(expectedIcon, ShadowDrawable.extract(button.icon).createdFromResId)
+        }
     }
 
     @Test fun portraitNavigationUsesGroupedRowsWithAlignedIcons() = checkNavigationRows()

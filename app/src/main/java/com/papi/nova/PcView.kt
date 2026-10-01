@@ -2834,13 +2834,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             named == HostPowerAction.SLEEP -> R.string.pcview_quick_sleep_host
             else -> R.string.pcview_quick_start_polaris
         }
-        // The icon follows the label, as an open and closed pair rather than two
-        // unrelated glyphs: a play arrow next to Sleep Host read as though the
-        // button started something, and one icon cannot carry both states.
+        // Power and sleep symbols follow the label through every live refresh,
+        // including the icon-only rail; neither state looks like a launch action.
         val icon = if (busy || named == HostPowerAction.SLEEP) {
-            R.drawable.ic_eye_closed
+            R.drawable.ic_host_sleep
         } else {
-            R.drawable.ic_eye_open
+            R.drawable.ic_host_wake
         }
         // A collapsed rail shows icons only and puts each label back on the way
         // out, so the label goes where it will be put back from.
