@@ -184,6 +184,7 @@ internal fun novaThemePickerCaption(theme: String): Int = when (theme) {
     NovaThemeManager.THEME_PORTABLE_CHROME -> R.string.hosts_theme_caption_portable_chrome
     NovaThemeManager.THEME_OLED -> R.string.hosts_theme_caption_oled
     NovaThemeManager.THEME_MIAMI -> R.string.hosts_theme_caption_miami
+    NovaThemeManager.THEME_DIRECTOR -> R.string.hosts_theme_caption_director
     NovaThemeManager.THEME_HIGH_CONTRAST -> R.string.hosts_theme_caption_high_contrast
     NovaThemeManager.THEME_MATERIAL_YOU -> R.string.hosts_theme_caption_material_you
     else -> R.string.hosts_theme_caption_polaris

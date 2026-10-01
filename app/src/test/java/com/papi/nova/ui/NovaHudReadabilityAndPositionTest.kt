@@ -15,8 +15,8 @@ import org.robolectric.annotation.Config
 class NovaHudReadabilityAndPositionTest {
     @Test fun themedTextIsDistinctFromItsGlyphOutline() {
         val context = ApplicationProvider.getApplicationContext<Application>()
-        for (theme in listOf("polaris", "portable_chrome", "oled", "miami", "high_contrast", "material_you")) {
-            context.getSharedPreferences("nova_prefs", 0).edit().putString("nova_theme", theme).commit()
+        for (theme in listOf("polaris", "portable_chrome", "oled", "miami", "director", "high_contrast", "material_you")) {
+            NovaThemeManager.setTheme(context, theme)
             val colors = novaComposeColors(context)
             val text = listOf(colors.textPrimary, colors.textSecondary, colors.textMuted, colors.accent,
                 Color(0xFF4ADE80), Color(0xFFFBBF24), Color(0xFFF87171))

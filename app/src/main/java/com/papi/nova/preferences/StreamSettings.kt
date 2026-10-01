@@ -686,7 +686,8 @@ class StreamSettings : NovaActivity() {
             val prefConfig = prevPrefConfig!!
 
             addPreferencesFromResource(R.xml.preferences)
-            if (NovaThemeManager.getTheme(requireContext()) == NovaThemeManager.THEME_MATERIAL_YOU) {
+            if (NovaThemeManager.getTheme(requireContext()) == NovaThemeManager.THEME_MATERIAL_YOU ||
+                NovaThemeManager.isDirector(requireContext())) {
                 applySemanticPreferenceLayouts(preferenceScreen)
             }
 

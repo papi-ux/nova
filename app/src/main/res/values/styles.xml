@@ -111,6 +111,31 @@
         <item name="colorError">@color/nova_error</item>
     </style>
 
+    <style name="AppTheme.Director" parent="AppBaseTheme">
+        <item name="android:colorBackground">@color/nova_director_bg_window</item>
+        <item name="android:windowBackground">@color/nova_director_bg_window</item>
+        <item name="android:textColor">@color/nova_director_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_director_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_director_text_secondary</item>
+        <item name="android:navigationBarColor">@color/nova_director_structure</item>
+        <item name="android:statusBarColor">@color/nova_director_structure</item>
+        <item name="colorPrimary">@color/nova_director_accent</item>
+        <item name="colorAccent">@color/nova_director_accent</item>
+        <item name="colorControlHighlight">@color/nova_director_accent_surface</item>
+        <item name="colorSurface">@color/nova_director_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_director_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_director_badge_bg</item>
+        <item name="colorOnSurfaceVariant">@color/nova_director_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_director_structure</item>
+        <item name="colorPrimaryContainer">@color/nova_director_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_director_text_primary</item>
+        <item name="colorOutline">@color/nova_director_divider</item>
+        <item name="colorError">@color/nova_director_error</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_director</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog.Director</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog.Director</item>
+    </style>
+
     <!-- High Contrast — firm outlines and bright copy without abandoning Nova's dark UI. -->
     <style name="AppTheme.HighContrast">
         <item name="android:colorBackground">@color/nova_hc_bg_window</item>
@@ -259,6 +284,32 @@
         <item name="colorError">@color/nova_error</item>
     </style>
 
+    <style name="SettingsTheme.Director" parent="SettingsTheme">
+        <item name="android:colorBackground">@color/nova_director_bg_window</item>
+        <item name="android:windowBackground">@color/nova_director_bg_window</item>
+        <item name="android:textColor">@color/nova_director_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_director_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_director_text_secondary</item>
+        <item name="android:navigationBarColor">@color/nova_director_structure</item>
+        <item name="android:statusBarColor">@color/nova_director_structure</item>
+        <item name="colorPrimary">@color/nova_director_accent</item>
+        <item name="colorAccent">@color/nova_director_accent</item>
+        <item name="colorControlHighlight">@color/nova_director_accent_surface</item>
+        <item name="colorSurface">@color/nova_director_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_director_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_director_badge_bg</item>
+        <item name="colorOnSurfaceVariant">@color/nova_director_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_director_structure</item>
+        <item name="colorPrimaryContainer">@color/nova_director_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_director_text_primary</item>
+        <item name="colorOutline">@color/nova_director_divider</item>
+        <item name="colorError">@color/nova_director_error</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_director</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog.Director</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog.Director</item>
+        <item name="preferenceTheme">@style/NovaPreferenceTheme.Director</item>
+    </style>
+
     <style name="SettingsTheme.HighContrast" parent="SettingsTheme">
         <item name="android:colorBackground">@color/nova_hc_bg_window</item>
         <item name="android:windowBackground">@color/nova_hc_bg_window</item>
@@ -311,6 +362,11 @@
         <item name="preferenceCategoryStyle">@style/NovaPrefCategory</item>
     </style>
 
+    <style name="NovaPreferenceTheme.Director" parent="NovaPreferenceTheme">
+        <item name="android:textColorPrimary">@color/nova_director_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_director_text_secondary</item>
+    </style>
+
     <style name="NovaPreferenceTheme.MaterialYou" parent="NovaPreferenceTheme">
         <item name="android:textColorPrimary">?attr/colorOnSurface</item>
         <item name="android:textColorSecondary">?attr/colorOnSurfaceVariant</item>
@@ -345,6 +401,27 @@
         <item name="android:textColorSecondary">?attr/colorOnSurfaceVariant</item>
         <item name="materialAlertDialogTitleTextStyle">@style/NovaAlertDialogTitleText.MaterialYou</item>
         <item name="android:windowTitleStyle">@style/NovaAppCompatDialogTitle.MaterialYou</item>
+    </style>
+
+    <style name="NovaAlertDialog.Director" parent="NovaAlertDialog">
+        <item name="android:background">@color/nova_director_dialog_bg</item>
+        <item name="android:windowBackground">@color/nova_director_dialog_bg</item>
+        <item name="android:textColorPrimary">@color/nova_director_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_director_text_secondary</item>
+        <item name="colorAccent">@color/nova_director_accent</item>
+        <item name="colorSurface">@color/nova_director_dialog_bg</item>
+        <item name="colorOnSurface">@color/nova_director_text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/nova_director_text_secondary</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/NovaAlertDialogTitleText.Director</item>
+        <item name="android:windowTitleStyle">@style/NovaAppCompatDialogTitle.Director</item>
+    </style>
+
+    <style name="NovaAppCompatDialogTitle.Director" parent="RtlOverlay.DialogWindowTitle.AppCompat">
+        <item name="android:textColor">@color/nova_director_text_primary</item>
+    </style>
+
+    <style name="NovaAlertDialogTitleText.Director" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
+        <item name="android:textColor">@color/nova_director_text_primary</item>
     </style>
 
     <style name="NovaDialogButton" parent="Widget.MaterialComponents.Button.TextButton.Dialog">

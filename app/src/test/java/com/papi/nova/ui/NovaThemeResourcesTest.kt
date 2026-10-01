@@ -21,11 +21,12 @@ class NovaThemeResourcesTest {
 
         assertEquals(names.size, values.size)
         assertEquals(
-            listOf("polaris", "portable_chrome", "oled", "miami", "high_contrast", "material_you"),
+            listOf("polaris", "portable_chrome", "oled", "miami", "director", "high_contrast", "material_you"),
             values
         )
         assertEquals("Portable Chrome", names[values.indexOf("portable_chrome")])
         assertEquals("Miami Nebula", names[values.indexOf("miami")])
+        assertEquals("< Congratulations, Director >", names[values.indexOf("director")])
     }
 
     @Test
@@ -651,6 +652,7 @@ class NovaThemeResourcesTest {
             "AppTheme.PortableChrome" to "@color/nova_portable_bg_window",
             "AppTheme.OLED" to "@color/nova_oled_bg_window",
             "AppTheme.Miami" to "@color/nova_miami_void",
+            "AppTheme.Director" to "@color/nova_director_bg_window",
             "AppTheme.HighContrast" to "@color/nova_hc_bg_window",
         )
 

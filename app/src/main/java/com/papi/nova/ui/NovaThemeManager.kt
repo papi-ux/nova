@@ -24,6 +24,7 @@ object NovaThemeManager {
     private const val THEME_PSP = "psp"
     const val THEME_OLED = "oled"
     const val THEME_MIAMI = "miami"
+    const val THEME_DIRECTOR = "director"
     const val THEME_HIGH_CONTRAST = "high_contrast"
     const val THEME_MATERIAL_YOU = "material_you"
 
@@ -44,6 +45,8 @@ object NovaThemeManager {
             theme == THEME_OLED -> activity.setTheme(R.style.AppTheme_OLED)
             theme == THEME_MIAMI && isSettings -> activity.setTheme(R.style.SettingsTheme_Miami)
             theme == THEME_MIAMI -> activity.setTheme(R.style.AppTheme_Miami)
+            theme == THEME_DIRECTOR && isSettings -> activity.setTheme(R.style.SettingsTheme_Director)
+            theme == THEME_DIRECTOR -> activity.setTheme(R.style.AppTheme_Director)
             theme == THEME_HIGH_CONTRAST && isSettings -> activity.setTheme(R.style.SettingsTheme_HighContrast)
             theme == THEME_HIGH_CONTRAST -> activity.setTheme(R.style.AppTheme_HighContrast)
             theme == THEME_MATERIAL_YOU && isSettings -> activity.setTheme(R.style.SettingsTheme_MaterialYou)
@@ -117,7 +120,7 @@ object NovaThemeManager {
 
     private fun normalizeTheme(theme: String?): String {
         return when (theme) {
-            THEME_POLARIS, THEME_PORTABLE_CHROME, THEME_OLED, THEME_MIAMI, THEME_HIGH_CONTRAST, THEME_MATERIAL_YOU -> theme
+            THEME_POLARIS, THEME_PORTABLE_CHROME, THEME_OLED, THEME_MIAMI, THEME_DIRECTOR, THEME_HIGH_CONTRAST, THEME_MATERIAL_YOU -> theme
             THEME_PSP -> THEME_PORTABLE_CHROME
             else -> THEME_POLARIS
         }
@@ -135,6 +138,7 @@ object NovaThemeManager {
     fun isPortableChrome(context: Context): Boolean = getTheme(context) == THEME_PORTABLE_CHROME
     fun isOled(context: Context): Boolean = getTheme(context) == THEME_OLED
     fun isMiami(context: Context): Boolean = getTheme(context) == THEME_MIAMI
+    fun isDirector(context: Context): Boolean = getTheme(context) == THEME_DIRECTOR
     fun isHighContrast(context: Context): Boolean = getTheme(context) == THEME_HIGH_CONTRAST
     fun isMaterialYou(context: Context): Boolean = getTheme(context) == THEME_MATERIAL_YOU
 
@@ -143,7 +147,8 @@ object NovaThemeManager {
             THEME_POLARIS -> THEME_PORTABLE_CHROME
             THEME_PORTABLE_CHROME -> THEME_OLED
             THEME_OLED -> THEME_MIAMI
-            THEME_MIAMI -> THEME_HIGH_CONTRAST
+            THEME_MIAMI -> THEME_DIRECTOR
+            THEME_DIRECTOR -> THEME_HIGH_CONTRAST
             THEME_HIGH_CONTRAST -> if (isMaterialYouAvailable()) THEME_MATERIAL_YOU else THEME_POLARIS
             THEME_MATERIAL_YOU -> THEME_POLARIS
             else -> THEME_POLARIS
@@ -157,6 +162,7 @@ object NovaThemeManager {
             THEME_PORTABLE_CHROME -> context.getString(R.string.nova_theme_portable_chrome_label)
             THEME_OLED -> context.getString(R.string.nova_theme_oled_label)
             THEME_MIAMI -> context.getString(R.string.nova_theme_miami_label)
+            THEME_DIRECTOR -> context.getString(R.string.nova_theme_director_label)
             THEME_HIGH_CONTRAST -> context.getString(R.string.nova_theme_high_contrast_label)
             THEME_MATERIAL_YOU -> context.getString(R.string.nova_theme_material_you_label)
             else -> context.getString(R.string.nova_theme_polaris_label)
@@ -321,7 +327,9 @@ object NovaThemeManager {
 
     /** The theme's own red, before any contrast check. */
     private fun themeErrorColor(context: Context): Int =
-        if (isPortableChrome(context)) {
+        if (isDirector(context)) {
+            ContextCompat.getColor(context, R.color.nova_director_error)
+        } else if (isPortableChrome(context)) {
             ContextCompat.getColor(context, R.color.nova_portable_error)
         } else {
             resolveThemeColor(
@@ -366,6 +374,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_bg_window)
             isOled(context) -> Color.BLACK
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_bg_window)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_bg_window)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_bg_window)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouSurfaceColor(context)
@@ -397,6 +406,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_bg_card)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_bg_card)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_bg_card)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_bg_card)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_bg_card)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouCardColor(context)
@@ -410,6 +420,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_dialog_bg)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_dialog_bg)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_dialog_bg)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_dialog_bg)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_dialog_bg)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouCardColor(context)
@@ -456,6 +467,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_accent)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_accent)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_accent)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_accent)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_accent)
             else -> ContextCompat.getColor(context, R.color.nova_polaris_accent)
         }
@@ -467,6 +479,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_accent_surface)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_accent_surface)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_accent_surface)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_accent_surface)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_accent_surface)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
@@ -486,6 +499,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_divider)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_divider)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_divider)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_divider)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_divider)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
@@ -505,6 +519,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_text_primary)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_text_primary)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_text_primary)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_text_primary)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_text_primary)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouTextPrimaryColor(context)
@@ -518,6 +533,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_text_secondary)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_text_secondary)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_text_secondary)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_text_secondary)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_text_secondary)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouTextSecondaryColor(context)
@@ -540,6 +556,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_text_muted)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_text_muted)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_text_muted)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_text_muted)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_text_muted)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
@@ -555,7 +572,9 @@ object NovaThemeManager {
 
     /** Returns the correct badge/surface-variant color for the current theme. */
     fun getBadgeBackgroundColor(context: Context): Int {
-        return if (isMaterialYou(context) && isMaterialYouAvailable()) {
+        return if (isDirector(context)) {
+            ContextCompat.getColor(context, R.color.nova_director_badge_bg)
+        } else if (isMaterialYou(context) && isMaterialYouAvailable()) {
             getMaterialYouCardColor(context)
         } else {
             ContextCompat.getColor(context, R.color.nova_badge_bg)
@@ -565,6 +584,7 @@ object NovaThemeManager {
     /** Returns a readable foreground for primary/accent controls. */
     fun getOnAccentColor(context: Context): Int {
         return when {
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_structure)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
                     context,
