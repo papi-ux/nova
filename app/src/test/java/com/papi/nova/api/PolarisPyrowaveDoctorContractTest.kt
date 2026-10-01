@@ -4,6 +4,8 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 
+@org.robolectric.annotation.Config(sdk = [33])
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 class PolarisPyrowaveDoctorContractTest {
     private fun fixture() = JSONObject(javaClass.getResourceAsStream("/polaris-doctor-pyrowave-v2.json")!!.bufferedReader().use { it.readText() })
     private fun payload(json: JSONObject) = json.getJSONObject("safe_recovery_action").getJSONObject("payload_preview")
