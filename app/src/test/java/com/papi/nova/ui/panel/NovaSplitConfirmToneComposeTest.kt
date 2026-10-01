@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.graphics.ColorUtils
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsFocused
@@ -18,6 +20,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaComposeColors
@@ -25,6 +28,8 @@ import com.papi.nova.ui.compose.NovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaSurfaceLook
 import com.papi.nova.ui.compose.NovaSurfaceLookKey
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -140,6 +145,80 @@ class NovaSplitConfirmToneComposeTest {
         assertEquals(colors.onDestructiveFill, labelColour("Turn Off"))
         assertEquals("Stay rests as a tile", tile, look("Stay"))
         assertEquals("one A never confirms", 0, confirmed)
+    }
+
+    private fun setUpDirector(focusRing: Color? = null): NovaTestKeys {
+        NovaThemeManager.setTheme(rule.activity, NovaThemeManager.THEME_DIRECTOR)
+        val keys = rule.setPanelContent {
+            val themedSurfaces = LocalNovaLibrarySurfaces.current
+            CompositionLocalProvider(
+                LocalNovaLibrarySurfaces provides if (focusRing == null) themedSurfaces else themedSurfaces.copy(focusRing = focusRing),
+            ) {
+                colors = LocalNovaComposeColors.current
+                surfaces = LocalNovaLibrarySurfaces.current
+                Column {
+                    Box(Modifier.size(48.dp).testTag("other").focusable())
+                    NovaSplitConfirm(
+                        label = "Live Tuning",
+                        confirmLabel = "Turn Off",
+                        onConfirm = { confirmed++ },
+                        consequence = "Changes Polaris for every device.",
+                        shape = NovaSplitShape.Row,
+                        caption = "Steady.",
+                        state = state,
+                        tone = NovaSplitTone.Destructive,
+                    )
+                }
+            }
+        }
+        rule.onNodeWithTag("other").requestFocus()
+        rule.waitForIdle()
+        return keys
+    }
+
+    @Test
+    fun aDirectorArmedDestructiveConfirmKeepsItsWarmWhiteRingClearOfTheRedFill() {
+        val keys = setUpDirector()
+        assertEquals(Color(0xFFFFB7AC), colors.destructiveFill)
+        assertEquals(Color(0xFFFFF5E8), surfaces.focusRing)
+        assertEquals(colors.destructive, labelColour("Live Tuning"))
+        assertTrue("This real palette needs ring separation", ColorUtils.calculateContrast(surfaces.focusRing.toArgb(), colors.destructiveFill.toArgb()) < 3.0)
+        assertTrue("The exposed panel separates the warm-white ring", ColorUtils.calculateContrast(surfaces.focusRing.toArgb(), surfaces.panel.copy(alpha = 1f).toArgb()) >= 3.0)
+
+        rule.mainClock.autoAdvance = false
+        arm(keys)
+        assertEquals(NovaSurfaceLook(surfaces.selectedControl, surfaces.focusRing, false), look("Stay"))
+        assertEquals(NovaSurfaceLook(colors.destructiveFill, Color.Unspecified, false), look("Turn Off"))
+        assertEquals(colors.onDestructiveFill, labelColour("Turn Off"))
+        val bounds = rule.onNodeWithText("Turn Off").fetchSemanticsNode().boundsInRoot
+
+        toConfirm(keys)
+        val focusedLook = look("Turn Off")
+        assertEquals("Focus does not resize the armed action", bounds, rule.onNodeWithText("Turn Off").fetchSemanticsNode().boundsInRoot)
+        assertEquals(colors.onDestructiveFill, labelColour("Turn Off"))
+        assertEquals(tile, look("Stay"))
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals("Inside the guard A does nothing", 0, confirmed)
+        assertTrue(state.armed)
+        rule.advance(NovaPanelMetrics.SplitGuardMillis)
+        rule.frames(4)
+        keys.press(NovaTestKeys.CENTER)
+        rule.frames(4)
+        assertEquals("The same action confirms exactly once after the guard", 1, confirmed)
+        assertFalse(state.armed)
+        assertEquals("The actual focused painter leaves its existing panel gap around the red fill", NovaSurfaceLook(colors.destructiveFill, surfaces.focusRing, true), focusedLook)
+    }
+
+    @Test
+    fun anArmedDestructiveConfirmWithAContrastingRingKeepsTheFlushPainter() {
+        val keys = setUpDirector(focusRing = Color.Black)
+        assertTrue("This ring already contrasts with the fill", ColorUtils.calculateContrast(surfaces.focusRing.toArgb(), colors.destructiveFill.toArgb()) >= 3.0)
+        arm(keys)
+        assertEquals(NovaSurfaceLook(colors.destructiveFill, Color.Unspecified, false), look("Turn Off"))
+        toConfirm(keys)
+        assertEquals(NovaSurfaceLook(colors.destructiveFill, Color.Black, false), look("Turn Off"))
+        assertEquals(colors.onDestructiveFill, labelColour("Turn Off"))
+        assertEquals("One A never confirms", 0, confirmed)
     }
 
     @Test
