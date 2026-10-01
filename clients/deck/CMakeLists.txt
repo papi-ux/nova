@@ -346,6 +346,7 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_doctor_receipts_test COMMAND nova_deck_doctor_receipts_test)
     set_tests_properties(nova_deck_doctor_receipts_test PROPERTIES TIMEOUT 15)
     target_link_libraries(nova_deck_doctor_actions_test PRIVATE nova_deck_core)
+    target_compile_definitions(nova_deck_doctor_actions_test PRIVATE NOVA_DECK_PYROWAVE_DOCTOR_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/test/resources/polaris-doctor-pyrowave-v2.json")
     add_test(NAME nova_deck_doctor_actions_test COMMAND nova_deck_doctor_actions_test)
     set_tests_properties(nova_deck_doctor_actions_test PROPERTIES TIMEOUT 15)
     target_link_libraries(nova_deck_hud_host_test PRIVATE nova_deck_core)
@@ -560,7 +561,8 @@ if(BUILD_TESTING)
     add_executable(nova_deck_live_network_test tests/deck_live_network_test.cpp)
     target_link_libraries(nova_deck_live_network_test PRIVATE nova_deck_core)
     target_compile_definitions(nova_deck_live_network_test PRIVATE
-        NOVA_DECK_TEST_OPENSSL="${NOVA_DECK_TEST_OPENSSL}")
+        NOVA_DECK_TEST_OPENSSL="${NOVA_DECK_TEST_OPENSSL}"
+        NOVA_DECK_PYROWAVE_DOCTOR_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/test/resources/polaris-doctor-pyrowave-v2.json")
     add_test(NAME nova_deck_live_network_test COMMAND nova_deck_live_network_test)
     set_tests_properties(nova_deck_live_network_test PROPERTIES TIMEOUT 45)
 

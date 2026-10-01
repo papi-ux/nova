@@ -137,6 +137,12 @@ QVariantMap doctorPresentation(const QJsonObject& d) {
     } else if (primary == "quality_reduced_live") {
         title = "The live bitrate target is below the quality ceiling"; group = "HOST";
         advice = "Compare the quality ceiling, encoder-applied bitrate and current network readings.";
+    } else if (primary == "pyrowave_starved") {
+        title = "PyroWave needs more bitrate for fine detail"; group = "HOST";
+        advice = "Use the verified restore offer on a clean network, or review the next stream's bitrate in Play Setup.";
+    } else if (primary == "pyrowave_needs_more_than_allowed") {
+        title = "PyroWave needs more bitrate than this PC allows"; group = "HOST";
+        advice = "Choose a smaller picture or another codec in Play Setup, or review the PC's bitrate limit.";
     } else if (primary.startsWith("capture_")) {
         title = "Review the host capture path"; group = "HOST";
     } else if (primary.contains("decoder") || primary.contains("client") || primary.contains("presentation")) {
