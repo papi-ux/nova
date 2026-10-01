@@ -683,6 +683,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             if (isPortraitHosts()) setPortraitMenuExpanded(!portraitMenuExpanded, focusToggle = true)
             else setDashboardRailCollapsed(!dashboardRailCollapsed)
         }
+        // The portrait identity and Menu form one touch bar, with one controller focus stop.
+        findViewById<View>(R.id.dashboardPortraitHeader)?.setOnClickListener {
+            dashboardRailToggle?.performClick()
+        }
         emptyRefresh?.setOnClickListener {
             resetLibraryReadiness()
             stopComputerUpdates(false)
@@ -857,6 +861,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             group.strokeWidth = UiHelper.dpToPx(this, 1f).toInt()
         }
         styleActionButton(findViewById(R.id.dashboardRailToggle), surface, textPrimary)
+        findViewById<MaterialCardView>(R.id.dashboardPortraitHeader)?.let { header ->
+            header.setCardBackgroundColor(surface)
+            header.strokeColor = divider
+            header.strokeWidth = UiHelper.dpToPx(this, 1f).toInt()
+            // Only the focused/pressed Menu has its own ring; the shared bar owns the fill.
+            findViewById<MaterialButton>(R.id.dashboardRailToggle)?.backgroundTintList =
+                ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+        }
 
         tintChipRow(
             intArrayOf(

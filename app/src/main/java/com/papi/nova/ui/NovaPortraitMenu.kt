@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,11 +35,6 @@ internal fun NovaPortraitMenuBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (onBack != null) NovaActionSurface(
-            onClick = onBack, contentDescription = stringResource(R.string.nova_settings_back),
-            minHeight = 48.dp, cornerRadius = NovaRadius.row,
-        ) { color, _ -> Text(stringResource(R.string.nova_settings_back), color = color, style = novaPanelType.value) }
-        Text(title, modifier = Modifier.weight(1f), color = colors.textPrimary, style = novaPanelType.panelTitle)
         val label = stringResource(if (expanded) R.string.nova_portrait_hide_menu else R.string.nova_portrait_show_menu)
         NovaActionSurface(
             modifier = toggleModifier.testTag("nova-portrait-menu-toggle"),
@@ -46,5 +42,12 @@ internal fun NovaPortraitMenuBar(
             minHeight = 48.dp, cornerRadius = NovaRadius.row,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         ) { color, _ -> Text(label, color = color, style = novaPanelType.value) }
+        Box(Modifier.weight(1f)) {
+            Text(title, color = colors.textPrimary, style = novaPanelType.panelTitle)
+        }
+        if (onBack != null) NovaActionSurface(
+            onClick = onBack, contentDescription = stringResource(R.string.nova_settings_back),
+            minHeight = 48.dp, cornerRadius = NovaRadius.row,
+        ) { color, _ -> Text(stringResource(R.string.nova_settings_back), color = color, style = novaPanelType.value) }
     }
 }
