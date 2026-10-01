@@ -8,6 +8,7 @@
 #include "backend/deck_live_read_only_state.h"
 #include "runtime/deck_moonlight_launcher.h"
 #include "runtime/deck_steam_shortcuts.h"
+#include "runtime/deck_app_shortcuts.h"
 #include "runtime/deck_game_tools.h"
 #include "runtime/deck_game_shortcuts.h"
 #include "runtime/deck_native_session.h"
@@ -1462,38 +1463,15 @@ int nativeLaunchCommand(
  * rewrites shortcuts.vdf on exit. Exit codes: 0 registered, 5 refused.
  */
 int registerSteamShortcutCommand(const QStringList& arguments) {
-    nova::deck::runtime::DeckSteamShortcut shortcut;
-    shortcut.appName = "Nova";
     std::error_code ec;
     const bool insideFlatpak = std::filesystem::exists("/.flatpak-info", ec);
+    auto shortcut = nova::deck::runtime::novaSteamShortcut(insideFlatpak, QCoreApplication::applicationFilePath().toStdString());
     const QString exeOverride = stringArgumentAfter(arguments, QStringLiteral("--register-steam-exe"));
     if (!exeOverride.isEmpty()) {
         shortcut.exe = "\"" + exeOverride.toStdString() + "\"";
         shortcut.launchOptions = stringArgumentAfter(arguments, QStringLiteral("--register-steam-launch-options")).toStdString();
-    } else if (insideFlatpak) {
-        shortcut.exe = "\"/usr/bin/flatpak\"";
-        shortcut.launchOptions = "run com.papi_ux.Nova --standalone";
-    } else {
-        const auto self = std::filesystem::read_symlink("/proc/self/exe", ec);
-        shortcut.exe = "\"" + (ec ? std::string{"nova-deck"} : self.string()) + "\"";
-        shortcut.launchOptions = "--standalone";
     }
-    shortcut.startDir = "\"/usr/bin/\"";
-    shortcut.tags = {"Nova"};
-
-    std::vector<std::filesystem::path> files;
-    for (const auto& root : nova::deck::runtime::defaultSteamRoots()) {
-        for (auto& file : nova::deck::runtime::defaultShortcutFiles(root)) {
-            files.push_back(std::move(file));
-        }
-    }
-    const auto steamRunning = nova::deck::runtime::steamClientRunningForAccount(insideFlatpak, static_cast<unsigned>(::getuid()));
-    nova::deck::runtime::DeckShortcutWriteResult result;
-    if (!steamRunning.has_value()) {
-        result.detail = "Could not tell whether Steam is running; close Steam and try again.";
-    } else {
-        result = nova::deck::runtime::writeShortcutForAccount(files, shortcut, *steamRunning);
-    }
+    const auto result = nova::deck::runtime::registerNovaSteamShortcut(shortcut, insideFlatpak);
     std::cout << "nova-deck steam shortcut: " << (result.ok ? "ok" : "refused") << " · " << result.detail;
     if (result.appId != 0) {
         std::cout << " · appid=" << result.appId;
@@ -1720,6 +1698,8 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::sleepPreparationFinished,
         &sleepMonitor, &nova::deck::runtime::DeckSleepMonitor::finishPreparation);
     nova::deck::runtime::DeckGameShortcuts gameShortcuts;
+    nova::deck::runtime::DeckAppShortcuts appShortcuts;
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &appShortcuts, &nova::deck::runtime::DeckAppShortcuts::shutdown);
     nova::deck::runtime::DeckGameTools gameTools;
     nova::deck::runtime::DeckHostPowerController hostPower;
     nova::deck::runtime::DeckHostWakeController hostWake;
@@ -1742,6 +1722,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
         const bool streaming = nativeSession.busy() || nativeSession.systemSleeping();
         const bool maintenance = updates.busy();
         hostWake.setBlocked(streaming || maintenance || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
+        appShortcuts.setBlocked(streaming || maintenance);
         updates.setBlocked(streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
         hostPower.setSessionActive(streaming || maintenance || hostSettings.busy() || gameTools.busy());
         // Read-only game-plan checks must not revoke the open host-settings
@@ -1800,6 +1781,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaGameTools", &gameTools);
     gameShortcuts.setImageReader([libraryArtwork](const QString& key) { return libraryArtwork->requestImage(key, nullptr, {}); });
     engine.rootContext()->setContextProperty("novaGameShortcuts", &gameShortcuts);
+    engine.rootContext()->setContextProperty("novaAppShortcuts", &appShortcuts);
     engine.rootContext()->setContextProperty("novaGameLink", gameLink ? QVariantMap{{"host", gameLink->host}, {"game", gameLink->game}, {"destination", gameLink->destination}} : QVariantMap{});
     const auto libraryGames = standalone
         ? libraryArtwork->publish(libraryRefresh.snapshot(), libraryRefresh.targetResolver(), toLibraryGameModel(backendReadOnlyState.games))

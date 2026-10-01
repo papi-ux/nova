@@ -841,6 +841,7 @@ ApplicationWindow {
         gameShortcuts: novaGameShortcuts
         hostPower: novaHostPower
         hostWake: novaHostWake
+        appShortcuts: novaAppShortcuts
         gamepad: novaGamepad
         id: androidLibrary
         updateController: novaUpdates

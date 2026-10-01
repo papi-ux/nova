@@ -955,6 +955,26 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     visible([7, 106], filter="genre", filterValue="Puzzle", sort="hdr")
 
 
+def steam_app_navigation(wait, keys, state, save_capture, window):
+    keys("Up", "Up", "Up", "Right", "Return")
+    wait(lambda s: s.get("systemOpen"))
+    for _ in range(14):
+        if state().get("focus") == "library-add-nova-steam":
+            break
+        keys("Down")
+    wait(lambda s: s.get("focus") == "library-add-nova-steam")
+    keys("Return")
+    wait(lambda s: s.get("appShortcut", {}).get("opened") and s.get("focus") == "app-steam-add")
+    assert not state()["appShortcut"]["status"]["busy"] and not state()["appShortcut"]["status"]["ok"]
+    save_capture("add-nova-steam-1280.png")
+    command("xdotool", "windowsize", window, "960", "600")
+    save_capture("add-nova-steam-960.png")
+    keys("Escape")
+    wait(lambda s: not s.get("appShortcut", {}).get("opened") and s.get("focus") == "library-add-nova-steam")
+    keys("Escape")
+    wait(lambda s: not s.get("systemOpen"))
+
+
 def wake_pc_navigation(wait, keys, state, save_capture, window):
     keys("Up", "Up", "Up", "Right", "Return")
     wait(lambda s: s.get("systemOpen"))
@@ -1678,8 +1698,9 @@ def main():
     parser.add_argument("--host-power", action="store_true")
     parser.add_argument("--paging", action="store_true")
     parser.add_argument("--wake-pc", action="store_true")
+    parser.add_argument("--steam-app", action="store_true")
     args = parser.parse_args()
-    args.host_power = args.host_power or args.wake_pc
+    args.host_power = args.host_power or args.wake_pc or args.steam_app
     args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
     args.artwork = args.artwork or args.readability
@@ -1997,7 +2018,7 @@ def main():
         # retain the independent 70-second CTest deadline and per-state waits.
         app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.steam_app else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
                                env=env, stdout=output, stderr=output)
 
         def state():
@@ -2066,6 +2087,8 @@ def main():
                 setup_parity_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.spaces:
                 spaces_navigation(wait, keys, state, fixtures, save_capture, window)
+            elif args.steam_app:
+                steam_app_navigation(wait, keys, state, save_capture, window)
             elif args.wake_pc:
                 wake_pc_navigation(wait, keys, state, save_capture, window)
             elif args.host_power:
