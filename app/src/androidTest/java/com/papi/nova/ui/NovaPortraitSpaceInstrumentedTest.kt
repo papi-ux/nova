@@ -108,7 +108,9 @@ class NovaPortraitLibraryInstrumentedTest {
 
                 compose.onNodeWithText(system).performClick()
                 settle()
-                compose.onNodeWithText(system).assertIsDisplayed()
+                // System remains on the supporting row behind the new panel title.
+                compose.onAllNodesWithText(system).assertCountEquals(2)
+                compose.onAllNodesWithText(system)[1].assertIsDisplayed()
                 instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BUTTON_B)
                 settle()
                 compose.onNodeWithTag("nova-poster-game-0").assertIsDisplayed()
