@@ -2,7 +2,9 @@ package com.papi.nova.ui.compose
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
@@ -17,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
@@ -31,6 +34,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
@@ -92,10 +96,18 @@ fun NovaSearchTextField(
     val keyboardUp = WindowInsets.isImeVisible
 
     fun beginEditing() {
+        if (editing) return
         sawKeyboard = false
         editing = true
         focusRequester.requestFocus()
-        keyboardController?.show()
+    }
+
+    LaunchedEffect(editing) {
+        if (editing) {
+            // The editable field and its input connection must exist before requesting the IME.
+            withFrameNanos { }
+            keyboardController?.show()
+        }
     }
 
     fun leaveEditing(direction: FocusDirection?): Boolean {
@@ -158,7 +170,12 @@ fun NovaSearchTextField(
                 }
             }
             .pointerInput(Unit) {
-                detectTapGestures(onTap = { beginEditing() })
+                // BasicTextField consumes its own taps in Main, including while read-only.
+                // Observe a completed tap first, without consuming its cursor/selection gesture.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    if (waitForUpOrCancellation(pass = PointerEventPass.Initial) != null) beginEditing()
+                }
             }
             .height(heightDp.dp)
             .novaFocusMotion(focused = focused)

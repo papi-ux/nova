@@ -443,7 +443,10 @@ internal fun NovaSettingsContent(
                     // Pages pushed over the rows keep focus; the rows themselves may give it to the rail.
                     containFocus = pane.depth > 1,
                     onCloseRequest = {
-                        if (portrait && portraitMenuExpanded) {
+                        // The host owns root Back; a pushed result page still pops before this.
+                        if (latestState.isSearchActive()) {
+                            clearSearch()
+                        } else if (portrait && portraitMenuExpanded) {
                             portraitMenuExpanded = false
                             portraitMenuFocus.requestFocus()
                         } else if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
@@ -849,8 +852,6 @@ private fun NovaSettingsSearchField(
     // This was a plain BasicTextField: focus it with a d-pad and the direction keys went into
     // the text rather than moving on, so there was no way off the field without a touchscreen.
     val colors = LocalNovaComposeColors.current
-    // B clears a query before it leaves Settings, the way a page's B unwinds one level.
-    NovaBackHandler(active = query.isNotBlank()) { onClear() }
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
