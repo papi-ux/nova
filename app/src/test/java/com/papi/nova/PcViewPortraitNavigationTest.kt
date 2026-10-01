@@ -58,7 +58,14 @@ class PcViewPortraitNavigationTest {
     private fun open(saved: Bundle? = null): ActivityController<PcView> =
         Robolectric.buildActivity(PcView::class.java).create(saved).start().resume().visible().also {
             controllers += it
-            idleAndLayout(it.get())
+            val activity = it.get()
+            // ShadowActivity has its own currentFocus field; unlike PhoneWindow it does not
+            // follow the real View tree. Forward actual focus events for this Activity boundary.
+            activity.window.decorView.viewTreeObserver.addOnGlobalFocusChangeListener { _, focused ->
+                shadowOf(activity).setCurrentFocus(focused)
+            }
+            shadowOf(activity).setCurrentFocus(activity.window.decorView.findFocus())
+            idleAndLayout(activity)
         }
 
     private fun idleAndLayout(activity: PcView) {
