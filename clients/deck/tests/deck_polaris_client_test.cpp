@@ -392,10 +392,56 @@ void testLaunchModeAuthority() {
     }
 }
 
+void testAppLaunchAsAuthority() {
+    const auto catalog = parseLaunchModeCatalog(R"({"version":1,"desired":{"stream_display_mode":"desktop_display"},
+        "effective":{"stream_display_mode":"desktop_display"},"capabilities":{"modes":[
+        {"value":"desktop_display","available":true,"session_overridable":true},
+        {"value":"windowed_stream","available":true,"session_overridable":true},
+        {"value":"host_virtual_display","available":true,"session_overridable":true},
+        {"value":"desktop_takeover","available":true,"session_overridable":true}]}})");
+    assert(catalog);
+    const auto policyFor = [&](QJsonObject contract) {
+        const auto page = parseGamesPage(QJsonDocument(QJsonObject{{"games", QJsonArray{QJsonObject{
+            {"id", "app"}, {"name", "Pinned"}, {"launch_mode", contract}}}}, {"total", 1}}).toJson().toStdString());
+        assert(page && page->games.size() == 1);
+        return launchModePolicy(page->games.front(), *catalog);
+    };
+    QJsonObject pin{{"launch_as", "windowed_stream"}, {"launch_as_available", true},
+        {"launch_as_unavailable_reason", "The app's compositor is unavailable."},
+        {"preferred_mode", "windowed_stream"}, {"recommended_mode", "windowed_stream"},
+        {"allowed_modes", QJsonArray{"windowed_stream"}}, {"follows_host_default", false}};
+    auto policy = policyFor(pin);
+    assert(policy.known && policy.hostDefault == "windowed_stream" && policy.allowed == std::vector<std::string>{"windowed_stream"});
+    pin["launch_as_available"] = false;
+    policy = policyFor(pin);
+    assert(policy.known && policy.allowed.empty());
+    for (const auto& bad : QList<QJsonValue>{"true", 1, QJsonValue()}) {
+        pin["launch_as_available"] = bad;
+        assert(policyFor(pin).allowed.empty());
+    }
+    pin.remove("launch_as_available");
+    assert(policyFor(pin).allowed.empty());
+    pin["launch_as_available"] = true;
+    for (const auto& bad : QList<QJsonValue>{"turbo", "Windowed_Stream", " windowed_stream", "headless_dongle", 3, true, QJsonValue()}) {
+        pin["launch_as"] = bad;
+        assert(policyFor(pin).allowed.empty());
+    }
+    pin["launch_as"] = "desktop_display";
+    pin["preferred_mode"] = "desktop_display"; pin["recommended_mode"] = "desktop_display";
+    pin["allowed_modes"] = QJsonArray{"desktop_display", "host_virtual_display", "desktop_takeover"};
+    policy = policyFor(pin);
+    assert(policy.known && policy.hostDefault == "desktop_display" && policy.allowed.size() == 3);
+    pin.remove("launch_as"); pin.remove("launch_as_available");
+    pin["follows_host_default"] = true;
+    policy = policyFor(pin);
+    assert(policy.known && policy.hostDefault == "desktop_display" && policy.allowed.size() == 3);
+}
+
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     testParsesCapabilities();
     testLaunchModeAuthority();
+    testAppLaunchAsAuthority();
     testDisplayRecommendations();
     testParsesGamesPageFromHostShape();
     testGameTimeMetadata();
