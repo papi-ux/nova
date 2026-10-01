@@ -12,6 +12,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -56,9 +57,9 @@ class NovaPortraitMenuCameraTest {
         val menu = rule.onNodeWithTag("nova-portrait-menu-toggle")
         val back = rule.onNode(hasClickAction() and hasText("Back"))
         fun contentBounds() = listOf(
-            rule.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot,
-            menu.fetchSemanticsNode().boundsInRoot,
-            back.fetchSemanticsNode().boundsInRoot,
+            rule.onNodeWithText(title, useUnmergedTree = true).assertIsDisplayed().fetchSemanticsNode().boundsInRoot,
+            menu.assertIsDisplayed().fetchSemanticsNode().boundsInRoot,
+            back.assertIsDisplayed().fetchSemanticsNode().boundsInRoot,
         )
         fun same(expected: List<Rect>, actual: List<Rect>) {
             expected.zip(actual).forEach { (a, b) ->
@@ -76,6 +77,12 @@ class NovaPortraitMenuCameraTest {
         rule.runOnIdle { cameras.value = listOf(camera) }
         rule.waitForIdle()
         val cleared = contentBounds()
+        assertTrue("The complete title remains visible rather than disappearing to clear the camera",
+            cleared.first().width > 0f && cleared.first().height >= normal.first().height - 0.5f)
+        val bar = rule.onNodeWithTag("nova-portrait-menu-bar").fetchSemanticsNode().boundsInRoot
+        assertTrue("The title stays within the actual header",
+            cleared.first().left >= bar.left - 0.5f && cleared.first().right <= bar.right + 0.5f &&
+                cleared.first().top >= bar.top - 0.5f && cleared.first().bottom <= bar.bottom + 0.5f)
         assertFalse("The actual title glyph region clears the camera", cleared.first().overlaps(camera))
         for (target in cleared.drop(1)) {
             assertFalse("The actual action target clears the camera", target.overlaps(camera))
