@@ -57,6 +57,13 @@ int main(int argc, char **argv) {
         bytes[size] = (uint8_t)(random >> 24);
         (void)pyrowave_packet_has_safe_lengths(bytes, size + 1);
     }
+    assert(argc > 2);
+    FILE *fixture = fopen(argv[2], "rb");
+    assert(fixture != NULL);
+    const size_t fixture_size = fread(bytes, 1, sizeof(bytes), fixture);
+    assert(fixture_size > 0 && fgetc(fixture) == EOF);
+    assert(fclose(fixture) == 0);
+    assert(pyrowave_packet_has_safe_lengths(bytes, fixture_size));
     puts("all packet length cases passed");
     return 0;
 }

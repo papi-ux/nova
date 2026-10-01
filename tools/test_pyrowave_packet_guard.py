@@ -29,7 +29,9 @@ class PyroWavePacketGuardTest(unittest.TestCase):
                     self.assertEqual(built.returncode, 0, built.stderr)
                     for case in ("short", "zero"):
                         with self.subTest(case=case):
-                            ran = subprocess.run([str(binary), case], capture_output=True, text=True, timeout=10)
+                            ran = subprocess.run([
+                                str(binary), case, str(ROOT / "app/src/main/assets/pyrowave/selftest-34x30.pw"),
+                            ], capture_output=True, text=True, timeout=10)
                             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
                             self.assertIn("all packet length cases passed", ran.stdout)
 
