@@ -437,6 +437,9 @@ data class PolarisSessionStatus(
                     item?.value == null)
         }
         val networkPressureConfirmed get() = confirmedMediaLoss || confirmedRttPressure
+        fun canExecuteWithLiveTuning(enabled: Boolean): Boolean = canExecuteAction &&
+            (!enabled || actionId in setOf("recheck_network", "recheck_pacing") ||
+                (actionId == "lower_bitrate" && confirmedMediaLoss))
         val canExecuteAction get() = when (actionId) {
             "recheck_network", "recheck_pacing" ->
                 actionEnvelopeValid &&

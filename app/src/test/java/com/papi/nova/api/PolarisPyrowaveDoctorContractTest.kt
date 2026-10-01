@@ -95,4 +95,24 @@ class PolarisPyrowaveDoctorContractTest {
         assertTrue(refreshed.canExecuteAction)
         assertFalse(refreshed.matchesExecutableActionIntent(displayed))
     }
+
+    @Test fun liveTuningKeepsRttOwnershipWhileAHostLossStepRemainsAvailable() {
+        fun lower(loss: Boolean) = fixture().apply {
+            put("primary_issue", "network_jitter")
+            val action = getJSONObject("safe_recovery_action")
+            action.put("id", "lower_bitrate")
+            payload(this).put("action_id", "lower_bitrate").remove("goal_source")
+            action.getJSONObject("verification").put("mode", "live_telemetry")
+            getJSONArray("evidence").getJSONObject(if (loss) 0 else 1).put("status", "fail").put("value", if (loss) 5 else 60)
+        }
+        val mediaLoss = parse(lower(true))
+        val rttOnly = parse(lower(false))
+        assertTrue(mediaLoss.canExecuteAction)
+        assertTrue(rttOnly.canExecuteAction)
+        assertTrue(mediaLoss.canExecuteWithLiveTuning(true))
+        assertFalse(rttOnly.canExecuteWithLiveTuning(true))
+        assertTrue(rttOnly.canExecuteWithLiveTuning(false))
+        assertFalse(parse(fixture()).canExecuteWithLiveTuning(true))
+        assertTrue(parse(fixture()).canExecuteWithLiveTuning(false))
+    }
 }

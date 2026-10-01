@@ -239,6 +239,8 @@ class NovaQuickMenu(
             status: PolarisSessionStatus,
             doctor: PolarisSessionStatus.DoctorStatus
         ): Boolean {
+            val tuningEnabled = status.liveTuning?.enabled ?: (status.tuning?.adaptiveBitrateEnabled == true || status.adaptiveBitrateEnabled == true)
+            if (!doctor.canExecuteWithLiveTuning(tuningEnabled)) return false
             val readOnlyRecheck = doctor.actionId in setOf("recheck_network", "recheck_pacing")
             val exactStreamScope = status.appSessionIdPresent &&
                 status.appSessionId.isNotBlank() && status.sessionGeneration > 0L &&
