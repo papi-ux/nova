@@ -27,7 +27,7 @@ internal enum class NovaUpdateChannel { STABLE, BETA }
 internal object NovaUpdateChecker {
     const val LATEST_RELEASE_API_URL = "https://api.github.com/repos/papi-ux/nova/releases/latest"
     private const val RELEASES_API_URL = "https://api.github.com/repos/papi-ux/nova/releases"
-    private val VERSION_PATTERN = Regex("^([0-9]+(?:\\.[0-9]+){1,3})(?:-(pre|beta\\.[0-9]+|rc\\.[0-9]+))?$")
+    private val VERSION_PATTERN = Regex("^([0-9]+(?:\\.[0-9]+){1,3})(?:-(pre|beta(?:\\.[0-9]+)?|rc\\.[0-9]+))?$")
 
     private data class Version(val parts: List<Long>, val channel: Int, val ordinal: Long)
 
@@ -198,11 +198,13 @@ internal object NovaUpdateChecker {
         val suffix = match.groupValues[2]
         val channel = when {
             suffix == "pre" -> 0
-            suffix.startsWith("beta.") -> 1
+            suffix == "beta" || suffix.startsWith("beta.") -> 1
             suffix.startsWith("rc.") -> 2
             else -> 3
         }
-        val ordinal = if (channel == 1 || channel == 2) suffix.substringAfter('.').toLongOrNull() ?: return null else 0
+        val ordinal = if (suffix.contains('.') && (channel == 1 || channel == 2)) {
+            suffix.substringAfter('.').toLongOrNull() ?: return null
+        } else 0
         return Version(parts, channel, ordinal)
     }
 }
