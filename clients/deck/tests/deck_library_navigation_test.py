@@ -1730,12 +1730,9 @@ def main():
     parser.add_argument("--paging", action="store_true")
     parser.add_argument("--wake-pc", action="store_true")
     parser.add_argument("--steam-app", action="store_true")
-    args = parser.parse_args()
-    args.host_power = args.host_power or args.wake_pc or args.steam_app
-
     parser.add_argument("--handoff-limits", action="store_true")
     args = parser.parse_args()
-    args.host_power = args.host_power or args.wake_pc or args.handoff_limits
+    args.host_power = args.host_power or args.wake_pc or args.steam_app or args.handoff_limits
     args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
     args.artwork = args.artwork or args.readability
@@ -2069,9 +2066,8 @@ def main():
         # retain the independent 70-second CTest deadline and per-state waits.
         app = subprocess.Popen([str(args.binary.resolve()), "--live" if args.handoff_limits else "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.steam_app else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.steam_app or args.handoff_limits else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
 
-                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.handoff_limits else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
                                env=env, stdout=output, stderr=output)
 
         def state():
