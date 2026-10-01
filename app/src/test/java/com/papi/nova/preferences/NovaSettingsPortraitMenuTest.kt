@@ -60,6 +60,37 @@ class NovaSettingsPortraitMenuTest {
         org.junit.Assert.assertEquals(1, backs)
     }
 
+    @Test
+    @Config(qualifiers = "w320dp-h640dp-port")
+    fun narrowLargeTextSavedSetupHeaderKeepsItsTitleAndBothActions() {
+        val definitions = NovaSettingDefinitions.load(rule.activity)
+        val title = rule.activity.getString(com.papi.nova.R.string.profile_manager_edit_profile_with,
+            "Weekend games on my handheld and living room television")
+        rule.setPanelContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.3f)) {
+                com.papi.nova.ui.compose.NovaControlSizeHost(com.papi.nova.ui.NovaControlSize.Large) {
+                    NovaSettingsContent(
+                        state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), definitions.categories.first().key, ""),
+                        title = title, subtitle = "Test", onBack = {}, onOpenLegacy = {},
+                        onSearch = {}, onClearSearch = {}, onCategory = {}, headerActions = emptyList(),
+                        onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
+                    )
+                }
+            }
+        }
+        val bar = rule.onNodeWithTag("nova-portrait-menu-bar").fetchSemanticsNode().boundsInRoot
+        for (node in listOf(rule.onNodeWithTag("nova-portrait-menu-toggle"),
+            rule.onNode(hasClickAction() and hasText("Back")))) {
+            val bounds = node.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            org.junit.Assert.assertTrue("Header action stays inside the narrow surface", bounds.left >= bar.left && bounds.right <= bar.right)
+        }
+        val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        rule.onNodeWithText(title).assertIsDisplayed().performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        org.junit.Assert.assertEquals(1, layouts.size)
+        org.junit.Assert.assertFalse("The complete saved-setup name wraps without clipping", layouts.single().hasVisualOverflow)
+    }
+
     @Test fun portraitMenuGroupsSearchAndLegacyAndShowsCategoriesBeforeShortcuts() {
         val definitions = NovaSettingDefinitions.load(rule.activity)
         var selected by mutableStateOf(definitions.categories.first().key)

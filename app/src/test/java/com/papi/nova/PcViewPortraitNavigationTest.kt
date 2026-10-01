@@ -449,6 +449,36 @@ class PcViewPortraitNavigationTest {
         assertTrue(toggle.hasFocus())
     }
 
+    @Test
+    @Config(qualifiers = "w320dp-h700dp-port")
+    fun narrowLargeTextHostsHeaderOpensFromItsIdentityText() {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putString("nova_control_size", "large")
+            .putInt(com.papi.nova.ui.NovaFontScalePreferences.KEY_SCALE_PERCENT, 130).commit()
+        val activity = open().get()
+        val title = activity.findViewById<TextView>(R.id.pcViewTitle)
+        val subtitle = activity.findViewById<TextView>(R.id.pcViewSectionLabel)
+        val toggle = menu(activity)
+        val visible = Rect()
+        assertTrue("Menu stays entirely visible on a narrow phone", toggle.getGlobalVisibleRect(visible))
+        assertEquals(toggle.width, visible.width())
+        assertEquals(toggle.height, visible.height())
+        assertEquals("Subtitle keeps the complete identity text", subtitle.text.length,
+            subtitle.layout.getLineEnd(subtitle.layout.lineCount - 1))
+        val position = IntArray(2); title.getLocationInWindow(position)
+        val x = position[0] + title.width / 2f; val y = position[1] + title.height / 2f
+        val time = android.os.SystemClock.uptimeMillis()
+        for (action in listOf(android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP)) {
+            val event = android.view.MotionEvent.obtain(time, time + if (action == android.view.MotionEvent.ACTION_UP) 30 else 0,
+                action, x, y, 0)
+            try { activity.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        idleAndLayout(activity)
+        assertTrue("A real touch on Nova opens the shared header menu", activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+        press(activity, KeyEvent.KEYCODE_BUTTON_B)
+        assertFalse(activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+    }
+
     companion object {
         @JvmStatic @BeforeClass fun suppressLogs() { TestLogSuppressor.install() }
     }
