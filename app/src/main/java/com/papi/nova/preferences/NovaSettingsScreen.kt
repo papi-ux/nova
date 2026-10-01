@@ -409,7 +409,12 @@ internal fun NovaSettingsContent(
                 ) {
                     navigationHeader()
                     Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
-                    NovaSettingsCategoryChips(state, onCategory, onEnterPane = { focus.enterPane(latestState.paneKey()) })
+                    NovaSettingsCategoryChips(state, onCategory, onEnterPane = {
+                        val current = latestState
+                        val readableFallback = current.visibleSettings.firstOrNull { it.takesFocus() }?.key
+                            .takeIf { current.visibleSettings.none { current.isEnabled(it) && it.takesFocus() } }
+                        focus.enterPane(current.paneKey(), readableFallback)
+                    })
                     if (showQuickStrip) {
                         Spacer(Modifier.height(NovaPanelMetrics.SpaceSm))
                         Text(stringResource(R.string.nova_settings_stream_shortcuts),
@@ -426,7 +431,7 @@ internal fun NovaSettingsContent(
                         .then(focus.paneModifier)
                         .then(if (portrait && showQuickStrip) Modifier.onPreviewKeyEvent {
                             val firstRow = latestState.visibleSettings.firstOrNull { row ->
-                                latestState.isEnabled(row) && row.takesFocus()
+                                row.takesFocus()
                             }?.key
                             if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp &&
                                 pane.depth == 1 && focusedRow != null && focusedRow == firstRow) {
@@ -1014,6 +1019,21 @@ private fun NovaSettingsCategoryChips(
     onCategory: (String) -> Unit,
     onEnterPane: (() -> Unit)? = null,
 ) {
+    if (onEnterPane == null) {
+        // Preserve the existing narrow-landscape layout and its ordinary directional traversal.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm),
+            verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)
+        ) {
+            for (category in state.categories) NovaCategoryRow(
+                category = category,
+                selected = category.key == state.selectedCategoryKey && state.searchQuery.isBlank(),
+                onClick = { onCategory(category.key) },
+                modifier = Modifier.fillMaxWidth(0.48f)
+            )
+        }
+        return
+    }
     val rows = state.categories.chunked(2)
     Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceSm)) {
         for ((rowIndex, categories) in rows.withIndex()) {

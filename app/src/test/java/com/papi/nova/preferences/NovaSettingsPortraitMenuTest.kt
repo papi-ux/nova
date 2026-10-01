@@ -197,4 +197,45 @@ class NovaSettingsPortraitMenuTest {
         org.junit.Assert.assertEquals("input", selected)
 
     }
+    private fun disabledRows(allDisabled: Boolean): com.papi.nova.ui.panel.NovaTestKeys {
+        val definitions = NovaSettingsDefinitionSet(
+            listOf(NovaSettingCategory("stream", "Stream", ""), NovaSettingCategory("input", "Input", "")),
+            listOf(
+                NovaSettingDefinition(key = "disabled", title = "Requires controller", summary = "Enable controller first",
+                    categoryKey = "stream", type = NovaSettingType.Toggle, dependencyKey = "controller", defaultValue = NovaSettingValue.BooleanValue(false)),
+                NovaSettingDefinition(key = PreferenceConfiguration.FPS_PREF_STRING, title = "Frame rate", summary = "",
+                    categoryKey = "stream", type = NovaSettingType.Select, dependencyKey = if (allDisabled) "controller" else null,
+                    defaultValue = NovaSettingValue.StringValue("60"), options = listOf(NovaSettingOption("60 FPS", "60"))),
+            ),
+        )
+        val keys = rule.setPanelContent {
+            NovaSettingsContent(
+                state = NovaSettingsUiStateFactory.build(definitions, mapOf("controller" to NovaSettingValue.BooleanValue(false)), "stream", ""),
+                title = "Settings", subtitle = "Test", onBack = {}, onOpenLegacy = {},
+                onSearch = {}, onClearSearch = {}, onCategory = {}, headerActions = emptyList(),
+                onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
+            )
+        }
+        rule.onNodeWithText("Menu").performClick()
+        rule.onNodeWithTag("nova-settings-category-input").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        keys.press(KeyEvent.KEYCODE_DPAD_DOWN)
+        return keys
+    }
+
+    @Test fun disabledReasonRowRemainsReachableBeforeTheShortcutBoundary() {
+        val keys = disabledRows(allDisabled = false)
+        rule.onNodeWithTag("nova-settings-row-${PreferenceConfiguration.FPS_PREF_STRING}").assertIsFocused()
+        keys.press(KeyEvent.KEYCODE_DPAD_UP)
+        rule.onNodeWithTag("nova-settings-row-disabled").assertIsFocused().assertIsDisplayed()
+        keys.press(KeyEvent.KEYCODE_DPAD_UP)
+        rule.onNodeWithTag("nova-settings-quick-${PreferenceConfiguration.FPS_PREF_STRING}").assertIsFocused()
+    }
+
+    @Test fun allDisabledPaneStillHasAControllerEntryForItsReasons() {
+        val keys = disabledRows(allDisabled = true)
+        rule.onNodeWithTag("nova-settings-row-disabled").assertIsFocused().assertIsDisplayed()
+        keys.press(KeyEvent.KEYCODE_DPAD_UP)
+        rule.onNodeWithTag("nova-settings-quick-${PreferenceConfiguration.FPS_PREF_STRING}").assertIsFocused()
+    }
+
 }
