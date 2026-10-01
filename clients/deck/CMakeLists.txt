@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 # The release version, kept equal to versionName in app/build.gradle by NovaReleaseMetadataTest.
 project(NovaDeck VERSION 1.4.14 LANGUAGES C CXX)
 include(cmake/NovaReleaseVersion.cmake)
+include(cmake/NovaAppStream.cmake)
 
 # Only builds exported to a signed update feed enable the in-app updater.
 set(NOVA_DECK_UPDATE_CHANNEL "" CACHE STRING "Flatpak update branch: stable or beta")
@@ -766,7 +767,10 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
         install(FILES packaging/flatpak/com.papi_ux.Nova.svg
             DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
-        install(FILES packaging/flatpak/com.papi_ux.Nova.metainfo.xml
+        nova_deck_configure_appstream(
+            "${CMAKE_CURRENT_SOURCE_DIR}/packaging/flatpak/com.papi_ux.Nova.metainfo.xml"
+            "${CMAKE_CURRENT_BINARY_DIR}/com.papi_ux.Nova.metainfo.xml")
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/com.papi_ux.Nova.metainfo.xml"
             DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 
         if(BUILD_TESTING)
