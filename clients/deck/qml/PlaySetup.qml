@@ -37,7 +37,7 @@ FocusScope {
         return result
     }
     Timer { id: planRefresh; interval: 150; onTriggered: if (setup.gameTools && setup.visible) setup.gameTools.review(setup.plan.configuration) }
-    function checkPlan() { if (gameTools && !spaceSession) planRefresh.restart() }
+    function checkPlan() { if (gameTools && !spaceSession && planRefresh) planRefresh.restart() }
 
     property string hostId: ""
     property string gameId: ""
@@ -58,6 +58,9 @@ FocusScope {
         const revision = settingsProvider.videoSupportRevision
         return settingsProvider.streamPlan(requestedConfiguration, streamCapabilities, displayPlanner, displayCapabilities, spaceSession)
     }
+    readonly property var bitrateAdvice: settingsProvider.bitrateAdvice(plan.configuration, toolsState.pyrowaveAdvice || ({}))
+    readonly property int recommendedKbps: Math.min(bitrateAdvice.kbps || 0, plan.maxBitrateKbps || 300000, 300000)
+    readonly property bool belowAdvice: codecManagesEncoder && recommendedKbps > 0 && configuration.bitrateKbps < recommendedKbps * 0.8
     readonly property var audioSettings: settingsProvider.audioSettings
     readonly property int audioChannels: spaceSession ? 2 : audioSettings.channels
     readonly property string audioLabel: audioChannels === 8 ? "7.1 surround" : audioChannels === 6 ? "5.1 surround" : "Stereo audio"
@@ -83,7 +86,7 @@ FocusScope {
     property string error: ""
     property string notice: ""
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
-    readonly property var rows: [resolution, rate, bitrate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible && (row !== encoder || !codecManagesEncoder))
+    readonly property var rows: [resolution, rate, bitrate, recommendedRate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible && (row !== encoder || !codecManagesEncoder))
     signal choiceOpened()
     signal focusPlayRequested()
     signal backRequested()
@@ -102,6 +105,7 @@ FocusScope {
     }
 
     onPlanChanged: {
+        if (visible) checkPlan()
         // A display move or PC refresh can withdraw the focused rate. Return
         // to its row so a copied popup model cannot offer an obsolete choice.
         if (picker && picker.opened && ((picker.returnFocus === rate
@@ -209,7 +213,8 @@ FocusScope {
         { key: "Stream", value: plan.configuration.width + " × " + plan.configuration.height + " · " + plan.configuration.fps + " fps",
             detail: plan.adjustment || ((overrides.resolution || overrides.fps) ? "This game's choices" : "Nova defaults"), warning: plan.adjustment.length > 0 },
         { key: "Picture", value: plan.videoLabel + " · " + (plan.configuration.bitrateKbps / 1000) + " Mbps",
-            detail: plan.displayLabel + " · " + plan.codecDetail },
+            detail: belowAdvice ? "Low for PyroWave detail · Recommended " + (recommendedKbps / 1000).toFixed(1) + " Mbps" : plan.displayLabel + " · " + plan.codecDetail,
+            warning: belowAdvice },
         { key: "Audio", value: audioLabel + " · PC audio " + (audioSettings.playHostAudio ? "on" : "off"),
             detail: spaceDestination ? "Spaces use stereo. Your device audio preference stays saved." : "Device setting · System › Audio" },
         { key: "Buttons", value: effectiveFaceButtonLayout === "positions" ? "Match positions" : "Match labels",
@@ -402,11 +407,24 @@ FocusScope {
                     defaultExplanation: "Use Nova's current device-default starting bitrate."
                     label: "Bitrate"; value: (configuration.bitrateKbps / 1000) + " Mbps"
                     onClicked: {
-                        const choices = [10,20,30,40].map(value => ({label: value + " Mbps", detail: "Starting bitrate for this stream.", bitrateKbps: value * 1000}))
+                        const choices = (codecManagesEncoder ? [50,100,150,200,250,300] : [10,20,30,40]).filter(value => value * 1000 <= (plan.maxBitrateKbps || 300000)).map(value => ({label: value + " Mbps", detail: "Starting bitrate for this stream.", bitrateKbps: value * 1000}))
+                        if (codecManagesEncoder && recommendedKbps > 0 && !choices.some(choice => choice.bitrateKbps === recommendedKbps))
+                            choices.unshift({label: "Recommended · " + (recommendedKbps / 1000).toFixed(1) + " Mbps", detail: bitrateAdvice.basis === "host" ? "Advice from this PC." : "Calibrated PyroWave estimate for handheld viewing.", bitrateKbps: recommendedKbps})
                         if (!choices.some(choice => choice.bitrateKbps === configuration.bitrateKbps))
                             choices.push({label: (configuration.bitrateKbps / 1000) + " Mbps", detail: "Your saved custom bitrate.", bitrateKbps: configuration.bitrateKbps})
                         picker.choose(bitrate, "Bitrate", choices, choices.findIndex(choice => choice.bitrateKbps === configuration.bitrateKbps))
                     }
+                }
+                Setting {
+                    id: recommendedRate; objectName: "play-setup-recommended-bitrate"
+                    visible: codecManagesEncoder && recommendedKbps > 0 && configuration.bitrateKbps !== recommendedKbps
+                    enabled: setup.editable
+                    label: "Also use recommended"; value: (recommendedKbps / 1000).toFixed(1) + " Mbps"
+                    explanation: bitrateAdvice.basis === "host" ? "Advice from this PC for the selected picture." : "Calibrated estimate for handheld viewing. Compare fine detail and motion."
+                    Layout.fillWidth: true
+                    onClicked: if (setup.save({bitrateKbps: recommendedKbps})) setup.checkPlan()
+                    Keys.onUpPressed: setup.rows[setup.rows.indexOf(this) - 1].forceActiveFocus()
+                    Keys.onDownPressed: setup.rows[setup.rows.indexOf(this) + 1].forceActiveFocus()
                 }
                 Setting {
                     id: faceButtons; objectName: "play-setup-face-buttons"
@@ -515,6 +533,7 @@ FocusScope {
     }
     StreamProfileEditor {
         id: customEditor
+        maximumBitrateKbps: setup.plan.maxBitrateKbps || 300000
         settingsProvider: setup.settingsProvider; editable: setup.editable; hostId: setup.hostId; gameId: setup.gameId; unit: setup.unit
         onSaved: { setup.reloadChoices(); setup.error = ""; setup.notice = "Saved for this game." }
     }

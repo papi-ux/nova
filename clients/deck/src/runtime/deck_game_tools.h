@@ -50,7 +50,7 @@ private:
     std::function<QVariantList(const QString&, const QString&, QVariantList)> previews_;
     std::function<void()> retirePreviews_;
     QString host_, game_, kind_ = "poster", copy_;
-    QVariantMap configuration_, settings_, plan_, steam_, candidate_, selections_, artworkResolution_;
+    QVariantMap configuration_, settings_, plan_, advice_, steam_, candidate_, selections_, artworkResolution_;
     QVariantList candidates_, choices_;
     QHash<QString, QVariantList> choiceCache_;
     bool active_ = false, blocked_ = false, available_ = false, uncertain_ = false;

@@ -6,6 +6,8 @@
 #include "polaris/deck_game_tools.h"
 #include "polaris/deck_stream_capabilities.h"
 
+#include "polaris/deck_bitrate_advice.h"
+#include <QJsonObject>
 #include <Limelight.h>
 #include <QCryptographicHash>
 #include <QJsonArray>
@@ -424,6 +426,12 @@ bool DeckPlaySettings::setMouseMode(const QString& mode) {
     emit mouseModeChanged(); return true;
 }
 
+QVariantMap DeckPlaySettings::bitrateAdvice(const QVariantMap& configuration, const QVariantMap& hostAdvice) const {
+    const auto c=DeckPlayConfiguration::fromMap(configuration);
+    if (!c || c->videoCodec != "pyrowave") return {{"kbps",0},{"basis",""}};
+    // The negotiated native extension is SDR 4:2:0; its decoder rejects 4:4:4.
+    return polaris::bitrateAdvice(c->width,c->height,c->fps,QJsonObject::fromVariantMap(hostAdvice), false, false);
+}
 QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVariantMap& capabilities,
     const QVariantMap& planner, const QVariantMap& display, bool spaceSession) {
     const auto requested = DeckPlayConfiguration::fromMap(values);
@@ -443,6 +451,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     const auto hz = display.value("refreshHz").toDouble();
     const bool displayKnown = display.value("known").toBool() && std::isfinite(hz) && hz > 0 && hz <= 1000;
     const int displayMaxFps = displayKnown ? deckDisplayRateLimit(hz) : 60;
+    limits.manualMaximumKbps = polaris::manualBitrateMaximum(QJsonValue::fromVariant(capabilities.value("manualMaximumKbps")));
     QVariantList resolutions;
     const auto appendResolution = [&](int width, int height, const QVariantMap& hint = {}) {
         if (!supportedDeckResolution(width, height)) return;
@@ -503,6 +512,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     else if (!selectedFormat) reason = effective.videoCodec == "pyrowave" ? pyrowaveUnavailable : spaceSession && effective.videoCodec == "hevc"
         ? "Spaces currently use H.264. Choose Auto or H.264 to play here."
         : "The selected codec is unavailable for this PC and stream size. Choose Auto or another codec, or refresh this PC.";
+    else if (effective.bitrateKbps > limits.manualMaximumKbps) reason = QString("This PC allows up to %1 Mbps. Choose a lower bitrate.").arg(limits.manualMaximumKbps / 1000);
     else if (rates.empty()) reason = "This PC cannot provide a supported frame rate. Check its streaming settings.";
     QString adjustment;
     if (requested && effective.fps != requested->fps) {
@@ -537,7 +547,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     return {{"configuration", effective.toMap()}, {"playable", reason.isEmpty()}, {"reason", reason},
         {"adjustment", reason.isEmpty() ? adjustment : QString{}}, {"resolutions", resolutions}, {"rates", rates},
         {"codecs", codecs}, {"codecDetail", codecDetail},
-        {"videoLabel", selectedFormat && effective.videoCodec == "pyrowave" ? "PyroWave · SDR" : selectedFormat == VIDEO_FORMAT_H265 ? "HEVC · SDR" : selectedFormat == VIDEO_FORMAT_H264 ? "H.264 · SDR" : "Codec unavailable"}, {"maxClientFps", deckMaxProfileFps}, {"displayMaxFps", displayMaxFps},
+        {"videoLabel", selectedFormat && effective.videoCodec == "pyrowave" ? "PyroWave · SDR" : selectedFormat == VIDEO_FORMAT_H265 ? "HEVC · SDR" : selectedFormat == VIDEO_FORMAT_H264 ? "H.264 · SDR" : "Codec unavailable"}, {"maxBitrateKbps", limits.manualMaximumKbps}, {"maxClientFps", deckMaxProfileFps}, {"displayMaxFps", displayMaxFps},
         {"displayLabel", displayKnown ? QString("%1 Hz display").arg(hz, 0, 'f', hz == std::floor(hz) ? 0 : 1)
                                       : QString("Display rate unknown")}};
 }

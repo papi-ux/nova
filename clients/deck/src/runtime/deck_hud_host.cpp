@@ -17,6 +17,25 @@ bool oneOf(const QString& value, std::initializer_list<const char*> values) {
     return false;
 }
 QString bitrate(int kbps) { return kbps > 0 ? QString::number(kbps / 1000.0, 'f', 1) + "M" : "--"; }
+std::optional<DeckBitrateUnits> conversion(const DeckHostTelemetry& s) {
+    if (s.bitrateUnitsSupported) return s.bitrateUnits && s.bitrateUnits->split ? s.bitrateUnits : std::nullopt;
+    if (s.encoderCodec == "pyrowave" && s.pyrowaveAdvice && s.pyrowaveAdvice->assumptionsKnown) {
+        DeckBitrateUnits units; units.audio=s.pyrowaveAdvice->audio;units.fec=s.pyrowaveAdvice->fec;return units;
+    }
+    return {};
+}
+bool sameConversion(const std::optional<DeckBitrateUnits>& a,const std::optional<DeckBitrateUnits>& b) {
+    return a.has_value()==b.has_value() && (!a || (a->audio==b->audio && a->fec==b->fec && a->warp==b->warp &&
+        a->split.has_value()==b->split.has_value() && a->cap==b->cap && a->capSource==b->capSource));
+}
+int manualMaximum(const DeckHostTelemetry& s) {
+    int maximum=s.manualMaximumKbps;
+    if (conversion(s) && s.pyrowaveAdvice && s.pyrowaveAdvice->manualMaximum) maximum=std::min(maximum,*s.pyrowaveAdvice->manualMaximum);
+    return maximum;
+}
+QString unitsMode(const DeckHostTelemetry& s) {
+    return conversion(s) ? "request" : oneOf(s.encoderCodec,{"h264","hevc","av1"}) ? "video" : "unknown";
+}
 using Clock = std::chrono::steady_clock;
 qint64 nowMs() { return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count(); }
 }
@@ -29,6 +48,7 @@ QVariantMap DeckHudHostReducer::unavailable() {
         {"tuningCopy", "Live Tuning is unavailable for this stream."},
         {"canSetBitrate", false}, {"appliedBitrateKbps", 0}, {"requestedBitrateKbps", 0}, {"bitrateRequestKbps", 0}, {"bitrateBusy", false},
         {"bitrateCopy", "Live bitrate is unavailable for this stream."},
+        {"bitrateUnitsMode", "unknown"}, {"maximumBitrateKbps", 300000}, {"minimumBitrateKbps", 1000}, {"suggestedBitrateKbps", 0},
         {"canSyncProfile", false}, {"syncBusy", false}, {"syncPhase", "idle"}, {"syncCopy", ""}, {"syncVersion", 0},
         {"doctor", QVariantMap{}}, {"canRefreshDiagnostics", false}, {"diagnosticsRefreshing", false}};
 }
@@ -67,7 +87,13 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
         out["tuningTone"] = live.enabled ? (live.supported ? "info" : "muted") : "muted";
         out["qualityLimit"] = bitrate(live.qualityLimit);
         out["requestedBitrate"] = bitrate(live.requested);
-        out["requestedBitrateKbps"] = live.requested;
+        const auto convert=conversion(s); const auto mode=unitsMode(s);
+        out["bitrateUnitsMode"] = mode;
+        const int maximum=manualMaximum(s);
+        out["maximumBitrateKbps"] = maximum;
+        out["minimumBitrateKbps"] = convert ? std::max(1000,convert->requestFor(1000)) : 1000;
+        out["requestedBitrateKbps"] = convert ? convert->requestFor(live.requested) : live.requested;
+        if (convert && s.pyrowaveAdvice) out["suggestedBitrateKbps"] = std::min({s.pyrowaveAdvice->goal,maximum,automaticBitrateMaximum});
         out["tuningKnown"] = true; out["tuningEnabled"] = live.enabled;
         out["canTune"] = s.hostTuningAllowed && live.generation > 0;
         out["tuningCopy"] = !s.hostTuningAllowed ? "This session doesn't allow host tuning."
@@ -76,8 +102,9 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
         // Requested, adaptive target and legacy encoder bitrate are never used
         // as acknowledgements. Even a requested > applied transition shows applied.
         if (live.supported) { out["appliedBitrate"] = bitrate(live.applied); out["appliedBitrateKbps"] = live.applied; }
-        out["canSetBitrate"] = out.value("canTune").toBool() && live.supported && live.applied > 0;
+        out["canSetBitrate"] = out.value("canTune").toBool() && live.supported && live.applied > 0 && mode != "unknown";
         out["bitrateCopy"] = !out.value("canTune").toBool() ? out.value("tuningCopy")
+            : mode == "unknown" ? QVariant("Bitrate units are unavailable. Update Polaris and refresh this stream.")
             : !live.supported ? QVariant("This encoder cannot change bitrate during the stream.")
             : !live.applied ? QVariant("Waiting for the encoder's current bitrate.")
             : QVariant("Choose a fixed bitrate. Applying it turns Live Tuning off.");
@@ -110,12 +137,13 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
 
 struct DeckHudHostObserver::Shared {
     struct Profile { QString display; bool clear = false; QVariantMap reviewed; };
-    struct Intent { bool enabled; DeckLiveTuningTelemetry observed; int bitrateKbps = 0; std::optional<Profile> profile; };
+    struct Intent { bool enabled; DeckLiveTuningTelemetry observed; int bitrateKbps = 0; std::optional<Profile> profile; std::optional<DeckBitrateUnits> units; QString mode; int requestKbps = 0; };
     std::atomic_bool stopped{false};
     mutable std::mutex mutex;
     std::condition_variable wake;
     QVariantMap view = DeckHudHostReducer::unavailable();
     std::optional<DeckLiveTuningTelemetry> live;
+    std::optional<DeckBitrateUnits> units;
     std::optional<Intent> pending;
     bool busy = false, fixedChange = false;
     int requestedBitrate = 0;
@@ -256,6 +284,7 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                     state->eventsPort = result.value->eventsHttpsPort; ++state->eventEpoch; state->wake.notify_all();
                 }
                 state->live = (view.value("canTune").toBool() || view.value("canSetBitrate").toBool()) && result.ok() ? result.value->live : std::nullopt;
+                state->units = view.value("hostFresh").toBool() && result.ok() ? conversion(*result.value) : std::nullopt;
                 state->view = view; state->observed = Clock::now();
                 const bool current = state->refreshVersion == version && !state->eventFatal;
                 const bool doctorAuthorized = current && view.value("canTune").toBool() && bool(target->doctorAction);
@@ -291,11 +320,13 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                     result.value->live->qualityLimit != awaiting->bitrateKbps;
                 const bool matching = sameOwner && !result.value->live->enabled && result.value->live->qualityLimit == awaiting->bitrateKbps;
                 const bool applied = matching && result.value->live->applied == awaiting->bitrateKbps;
-                if (applied) state->message = "Applied " + bitrate(awaiting->bitrateKbps) + "bps. Live Tuning is off.";
-                else if (differentTarget) state->message = "Your " + bitrate(awaiting->bitrateKbps) + "bps request wasn't confirmed. The PC reports a " +
+                if (applied) state->message = awaiting->requestKbps && awaiting->requestKbps != awaiting->bitrateKbps
+                    ? "Applied encoder " + bitrate(awaiting->bitrateKbps) + "bps for your " + bitrate(awaiting->requestKbps) + "bps request. Live Tuning is off."
+                    : "Applied " + bitrate(awaiting->bitrateKbps) + "bps. Live Tuning is off.";
+                else if (differentTarget) state->message = "Your " + bitrate(awaiting->requestKbps ? awaiting->requestKbps : awaiting->bitrateKbps) + "bps request wasn't confirmed. The PC reports a " +
                     bitrate(result.value->live->qualityLimit) + "bps target. Check the PC's bitrate limits and current settings.";
                 else if (!matching || expired) state->message = "The encoder change wasn't confirmed. Check the current bitrate before trying again.";
-                else state->message = "Requested " + bitrate(awaiting->bitrateKbps) + "bps. Waiting for the encoder…";
+                else state->message = "Requested " + bitrate(awaiting->requestKbps ? awaiting->requestKbps : awaiting->bitrateKbps) + "bps. Waiting for the encoder…";
                 if (awaiting->profile) {
                     if (applied) state->syncResult("confirmed", "Profile saved. Bitrate applied now: " + bitrate(awaiting->bitrateKbps) + "bps. Resolution and frame rate apply to the next stream. Live Tuning is off.");
                     else if (!matching || expired) state->syncResult("unconfirmed", "Profile saved for the next stream. The live encoder change wasn't confirmed; check the current bitrate before trying again.");
@@ -386,7 +417,8 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                         result.value->live->revision == intent->observed.revision &&
                         result.value->live->enabled == intent->observed.enabled &&
                         (!intent->bitrateKbps || result.value->live->qualityLimit == intent->observed.qualityLimit) &&
-                        result.value->live->sequence > intent->observed.sequence;
+                        result.value->live->sequence > intent->observed.sequence &&
+                        (!intent->bitrateKbps || intent->profile || (intent->requestKbps <= manualMaximum(*result.value) && sameConversion(conversion(*result.value), intent->units) && unitsMode(*result.value) == intent->mode));
                     if (unchanged && valid()) {
                         { const std::lock_guard lock(state->mutex); state->message = intent->bitrateKbps ? "Requesting fixed bitrate…" : "Saving Live Tuning…"; }
                         // The transport checks this immediately before dispatch, at
@@ -494,10 +526,11 @@ bool DeckHudHostObserver::setLiveTuningEnabled(bool enabled) {
 }
 bool DeckHudHostObserver::setFixedBitrate(int bitrateKbps) {
     const std::lock_guard lock(shared_->mutex);
-    if (bitrateKbps < 1000 || bitrateKbps > 300000 || shared_->stopped || shared_->busy || shared_->doctor.busy() ||
+    if (bitrateKbps < shared_->view.value("minimumBitrateKbps",1000).toInt() || bitrateKbps > shared_->view.value("maximumBitrateKbps",300000).toInt() || shared_->stopped || shared_->busy || shared_->doctor.busy() ||
         !shared_->view.value("canSetBitrate").toBool() || !shared_->live ||
         Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs)) return false;
-    shared_->pending = Shared::Intent{false, *shared_->live, bitrateKbps}; shared_->busy = true;
+    const auto encoder = shared_->units ? encoderForRequest(bitrateKbps,shared_->units->audio,shared_->units->fec) : bitrateKbps;
+    shared_->pending = Shared::Intent{false, *shared_->live, encoder, {}, shared_->units, shared_->view.value("bitrateUnitsMode").toString(), bitrateKbps}; shared_->busy = true;
     shared_->fixedChange = true; shared_->requestedBitrate = bitrateKbps;
     shared_->syncChange = false; shared_->syncResult("idle", "");
     shared_->message = "Checking the current session…";

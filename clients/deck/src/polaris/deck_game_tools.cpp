@@ -154,7 +154,7 @@ std::optional<QVariantMap> gameToolReply(const QString& game, const QString& act
         const auto integral = [](QJsonValue value, double lo, double hi) { return value.isDouble() && std::isfinite(value.toDouble()) &&
             value.toDouble() >= lo && value.toDouble() <= hi && std::floor(value.toDouble()) == value.toDouble(); };
         const auto mode = field("display_mode").toString().split('x');
-        if (!integral(width, 320, 16384) || !integral(height, 240, 16384) || !integral(bitrate, 1000, 300000) ||
+        if (!integral(width, 320, 16384) || !integral(height, 240, 16384) || !integral(bitrate, 1000, 500000) ||
             !fps.isDouble() || !std::isfinite(fps.toDouble()) || fps.toDouble() < 15 || fps.toDouble() > 240 ||
             !field("hdr").isBool() || mode.size() != 3 || mode[0].toInt() != width.toInt() || mode[1].toInt() != height.toInt() ||
             std::abs(mode[2].toDouble() - fps.toDouble()) > 0.001) return {};

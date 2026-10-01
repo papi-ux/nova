@@ -24,7 +24,7 @@ DeckHudHostContext context{17, "private-game", "private-token"};
 QJsonObject envelope() {
     return {{"streaming_active", true}, {"owned_by_client", true}, {"client_role", "owner"},
         {"game_id", 17}, {"game_uuid", "private-game"}, {"session_token", "private-token"},
-        {"session_generation", 41}, {"app_session_id", "fixture-session"},
+        {"encoder", QJsonObject{{"codec","h264"}}}, {"session_generation", 41}, {"app_session_id", "fixture-session"},
         {"controls", QJsonObject{{"host_tuning_allowed", false}}},
         {"doctor", QJsonObject{{"version", 2}, {"result_id", "private-result"}, {"status", "ok"},
             {"severity", "info"}, {"traffic_light", "green"}, {"primary_issue", "none"}}}};
@@ -64,8 +64,10 @@ void parserAndReducer() {
     require(actual.value("tuningLabel") == "Tuning: Applying" && actual.value("appliedBitrate") == "20.0M" &&
         actual.value("qualityLimit") == "20.0M", "requested bitrate substituted for encoder acknowledgement");
     auto adviceEnvelope = o;
+    adviceEnvelope["encoder"] = QJsonObject{{"codec","pyrowave"}};
     adviceEnvelope["pyrowave_bitrate"] = QJsonObject{{"version",1},{"width",1920},{"height",1080},{"fps",120},
-        {"raise_goal_kbps",201125},{"cap_kbps",300000},{"raise_goal_limited_by","advice"}};
+        {"raise_goal_kbps",201125},{"cap_kbps",300000},{"raise_goal_limited_by","advice"},
+        {"assumes",QJsonObject{{"audio_kbps",512},{"fec_percentage",10}}}};
     require(view(adviceEnvelope).value("suggestedBitrateKbps").toInt() == 201125,
         "session PyroWave request advice missing from live controls");
     auto requested = applying; requested["requested_bitrate_kbps"] = 150000;
@@ -409,7 +411,7 @@ void fixedBitrateSaves() {
 QJsonObject eventLive(int sequence = 1) {
     return {{"version", 1}, {"scope", "host"}, {"enabled", true}, {"supported", true}, {"state", "stable"},
         {"configuration_revision", QString(64, 'a')}, {"host_instance", "instance"}, {"app_session_id", "fixture-session"},
-        {"session_generation", 41}, {"sequence", sequence}, {"quality_limit_kbps", 20000},
+        {"encoder", QJsonObject{{"codec","h264"}}}, {"session_generation", 41}, {"sequence", sequence}, {"quality_limit_kbps", 20000},
         {"requested_bitrate_kbps", 20000}, {"applied_bitrate_kbps", 20000}};
 }
 void eventParser() {
@@ -610,8 +612,45 @@ void observerBoundaries() {
     }
 }
 }
+void requestUnitWrites() {
+    for (int scenario=0;scenario<5;++scenario) {
+        std::atomic<int> reads{0},writes{0},target{0};std::atomic<bool> committed{false};
+        auto initial=eventLive(1);initial["quality_limit_kbps"]=178988;initial["requested_bitrate_kbps"]=178988;initial["applied_bitrate_kbps"]=178988;auto o=envelope();o["live_tuning"]=initial;
+        o["controls"]=QJsonObject{{"host_tuning_allowed",true}};
+        o["encoder"]=QJsonObject{{"codec",scenario==3 ? "h264" : "pyrowave"}};
+        o["bitrate_units"]=QJsonObject{{"version",1},{"formula","stream_bitrate_v1"},{"requested_kbps",400000},
+            {"encoder_kbps",178988},{"live_encoder_kbps",178988},{"split_kbps",scenario>=3 ? QJsonValue(QJsonValue::Null) : QJsonValue(200000)},
+            {"audio_kbps",512},{"fec_percentage",10},{"warp_factor",2},{"cap_kbps",QJsonValue::Null},{"cap_source",QJsonValue::Null}};
+        auto sample=parse(o);sample.manualMaximumKbps=500000;
+        DeckHudHostObserver observer([&]()->std::optional<DeckHudHostTarget> {
+            return DeckHudHostTarget{[&](const auto&) {
+                auto next=sample;next.live->sequence=++reads;
+                if(reads>=2 && scenario==1) next.manualMaximumKbps=450000;
+                if(reads>=2 && scenario==2) next.bitrateUnits->fec=20;
+                if(committed) {next.live->enabled=false;next.live->qualityLimit=next.live->requested=next.live->applied=target.load();}
+                return success(next);
+            },[]{return true;},{},[&](int rate,const auto&,const auto&) {
+                ++writes;target=rate;committed=true;return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Ok,200,{},true};
+            }};
+        },context,{20,200,100,70});
+        until([&]{return observer.snapshot().value("hostFresh").toBool();});
+        const auto first=observer.snapshot();
+        if(scenario==4) {require(first.value("bitrateUnitsMode")=="unknown" && !observer.setFixedBitrate(500000),"null PyroWave split admitted unknown request units");continue;}
+        require(first.value("bitrateUnitsMode")== (scenario==3 ? "video" : "request"),"null split fabricated request units for classic codec");
+        require(scenario==3 || first.value("requestedBitrateKbps").toInt()==200000,"negotiated split replaced by original pre-warp request");
+        require(!observer.setFixedBitrate(500001),"manual range exceeded500Mbps");
+        require(observer.setFixedBitrate(500000),"explicit manual500Mbps refused");
+        until([&]{return !observer.snapshot().value("tuningBusy").toBool();});
+        require(writes==(scenario==1 || scenario==2 ? 0 : 1),"changed request cap/conversion reached host");
+        if(writes) {
+            require(target==(scenario==3 ? 500000 : encoderForRequest(500000)),"request units posted directly to encoder route");
+            require(observer.snapshot().value("appliedBitrateKbps").toInt()==target && observer.snapshot().value("bitrateRequestKbps").toInt()==500000,"encoder confirmation confused with manual request");
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
-    parserAndReducer(); eventParser(); eventResynchronization(); encoderConfirmationAfterEvent(); doctorProvenance(); doctorDetails(); manualDiagnosticsRefresh(); observerBoundaries(); liveTuningSaves(); fixedBitrateSaves();
+    parserAndReducer(); requestUnitWrites(); eventParser(); eventResynchronization(); encoderConfirmationAfterEvent(); doctorProvenance(); doctorDetails(); manualDiagnosticsRefresh(); observerBoundaries(); liveTuningSaves(); fixedBitrateSaves();
     std::cout << "HUD host telemetry passed: Android contract, session authority, provenance, staleness, worker isolation and cancellation\n";
 }

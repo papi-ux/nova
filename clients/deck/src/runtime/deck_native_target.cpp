@@ -112,8 +112,14 @@ DeckNativeTargetResolver nativeTargetResolver(
             target.hostTelemetry = [savedIdentity = *identity, savedHost = *host, port, gameUuid = QString::fromStdString(game->id)]() -> std::optional<DeckHudHostTarget> {
                 auto observerClient = std::make_shared<polaris::DeckPolarisClient>(
                     backend::polarisClientForHost(savedIdentity, savedHost, port, std::chrono::milliseconds(2000)));
+                const auto caps=observerClient->fetchCapabilities();
+                if (!caps.ok()) return {};
                 return DeckHudHostTarget{
-                    [observerClient](const std::function<bool()>& cancelled) { return observerClient->fetchHostTelemetry(cancelled); },
+                    [observerClient, supported=caps.value->bitrateUnitsV1, maximum=caps.value->streamCapabilities.manualMaximumKbps](const std::function<bool()>& cancelled) {
+                        auto result=observerClient->fetchHostTelemetry(cancelled);
+                        if (result.ok()) { result.value->bitrateUnitsSupported=supported; result.value->manualMaximumKbps=maximum; }
+                        return result;
+                    },
                     [] { return true; },
                     [observerClient](bool enabled, const polaris::DeckLiveTuningTelemetry& observed, const std::function<bool()>& cancelled) {
                         return observerClient->setLiveTuningEnabled(enabled, observed, cancelled);

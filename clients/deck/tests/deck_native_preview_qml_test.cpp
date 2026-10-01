@@ -729,6 +729,7 @@ int main(int argc, char** argv) {
 
     session.tuning = {{"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", true}, {"tuningBusy", false},
         {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"requestedBitrateKbps", 20000}, {"codec", "PyroWave"},
+        {"bitrateUnitsMode","request"},{"maximumBitrateKbps",500000},{"suggestedBitrateKbps",201125},{"fresh",true},{"receivedBitrateKbps",18750},
         {"bitrateCopy", "Choose a fixed bitrate. Applying it turns Live Tuning off."}};
     emit session.hudChanged(); settle();
     auto* bitrateAction = root->findChild<QQuickItem*>("native-live-bitrate");
@@ -741,6 +742,8 @@ int main(int argc, char** argv) {
     tuning->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
     focused(*window, bitrateAction, "fixed bitrate row not reachable from tuning switch");
     const auto readyBitrate = session.tuning;
+    auto* useSuggested=bitratePopup->findChild<QQuickItem*>("live-bitrate-suggested");
+    require(useSuggested,"suggested controller action missing");
     session.tuning = {{"canSetBitrate", false}, {"hostRefreshing", true}, {"bitrateCopy", "Refreshing host state…"}};
     emit session.hudChanged(); settle(); key(*window, Qt::Key_Return);
     focused(*window, bitrateAction, "event refresh moved bitrate row focus");
@@ -748,6 +751,10 @@ int main(int argc, char** argv) {
     session.tuning = readyBitrate; emit session.hudChanged(); settle();
     key(*window, Qt::Key_Return); focused(*window, bitrateMinus, "picker did not focus the decrement control");
     require(bitratePopup->findChild<QQuickItem*>("live-bitrate-pyrowave-guidance")->isVisible(), "PyroWave bitrate guidance missing");
+    key(*window,Qt::Key_Up);focused(*window,useSuggested,"suggestion unreachable by controller");key(*window,Qt::Key_Return);
+    require(bitratePopup->property("draftKbps")==201125 && session.bitrateWrites==0,"suggestion rounded advice or mutated host");
+    require(bitratePopup->findChild<QObject*>("live-bitrate-received")->property("text").toString().contains("18.8 Mbps"),"received payload line missing");
+    bitratePopup->setProperty("draftKbps",20000);key(*window,Qt::Key_Down);
     key(*window, Qt::Key_Right); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 30000 && session.bitrateWrites == 0, "draft adjustment mutated host");
     key(*window, Qt::Key_Down); focused(*window, bitrateApply, "Apply not reachable from increment");
@@ -768,14 +775,14 @@ int main(int argc, char** argv) {
     focused(*window, bitrateAction, "picker Back lost Command Center row");
     key(*window, Qt::Key_Return);
     bitratePopup->setProperty("draftKbps", 300000); bitratePlus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
-    require(bitratePopup->property("draftKbps") == 300000, "picker exceeded upper bound");
+    require(bitratePopup->property("draftKbps") == 310000, "explicit host range was not used");
     session.tuning["appliedBitrateKbps"] = 200000; session.tuning["requestedBitrateKbps"] = 200000;
     session.tuning["bitrateRequestKbps"] = 300000;
     session.tuning["bitrateCopy"] = "Your 300 Mbps request wasn't confirmed. The PC reports a 200 Mbps target. Check the PC's bitrate limits and current settings.";
     emit session.hudChanged(); settle(); key(*window, Qt::Key_Down);
     focused(*window, bitrateApply, "high-rate picker lost Apply focus");
     const auto rateLabels = bitratePopup->findChild<QObject*>("live-bitrate-applied")->property("text").toString();
-    require(rateLabels.contains("Your last request: 300 Mbps") && rateLabels.contains("PC target: 200 Mbps") &&
+    require(rateLabels.contains("Your last request: 300 Mbps") && rateLabels.contains("PC request budget: 200 Mbps") &&
         rateLabels.contains("Encoder applied: 200 Mbps"), "local request was conflated with the PC target or encoder acknowledgement");
     screenshot("live-bitrate-high-rate-large-960.png");
     require(bitrateApply->mapToScene(QPointF(0, bitrateApply->height())).y() <= window->height(), "high-rate feedback clipped with large text");

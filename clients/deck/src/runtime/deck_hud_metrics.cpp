@@ -9,7 +9,7 @@ QVariantMap DeckHudMetrics::empty() {
         {"host", "--"}, {"rtt", "--"}, {"jitter", "--"}, {"bitrate", "--"},
         {"resolution", "--"}, {"codec", "--"}, {"history", QVariantList{}},
         {"videoWork", "--"}, {"refused", "--"},
-        {"fresh", false}, {"truth", "Waiting for stream readings"}};
+        {"receivedBitrateKbps", 0}, {"fresh", false}, {"truth", "Waiting for stream readings"}};
     for (auto it = local.cbegin(); it != local.cend(); ++it) result.insert(it.key(), it.value());
     return result;
 }
@@ -35,6 +35,7 @@ QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
     out["truth"] = "Composed FPS · video payload bitrate";
     out["incoming"] = QString::number(rate(s.incoming - previous->incoming), 'f', 1);
     out["decoded"] = QString::number(rate(s.decoded - previous->decoded), 'f', 1);
+    out["receivedBitrateKbps"] = rate(s.bytes - previous->bytes) * 8 / 1000;
     out["bitrate"] = QString::number(rate(s.bytes - previous->bytes) * 8 / 1000000, 'f', 1) + "M";
     const auto workSamples = s.videoWorkSamples - previous->videoWorkSamples;
     if (workSamples) out["videoWork"] = QString::number(

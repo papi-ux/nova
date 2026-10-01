@@ -315,6 +315,9 @@ std::optional<DeckPolarisCapabilities> parseCapabilities(const std::string_view 
     capabilities.expectedTopologyAssertion = features.value(QStringLiteral("expected_topology_assertion_v1")).toBool(false);
     capabilities.hostSleep = features.value("host_sleep_v1").toBool(false);
     capabilities.spaces = features.value("spaces_v1").toBool(false);
+    capabilities.pyrowaveAdvice = features.value("pyrowave_advice_v1") == true;
+    capabilities.bitrateUnitsV1 = features.value("bitrate_units_v1") == true;
+    capabilities.streamCapabilities.manualMaximumKbps = manualBitrateMaximum(features.value("manual_bitrate_max_kbps"));
     capabilities.hostPower = *parseHostPower(QJsonDocument(object->value("host_power").toObject()).toJson().toStdString());
     const auto capture = object->value(QStringLiteral("capture")).toObject();
     capabilities.captureBackend = toStd(capture.value(QStringLiteral("backend")).toString());
@@ -860,7 +863,7 @@ DeckPolarisResult<bool> DeckPolarisClient::setLiveTuningEnabled(bool enabled,
 
 DeckPolarisResult<bool> DeckPolarisClient::setFixedBitrate(int bitrateKbps,
     const DeckLiveTuningTelemetry& observed, const std::function<bool()>& cancelled) const {
-    if (bitrateKbps < 1000 || bitrateKbps > 300000 || !observed.supported || observed.generation <= 0 ||
+    if (bitrateKbps < 1000 || bitrateKbps > 500000 || !observed.supported || observed.generation <= 0 ||
         observed.generation > 9007199254740991LL || observed.appSession.trimmed().isEmpty() || observed.appSession.size() > 256)
         return {DeckPolarisRequestStatus::MalformedBody, 0, {}, {}};
     // This route has session-generation admission, not a revision CAS. The
@@ -878,6 +881,17 @@ DeckPolarisResult<bool> DeckPolarisClient::setFixedBitrate(int bitrateKbps,
     });
 }
 
+DeckPolarisResult<QVariantMap> DeckPolarisClient::fetchPyrowaveAdvice(int width, int height, int fps, const std::function<bool()>& cancelled) const {
+    if (width < 1 || width > 16384 || height < 1 || height > 16384 || fps < 1 || fps > 1000) return {};
+    const auto caps = fetchCapabilities();
+    if (!caps.ok() || (cancelled && cancelled()) || !caps.value->pyrowaveAdvice) return {};
+    // Match the supported pyrowave-186f0393-sdr420-v1 native profile.
+    const auto path=QString("/polaris/v1/pyrowave/advice?width=%1&height=%2&fps=%3&chroma=420").arg(width).arg(height).arg(fps);
+    return parsed<QVariantMap>(request(path.toStdString(),32*1024,false,cancelled), [=](const std::string& json)->std::optional<QVariantMap> {
+        const auto o=parseObject(json); const auto advice=o ? parsePyrowaveAdvice(*o) : std::nullopt;
+        return advice && advice->matches(width,height,fps) ? std::optional<QVariantMap>(advice->toMap()) : std::nullopt;
+    });
+}
 DeckPolarisResult<DeckHostPower> DeckPolarisClient::fetchHostPower() const {
     return parsed<DeckHostPower>(get("/polaris/v1/host/power", 32 * 1024), parseHostPower);
 }

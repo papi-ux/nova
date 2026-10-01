@@ -40,6 +40,8 @@ struct Host {
     std::atomic<bool> valid{true}, allowed{true}, lost{false}, hold{false}, entered{false}, expired{false};
     std::atomic<int> writes{0}, planRequests{0};
     QString steam = "direct";
+    QVariantMap advice;
+    std::atomic<int> adviceRequests{0};
     nova::deck::runtime::DeckGameToolsResolver resolver() {
         return [this]() -> std::optional<nova::deck::runtime::DeckGameToolsTarget> {
             return nova::deck::runtime::DeckGameToolsTarget{
@@ -48,6 +50,7 @@ struct Host {
                     entered = true;
                     while (hold && !cancelled()) QThread::msleep(1);
                     if (cancelled()) return DeckPolarisResult<QVariantMap>{};
+                    if (action == "bitrateAdvice") { ++adviceRequests; return advice.isEmpty() ? DeckPolarisResult<QVariantMap>{} : ok(advice); }
                     if (action == "plan") ++planRequests;
                     if (action == "apply" || action == "reset" || action == "refreshArt" || action == "steam") {
                         ++writes;

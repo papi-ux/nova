@@ -871,7 +871,7 @@ void testHudObserverDoesNotBlockInput() {
                     while (!stop()) QThread::msleep(1);
                     cancelled = true;
                 }
-                DeckHostTelemetry sample;
+                DeckHostTelemetry sample; sample.encoderCodec="h264";
                 sample.active = sample.owned = sample.authorityValid = true;
                 sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
                 sample.eventsHttpsPort = scenario == 3 ? 47990 : 0;
@@ -927,7 +927,7 @@ void testDiagnosticsRefreshBoundary() {
     host.hostTelemetry = [&]() -> std::optional<DeckHudHostTarget> {
         return DeckHudHostTarget{[&](const auto& stop) {
             if (++reads > 1) { waiting = true; while (!stop()) QThread::msleep(1); cancelled = true; }
-            DeckHostTelemetry sample; sample.active = sample.owned = sample.authorityValid = true;
+            DeckHostTelemetry sample; sample.encoderCodec="h264"; sample.active = sample.owned = sample.authorityValid = true;
             sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
             return DeckPolarisResult<DeckHostTelemetry>{DeckPolarisRequestStatus::Ok, 200, {}, sample};
         }, [] { return true; }};
@@ -992,7 +992,7 @@ void testLiveTuningSessionBoundary() {
     std::atomic<int> reads{0}, writes{0}; std::atomic<bool> entered{false}, cancelled{false};
     host.hostTelemetry = [&]() -> std::optional<DeckHudHostTarget> {
         return DeckHudHostTarget{[&](const std::function<bool()>&) {
-            DeckHostTelemetry sample;
+            DeckHostTelemetry sample; sample.encoderCodec="h264";
             sample.active = sample.owned = sample.authorityValid = sample.hostTuningAllowed = true;
             sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
             sample.generation = 41; sample.appSession = "fixture-session"; sample.livePresent = true;
@@ -1031,7 +1031,7 @@ void testFixedBitrateSessionBoundary() {
     std::atomic<int> reads{0}, writes{0}; std::atomic<bool> entered{false}, cancelled{false};
     host.hostTelemetry = [&]() -> std::optional<DeckHudHostTarget> {
         return DeckHudHostTarget{[&](const std::function<bool()>&) {
-            DeckHostTelemetry sample;
+            DeckHostTelemetry sample; sample.encoderCodec="h264";
             sample.active = sample.owned = sample.authorityValid = sample.hostTuningAllowed = true;
             sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
             sample.generation = 41; sample.appSession = "fixture-session"; sample.livePresent = true;
@@ -1073,7 +1073,7 @@ void testSyncProfileSessionBoundary() {
     std::atomic<int> reads{0}, writes{0}; std::atomic<bool> entered{false}, cancelled{false};
     host.hostTelemetry = [&]() -> std::optional<DeckHudHostTarget> {
         return DeckHudHostTarget{[&](const std::function<bool()>&) {
-            DeckHostTelemetry sample;
+            DeckHostTelemetry sample; sample.encoderCodec="h264";
             sample.active = sample.owned = sample.authorityValid = sample.hostTuningAllowed = true;
             sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
             sample.generation = 41; sample.appSession = "fixture-session"; sample.livePresent = true;

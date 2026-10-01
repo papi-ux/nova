@@ -942,7 +942,7 @@ void testFixedBitrateNeverReplays() {
     require(!transport.setFixedBitrate(15000, observed).ok() && https.requests == before + 1);
     https.dropReply = false;
     before = https.requests;
-    for (int invalid : {-1, 0, 999, 300001}) require(!transport.setFixedBitrate(invalid, observed).ok());
+    for (int invalid : {-1, 0, 999, 500001}) require(!transport.setFixedBitrate(invalid, observed).ok());
     require(!transport.setFixedBitrate(15000, observed, [] { return true; }).ok() && https.requests == before);
     auto invalid = observed; invalid.generation = 0;
     require(!transport.setFixedBitrate(15000, invalid).ok() && https.requests == before);
@@ -951,7 +951,7 @@ void testFixedBitrateNeverReplays() {
         const auto result = transport.setFixedBitrate(15000, observed); require(!result.ok() || !*result.value);
     }
     https.handler = [](const QUrl&) -> std::pair<int, QByteArray> { return {200, R"({"status":true})"}; };
-    require(transport.setFixedBitrate(1000, observed).ok() && transport.setFixedBitrate(300000, observed).ok());
+    require(transport.setFixedBitrate(1000, observed).ok() && transport.setFixedBitrate(500000, observed).ok());
     before = https.requests; https.dribbleReply = true; QElapsedTimer elapsed; elapsed.start();
     require(!transport.setFixedBitrate(15000, observed, [&] { return elapsed.elapsed() >= 80; }).ok());
     require(elapsed.elapsed() < 400 && https.requests == before + 1); https.dribbleReply = false;

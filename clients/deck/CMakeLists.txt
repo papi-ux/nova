@@ -82,6 +82,7 @@ add_library(nova_deck_core STATIC
     src/identity/deck_pairing_crypto.cpp
     src/identity/deck_native_identity.cpp
     src/identity/deck_pairing.cpp
+    src/polaris/deck_bitrate_advice.cpp
     src/polaris/deck_polaris_client.cpp
     src/polaris/deck_spaces.cpp
     src/backend/deck_live_read_only_state.cpp
@@ -128,6 +129,9 @@ target_compile_definitions(nova_deck_core PRIVATE
     NOVA_DECK_UPDATE_CHANNEL="${NOVA_DECK_UPDATE_CHANNEL}"
     NOVA_DECK_UPDATE_URL="${NOVA_DECK_UPDATE_URL}")
 
+# Match the JVM model and upstream regression fixture evaluation without fused multiply-add.
+set_source_files_properties(src/polaris/deck_bitrate_advice.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
+
 set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
     ${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c
     CACHE PATH
@@ -149,7 +153,10 @@ if(NOVA_DECK_BUILD_PYROWAVE)
         message(FATAL_ERROR "Pinned PyroWave transport patch did not apply")
     endif()
     configure_file(pyrowave/protocol.h "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}/src/NovaPyrowaveProtocol.h" COPYONLY)
-    set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}")
+    # Match the JVM model and upstream regression fixture evaluation without fused multiply-add.
+set_source_files_properties(src/polaris/deck_bitrate_advice.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
+
+set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR "${NOVA_DECK_PYROWAVE_MOONLIGHT_DIR}")
 endif()
 if(EXISTS "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/Limelight.h")
     # moonlight-common-c defaults to a shared library when BUILD_SHARED_LIBS is
@@ -421,6 +428,10 @@ if(BUILD_TESTING)
         set_tests_properties(nova_deck_${name}_test PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
     endforeach()
+    add_executable(nova_deck_bitrate_advice_test tests/deck_bitrate_advice_test.cpp)
+    target_link_libraries(nova_deck_bitrate_advice_test PRIVATE nova_deck_core)
+    target_compile_definitions(nova_deck_bitrate_advice_test PRIVATE NOVA_DECK_RATE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/test/resources/pyrowave-rate-reference.csv")
+    add_test(NAME nova_deck_bitrate_advice_test COMMAND nova_deck_bitrate_advice_test)
     add_executable(nova_deck_play_settings_test tests/deck_play_settings_test.cpp)
     target_link_libraries(nova_deck_play_settings_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_play_settings_test COMMAND nova_deck_play_settings_test)
