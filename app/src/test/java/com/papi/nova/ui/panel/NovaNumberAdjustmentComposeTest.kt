@@ -13,6 +13,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
@@ -172,6 +173,24 @@ class NovaNumberAdjustmentComposeTest {
         rule.waitForIdle()
         assertEquals("vertical motion does not become a value edit at a scroll boundary", listOf(20), previews)
         assertTrue(saves.isEmpty())
+    }
+
+    @Test fun aTalkBackStepAndParentArrowsDoNotFinishAPressOnAnotherControl() {
+        val keys = show()
+        keys.down(NovaTestKeys.CENTER)
+        rule.onNodeWithContentDescription("Increase value").performClick()
+        rule.onNodeWithText("25 units").assertIsFocused()
+        keys.press(NovaTestKeys.RIGHT)
+        rule.onNodeWithText("30 units").assertIsFocused()
+        keys.press(NovaTestKeys.LEFT)
+        rule.onNodeWithText("25 units").assertIsFocused()
+        keys.press(NovaTestKeys.DOWN)
+        keys.press(NovaTestKeys.DOWN)
+        rule.onNodeWithText("Save").assertIsFocused()
+        keys.up(NovaTestKeys.CENTER)
+        assertTrue("a held activation cannot land on Save after focus moved", saves.isEmpty())
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals(listOf(25), saves)
     }
 
     @Test fun twoControllerStepsBeforeTheNextFrameBothReachTheDraft() {
