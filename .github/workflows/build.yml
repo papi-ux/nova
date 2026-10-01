@@ -130,6 +130,7 @@ jobs:
           submodules: recursive
 
       - name: Prepare Linux release metadata
+        shell: bash
         run: |
           version_args=()
           if [ "$GITHUB_REF_TYPE" = tag ]; then

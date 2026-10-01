@@ -13,6 +13,7 @@ class NovaReleaseMetadataTest {
         val release = workflowJob(workflow, "build")
         assertTrue(standard.contains("manifest-path: clients/deck/packaging/flatpak/release-build.json"))
         val metadata = workflowStep(standard, "Prepare Linux release metadata")
+        assertTrue(metadata.contains("shell: bash"))
         assertTrue(metadata.contains("tools/nova_flatpak_feed.py prepare-release"))
         assertTrue(metadata.contains("version_args+=(--version \"\$GITHUB_REF_NAME\")"))
         assertTrue(metadata.contains("clients/deck/packaging/flatpak/com.papi_ux.Nova.json"))
