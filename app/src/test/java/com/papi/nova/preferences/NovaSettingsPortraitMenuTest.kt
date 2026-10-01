@@ -88,6 +88,7 @@ class NovaSettingsPortraitMenuTest {
         val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         rule.onNodeWithText(title).assertIsDisplayed().performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         org.junit.Assert.assertEquals(1, layouts.size)
+        println("saved-header titleSize=${layouts.single().size} overflow=${layouts.single().hasVisualOverflow} lines=${layouts.single().lineCount} bar=$bar")
         org.junit.Assert.assertFalse("The complete saved-setup name wraps without clipping", layouts.single().hasVisualOverflow)
     }
 
