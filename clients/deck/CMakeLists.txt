@@ -5,7 +5,7 @@ project(NovaDeck VERSION 1.4.14 LANGUAGES C CXX)
 
 # Only builds exported to a signed update feed enable the in-app updater.
 set(NOVA_DECK_UPDATE_CHANNEL "" CACHE STRING "Flatpak update branch: stable or beta")
-set(NOVA_DECK_UPDATE_URL "https://papi-ux.github.io/nova" CACHE STRING "Nova update catalog base URL")
+set(NOVA_DECK_UPDATE_URL "https://papi-ux.com/nova" CACHE STRING "Nova update catalog base URL")
 if(NOT NOVA_DECK_UPDATE_CHANNEL MATCHES "^(|stable|beta)$")
     message(FATAL_ERROR "Unknown Nova update channel")
 endif()
@@ -426,6 +426,7 @@ if(BUILD_TESTING)
     set_tests_properties(nova_deck_sleep_monitor_test PROPERTIES TIMEOUT 20)
     add_executable(nova_deck_updates_test tests/deck_updates_test.cpp)
     target_link_libraries(nova_deck_updates_test PRIVATE nova_deck_core)
+    target_compile_definitions(nova_deck_updates_test PRIVATE NOVA_DECK_EXPECTED_UPDATE_URL="${NOVA_DECK_UPDATE_URL}")
     add_test(NAME nova_deck_updates_test COMMAND ${DBUS_RUN_SESSION} --
         ${CMAKE_COMMAND} -E env NOVA_DECK_PRIVATE_UPDATE_BUS=1 $<TARGET_FILE:nova_deck_updates_test>)
     set_tests_properties(nova_deck_updates_test PROPERTIES TIMEOUT 30)

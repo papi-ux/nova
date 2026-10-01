@@ -21,6 +21,7 @@ namespace {
 const QString service = QStringLiteral("org.freedesktop.portal.Flatpak");
 const QString portalPath = QStringLiteral("/org/freedesktop/portal/Flatpak");
 const QString monitorInterface = service + QStringLiteral(".UpdateMonitor");
+const QString feedUnavailableMessage = QStringLiteral("Couldn't check the update feed. Check your connection and try again.");
 bool commit(const QString& value) {
     static const QRegularExpression pattern(QStringLiteral("\\A[0-9a-f]{64}\\z"));
     return pattern.match(value).hasMatch();
@@ -160,9 +161,10 @@ void DeckUpdates::check() {
         checking_ = false;
         const auto bytes = reply->readAll();
         const auto catalog = parseDeckUpdateCatalog(bytes, options_.channel);
-        if (reply->error() != QNetworkReply::NoError || reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() != 200
-            || !catalog) {
-            message_ = "Couldn't check the update feed. Check your connection and try again.";
+        feedUnavailable_ = reply->error() != QNetworkReply::NoError
+            || reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() != 200 || !catalog;
+        if (feedUnavailable_) {
+            message_ = feedUnavailableMessage;
         } else {
             remote_ = catalog->commit;
             latestVersion_ = catalog->version;
@@ -275,7 +277,8 @@ void DeckUpdates::available(const QVariantMap& info) {
     remote_ = remote;
     if (!installing_ && !checking_) message_ = restartRequired_ || local_ != running_
         ? "Update installed. Close and reopen Nova to use it."
-        : remote_ != local_ ? "A Nova update is available." : "You're up to date on this channel.";
+        : remote_ != local_ ? "A Nova update is available."
+        : feedUnavailable_ ? feedUnavailableMessage : "You're up to date on this channel.";
     scheduleAutomatic();
     emit stateChanged();
 }
