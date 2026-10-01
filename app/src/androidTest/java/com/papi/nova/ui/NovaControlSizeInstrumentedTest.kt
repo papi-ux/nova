@@ -83,7 +83,7 @@ class NovaControlSizeInstrumentedTest {
             return results.single().size.height
         }
         val originalText = textHeight()
-        for ((choice, factor) in listOf("compact" to .88f, "standard" to 1f, "large" to 1.15f)) {
+        for ((choice, factor) in listOf("compact" to (.72f / .88f), "standard" to 1f, "large" to (1.15f / .88f))) {
             compose.onNodeWithTag("sized-button").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             compose.runOnIdle { prefs.edit().putString(key, choice).commit() }
             compose.waitForIdle()
@@ -143,7 +143,8 @@ class NovaControlSizeInstrumentedTest {
         val two = compose.onNodeWithText("Two", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         compose.onRoot().performTouchInput { click(Offset(two.center.x, two.center.y + edgePixels)) }
         compose.waitForIdle()
-        assertEquals("the segment edge chooses Two instead of wrapping the parent's Three to One", 1, segment)
+        assertEquals("the segment edge chooses Two instead of wrapping the parent's Three to One " +
+            "(label=$two, row=${compose.onNodeWithTag("edge-segments").fetchSemanticsNode().boundsInRoot}, edge=$edgePixels)", 1, segment)
         sizeShot("picker-touch-boundary")
     }
 
