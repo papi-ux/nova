@@ -331,7 +331,7 @@ ApplicationWindow {
             titles: novaLibraryGames.map(game => game.title), busy: libraryBusy, automatic: novaLibraryRefresh.state.automatic,
             failed: novaLibraryRefresh.state.failed, launchEnabled: handoffActionButton.enabled,
             focus: activeFocusItem ? activeFocusItem.objectName : "", focusVisible: focusedControlVisible(), pickerOpen: hostPicker.opened,
-            nativePreviewOpen: nativePreview.opened, windowActive: active }
+            nativePreviewOpen: nativePreview.opened, handoffReview: moonlightReview.observation(), windowActive: active }
     }
 
     function selectGameForPreview(gameModel) {
@@ -446,16 +446,15 @@ ApplicationWindow {
             return
         }
         if (handoffState.available) {
-            novaHandoff.activate(
-                selectedHostForPreview ? selectedHostForPreview.id : "",
-                selectedGameForPreview ? selectedGameForPreview.id : "",
-                selectedGameForPreview ? selectedGameForPreview.title : "")
+            if (handoffState.running) novaHandoff.activate("", "", "")
+            else moonlightReview.review()
             return
         }
         activateLaunchPreviewCopyFromController()
     }
 
     function cancelHandoffFromController() {
+        if (moonlightReview.opened) { moonlightReview.close(); return }
         if (handoffState.available && handoffState.armed) {
             novaHandoff.cancel()
         }
@@ -718,6 +717,15 @@ ApplicationWindow {
         }
     }
 
+    MoonlightHandoffReview {
+        id: moonlightReview
+        controller: novaHandoff
+        hostId: root.selectedHostForPreview ? root.selectedHostForPreview.id : ""
+        gameId: root.selectedGameForPreview ? root.selectedGameForPreview.id : ""
+        gameTitle: root.selectedGameForPreview ? root.selectedGameForPreview.title : ""
+        onClosed: root.focusLaunchAction()
+    }
+
     Connections {
         target: novaGamepad
         function onPrimaryActionPressed(activationCount) {
@@ -728,6 +736,7 @@ ApplicationWindow {
                 leaveNativePreview()
                 return
             }
+            if (moonlightReview.opened) { moonlightReview.close(); return }
             if (novaStandalone) {
                 if (hostPicker.opened) hostPicker.close()
                 else androidLibrary.back()

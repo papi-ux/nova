@@ -984,6 +984,27 @@ def steam_app_navigation(wait, keys, state, save_capture, window):
     keys("Escape")
     wait(lambda s: not s.get("systemOpen"))
 
+def handoff_limits_navigation(wait, keys, state, save_capture, window, record):
+    title = state()["title"]
+    keys("Right")
+    wait(lambda s: s.get("focus") == "handoff-primary-action")
+    keys("Return")
+    wait(lambda s: s.get("handoffReview", {}).get("opened") and s.get("focus") == "moonlight-review-continue")
+    assert not record.exists(), "review started Moonlight before confirmation"
+    limits = state()["handoffReview"]["limits"]
+    assert all(word in limits for word in ("NovaHUD", "Command Center", "Doctor", "Live Bitrate", "PyroWave")), limits
+    save_capture("moonlight-handoff-review-1280.png")
+    keys("Escape")
+    wait(lambda s: not s.get("handoffReview", {}).get("opened") and s.get("focus") == "handoff-primary-action")
+    assert not record.exists(), "Back launched Moonlight"
+    keys("Return")
+    wait(lambda s: s.get("handoffReview", {}).get("opened"))
+    command("xdotool", "windowsize", window, "960", "600")
+    save_capture("moonlight-handoff-review-960.png")
+    keys("Return")
+    wait(lambda s: not s.get("handoffReview", {}).get("opened") and record.exists())
+    assert record.read_text().splitlines() == ["stream", "a", title, "--display-mode", "fullscreen"], record.read_text()
+
 
 def wake_pc_navigation(wait, keys, state, save_capture, window):
     keys("Up", "Up", "Up", "Right", "Return")
@@ -1711,6 +1732,10 @@ def main():
     parser.add_argument("--steam-app", action="store_true")
     args = parser.parse_args()
     args.host_power = args.host_power or args.wake_pc or args.steam_app
+
+    parser.add_argument("--handoff-limits", action="store_true")
+    args = parser.parse_args()
+    args.host_power = args.host_power or args.wake_pc or args.handoff_limits
     args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
     args.artwork = args.artwork or args.readability
@@ -1782,6 +1807,8 @@ def main():
                 elif secure and path == "/polaris/v1/client-settings" and "catalog" in fixture:
                     status = fixture.get("catalog_status", 200)
                     body = json.dumps(fixture["catalog"])
+                elif args.handoff_limits and secure and path == "/polaris/v1/session/status":
+                    body = json.dumps({"state": "idle", "streaming_active": False})
                 elif args.host_scope and secure and path == "/polaris/v1/session/status":
                     body = json.dumps({"state": "idle" if fixture["host_idle"] else "streaming", "streaming_active": not fixture["host_idle"],
                                        "game_uuid": "" if fixture["host_idle"] else "fixture-active"})
@@ -2010,6 +2037,20 @@ def main():
         env = dict(os.environ, NOVA_DECK_IDENTITY_DIR=str(root), NOVA_DECK_GAMEPAD_DEVICE="/dev/null",
                    XDG_CONFIG_HOME=str(root/"config"), QT_QPA_PLATFORM="xcb", QT_QUICK_BACKEND="software", QT_SCALE_FACTOR="1",
                    QT_SCREEN_SCALE_FACTORS="1", QT_FORCE_STDERR_LOGGING="1")
+        record = root/"moonlight-argv.txt"
+        if args.handoff_limits:
+            def ini_bytes(value):
+                return "@ByteArray(" + value.replace("\\", "\\\\").replace("\n", "\\n") + ")"
+            conf = root/"Moonlight.conf"
+            lines = ["[General]", "certificate="+ini_bytes(client), "key="+ini_bytes((root/"client.key").read_text()), "[hosts]", "size=2"]
+            for index, host in enumerate(hosts, 1):
+                for key, value in {"uuid":host["uuid"], "hostname":host["name"], "customname":"true", "manualaddress":host["address"], "manualport":host["http_port"], "srvcert":ini_bytes(host["server_certificate"])}.items():
+                    lines.append(str(index)+"\\"+key+"="+str(value))
+            conf.write_text("\n".join(lines)+"\n")
+            recorder = root/"moonlight-recorder"
+            recorder.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+str(record)+"'\n")
+            recorder.chmod(0o700)
+            env.update(NOVA_DECK_MOONLIGHT_CONF=str(conf), NOVA_DECK_MOONLIGHT_BIN=str(recorder))
         if args.spaces or args.readability:
             (root/"config/Nova").mkdir(parents=True)
             (root/"config/Nova/NovaDeck.conf").write_text("[Appearance]\ntextScale=1.3\n")
@@ -2026,9 +2067,11 @@ def main():
         # The filter route sends hundreds of keys, each acknowledged by Qt.
         # Its old 42-second lifetime could end before the final host switch;
         # retain the independent 70-second CTest deadline and per-state waits.
-        app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
+        app = subprocess.Popen([str(args.binary.resolve()), "--live" if args.handoff_limits else "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
                                 "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.steam_app else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+
+                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.handoff_limits else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
                                env=env, stdout=output, stderr=output)
 
         def state():
@@ -2078,9 +2121,12 @@ def main():
             window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
             command("xdotool", "windowfocus", "--sync", window)
             wait(lambda s: s.get("windowActive"))
-            keys("Right")
-            wait(lambda s: s.get("game") == ("space.room-a.7" if args.spaces else prefix+"42"))
-            if args.paging:
+            if not args.handoff_limits:
+                keys("Right")
+                wait(lambda s: s.get("game") == ("space.room-a.7" if args.spaces else prefix+"42"))
+            if args.handoff_limits:
+                handoff_limits_navigation(wait, keys, state, save_capture, window, record)
+            elif args.paging:
                 paging_navigation(wait, keys, state)
             elif args.readability:
                 readability_navigation(wait, keys, state, save_capture, window)
