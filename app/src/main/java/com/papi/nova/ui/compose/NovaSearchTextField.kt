@@ -1,5 +1,7 @@
 package com.papi.nova.ui.compose
 
+import com.papi.nova.ui.novaAvoidCameraCutout
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -147,6 +149,7 @@ fun NovaSearchTextField(
             }
         ),
         modifier = modifier
+            .novaAvoidCameraCutout()
             .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
                 val native = event.nativeKeyEvent

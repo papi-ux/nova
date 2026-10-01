@@ -38,8 +38,9 @@ class NovaCameraModifierComposeTest {
             pixels = LocalDensity.current.density
             CompositionLocalProvider(
                 LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
-                LocalNovaCameraWindow provides NovaCameraWindow(Rect(0f, 0f, 400f * pixels, 800f * pixels),
-                    if (camera.value) listOf(Rect(0f, 0f, 32f * pixels, 48f * pixels)) else emptyList()),
+                LocalNovaCameraWindow provides NovaCameraWindow(Rect(0f, 0f, 240f * pixels, 800f * pixels),
+                    if (camera.value) listOf(if (rtl) Rect(208f * pixels, 1f * pixels, 240f * pixels, 48f * pixels)
+                        else Rect(0f, 0f, 32f * pixels, 48f * pixels)) else emptyList()),
             ) {
                 Column(Modifier.width(240.dp)) {
                     if (button) NovaPanelButton("Nearby", { calls++ }, modifier = Modifier.width(240.dp))
@@ -54,7 +55,12 @@ class NovaCameraModifierComposeTest {
         rule.runOnIdle { camera.value = true }
         rule.waitForIdle()
         val nearbyAfter = textLeft("Nearby")
-        assertTrue("the actual row/button label stays outside the camera", nearbyAfter >= 32f * pixels)
+        val label = rule.onNodeWithText("Nearby", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        if (rtl) {
+            assertTrue("RTL fixture begins with its label under the physical-right camera", nearbyBefore < 240f * pixels && label.right > 0)
+            assertTrue("the actual RTL label clears the physical-right camera", label.right <= 208f * pixels + 1)
+            assertTrue("RTL clearance changes the actual label position", nearbyAfter < nearbyBefore)
+        } else assertTrue("the actual row/button label stays outside the camera", nearbyAfter >= 32f * pixels)
         assertEquals("the row below the camera does not inherit a side gutter", belowBefore, textLeft("Below"), 0.5f)
         repeat(3) { rule.waitForIdle(); assertEquals("clearance does not feed back into placement", nearbyAfter, textLeft("Nearby"), 0.5f) }
         rule.onNodeWithText("Nearby").performClick()

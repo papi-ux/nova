@@ -797,8 +797,8 @@ private fun NovaSettingsCompactHeader(
             if (showIdentity) NovaSettingsHeaderButton(stringResource(R.string.nova_settings_back), onBack)
             // Titles wrap rather than cut: a long preset name takes a second line.
             if (showIdentity) Column(Modifier.weight(1f)) {
-                Text(text = title, style = type.panelTitle, color = colors.textPrimary)
-                subtitle?.let { Text(text = it, style = type.caption, color = colors.textMuted) }
+                Text(text = title, modifier = Modifier.novaAvoidCameraCutout(), style = type.panelTitle, color = colors.textPrimary)
+                subtitle?.let { Text(text = it, modifier = Modifier.novaAvoidCameraCutout(), style = type.caption, color = colors.textMuted) }
             }
             if (wide) {
                 NovaSettingsSearchField(

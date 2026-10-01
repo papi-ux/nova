@@ -6,6 +6,8 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.AdapterView
+import androidx.recyclerview.widget.RecyclerView
 import androidx.core.view.ViewCompat
 import java.util.WeakHashMap
 import kotlin.math.ceil
@@ -20,7 +22,9 @@ internal object NovaCameraViewAvoidance {
             val cameras = cameraBounds()
             val wanted = linkedMapOf<View, Margin>()
             visit(root) { view ->
-                if (view.visibility != View.VISIBLE) return@visit
+                if (view.visibility != View.VISIBLE || view is RecyclerView || view is AdapterView<*>) return@visit
+                val interactive = view.isClickable || view.isFocusable
+                if (!interactive && (view !is TextView || interactiveAncestor(view, root))) return@visit
                 val slot = verticalFlowSlot(view, root) ?: return@visit
                 val params = slot.layoutParams as? ViewGroup.MarginLayoutParams ?: return@visit
                 val previous = margins[slot]
@@ -31,7 +35,7 @@ internal object NovaCameraViewAvoidance {
                 val bounds = Rect(at[0], at[1] - ownCamera, at[0] + view.width, at[1] - ownCamera + view.height)
                 // A plain label's allocated width can include empty space beside the camera. Its
                 // actual glyph bounds matter; a clickable button keeps its entire target clear.
-                if (!view.isClickable && view.layout != null && view.layout.lineCount > 0) {
+                if (!interactive && view is TextView && view.layout != null && view.layout.lineCount > 0) {
                     val text = view.layout
                     bounds.left += view.totalPaddingLeft + (0 until text.lineCount).minOf { text.getLineLeft(it) }.toInt()
                     bounds.right = at[0] + view.totalPaddingLeft + ceil((0 until text.lineCount).maxOf { text.getLineRight(it) }).toInt()
@@ -76,18 +80,34 @@ internal object NovaCameraViewAvoidance {
 
     private fun verticalFlowSlot(view: View, root: View): View? {
         var slot = view
+        var localMargin: View? = null
         while (slot !== root) {
             val parent = slot.parent as? ViewGroup ?: return null
+            // A collection owns item positioning. Never climb through it and insert a camera
+            // gap before the whole list; keep clearance inside this item's nearest flow slot.
+            if (parent is RecyclerView || parent is AdapterView<*>) return localMargin
+                ?: slot.takeIf { it.layoutParams is ViewGroup.MarginLayoutParams }
             if (parent is LinearLayout && parent.orientation == LinearLayout.VERTICAL) return slot
+            if (localMargin == null && slot.layoutParams is ViewGroup.MarginLayoutParams) localMargin = slot
             slot = parent
         }
-        return null
+        return localMargin
     }
 
     private data class Margin(val base: Int, val camera: Int)
 
-    private fun visit(view: View, action: (TextView) -> Unit) {
-        if (view is TextView) action(view)
+    private fun interactiveAncestor(view: View, root: View): Boolean {
+        var ancestor = view.parent as? View
+        while (ancestor != null && ancestor !== root) {
+            if (ancestor is RecyclerView || ancestor is AdapterView<*>) return false
+            if (ancestor.isClickable || ancestor.isFocusable) return true
+            ancestor = ancestor.parent as? View
+        }
+        return false
+    }
+
+    private fun visit(view: View, action: (View) -> Unit) {
+        action(view)
         if (view is ViewGroup) for (index in 0 until view.childCount) visit(view.getChildAt(index), action)
     }
 }
