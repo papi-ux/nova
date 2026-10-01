@@ -502,6 +502,9 @@ class NovaHostsViewInstrumentedTest {
                         // the Activity's actual focus graph rather than calling its key handler.
                         key(KeyEvent.KEYCODE_DPAD_RIGHT)
                         if (id != R.id.emptyScanPair) {
+                            scenario.onActivity { assertTrue(target.requestFocus()) }
+                            settle()
+                            key(KeyEvent.KEYCODE_DPAD_RIGHT)
                             scenario.onActivity { assertEquals(if (id == R.id.emptyRefresh) R.id.emptyAddServer else R.id.emptyScanPair, it.currentFocus?.id) }
                         }
                     }
