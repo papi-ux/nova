@@ -85,6 +85,10 @@ class NovaSettingsPortraitMenuTest {
             rule.onNode(hasClickAction() and hasText("Back")))) {
             val bounds = node.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             org.junit.Assert.assertTrue("Header action stays inside the narrow surface", bounds.left >= bar.left && bounds.right <= bar.right)
+            val complete = node.getUnclippedBoundsInRoot()
+            val completeBar = rule.onNodeWithTag("nova-portrait-menu-bar").getUnclippedBoundsInRoot()
+            org.junit.Assert.assertTrue("The full action remains inside the header", complete.left >= completeBar.left && complete.right <= completeBar.right && complete.top >= completeBar.top && complete.bottom <= completeBar.bottom)
+            org.junit.Assert.assertTrue("Large header actions preserve the full 48dp target", complete.width >= 48.dp && complete.height >= 48.dp)
         }
         val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         rule.onNodeWithText(title).assertIsDisplayed().performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }

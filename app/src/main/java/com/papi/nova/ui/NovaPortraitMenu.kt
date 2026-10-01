@@ -4,12 +4,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
@@ -39,6 +41,7 @@ internal fun NovaPortraitMenuBar(
     val titleWidth = rememberTextMeasurer().measure(
         title, style = LocalTextStyle.current.merge(type.panelTitle), softWrap = false,
     ).size.width
+    val titleMinWidth = with(LocalDensity.current) { titleWidth.toDp() }
     val label = stringResource(if (expanded) R.string.nova_portrait_hide_menu else R.string.nova_portrait_show_menu)
     // Keep the same composed action nodes in either layout, including their focus owners.
     Layout(
@@ -51,7 +54,10 @@ internal fun NovaPortraitMenuBar(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             ) { color, _ -> Text(label, color = color, style = type.value) }
             Box(Modifier.novaAvoidCameraCutout()) {
-                Text(title, color = colors.textPrimary, style = type.panelTitle)
+                // Keep the intrinsic child at the measured glyph width, within the parent's
+                // available width. Intrinsic rounding must not discard its last pixel.
+                Text(title, modifier = Modifier.widthIn(min = titleMinWidth),
+                    color = colors.textPrimary, style = type.panelTitle)
             }
             if (onBack != null) NovaActionSurface(
                 onClick = onBack, contentDescription = stringResource(R.string.nova_settings_back),
@@ -68,7 +74,6 @@ internal fun NovaPortraitMenuBar(
         val menu = children[0].measure(loose.copy(maxWidth = (width - (back?.width ?: -gap) - gap).coerceAtLeast(0)))
         val availableTitle = (width - menu.width - (back?.width ?: 0) - gap * if (back == null) 1 else 2).coerceAtLeast(0)
         val ownTitleRow = titleWidth > availableTitle
-        println("header-fit title=$title natural=$titleWidth available=$availableTitle own=$ownTitleRow headingIntrinsic=${children[1].maxIntrinsicWidth(Constraints.Infinity)} constraints=$constraints")
         val heading = children[1].measure(loose.copy(
             maxWidth = if (ownTitleRow) width else availableTitle,
             maxHeight = Constraints.Infinity,
