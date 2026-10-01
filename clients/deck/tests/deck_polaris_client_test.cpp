@@ -440,7 +440,7 @@ void testAppLaunchAsAuthority() {
     pin["allowed_modes"] = QJsonArray{"desktop_display", "host_virtual_display", "desktop_takeover"};
     policy = policyFor(pin);
     assert(policy.known && policy.hostDefault == "desktop_display" && policy.allowed.size() == 3);
-    pin.remove("launch_as"); pin.remove("launch_as_available");
+    pin.remove("launch_as"); pin.remove("launch_as_available"); pin.remove("launch_as_unavailable_reason");
     pin["follows_host_default"] = true;
     policy = policyFor(pin);
     assert(policy.known && policy.hostDefault == "desktop_display" && policy.allowed.size() == 3);
