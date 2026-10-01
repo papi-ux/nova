@@ -11,10 +11,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNode
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -250,7 +250,7 @@ class NovaStreamHudPositionInstrumentedTest {
 
     private fun action(label: String) {
         val actions = rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Stream statistics"))
-            .fetchSemanticsNode().config[SemanticsProperties.CustomActions]
+            .fetchSemanticsNode().config[SemanticsActions.CustomActions]
         val selected = actions.single { it.label == label }
         rule.runOnUiThread { assertTrue("the actual HUD action answers $label", selected.action()) }
         rule.waitForIdle()
