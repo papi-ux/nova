@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.papi.nova.ui.NovaControlSize
 import com.papi.nova.ui.NovaPlaySetupPanel
 import com.papi.nova.ui.PlaySetupPage
 import com.papi.nova.ui.compose.LocalNovaFormFactor
@@ -95,7 +96,7 @@ class NovaPanelDensityComposeTest {
         panel()
 
         assertEquals(NovaPanelDensity.Compact, seen)
-        assertEquals("a compact row", NovaPanelMetrics.RowMinHeightCompact, seenRowMinHeight)
+        assertEquals("a compact row", NovaPanelMetrics.RowMinHeightCompact * NovaControlSize.Standard.layoutScale, seenRowMinHeight)
         assertEquals("a compact row title", 14.sp, fontSize("Root row"))
         assertEquals("a compact root title", 18.sp, fontSize("Root"))
     }
@@ -151,7 +152,7 @@ class NovaPanelDensityComposeTest {
         panel()
 
         assertEquals(NovaPanelDensity.Regular, seen)
-        assertEquals("a regular row", NovaPanelMetrics.RowMinHeight, seenRowMinHeight)
+        assertEquals("a regular row", NovaPanelMetrics.RowMinHeight * NovaControlSize.Standard.layoutScale, seenRowMinHeight)
         assertEquals("a regular row title", 16.sp, fontSize("Root row"))
     }
 
@@ -160,7 +161,7 @@ class NovaPanelDensityComposeTest {
         panel(television = true)
 
         assertEquals(NovaPanelDensity.Regular, seen)
-        assertEquals("a television row", NovaPanelMetrics.RowMinHeightTv, seenRowMinHeight)
+        assertEquals("a television row", NovaPanelMetrics.RowMinHeightTv * NovaControlSize.Standard.layoutScale, seenRowMinHeight)
         assertEquals("a television row title", 18.sp, fontSize("Root row"))
     }
 

@@ -275,7 +275,9 @@ fun NovaSplitConfirm(
     }
     val motion = tween<Float>(NovaPanelMetrics.SplitMillis)
     val grow = tween<IntSize>(NovaPanelMetrics.SplitMillis)
-    Column(modifier = modifier.bringIntoViewRequester(pairAndLine)) {
+    Column(modifier = modifier
+        .then(if (state.armed) Modifier.novaTrackedFocusGroup() else Modifier)
+        .bringIntoViewRequester(pairAndLine)) {
         AnimatedContent(
             targetState = state.armed,
             transitionSpec = {

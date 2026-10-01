@@ -33,10 +33,25 @@ class NovaFontScalePreferencesTest {
     }
 
     @Test
-    fun defaultsToSystemRelativeOneHundredPercent() {
-        assertEquals(100, NovaFontScalePreferences.readScalePercent(context))
+    fun defaultsToSystemRelativeEightyPercent() {
+        assertEquals(80, NovaFontScalePreferences.readScalePercent(context))
+        val definition = com.papi.nova.preferences.NovaSettingDefinitions.load(context)
+            .require(NovaFontScalePreferences.KEY_SCALE_PERCENT)
+        assertEquals(com.papi.nova.preferences.NovaSettingValue.IntValue(80), definition.defaultValue)
         assertEquals(1, NovaFontScalePreferences.SCALE_STEP_PERCENT)
-        assertEquals(1.15f, NovaFontScalePreferences.resolveFontScale(1.15f, 100), 0.001f)
+        assertEquals(0.92f, NovaFontScalePreferences.wrapContext(context, systemFontScale = 1.15f)
+            .resources.configuration.fontScale, 0.001f)
+    }
+
+    @Test
+    fun explicitTextChoicesSurviveTheNewDefaultAndResetReturnsToEighty() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        for (percent in listOf(80, 100, 115, 130)) {
+            prefs.edit().putInt(NovaFontScalePreferences.KEY_SCALE_PERCENT, percent).commit()
+            assertEquals(percent, NovaFontScalePreferences.readScalePercent(context))
+        }
+        prefs.edit().remove(NovaFontScalePreferences.KEY_SCALE_PERCENT).commit()
+        assertEquals(80, NovaFontScalePreferences.readScalePercent(context))
     }
 
     @Test
