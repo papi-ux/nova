@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="nova_panel_decrease_value">Decrease value</string>
+    <string name="nova_panel_increase_value">Increase value</string>
     <string name="nova_control_size_title">Control Size</string>
     <string name="nova_control_size_summary">Resize buttons and spacing in the modern interface. Text Size stays independent.</string>
     <!-- Shortcut strings -->

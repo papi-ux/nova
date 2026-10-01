@@ -214,7 +214,7 @@ sealed interface NovaCommonPage : NovaPage {
         val onSubmit: (Map<String, String>) -> String?,
     ) : NovaCommonPage
 
-    /** An exact number: a track moved with Left and Right, a numeric field, and Save. */
+    /** An unsaved number: touch drag/steps or Left/Right, exact entry, and one Save. */
     class Slider(
         override val key: String,
         override val title: String,
@@ -222,6 +222,7 @@ sealed interface NovaCommonPage : NovaPage {
         val range: IntRange,
         val step: Int,
         val format: (Int) -> String,
+        /** Optional visual preview; durable writes belong to [onSave]. */
         val onPreview: ((Int) -> Unit)? = null,
         /**
          * The exact field's unit, as a divisor of the value: 1000 types a kbps value in Mbps, the

@@ -703,8 +703,8 @@ private class NovaSettingsPageOpener(
                 step = definition.step ?: 1,
                 format = { value -> formatSettingInt(context, definition, value) },
                 onPreview = if (opacity) menuOpacity::update else null,
-                exactDivisor = 1,
-                exactLabel = if (definition.isBitrateKbps()) "kbps" else null,
+                exactDivisor = if (definition.isBitrateKbps()) 1000 else 1,
+                exactLabel = if (definition.isBitrateKbps()) context.getString(R.string.nova_settings_bitrate_exact_mbps) else null,
                 onSave = { value ->
                     val previewOwnerAtSave = if (opacity) menuOpacity.takeForSave() else null
                     onValue(definition, NovaSettingValue.IntValue(value)) {
