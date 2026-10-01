@@ -25,6 +25,7 @@ DeckHostTelemetry sample() {
     s.active = s.owned = s.authorityValid = s.hostTuningAllowed = s.livePresent = true;
     s.role = "owner"; s.gameUuid = "private-game"; s.sessionToken = "private-token"; s.appSession = "private-session";
     s.gameId = 17; s.generation = 41;
+    s.encoderCodec = "h264"; // Classic telemetry without a split uses VIDEO units.
     s.live = DeckLiveTuningTelemetry{true, true, "stable", QString(64, 'a'), "private-instance", "private-session", 1, 41, 20000, 20000, 20000};
     return s;
 }
