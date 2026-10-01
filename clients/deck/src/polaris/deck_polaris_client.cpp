@@ -146,6 +146,19 @@ DeckPolarisGame parseGame(const QJsonObject& object) {
     game.launchModeReason = toStd(launchMode.value(QStringLiteral("mode_reason")).toString());
     const auto contract = object.value("launch_mode");
     game.launchContractValid = contract.isUndefined() || contract.isObject();
+    game.launchFollowsHostDefault = launchMode.value("follows_host_default") != QJsonValue(false);
+    game.launchAsPresent = launchMode.contains("launch_as") || launchMode.contains("launch_as_available") ||
+        launchMode.contains("launch_as_unavailable_reason");
+    if (game.launchAsPresent) {
+        const auto pin = launchMode.value("launch_as");
+        game.launchAs = toStd(pin.toString());
+        const auto available = launchMode.value("launch_as_available");
+        if (available.isBool()) game.launchAsAvailable = available.toBool();
+        game.launchAsUnavailableReason = toStd(launchMode.value("launch_as_unavailable_reason").toString());
+        game.launchContractValid = game.launchContractValid && pin.isString() &&
+            (game.launchAs == "host_default" || isSessionLaunchMode(game.launchAs));
+        game.launchFollowsHostDefault = game.launchAs == "host_default";
+    }
     const auto allowed = launchMode.value("allowed_modes");
     if (!allowed.isUndefined()) {
         game.launchContractValid = game.launchContractValid && allowed.isArray();
@@ -201,6 +214,8 @@ DeckPolarisGame parseGame(const QJsonObject& object) {
         QString::fromStdString(game.artwork.logo), QString::fromStdString(game.artwork.icon)};
     game.artwork.key = QCryptographicHash::hash(QJsonDocument(artworkIdentity).toJson(QJsonDocument::Compact),
         QCryptographicHash::Sha256).toHex().toStdString();
+    // A missing/unreadable host mode catalog cannot erase the app's own refusal.
+    game.launchPolicy = launchModePolicy(game, {});
     return game;
 }
 
@@ -252,10 +267,29 @@ std::optional<DeckLaunchModeCatalog> parseLaunchModeCatalog(std::string_view jso
 }
 
 DeckLaunchModePolicy launchModePolicy(const DeckPolarisGame& game, const DeckLaunchModeCatalog& catalog) {
+    // A per-app refusal takes precedence even when this mode is generally available.
+    if (game.launchAsPresent && (!game.launchContractValid || game.launchAsAvailable != true)) {
+        DeckLaunchModePolicy denied;
+        denied.known = true;
+        denied.followsHostDefault = game.launchFollowsHostDefault;
+        denied.hostDefault = game.launchAs;
+        denied.defaultAvailable = false;
+        denied.unavailableReason = game.launchAsUnavailableReason.empty() ?
+            "Polaris cannot run this app's Launch As mode." : game.launchAsUnavailableReason;
+        return denied;
+    }
     if (!game.launchContractValid || game.id.starts_with("space.")) return {};
-    DeckLaunchModePolicy result{true, catalog.desired, {}};
+    DeckLaunchModePolicy result{!catalog.modes.empty(), catalog.desired, {}};
+    result.followsHostDefault = game.launchFollowsHostDefault;
+    if (!result.followsHostDefault) result.hostDefault = game.launchAsPresent ? game.launchAs : normalizeLaunchMode(game.launchRecommendedMode);
+    if (game.launchAsPresent && !result.followsHostDefault && !catalog.modes.empty()) {
+        result.defaultAvailable = std::any_of(catalog.modes.begin(), catalog.modes.end(),
+            [&](const auto& mode) { return mode.value == result.hostDefault && mode.available; });
+        if (!result.defaultAvailable) result.unavailableReason = "This app's Launch As mode is unavailable on this PC.";
+    }
     for (const auto& mode : catalog.modes) {
         if (!mode.available || !mode.sessionOverridable || !isSessionLaunchMode(mode.value)) continue;
+        if (game.launchAsPresent && game.launchAs != "host_default" && game.launchAs != "desktop_display" && mode.value != game.launchAs) continue;
         if (!game.launchAllowedModes.empty() && std::none_of(game.launchAllowedModes.begin(), game.launchAllowedModes.end(),
             [&](const auto& allowed) { return normalizeLaunchMode(allowed) == mode.value; })) continue;
         result.allowed.push_back(mode.value);

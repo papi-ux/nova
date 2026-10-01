@@ -122,6 +122,11 @@ struct DeckPolarisGame {
     DeckLaunchModePolicy launchPolicy;
     DeckStreamCapabilities streamCapabilities;
     DeckDisplayPlanner displayPlanner;
+    bool launchAsPresent = false;
+    std::string launchAs;
+    std::optional<bool> launchAsAvailable;
+    std::string launchAsUnavailableReason;
+    bool launchFollowsHostDefault = true;
 };
 
 struct DeckPolarisGamesPage {

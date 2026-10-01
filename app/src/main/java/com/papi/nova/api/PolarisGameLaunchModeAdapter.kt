@@ -25,13 +25,13 @@ fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, client
         add(PolarisGame.MODE_HOST_VIRTUAL_DISPLAY)
         contract?.allowedModes.orEmpty().forEach(::add)
     }.asSequence().map(resolveAvailable).firstOrNull { it.isNotBlank() }.orEmpty()
-    val preferredMode = resolveAvailable(contract?.preferredMode.orEmpty()).ifBlank { fallbackMode }
+    val preferredMode = resolveAvailable(contract?.fixedLaunchMode ?: contract?.preferredMode.orEmpty()).ifBlank { fallbackMode }
     // The host's configured display normally wins, because it is a later and more specific answer
     // than an app's stored preference. An entry that states it does not follow the host default is
     // the exception: the Desktop entry is the desktop, so a host configured to make screens for
     // games would otherwise open it on one of those without anybody asking.
-    val contractRecommendedMode = resolveAvailable(contract?.recommendedMode.orEmpty())
-    val recommendedMode = if (contract?.followsHostDefault == false && contractRecommendedMode.isNotBlank()) {
+    val contractRecommendedMode = resolveAvailable(contract?.fixedLaunchMode ?: contract?.recommendedMode.orEmpty())
+    val recommendedMode = if (contract?.followsEffectiveHostDefault == false && contractRecommendedMode.isNotBlank()) {
         contractRecommendedMode
     } else {
         hostDefaultMode
@@ -67,6 +67,13 @@ fun PolarisGame.resolveLaunchModeChoice(defaultToVirtualDisplay: Boolean, client
 fun PolarisGame.isLaunchModeAvailable(mode: String, clientSettings: PolarisClientSettings?): Boolean {
     val normalizedMode = PolarisGame.normalizeLaunchMode(mode)
     if (normalizedMode.isBlank()) return false
+
+    // App-specific refusal outranks the host's general mode catalog, including worker modes.
+    val contract = launchMode
+    if (contract?.launchAs != null) {
+        if (!contract.hasKnownLaunchAs || contract.launchAsAvailable != true) return false
+        if (contract.fixedLaunchMode != null && normalizedMode != contract.fixedLaunchMode) return false
+    }
 
     val contractModes = launchMode?.allowedModes.orEmpty()
     if (contractModes.isNotEmpty() && launchMode?.allows(normalizedMode) != true) return false
