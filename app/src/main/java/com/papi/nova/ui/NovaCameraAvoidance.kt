@@ -37,6 +37,7 @@ import androidx.core.view.ViewCompat
 import androidx.preference.PreferenceManager
 import java.lang.ref.WeakReference
 import java.util.WeakHashMap
+import kotlin.math.ceil
 
 /** Physical window coordinates, independent of layout direction or a screen's letterbox. */
 internal data class NovaCameraWindow(val bounds: Rect, val cameras: List<Rect>)
@@ -165,7 +166,10 @@ fun Modifier.novaAvoidCameraCutout(touchTarget: Boolean = false): Modifier {
     }
     var target by remember { mutableStateOf(Rect.Zero) }
     val window = LocalNovaCameraWindow.current ?: tracker.window
-    val padding = novaCameraPadding(target, window, with(density) { 48.dp.toPx() })
+    val required = novaCameraPadding(target, window, with(density) { 48.dp.toPx() })
+    // A fractional physical touch edge must clear the integer camera box completely. Rounding
+    // down could leave part of it covered; conservatively add at most one local physical pixel.
+    val padding = NovaCameraPadding(ceil(required.left), ceil(required.top), ceil(required.right), ceil(required.bottom))
     val leftPadding = with(density) { padding.left.toDp() }
     val topPadding = with(density) { padding.top.toDp() }
     val rightPadding = with(density) { padding.right.toDp() }

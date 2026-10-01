@@ -19,6 +19,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -89,15 +90,17 @@ class NovaCameraModifierComposeTest {
         assertEquals("removing the camera restores normal placement", nearbyBefore, textLeft("Nearby"), 0.5f)
     }
 
-    private fun smallAction(oddPixels: Boolean = false, fractionalDensity: Float = 1.25f, minHeight: Int = 32) {
+    private fun smallAction(oddPixels: Boolean = false, fractionalDensity: Float = 1.25f, minHeight: Int = 32, exactFloor: Boolean = false) {
         val cameras = mutableStateOf<List<Rect>>(emptyList())
         var density = 1f
         var calls = 0
+        var touchFloor = 0f
         val placements = mutableListOf<Float>()
         val width = mutableStateOf(240)
         rule.setPanelContent {
             val physicalDensity = if (oddPixels) Density(fractionalDensity, LocalDensity.current.fontScale) else LocalDensity.current
             density = physicalDensity.density
+            touchFloor = with(physicalDensity) { LocalViewConfiguration.current.minimumTouchTargetSize.height.toPx() }
             CompositionLocalProvider(LocalDensity provides physicalDensity,
                 LocalNovaCameraWindow provides NovaCameraWindow(
                 Rect(0f, 0f, 240 * density, 800 * density), cameras.value)) {
@@ -123,7 +126,7 @@ class NovaCameraModifierComposeTest {
             rule.runOnIdle { cameras.value = listOf(Rect(0f, 0f, 240 * density, cameraBottom)) }
             rule.waitForIdle()
             val bounds = rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot
-            val top = bounds.center.y - 23 * density
+            val top = if (exactFloor) bounds.center.y - touchFloor / 2 + 0.05f else bounds.center.y - 23 * density
             assertTrue("camera clearance covers the actual expanded touch floor, not just the small visual surface: $bounds / $top", top >= cameraBottom)
             val glyph = rule.onNodeWithTag("small-camera-glyph", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
             assertTrue("visible content remains nonzero below the camera", glyph.height > 0 && glyph.top >= cameraBottom)
@@ -134,8 +137,8 @@ class NovaCameraModifierComposeTest {
                     rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot)
             }
             rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, top)) }
-            rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, bounds.center.y + 23 * density)) }
-            assertEquals(2, calls)
+            if (!exactFloor) rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, bounds.center.y + 23 * density)) }
+            assertEquals(if (exactFloor) 1 else 2, calls)
         } finally {
             cameras.value = emptyList()
             println("camera-small-action density=$density minHeight=$minHeight actualGlyphPlacements=${synchronized(placements) { placements.toList() }}")
@@ -147,6 +150,9 @@ class NovaCameraModifierComposeTest {
 
     @Test(timeout = 15000) fun default38dpActionSettlesInCenteredParent() =
         smallAction(oddPixels = true, fractionalDensity = 1f, minHeight = 38)
+
+    @Test fun completeFractionalTouchEnvelopeClearsTheCamera() =
+        smallAction(oddPixels = true, fractionalDensity = 1.35f, exactFloor = true)
 
     @Test fun menuRowClearsOnlyItsIntersectingCameraRegion() = scene()
     @Test fun menuRowUsesPhysicalCameraCoordinatesInRtl() = scene(rtl = true)
