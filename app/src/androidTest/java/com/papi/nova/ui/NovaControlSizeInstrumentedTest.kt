@@ -97,7 +97,7 @@ class NovaControlSizeInstrumentedTest {
             val before = taps
             compose.onRoot().performTouchInput {
                 // 23dp from centre is inside the original 48dp target and outside a
-                // 48dp target incorrectly shrunk to Compact's 42.24dp.
+                // 48dp target incorrectly shrunk to Compact's 34.56dp.
                 click(Offset(bounds.center.x, bounds.center.y + 23 * physicalDensity))
             }
             compose.waitForIdle()
@@ -118,7 +118,7 @@ class NovaControlSizeInstrumentedTest {
                 NovaPanelDensityHost {
                     val density = LocalDensity.current
                     // Exercise the real 48dp hit boundary, including the short landscape
-                    // control. This is outside a minimum target shrunk to 42.24dp.
+                    // control. This is outside a minimum target shrunk to 34.56dp.
                     edgePixels = with(density) { 23.dp.toPx() }
                     arrowHalfWidthPixels = with(density) { (NovaPanelMetrics.ArrowTarget / 2).toPx() }
                     Column(Modifier.padding(24.dp).width(300.dp)) {
