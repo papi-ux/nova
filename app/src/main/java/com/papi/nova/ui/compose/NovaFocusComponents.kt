@@ -1,5 +1,7 @@
 package com.papi.nova.ui.compose
 
+import com.papi.nova.ui.novaAvoidCameraCutout
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -310,6 +312,7 @@ fun NovaActionSurface(
 
     Box(
         modifier = modifier
+            .novaAvoidCameraCutout(touchTarget = true)
             .defaultMinSize(minHeight = novaControlDimension(minHeight))
             .clip(shape)
             .novaFocusRing(

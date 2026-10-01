@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -145,7 +146,7 @@ internal fun NovaLibraryLandscapeToolbarContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(NovaLibraryUiStateMapper.landscapeToolbarHeightDp(largeText).dp)
+            .heightIn(min = NovaLibraryUiStateMapper.landscapeToolbarHeightDp(largeText).dp)
             .clip(shape)
             .background(toolbarColor)
             .border(1.dp, toolbarBorder, shape)
@@ -203,13 +204,14 @@ internal fun NovaLibraryPortraitToolbarContent(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (largeText) 74.dp else 60.dp)
+            .heightIn(min = if (largeText) 74.dp else 60.dp)
             .testTag("nova-library-portrait-toolbar"),
     ) {
         val showMetadata = !largeText && maxWidth >= 400.dp
         Row(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .heightIn(min = if (largeText) 74.dp else 60.dp)
                 .clip(RoundedCornerShape(NovaRadius.hero))
                 .background(surfaces.panel.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current))
                 .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero))
@@ -314,7 +316,7 @@ internal fun NovaLibraryLandscapeShowcaseStripContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText).dp)
+                .heightIn(min = NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText).dp)
                 .clip(shape)
                 .background(surfaces.panel.copy(alpha = 0.34f * LocalNovaMenuOpacityScale.current))
                 .border(1.dp, surfaces.tileBorder, shape)
@@ -326,7 +328,7 @@ internal fun NovaLibraryLandscapeShowcaseStripContent(
             // The host and what is running take whatever the right-hand cluster leaves: Row
             // measures unweighted children first, so Options and System always get their width.
             Row(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(NOVA_TOP_BAR_GAP),
             ) {
@@ -348,7 +350,13 @@ internal fun NovaLibraryLandscapeShowcaseStripContent(
                     },
                 )
                 if (continueSlot != null) {
-                    continueSlot(fit)
+                    // The card's existing fill-height children keep the normal strip budget.
+                    // Only this bounded card can grow for an intersecting camera; the strip
+                    // itself wraps its tallest child instead of filling the window height.
+                    Row(Modifier.weight(1f).novaAvoidCameraCutout()
+                        .height((NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText) - 11f).dp)) {
+                        continueSlot(fit)
+                    }
                 } else {
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -646,6 +654,7 @@ private fun NovaLibraryToolbarIdentity(
             if (!cinematic) {
                 Text(
                     text = stringResource(R.string.nova_library_title),
+                    modifier = Modifier.novaAvoidCameraCutout(),
                     color = colors.textPrimary,
                     fontSize = 16.sp,
                     lineHeight = 18.sp,
@@ -656,6 +665,7 @@ private fun NovaLibraryToolbarIdentity(
             }
             Text(
                 text = if (cinematic) hostLabel else "· $hostLabel",
+                modifier = Modifier.novaAvoidCameraCutout(),
                 color = colors.textSecondary,
                 fontSize = 11.sp,
                 lineHeight = 13.sp,
@@ -663,7 +673,7 @@ private fun NovaLibraryToolbarIdentity(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        statusContent()
+        Box(Modifier.novaAvoidCameraCutout()) { statusContent() }
     }
 }
 
@@ -683,6 +693,7 @@ private fun NovaLibraryResultAndLayoutMeta(
     ) {
         Text(
             text = stringResource(R.string.nova_library_results_format, resultCount),
+            modifier = Modifier.novaAvoidCameraCutout(),
             color = colors.textSecondary,
             fontSize = 10.sp,
             lineHeight = 12.sp,
@@ -691,6 +702,7 @@ private fun NovaLibraryResultAndLayoutMeta(
         )
         Text(
             text = layoutLabel,
+            modifier = Modifier.novaAvoidCameraCutout(),
             color = colors.accent,
             fontSize = 10.sp,
             lineHeight = 12.sp,

@@ -13,6 +13,8 @@ A Library that fits your screen, stream choices that fit your device, and bitrat
 - Loading or failed poster artwork keeps the game's name visible. Portrait's footer names the Library consistently across layouts.
 - Portrait Library keeps Options and System directly available. Settings can hide its supporting menu to give the rows more space. Search and the focused game survive a screen rotation.
 - Hosts, Library and update buttons fit narrow portrait screens. Empty Hosts actions scroll on short screens and remain reachable by touch and controller.
+- Phone menus fill the screen edges while nearby controls and text clear camera cutouts. Portrait Settings puts Menu on the left; Hosts combines its identity and Menu in one touch bar.
+- Touch opens the Settings search keyboard and filters as you type. Back closes the keyboard before clearing the search or leaving the screen.
 - Settings, sheets, pickers and Command Center use consistent focus, Back behavior and action styling, including the Mouse Mode picker and End Session confirmation.
 - Control Size offers distinct Compact, Standard and Large layouts, independently of Nova Text Size. Nova text starts at 80 percent; you can change it, and Android text scaling still applies. Smaller layouts keep full touch targets.
 - Text size and bitrate offer buttons for small steps as well as touch adjustment and exact entry.

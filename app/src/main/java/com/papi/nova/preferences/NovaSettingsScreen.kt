@@ -91,6 +91,8 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.NovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.novaAvoidCameraCutout
+import com.papi.nova.ui.novaScreenInsets
 import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
 import com.papi.nova.ui.compose.NovaActionSurface
 import com.papi.nova.ui.compose.NovaControllerHint
@@ -334,6 +336,8 @@ internal fun NovaSettingsContent(
             modifier = Modifier
                 .fillMaxSize()
                 .background(colors.window)
+                .novaScreenInsets()
+                .padding(com.papi.nova.ui.panel.novaScreenPadding(0.dp))
                 .padding(horizontal = 20.dp, vertical = 12.dp)
                 .onPreviewKeyEvent { event ->
                     val native = event.nativeKeyEvent
@@ -443,7 +447,10 @@ internal fun NovaSettingsContent(
                     // Pages pushed over the rows keep focus; the rows themselves may give it to the rail.
                     containFocus = pane.depth > 1,
                     onCloseRequest = {
-                        if (portrait && portraitMenuExpanded) {
+                        // The host owns root Back; a pushed result page still pops before this.
+                        if (latestState.isSearchActive()) {
+                            clearSearch()
+                        } else if (portrait && portraitMenuExpanded) {
                             portraitMenuExpanded = false
                             portraitMenuFocus.requestFocus()
                         } else if (wide && focus.paneHasFocus) focus.focusRail(latestState.selectedCategoryKey) else back()
@@ -790,8 +797,8 @@ private fun NovaSettingsCompactHeader(
             if (showIdentity) NovaSettingsHeaderButton(stringResource(R.string.nova_settings_back), onBack)
             // Titles wrap rather than cut: a long preset name takes a second line.
             if (showIdentity) Column(Modifier.weight(1f)) {
-                Text(text = title, style = type.panelTitle, color = colors.textPrimary)
-                subtitle?.let { Text(text = it, style = type.caption, color = colors.textMuted) }
+                Text(text = title, modifier = Modifier.novaAvoidCameraCutout(), style = type.panelTitle, color = colors.textPrimary)
+                subtitle?.let { Text(text = it, modifier = Modifier.novaAvoidCameraCutout(), style = type.caption, color = colors.textMuted) }
             }
             if (wide) {
                 NovaSettingsSearchField(
@@ -849,8 +856,6 @@ private fun NovaSettingsSearchField(
     // This was a plain BasicTextField: focus it with a d-pad and the direction keys went into
     // the text rather than moving on, so there was no way off the field without a touchscreen.
     val colors = LocalNovaComposeColors.current
-    // B clears a query before it leaves Settings, the way a page's B unwinds one level.
-    NovaBackHandler(active = query.isNotBlank()) { onClear() }
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -960,6 +965,7 @@ private fun NovaSettingPill(
     Box(
         modifier = modifier
             .testTag("nova-settings-quick-${definition.key}")
+            .novaAvoidCameraCutout(touchTarget = true)
             .widthIn(max = NovaSettingsMetrics.quickPillMaxWidthDp().dp)
             .heightIn(min = NovaPanelMetrics.ButtonMinHeight)
             .clip(shape)
@@ -1084,6 +1090,7 @@ private fun NovaCategoryRow(
         modifier = modifier
             .testTag("nova-settings-category-${category.key}")
             .fillMaxWidth()
+            .novaAvoidCameraCutout(touchTarget = true)
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)

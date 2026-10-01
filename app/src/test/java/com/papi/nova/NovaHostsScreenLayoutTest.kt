@@ -51,7 +51,7 @@ class NovaHostsScreenLayoutTest {
         assertTrue(
             "the sheet keeps clear of a bar that is showing inside its own surface, from the insets there are now, " +
                 "so a hidden bar leaves no band under it",
-            sheet.contains(".windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))")
+            sheet.contains(".novaScreenInsets(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)")
         )
     }
 

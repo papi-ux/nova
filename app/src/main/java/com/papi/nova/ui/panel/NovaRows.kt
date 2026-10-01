@@ -1,5 +1,7 @@
 package com.papi.nova.ui.panel
 
+import com.papi.nova.ui.novaAvoidCameraCutout
+
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -154,6 +156,7 @@ internal fun NovaRowLayout(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .novaAvoidCameraCutout(touchTarget = true)
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(

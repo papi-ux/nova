@@ -4,13 +4,19 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.SystemClock
+import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -236,6 +242,117 @@ class NovaSettingsActivityInstrumentedTest {
         if (portrait) compose.onNodeWithTag("nova-portrait-menu-toggle").assertIsDisplayed()
         else category(categories.first().key).assertExists()
         shot("settings-legacy-return")
+    }
+
+    @Test fun touchSearchUsesTheNativeKeyboardAndBackRestoresTheCategoryWithoutSaving() = withSettings { scenario ->
+        if (portrait) {
+            tap(scenario, compose.onNodeWithTag("nova-portrait-menu-toggle"))
+            compose.onNodeWithTag("nova-portrait-menu-toggle").assertTextEquals("Hide menu")
+        }
+        val definitions = NovaSettingDefinitions.load(context)
+        val originalCategory = definitions.categories.first()
+        val originalCategoryTag = "nova-settings-category-${originalCategory.key}"
+        val owner = compose.onNodeWithTag(originalCategoryTag)
+        if (portrait) owner.performScrollTo()
+        tap(scenario, owner)
+        owner.assertIsSelected()
+        compose.onNodeWithTag("nova-settings-row-nova_stream_preset").assertExists()
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        // Compare user settings, including hidden Custom/Auto metadata; capability-cache work is
+        // unrelated to search and may finish asynchronously after this actual Activity starts.
+        val settingKeys = definitions.settings.map { it.key }.toSet() + NovaSettingsMigration.STREAM_KEYS +
+            setOf(NovaSettingsMigration.TIER, NovaSettingsMigration.AUTO,
+                NovaSettingsMigration.CUSTOM_AUTO, NovaSettingsMigration.CUSTOM_EXISTS)
+        fun savedSettings() = preferences.all.filterKeys { it in settingKeys }
+            .mapValues { (_, value) -> if (value is Set<*>) value.toSet() else value }
+        val saved = savedSettings()
+        val search = compose.onNodeWithContentDescription(context.getString(R.string.nova_settings_search_hint))
+        fun assertQueryCharacters(expected: String): SemanticsNodeInteraction {
+            val value = search.fetchSemanticsNode().config[SemanticsProperties.EditableText]
+            fun characters(text: String) = "length=${text.length}, codePoints=" +
+                text.codePoints().toArray().joinToString { "U+" + it.toString(16).uppercase().padStart(4, '0') }
+            val diagnostic = "Native query characters: expected ${characters(expected)}; " +
+                "actual ${characters(value.text)}; spans=${value.spanStyles}; paragraphs=${value.paragraphStyles}"
+            // A native IME's composing underline changes AnnotatedString equality, not the query.
+            // Require every exact character, while leaving touch/editability/IME/Back checks intact.
+            println(diagnostic)
+            assertEquals(diagnostic, expected, value.text)
+            return search
+        }
+        if (portrait) search.performScrollTo()
+        // No semantics SetText or RequestFocus: this must traverse the real touch gesture and
+        // create an editable Android input connection before requesting the visible native IME.
+        tap(scenario, search)
+        search.assertIsFocused().assert(hasSetTextAction())
+        waitForIme(scenario, visible = true)
+        shot("settings-search-touch-ime")
+        instrumentation.sendStringSync("rum")
+        settle()
+        assertQueryCharacters("rum")
+            .assert(hasSetTextAction())
+        instrumentation.sendStringSync("ble")
+        settle()
+        assertQueryCharacters("rumble")
+            .assert(hasSetTextAction())
+        waitForIme(scenario, visible = true)
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle,
+            context.getString(R.string.nova_settings_search_title))).assertExists()
+        compose.onNodeWithTag("nova-settings-row-nova_stream_preset").assertDoesNotExist()
+        // B first closes the real keyboard/editor, retaining the query and its matching pane.
+        key(KeyEvent.KEYCODE_BUTTON_B)
+        waitForIme(scenario, visible = false)
+        assertQueryCharacters("rumble")
+            .assert(hasSetTextAction().not())
+        compose.onNodeWithTag("nova-settings-row-checkbox_enable_rumble").assertIsDisplayed()
+        shot("settings-search-rumble-matches")
+        scenario.onActivity { assertFalse("Closing search input must retain Settings", it.isFinishing) }
+        // The next B clears root search rather than leaving Settings or changing a setting.
+        key(KeyEvent.KEYCODE_BUTTON_B)
+        assertQueryCharacters("")
+        compose.onNodeWithTag(originalCategoryTag).assertIsSelected()
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, originalCategory.title))
+            .assertIsDisplayed()
+        compose.onNodeWithTag("nova-settings-row-checkbox_enable_rumble").assertDoesNotExist()
+        assertEquals("Touch, query, results and Back do not save any user setting", saved, savedSettings())
+        scenario.onActivity { assertFalse("Clearing search must retain the actual Settings Activity", it.isFinishing) }
+        shot("settings-search-back-restored")
+    }
+
+    private fun tap(scenario: ActivityScenario<StreamSettings>, node: SemanticsNodeInteraction) {
+        val bounds = node.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val origin = IntArray(2)
+        scenario.onActivity { activity ->
+            val root = activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
+            assertTrue("Touch coordinates belong to the actual Settings ComposeView", root is ComposeView)
+            root.getLocationOnScreen(origin)
+        }
+        val down = SystemClock.uptimeMillis()
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+            if (action == MotionEvent.ACTION_UP) SystemClock.sleep(100)
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action,
+                origin[0] + bounds.center.x, origin[1] + bounds.center.y, 0)
+            event.source = InputDevice.SOURCE_TOUCHSCREEN
+            try {
+                assertTrue("Real Settings touchscreen event reaches the Activity",
+                    instrumentation.uiAutomation.injectInputEvent(event, true))
+            } finally { event.recycle() }
+        }
+        settle()
+    }
+
+    private fun waitForIme(scenario: ActivityScenario<StreamSettings>, visible: Boolean) {
+        // Runner prerequisite: an enabled native IME, with show_ime_with_hard_keyboard=1 on an
+        // owned emulator if needed. Missing keyboard visibility is a failure, never a skip.
+        compose.waitUntil(timeoutMillis = 8_000) {
+            var matches = false
+            scenario.onActivity { activity ->
+                matches = ViewCompat.getRootWindowInsets(activity.window.decorView)?.let {
+                    it.isVisible(WindowInsetsCompat.Type.ime()) == visible
+                } ?: false
+            }
+            matches
+        }
+        settle()
     }
 
     private fun hasTestTagPrefix(prefix: String) = SemanticsMatcher("test tag beginning $prefix") {

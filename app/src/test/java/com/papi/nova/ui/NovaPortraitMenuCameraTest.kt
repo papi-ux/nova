@@ -1,0 +1,125 @@
+package com.papi.nova.ui
+
+import android.view.KeyEvent
+import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
+import com.papi.nova.ui.panel.setPanelContent
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33], qualifiers = "w400dp-h800dp-port")
+class NovaPortraitMenuCameraTest {
+    @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+
+    private fun scene(fullNotch: Boolean) {
+        val cameras = mutableStateOf(emptyList<Rect>())
+        val width = mutableStateOf(400)
+        val title = "Edit saved setup: Weekend games on my handheld"
+        var pixels = 1f
+        var menus = 0
+        var backs = 0
+        val keys = rule.setPanelContent {
+            pixels = LocalDensity.current.density
+            CompositionLocalProvider(LocalNovaCameraWindow provides NovaCameraWindow(
+                Rect(0f, 0f, 400f * pixels, 800f * pixels), cameras.value,
+            )) {
+                Column(Modifier.width(width.value.dp)) {
+                    NovaPortraitMenuBar(title, expanded = false, onToggle = { menus++ }, onBack = { backs++ })
+                }
+            }
+        }
+        val menu = rule.onNodeWithTag("nova-portrait-menu-toggle")
+        val back = rule.onNode(hasClickAction() and hasText("Back"))
+        fun contentBounds() = listOf(
+            rule.onNodeWithText(title, useUnmergedTree = true).assertIsDisplayed().fetchSemanticsNode().boundsInRoot,
+            menu.assertIsDisplayed().fetchSemanticsNode().boundsInRoot,
+            back.assertIsDisplayed().fetchSemanticsNode().boundsInRoot,
+        )
+        fun same(expected: List<Rect>, actual: List<Rect>) {
+            expected.zip(actual).forEach { (a, b) ->
+                assertEquals(a.left, b.left, 0.5f)
+                assertEquals(a.top, b.top, 0.5f)
+                assertEquals(a.right, b.right, 0.5f)
+                assertEquals(a.bottom, b.bottom, 0.5f)
+            }
+        }
+        val normal = contentBounds()
+        val camera = if (fullNotch) Rect(0f, 0f, 400f * pixels, 68f * pixels)
+            else Rect(normal.first().center.x - 18f * pixels, 0f,
+                normal.first().center.x + 18f * pixels, 68f * pixels)
+        assertTrue("The unprotected actual title $normal initially intersects camera $camera", normal.first().overlaps(camera))
+        rule.runOnIdle { cameras.value = listOf(camera) }
+        rule.waitForIdle()
+        val cleared = contentBounds()
+        assertTrue("The complete title remains visible rather than disappearing to clear the camera",
+            cleared.first().width > 0f && cleared.first().height >= normal.first().height - 0.5f)
+        val bar = rule.onNodeWithTag("nova-portrait-menu-bar").fetchSemanticsNode().boundsInRoot
+        assertTrue("The title stays within the actual header",
+            cleared.first().left >= bar.left - 0.5f && cleared.first().right <= bar.right + 0.5f &&
+                cleared.first().top >= bar.top - 0.5f && cleared.first().bottom <= bar.bottom + 0.5f)
+        assertFalse("The actual title glyph region clears the camera", cleared.first().overlaps(camera))
+        for (target in cleared.drop(1)) {
+            assertFalse("The actual action target clears the camera", target.overlaps(camera))
+            assertTrue("The smaller visual control is not clipped", target.height > 0f)
+        }
+        // Force actual parent and sibling remeasurement; idle-only checks cannot catch feedback.
+        repeat(3) {
+            rule.runOnIdle { width.value = 399 }
+            rule.waitForIdle()
+            rule.runOnIdle { width.value = 400 }
+            rule.waitForIdle()
+            same(cleared, contentBounds())
+        }
+        menu.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        keys.press(KeyEvent.KEYCODE_BUTTON_A)
+        menu.assertIsFocused()
+        assertEquals("Controller A still opens the actual Menu", 1, menus)
+        for ((node, bounds) in listOf(menu to cleared[1], back to cleared[2])) {
+            for (sign in listOf(-1, 1)) {
+                // Compact visuals still have Android's 48dp minimum touch area. Exercise its
+                // physical edges, including points beyond the visible bounds when necessary.
+                val point = Offset(bounds.width / 2f, bounds.height / 2f + sign * 23f * pixels)
+                assertFalse("The effective touch edge clears the camera", camera.contains(
+                    Offset(bounds.left + point.x, bounds.top + point.y)))
+                node.performTouchInput { click(point) }
+            }
+        }
+        assertEquals("Both edges of Menu's minimum touch target activate", 3, menus)
+        assertEquals("Both edges of Back's minimum touch target activate", 2, backs)
+        back.performClick()
+        assertEquals("Touch still activates the actual Back action", 3, backs)
+        rule.runOnIdle { cameras.value = emptyList() }
+        rule.waitForIdle()
+        same(normal, contentBounds())
+    }
+
+    @Test fun centeredHeaderClearsATitleHoleAndSettlesAfterRemeasure() = scene(fullNotch = false)
+    @Test fun centeredHeaderClearsATopNotchWithoutShrinkingEitherAction() = scene(fullNotch = true)
+}

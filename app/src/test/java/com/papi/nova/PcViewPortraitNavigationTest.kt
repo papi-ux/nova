@@ -423,6 +423,62 @@ class PcViewPortraitNavigationTest {
         assertTrue(update.height >= 48 * activity.resources.displayMetrics.density - 1)
     }
 
+    @Test fun portraitHeaderSharesOneSurfaceWithMenuAtTheStart() {
+        val activity = open().get()
+        val toggle = menu(activity)
+        val title = activity.findViewById<TextView>(R.id.pcViewTitle)
+        val subtitle = activity.findViewById<TextView>(R.id.pcViewSectionLabel)
+        val header = activity.findViewById<View>(R.id.pcViewHeader)
+        val row = toggle.parent as View
+        assertTrue("Nova identity and Menu share one header surface", row.parent is MaterialCardView)
+        val surface = row.parent as MaterialCardView
+        val buttonPosition = IntArray(2); val titlePosition = IntArray(2)
+        toggle.getLocationInWindow(buttonPosition); title.getLocationInWindow(titlePosition)
+        assertTrue("Menu precedes the Nova title at the left", buttonPosition[0] + toggle.width <= titlePosition[0])
+        assertSame("Title shares the same header row", row, title.parent.parent)
+        assertSame("Subtitle shares the same identity column", title.parent, subtitle.parent)
+        assertEquals("The shared header fills its content width", header.width - header.paddingLeft - header.paddingRight, surface.width)
+        assertTrue("The header is one touch target", surface.isClickable)
+        assertFalse("Controller navigation keeps one Menu stop", surface.isFocusable)
+        assertFalse(activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+        surface.performClick(); idleAndLayout(activity)
+        assertTrue(activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+        assertTrue(toggle.hasFocus())
+        press(activity, KeyEvent.KEYCODE_BUTTON_B)
+        assertFalse(activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+        assertTrue(toggle.hasFocus())
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h700dp-port")
+    fun narrowLargeTextHostsHeaderOpensFromItsIdentityText() {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putString("nova_control_size", "large")
+            .putInt(com.papi.nova.ui.NovaFontScalePreferences.KEY_SCALE_PERCENT, 130).commit()
+        val activity = open().get()
+        val title = activity.findViewById<TextView>(R.id.pcViewTitle)
+        val subtitle = activity.findViewById<TextView>(R.id.pcViewSectionLabel)
+        val toggle = menu(activity)
+        val visible = Rect()
+        assertTrue("Menu stays entirely visible on a narrow phone", toggle.getGlobalVisibleRect(visible))
+        assertEquals(toggle.width, visible.width())
+        assertEquals(toggle.height, visible.height())
+        assertEquals("Subtitle keeps the complete identity text", subtitle.text.length,
+            subtitle.layout.getLineEnd(subtitle.layout.lineCount - 1))
+        val position = IntArray(2); title.getLocationInWindow(position)
+        val x = position[0] + title.width / 2f; val y = position[1] + title.height / 2f
+        val time = android.os.SystemClock.uptimeMillis()
+        for (action in listOf(android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP)) {
+            val event = android.view.MotionEvent.obtain(time, time + if (action == android.view.MotionEvent.ACTION_UP) 30 else 0,
+                action, x, y, 0)
+            try { activity.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        idleAndLayout(activity)
+        assertTrue("A real touch on Nova opens the shared header menu", activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+        press(activity, KeyEvent.KEYCODE_BUTTON_B)
+        assertFalse(activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+    }
+
     companion object {
         @JvmStatic @BeforeClass fun suppressLogs() { TestLogSuppressor.install() }
     }

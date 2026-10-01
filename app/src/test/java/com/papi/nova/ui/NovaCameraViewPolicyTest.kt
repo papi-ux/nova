@@ -1,0 +1,282 @@
+package com.papi.nova.ui
+
+import android.app.Activity
+import android.app.UiModeManager
+import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Rect
+import android.view.View
+import android.view.ViewGroup
+import android.view.LayoutInflater
+import android.view.WindowManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.core.graphics.Insets
+import androidx.core.view.WindowInsetsCompat
+import androidx.preference.PreferenceManager
+import com.google.android.material.card.MaterialCardView
+import com.papi.nova.R
+import com.papi.nova.shadows.ShadowGameManager
+import com.papi.nova.utils.UiHelper
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33], shadows = [ShadowGameManager::class])
+class NovaCameraViewPolicyTest {
+    private fun bars(hidden: Boolean, ime: Int, tv: Boolean = false, caption: Int = 0) {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        try {
+            NovaSystemBars.markManaged(activity)
+            PreferenceManager.getDefaultSharedPreferences(activity).edit()
+                .putBoolean(NovaSystemBars.KEY_HIDE_SYSTEM_BARS, hidden).commit()
+            if (tv) shadowOf(activity.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager)
+                .setCurrentModeType(Configuration.UI_MODE_TYPE_TELEVISION)
+            val target = LinearLayout(activity)
+            activity.setContentView(target)
+            UiHelper.notifyNewRootView(activity, target, localizeCamera = true)
+            val insets = WindowInsetsCompat.Builder()
+                .setInsets(WindowInsetsCompat.Type.systemBars(), Insets.of(12, 24, 14, 18))
+                .setVisible(WindowInsetsCompat.Type.systemBars(), true)
+                .setInsets(WindowInsetsCompat.Type.captionBar(), Insets.of(0, caption, 0, 0))
+                .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, ime))
+                .setVisible(WindowInsetsCompat.Type.ime(), ime > 0)
+                .build()
+            target.dispatchApplyWindowInsets(insets.toWindowInsets()!!)
+            if (tv) {
+                val scale = activity.resources.displayMetrics.density
+                assertEquals((48 * scale + 0.5f).toInt(), target.paddingLeft)
+                assertEquals((27 * scale + 0.5f).toInt(), target.paddingTop)
+            } else {
+                assertEquals(if (hidden) 0 else 12, target.paddingLeft)
+                assertEquals(if (hidden) caption else maxOf(24, caption), target.paddingTop)
+                assertEquals(if (hidden) ime else maxOf(18, ime), target.paddingBottom)
+            }
+        } finally { controller.pause().stop().destroy() }
+    }
+
+    @Test fun legacyRoutesKeepShortEdgesWhileLocalizedRoutesUseAlways() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        try {
+            val target = LinearLayout(activity)
+            activity.setContentView(target)
+            UiHelper.notifyNewRootView(activity, target)
+            assertEquals(WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES,
+                activity.window.attributes.layoutInDisplayCutoutMode)
+            UiHelper.notifyNewRootView(activity, target, localizeCamera = true)
+            assertEquals(WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS,
+                activity.window.attributes.layoutInDisplayCutoutMode)
+        } finally { controller.pause().stop().destroy() }
+    }
+
+    @Test fun visibleBarsRemainSafetyInsets() = bars(hidden = false, ime = 0)
+    @Test fun hiddenTransientBarsDoNotMoveTheControls() = bars(hidden = true, ime = 0)
+    @Test fun imeRemainsSafetyWhileBarsAreHidden() = bars(hidden = true, ime = 240)
+    @Test fun hiddenBarsStillPreserveDesktopCaptionChrome() = bars(hidden = true, ime = 0, caption = 36)
+    @Test fun televisionTitleSafePaddingIsPreserved() = bars(hidden = false, ime = 0, tv = true)
+
+    private fun layout(root: LinearLayout) {
+        root.measure(View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+        root.layout(0, 0, 600, 600)
+        root.viewTreeObserver.dispatchOnGlobalLayout()
+    }
+
+    @Test fun nativeRailInsertsOneLocalSlotAndRestoresItWithoutShrinkingTargets() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        try {
+            val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+            var calls = 0
+            val buttons = (0..3).map { index -> TextView(activity).apply {
+                text = "Action $index"
+                setOnClickListener { calls++ }
+                root.addView(this, LinearLayout.LayoutParams(240, 64))
+            } }
+            activity.setContentView(root)
+            layout(root)
+            val at = IntArray(2).also { buttons[2].getLocationInWindow(it) }
+            var cameras = listOf(Rect(at[0], at[1] + 2, at[0] + 32, at[1] + 22))
+            NovaCameraViewAvoidance.install(root) { cameras }
+            repeat(4) { layout(root) }
+            assertEquals(22, (buttons[2].layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+            assertEquals(0, (buttons[0].layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+            assertEquals(0, (buttons[3].layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+            assertEquals(240, buttons[2].width)
+            assertEquals(64, buttons[2].height)
+            buttons[2].performClick()
+            assertEquals(1, calls)
+            cameras = emptyList()
+            repeat(3) { layout(root) }
+            assertEquals(0, (buttons[2].layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+        } finally { controller.pause().stop().destroy() }
+    }
+
+    @Test fun actualHostsManageProtectsItsWholeTargetWithoutMovingTheList() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        try {
+            activity.setTheme(R.style.AppTheme)
+            val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+            val list = object : RecyclerView(activity) {
+                override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) { }
+            }.apply { layoutManager = LinearLayoutManager(activity) }
+            val item = LayoutInflater.from(activity).inflate(R.layout.pc_grid_item, list, false)
+            val manage = item.findViewById<View>(R.id.server_actions_button)
+            var calls = 0
+            manage.setOnClickListener { calls++ }
+            list.addView(item)
+            root.addView(list, LinearLayout.LayoutParams(600, 500))
+            activity.setContentView(root)
+            layout(root)
+            // Real RecyclerView item layout is driven by its manager; retain the actual inflated
+            // card/Manage tree and lay out this single item deterministically for camera geometry.
+            fun cardLayout() {
+                layout(root)
+                item.measure(View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(500, View.MeasureSpec.AT_MOST))
+                item.layout(0, 0, 600, item.measuredHeight)
+                root.viewTreeObserver.dispatchOnGlobalLayout()
+            }
+            cardLayout()
+            val before = IntArray(2).also { manage.getLocationInWindow(it) }
+            val height = manage.height
+            assertEquals("actual XML Manage target is 48dp", (48 * activity.resources.displayMetrics.density + 0.5f).toInt(), height)
+            val camera = Rect(before[0], before[1], before[0] + 2, before[1] + 3)
+            NovaCameraViewAvoidance.install(root) { listOf(camera) }
+            repeat(5) { cardLayout() }
+            val after = IntArray(2).also { manage.getLocationInWindow(it) }
+            assertTrue("the 48dp target edge, outside the centered glyph, clears the camera", after[1] >= camera.bottom)
+            assertEquals("the camera cannot insert a gap before the entire RecyclerView", 0,
+                (list.layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+            assertEquals("Manage keeps its full target height", height, manage.height)
+            manage.performClick()
+            assertEquals(1, calls)
+        } finally { controller.pause().stop().destroy() }
+    }
+
+    @Test @Config(qualifiers = "w1000dp-h600dp-land")
+    fun actualLandscapeRailKeepsViewportAndProtectsBoundedChildren() {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        try {
+            activity.setTheme(R.style.AppTheme)
+            val root = LayoutInflater.from(activity).inflate(R.layout.activity_pc_view, null)
+            val rail = root.findViewById<View>(R.id.dashboardCockpitRail)
+            val action = root.findViewById<View>(R.id.profilesButton)
+            val label = root.findViewById<TextView>(R.id.pcViewSectionLabel)
+            var calls = 0
+            action.setOnClickListener { calls++ }
+            activity.setContentView(root)
+            fun relayout() {
+                root.measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+                root.layout(0, 0, 1000, 600)
+                root.viewTreeObserver.dispatchOnGlobalLayout()
+            }
+            relayout()
+            assertTrue("actual NestedScrollView is a focusable viewport", rail.isFocusable)
+            val railAt = IntArray(2).also { rail.getLocationInWindow(it) }
+            val actionAt = IntArray(2).also { action.getLocationInWindow(it) }
+            val targetHeight = action.height
+            val camera = Rect(0, actionAt[1] + 2, actionAt[0] + 4, actionAt[1] + 22)
+            var cameras = listOf(camera)
+            NovaCameraViewAvoidance.install(root) { cameras }
+            repeat(5) { relayout() }
+            assertEquals("camera clearance cannot move the entire scrolling viewport", 0,
+                (rail.layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+            assertEquals(railAt.toList(), IntArray(2).also { rail.getLocationInWindow(it) }.toList())
+            val after = IntArray(2).also { action.getLocationInWindow(it) }
+            assertTrue(after[1] >= camera.bottom)
+            assertEquals(targetHeight, action.height)
+            assertTrue(action.requestFocus())
+            action.performClick()
+            assertEquals(1, calls)
+            cameras = emptyList()
+            repeat(4) { relayout() }
+            val profileBeforeScroll = IntArray(2).also { action.getLocationInWindow(it) }
+            val baselineMargin = (action.layoutParams as ViewGroup.MarginLayoutParams).topMargin
+            assertEquals("the actual profile row keeps its XML 2dp gap", (2 * activity.resources.displayMetrics.density + 0.5f).toInt(), baselineMargin)
+            val physicalFloor = kotlin.math.ceil(48 * activity.resources.displayMetrics.density).toInt()
+            val extraReach = ((physicalFloor - action.height).coerceAtLeast(0) + 1) / 2
+            val scrollCamera = Rect(0, profileBeforeScroll[1] - extraReach - 2,
+                profileBeforeScroll[0] + 4, profileBeforeScroll[1] - extraReach - 1)
+            cameras = listOf(scrollCamera)
+            repeat(5) { relayout() }
+            assertEquals("the gap camera adds no pending clearance before scrolling", baselineMargin,
+                (action.layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+            assertEquals("the gap camera leaves the profile's initial placement intact", profileBeforeScroll.toList(),
+                IntArray(2).also { action.getLocationInWindow(it) }.toList())
+            val scrollRail = rail as androidx.core.widget.NestedScrollView
+            scrollRail.scrollTo(0, 24)
+            assertEquals("the real rail can scroll", 24, scrollRail.scrollY)
+            org.robolectric.util.ReflectionHelpers.callInstanceMethod<Void>(root.viewTreeObserver, "dispatchOnScrollChanged")
+            assertTrue("scroll alone requests local action clearance", (action.layoutParams as ViewGroup.MarginLayoutParams).topMargin > baselineMargin)
+            repeat(5) { relayout() }
+            val profileAfterScroll = IntArray(2).also { action.getLocationInWindow(it) }
+            assertTrue("scrolling a real target into a side camera refreshes local clearance", profileAfterScroll[1] >= scrollCamera.bottom)
+            cameras = emptyList()
+            scrollRail.scrollTo(0, 0)
+            repeat(4) { relayout() }
+            val labelAt = IntArray(2).also { label.getLocationInWindow(it) }
+            val labelCamera = Rect(0, labelAt[1], labelAt[0] + 2, labelAt[1] + label.height)
+            cameras = listOf(labelCamera)
+            repeat(5) { relayout() }
+            val labelAfter = IntArray(2).also { label.getLocationInWindow(it) }
+            assertTrue("a viewport's focusability cannot suppress its ordinary status glyph", labelAfter[1] >= labelCamera.bottom)
+            assertEquals(0, (rail.layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+        } finally { controller.pause().stop().destroy() }
+    }
+
+    private fun cardHeader(fullNotch: Boolean) {
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        try {
+            activity.setTheme(R.style.AppTheme)
+            val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+            var aliasCalls = 0
+            val card = MaterialCardView(activity).apply { setOnClickListener { aliasCalls++ } }
+            val header = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+            var calls = 0
+            val menu = TextView(activity).apply { text = "Menu"; isFocusable = true; setOnClickListener { calls++ } }
+            header.addView(menu, LinearLayout.LayoutParams(100, 48))
+            val titleColumn = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+            val title = TextView(activity).apply { text = "Nova" }
+            titleColumn.addView(title, LinearLayout.LayoutParams(100, 48))
+            header.addView(titleColumn, LinearLayout.LayoutParams(100, 48))
+            card.addView(header)
+            root.addView(card, LinearLayout.LayoutParams(240, ViewGroup.LayoutParams.WRAP_CONTENT))
+            activity.setContentView(root)
+            layout(root)
+            val at = IntArray(2).also { menu.getLocationInWindow(it) }
+            val camera = if (fullNotch) Rect(0, at[1], 600, at[1] + 80)
+                else Rect(90, at[1], 150, at[1] + 80)
+            NovaCameraViewAvoidance.install(root) { listOf(camera) }
+            repeat(5) { layout(root) }
+            assertEquals("the shared card gets one notch slot", 80, (card.layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+            assertEquals("the title does not add the camera twice", 0, (title.layoutParams as ViewGroup.MarginLayoutParams).topMargin)
+            val menuAt = IntArray(2).also { menu.getLocationInWindow(it) }
+            assertTrue(menuAt[1] >= camera.bottom)
+            assertEquals("Menu retains its full 48dp target", 48, menu.height)
+            assertTrue(menu.requestFocus())
+            assertTrue(menu.isFocused)
+            menu.performClick()
+            card.performClick()
+            assertEquals(1, calls)
+            assertEquals("the full bar remains the intended touch alias", 1, aliasCalls)
+        } finally { controller.pause().stop().destroy() }
+    }
+
+    @Test fun nativeClickableHeaderProtectsCentralHoleOnce() = cardHeader(false)
+    @Test fun nativeClickableHeaderProtectsFullNotchOnce() = cardHeader(true)
+}

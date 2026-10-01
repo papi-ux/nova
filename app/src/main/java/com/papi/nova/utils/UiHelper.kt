@@ -24,6 +24,7 @@ import com.papi.nova.R
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.NovaSystemBars
+import com.papi.nova.ui.NovaCameraViewAvoidance
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaSurfaces
 import java.util.Locale
@@ -174,6 +175,8 @@ object UiHelper {
     fun notifyNewRootView(
         activity: Activity,
         insetTarget: View = activity.findViewById(android.R.id.content),
+        localizeCamera: Boolean = false,
+        padSystemBars: Boolean = true,
     ) {
         val rootView = activity.findViewById<View>(android.R.id.content)
         val modeMgr = activity.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
@@ -181,11 +184,18 @@ object UiHelper {
         setGameModeStatus(activity, false, false)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            activity.window.attributes.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            activity.window.attributes = activity.window.attributes.apply {
+                layoutInDisplayCutoutMode = if (localizeCamera && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                } else WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
 
-        if (modeMgr.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) {
+        if (!padSystemBars) {
+            // Compose keeps bars/IME/TV safety inside its background and handles cameras locally.
+            insetTarget.setOnApplyWindowInsetsListener(null)
+            insetTarget.setPadding(0, 0, 0, 0)
+        } else if (modeMgr.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) {
             val scale = activity.resources.displayMetrics.density
             val verticalPaddingPixels = (TV_VERTICAL_PADDING_DP * scale + 0.5f).toInt()
             val horizontalPaddingPixels = (TV_HORIZONTAL_PADDING_DP * scale + 0.5f).toInt()
@@ -197,6 +207,19 @@ object UiHelper {
                 horizontalPaddingPixels,
                 verticalPaddingPixels,
             )
+        } else if (localizeCamera) {
+            ViewCompat.setOnApplyWindowInsetsListener(insetTarget) { view, insets ->
+                val hidden = NovaSystemBars.isManaged(activity) && NovaSystemBars.isHidden(activity)
+                val types = (if (hidden) WindowInsetsCompat.Type.captionBar() else WindowInsetsCompat.Type.systemBars()) or
+                    WindowInsetsCompat.Type.ime()
+                val bars = insets.getInsets(types)
+                val waterfall = insets.displayCutout?.waterfallInsets ?: androidx.core.graphics.Insets.NONE
+                view.setPadding(maxOf(bars.left, waterfall.left), maxOf(bars.top, waterfall.top),
+                    maxOf(bars.right, waterfall.right), maxOf(bars.bottom, waterfall.bottom))
+                insets
+            }
+            NovaCameraViewAvoidance.install(insetTarget)
+            ViewCompat.requestApplyInsets(insetTarget)
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             insetTarget.setOnApplyWindowInsetsListener {
                     view: View,
@@ -228,6 +251,12 @@ object UiHelper {
             // hid what sat under them. The bars are transparent now, so keep it clear.
             padForSystemBars(insetTarget)
         }
+    }
+
+    /** Background at the edge; the Compose screen owns its bar/IME/TV and per-control camera safety. */
+    @JvmStatic
+    fun notifyEdgeToEdgeComposeRoot(activity: Activity) {
+        notifyNewRootView(activity, localizeCamera = true, padSystemBars = false)
     }
 
     /**

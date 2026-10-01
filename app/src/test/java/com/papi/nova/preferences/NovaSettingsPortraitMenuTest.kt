@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -33,6 +34,77 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33], qualifiers = "w412dp-h915dp-port")
 class NovaSettingsPortraitMenuTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test fun portraitMenuIsAtTheLeftAndKeepsItsControllerStop() {
+        val definitions = NovaSettingDefinitions.load(rule.activity)
+        var selected by mutableStateOf(definitions.categories.first().key)
+        var backs = 0
+        val keys = rule.setPanelContent {
+            NovaSettingsContent(
+                state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), selected, ""),
+                title = "Settings", subtitle = "Test", onBack = { backs++ }, onOpenLegacy = {},
+                onSearch = {}, onClearSearch = {}, onCategory = { selected = it }, headerActions = emptyList(),
+                onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
+            )
+        }
+        val menu = rule.onNodeWithTag("nova-portrait-menu-toggle")
+        val menuBounds = menu.fetchSemanticsNode().boundsInRoot
+        val titleBounds = rule.onNodeWithText("Settings").fetchSemanticsNode().boundsInRoot
+        val backBounds = rule.onNode(hasClickAction() and hasText("Back")).fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertTrue("The portrait navigation opens from the left", menuBounds.right <= titleBounds.left)
+        org.junit.Assert.assertTrue("Back remains a separate complete control", titleBounds.right <= backBounds.left)
+        menu.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        keys.press(KeyEvent.KEYCODE_DPAD_CENTER)
+        rule.onNodeWithText("Hide menu").assertIsDisplayed()
+        menu.assertIsFocused()
+        rule.onNode(hasClickAction() and hasText("Back")).performClick()
+        org.junit.Assert.assertEquals(1, backs)
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h640dp-port")
+    fun narrowLargeTextSavedSetupHeaderKeepsItsTitleAndBothActions() {
+        val definitions = NovaSettingDefinitions.load(rule.activity)
+        val title = rule.activity.getString(com.papi.nova.R.string.profile_manager_edit_profile_with,
+            "Weekend games on my handheld and living room television")
+        rule.setPanelContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.3f)) {
+                com.papi.nova.ui.compose.NovaControlSizeHost(com.papi.nova.ui.NovaControlSize.Large) {
+                    NovaSettingsContent(
+                        state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), definitions.categories.first().key, ""),
+                        title = title, subtitle = "Test", onBack = {}, onOpenLegacy = {},
+                        onSearch = {}, onClearSearch = {}, onCategory = {}, headerActions = emptyList(),
+                        onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
+                    )
+                }
+            }
+        }
+        val bar = rule.onNodeWithTag("nova-portrait-menu-bar").fetchSemanticsNode().boundsInRoot
+        for (node in listOf(rule.onNodeWithTag("nova-portrait-menu-toggle"),
+            rule.onNode(hasClickAction() and hasText("Back")))) {
+            val bounds = node.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            org.junit.Assert.assertTrue("Header action stays inside the narrow surface", bounds.left >= bar.left && bounds.right <= bar.right)
+            val complete = node.getUnclippedBoundsInRoot()
+            val completeBar = rule.onNodeWithTag("nova-portrait-menu-bar").getUnclippedBoundsInRoot()
+            org.junit.Assert.assertTrue("The full action remains inside the header", complete.left >= completeBar.left && complete.right <= completeBar.right && complete.top >= completeBar.top && complete.bottom <= completeBar.bottom)
+            val touch = node.fetchSemanticsNode().touchBoundsInRoot
+            val floor = 48 * rule.activity.resources.displayMetrics.density
+            org.junit.Assert.assertTrue("Large header actions preserve the full 48dp touch target", touch.width >= floor && touch.height >= floor)
+        }
+        val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        rule.onNodeWithText(title).assertIsDisplayed().performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        org.junit.Assert.assertEquals(1, layouts.size)
+        val titleBounds = rule.onNodeWithText(title).getUnclippedBoundsInRoot()
+        val screen = rule.onRoot().getUnclippedBoundsInRoot()
+        val header = rule.onNodeWithTag("nova-portrait-menu-bar").getUnclippedBoundsInRoot()
+        org.junit.Assert.assertTrue("The complete title is inside the measured header: $titleBounds / $header",
+            titleBounds.left >= header.left && titleBounds.right <= header.right && titleBounds.top >= header.top && titleBounds.bottom <= header.bottom)
+        org.junit.Assert.assertTrue("The complete header is inside the real narrow viewport: $header / $screen",
+            header.left >= screen.left && header.right <= screen.right && header.top >= screen.top && header.bottom <= screen.bottom)
+        println("saved-header titleSize=${layouts.single().size} overflow=${layouts.single().hasVisualOverflow} widthOverflow=${layouts.single().didOverflowWidth} heightOverflow=${layouts.single().didOverflowHeight} paragraph=${layouts.single().multiParagraph.width}/${layouts.single().multiParagraph.height} exceeded=${layouts.single().multiParagraph.didExceedMaxLines} lineEnd=${layouts.single().getLineEnd(0)} lines=${layouts.single().lineCount} bar=$bar title=$titleBounds screen=$screen")
+        org.junit.Assert.assertFalse("The complete saved-setup name wraps without clipping", layouts.single().hasVisualOverflow)
+    }
 
     @Test fun portraitMenuGroupsSearchAndLegacyAndShowsCategoriesBeforeShortcuts() {
         val definitions = NovaSettingDefinitions.load(rule.activity)
