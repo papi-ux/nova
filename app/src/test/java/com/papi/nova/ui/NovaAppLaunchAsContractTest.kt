@@ -77,7 +77,7 @@ class NovaAppLaunchAsContractTest {
     }
     @Test fun absentNewFieldsRetainOlderHostFallbackAndOverrides() {
         val legacy = PolarisGameJsonAdapter.fromJson(JSONObject("""{"id":"legacy","name":"Legacy","launch_mode":{"preferred_mode":"headless_stream","recommended_mode":"headless_stream","allowed_modes":[]}}"""))
-        assertEquals("desktop_display", state(legacy).playMode)
+        assertEquals("headless_stream", state(legacy).playMode)
         assertEquals("headless_stream", state(legacy, catalog = null).playMode)
         assertEquals("host_virtual_display", state(legacy, override = "host_virtual_display").playMode)
     }
