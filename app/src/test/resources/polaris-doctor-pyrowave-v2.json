@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "result_id": "fixture-pyrowave-result",
+  "status": "needs_action",
+  "severity": "warning",
+  "traffic_light": "amber",
+  "primary_issue": "pyrowave_starved",
+  "evidence": [
+    {"id": "packet_loss", "source": "media_transport", "status": "pass", "value": 0},
+    {"id": "latency", "source": "stream_stats", "status": "pass", "value": 4},
+    {"id": "bitrate", "source": "stream_stats", "status": "watch", "value": 20000}
+  ],
+  "safe_recovery_action": {
+    "id": "restore_quality",
+    "label": "Auto Fix",
+    "capability": "auto_fix",
+    "kind": "live_tuning",
+    "destructive": false,
+    "requires_confirmation": false,
+    "requires_owner": true,
+    "allowed_in_viewer_mode": false,
+    "endpoint": "/api/doctor/action",
+    "method": "POST",
+    "unavailable_reason": "",
+    "payload_preview": {
+      "action_id": "restore_quality",
+      "source_result_id": "fixture-pyrowave-result",
+      "target_bitrate_kbps": 100148,
+      "goal_source": "pyrowave_advice",
+      "app_session_id": "fixture-session",
+      "session_generation": 41,
+      "controller_revision": 3,
+      "evidence_revision": 12
+    },
+    "rollback": "Undo restores the live bitrate and Auto Quality state that were active before this Doctor run.",
+    "verification": {
+      "mode": "graduated_live_telemetry",
+      "delay_seconds": 8,
+      "endpoint": "/api/doctor/action",
+      "success_when": ["network_risk stays clear", "packet_loss_pct <= 2", "latency_ms < 45", "PyroWave's advised bitrate is reached"]
+    },
+    "paired_endpoint": "",
+    "owner_tuning_allowed": false,
+    "undo": {"supported": true, "endpoint": "/api/doctor/action", "paired_endpoint": ""}
+  }
+}
