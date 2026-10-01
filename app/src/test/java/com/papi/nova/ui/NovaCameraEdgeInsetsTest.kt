@@ -11,6 +11,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.TestLogSuppressor
 import com.papi.nova.preferences.NovaSettingsFeatureFlags
 import com.papi.nova.preferences.StreamSettings
+import com.papi.nova.shadows.ShadowGameManager
+import com.papi.nova.shadows.ShadowMoonBridge
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,7 +25,7 @@ import org.robolectric.annotation.Config
 
 /** The production Settings Activity must not turn one camera into a screen-wide gutter. */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@Config(sdk = [33], shadows = [ShadowMoonBridge::class, ShadowGameManager::class])
 class NovaCameraEdgeInsetsTest {
     private fun settingsWithCamera(safe: Insets, camera: Rect, check: (View) -> Unit) {
         val context = ApplicationProvider.getApplicationContext<Context>()
