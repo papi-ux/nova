@@ -964,6 +964,29 @@ void testFixedBitrateNeverReplays() {
     require(rejected.setFixedBitrate(15000, observed).status == DeckPolarisRequestStatus::CertMismatch && wrong.requests == 0);
 }
 
+void testPyrowaveAdvicePreflight() {
+    using namespace nova::deck::polaris;
+    QTemporaryDir directory;
+    const auto server=createIdentity(directory.path(),"server"),client=createIdentity(directory.path(),"client");
+    TlsServer https(server);https.trustClient(client.cert);require(https.listen(QHostAddress::LocalHost,0));
+    DeckPolarisClient transport({"127.0.0.1",https.serverPort()},
+        {client.cert.toStdString(),client.key.toStdString(),server.cert.toStdString()},std::chrono::milliseconds(700));
+    bool advertised=true,stale=false;int adviceReads=0;
+    https.handler=[&](const QUrl& url)->std::pair<int,QByteArray> {
+        if(url.path()=="/polaris/v1/capabilities") return {200,advertised ? R"({"features":{"pyrowave_advice_v1":true}})" : R"({"features":{"pyrowave_advice_v1":"true"}})"};
+        require(url.path()=="/polaris/v1/pyrowave/advice");++adviceReads;
+        QUrlQuery query(url);require(query.queryItemValue("width")=="1920" && query.queryItemValue("height")=="1080" && query.queryItemValue("fps")=="120" && query.queryItemValue("chroma")=="420");
+        return {200,stale ? R"({"version":1,"available":true,"width":1280,"height":720,"fps":60,"raise_goal_kbps":100000,"cap_kbps":300000,"raise_goal_limited_by":"advice"})"
+            : R"({"version":1,"available":true,"width":1920,"height":1080,"fps":120,"raise_goal_kbps":201125,"cap_kbps":300000,"raise_goal_limited_by":"advice"})"};
+    };
+    const auto good=transport.fetchPyrowaveAdvice(1920,1080,120);
+    require(good.ok() && good.value->value("raise_goal_kbps").toInt()==201125 && adviceReads==1);
+    stale=true;require(!transport.fetchPyrowaveAdvice(1920,1080,120).ok() && adviceReads==2);
+    advertised=false;require(!transport.fetchPyrowaveAdvice(1920,1080,120).ok() && adviceReads==2);
+    const auto before=https.requests;require(!transport.fetchPyrowaveAdvice(1920,1080,120,[]{return true;}).ok() && https.requests==before);
+    for(const auto& method:https.methods)require(method=="GET");
+}
+
 void testSessionEventTransport() {
     using namespace nova::deck::polaris;
     QTemporaryDir directory;
@@ -1054,6 +1077,7 @@ void testSessionEventTransport() {
     https.eventStream = [&](QSslSocket* socket) { eventSocket = socket; socket->write(head); };
     int sequence = 0, applied = 20000; bool owned = true;
     status.handler = [&](const QUrl& url) -> std::pair<int, QByteArray> {
+        if (url.path() == "/polaris/v1/capabilities") return {200,R"({"features":{"manual_bitrate_max_kbps":500000}})"};
         require(url.path() == "/polaris/v1/session/status");
         const QJsonObject live{{"version", 1}, {"scope", "host"}, {"enabled", false}, {"supported", true},
             {"state", "off"}, {"configuration_revision", QString(64, 'a')}, {"host_instance", "instance"},
@@ -1161,6 +1185,7 @@ void testDoctorTransportAndFactory() {
     // the fixed paired POST and readback, without touching a real host.
     int sequence = 0, actions = 0; bool owned = true;
     https.handler = [&](const QUrl& url) -> std::pair<int, QByteArray> {
+        if (url.path() == "/polaris/v1/capabilities") return {404,R"({})"}; // Legacy status still works.
         if (url.path() == "/polaris/v1/session/status") {
             auto e = doctor_fixture::envelope(++sequence); e["owned_by_client"] = owned;
             return {200, QJsonDocument(e).toJson(QJsonDocument::Compact)};
@@ -1410,6 +1435,7 @@ int main(int argc, char** argv) {
     testHudStatusRead();
     testLiveTuningNeverReplays();
     testFixedBitrateNeverReplays();
+    testPyrowaveAdvicePreflight();
     testSessionEventTransport();
     testDoctorTransportAndFactory();
     return 0;

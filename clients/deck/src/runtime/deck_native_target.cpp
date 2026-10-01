@@ -113,9 +113,10 @@ DeckNativeTargetResolver nativeTargetResolver(
                 auto observerClient = std::make_shared<polaris::DeckPolarisClient>(
                     backend::polarisClientForHost(savedIdentity, savedHost, port, std::chrono::milliseconds(2000)));
                 const auto caps=observerClient->fetchCapabilities();
-                if (!caps.ok()) return {};
+                // Optional metadata failures keep the legacy300Mbps/video-unit path.
+                // A later status read still owns permission, identity and retry admission.
                 return DeckHudHostTarget{
-                    [observerClient, supported=caps.value->bitrateUnitsV1, maximum=caps.value->streamCapabilities.manualMaximumKbps](const std::function<bool()>& cancelled) {
+                    [observerClient, supported=caps.ok() && caps.value->bitrateUnitsV1, maximum=caps.ok() ? caps.value->streamCapabilities.manualMaximumKbps : 300000](const std::function<bool()>& cancelled) {
                         auto result=observerClient->fetchHostTelemetry(cancelled);
                         if (result.ok()) { result.value->bitrateUnitsSupported=supported; result.value->manualMaximumKbps=maximum; }
                         return result;

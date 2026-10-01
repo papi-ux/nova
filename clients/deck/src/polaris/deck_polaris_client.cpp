@@ -882,7 +882,7 @@ DeckPolarisResult<bool> DeckPolarisClient::setFixedBitrate(int bitrateKbps,
 }
 
 DeckPolarisResult<QVariantMap> DeckPolarisClient::fetchPyrowaveAdvice(int width, int height, int fps, const std::function<bool()>& cancelled) const {
-    if (width < 1 || width > 16384 || height < 1 || height > 16384 || fps < 1 || fps > 1000) return {};
+    if (width < 1 || width > 16384 || height < 1 || height > 16384 || fps < 1 || fps > 1000 || (cancelled && cancelled())) return {};
     const auto caps = fetchCapabilities();
     if (!caps.ok() || (cancelled && cancelled()) || !caps.value->pyrowaveAdvice) return {};
     // Match the supported pyrowave-186f0393-sdr420-v1 native profile.
