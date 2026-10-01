@@ -1431,7 +1431,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     status = strictString(item, "status"),
                     source = strictString(item, "source"),
                     value = strictDouble(item, "value"),
-                    detail = strictString(item, "detail")
+                    detail = strictString(item, "detail"),
+                    valueValid = item.has("value") && (item.isNull("value") || strictDouble(item, "value") != null)
                 )
             }
         }

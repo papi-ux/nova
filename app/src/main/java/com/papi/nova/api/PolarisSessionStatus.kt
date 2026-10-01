@@ -379,7 +379,8 @@ data class PolarisSessionStatus(
             val status: String = "",
             val source: String = "",
             val value: Double? = null,
-            val detail: String = ""
+            val detail: String = "",
+            val valueValid: Boolean = true
         )
 
         data class AiExplanation(
@@ -420,21 +421,23 @@ data class PolarisSessionStatus(
             verificationEndpoint == "/api/doctor/action"
         private val confirmedMediaLoss get() = evidenceItem("packet_loss").let { item ->
             evidenceSourceIs(item, "media_transport") &&
-                evidenceStatusIs(item, "fail")
+                evidenceStatusIs(item, "fail") && item?.valueValid == true &&
+                item.value?.let { it.isFinite() && it > 2.0 && it <= 100.0 } == true
         }
         private val confirmedRttPressure get() = evidenceItem("latency").let { item ->
             evidenceSourceIs(item, "stream_stats") &&
-                evidenceStatusIs(item, "fail") && (item?.value ?: 0.0) >= 45.0
+                evidenceStatusIs(item, "fail") && item?.valueValid == true &&
+                item.value?.let { it.isFinite() && it >= 45.0 } == true
         }
         private val cleanRtt get() = evidenceItem("latency").let { item ->
             evidenceSourceIs(item, "stream_stats") && evidenceStatusIs(item, "pass") &&
-                (item?.value ?: Double.POSITIVE_INFINITY) < 45.0
+                item?.valueValid == true && item.value?.let { it.isFinite() && it >= 0.0 && it < 45.0 } == true
         }
         private val lossEvidenceAllowsQualityRetry get() = evidenceItem("packet_loss").let { item ->
             (evidenceSourceIs(item, "media_transport") && evidenceStatusIs(item, "pass") &&
-                (item?.value ?: Double.POSITIVE_INFINITY) <= 2.0) ||
+                item?.valueValid == true && item.value?.let { it.isFinite() && it >= 0.0 && it <= 2.0 } == true) ||
                 (evidenceSourceIs(item, "unavailable") && evidenceStatusIs(item, "unknown") &&
-                    item?.value == null)
+                    item?.valueValid == true && item.value == null)
         }
         val networkPressureConfirmed get() = confirmedMediaLoss || confirmedRttPressure
         fun canExecuteWithLiveTuning(enabled: Boolean): Boolean = canExecuteAction &&
@@ -473,7 +476,11 @@ data class PolarisSessionStatus(
                     ceiling?.value?.toInt() == targetBitrateKbps
                 val pyrowaveGoal = primaryIssue == "pyrowave_starved" && actionGoalSourcePresent &&
                     actionGoalSourceTyped && actionGoalSource == "pyrowave_advice" &&
-                    targetBitrateKbps <= com.papi.nova.preferences.NovaBitrateAdvice.AUTOMATIC_MAX_KBPS
+                    targetBitrateKbps <= com.papi.nova.preferences.NovaBitrateAdvice.AUTOMATIC_MAX_KBPS &&
+                    evidenceItem("bitrate").let { bitrate ->
+                        evidenceSourceIs(bitrate, "stream_stats") && evidenceStatusIs(bitrate, "watch") &&
+                            bitrate?.valueValid == true && bitrate.value?.let { it.isFinite() && it > 0.0 } == true
+                    }
                 actionEnvelopeValid &&
                     actionCapability == "auto_fix" &&
                     actionKind == "live_tuning" &&
