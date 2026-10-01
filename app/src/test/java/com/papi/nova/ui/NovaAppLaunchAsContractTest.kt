@@ -39,6 +39,7 @@ class NovaAppLaunchAsContractTest {
             assertEquals(pin, result.playMode)
             assertFalse(pin, result.hasExplicitOverride)
             assertFalse(pin, result.showLaunchOptionsButton)
+            assertFalse(pin, result.usesSafeHostFallback)
         }
     }
     @Test fun perAppDenialWinsOverGloballyAvailableModeAndSavedOverride() {
@@ -48,6 +49,7 @@ class NovaAppLaunchAsContractTest {
             assertEquals(pin, "", result.playMode)
             assertFalse(pin, result.hasExplicitOverride)
             assertEquals(pin, 0, result.actionableLaunchModeCount)
+            assertEquals("The app's compositor is unavailable.", result.hostStreamDisplayModeUnavailableReason)
         }
     }
     @Test fun unknownOrMalformedPinCannotUseLegacyNoCatalogFallback() {
@@ -74,6 +76,18 @@ class NovaAppLaunchAsContractTest {
             assertTrue(result.hasExplicitOverride)
         }
         assertEquals("desktop_display", state(game("desktop_display", allowed = allowed)).playMode)
+    }
+    @Test fun explicitDenialAlsoBlocksWorkerShapedEntries() {
+        val denied = game("gamescope_stream", false).copy(
+            id = "space.15ab1141-72db-4e28-a138-463a0dd1d98a.big-picture-v1",
+            space = PolarisGame.SpaceContext("15ab1141-72db-4e28-a138-463a0dd1d98a", "Space", "big-picture-v1"),
+        )
+        assertFalse(state(denied).playEnabled)
+    }
+    @Test fun hostDefaultContractRetainsHostSelection() {
+        val inherited = game("host_default", allowed = modes)
+        assertEquals("desktop_display", state(inherited).playMode)
+        assertTrue(state(inherited).followsHostDefault)
     }
     @Test fun absentNewFieldsRetainOlderHostFallbackAndOverrides() {
         val legacy = PolarisGameJsonAdapter.fromJson(JSONObject("""{"id":"legacy","name":"Legacy","launch_mode":{"preferred_mode":"headless_stream","recommended_mode":"headless_stream","allowed_modes":[]}}"""))

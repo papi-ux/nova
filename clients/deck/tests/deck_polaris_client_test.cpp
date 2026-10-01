@@ -411,20 +411,21 @@ void testAppLaunchAsAuthority() {
         {"preferred_mode", "windowed_stream"}, {"recommended_mode", "windowed_stream"},
         {"allowed_modes", QJsonArray{"windowed_stream"}}, {"follows_host_default", false}};
     auto policy = policyFor(pin);
-    assert(policy.known && policy.hostDefault == "windowed_stream" && policy.allowed == std::vector<std::string>{"windowed_stream"});
+    assert(policy.known && !policy.followsHostDefault && policy.defaultAvailable && policy.hostDefault == "windowed_stream" && policy.allowed == std::vector<std::string>{"windowed_stream"});
     pin["launch_as_available"] = false;
     policy = policyFor(pin);
-    assert(policy.known && policy.allowed.empty());
+    assert(policy.known && policy.allowed.empty() && !policy.defaultAvailable && !policy.followsHostDefault);
+    assert(policy.unavailableReason == "The app's compositor is unavailable.");
     for (const auto& bad : QList<QJsonValue>{"true", 1, QJsonValue()}) {
         pin["launch_as_available"] = bad;
-        assert(policyFor(pin).allowed.empty());
+        assert(policyFor(pin).allowed.empty() && !policyFor(pin).defaultAvailable);
     }
     pin.remove("launch_as_available");
-    assert(policyFor(pin).allowed.empty());
+    assert(policyFor(pin).allowed.empty() && !policyFor(pin).defaultAvailable);
     pin["launch_as_available"] = true;
     for (const auto& bad : QList<QJsonValue>{"turbo", "Windowed_Stream", " windowed_stream", "headless_dongle", 3, true, QJsonValue()}) {
         pin["launch_as"] = bad;
-        assert(policyFor(pin).allowed.empty());
+        assert(policyFor(pin).allowed.empty() && !policyFor(pin).defaultAvailable);
     }
     pin["launch_as"] = "desktop_display";
     pin["preferred_mode"] = "desktop_display"; pin["recommended_mode"] = "desktop_display";

@@ -163,7 +163,7 @@ data class NovaGameDetailUiState(
                 choice.virtualDisplayAllowed -> PolarisGame.MODE_HOST_VIRTUAL_DISPLAY
                 else -> ""
             }
-            val hostDefaultUnavailable = hostStreamDisplayMode.isNotBlank() &&
+            val hostDefaultUnavailable = game.launchMode?.followsEffectiveHostDefault != false && hostStreamDisplayMode.isNotBlank() &&
                 choice.hostDefaultMode.isBlank()
             val launchStreamMode = when {
                 !perGameOverride.isNullOrBlank() -> playMode
@@ -209,7 +209,8 @@ data class NovaGameDetailUiState(
             val steamLaunchWarning = steamLaunchMode == "big-picture"
             val hostStreamDisplayModeLabel = PolarisStreamDisplayMode.labelForMode(hostStreamDisplayMode)
             val hostStreamDisplayModeUnavailableReason =
-                clientSettings.launchModeUnavailableReason(hostStreamDisplayMode)
+                game.launchMode?.launchAsRefusalReason.orEmpty()
+                    .ifBlank { clientSettings.launchModeUnavailableReason(hostStreamDisplayMode) }
 
             return NovaGameDetailUiState(
                 game = game,
@@ -242,7 +243,7 @@ data class NovaGameDetailUiState(
                 hostStreamDisplayMode = hostStreamDisplayMode,
                 hostStreamDisplayModeLabel = hostStreamDisplayModeLabel,
                 hostStreamDisplayModeUnavailableReason = hostStreamDisplayModeUnavailableReason,
-                followsHostDefault = game.launchMode?.followsHostDefault != false,
+                followsHostDefault = game.launchMode?.followsEffectiveHostDefault != false,
                 hasExplicitOverride = !perGameOverride.isNullOrBlank(),
                 hostProfileLabel = hostProfileLabel(clientSettings),
                 runsInSpace = NovaSpaceUiState.isSpace(game),

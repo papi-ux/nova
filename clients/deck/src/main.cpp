@@ -814,7 +814,9 @@ QVariantList toLibraryGameModel(const std::vector<nova::deck::backend::DeckPubli
         QStringList launchModes;
         for (const auto& mode : game.launchPolicy.allowed) launchModes.append(toQString(mode));
         item.insert("launchPolicy", QVariantMap{{"known", game.launchPolicy.known},
-            {"hostDefault", toQString(game.launchPolicy.hostDefault)}, {"allowed", launchModes}});
+            {"hostDefault", toQString(game.launchPolicy.hostDefault)}, {"allowed", launchModes},
+            {"followsHostDefault", game.launchPolicy.followsHostDefault}, {"defaultAvailable", game.launchPolicy.defaultAvailable},
+            {"unavailableReason", toQString(game.launchPolicy.unavailableReason)}});
         item.insert("streamCapabilities", QVariantMap{{"valid", game.streamCapabilities.valid},
             {"h264", game.streamCapabilities.h264}, {"hevc", game.streamCapabilities.hevc},
             {"pyrowave", game.streamCapabilities.pyrowave}, {"maxFps", game.streamCapabilities.maxFps}});

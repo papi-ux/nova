@@ -69,10 +69,15 @@ FocusScope {
         { launchMode: "windowed_stream", label: "Private Stream (GPU-native)", detail: "Use the host's GPU-native private streaming path." },
         { launchMode: "gamescope_stream", label: "Gamescope Stream", detail: "Run the game in the host's Gamescope streaming session." }
     ]
-    readonly property var launchChoices: [{ launchMode: "default", label: spaceDestination ? "Space default" : "Host default",
-        detail: spaceDestination ? "Use this Space's launch settings." : "Let your PC choose its configured launch mode. This does not change the PC's settings." }].concat(
+    readonly property string defaultLaunchLabel: spaceDestination ? "Space default"
+        : launchPolicy.followsHostDefault === false ? "App default" : "Host default"
+    readonly property var launchChoices: [{ launchMode: "default", label: defaultLaunchLabel,
+        detail: spaceDestination ? "Use this Space's launch settings."
+            : launchPolicy.defaultAvailable === false ? (launchPolicy.unavailableReason || "This app's Launch As mode is unavailable.")
+            : launchPolicy.followsHostDefault === false ? "Use this app's Launch As mode set on the PC."
+            : "Let your PC choose its configured launch mode. This does not change the PC's settings." }].concat(
             modeOptions.filter(option => !spaceDestination && launchPolicy.known && (launchPolicy.allowed || []).indexOf(option.launchMode) >= 0))
-    readonly property bool launchModeAllowed: configuration.launchMode === "default"
+    readonly property bool launchModeAllowed: (configuration.launchMode === "default" && launchPolicy.defaultAvailable !== false)
         || (!spaceDestination && launchPolicy.known && (launchPolicy.allowed || []).indexOf(configuration.launchMode) >= 0)
     readonly property string effectiveFaceButtonLayout: configuration.faceButtonLayout === "default"
         ? settingsProvider.defaultFaceButtonLayout : configuration.faceButtonLayout
@@ -123,8 +128,8 @@ FocusScope {
         notice = ""
         hostPlanKnown = false
         if (gameTools && !spaceSession) gameTools.prepare(hostId, gameId, plan.configuration)
-        if (!launchModeAllowed && launchPolicy.known) {
-            if (save({ launchMode: "default" })) notice = "Your saved launch mode is no longer available. Using host default."
+        if (!launchModeAllowed && launchPolicy.known && configuration.launchMode !== "default") {
+            if (save({ launchMode: "default" })) notice = "Your saved launch mode is no longer available. Using " + defaultLaunchLabel.toLowerCase() + "."
         }
     }
     function save(values) {
@@ -184,6 +189,7 @@ FocusScope {
             choiceCenters: picker.choices.map((choice, index) => center(choiceButtons.itemAt(index))) }
     }
     function modeLabel(mode) {
+        if (mode === "default") return defaultLaunchLabel
         if (spaceDestination && mode === "default") return "Space default"
         return (modeOptions.find(option => option.launchMode === mode) || {}).label
             || (mode === "headless_dongle" ? "Headless Dongle" : "Host default")
@@ -201,6 +207,7 @@ FocusScope {
         return (labels[field.key] || field.key) + ": " + value + " · " + (sources[field.source] || "Host plan") + (field.normalized ? " (adjusted)" : "")
     }
     readonly property string planHeadline: spaceDestination ? "Play in " + destinationName
+        : configuration.launchMode === "default" && launchPolicy.followsHostDefault === false ? modeLabel(launchPolicy.hostDefault)
         : configuration.launchMode === "default" ? "Play on Desktop" : modeLabel(configuration.launchMode)
     readonly property string planIntro: "Start " + gameTitle + (spaceDestination ? " in " + destinationName + " on " : " on ")
         + hostName + " and stream it here."
@@ -219,7 +226,7 @@ FocusScope {
                 && (!codecManagesEncoder || (f.key !== "preferred_codec" && f.key !== "hdr"))).map(hostPlanFact).join("\n")
                 || (toolsState.copy || "The host confirms its settings when the game starts.") },
         { key: "Launch", value: modeLabel(configuration.launchMode), detail: spaceDestination ? "Uses this Space's launch settings."
-            : configuration.launchMode === "default" ? (launchPolicy.known ? "PC default: " + modeLabel(launchPolicy.hostDefault) : "Uses your PC's launch settings.")
+            : configuration.launchMode === "default" ? (launchPolicy.known ? defaultLaunchLabel + ": " + modeLabel(launchPolicy.hostDefault) : "Uses your PC's launch settings.")
             : "Applies to this launch; the PC default stays unchanged." }
     ]
     component Copy: Label {
@@ -493,7 +500,7 @@ FocusScope {
                     Layout.fillWidth: true
                     visible: notice.length > 0 || !launchModeAllowed || !plan.playable || plan.adjustment.length > 0
                     text: (!plan.playable ? plan.reason : "") || (!launchModeAllowed
-                        ? "Refresh this PC to verify your saved launch mode, or choose Host default." : "") || notice || plan.adjustment
+                        ? (launchPolicy.unavailableReason || "Refresh this PC to verify your saved launch mode, or choose " + defaultLaunchLabel + ".") : "") || notice || plan.adjustment
                     color: NovaTheme.warning
                     font.pixelSize: 16 * unit * NovaTheme.fontScale
                 }
