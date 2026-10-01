@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.api.isLaunchModeAvailable
+import com.papi.nova.api.isSpaceWorkerLaunchMode
 import com.papi.nova.api.isLaunchModeSessionOverridable
 import com.papi.nova.api.launchModeUnavailableReason
 import com.papi.nova.api.resolveLaunchModeChoice
@@ -170,6 +171,9 @@ data class NovaGameDetailUiState(
                 // A stale host default cannot produce the profile Polaris just
                 // recommended. Carry the validated fallback for this launch only;
                 // normal host-default launches still send no streamMode.
+                // A Space carries its worker mode independently of the desktop's
+                // one-launch override catalog; the fresh Space guard owns admission.
+                game.isSpaceWorkerLaunchMode(playMode) -> playMode
                 hostDefaultUnavailable &&
                     clientSettings.isLaunchModeSessionOverridable(playMode) -> playMode
                 else -> ""

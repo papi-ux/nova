@@ -71,9 +71,22 @@ fun PolarisGame.isLaunchModeAvailable(mode: String, clientSettings: PolarisClien
     val contractModes = launchMode?.allowedModes.orEmpty()
     if (contractModes.isNotEmpty() && launchMode?.allows(normalizedMode) != true) return false
 
+    // A Space's own worker advertises this mode in its entry contract. The desktop
+    // catalog describes another process and may have no gamescope capture at all.
+    // Fresh /spaces identity/openability and session guards still run before launch.
+    if (isSpaceWorkerLaunchMode(normalizedMode)) return true
+
     val catalogModes = clientSettings?.capabilities?.modes.orEmpty()
     if (catalogModes.isNotEmpty() && matchingModes(catalogModes, normalizedMode).none { it.available }) return false
     return true
+}
+
+/** Only a correctly identified Space with an explicit worker contract bypasses desktop capture. */
+fun PolarisGame.isSpaceWorkerLaunchMode(mode: String): Boolean {
+    val context = space ?: return false
+    if (context.id.isBlank() || context.target.isBlank() || id != "space.${context.id}.${context.target}") return false
+    return PolarisGame.normalizeLaunchMode(mode) == PolarisGame.MODE_GAMESCOPE_STREAM &&
+        launchMode?.allows(PolarisGame.MODE_GAMESCOPE_STREAM) == true
 }
 
 /** Whether this available mode may be carried as a one-launch streamMode override. */

@@ -898,7 +898,7 @@ class NovaGameDetailActivity : NovaActivity() {
         fun playEnvironmentReady(): Boolean {
             val space = currentGame.space ?: return true
             val snapshot = environmentSnapshot ?: return false
-            return snapshot.selectedId == space.id && snapshot.selected?.openable == true
+            return NovaSpacesCopy.canLaunchSpace(snapshot, space.id)
         }
 
         fun attemptLaunch() {
