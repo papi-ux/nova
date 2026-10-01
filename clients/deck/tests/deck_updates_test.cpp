@@ -116,6 +116,9 @@ int main(int argc, char** argv) {
         updates.setBlocked(false); updates.check();
         until([&] { return portal.creates == 1 && !updates.state()["checking"].toBool(); });
         require(updates.state()["message"].toString().contains("Couldn't check"), "offline check claimed current");
+        portal.offer(a, a); pump(20);
+        require(updates.state()["message"].toString().contains("Couldn't check") && updates.state()["canCheck"].toBool(),
+            "portal current signal hid unavailable feed or disabled retry");
         portal.offer(b, a, c); pump(20);
         require(!updates.state()["available"].toBool(), "foreign running commit admitted");
         portal.offer(); until([&] { return updates.state()["canInstall"].toBool(); });
