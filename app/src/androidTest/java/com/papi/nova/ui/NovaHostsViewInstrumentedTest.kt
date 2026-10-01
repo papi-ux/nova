@@ -1,6 +1,8 @@
 package com.papi.nova.ui
 
 import android.content.Context
+import android.app.Activity
+import android.app.Instrumentation
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
@@ -22,6 +24,8 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.papi.nova.PcView
 import com.papi.nova.BuildConfig
 import com.papi.nova.PcViewModel
@@ -426,6 +430,78 @@ class NovaHostsViewInstrumentedTest {
             File(directory, "hosts-card-geometry-$suffix.json").writeText(JSONObject()
                 .put("compiled_version", BuildConfig.VERSION_NAME).put("build_type", BuildConfig.BUILD_TYPE)
                 .put("font_percent", fontPercent).put("geometry", geometry).toString(2))
+        }
+    }
+
+    @Test fun shortPortraitEmptyActionsKeepFullTargetsAndRealCallbacks() = withPreferences {
+        assertEquals("Stress the real short-screen Activity at large Nova text", 130, fontPercent)
+        instrumentation.uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.CAMERA)
+        val addMonitor = instrumentation.addMonitor(
+            "com.papi.nova.preferences.AddComputerManually", Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null), true)
+        val scanMonitor = instrumentation.addMonitor(
+            "com.papi.nova.ui.NovaQrScanActivity", Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null), true)
+        try {
+            ActivityScenario.launch(PcView::class.java).use { scenario ->
+                settle()
+                for (menuExpanded in listOf(false, true)) {
+                    key(KeyEvent.KEYCODE_DPAD_DOWN)
+                    scenario.onActivity { activity ->
+                        assertEquals(Configuration.ORIENTATION_PORTRAIT, activity.resources.configuration.orientation)
+                        if (menuExpanded) activity.findViewById<View>(R.id.dashboardRailToggle).performClick()
+                        assertTrue(activity.findViewById<View>(R.id.emptyRefresh).requestFocus())
+                    }
+                    settle()
+                    for (id in listOf(R.id.emptyRefresh, R.id.emptyAddServer, R.id.emptyScanPair)) {
+                        lateinit var target: View
+                        scenario.onActivity { activity ->
+                            target = activity.findViewById(id)
+                            assertEquals("D-pad reaches each real empty-state action", id, activity.currentFocus?.id)
+                            val density = activity.resources.displayMetrics.density
+                            assertTrue("Full 48 dp touch target", target.height >= 48 * density - 1)
+                            assertFullyVisible(target)
+                            val location = IntArray(2)
+                            target.getLocationOnScreen(location)
+                            val insets = ViewCompat.getRootWindowInsets(activity.window.decorView)
+                            val bottomInset = insets?.getInsets(WindowInsetsCompat.Type.systemBars() or
+                                WindowInsetsCompat.Type.mandatorySystemGestures())?.bottom ?: 0
+                            val screen = Rect()
+                            activity.window.decorView.getWindowVisibleDisplayFrame(screen)
+                            assertTrue("The entire target clears navigation and gesture space",
+                                location[1] + target.height <= activity.resources.displayMetrics.heightPixels - bottomInset + 1)
+                            if (id == R.id.emptyRefresh) {
+                                val field = PcView::class.java.getDeclaredField("libraryProbeInFlight").apply { isAccessible = true }
+                                @Suppress("UNCHECKED_CAST")
+                                (field.get(activity) as MutableSet<String>).add("owned-refresh-proof")
+                            }
+                        }
+                        val addHits = addMonitor.hits
+                        val scanHits = scanMonitor.hits
+                        tapLowerEdge(target)
+                        scenario.onActivity { activity ->
+                            when (id) {
+                                R.id.emptyRefresh -> {
+                                    val field = PcView::class.java.getDeclaredField("libraryProbeInFlight").apply { isAccessible = true }
+                                    assertFalse("Raw lower-edge Refresh runs readiness reset",
+                                        (field.get(activity) as Set<*>).contains("owned-refresh-proof"))
+                                }
+                                R.id.emptyAddServer -> assertEquals("Raw lower-edge Add PC starts its real Activity", addHits + 1, addMonitor.hits)
+                                R.id.emptyScanPair -> assertEquals("Raw lower-edge Scan starts its real Activity", scanHits + 1, scanMonitor.hits)
+                            }
+                            assertFalse(activity.isFinishing)
+                        }
+                        // Touch mode ends only through real D-pad input; keep the next step in
+                        // the Activity's actual focus graph rather than calling its key handler.
+                        key(KeyEvent.KEYCODE_DPAD_DOWN)
+                        if (id != R.id.emptyScanPair) {
+                            scenario.onActivity { assertEquals(if (id == R.id.emptyRefresh) R.id.emptyAddServer else R.id.emptyScanPair, it.currentFocus?.id) }
+                        }
+                    }
+                    shot(if (menuExpanded) "hosts-empty-short-menu-open" else "hosts-empty-short-menu-hidden")
+                }
+            }
+        } finally {
+            instrumentation.removeMonitor(addMonitor)
+            instrumentation.removeMonitor(scanMonitor)
         }
     }
 
