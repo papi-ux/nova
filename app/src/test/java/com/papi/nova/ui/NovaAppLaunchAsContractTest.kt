@@ -77,6 +77,15 @@ class NovaAppLaunchAsContractTest {
         }
         assertEquals("desktop_display", state(game("desktop_display", allowed = allowed)).playMode)
     }
+    @Test fun partialNewContractCannotLoseAnExplicitRefusal() {
+        for (field in listOf("launch_as_available", "launch_as_unavailable_reason")) {
+            val mode = JSONObject().put(field, if (field == "launch_as_available") false else "App refused")
+                .put("preferred_mode", "headless_stream").put("allowed_modes", org.json.JSONArray(modes))
+            val parsed = PolarisGameJsonAdapter.fromJson(JSONObject().put("id", "partial").put("name", "Partial").put("launch_mode", mode))
+            assertFalse(field, state(parsed).playEnabled)
+            assertFalse(field, state(parsed, catalog = null).playEnabled)
+        }
+    }
     @Test fun explicitDenialAlsoBlocksWorkerShapedEntries() {
         val denied = game("gamescope_stream", false).copy(
             id = "space.15ab1141-72db-4e28-a138-463a0dd1d98a.big-picture-v1",
