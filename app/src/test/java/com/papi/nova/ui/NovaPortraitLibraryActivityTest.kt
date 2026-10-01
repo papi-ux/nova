@@ -6,6 +6,8 @@ import android.os.Looper
 import android.os.Bundle
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -79,28 +81,55 @@ class NovaPortraitLibraryActivityTest {
         rule.onNodeWithTag("nova-library-stage").assertDoesNotExist()
         rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
         rule.onNodeWithText("Continue").assertDoesNotExist()
-        rule.onNodeWithText("Menu").assertIsDisplayed()
+        rule.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
+        rule.onNodeWithText("Options").assertIsDisplayed()
         org.junit.Assert.assertEquals(NovaLibraryLayoutMode.STAGE.name,
             PreferenceManager.getDefaultSharedPreferences(context).getString("nova_library_layout_mode", null))
     }
 
-    @Test fun portraitMenuCanHideAndReopenWithoutRestoringTheOldContinueRow() = library {
-        rule.onNodeWithText("Menu").assertIsDisplayed().performClick()
-        rule.onNodeWithText("Options").assertIsDisplayed()
-        rule.onNodeWithText("Hide menu").performClick()
-        rule.onNodeWithText("Options").assertDoesNotExist()
-        rule.onNodeWithText("Menu").performClick()
-        rule.onNodeWithText("System").assertIsDisplayed()
-        rule.onNodeWithText("Continue").assertDoesNotExist()
+    @Test fun portraitOptionsAndSystemAreVisibleWithoutAMenuToggle() = library {
+        rule.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
+        rule.onNodeWithText("Hide menu").assertDoesNotExist()
+        rule.onNodeWithText("Options").assertIsDisplayed().performClick()
+        rule.onNodeWithText("Library Options").assertIsDisplayed()
+        it.onBackPressedDispatcher.onBackPressed()
+        rule.waitForIdle()
+        rule.onNodeWithText("System").assertIsDisplayed().performClick()
+        rule.onNodeWithText("Keep in Step").assertIsDisplayed()
     }
 
-    @Test fun anActiveSessionStaysReachableWhenThePortraitMenuIsHidden() = library { activity ->
+    @Test fun compactDoesNotRepeatItsRecentGameInPortrait() = library(NovaLibraryLayoutMode.COMPACT) {
+        // Exercise the obsolete expanded state too, so the pre-fix hidden rail cannot pass.
+        if (rule.onAllNodesWithTag("nova-portrait-menu-toggle").fetchSemanticsNodes().isNotEmpty()) {
+            rule.onNodeWithTag("nova-portrait-menu-toggle").performClick()
+        }
+        rule.onNodeWithText("Continue").assertDoesNotExist()
+        rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
+        rule.onAllNodesWithTag("nova-poster-recent").assertCountEquals(1)
+        rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "w915dp-h650dp-land")
+    fun compactDoesNotRepeatItsRecentGameInFilteredLandscape() = library(NovaLibraryLayoutMode.COMPACT) { activity ->
+        // A live filter used to restore the landscape Continue rail even without a hero.
+        state<String>(activity, "searchQuery").value = "recent"
+        rule.waitForIdle()
+        rule.onNodeWithText("Continue").assertDoesNotExist()
+        rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
+        rule.onAllNodesWithTag("nova-poster-recent").assertCountEquals(1)
+        rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
+    }
+
+    @Test fun anActiveSessionKeepsResumeAndEndAlongsideThePortraitToolbar() = library { activity ->
         state<NovaLibraryActiveSessionUiState?>(activity, "activeSession").value =
             NovaLibraryActiveSessionUiState(24, "recent", "A recent game", "Test device", true, 0, false, false, 1920, 1080, 60f)
         rule.waitForIdle()
-        rule.onNodeWithText("Menu").assertIsDisplayed()
+        rule.onNodeWithText("Options").assertIsDisplayed()
+        rule.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
         rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertIsDisplayed()
         rule.onNodeWithText("Resume Stream").assertIsDisplayed()
+        rule.onNodeWithText("End Session").assertIsDisplayed()
         rule.onNodeWithText("Continue").assertDoesNotExist()
     }
 
