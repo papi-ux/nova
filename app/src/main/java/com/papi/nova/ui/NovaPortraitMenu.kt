@@ -43,8 +43,9 @@ internal fun NovaPortraitMenuBar(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         ) { color, _ -> Text(label, color = color, style = novaPanelType.value) }
         Box(Modifier.weight(1f)) {
-            Text(title, color = colors.textPrimary, style = novaPanelType.panelTitle,
-                modifier = Modifier.novaAvoidCameraCutout())
+            Box(Modifier.novaAvoidCameraCutout()) {
+                Text(title, color = colors.textPrimary, style = novaPanelType.panelTitle)
+            }
         }
         if (onBack != null) NovaActionSurface(
             onClick = onBack, contentDescription = stringResource(R.string.nova_settings_back),
