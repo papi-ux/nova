@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(prefix="nova-graphics-startup-") as temporary:
         env.pop(name, None)
     vulkan = "--vulkan" in sys.argv[2:]
     result = subprocess.run([
-        sys.argv[1], "--frontend-smoke-graphics-state", str(report),
+        sys.argv[1], "--fixture", "--frontend-smoke-graphics-state", str(report),
         "--frontend-smoke-exit-after-ms", "1200",
     ] + (["--experimental-vulkan-stream"] if vulkan else []), env=env, capture_output=True, text=True, timeout=15)
     assert result.returncode == 0, result.stderr

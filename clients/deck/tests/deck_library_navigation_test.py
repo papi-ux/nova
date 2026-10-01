@@ -544,7 +544,7 @@ def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window, se
     host["capture"]["codecs"] = ["hevc"]
     wait(lambda s: s.get("streamCapabilities", {}).get("h264") is False and not s.get("busy"))
     review()
-    assert not state()["playSetup"]["playEnabled"] and "selected codec" in state()["playSetup"]["streamPlan"]["reason"]
+    assert not state()["playSetup"]["playEnabled"] and "This PC does not offer the selected video codec" in state()["playSetup"]["streamPlan"]["reason"]
     save_capture("stream-plan-codec-unavailable.png")
     close()
     host["capture"]["codecs"] = ["h264", "hevc"]
