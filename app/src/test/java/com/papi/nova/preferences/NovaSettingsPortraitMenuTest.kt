@@ -34,6 +34,32 @@ import org.robolectric.annotation.Config
 class NovaSettingsPortraitMenuTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
+    @Test fun portraitMenuIsAtTheLeftAndKeepsItsControllerStop() {
+        val definitions = NovaSettingDefinitions.load(rule.activity)
+        var selected by mutableStateOf(definitions.categories.first().key)
+        var backs = 0
+        val keys = rule.setPanelContent {
+            NovaSettingsContent(
+                state = NovaSettingsUiStateFactory.build(definitions, emptyMap(), selected, ""),
+                title = "Settings", subtitle = "Test", onBack = { backs++ }, onOpenLegacy = {},
+                onSearch = {}, onClearSearch = {}, onCategory = { selected = it }, headerActions = emptyList(),
+                onResetSetting = {}, onValue = { _, _, done -> done() }, onSetting = {},
+            )
+        }
+        val menu = rule.onNodeWithTag("nova-portrait-menu-toggle")
+        val menuBounds = menu.fetchSemanticsNode().boundsInRoot
+        val titleBounds = rule.onNodeWithText("Settings").fetchSemanticsNode().boundsInRoot
+        val backBounds = rule.onNodeWithText("Back").fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertTrue("The portrait navigation opens from the left", menuBounds.right <= titleBounds.left)
+        org.junit.Assert.assertTrue("Back remains a separate complete control", titleBounds.right <= backBounds.left)
+        menu.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        keys.press(KeyEvent.KEYCODE_DPAD_CENTER)
+        rule.onNodeWithText("Hide menu").assertIsDisplayed()
+        menu.assertIsFocused()
+        rule.onNodeWithText("Back").performClick()
+        org.junit.Assert.assertEquals(1, backs)
+    }
+
     @Test fun portraitMenuGroupsSearchAndLegacyAndShowsCategoriesBeforeShortcuts() {
         val definitions = NovaSettingDefinitions.load(rule.activity)
         var selected by mutableStateOf(definitions.categories.first().key)

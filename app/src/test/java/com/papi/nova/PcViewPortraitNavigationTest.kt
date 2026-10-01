@@ -423,6 +423,32 @@ class PcViewPortraitNavigationTest {
         assertTrue(update.height >= 48 * activity.resources.displayMetrics.density - 1)
     }
 
+    @Test fun portraitHeaderSharesOneSurfaceWithMenuAtTheStart() {
+        val activity = open().get()
+        val toggle = menu(activity)
+        val title = activity.findViewById<TextView>(R.id.pcViewTitle)
+        val subtitle = activity.findViewById<TextView>(R.id.pcViewSectionLabel)
+        val header = activity.findViewById<View>(R.id.pcViewHeader)
+        val row = toggle.parent as View
+        assertTrue("Nova identity and Menu share one header surface", row.parent is MaterialCardView)
+        val surface = row.parent as MaterialCardView
+        val buttonPosition = IntArray(2); val titlePosition = IntArray(2)
+        toggle.getLocationInWindow(buttonPosition); title.getLocationInWindow(titlePosition)
+        assertTrue("Menu precedes the Nova title at the left", buttonPosition[0] + toggle.width <= titlePosition[0])
+        assertSame("Title shares the same header row", row, title.parent.parent)
+        assertSame("Subtitle shares the same identity column", title.parent, subtitle.parent)
+        assertEquals("The shared header fills its content width", header.width - header.paddingLeft - header.paddingRight, surface.width)
+        assertTrue("The header is one touch target", surface.isClickable)
+        assertFalse("Controller navigation keeps one Menu stop", surface.isFocusable)
+        assertFalse(activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+        surface.performClick(); idleAndLayout(activity)
+        assertTrue(activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+        assertTrue(toggle.hasFocus())
+        press(activity, KeyEvent.KEYCODE_BUTTON_B)
+        assertFalse(activity.findViewById<View>(R.id.dashboardPortraitNavigation).isShown)
+        assertTrue(toggle.hasFocus())
+    }
+
     companion object {
         @JvmStatic @BeforeClass fun suppressLogs() { TestLogSuppressor.install() }
     }
