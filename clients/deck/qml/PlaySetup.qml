@@ -422,7 +422,12 @@ FocusScope {
                     label: "Also use recommended"; value: (recommendedKbps / 1000).toFixed(1) + " Mbps"
                     explanation: bitrateAdvice.basis === "host" ? "Advice from this PC for the selected picture." : "Calibrated estimate for handheld viewing. Compare fine detail and motion."
                     Layout.fillWidth: true
-                    onClicked: if (setup.save({bitrateKbps: recommendedKbps})) setup.checkPlan()
+                    onClicked: {
+                        if (setup.save({bitrateKbps: recommendedKbps})) {
+                            setup.checkPlan()
+                            bitrate.forceActiveFocus()
+                        }
+                    }
                     Keys.onUpPressed: setup.rows[setup.rows.indexOf(this) - 1].forceActiveFocus()
                     Keys.onDownPressed: setup.rows[setup.rows.indexOf(this) + 1].forceActiveFocus()
                 }

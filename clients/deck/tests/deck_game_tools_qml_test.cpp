@@ -140,6 +140,7 @@ int main(int argc,char** argv) {
     check(window->activeFocusItem()==recommend,"setup suggestion unreachable by controller");
     QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
     check(settings.load("host","game")["configuration"].toMap()["bitrateKbps"]==121125 && !setup->property("belowAdvice").toBool(),"suggestion did not save exact request or clear warning");
+    check(window->activeFocusItem()==item("play-setup-bitrate"),"saved recommendation left controller focus on a hidden action");
     const auto pyroState=setupState(); const auto pyroConfig=pyroState["streamPlan"].toMap()["configuration"].toMap();
     check(pyroState["setupAllowed"].toBool() && pyroState["streamPlan"].toMap()["playable"].toBool(),"saved encoder blocked PyroWave");
     check(pyroConfig["encoderBackend"].toString().isEmpty() && pyroConfig["profilePreference"]=="quality","PyroWave review lost tuning or retained encoder");
