@@ -182,6 +182,7 @@ fun NovaComposeColors.librarySurfaces(
     val opacityScale = menuOpacityScale.coerceIn(0f, 1f)
     val isOled = theme == NovaThemeManager.THEME_OLED
     val isMiami = theme == NovaThemeManager.THEME_MIAMI
+    val isDirector = theme == NovaThemeManager.THEME_DIRECTOR
     val isPortableChrome = theme == NovaThemeManager.THEME_PORTABLE_CHROME
     val isHighContrast = theme == NovaThemeManager.THEME_HIGH_CONTRAST
     val isMaterialYou = theme == NovaThemeManager.THEME_MATERIAL_YOU
@@ -189,6 +190,7 @@ fun NovaComposeColors.librarySurfaces(
         backgroundScrim = when {
             isOled -> Color.Transparent
             isMiami -> window.copy(alpha = 0.60f)
+            isDirector -> window.copy(alpha = 0.90f)
             isPortableChrome -> window.copy(alpha = 0.62f)
             isHighContrast -> Color.Black.copy(alpha = 0.72f)
             isMaterialYou -> window.copy(alpha = 0.28f)
@@ -197,6 +199,7 @@ fun NovaComposeColors.librarySurfaces(
         panel = when {
             isOled -> dialog.copy(alpha = NovaSheetChrome.OLED_SHEET_GLASS_ALPHA)
             isMiami -> dialog.copy(alpha = NovaSheetChrome.MIAMI_SHEET_GLASS_ALPHA)
+            isDirector -> dialog
             isPortableChrome -> dialog.copy(alpha = NovaSheetChrome.PORTABLE_CHROME_SHEET_GLASS_ALPHA)
             isHighContrast -> dialog.copy(alpha = NovaSheetChrome.HIGH_CONTRAST_SHEET_GLASS_ALPHA)
             isMaterialYou -> card.copy(alpha = NovaSheetChrome.MATERIAL_YOU_SHEET_GLASS_ALPHA)
@@ -205,6 +208,7 @@ fun NovaComposeColors.librarySurfaces(
         panelBorder = when {
             isOled -> divider.copy(alpha = 0.78f)
             isMiami -> accent.copy(alpha = 0.18f)
+            isDirector -> divider.copy(alpha = 0.90f)
             isPortableChrome -> divider.copy(alpha = 0.46f)
             isHighContrast -> divider.copy(alpha = 0.92f)
             isMaterialYou -> divider.copy(alpha = 0.46f)
@@ -213,6 +217,7 @@ fun NovaComposeColors.librarySurfaces(
         tile = when {
             isOled -> card.copy(alpha = 0.82f)
             isMiami -> card.copy(alpha = 0.70f)
+            isDirector -> card.copy(alpha = 0.90f)
             isPortableChrome -> card.copy(alpha = 0.62f)
             isHighContrast -> card.copy(alpha = 0.98f)
             isMaterialYou -> card.copy(alpha = 0.68f)
@@ -221,6 +226,7 @@ fun NovaComposeColors.librarySurfaces(
         tileBorder = when {
             isOled -> divider.copy(alpha = 0.78f)
             isMiami -> divider.copy(alpha = 0.58f)
+            isDirector -> divider.copy(alpha = 0.90f)
             isPortableChrome -> divider.copy(alpha = 0.46f)
             isHighContrast -> divider.copy(alpha = 0.90f)
             else -> divider.copy(alpha = 0.50f)
@@ -228,12 +234,13 @@ fun NovaComposeColors.librarySurfaces(
         control = when {
             isOled -> card.copy(alpha = 0.74f)
             isMiami -> card.copy(alpha = 0.64f)
+            isDirector -> badge.copy(alpha = 0.94f)
             isPortableChrome -> card.copy(alpha = 0.58f)
             isHighContrast -> card.copy(alpha = 1f)
             isMaterialYou -> card.copy(alpha = 0.62f)
             else -> card.copy(alpha = 0.60f)
         },
-        selectedControl = accent.copy(alpha = when {
+        selectedControl = if (isDirector) badge else accent.copy(alpha = when {
             isHighContrast -> 0.34f
             isMiami -> 0.22f
             isPortableChrome -> 0.22f
@@ -251,6 +258,7 @@ fun NovaComposeColors.librarySurfaces(
         mediaPlaceholder = when {
             isOled -> Color(0xFF08080C)
             isMiami -> Color(0xFF2C1734)
+            isDirector -> badge.copy(alpha = 1f)
             isPortableChrome -> Color(0xFF101216)
             isHighContrast -> Color(0xFF111827)
             isMaterialYou -> card.copy(alpha = 1f)
@@ -267,6 +275,7 @@ fun NovaComposeColors.librarySurfaces(
         focusedArtworkAlpha = when {
             isOled -> 0.10f
             isMiami -> 0.26f
+            isDirector -> 0.18f
             isPortableChrome -> 0.24f
             isMaterialYou -> 0.18f
             else -> 0.24f
@@ -274,14 +283,16 @@ fun NovaComposeColors.librarySurfaces(
         focusedArtworkScrim = Color.Black.copy(alpha = when {
             isOled -> 0.82f
             isMiami -> 0.76f
+            isDirector -> 0.82f
             isPortableChrome -> 0.78f
             else -> 0.72f
         }),
-        particlesEnabled = !isOled,
+        particlesEnabled = !isOled && !isDirector,
         particleAlpha = when {
             isOled -> 0f
             isHighContrast -> 0.28f
             isMiami -> 0.68f
+            isDirector -> 0f
             isPortableChrome -> 0.44f
             isMaterialYou -> 0.42f
             else -> 1f

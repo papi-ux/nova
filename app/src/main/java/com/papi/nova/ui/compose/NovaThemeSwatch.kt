@@ -100,6 +100,12 @@ fun novaThemeSwatchPalette(themeValue: String): NovaThemeSwatchPalette = when (t
         accent = colorResource(R.color.nova_miami_accent),
         border = colorResource(R.color.nova_miami_divider),
     )
+    NovaThemeManager.THEME_DIRECTOR -> NovaThemeSwatchPalette(
+        window = colorResource(R.color.nova_director_bg_window),
+        surface = colorResource(R.color.nova_director_bg_card),
+        accent = colorResource(R.color.nova_director_accent),
+        border = colorResource(R.color.nova_director_divider),
+    )
     NovaThemeManager.THEME_HIGH_CONTRAST -> NovaThemeSwatchPalette(
         window = colorResource(R.color.nova_hc_bg_window),
         surface = colorResource(R.color.nova_hc_bg_card),

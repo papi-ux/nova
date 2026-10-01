@@ -16,6 +16,15 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.unit.Density
+import com.papi.nova.R
+import com.papi.nova.novaThemePickerPage
+import com.papi.nova.ui.NovaThemeManager
 import androidx.compose.ui.text.AnnotatedString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -37,6 +46,50 @@ class NovaCommonPagesComposeTest {
     private fun host(): NovaTestKeys = rule.setPanelContent {
         NovaPageStackHost(state = state, onCloseRequest = { closeRequests++ }) { page ->
             NovaRow(title = "Owner ${page.key}", onClick = {}, modifier = Modifier.novaInitialFocus())
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h640dp-port")
+    fun theDirectorThemeNameKeepsEveryCharacterInTheNarrowPortraitPickerAndAPpliesOnce() {
+        val context = rule.activity
+        val previous = NovaThemeManager.getTheme(context)
+        try {
+            NovaThemeManager.setTheme(context, NovaThemeManager.THEME_DIRECTOR)
+            val chosen = mutableListOf<String>()
+            val page = novaThemePickerPage(context,
+                context.resources.getStringArray(R.array.nova_theme_values).toList(),
+                NovaThemeManager.THEME_DIRECTOR) { chosen += it }
+            state.open(TestPage("root"))
+            state.push(page)
+            val keys = rule.setPanelContent {
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, 1.3f)) {
+                    NovaPageStackHost(state = state, onCloseRequest = { closeRequests++ }) { owner ->
+                        NovaRow(title = "Owner ${owner.key}", onClick = {}, modifier = Modifier.novaInitialFocus())
+                    }
+                }
+            }
+            val name = "< Congratulations, Director >"
+            val row = rule.onNodeWithText(name).assertIsDisplayed().assertIsFocused()
+            row.assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+            val title = rule.onNodeWithText(name, useUnmergedTree = true)
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            title.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            val layout = layouts.single()
+            assertEquals(name, layout.layoutInput.text.text)
+            assertEquals("No theme-name character is ellipsized or truncated", name.length,
+                layout.getLineEnd(layout.lineCount - 1))
+            assertEquals("The name can wrap instead of being cut to one line", Int.MAX_VALUE, layout.layoutInput.maxLines)
+            val bounds = title.getUnclippedBoundsInRoot()
+            val viewport = rule.onRoot().getUnclippedBoundsInRoot()
+            assertTrue("The complete title stays inside the real portrait viewport", bounds.left >= viewport.left &&
+                bounds.right <= viewport.right && bounds.top >= viewport.top && bounds.bottom <= viewport.bottom)
+            keys.press(NovaTestKeys.CENTER)
+            assertEquals(listOf(NovaThemeManager.THEME_DIRECTOR), chosen)
+            assertEquals(1, state.depth)
+        } finally {
+            NovaThemeManager.setTheme(context, previous)
         }
     }
 
