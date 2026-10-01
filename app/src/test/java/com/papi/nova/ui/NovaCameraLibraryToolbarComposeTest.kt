@@ -63,7 +63,11 @@ class NovaCameraLibraryToolbarComposeTest {
         val host = rule.onNodeWithText(if (kind == 2) "Camera host" else "· PC", useUnmergedTree = true)
         val hostBefore = host.fetchSemanticsNode().boundsInRoot
         val rectangle = if (notch) Rect(origin.x, origin.y, origin.x + width * density, origin.y + 80 * density)
-            else Rect(origin.x, origin.y, origin.x + 40 * density, origin.y + 80 * density)
+            else if (rtl) Rect(origin.x + (width - 40) * density, origin.y + hostBefore.top,
+                origin.x + width * density, origin.y + hostBefore.bottom + 12 * density)
+            else Rect(origin.x, origin.y + hostBefore.top, origin.x + 40 * density,
+                origin.y + hostBefore.bottom + 12 * density)
+        if (!notch) assertTrue("the actual host glyph must intersect this physical-side camera before protection", hostBefore.overlaps(rectangle))
         rule.runOnIdle { camera.value = listOf(rectangle) }
         rule.waitForIdle()
         val after = options.fetchSemanticsNode().boundsInRoot
@@ -73,7 +77,8 @@ class NovaCameraLibraryToolbarComposeTest {
             assertTrue("fixed toolbar constraints cannot collapse the normal target: $before -> $after", after.height >= before.height - 1)
         } else {
             assertTrue("actual intrinsic host glyph clears a landscape side camera: $hostBefore -> $hostAfter",
-                hostAfter.left >= 40 * density - 1 || hostAfter.top >= 80 * density - 1)
+                !hostAfter.overlaps(rectangle))
+            assertTrue("the camera changes actual intersecting glyph placement", hostAfter != hostBefore)
             assertEquals("an unrelated menu button does not inherit a side gutter", before.left, after.left, 1f)
         }
         val tag = if (kind == 0) "nova-library-portrait-toolbar" else "nova-library-landscape-toolbar"
@@ -89,6 +94,7 @@ class NovaCameraLibraryToolbarComposeTest {
 
     @Test fun actualPortraitToolbarKeepsTargetsBelowFullTopNotch() = toolbar(0, true)
     @Test fun actualLandscapeToolbarKeepsTargetsBelowFullTopNotch() = toolbar(1, true)
+    @Test fun actualLandscapeShowcaseKeepsTargetsBelowFullTopNotch() = toolbar(2, true)
     @Test fun actualLandscapeShowcaseProtectsIntrinsicHostFromSideCamera() = toolbar(2, false)
     @Test fun actualLandscapeShowcaseUsesPhysicalSideInRtl() = toolbar(2, false, true)
 }

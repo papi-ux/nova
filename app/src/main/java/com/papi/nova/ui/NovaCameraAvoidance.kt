@@ -138,8 +138,9 @@ private val cameraWindows = WeakHashMap<View, CameraWindowTracker>()
 
 /**
  * Clears only this bounded control/text region. Put it before the region's size/click modifiers,
- * never on an entire menu or full-width header. Its observed outer position precedes its own
- * padding, so moving the child cannot alternately add/remove clearance on successive layouts.
+ * never on an entire menu or full-width header. The observed region includes its clearance,
+ * while the text/target is inside that padding. Parents must wrap the region's height; actual
+ * toolbar fixtures check that centered placement settles and keeps the inner target intact.
  */
 @Composable
 fun Modifier.novaAvoidCameraCutout(): Modifier {
