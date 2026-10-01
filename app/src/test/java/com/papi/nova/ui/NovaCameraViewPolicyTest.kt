@@ -205,9 +205,11 @@ class NovaCameraViewPolicyTest {
             cameras = emptyList()
             repeat(4) { relayout() }
             val profileBeforeScroll = IntArray(2).also { action.getLocationInWindow(it) }
-            val scrollCamera = Rect(0, profileBeforeScroll[1] - 24, profileBeforeScroll[0] + 4, profileBeforeScroll[1] - 4)
+            val scrollCamera = Rect(0, profileBeforeScroll[1] - 2, profileBeforeScroll[0] + 4, profileBeforeScroll[1] - 1)
             cameras = listOf(scrollCamera)
             relayout()
+            assertEquals("the gap camera leaves the profile's initial placement intact", profileBeforeScroll.toList(),
+                IntArray(2).also { action.getLocationInWindow(it) }.toList())
             val scrollRail = rail as androidx.core.widget.NestedScrollView
             scrollRail.scrollTo(0, 24)
             assertEquals("the real rail can scroll", 24, scrollRail.scrollY)
