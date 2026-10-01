@@ -133,7 +133,12 @@ int main(int argc,char** argv) {
     probeMayFinish = true;
     wait([&] { return setupState()["streamPlan"].toMap()["playable"].toBool(); });
     check(probeCalls == 1, "QML plan refresh repeated the probe");
+    // Probe completion changes the effective plan and starts another debounced
+    // review. Wait for its host response, rather than the earlier idle window.
+    wait([&] { return !tools.busy() && host.adviceRequests > 0
+        && setup->property("recommendedKbps").toInt() == 121125; });
     check(setup->property("recommendedKbps").toInt()==121125 && setup->property("belowAdvice").toBool(),"host-first advice or low-picture warning missing");
+    capture("play-setup-pyrowave-low-960-large");
     auto* recommend=item("play-setup-recommended-bitrate");
     check(recommend->isVisible(),"Also use recommended action missing");
     item("play-setup-bitrate")->forceActiveFocus();QTest::keyClick(window,Qt::Key_Down);settle();
