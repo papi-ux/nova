@@ -41,6 +41,13 @@ void lossWithTuningOwner() {
     s.doctorOffer = parseDoctorOffer(doctor(true)); DeckDoctorActions restore;
     restore.observe(&s, true, 1000);
     require(!restore.apply(1000), "quality restore bypassed Live Tuning ownership");
+    auto rttOnly=doctor(); auto evidence=rttOnly["evidence"].toArray();
+    auto loss=evidence[0].toObject(); loss["value"]=0; loss["status"]="pass"; evidence[0]=loss;
+    auto latency=evidence[1].toObject(); latency["value"]=45; latency["status"]="fail"; evidence[1]=latency;
+    rttOnly["evidence"]=evidence; s.doctorOffer=parseDoctorOffer(rttOnly);
+    require(s.doctorOffer.has_value(), "RTT-only legacy offer fixture invalid");
+    DeckDoctorActions rtt; rtt.observe(&s,true,1000);
+    require(!rtt.apply(1000), "RTT-only step bypassed Live Tuning ownership");
 }
 void pyrowaveOfferContract() {
     const auto pyro = pyrowaveDoctor();
