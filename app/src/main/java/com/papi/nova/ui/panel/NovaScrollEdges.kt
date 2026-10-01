@@ -159,11 +159,17 @@ internal class NovaContextBringIntoViewSpec(
     private val fadePx: Float = 0f,
 ) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val guess = maxOf(contextPx, size + gapPx) + labelPx
-        val around = tracker?.contextAround(offset, size, containerSize)
-        val cap = ((containerSize - size) / 2f).coerceAtLeast(0f)
-        val leading = offset - minOf(around?.before?.plus(fadePx) ?: guess, cap)
-        val trailing = offset + size + minOf(around?.after?.plus(fadePx) ?: guess, cap)
+        // Focus and an explicit request for a confirmation's warning must agree on one rectangle.
+        val group = tracker?.focusGroupAround(offset, size, containerSize)
+        val targetOffset = group?.first ?: offset
+        val targetSize = group?.second ?: size
+        // An oversized control cannot fit. Once it covers the viewport, either edge is a valid rest.
+        if (targetSize >= containerSize && targetOffset <= 0f && targetOffset + targetSize >= containerSize) return 0f
+        val guess = maxOf(contextPx, targetSize + gapPx) + labelPx
+        val around = tracker?.contextAround(targetOffset, targetSize, containerSize)
+        val cap = ((containerSize - targetSize) / 2f).coerceAtLeast(0f)
+        val leading = targetOffset - minOf(around?.before?.plus(fadePx) ?: guess, cap)
+        val trailing = targetOffset + targetSize + minOf(around?.after?.plus(fadePx) ?: guess, cap)
         return when {
             leading >= 0f && trailing <= containerSize -> 0f
             leading < 0f -> leading
@@ -178,7 +184,7 @@ internal class NovaContextBringIntoViewSpec(
  * itself ([novaFocusRing]), as does a section label, so a list can tell what its top edge cuts.
  */
 internal class NovaRowTracker {
-    class Entry(var bounds: Rect, var focused: Boolean, val label: Boolean)
+    class Entry(var bounds: Rect, var focused: Boolean, val label: Boolean, val focusGroup: Boolean = false)
 
     /** How far the row before the focused one reaches above it, and the row after it below. */
     class Context(val before: Float?, val after: Float?)
@@ -187,6 +193,26 @@ internal class NovaRowTracker {
 
     /** The viewports of the lists that rest on whole rows, where they were last placed. */
     val viewports = HashMap<Any, Rect>()
+
+    /** The armed confirmation containing this request and the focused half, relative to its viewport. */
+    fun focusGroupAround(offset: Float, size: Float, containerSize: Float): Pair<Float, Float>? {
+        for (view in viewports.values) {
+            if (kotlin.math.abs(view.height - containerSize) > 1f) continue
+            val top = view.top + offset
+            val group = rows.values.filter { entry ->
+                val bounds = entry.bounds
+                entry.focusGroup && bounds.left < view.right && bounds.right > view.left &&
+                    top >= bounds.top - 1.5f && top + size <= bounds.bottom + 1.5f &&
+                    rows.values.any { child ->
+                        child.focused && !child.label && !child.focusGroup &&
+                            child.bounds.left >= bounds.left - 1.5f && child.bounds.right <= bounds.right + 1.5f &&
+                            child.bounds.top >= bounds.top - 1.5f && child.bounds.bottom <= bounds.bottom + 1.5f
+                    }
+            }.minByOrNull { it.bounds.width * it.bounds.height }
+            if (group != null) return (group.bounds.top - view.top) to group.bounds.height
+        }
+        return null
+    }
 
     /**
      * The context around the row being brought into view, [size] tall at [offset] in a viewport
@@ -234,6 +260,15 @@ internal val LocalNovaRowTracker = staticCompositionLocalOf<NovaRowTracker?> { n
 internal fun Modifier.novaTrackedRow(label: Boolean = false): Modifier =
     this then if (label) NovaTrackedLabelElement else NovaTrackedRowElement
 
+/** A confirmation and its warning, which must scroll together while a half has focus. */
+internal fun Modifier.novaTrackedFocusGroup(): Modifier = this then NovaTrackedFocusGroupElement
+
+private data object NovaTrackedFocusGroupElement : ModifierNodeElement<NovaTrackedRowNode>() {
+    override fun create() = NovaTrackedRowNode(label = false, focusGroup = true)
+    override fun update(node: NovaTrackedRowNode) = Unit
+    override fun InspectorInfo.inspectableProperties() { name = "novaTrackedFocusGroup" }
+}
+
 private data object NovaTrackedRowElement : ModifierNodeElement<NovaTrackedRowNode>() {
     override fun create() = NovaTrackedRowNode(label = false)
 
@@ -254,7 +289,7 @@ private data object NovaTrackedLabelElement : ModifierNodeElement<NovaTrackedRow
     }
 }
 
-private class NovaTrackedRowNode(private val label: Boolean) :
+private class NovaTrackedRowNode(private val label: Boolean, private val focusGroup: Boolean = false) :
     Modifier.Node(), GlobalPositionAwareModifierNode, FocusEventModifierNode, CompositionLocalConsumerModifierNode {
     private var tracker: NovaRowTracker? = null
     private var focused = false
@@ -263,7 +298,7 @@ private class NovaTrackedRowNode(private val label: Boolean) :
         val tracker = tracker ?: currentValueOf(LocalNovaRowTracker)?.also { tracker = it } ?: return
         val bounds = coordinates.uncutBoundsInWindow()
         val entry = tracker.rows[this]
-        if (entry == null) tracker.rows[this] = NovaRowTracker.Entry(bounds, focused, label) else entry.bounds = bounds
+        if (entry == null) tracker.rows[this] = NovaRowTracker.Entry(bounds, focused, label, focusGroup) else entry.bounds = bounds
     }
 
     override fun onFocusEvent(focusState: FocusState) {
