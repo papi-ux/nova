@@ -13,7 +13,9 @@ import com.papi.nova.R
 import com.papi.nova.ui.NovaLibraryActivity
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.panel.NovaCommonPage
-import com.papi.nova.ui.panel.novaSurfaces
+import com.papi.nova.ui.panel.NovaPanelState
+import com.papi.nova.ui.panel.NovaScrim
+import com.papi.nova.ui.panel.NovaSurfacesLayer
 import com.papi.nova.ui.panel.setPanelContent
 import org.junit.Assert.*
 import org.junit.Rule
@@ -96,8 +98,19 @@ class NovaBetaVersionLabelTest {
         val page = NovaLibraryActivity::class.java.getDeclaredMethod("aboutNovaPage")
             .apply { isAccessible = true }.invoke(activity) as NovaCommonPage.Notice
         val expected = activity.getString(R.string.nova_system_menu_about_version, expectedLabel)
-        compose.setPanelContent { }
-        compose.activity.novaSurfaces.panel.open(page)
+        assertEquals(expected, page.message)
+        val panel = NovaPanelState().apply { open(page) }
+        // Draw the same surfaces layer and common Notice renderer as the Library's window.
+        // Opening bare panel state does not create or draw a window by itself.
+        compose.setPanelContent {
+            NovaSurfacesLayer(
+                panel = panel,
+                states = emptyList(),
+                scrim = NovaScrim.None,
+                pageContent = {},
+                onIdle = {},
+            )
+        }
         compose.onNodeWithText(expected).assertIsDisplayed()
     }
 }
