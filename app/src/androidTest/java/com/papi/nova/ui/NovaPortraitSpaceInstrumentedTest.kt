@@ -46,7 +46,7 @@ class NovaPortraitLibraryInstrumentedTest {
             get(activity) as MutableState<T>
         }
 
-    @Test fun regularMenuReopensOnTouchAndControllerBackWithoutDuplicatingGames() {
+    @Test fun regularDirectActionsReturnOnControllerBackWithoutDuplicatingGames() {
         // Artwork and reveal animations keep running on a large-text Library. Advance a
         // bounded frame clock for each interaction instead of waiting for them to stop.
         compose.mainClock.autoAdvance = false
@@ -85,31 +85,36 @@ class NovaPortraitLibraryInstrumentedTest {
                 compose.onNodeWithText("Continue").assertDoesNotExist()
                 compose.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
                 compose.onNodeWithTag("nova-poster-game-0").assertIsDisplayed()
-                compose.onNodeWithText("Library · Test host").assertIsDisplayed()
-                val collapsedPoster = compose.onNodeWithTag("nova-poster-game-0").getUnclippedBoundsInRoot()
-                val bar = compose.onNodeWithTag("nova-portrait-menu-bar").getUnclippedBoundsInRoot()
-                assertTrue("the menu leaves most portrait height for the grid", (bar.bottom - bar.top).value < 100)
-                portraitShot("regular-collapsed")
+                compose.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
+                val poster = compose.onNodeWithTag("nova-poster-game-0").getUnclippedBoundsInRoot()
+                val options = context.getString(com.papi.nova.R.string.nova_library_options_title)
+                val system = context.getString(com.papi.nova.R.string.nova_system_menu_title)
+                compose.onNodeWithContentDescription(options).assertIsDisplayed()
+                compose.onNodeWithText(system).assertIsDisplayed()
+                portraitShot("regular-direct-actions")
 
-                compose.onNodeWithTag("nova-portrait-menu-toggle").performClick()
+                compose.onNodeWithContentDescription(options).performClick()
                 settle()
-                compose.onNodeWithText("Options").assertIsDisplayed()
-                compose.onNodeWithText("Library · Test host").assertIsDisplayed()
-                portraitShot("regular-expanded")
+                compose.onNodeWithText(options).assertIsDisplayed()
+                portraitShot("regular-options")
                 val instrumentation = InstrumentationRegistry.getInstrumentation()
-                instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP)
-                compose.onNodeWithTag("nova-portrait-menu-toggle")
-                    .performSemanticsAction(SemanticsActions.RequestFocus) { it() }.assertIsFocused()
-                val time = SystemClock.uptimeMillis()
-                for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
-                    instrumentation.sendKeySync(KeyEvent(time, time, action, KeyEvent.KEYCODE_BUTTON_B,
-                        0, 0, -1, 0, 0, InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_DPAD))
-                }
+                instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BUTTON_B)
                 settle()
-                compose.onNodeWithText("Menu").assertIsDisplayed().assertIsFocused()
-                compose.onNodeWithText("Options").assertDoesNotExist()
-                assertEquals(collapsedPoster.top.value,
+                compose.onNodeWithText(options).assertDoesNotExist()
+                compose.onNodeWithContentDescription(options).assertIsDisplayed()
+                compose.onNodeWithText(system).assertIsDisplayed()
+                assertEquals(poster.top.value,
                     compose.onNodeWithTag("nova-poster-game-0").getUnclippedBoundsInRoot().top.value, 1f)
+
+                compose.onNodeWithText(system).performClick()
+                settle()
+                // System remains on the supporting row behind the new panel title.
+                compose.onAllNodesWithText(system).assertCountEquals(2)
+                compose.onAllNodesWithText(system)[1].assertIsDisplayed()
+                instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BUTTON_B)
+                settle()
+                compose.onNodeWithTag("nova-poster-game-0").assertIsDisplayed()
+                compose.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
 
                 scenario.onActivity { activity ->
                     state<NovaLibraryActiveSessionUiState?>(activity, "activeSession").value =
