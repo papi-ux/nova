@@ -166,22 +166,31 @@ fun Modifier.novaAvoidCameraCutout(touchTarget: Boolean = false): Modifier {
     var target by remember { mutableStateOf(Rect.Zero) }
     val window = LocalNovaCameraWindow.current ?: tracker.window
     val padding = novaCameraPadding(target, window, with(density) { 48.dp.toPx() })
+    val leftPadding = with(density) { padding.left.toDp() }
+    val topPadding = with(density) { padding.top.toDp() }
+    val rightPadding = with(density) { padding.right.toDp() }
+    val bottomPadding = with(density) { padding.bottom.toDp() }
     return this
         .onGloballyPositioned { coordinates ->
             val at = coordinates.positionInWindow()
             // Foundation expands a small clickable control to its physical minimum target.
             // Account for that same floor around the inner control, excluding our own padding
             // from its visual size so repeated layouts cannot shrink/grow the floor estimate.
-            val contentWidth = (coordinates.size.width - padding.left - padding.right).coerceAtLeast(0f)
-            val contentHeight = (coordinates.size.height - padding.top - padding.bottom).coerceAtLeast(0f)
+            // Padding measures each Dp edge with roundToPx. Subtract those exact applied pixels,
+            // otherwise an odd touch deficit can alternate between two adjacent placements.
+            val contentWidth = with(density) {
+                (coordinates.size.width - leftPadding.roundToPx() - rightPadding.roundToPx()).coerceAtLeast(0).toFloat()
+            }
+            val contentHeight = with(density) {
+                (coordinates.size.height - topPadding.roundToPx() - bottomPadding.roundToPx()).coerceAtLeast(0).toFloat()
+            }
             val horizontalReach = ((touchWidth - contentWidth) / 2f).coerceAtLeast(0f)
             val verticalReach = ((touchHeight - contentHeight) / 2f).coerceAtLeast(0f)
             target = Rect(at.x - horizontalReach, at.y - verticalReach,
                 at.x + coordinates.size.width + horizontalReach, at.y + coordinates.size.height + verticalReach)
         }
         .absolutePadding(
-            left = with(density) { padding.left.toDp() }, top = with(density) { padding.top.toDp() },
-            right = with(density) { padding.right.toDp() }, bottom = with(density) { padding.bottom.toDp() },
+            left = leftPadding, top = topPadding, right = rightPadding, bottom = bottomPadding,
         )
 }
 

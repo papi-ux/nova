@@ -1,6 +1,9 @@
 package com.papi.nova.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,6 +13,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -24,6 +31,7 @@ import androidx.compose.ui.platform.testTag
 import com.papi.nova.ui.compose.NovaActionSurface
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
 import com.papi.nova.ui.panel.NovaPanelButton
 import com.papi.nova.ui.panel.NovaRow
 import com.papi.nova.ui.panel.setPanelContent
@@ -81,29 +89,64 @@ class NovaCameraModifierComposeTest {
         assertEquals("removing the camera restores normal placement", nearbyBefore, textLeft("Nearby"), 0.5f)
     }
 
-    @Test fun smallActionProtectsItsInflated48dpTouchEdges() {
+    private fun smallAction(oddPixels: Boolean = false, fractionalDensity: Float = 1.25f, minHeight: Int = 32) {
         val cameras = mutableStateOf<List<Rect>>(emptyList())
         var density = 1f
         var calls = 0
+        val placements = mutableListOf<Float>()
+        val width = mutableStateOf(240)
         rule.setPanelContent {
-            density = LocalDensity.current.density
-            CompositionLocalProvider(LocalNovaCameraWindow provides NovaCameraWindow(
+            val physicalDensity = if (oddPixels) Density(fractionalDensity, LocalDensity.current.fontScale) else LocalDensity.current
+            density = physicalDensity.density
+            CompositionLocalProvider(LocalDensity provides physicalDensity,
+                LocalNovaCameraWindow provides NovaCameraWindow(
                 Rect(0f, 0f, 240 * density, 800 * density), cameras.value)) {
-                Column(Modifier.width(240.dp).padding(top = 20.dp)) {
+                Row(Modifier.width(width.value.dp)
+                    .heightIn(min = if (oddPixels) 80.dp else 0.dp, max = 200.dp)
+                    .padding(top = if (oddPixels) 0.dp else 20.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
                     NovaActionSurface(onClick = { calls++ }, modifier = Modifier.width(160.dp).testTag("small-camera-action"),
-                        minHeight = 32.dp, contentPadding = PaddingValues(0.dp)) { _, _ -> Box(Modifier.size(2.dp)) }
+                        minHeight = minHeight.dp, contentPadding = PaddingValues(0.dp)) { _, _ ->
+                        Box(Modifier.size(2.dp).background(Color.White).testTag("small-camera-glyph")
+                            .onGloballyPositioned { coordinates ->
+                                synchronized(placements) {
+                                    placements.add(coordinates.positionInWindow().y)
+                                    if (placements.size > 32) placements.removeAt(0)
+                                }
+                            })
+                    }
                 }
             }
         }
-        rule.runOnIdle { cameras.value = listOf(Rect(0f, 0f, 240 * density, 18 * density)) }
-        rule.waitForIdle()
-        val bounds = rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot
-        val top = bounds.center.y - 23 * density
-        assertTrue("camera clearance covers the actual expanded touch floor, not just the small visual surface: $bounds / $top", top >= 18 * density)
-        rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, top)) }
-        rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, bounds.center.y + 23 * density)) }
-        assertEquals(2, calls)
+        val cameraBottom = if (oddPixels) 96f else 18 * density
+        try {
+            rule.runOnIdle { cameras.value = listOf(Rect(0f, 0f, 240 * density, cameraBottom)) }
+            rule.waitForIdle()
+            val bounds = rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot
+            val top = bounds.center.y - 23 * density
+            assertTrue("camera clearance covers the actual expanded touch floor, not just the small visual surface: $bounds / $top", top >= cameraBottom)
+            val glyph = rule.onNodeWithTag("small-camera-glyph", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            assertTrue("visible content remains nonzero below the camera", glyph.height > 0 && glyph.top >= cameraBottom)
+            repeat(4) {
+                rule.runOnIdle { width.value = if (width.value == 240) 241 else 240 }
+                rule.waitForIdle()
+                assertEquals("odd-pixel clearance settles across forced layouts", bounds,
+                    rule.onNodeWithTag("small-camera-action").fetchSemanticsNode().boundsInRoot)
+            }
+            rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, top)) }
+            rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(bounds.center.x, bounds.center.y + 23 * density)) }
+            assertEquals(2, calls)
+        } finally {
+            cameras.value = emptyList()
+            println("camera-small-action density=$density minHeight=$minHeight actualGlyphPlacements=${synchronized(placements) { placements.toList() }}")
+        }
     }
+
+    @Test fun smallActionProtectsItsInflated48dpTouchEdges() = smallAction()
+    @Test(timeout = 15000) fun oddPhysicalPixelsDoNotAlternateCameraPadding() = smallAction(oddPixels = true)
+
+    @Test(timeout = 15000) fun default38dpActionSettlesInCenteredParent() =
+        smallAction(oddPixels = true, fractionalDensity = 1f, minHeight = 38)
 
     @Test fun menuRowClearsOnlyItsIntersectingCameraRegion() = scene()
     @Test fun menuRowUsesPhysicalCameraCoordinatesInRtl() = scene(rtl = true)
