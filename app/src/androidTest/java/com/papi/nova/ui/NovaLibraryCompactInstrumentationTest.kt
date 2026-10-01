@@ -21,6 +21,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.R
 import com.papi.nova.shared.polaris.model.PolarisGame
+import kotlinx.coroutines.Job
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,9 +40,15 @@ class NovaLibraryCompactInstrumentationTest {
         }
 
     @Test fun compactHasOnePosterDirectActionsAndControllerBack() {
+        // Keep the same bounded native frame clock as the Regular fixture. Continuous
+        // Aurora View particles cannot satisfy Espresso's main-looper idle condition.
+        rule.mainClock.autoAdvance = false
+        fun settle() { rule.mainClock.advanceTimeBy(1_000); rule.waitForIdle() }
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val previous = prefs.getString("nova_library_layout_mode", null)
+        val previousTheme = NovaThemeManager.getTheme(context)
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_OLED)
         prefs.edit().putString("nova_library_layout_mode", NovaLibraryLayoutMode.COMPACT.name).commit()
         val intent = Intent(context, NovaLibraryActivity::class.java)
             .putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
@@ -50,19 +57,25 @@ class NovaLibraryCompactInstrumentationTest {
             .putExtra(NovaLibraryActivity.EXTRA_HTTP_PORT, 9)
         try {
             ActivityScenario.launch<NovaLibraryActivity>(intent).use { scenario ->
-                rule.waitUntil(10_000) {
-                    var ready = false
-                    scenario.onActivity { ready = !state<Boolean>(it, "isInitialLoading").value }
-                    ready
-                }
+                lateinit var loading: MutableState<Boolean>
+                scenario.onActivity { loading = state(it, "isInitialLoading") }
+                rule.waitUntil(10_000) { !loading.value }
                 scenario.onActivity { activity ->
+                    // These jobs belong to this unpaired, offline Activity fixture. Stop
+                    // them from replacing the injected library during the interaction walk.
+                    for (name in listOf("libraryPoll", "spacesPoll", "activeSessionImmediateRefreshJob", "activeSessionRefreshJob")) {
+                        NovaLibraryActivity::class.java.getDeclaredField(name).apply {
+                            isAccessible = true
+                            (get(activity) as? Job)?.cancel()
+                        }
+                    }
                     state<String?>(activity, "loadErrorMessage").value = null
                     state<List<PolarisGame>>(activity, "allGames").value = listOf(
                         PolarisGame(id = "recent", name = "A recent game", source = "steam", lastLaunched = 100))
                     // This used to bring the redundant landscape Continue rail back.
                     state<String>(activity, "searchQuery").value = "recent"
                 }
-                rule.waitForIdle()
+                settle()
                 rule.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
                 rule.onNodeWithText("Continue").assertDoesNotExist()
                 rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
@@ -70,11 +83,12 @@ class NovaLibraryCompactInstrumentationTest {
                 rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
                 val options = context.getString(R.string.nova_library_options_title)
                 rule.onNodeWithContentDescription(options).assertIsDisplayed().performClick()
+                settle()
                 rule.onNodeWithText(options).assertIsDisplayed()
                 // Send the key through Android's active window: the Options dialog
                 // owns input here, so direct Activity dispatch would bypass its gate.
                 InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BUTTON_B)
-                rule.waitForIdle()
+                settle()
                 rule.onNodeWithText(options).assertDoesNotExist()
                 rule.onNodeWithContentDescription(options).assertIsDisplayed()
                 rule.onNodeWithText(context.getString(R.string.nova_system_menu_title)).assertIsDisplayed()
@@ -89,6 +103,7 @@ class NovaLibraryCompactInstrumentationTest {
                 screenshot.recycle()
             }
         } finally {
+            NovaThemeManager.setTheme(context, previousTheme)
             prefs.edit().apply {
                 if (previous == null) remove("nova_library_layout_mode") else putString("nova_library_layout_mode", previous)
             }.commit()
