@@ -99,6 +99,39 @@ class NovaSettingsDpadComposeTest {
         category("stream").assertIsFocused()
     }
 
+    @Test fun touchingAnotherCategoryHandsTheNextControllerMoveToItsPane() {
+        showSettings(heightDp = 420)
+        category("stream").performSemanticsAction(SemanticsActions.RequestFocus)
+        // Actual pointer dispatch changes Android's input mode; a semantics click does not.
+        category("input").performTouchInput { click() }
+        category("input").assertIsSelected()
+        row("input-1").assertExists()
+        row("stream-0").assertDoesNotExist()
+        compose.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        row("input-1").assertIsFocused()
+        category("input").assertIsSelected()
+        row("input-1").performKeyInput { pressKey(Key.DirectionLeft) }
+        category("input").assertIsFocused()
+    }
+
+    @Test fun touchingACategoryFromThePanePreservesItsRememberedControllerRow() {
+        showSettings(heightDp = 420)
+        category("stream").performSemanticsAction(SemanticsActions.RequestFocus)
+        category("stream").performKeyInput { pressKey(Key.DirectionRight) }
+        repeat(3) { compose.onRoot().performKeyInput { pressKey(Key.DirectionDown) } }
+        row("stream-3").assertIsFocused()
+        category("input").performTouchInput { click() }
+        category("input").assertIsSelected()
+        compose.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        row("input-1").assertIsFocused()
+        category("stream").performTouchInput { click() }
+        category("stream").assertIsSelected()
+        compose.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        row("stream-3").assertIsFocused()
+        row("stream-3").performKeyInput { pressKey(Key.DirectionLeft) }
+        category("stream").assertIsFocused()
+    }
+
     private fun category(key: String) = compose.onNodeWithTag("nova-settings-category-$key")
     private fun row(key: String) = compose.onNodeWithTag("nova-settings-row-$key")
 
