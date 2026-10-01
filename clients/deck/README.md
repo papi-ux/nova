@@ -1816,3 +1816,5 @@ refresh. Wake-on-LAN must be enabled in the PC firmware and wired adapter, and
 the network must permit local Wake packets. Wi-Fi and routed networks may not
 support it. Loopback UDP, persistence/failure and UI tests cover software
 behavior; physical sleeping-PC acceptance remains unrun.
+
+The Library's System menu includes **Add Nova to Steam**. Review the sheet and choose Add explicitly with Steam closed (Desktop Mode on Steam Deck). Nova reuses the CLI registration helper, preserves other shortcuts, and refuses if Steam's running state cannot be checked. The entry launches the installed app in standalone mode. Opening or leaving the sheet does not change Steam; headless route checks only open and cancel it. Registration success/refusal/retry are tested with injected operations and isolated VDF tests, not a user Steam installation.

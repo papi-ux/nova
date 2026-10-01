@@ -20,6 +20,7 @@ FocusScope {
     required property var settingsProvider
     property var hostPower: null
     property var hostWake: null
+    property var appShortcuts: null
     property var gamepad: null
     property string settingsError: ""
     property bool sessionBusy: false
@@ -68,7 +69,7 @@ FocusScope {
         || emptyState.activeFocus
     readonly property bool interactionPaused: detailOpen || destinations.opened || options.opened || systemMenu.opened
         || sourcePicker.opened || morePicker.opened || sortPicker.opened || faceDefaultPicker.opened
-        || settingsHub.opened || polarisSync.opened || audioSettings.opened || rumbleSettings.opened || appearanceSettings.opened || powerSheet.opened || wakeSheet.opened || !browsing
+        || settingsHub.opened || polarisSync.opened || audioSettings.opened || rumbleSettings.opened || appearanceSettings.opened || powerSheet.opened || wakeSheet.opened || appSteamSheet.opened || !browsing
     readonly property string layoutMode: preferences.layoutMode
     readonly property bool stageMode: layoutMode === "stage"
     signal selected(var game)
@@ -197,6 +198,7 @@ FocusScope {
         if (destinations.opened) { destinations.close(); return }
         if (powerSheet.opened) { powerSheet.requestClose(); return }
         if (wakeSheet.opened) { wakeSheet.back(); return }
+        if (appSteamSheet.opened) { appSteamSheet.close(); return }
         for (const picker of [sortPicker, sourcePicker, morePicker, faceDefaultPicker])
             if (picker.opened) { picker.close(); return }
         if (options.opened) { options.close(); return }
@@ -263,6 +265,7 @@ FocusScope {
             audio: audioSettings.state(),
             rumble: rumbleSettings.state(),
             hostWake: wakeSheet.observation(),
+            appShortcut: appSteamSheet.observation(),
             hostPowerUi: powerSheet.interactionState(), hostPowerOpen: powerSheet.opened, hostPower: hostPower ? hostPower.state : ({}), appearanceOpen: appearanceSettings.opened, polarisSync: polarisSync.state(), theme: NovaTheme.themeId, fontScale: NovaTheme.fontScale,
             cards: visibleGames.map((game, index) => {
                 const tile = grid.itemAtIndex(index)
@@ -1280,6 +1283,10 @@ FocusScope {
         }
     }
     onSessionBusyChanged: if (sessionBusy) { settingsHub.close(); wakeSheet.close() }
+    AppSteamShortcut {
+        id: appSteamSheet; controller: browser.appShortcuts; unit: browser.unit
+        onClosed: steamAppButton.forceActiveFocus()
+    }
     HostWake {
         id: wakeSheet
         controller: browser.hostWake
@@ -1481,6 +1488,16 @@ FocusScope {
                 enabled: !!browser.hostWake && !sessionBusy && !refreshState.busy
                 onClicked: wakeSheet.open()
                 Keys.onUpPressed: sleepButton.forceActiveFocus()
+                Keys.onDownPressed: steamAppButton.forceActiveFocus()
+            }
+            ChromeButton {
+                id: steamAppButton
+                objectName: "library-add-nova-steam"
+                Layout.fillWidth: true
+                text: "Add Nova to Steam"
+                enabled: !!browser.appShortcuts && !sessionBusy
+                onClicked: appSteamSheet.open()
+                Keys.onUpPressed: wakeButton.forceActiveFocus()
                 Keys.onDownPressed: systemDone.forceActiveFocus()
             }
             ChromeButton {
@@ -1488,7 +1505,7 @@ FocusScope {
                 Layout.fillWidth: true
                 text: "Back to games"
                 onClicked: { systemMenu.close(); focusGame() }
-                Keys.onUpPressed: wakeButton.forceActiveFocus()
+                Keys.onUpPressed: steamAppButton.forceActiveFocus()
             }
         }
     }
