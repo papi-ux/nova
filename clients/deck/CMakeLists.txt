@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 # The release version, kept equal to versionName in app/build.gradle by NovaReleaseMetadataTest.
 project(NovaDeck VERSION 1.4.14 LANGUAGES C CXX)
+include(cmake/NovaReleaseVersion.cmake)
 
 # Only builds exported to a signed update feed enable the in-app updater.
 set(NOVA_DECK_UPDATE_CHANNEL "" CACHE STRING "Flatpak update branch: stable or beta")
@@ -684,7 +685,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             add_dependencies(nova-deck nova-deck-pyrowave-probe)
         endif()
         target_compile_definitions(nova-deck PRIVATE $<$<BOOL:${BUILD_TESTING}>:NOVA_DECK_TESTING>
-            NOVA_DECK_VERSION="${PROJECT_VERSION}")
+            NOVA_DECK_VERSION="${NOVA_DECK_FULL_VERSION}")
         if(NOVA_DECK_BUILD_VULKAN_STREAM)
             target_compile_definitions(nova-deck PRIVATE NOVA_DECK_VULKAN_STREAM=1)
             target_link_libraries(nova-deck PRIVATE nova_deck_hdr_render)

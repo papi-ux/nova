@@ -66,16 +66,17 @@ class FeedTests(unittest.TestCase):
         for channel in feed.CHANNELS:
             name = "com.papi_ux.Nova.json"
             source = json.loads((root / name).read_text())
-            result = feed.prepare(source, channel, "https://example.org/nova/")
+            tag = "v1.4.14" if channel == "stable" else "v1.4.14-beta.1"
+            result = feed.prepare(source, channel, "https://example.org/nova/", tag)
             self.assertEqual(result["branch"], channel)
             self.assertNotIn("branch", source)
             self.assertEqual(result["finish-args"], source["finish-args"])
             without_codec = json.loads(json.dumps(source))
             without_codec["modules"].remove("modules/pyrowave.json")
             with self.assertRaises(ValueError):
-                feed.prepare(without_codec, channel, "https://example.org/nova")
+                feed.prepare(without_codec, channel, "https://example.org/nova", tag)
             with self.assertRaises(ValueError):
-                feed.prepare(source, "pyrowave", "https://example.org/nova")
+                feed.prepare(source, "pyrowave", "https://example.org/nova", tag)
 
     def test_url_and_signing_metadata(self):
         for bad in ["http://example.org", "https://user:secret@example.org", "https://example.org/#x", "https://example.org/?x"]:

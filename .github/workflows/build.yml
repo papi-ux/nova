@@ -91,7 +91,13 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure
-        run: cmake -S clients/deck -B build-deck -G Ninja -DNOVA_DECK_BUILD_VULKAN_STREAM=ON -DNOVA_DECK_BUILD_HDR_VALIDATION=ON
+        run: |
+          suffix=""
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            suffix="$(python3 tools/nova_flatpak_feed.py version-suffix "$GITHUB_REF_NAME")"
+          fi
+          cmake -S clients/deck -B build-deck -G Ninja -DNOVA_DECK_BUILD_VULKAN_STREAM=ON -DNOVA_DECK_BUILD_HDR_VALIDATION=ON \
+            -DNOVA_DECK_VERSION_SUFFIX="$suffix"
 
       - name: Check Linux update feed preparation
         run: python3 -m unittest tools.test_nova_flatpak_feed
@@ -123,11 +129,21 @@ jobs:
           ref: ${{ github.sha }}
           submodules: recursive
 
+      - name: Prepare Linux release metadata
+        run: |
+          version_args=()
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version_args+=(--version "$GITHUB_REF_NAME")
+          fi
+          python3 tools/nova_flatpak_feed.py prepare-release \
+            clients/deck/packaging/flatpak/com.papi_ux.Nova.json \
+            clients/deck/packaging/flatpak/release-build.json "${version_args[@]}"
+
       - name: Build the Linux Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: Nova-Linux-x86_64-alpha.flatpak
-          manifest-path: clients/deck/packaging/flatpak/com.papi_ux.Nova.json
+          manifest-path: clients/deck/packaging/flatpak/release-build.json
           # A release is built from its own tree every time; a cache keyed per commit never hits.
           cache: false
           upload-artifact: false

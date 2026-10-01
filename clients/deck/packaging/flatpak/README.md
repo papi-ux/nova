@@ -8,6 +8,10 @@ commands below do not configure an update feed. See the
 [Linux update guide](../../../../docs/linux-updates.md) for feed staging,
 publication and migration from an existing bundle.
 
+Release workflows derive Nova's reported version from the exact tag, including
+the numbered beta or rc suffix. Native prerelease builds can set
+`-DNOVA_DECK_VERSION_SUFFIX=-beta.1`; an omitted suffix keeps the numeric version.
+
 Build a bundle from a checkout with its submodules initialised (moonlight-common-c is in-tree):
 
     flatpak install --user flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
