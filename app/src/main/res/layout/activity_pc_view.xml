@@ -748,16 +748,20 @@
                                     <TextView
                                         android:id="@+id/emptyRefresh"
                                         style="@style/NovaFilterChip"
+                                        android:nextFocusRight="@id/emptyAddServer"
                                         android:text="@string/nova_refresh" />
 
                                     <TextView
                                         android:id="@+id/emptyAddServer"
                                         style="@style/NovaFilterChip"
+                                        android:nextFocusLeft="@id/emptyRefresh"
+                                        android:nextFocusRight="@id/emptyScanPair"
                                         android:text="@string/pcview_quick_add_server" />
 
                                     <TextView
                                         android:id="@+id/emptyScanPair"
                                         style="@style/NovaFilterChip"
+                                        android:nextFocusLeft="@id/emptyAddServer"
                                         android:text="@string/pcview_quick_scan_pair" />
                                 </LinearLayout>
                             </HorizontalScrollView>
