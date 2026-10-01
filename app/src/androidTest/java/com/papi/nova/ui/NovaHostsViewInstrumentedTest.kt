@@ -169,7 +169,12 @@ class NovaHostsViewInstrumentedTest {
                 assertFalse(activity.isFinishing)
                 if (portrait) assertEquals("Hide menu", activity.findViewById<TextView>(R.id.dashboardRailToggle).text.toString())
             }
+            shot("hosts-touch-panel-back")
             if (portrait) {
+                // Raw touch -> B above proves panel closure while Android remains in touch
+                // mode. Start this controller-navigation segment through a real D-pad key;
+                // a B-only touch-to-controller focus transition is a separate boundary.
+                key(KeyEvent.KEYCODE_DPAD_DOWN)
                 key(KeyEvent.KEYCODE_BUTTON_B)
                 scenario.onActivity { activity ->
                     assertFalse(activity.isFinishing)
