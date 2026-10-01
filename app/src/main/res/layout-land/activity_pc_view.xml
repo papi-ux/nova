@@ -290,7 +290,9 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:minHeight="48dp"
+                        android:layout_gravity="center_vertical"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
                         android:paddingStart="10dp"
@@ -319,21 +321,18 @@
                                 android:text="@string/pcview_update_status_current"
                                 android:textAllCaps="true"
                                 android:textColor="?android:textColorSecondary"
-                                android:textSize="7sp" />
+                                android:textSize="9sp" />
 
                             <TextView
                                 android:id="@+id/updateVersionLabel"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:ellipsize="end"
                                 android:fontFamily="sans-serif-medium"
                                 android:includeFontPadding="false"
-                                android:maxWidth="92dp"
-                                android:singleLine="true"
                                 android:text="@string/pcview_update_version_preview"
                                 android:textColor="?android:textColorPrimary"
-                                android:textSize="10sp" />
+                                android:textSize="12sp" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -361,7 +360,7 @@
                         android:id="@+id/dashboardModeSelector"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:minHeight="34dp"
+                        android:minHeight="48dp"
                         android:layout_marginTop="6dp"
                         android:contentDescription="@string/pcview_dashboard_mode_selector"
                         android:gravity="center_vertical"
@@ -371,7 +370,7 @@
                         android:id="@+id/modeServers"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:minHeight="34dp"
+                        android:minHeight="48dp"
                         android:layout_weight="1"
                         android:clickable="true"
                         android:contentDescription="@string/pcview_mode_servers"
@@ -386,20 +385,13 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:minHeight="34dp"
+                            android:layout_gravity="center"
                             android:gravity="center"
                             android:orientation="horizontal"
                             android:paddingStart="6dp"
                             android:paddingEnd="6dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginEnd="5dp"
-                                android:includeFontPadding="false"
-                                android:text="●"
-                                android:textColor="?attr/colorAccent"
-                                android:textSize="9sp" />
+
 
                             <TextView
                                 android:layout_width="wrap_content"
@@ -408,7 +400,7 @@
                                 android:includeFontPadding="false"
                                 android:text="@string/pcview_mode_servers"
                                 android:textColor="?android:textColorPrimary"
-                                android:textSize="11sp" />
+                                android:textSize="14sp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -416,7 +408,7 @@
                         android:id="@+id/modeLibrary"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:minHeight="34dp"
+                        android:minHeight="48dp"
                         android:layout_weight="1"
                         android:layout_marginStart="6dp"
                         android:clickable="true"
@@ -432,19 +424,13 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:minHeight="34dp"
+                            android:layout_gravity="center"
                             android:gravity="center"
                             android:orientation="horizontal"
                             android:paddingStart="6dp"
                             android:paddingEnd="6dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginEnd="5dp"
-                                android:includeFontPadding="false"
-                                android:text="●"
-                                android:textSize="9sp" />
+
 
                             <TextView
                                 android:layout_width="wrap_content"
@@ -453,7 +439,7 @@
                                 android:includeFontPadding="false"
                                 android:text="@string/pcview_mode_library"
                                 android:textColor="?android:textColorPrimary"
-                                android:textSize="11sp" />
+                                android:textSize="14sp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
                     </LinearLayout>

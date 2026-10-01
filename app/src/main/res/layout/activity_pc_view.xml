@@ -254,7 +254,7 @@
                         android:maxLines="1"
                         android:nextFocusLeft="@id/actionTheme"
                         android:nextFocusUp="@id/profilesButton"
-                        android:nextFocusDown="@id/actionNovaUpdate"
+                        android:nextFocusDown="@id/actionSettings"
                         android:paddingStart="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:text="@string/pcview_quick_github"
@@ -284,10 +284,8 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/actionSettings"
                         style="@style/Widget.MaterialComponents.Button"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
+                        android:layout_width="match_parent"
                         android:layout_height="@dimen/nova_dashboard_top_action_height"
-                        android:layout_marginEnd="4dp"
                         android:contentDescription="@string/pcview_quick_settings"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
@@ -297,8 +295,7 @@
                         android:ellipsize="end"
                         android:maxLines="1"
                         android:nextFocusUp="@id/actionTheme"
-                        android:nextFocusRight="@id/actionNovaUpdate"
-                        android:nextFocusDown="@id/modeServers"
+                        android:nextFocusDown="@id/actionNovaUpdate"
                         android:paddingStart="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:text="@string/pcview_quick_settings"
@@ -316,77 +313,78 @@
                         app:iconPadding="@dimen/nova_dashboard_top_action_icon_gap"
                         app:iconTint="?attr/colorOnSurface" />
 
-                    <com.google.android.material.card.MaterialCardView
-                        android:id="@+id/actionNovaUpdate"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="@dimen/nova_dashboard_top_action_height"
-                        android:clickable="true"
-                        android:contentDescription="@string/pcview_update_pill_content_current"
-                        android:focusable="true"
-                        android:foreground="?attr/selectableItemBackground"
-                        android:nextFocusLeft="@id/actionSettings"
-                        android:nextFocusUp="@id/actionGithub"
-                        android:nextFocusDown="@id/modeLibrary"
-                        app:cardBackgroundColor="?attr/colorControlHighlight"
-                        app:cardCornerRadius="@dimen/nova_radius_hero"
-                        app:cardElevation="0dp"
-                        app:strokeColor="?attr/colorControlHighlight"
-                        app:strokeWidth="1dp">
 
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal"
-                            android:paddingStart="@dimen/nova_dashboard_top_action_padding_horizontal"
-                            android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal">
-
-                            <View
-                                android:id="@+id/updateStatusLight"
-                                android:layout_width="8dp"
-                                android:layout_height="8dp"
-                                android:layout_marginEnd="@dimen/nova_dashboard_top_action_icon_gap"
-                                android:background="@drawable/nova_status_online" />
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:id="@+id/updateStatusLabel"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:ellipsize="end"
-                                    android:fontFamily="sans-serif-medium"
-                                    android:includeFontPadding="false"
-                                    android:letterSpacing="0.08"
-                                    android:text="@string/pcview_update_status_current"
-                                    android:maxLines="1"
-                                    android:textAllCaps="true"
-                                    android:textColor="?android:textColorSecondary"
-                                    android:textSize="11sp" />
-
-                                <TextView
-                                    android:id="@+id/updateVersionLabel"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:ellipsize="end"
-                                    android:fontFamily="sans-serif-medium"
-                                    android:includeFontPadding="false"
-                                    android:maxLines="1"
-                                    android:text="@string/pcview_update_version_preview"
-                                    android:textColor="?android:textColorPrimary"
-                                    android:textSize="12sp" />
-                            </LinearLayout>
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
                 </LinearLayout>
             </LinearLayout>
 
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/actionNovaUpdate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:layout_marginTop="6dp"
+                android:clickable="true"
+                android:contentDescription="@string/pcview_update_pill_content_current"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:nextFocusUp="@id/actionSettings"
+                android:nextFocusDown="@id/modeServers"
+                app:cardBackgroundColor="?attr/colorControlHighlight"
+                app:cardCornerRadius="@dimen/nova_radius_hero"
+                app:cardElevation="0dp"
+                app:strokeColor="?attr/colorControlHighlight"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="@dimen/nova_dashboard_top_action_padding_horizontal"
+                    android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal">
+
+                    <View
+                        android:id="@+id/updateStatusLight"
+                        android:layout_width="8dp"
+                        android:layout_height="8dp"
+                        android:layout_marginEnd="@dimen/nova_dashboard_top_action_icon_gap"
+                        android:background="@drawable/nova_status_online" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/updateStatusLabel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:letterSpacing="0.08"
+                            android:text="@string/pcview_update_status_current"
+                            android:textAllCaps="true"
+                            android:textColor="?android:textColorSecondary"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:id="@+id/updateVersionLabel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:text="@string/pcview_update_version_preview"
+                            android:textColor="?android:textColorPrimary"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+                </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <TextView
@@ -412,7 +410,8 @@
                 <LinearLayout
                     android:id="@+id/dashboardModeSelector"
                     android:layout_width="match_parent"
-                    android:layout_height="@dimen/nova_dashboard_pill_height"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:contentDescription="@string/pcview_dashboard_mode_selector"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
@@ -421,12 +420,13 @@
                         android:id="@+id/modeServers"
                         android:layout_width="0dp"
                         android:layout_weight="1"
-                        android:layout_height="@dimen/nova_dashboard_pill_height"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:clickable="true"
                         android:contentDescription="@string/pcview_mode_servers"
                         android:focusable="true"
                         android:foreground="?attr/selectableItemBackground"
-                        android:nextFocusUp="@id/actionSettings"
+                        android:nextFocusUp="@id/actionNovaUpdate"
                         android:nextFocusRight="@id/modeLibrary"
                         app:cardBackgroundColor="?attr/colorSurface"
                         app:cardCornerRadius="@dimen/nova_radius_hero"
@@ -436,20 +436,14 @@
 
                         <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
                             android:gravity="center"
                             android:orientation="horizontal"
                             android:paddingStart="16dp"
                             android:paddingEnd="16dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginEnd="8dp"
-                                android:includeFontPadding="false"
-                                android:text="●"
-                                android:textColor="?attr/colorAccent"
-                                android:textSize="11sp" />
+
 
                             <TextView
                                 android:layout_width="wrap_content"
@@ -458,7 +452,7 @@
                                 android:includeFontPadding="false"
                                 android:text="@string/pcview_mode_servers"
                                 android:textColor="?android:textColorPrimary"
-                                android:textSize="14sp" />
+                                android:textSize="17sp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -466,7 +460,8 @@
                         android:id="@+id/modeLibrary"
                         android:layout_width="0dp"
                         android:layout_weight="1"
-                        android:layout_height="@dimen/nova_dashboard_pill_height"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:layout_marginStart="8dp"
                         android:clickable="true"
                         android:contentDescription="@string/pcview_mode_library"
@@ -482,19 +477,14 @@
 
                         <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
                             android:gravity="center"
                             android:orientation="horizontal"
                             android:paddingStart="16dp"
                             android:paddingEnd="16dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginEnd="8dp"
-                                android:includeFontPadding="false"
-                                android:text="●"
-                                android:textSize="11sp" />
+
 
                             <TextView
                                 android:layout_width="wrap_content"
@@ -503,7 +493,7 @@
                                 android:includeFontPadding="false"
                                 android:text="@string/pcview_mode_library"
                                 android:textColor="?android:textColorPrimary"
-                                android:textSize="14sp" />
+                                android:textSize="17sp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
                 </LinearLayout>

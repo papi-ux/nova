@@ -11,6 +11,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
+import android.widget.LinearLayout
 import androidx.lifecycle.Lifecycle
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
@@ -22,6 +23,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.PcView
+import com.papi.nova.BuildConfig
 import com.papi.nova.PcViewModel
 import com.papi.nova.R
 import com.papi.nova.grid.PcGridAdapter
@@ -29,6 +31,8 @@ import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.panel.NovaSurfaces
 import java.io.File
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.*
 import kotlin.math.roundToInt
 import org.junit.Test
@@ -311,6 +315,135 @@ class NovaHostsViewInstrumentedTest {
                 shot("host-card-$size")
             }
         }
+    }
+
+    @Test fun destinationCardsCenterTheirContentAndPortraitUpdateShowsTheCompleteBetaLabel() = withPreferences {
+        ActivityScenario.launch(PcView::class.java).use { scenario ->
+            settle()
+            key(KeyEvent.KEYCODE_DPAD_DOWN)
+            var portrait = false
+            val geometry = JSONArray()
+            scenario.onActivity { activity ->
+                portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+                if (portrait) activity.findViewById<View>(R.id.dashboardRailToggle).performClick()
+            }
+            settle()
+            for (size in listOf("compact", "standard", "large")) {
+                scenario.moveToState(Lifecycle.State.CREATED)
+                PreferenceManager.getDefaultSharedPreferences(context).edit().putString("nova_control_size", size).commit()
+                scenario.moveToState(Lifecycle.State.RESUMED)
+                settle()
+                key(KeyEvent.KEYCODE_DPAD_DOWN)
+                scenario.onActivity { assertTrue(it.findViewById<View>(R.id.modeServers).requestFocus()) }
+                settle()
+                scenario.onActivity { activity ->
+                    val density = activity.resources.displayMetrics.density
+                    val cards = listOf(R.id.modeServers, R.id.modeLibrary).map { activity.findViewById<MaterialCardView>(it) }
+                    cards.forEach { card ->
+                        val content = card.getChildAt(0) as LinearLayout
+                        val label = (0 until content.childCount).map { content.getChildAt(it) }.filterIsInstance<TextView>().last()
+                        val targetLocation = IntArray(2); val labelLocation = IntArray(2)
+                        card.getLocationInWindow(targetLocation); label.getLocationInWindow(labelLocation)
+                        val offset = labelLocation[1] + label.height / 2f - targetLocation[1] - card.height / 2f
+                        assertEquals("$size label centers in the real hit target", 0f, offset, 1.5f)
+                        assertEquals((if (portrait) 17f else 14f) * activity.resources.displayMetrics.scaledDensity,
+                            label.textSize, .01f)
+                        assertTrue(card.width >= 48 * density - 1 && card.height >= 48 * density - 1)
+                        assertFullyVisible(card)
+                        assertFullLabel(label)
+                        geometry.put(JSONObject().put("control_size", size).put("card", activity.resources.getResourceEntryName(card.id))
+                            .put("width_px", card.width).put("height_px", card.height).put("label_center_offset_px", offset)
+                            .put("label_text_size_px", label.textSize).put("selected", card.isSelected))
+                    }
+                    assertTrue(cards[0].isSelected)
+                    assertFalse(cards[1].isSelected)
+                    assertNotEquals(cards[0].cardBackgroundColor.defaultColor, cards[1].cardBackgroundColor.defaultColor)
+                }
+                shot("hosts-modes-$size")
+                if (portrait) {
+                    // Real directional input follows the changed visual rows. Requesting only
+                    // an initial controller target keeps these transitions discriminating.
+                    scenario.onActivity { assertTrue(it.findViewById<View>(R.id.actionSettings).requestFocus()) }
+                    settle()
+                    key(KeyEvent.KEYCODE_DPAD_DOWN)
+                    scenario.onActivity { assertEquals(R.id.actionNovaUpdate, it.currentFocus?.id) }
+                    key(KeyEvent.KEYCODE_DPAD_DOWN)
+                    scenario.onActivity { assertEquals(R.id.modeServers, it.currentFocus?.id) }
+                    key(KeyEvent.KEYCODE_DPAD_RIGHT)
+                    scenario.onActivity { assertEquals(R.id.modeLibrary, it.currentFocus?.id) }
+                    key(KeyEvent.KEYCODE_DPAD_UP)
+                    scenario.onActivity { assertEquals(R.id.actionNovaUpdate, it.currentFocus?.id) }
+                } else {
+                    scenario.onActivity { assertTrue(it.findViewById<View>(R.id.actionNovaUpdate).requestFocus()) }
+                    settle()
+                }
+                scenario.onActivity { activity ->
+                    val update = activity.findViewById<MaterialCardView>(R.id.actionNovaUpdate)
+                    if (portrait) {
+                        val group = activity.findViewById<View>(R.id.hostsNavigationActions)
+                        assertEquals("Portrait update occupies the full grouped-rail width", group.width, update.width)
+                    }
+                    assertFullyVisible(update)
+                    val version = activity.findViewById<TextView>(R.id.updateVersionLabel)
+                    assertEquals("Actual update state still uses compiled version metadata",
+                        activity.getString(R.string.pcview_update_pill_current_version, BuildConfig.VERSION_NAME), version.text.toString())
+                    // Debug x86 geometry proof is separate from Root's Beta artifact gate. Stress
+                    // the exact delivered Beta caption without changing updater/model/metadata.
+                    version.text = "Nova 1.4.14-beta"
+                }
+                settle()
+                scenario.onActivity { activity ->
+                    val update = activity.findViewById<View>(R.id.actionNovaUpdate)
+                    val version = activity.findViewById<TextView>(R.id.updateVersionLabel)
+                    val status = activity.findViewById<TextView>(R.id.updateStatusLabel)
+                    assertNull(version.ellipsize)
+                    assertFullLabel(version)
+                    assertFullLabel(status)
+                    assertFullyVisible(update)
+                    val density = activity.resources.displayMetrics.density
+                    assertTrue(update.height >= 48 * density - 1)
+                    geometry.put(JSONObject().put("control_size", size).put("card", "actionNovaUpdate")
+                        .put("width_px", update.width).put("height_px", update.height)
+                        .put("stress_version", version.text.toString()).put("lines", version.layout.lineCount))
+                }
+                shot("hosts-update-$size")
+                lateinit var hostsTarget: View
+                scenario.onActivity { activity ->
+                    // Hosts is a local filter action: no pairing, power or updater network call.
+                    activity.findViewById<View>(R.id.filterOnlineServers).performClick()
+                    hostsTarget = activity.findViewById(R.id.modeServers)
+                    assertTrue(hostsTarget.requestFocus())
+                }
+                settle()
+                tapLowerEdge(hostsTarget)
+                scenario.onActivity { activity ->
+                    assertEquals("Raw touch in the mode target's lower edge retains the Hosts action",
+                        R.id.filterAllServers, activity.findViewById<com.google.android.material.chip.ChipGroup>(R.id.serverFilterTabs).checkedChipId)
+                }
+            }
+            val suffix = InstrumentationRegistry.getArguments().getString("shotSuffix", "native")
+            val directory = File(context.getExternalFilesDir(null), "hosts-view").apply { mkdirs() }
+            File(directory, "hosts-card-geometry-$suffix.json").writeText(JSONObject()
+                .put("compiled_version", BuildConfig.VERSION_NAME).put("build_type", BuildConfig.BUILD_TYPE)
+                .put("font_percent", fontPercent).put("geometry", geometry).toString(2))
+        }
+    }
+
+    private fun assertFullyVisible(view: View) {
+        val visible = Rect()
+        assertTrue(view.getGlobalVisibleRect(visible))
+        assertTrue("Entire target is visible horizontally", visible.width() >= view.width - 1)
+        assertTrue("Entire target is visible vertically", visible.height() >= view.height - 1)
+    }
+
+    private fun assertFullLabel(label: TextView) {
+        assertNotNull(label.layout)
+        assertTrue("All label characters are laid out", label.layout.getLineEnd(label.layout.lineCount - 1) == label.text.length)
+        for (line in 0 until label.layout.lineCount) {
+            assertEquals("No line ellipsizes", 0, label.layout.getEllipsisCount(line))
+            assertTrue("Text fits its laid-out column", label.layout.getLineWidth(line) <= label.width - label.paddingLeft - label.paddingRight + 1f)
+        }
+        assertTrue("All text lines fit vertically", label.layout.height <= label.height - label.paddingTop - label.paddingBottom + 1)
     }
 
     private fun tapLowerEdge(target: View) {
