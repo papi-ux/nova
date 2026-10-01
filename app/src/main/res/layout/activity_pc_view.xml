@@ -675,83 +675,95 @@
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp">
 
-                <LinearLayout
+                <FrameLayout
                     android:id="@+id/no_pc_found_layout"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_centerInParent="true"
-                    android:gravity="center"
-                    android:orientation="vertical">
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
 
-                    <ImageView
-                        android:layout_width="64dp"
-                        android:layout_height="64dp"
-                        android:alpha="0.3"
-                        android:src="@drawable/ic_nova_star_foreground" />
-
-                    <ProgressBar
-                        android:id="@+id/pcs_loading"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:layout_marginTop="20dp"
-                        android:indeterminate="true"
-                        android:indeterminateTint="?attr/colorPrimary" />
-
-                    <TextView
-                        android:id="@+id/pcViewEmptyTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:fontFamily="sans-serif"
-                        android:text="@string/pcview_empty_title_searching"
-                        android:textColor="?android:textColorSecondary"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:id="@+id/pcViewEmptyHint"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:alpha="0.6"
-                        android:fontFamily="sans-serif"
-                        android:gravity="center"
-                        android:text="@string/pcview_empty_hint_searching"
-                        android:textColor="?android:textColorSecondary"
-                        android:textSize="12sp" />
-
-                    <!-- Not a focus stop itself: it took focus and drew the grey default
-                         highlight, and the chips inside could not be reached (R7). -->
-                    <HorizontalScrollView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:defaultFocusHighlightEnabled="false"
-                        android:descendantFocusability="afterDescendants"
+                    <androidx.core.widget.NestedScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:fillViewport="true"
                         android:focusable="false"
                         android:scrollbars="none">
 
                         <LinearLayout
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal">
+                            android:gravity="center"
+                            android:orientation="vertical">
+
+                            <ImageView
+                                android:layout_width="64dp"
+                                android:layout_height="64dp"
+                                android:alpha="0.3"
+                                android:src="@drawable/ic_nova_star_foreground" />
+
+                            <ProgressBar
+                                android:id="@+id/pcs_loading"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:layout_marginTop="20dp"
+                                android:indeterminate="true"
+                                android:indeterminateTint="?attr/colorPrimary" />
 
                             <TextView
-                                android:id="@+id/emptyRefresh"
-                                style="@style/NovaFilterChip"
-                                android:text="@string/nova_refresh" />
+                                android:id="@+id/pcViewEmptyTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:fontFamily="sans-serif"
+                                android:text="@string/pcview_empty_title_searching"
+                                android:textColor="?android:textColorSecondary"
+                                android:textSize="14sp" />
 
                             <TextView
-                                android:id="@+id/emptyAddServer"
-                                style="@style/NovaFilterChip"
-                                android:text="@string/pcview_quick_add_server" />
+                                android:id="@+id/pcViewEmptyHint"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:alpha="0.6"
+                                android:fontFamily="sans-serif"
+                                android:gravity="center"
+                                android:text="@string/pcview_empty_hint_searching"
+                                android:textColor="?android:textColorSecondary"
+                                android:textSize="12sp" />
 
-                            <TextView
-                                android:id="@+id/emptyScanPair"
-                                style="@style/NovaFilterChip"
-                                android:text="@string/pcview_quick_scan_pair" />
+                            <!-- Not a focus stop itself: it took focus and drew the grey default
+                                 highlight, and the chips inside could not be reached (R7). -->
+                            <HorizontalScrollView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:defaultFocusHighlightEnabled="false"
+                                android:descendantFocusability="afterDescendants"
+                                android:focusable="false"
+                                android:scrollbars="none">
+
+                                <LinearLayout
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal">
+
+                                    <TextView
+                                        android:id="@+id/emptyRefresh"
+                                        style="@style/NovaFilterChip"
+                                        android:text="@string/nova_refresh" />
+
+                                    <TextView
+                                        android:id="@+id/emptyAddServer"
+                                        style="@style/NovaFilterChip"
+                                        android:text="@string/pcview_quick_add_server" />
+
+                                    <TextView
+                                        android:id="@+id/emptyScanPair"
+                                        style="@style/NovaFilterChip"
+                                        android:text="@string/pcview_quick_scan_pair" />
+                                </LinearLayout>
+                            </HorizontalScrollView>
                         </LinearLayout>
-                    </HorizontalScrollView>
-                </LinearLayout>
+                    </androidx.core.widget.NestedScrollView>
+                </FrameLayout>
             </RelativeLayout>
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
     </LinearLayout>

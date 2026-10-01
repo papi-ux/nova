@@ -1,6 +1,10 @@
 package com.papi.nova
 
 import android.app.Application
+import android.graphics.Rect
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.app.GameManager
 import android.content.ComponentName
 import android.content.Context
@@ -99,6 +103,37 @@ class PcViewPortraitNavigationTest {
         activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
         activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
         idleAndLayout(activity)
+    }
+
+    @Test
+    @Config(qualifiers = "w412dp-h700dp-port")
+    fun largeTextEmptyActionsScrollFullyAboveTheGestureArea() {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putInt(com.papi.nova.ui.NovaFontScalePreferences.KEY_SCALE_PERCENT, 130).commit()
+        val activity = open().get()
+        menu(activity).performClick()
+        idleAndLayout(activity)
+        val empty = activity.findViewById<View>(R.id.no_pc_found_layout)
+        val gestureInset = (24 * activity.resources.displayMetrics.density).roundToInt()
+        val insets = WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.systemGestures(), Insets.of(0, 0, 0, gestureInset))
+            .setInsets(WindowInsetsCompat.Type.mandatorySystemGestures(), Insets.of(0, 0, 0, gestureInset))
+            .build()
+        ViewCompat.dispatchApplyWindowInsets(empty, insets)
+        idleAndLayout(activity)
+        val pane = activity.findViewById<View>(R.id.pcFragmentContainer)
+        val paneRect = Rect()
+        assertTrue(pane.getGlobalVisibleRect(paneRect))
+        for (id in listOf(R.id.emptyRefresh, R.id.emptyAddServer, R.id.emptyScanPair)) {
+            val action = activity.findViewById<View>(id)
+            assertTrue(action.requestFocus())
+            idleAndLayout(activity)
+            val visible = Rect()
+            assertTrue(action.getGlobalVisibleRect(visible))
+            assertEquals("The whole focused action must scroll into the short pane", action.height, visible.height())
+            assertTrue("Full touch height survives the text/control scale", action.height >= (48 * activity.resources.displayMetrics.density).roundToInt())
+            assertTrue("The focused action must stay above gestures", visible.bottom <= paneRect.bottom - gestureInset)
+        }
     }
 
     @Test fun freshPortraitHidesSupportingNavigationAndReclaimsTheComputerPane() {

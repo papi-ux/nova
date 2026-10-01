@@ -40,6 +40,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -733,6 +734,19 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             .commitAllowingStateLoss()
 
         noPcFoundLayout = findViewById(R.id.no_pc_found_layout)
+        if (isPortraitHosts()) noPcFoundLayout?.let { empty ->
+            // The portrait Menu can leave a short pane. Its actions scroll at full
+            // height and keep their lower touch edge clear of gesture navigation.
+            ViewCompat.setOnApplyWindowInsetsListener(empty) { view, insets ->
+                val bottom = maxOf(
+                    insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom,
+                    insets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures()).bottom,
+                )
+                view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, bottom)
+                insets
+            }
+            ViewCompat.requestApplyInsets(empty)
+        }
         updateEmptyState()
         scheduleHostsFocusRestore()
     }
@@ -760,6 +774,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         if (hostsControlSize == size) return
         hostsControlSize = size
         hostsViewMetrics?.apply(size)
+        if (isPortraitHosts()) noPcFoundLayout?.let { ViewCompat.requestApplyInsets(it) }
         if (isPortraitHosts()) setPortraitMenuExpanded(portraitMenuExpanded)
         else setDashboardRailCollapsed(dashboardRailCollapsed, persist = false, animate = false)
         // Rebind the retained rows, keeping their stable UUID IDs and action callbacks.
@@ -1546,6 +1561,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         // Once rows are listed the first row takes over again (setServerFilterNextFocusDown).
         val emptyShowing = computers.isNullOrEmpty() || pcGridAdapter.itemCount == 0
         if (emptyShowing) {
+            // The fragment adds its full-size RecyclerView after the empty pane. A
+            // transparent empty grid still consumes touches unless this pane is on top.
+            noPcFoundLayout?.bringToFront()
             for (filterId in SERVER_FILTER_IDS) setNextFocusDown(filterId, R.id.emptyRefresh)
         }
 
@@ -3501,6 +3519,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     setServerFilterNextFocusDown(firstRow)
                 }
             }
+            updateEmptyState()
         }
     }
 
