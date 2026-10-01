@@ -213,7 +213,7 @@ class NovaCameraViewPolicyTest {
             val scrollRail = rail as androidx.core.widget.NestedScrollView
             scrollRail.scrollTo(0, 24)
             assertEquals("the real rail can scroll", 24, scrollRail.scrollY)
-            root.viewTreeObserver.dispatchOnScrollChanged()
+            org.robolectric.util.ReflectionHelpers.callInstanceMethod<Void>(root.viewTreeObserver, "dispatchOnScrollChanged")
             assertTrue("scroll alone requests local action clearance", (action.layoutParams as ViewGroup.MarginLayoutParams).topMargin > 0)
             repeat(5) { relayout() }
             val profileAfterScroll = IntArray(2).also { action.getLocationInWindow(it) }
