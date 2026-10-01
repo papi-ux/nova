@@ -39,8 +39,11 @@ class NovaSettingsSmokeFixesSourceGuardTest {
         assertTrue(field.indexOf("NovaInPlaceKeyboard {") in 0 until field.indexOf("NovaSearchTextField("))
         assertFalse("The field leaves root Back ordering to the page host", field.contains("NovaBackHandler("))
         val rootBack = screen.substringAfter("onCloseRequest = {").substringBefore("hints = hints,")
+        val searchBranch = rootBack.indexOf("if (latestState.isSearchActive())")
+        val clearSearch = rootBack.indexOf("clearSearch()", searchBranch.coerceAtLeast(0))
+        val hideNavigation = rootBack.indexOf("else if (portrait")
         assertTrue("Root B clears search before hiding navigation or leaving Settings",
-            rootBack.contains("if (latestState.isSearchActive()) {\n                            clearSearch()\n                        } else if (portrait"))
+            searchBranch >= 0 && clearSearch > searchBranch && hideNavigation > clearSearch)
         val decoration = field.substringAfter("{ innerTextField ->").substringBefore("// Beside the field")
         assertFalse("Clear sits beside the field, not inside its decoration", decoration.contains("nova_settings_search_clear"))
     }

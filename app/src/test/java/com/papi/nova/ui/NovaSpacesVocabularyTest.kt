@@ -150,9 +150,11 @@ class NovaSpacesVocabularyTest {
             strip.contains("horizontalScroll(") || strip.contains("rowWidth") || strip.contains("980.dp") || strip.contains("700.dp"),
         )
         assertTrue("what gives way is decided by the tested fit, from measured text", strip.contains("rememberNovaLibraryTopBarFit(") && strip.contains("novaLibraryTopBarFit("))
+        val hostRow = strip.substringBefore("NovaLibraryToolbarIdentity(").substringAfterLast("Row(")
         assertTrue(
             "the host side stays weighted so menus measure first, and wraps camera clearance vertically",
-            strip.contains("modifier = Modifier.weight(1f).wrapContentHeight()"),
+            hostRow.contains("modifier = Modifier.weight(1f),") && !hostRow.contains("fillMaxHeight()") &&
+                strip.contains("heightIn(min = NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp"),
         )
     }
 
