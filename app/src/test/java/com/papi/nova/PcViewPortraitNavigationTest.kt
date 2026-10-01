@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
+import android.widget.LinearLayout
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import androidx.lifecycle.MutableLiveData
@@ -325,6 +326,66 @@ class PcViewPortraitNavigationTest {
                 }
             }
         }
+    }
+
+    @Test fun portraitModeContentsStayCenteredInTheirActualControlTargets() = checkModeCardContents()
+
+    @Test
+    @Config(qualifiers = "w900dp-h480dp-land")
+    fun landscapeModeContentsStayCenteredInTheirActualControlTargets() = checkModeCardContents()
+
+    private fun checkModeCardContents() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        for (size in listOf("compact", "standard", "large")) {
+            preferences.edit().putString("nova_control_size", size).commit()
+            val activity = open().get()
+            val portrait = activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            if (portrait) menu(activity).performClick()
+            idleAndLayout(activity)
+            val density = activity.resources.displayMetrics.density
+            val cards = listOf(R.id.modeServers, R.id.modeLibrary).map { activity.findViewById<MaterialCardView>(it) }
+            cards.forEach { card ->
+                val content = card.getChildAt(0) as LinearLayout
+                val label = (0 until content.childCount).map { content.getChildAt(it) }.filterIsInstance<TextView>().last()
+                val targetLocation = IntArray(2); val labelLocation = IntArray(2)
+                card.getLocationInWindow(targetLocation); label.getLocationInWindow(labelLocation)
+                assertTrue("$size mode retains its own 48dp target", card.height >= 48 * density - 1)
+                assertEquals("$size mode label centers in the target, not in a shorter top-aligned child",
+                    targetLocation[1] + card.height / 2f, labelLocation[1] + label.height / 2f, 1.5f)
+                assertEquals("Mode labels use a readable size independent of Control Size",
+                    (if (portrait) 17f else 14f) * activity.resources.displayMetrics.scaledDensity, label.textSize, .01f)
+            }
+            assertTrue("The current Hosts segment is selected", cards[0].isSelected)
+            assertFalse("The Library action remains unselected", cards[1].isSelected)
+            assertNotEquals("Selection has a readable fill independent of the focus ring",
+                cards[0].cardBackgroundColor.defaultColor, cards[1].cardBackgroundColor.defaultColor)
+        }
+    }
+
+    @Test fun portraitUpdateStatusUsesItsOwnFullWidthRowAndCompleteVersionText() {
+        val activity = open().get()
+        menu(activity).performClick()
+        idleAndLayout(activity)
+        val update = activity.findViewById<MaterialCardView>(R.id.actionNovaUpdate)
+        val settings = activity.findViewById<View>(R.id.actionSettings)
+        val group = activity.findViewById<View>(R.id.hostsNavigationActions)
+        val updateLocation = IntArray(2); val groupLocation = IntArray(2)
+        update.getLocationInWindow(updateLocation); group.getLocationInWindow(groupLocation)
+        assertEquals("Update row fills the same width as the grouped navigation", group.width, update.width)
+        assertEquals(groupLocation[0], updateLocation[0])
+        assertTrue("Update lives below the Settings row", updateLocation[1] >= groupLocation[1] + group.height)
+        assertEquals("Settings moves down into the update row", R.id.actionNovaUpdate, settings.nextFocusDownId)
+        assertEquals("Update returns up to Settings", R.id.actionSettings, update.nextFocusUpId)
+        assertEquals("Update moves down to Hosts", R.id.modeServers, update.nextFocusDownId)
+        val version = activity.findViewById<TextView>(R.id.updateVersionLabel)
+        // Exercise the delivered Beta string without altering BuildConfig or the real update
+        // model. The actual geometry must hold it, not just an accessible truncated caption.
+        version.text = "Nova 1.4.14-beta"
+        idleAndLayout(activity)
+        assertNull("Version does not ellipsize", version.ellipsize)
+        assertTrue("The complete Beta version has usable width", version.layout.getEllipsisCount(0) == 0 &&
+            version.layout.getLineEnd(version.layout.lineCount - 1) == version.text.length)
+        assertTrue(update.height >= 48 * activity.resources.displayMetrics.density - 1)
     }
 
     companion object {

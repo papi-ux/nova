@@ -147,7 +147,13 @@ class NovaDashboardRevampContractTest {
         ).forEach { id ->
             assertTrue("portrait one-screen action grid should keep $id visible before mode controls", railXml.contains(id))
         }
-        assertTrue("portrait update labels should remain bounded inside the grid cell", railXml.contains("""android:id="@+id/updateStatusLabel"""") && railXml.contains("""android:id="@+id/updateVersionLabel"""") && railXml.contains("""android:layout_width="0dp"""") && railXml.contains("""android:layout_weight="1"""") && railXml.contains("""android:maxLines="1"""") && railXml.contains("""android:ellipsize="end""""))
+        val updateXml = railXml.substring(railXml.indexOf("@+id/actionNovaUpdate"))
+        assertTrue("portrait update is a full-width row beneath the grouped actions",
+            updateXml.substringBefore('>').contains("""android:layout_width="match_parent"""") &&
+                updateXml.contains("""android:id="@+id/updateStatusLabel"""") &&
+                updateXml.contains("""android:id="@+id/updateVersionLabel""""))
+        assertFalse("portrait update wraps the complete version instead of truncating the grid cell",
+            updateXml.contains("android:maxLines=") || updateXml.contains("android:ellipsize="))
         assertTrue("portrait controls should start close under the visible action grid to keep hosts on-screen", headerXml.contains("""android:id="@+id/dashboardHomeControls"""") && headerXml.contains("""android:layout_marginTop="10dp"""))
     }
 
@@ -484,20 +490,18 @@ class NovaDashboardRevampContractTest {
             "@+id/actionGithub" to listOf(
                 """android:nextFocusLeft="@id/actionTheme"""",
                 """android:nextFocusUp="@id/profilesButton"""",
-                """android:nextFocusDown="@id/actionNovaUpdate"""",
+                """android:nextFocusDown="@id/actionSettings"""",
             ),
             "@+id/actionSettings" to listOf(
                 """android:nextFocusUp="@id/actionTheme"""",
-                """android:nextFocusRight="@id/actionNovaUpdate"""",
-                """android:nextFocusDown="@id/modeServers"""",
+                """android:nextFocusDown="@id/actionNovaUpdate"""",
             ),
             "@+id/actionNovaUpdate" to listOf(
-                """android:nextFocusLeft="@id/actionSettings"""",
-                """android:nextFocusUp="@id/actionGithub"""",
-                """android:nextFocusDown="@id/modeLibrary"""",
+                """android:nextFocusUp="@id/actionSettings"""",
+                """android:nextFocusDown="@id/modeServers"""",
             ),
             "@+id/modeServers" to listOf(
-                """android:nextFocusUp="@id/actionSettings"""",
+                """android:nextFocusUp="@id/actionNovaUpdate"""",
             ),
             "@+id/modeLibrary" to listOf(
                 """android:nextFocusUp="@id/actionNovaUpdate"""",

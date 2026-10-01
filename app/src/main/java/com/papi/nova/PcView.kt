@@ -973,9 +973,10 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         }
 
         val focused = card.hasFocus()
-        // The current segment is marked by its accent dot and a SemiBold label (R9); only focus
-        // gets the ring. Servers rested in a 2dp accent outline and read as focused.
-        card.setCardBackgroundColor(ColorUtils.blendARGB(surface, textMuted, 0.05f))
+        // Selection uses a readable fill and label; the accent outline remains controller focus.
+        card.isSelected = active
+        card.setCardBackgroundColor(if (active) ColorUtils.blendARGB(surface, accent, 0.18f)
+            else ColorUtils.blendARGB(surface, textMuted, 0.05f))
         updateModeSegmentStroke(card, focused, accent, divider)
         card.setOnFocusChangeListener { _, hasFocus ->
             updateModeSegmentStroke(card, hasFocus, accent, divider)
@@ -985,19 +986,11 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         for (index in 0 until layout.childCount) {
             val child = layout.getChildAt(index)
             if (child is TextView) {
-                child.setTextColor(
-                    if (index == 0) {
-                        if (active) accent else textMuted
-                    } else {
-                        if (active) textPrimary else textMuted
-                    },
+                child.setTextColor(textPrimary)
+                child.typeface = android.graphics.Typeface.create(
+                    "sans-serif-medium",
+                    if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL,
                 )
-                if (index != 0) {
-                    child.typeface = android.graphics.Typeface.create(
-                        "sans-serif-medium",
-                        if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL,
-                    )
-                }
             }
         }
     }
