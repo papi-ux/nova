@@ -275,7 +275,9 @@ fun NovaSplitConfirm(
     }
     val motion = tween<Float>(NovaPanelMetrics.SplitMillis)
     val grow = tween<IntSize>(NovaPanelMetrics.SplitMillis)
-    Column(modifier = modifier.bringIntoViewRequester(pairAndLine)) {
+    Column(modifier = modifier
+        .then(if (state.armed) Modifier.novaTrackedFocusGroup() else Modifier)
+        .bringIntoViewRequester(pairAndLine)) {
         AnimatedContent(
             targetState = state.armed,
             transitionSpec = {
@@ -537,7 +539,7 @@ private class BoundsHolder {
     var bounds: Rect? = null
 }
 
-/** Whether the armed pair stood Stay over the action when it was last placed, for focus to follow. */
+/** Whether the armed pair stood Stay over the action when it was last measured, for focus to follow. */
 private class SplitPairArrangement {
     var stacked: Boolean by mutableStateOf(false)
 }
@@ -582,14 +584,13 @@ private fun SplitPair(
             stayWord = stayHalf.minIntrinsicWidth(Constraints.Infinity),
             actionWord = actionHalf.minIntrinsicWidth(Constraints.Infinity),
         )
+        if (arrangement.stacked != (halves == null)) arrangement.stacked = halves == null
         if (halves != null) {
             val (stayWidth, actionWidth) = halves
             val height = maxOf(stayHalf.minIntrinsicHeight(stayWidth), actionHalf.minIntrinsicHeight(actionWidth))
             val stayPlaced = stayHalf.measure(Constraints.fixed(stayWidth, height))
             val actionPlaced = actionHalf.measure(Constraints.fixed(actionWidth, height))
             layout(width, height) {
-                // Intrinsic queries may use different constraints; only a placed pair owns focus layout.
-                arrangement.stacked = false
                 stayPlaced.placeRelative(0, 0)
                 actionPlaced.placeRelative(stayWidth + gap, 0)
             }
@@ -598,7 +599,6 @@ private fun SplitPair(
             val top = stayHalf.measure(full)
             val bottom = actionHalf.measure(full)
             layout(width, top.height + gap + bottom.height) {
-                arrangement.stacked = true
                 top.placeRelative(0, 0)
                 bottom.placeRelative(0, top.height + gap)
             }
