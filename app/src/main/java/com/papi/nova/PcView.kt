@@ -1561,6 +1561,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         // Once rows are listed the first row takes over again (setServerFilterNextFocusDown).
         val emptyShowing = computers.isNullOrEmpty() || pcGridAdapter.itemCount == 0
         if (emptyShowing) {
+            // The fragment adds its full-size RecyclerView after the empty pane. A
+            // transparent empty grid still consumes touches unless this pane is on top.
+            noPcFoundLayout?.bringToFront()
             for (filterId in SERVER_FILTER_IDS) setNextFocusDown(filterId, R.id.emptyRefresh)
         }
 

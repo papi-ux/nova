@@ -484,6 +484,7 @@ class NovaHostsViewInstrumentedTest {
                         }
                         val addHits = addMonitor.hits
                         val scanHits = scanMonitor.hits
+                        shot("hosts-empty-before-$id-$menuExpanded")
                         tapLowerEdge(target)
                         scenario.onActivity { activity ->
                             when (id) {
@@ -499,7 +500,7 @@ class NovaHostsViewInstrumentedTest {
                         }
                         // Touch mode ends only through real D-pad input; keep the next step in
                         // the Activity's actual focus graph rather than calling its key handler.
-                        key(KeyEvent.KEYCODE_DPAD_DOWN)
+                        key(KeyEvent.KEYCODE_DPAD_RIGHT)
                         if (id != R.id.emptyScanPair) {
                             scenario.onActivity { assertEquals(if (id == R.id.emptyRefresh) R.id.emptyAddServer else R.id.emptyScanPair, it.currentFocus?.id) }
                         }
