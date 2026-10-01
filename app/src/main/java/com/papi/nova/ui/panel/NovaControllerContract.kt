@@ -269,19 +269,22 @@ fun Modifier.novaActivatable(enabled: Boolean = true, onActivate: () -> Unit): M
  * element inside this one, such as a button in a card, A belongs to that element.
  *
  * [focusableWhenDisabled] keeps a disabled element a focus stop, so a row can show why it is
- * disabled and swallow A.
+ * disabled and swallow A. [controllerFocusable] excludes touch/TalkBack-only content from both
+ * focus targets, so a row containing precise step buttons remains one controller stop. Keys still
+ * follow the release/origin contract wherever this element participates in their route.
  */
 fun Modifier.novaClickable(
     enabled: Boolean = true,
     role: Role? = null,
     interactionSource: MutableInteractionSource? = null,
     focusableWhenDisabled: Boolean = false,
+    controllerFocusable: Boolean = true,
     onClick: () -> Unit,
 ): Modifier = this
     .then(NovaActivatableElement(enabled, onClick, yieldsToContent = true))
     // Keep the contract's touch-mode focus stop too: clickable otherwise overrides focusable's
     // canFocus in touch mode, including when its target stays attached during a pending save.
-    .focusProperties { canFocus = enabled || focusableWhenDisabled }
+    .focusProperties { canFocus = controllerFocusable && (enabled || focusableWhenDisabled) }
     .clickable(
         interactionSource = interactionSource,
         indication = null,
@@ -292,7 +295,8 @@ fun Modifier.novaClickable(
         onClick = { if (enabled) onClick() },
     )
     .semantics { if (!enabled) disabled() }
-    .focusable(enabled = enabled || focusableWhenDisabled, interactionSource = interactionSource)
+    // An outer focusProperties stops at clickable's own target; it cannot exclude this second one.
+    .focusable(enabled = controllerFocusable && (enabled || focusableWhenDisabled), interactionSource = interactionSource)
     .then(NovaContentFocusElement)
 
 private data class NovaActivatableElement(

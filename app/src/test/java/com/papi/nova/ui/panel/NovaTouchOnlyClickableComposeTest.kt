@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsFocused
@@ -28,10 +27,10 @@ import org.robolectric.annotation.Config
 class NovaTouchOnlyClickableComposeTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
-    // Baseline: an outer focusProperties does not cross novaClickable's own first focus target.
-    // The final implementation must provide this option inside the shared wrapper itself.
+    // The wrapper excludes both of its targets. The baseline outer focusProperties failed
+    // navigation because its exclusion could not cross novaClickable's first focus target.
     private fun Modifier.touchOnly(onClick: () -> Unit): Modifier =
-        focusProperties { canFocus = false }.novaClickable(onClick = onClick)
+        novaClickable(controllerFocusable = false, onClick = onClick)
 
     @Test fun touchOnlyActionsAreSkippedByControllerNavigation() {
         val keys = rule.setPanelContent {
