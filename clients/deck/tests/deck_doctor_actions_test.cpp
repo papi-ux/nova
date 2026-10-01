@@ -23,6 +23,18 @@ DeckDoctorRequest initial() {
     auto offer = *parseDoctorOffer(doctor());
     return {offer.action, offer.appSession, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {}, offer.generation, offer};
 }
+void lossWithTuningOwner() {
+    DeckDoctorActions flow; auto s = sample(); s.live->enabled = true;
+    flow.observe(&s, true, 1000);
+    require(flow.view(1000).value("doctorCanApply").toBool() && flow.apply(1000),
+        "host loss step hidden while Live Tuning owns bitrate");
+    ++s.live->sequence; flow.observe(&s, true, 1010);
+    const auto request = flow.next(1010);
+    require(request && request->action == "lower_bitrate", "guarded loss step did not dispatch");
+    s.doctorOffer = parseDoctorOffer(doctor(true)); DeckDoctorActions restore;
+    restore.observe(&s, true, 1000);
+    require(!restore.apply(1000), "quality restore bypassed Live Tuning ownership");
+}
 void offerContract() {
     QFile fixture(QStringLiteral(NOVA_DECK_PYROWAVE_DOCTOR_FIXTURE));
     require(fixture.open(QIODevice::ReadOnly), "PyroWave Doctor fixture missing");
@@ -221,6 +233,8 @@ void observerBoundary() {
 }
 }
 int main(int argc, char** argv) {
-    QCoreApplication app(argc, argv); offerContract(); receipts(); stateMachine(); observerBoundary(); eventInvalidation();
+    QCoreApplication app(argc, argv);
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "--loss-owner") { lossWithTuningOwner(); return 0; }
+    offerContract(); lossWithTuningOwner(); receipts(); stateMachine(); observerBoundary(); eventInvalidation();
     std::cout << "Doctor contracts, receipts, verification, Undo and observer boundaries passed\n";
 }
