@@ -156,6 +156,19 @@ int main(int argc, char** argv) {
     require(settings.streamPlan(forcedHevc, {{"h264", false}, {"hevc", true}}, {}).value("playable").toBool(), "HEVC-only PC rejected");
     require(!DeckPlaySettings{}.streamPlan(defaults, bothCodecs, {}).value("playable").toBool(), "unprobed decoder allowed playback");
     {
+        DeckPlaySettings noDecoder(file);
+        noDecoder.setVideoDecodeSupport({});
+        const auto missing = noDecoder.streamPlan(defaults, bothCodecs, {}).value("reason").toString();
+        require(missing.contains("H.264") && missing.contains("VA-API") && missing.contains("driver"),
+            "missing local H.264 decoder did not name VA-API and a driver next step");
+        auto hevc = defaults; hevc["videoCodec"] = "hevc";
+        const auto missingHevc = noDecoder.streamPlan(hevc, bothCodecs, {}).value("reason").toString();
+        require(missingHevc.contains("HEVC") && missingHevc.contains("VA-API"), "missing local HEVC decoder blamed the PC");
+        noDecoder.setVideoDecodeSupport({{1920, 1080}, {1920, 1080}});
+        const auto hostMissing = noDecoder.streamPlan(hevc, {{"h264", true}, {"hevc", false}}, {}).value("reason").toString();
+        require(!hostMissing.contains("driver") && hostMissing.contains("PC"), "host codec refusal was mislabeled as a local driver failure");
+    }
+    {
 #ifdef NOVA_DECK_BUILD_PYROWAVE
         {
             DeckPlaySettings lazy(directory.filePath("lazy-pyrowave.ini"));

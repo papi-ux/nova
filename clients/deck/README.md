@@ -354,7 +354,7 @@ real-host/physical acceptance remain open. The full
 
 ## Current preview smoke scope
 
-The default offline smoke validates the native window, 1280x800 controller-first layout, fake host list states, an inert launch preview, local clipboard copy feedback, and controller routing. It does not load an identity or start a stream.
+The explicit test-only `--fixture` offline smoke validates the native window, 1280x800 controller-first layout, fake host list states, an inert launch preview, local clipboard copy feedback, and controller routing. It does not load an identity or start a stream.
 
 Live library reads, Moonlight handoff and native streaming are separate opt-in routes described below. Offline smoke results do not establish physical streaming acceptance.
 
@@ -379,7 +379,7 @@ Full Qt shell smoke, when Qt deps are present:
     cmake --build build/deck-smoke-qt
     ctest --test-dir build/deck-smoke-qt --output-on-failure
 
-The Qt smoke runs nova-deck --smoke-exit with QT_QPA_PLATFORM=offscreen, so it verifies QML object creation and sample library-card data binding without launching a visible desktop window. It does not verify real D-pad focus or game launch behavior yet.
+An ordinary `nova-deck` launch, including bare `flatpak run com.papi_ux.Nova`, opens Nova-owned pairing on first run and the saved library afterwards. `nova-deck --smoke-exit` checks this startup path offscreen. Sample libraries require a build with `BUILD_TESTING=ON` and an explicit `--fixture` or `NOVA_DECK_FRONTEND_SMOKE=1` route; production bundles do not install the sample fixtures.
 
 Steam Deck Game Mode rootless Podman validation route, for preview/QSG render cards that must run against the actual Deck gamescope socket:
 
@@ -827,7 +827,7 @@ Deck preview. Extended focus/overlay, hotplug and recovery acceptance remains op
 
 ### Flatpak and Steam shortcut
 
-`packaging/flatpak/` builds the shell as the `com.papi_ux.Nova` Flatpak on `org.kde.Platform` 6.10; see its README for the build, install and permission notes. `nova-deck --register-steam-shortcut` adds Nova to Steam as a non-Steam game so Game Mode can launch it: `src/runtime/deck_steam_shortcuts.*` parses and rewrites Steam's binary `shortcuts.vdf` byte for byte, registers or replaces one "Nova" entry, writes atomically, and refuses while Steam runs because Steam rewrites that file on exit. Inside the Flatpak the entry runs `flatpak run com.papi_ux.Nova --standalone`. Updating a Flatpak does not change existing Steam launch options; re-register an older `--live` shortcut with Steam closed. Registration preserves the app ID and player customizations. Fixtures are found at runtime under `/app/share/nova-deck/fixtures` or next to the installed binary before the source tree is tried, and moonlight-common-c is linked statically so an installed binary carries it.
+`packaging/flatpak/` builds the shell as the `com.papi_ux.Nova` Flatpak on `org.kde.Platform` 6.10; see its README for the build, install and permission notes. `nova-deck --register-steam-shortcut` adds Nova to Steam as a non-Steam game so Game Mode can launch it: `src/runtime/deck_steam_shortcuts.*` parses and rewrites Steam's binary `shortcuts.vdf` byte for byte, registers or replaces one "Nova" entry, writes atomically, and refuses while Steam runs because Steam rewrites that file on exit. Inside the Flatpak the entry runs `flatpak run com.papi_ux.Nova --standalone`. Updating a Flatpak does not change existing Steam launch options; re-register an older `--live` shortcut with Steam closed. Registration preserves the app ID and player customizations. Testing builds can install sample fixtures under `/app/share/nova-deck/fixtures`; production startup never selects them. moonlight-common-c is linked statically so an installed binary carries it.
 
 ## Shared Polaris DTO boundary
 
@@ -1791,3 +1791,15 @@ Settings and Command Center regressions cover persisted mode, unavailable
 capture, keyboard navigation, and enlarged text. Retained local evidence:
 `../../build/linux-mouse/EVIDENCE.md`; these checks do not claim installed Flatpak
 or physical game acceptance.
+
+
+Linux UI navigation reads the normalized controller state from `DeckInputHub`.
+D-pad and left-stick directions repeat after 400 ms, then every 80 ms. The left
+stick uses a 16000 entry threshold and 10000 release threshold to avoid drift;
+LB/RB send one library page action per press. Input must return to neutral after
+focus or gameplay capture changes. A confirms and B follows the current view's
+Back handler, including nested sheets. Policy and library/QML tests cover these
+routes; physical controllers and installed first-run acceptance remain separate.
+H.264/HEVC failures distinguish the PC's codec offer, the local VA-API decoder,
+and local decoder size limits. A missing decoder points to the Linux driver and
+Flatpak graphics runtime before retrying.

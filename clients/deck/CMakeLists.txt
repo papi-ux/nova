@@ -235,6 +235,9 @@ if(BUILD_TESTING)
             --real-helper $<TARGET_FILE:nova-deck-pyrowave-probe>)
         set_tests_properties(nova_deck_pyrowave_real_probe_test PROPERTIES TIMEOUT 20)
     endif()
+    add_executable(nova_deck_ui_navigation_test tests/deck_ui_navigation_test.cpp)
+    target_link_libraries(nova_deck_ui_navigation_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_ui_navigation_test COMMAND nova_deck_ui_navigation_test)
     add_executable(nova_deck_players_test tests/deck_players_test.cpp src/stream/deck_players.cpp)
     target_include_directories(nova_deck_players_test PRIVATE src)
     add_test(NAME nova_deck_players_test COMMAND nova_deck_players_test)
@@ -725,8 +728,10 @@ if(NOVA_DECK_BUILD_QT_SHELL)
         )
 
         install(TARGETS nova-deck RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+        if(BUILD_TESTING)
         install(FILES fixtures/sample_polaris_game.json fixtures/sample_polaris_library.json
             DESTINATION ${CMAKE_INSTALL_DATADIR}/nova-deck/fixtures)
+        endif()
         install(FILES packaging/flatpak/com.papi_ux.Nova.desktop
             DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
         install(FILES packaging/flatpak/com.papi_ux.Nova.svg
@@ -775,6 +780,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
                         $<TARGET_FILE:nova-deck>)
                 set_tests_properties(nova_deck_library_navigation_test PROPERTIES TIMEOUT 55)
+                add_test(NAME nova_deck_library_paging_route_test
+                    COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
+                        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
+                        $<TARGET_FILE:nova-deck> --paging)
+                set_tests_properties(nova_deck_library_paging_route_test PROPERTIES TIMEOUT 40 RESOURCE_LOCK nova_deck_x11)
                 add_test(NAME nova_deck_host_power_route_test
                     COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py

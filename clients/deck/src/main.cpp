@@ -1540,7 +1540,13 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     const auto encodedLink = stringArgumentAfter(appArguments, QStringLiteral("--game-link"));
     const auto gameLink = nova::deck::runtime::decodeGameLink(encodedLink);
     if (appArguments.contains("--game-link") && !gameLink) { std::cerr << "Nova game link is invalid.\n"; return 5; }
-    bool standalone = gameLink.has_value() || appArguments.contains(QStringLiteral("--standalone"));
+    bool fixtureRoute = false;
+#ifdef NOVA_DECK_TESTING
+    // Fixtures require an explicit testing route and are unavailable in Release.
+    fixtureRoute = appArguments.contains("--fixture") || qEnvironmentVariableIntValue("NOVA_DECK_FRONTEND_SMOKE") == 1;
+#endif
+    const bool importedRoute = appArguments.contains("--live") || qEnvironmentVariableIntValue("NOVA_DECK_LIVE") == 1;
+    bool standalone = gameLink.has_value() || appArguments.contains(QStringLiteral("--standalone")) || (!fixtureRoute && !importedRoute);
     const bool managePcs = appArguments.contains(QStringLiteral("--manage-pcs"));
     const bool pairRequested = managePcs || appArguments.contains(QStringLiteral("--pair"));
     if (pairRequested || (standalone && !appArguments.contains("--print-live-state") &&
@@ -1557,8 +1563,8 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
 
     // --live reads the identity Moonlight-Qt already holds on this device and
     // asks Polaris for the library with it; nothing is launched and no session
-    // is started. The default stays the offline fixture so the smoke routes
-    // keep proving the shell without a host.
+    // is started. Ordinary launches use Nova-owned pairing; sample libraries
+    // are restricted to explicit test routes.
     const bool liveRoute = standalone || appArguments.contains(QStringLiteral("--live")) || qEnvironmentVariableIntValue("NOVA_DECK_LIVE") == 1;
     const bool printLiveState = appArguments.contains(QStringLiteral("--print-live-state"));
     const bool nativeLaunch = appArguments.contains(QStringLiteral("--native-launch"));

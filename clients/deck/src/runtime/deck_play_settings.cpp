@@ -502,11 +502,21 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
 #else
     pyrowaveUnavailable = "This Nova build does not include PyroWave. Install the standard Nova Linux package or choose another codec.";
 #endif
+    const auto decoderRefusal = [&](const QString& codec) -> QString {
+        const bool h264 = codec == "h264", hevc = codec == "hevc";
+        if ((h264 && !limits.h264) || (hevc && !limits.hevc) || (codec == "auto" && !limits.h264 && !limits.hevc))
+            return "This PC does not offer the selected video codec. Choose another codec or enable it in Polaris.";
+        const auto local = h264 ? videoSupport_.h264 : hevc ? videoSupport_.hevc : stream::DeckDecodeLimits{};
+        const auto label = h264 ? QString("H.264") : hevc ? QString("HEVC") : QString("H.264 or HEVC");
+        if ((h264 || hevc) && local.maxWidth > 0 && local.maxHeight > 0)
+            return QString("This stream size exceeds this device's %1 VA-API decoder limits. Choose a smaller size or another codec.").arg(label);
+        return QString("No compatible local %1 VA-API decoder is available. Check this Linux device's video driver and Flatpak graphics runtime, then reopen Nova; or choose another supported codec.").arg(label);
+    };
     QString reason;
     if (!requested || !limits.valid) reason = "Stream capabilities could not be verified. Refresh this PC and try again.";
     else if (!selectedFormat) reason = effective.videoCodec == "pyrowave" ? pyrowaveUnavailable : spaceSession && effective.videoCodec == "hevc"
         ? "Spaces currently use H.264. Choose Auto or H.264 to play here."
-        : "The selected codec is unavailable for this PC and stream size. Choose Auto or another codec, or refresh this PC.";
+        : decoderRefusal(effective.videoCodec);
     else if (rates.empty()) reason = "This PC cannot provide a supported frame rate. Check its streaming settings.";
     QString adjustment;
     if (requested && effective.fps != requested->fps) {
@@ -527,7 +537,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     }) {
         const bool available = stream::selectSdrVideoFormat(codec, limits.h264, limits.hevc, videoSupport_, effective.width, effective.height, limits.pyrowave) != 0;
         const QString label = QString(codec) == "auto" ? "Auto" : QString(codec) == "hevc" ? "HEVC" : QString(codec) == "pyrowave" ? "PyroWave · Experimental" : "H.264";
-        const QString detail = !available ? (QString(codec) == "pyrowave" ? pyrowaveUnavailable : spaceSession && QString(codec) == "hevc" ? "Spaces currently use H.264." : "Unavailable for this PC and stream size.")
+        const QString detail = !available ? (QString(codec) == "pyrowave" ? pyrowaveUnavailable : spaceSession && QString(codec) == "hevc" ? "Spaces currently use H.264." : decoderRefusal(QString(codec)))
             : QString(codec) == "auto" ? "Prefer HEVC when both devices support it; otherwise use H.264."
             : QString(codec) == "pyrowave" ? "High-bandwidth GPU codec for fast local networks. Requires matching Polaris support. SDR only."
             : QString(codec) == "hevc" ? "Use HEVC for more efficient video compression. HDR is not available yet."

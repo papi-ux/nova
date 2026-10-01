@@ -15,7 +15,9 @@ with tempfile.TemporaryDirectory(prefix="nova-standalone-test-") as temporary:
                NOVA_DECK_GAMEPAD_DEVICE="/dev/null",
                QT_FORCE_STDERR_LOGGING="1", NOVA_DECK_IDENTITY_DIR=str(root / "nova"),
                NOVA_DECK_MOONLIGHT_CONF=str(moonlight))
-    for args, code in [(["--standalone", "--print-live-state"], 2),
+    for args, code in [(["--print-live-state"], 2),
+                       (["--smoke-exit"], 0),
+                       (["--standalone", "--print-live-state"], 2),
                        (["--standalone", "--smoke-exit"], 0),
                        (["--pair", "--smoke-exit"], 0),
                        (["--manage-pcs", "--smoke-exit"], 0)]:
