@@ -129,7 +129,7 @@ struct Host {
     bool refuseLaunch = false;
     bool failServerInfo = false;
     bool missingUrl = false;
-    bool refuseCancel = false;
+    bool refuseCancel = false, failCancelTransport = false;
     Driver* driver = nullptr;
     std::string launchRequest, resumeRequest, serverInfoOverride, refusalResponse;
     int appId = 17;
@@ -191,6 +191,7 @@ struct Host {
                 require(request == "/cancel?sessiontoken=private-token", "cleanup lost session token");
                 if (driver && driver->starts > 0) require(driver->stops == driver->starts, "host cancel ran before stream teardown");
                 ++cancels;
+                if (failCancelTransport) return DeckHttpResponse{false, 0, {}};
                 return DeckHttpResponse{true, 200, refuseCancel
                     ? "<root status_code=\"470\" status_message=\"private-token\"><cancel>0</cancel></root>"
                     : "<root status_code=\"200\"><cancel>1</cancel></root>"};
@@ -822,6 +823,44 @@ void testFailures() {
         const auto publicJson = QJsonDocument::fromVariant(controller.state()).toJson();
         require(!publicJson.contains("private-token") && !publicJson.contains("192.0.2.10"), "private session material leaked to UI");
     }
+}
+
+
+void testEndRequestCopy(const QString& outcome) {
+    require(outcome == "accepted" || outcome == "refused" || outcome == "transport" || outcome == "pending",
+        "unknown End request copy case");
+    Host host; Driver driver; host.driver = &driver;
+    host.refuseCancel = outcome == "refused";
+    host.failCancelTransport = outcome == "transport";
+    driver.blockStart = outcome == "pending";
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    require(controller.start("host", "game"), "End request fixture did not start");
+    if (driver.blockStart) until([&] { return driver.startBarrier.entered.load(); });
+    else until([&] { return phase(controller) == "active"; });
+    controller.stop(); controller.stop(); controller.closeSession();
+    settled(controller);
+    require(phase(controller) == (driver.blockStart ? "cancelled" : "stopped"),
+        "End request copy changed the terminal phase");
+    require(host.launches == 1 && host.resumes == 0 && host.cancels == 1 && host.requests == 3 &&
+        driver.starts == 1 && driver.stops == 1 && driver.startThread == driver.stopThread,
+        "End request copy changed first-exit, cancellation, transport ownership or added an idle query");
+    const auto copy = controller.state().value("copy").toString();
+    require(!copy.contains("Game ended."), "cancel admission claimed verified game shutdown");
+    require(copy.startsWith(driver.blockStart ? "Stream cancelled." : "Stream ended."),
+        "End request copy lost completed stream or pending cancellation semantics");
+    if (outcome == "accepted") {
+        require(copy.contains("The PC accepted your request to end the game."),
+            "accepted cancel admission lost its request-only distinction");
+    } else if (outcome == "pending") {
+        require(copy.contains("The PC accepted the host cleanup request."),
+            "pending cancellation lost the actual cleanup admission");
+    } else {
+        require(copy.contains("not confirmed") && !copy.contains("The PC accepted"),
+            "refused or lost End request claimed host acceptance");
+    }
+    const auto publicJson = QJsonDocument::fromVariant(controller.state()).toJson();
+    require(!publicJson.contains("private-token") && !publicJson.contains("192.0.2.10"),
+        "End request status leaked private session material");
 }
 
 
@@ -2473,6 +2512,10 @@ int main(int argc, char** argv) {
         catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
     }
 #endif
+    if (const auto index = app.arguments().indexOf("--end-request-copy"); index >= 0) {
+        require(index + 1 < app.arguments().size(), "missing End request copy case");
+        testEndRequestCopy(app.arguments().at(index + 1)); return 0;
+    }
     if (app.arguments().contains("--desktop-only")) { testDesktopWindowRouting(); return 0; }
     testDesktopWorkerOwnership();
     testDesktopWindowRouting();
@@ -2514,6 +2557,7 @@ int main(int argc, char** argv) {
     testConnectionCancellation();
     testActiveStopRetryAndDisconnect();
     testFailures();
+    for (const auto* outcome : {"accepted", "refused", "transport", "pending"}) testEndRequestCopy(outcome);
     testShutdownAndGlobalExclusion();
     testDeadzoneSnapshotAndRelease();
     testForwardedInputAndFocus();
