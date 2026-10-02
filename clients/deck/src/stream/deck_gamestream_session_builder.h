@@ -93,13 +93,14 @@ struct DeckHostCancelOutcome {
     bool requested = false;      ///< a cancel request was sent
     bool transportOk = false;    ///< the host was reached
     int httpStatus = 0;
-    bool cancelled = false;      ///< the host confirmed the app ended
+    bool cancelled = false;      ///< legacy name: the host accepted cancel; app shutdown is not verified
     int hostStatusCode = 0;      ///< the answer's root status_code
     std::string hostStatusMessage;
     std::string summary;         ///< one public-safe line for a report
 };
 
-/// Ask the host to end the app this client launched. Best effort: the outcome
+/// Ask the host to end the app this client launched. Acceptance does not verify
+/// app shutdown. Best effort: the outcome
 /// is reported, never thrown. The host refuses while a stream session is still
 /// attached, so callers tear the connection down first; a refusal on that
 /// ground is retried a few times with a short pause.

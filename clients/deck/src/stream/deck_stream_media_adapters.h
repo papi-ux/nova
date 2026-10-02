@@ -582,6 +582,7 @@ struct DeckGuardedPreviewLifecycleReport {
     bool hostConnectionTornDown = false;
     /// The host was asked to end the app after the stream came down.
     bool hostCancelRequested = false;
+    /// Legacy name: the host accepted cancel; app shutdown is not verified.
     bool hostCancelled = false;
     std::string hostCancelSummary;
     std::size_t transitionCount = 0;
