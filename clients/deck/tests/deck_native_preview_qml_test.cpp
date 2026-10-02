@@ -128,6 +128,24 @@ int main(int argc, char** argv) {
     };
     focused(*window, primary, "review must focus Play");
     require(primary->property("text") == "Play" && session.starts == 0, "review launched automatically");
+    if (app.arguments().contains("--parity-prelaunch-footer")) {
+        auto* back = root->findChild<QQuickItem*>("play-setup-back"); require(back, "prelaunch Back missing");
+        for (const QSize viewport : {QSize(400,800), QSize(800,1280), QSize(1280,800)}) {
+            window->resize(viewport); settle();
+            const auto playBounds = primary->mapRectToScene(primary->boundingRect());
+            const auto backBounds = back->mapRectToScene(back->boundingRect());
+            for (const auto bounds : {playBounds,backBounds})
+                require(bounds.left() >= 0 && bounds.right() <= window->width() && bounds.top() >= 0 && bounds.bottom() <= window->height(), "prelaunch footer escaped the actual viewport");
+            require(!playBounds.intersects(backBounds), "actual portrait Play and Back targets overlap");
+            primary->forceActiveFocus(); settle(); key(*window, Qt::Key_Left);
+            focused(*window, back, "prelaunch Left did not reach actual Back");
+            key(*window, Qt::Key_Right); focused(*window, primary, "prelaunch Right did not return to actual Play");
+        }
+        require(session.starts == 0, "footer traversal launched a session");
+        key(*window, Qt::Key_Left); key(*window, Qt::Key_Return);
+        require(!preview->property("opened").toBool() && session.starts == 0, "prelaunch Back did not close without launching");
+        std::cout << "Actual prelaunch footer geometry and controller Back passed\n"; return 0;
+    }
     screenshot("play-setup-defaults.png");
     // The legacy Space launcher can have the same game ID in two places.
     // Destination identity and readiness must independently invalidate review.
