@@ -1736,6 +1736,9 @@ int DeckVaapiFfmpegRenderer::setup(
     }
 
     int result = av_hwdevice_ctx_create(&hardwareDevice_, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
+    lifecycle_.runtimeVaapiDeviceAvailable = result == 0;
+    lifecycle_.runtimeStatus = result == 0 ? "vaapi runtime device opened" :
+        "av_hwdevice_ctx_create(VAAPI) failed: " + ffmpegErrorString(result);
     const bool useVaapi = result == 0 && probeVideoDecodeSupport(hardwareDevice_).supports(videoFormat, width, height);
     if (!useVaapi) {
         av_buffer_unref(&hardwareDevice_);
@@ -1743,7 +1746,8 @@ int DeckVaapiFfmpegRenderer::setup(
         const auto limits = videoFormat == VIDEO_FORMAT_H264 ? qualified.h264 :
             videoFormat == VIDEO_FORMAT_H265 ? qualified.hevc : DeckDecodeLimits{};
         if (!limits.supports(width, height)) {
-            lifecycle_.lastRuntimeError = "No qualified hardware decoder for this codec and stream size";
+            lifecycle_.lastRuntimeError = result < 0 ? lifecycle_.runtimeStatus + "; no qualified V4L2 decoder for this codec and stream size" :
+                "No qualified hardware decoder for this codec and stream size";
             resetDecoder();
             return DR_NEED_IDR;
         }
