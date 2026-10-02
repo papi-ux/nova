@@ -233,6 +233,10 @@ struct DeckRendererLifecycle {
     std::uint64_t videoWorkMicros = 0, videoWorkSamples = 0, refusedFrames = 0;
     std::uint64_t hostLatencyTenths = 0, hostLatencySamples = 0;
     bool lastFrameWasHardwareBacked = false;
+    DeckDecoderBackend decoderBackend = DeckDecoderBackend::Unavailable;
+    DeckFrameTransferPath transferPath = DeckFrameTransferPath::DmaBuf;
+    // Accepted handoffs for CPU upload, not completed GPU work or panel flips.
+    std::uint64_t cpuUploadSubmissions = 0;
     std::string runtimeStatus;
     std::string lastRuntimeError;
     int width = 0;
@@ -253,6 +257,9 @@ public:
 #ifdef NOVA_DECK_BUILD_PYROWAVE
     static std::shared_ptr<DeckQrhiVaapiFrameLease> retainPyrowaveFrame(const nova::pyrowave::GpuImage& frame);
 #endif
+    static std::shared_ptr<DeckQrhiVaapiFrameLease> retainV4l2Frame(const AVFrame& frame);
+    DeckDecoderBackend backend() const { return backend_; }
+    DeckFrameTransferPath transferPath() const { return transferPath_; }
     bool valid() const;
     std::uintptr_t surfaceId() const;
     // Immutable frame and side data; valid only while this lease is retained.
@@ -264,6 +271,8 @@ private:
     explicit DeckQrhiVaapiFrameLease(AVFrame* frame);
 
     AVFrame* frame_ = nullptr;
+    DeckDecoderBackend backend_ = DeckDecoderBackend::Vaapi;
+    DeckFrameTransferPath transferPath_ = DeckFrameTransferPath::DmaBuf;
 };
 
 struct DeckQrhiVaapiPresentationDescriptor {
@@ -274,6 +283,8 @@ struct DeckQrhiVaapiPresentationDescriptor {
     bool hardwareBacked = false;
     std::shared_ptr<DeckQrhiVaapiFrameLease> frameLease;
     std::string source;
+    DeckDecoderBackend decoderBackend = DeckDecoderBackend::Vaapi;
+    DeckFrameTransferPath transferPath = DeckFrameTransferPath::DmaBuf;
 };
 
 class DeckQtQuickRhiPresentationSink {
@@ -432,6 +443,7 @@ public:
 
 private:
     void resetDecoder();
+    int drainV4l2Frames();
 
     mutable std::mutex lifecycleMutex_;
     DeckRendererLifecycle lifecycle_{};
@@ -439,6 +451,7 @@ private:
     bool ready_ = false;
     AVBufferRef* hardwareDevice_ = nullptr;
     AVCodecContext* codecContext_ = nullptr;
+    DeckDecoderBackend decoderBackend_ = DeckDecoderBackend::Unavailable;
     AVFrame* decodedFrame_ = nullptr;
 #ifdef NOVA_DECK_BUILD_PYROWAVE
     std::unique_ptr<nova::pyrowave::Codec> pyrowave_;

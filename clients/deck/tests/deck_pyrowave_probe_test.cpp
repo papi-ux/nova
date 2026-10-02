@@ -3,6 +3,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QElapsedTimer>
+#include <QTemporaryDir>
+#include <QFile>
+#include <QDir>
 #include <QThread>
 #include <cstdlib>
 #include <iostream>
@@ -14,6 +17,22 @@ using namespace nova::deck::stream;
 namespace { void require(bool value, const char* message) { if (!value) { std::cerr << message << '\n'; std::exit(1); } } }
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    if (app.arguments().size() == 1) {
+        QTemporaryDir libraries;
+        require(libraries.isValid(), "cache fixture directory missing");
+        const auto armDirectory = libraries.filePath("aarch64-linux-gnu/GL/default/lib");
+        require(QDir().mkpath(armDirectory), "ARM driver directory creation failed");
+        const auto helper = QCoreApplication::applicationFilePath();
+        const auto before = pyrowaveProbeEnvironmentKey(helper, {armDirectory});
+        QFile driver(armDirectory + "/libvulkan_freedreno.so");
+        require(driver.open(QIODevice::WriteOnly) && driver.write("turnip-fixture") > 0, "ARM driver fixture write failed");
+        driver.close();
+        const auto present = pyrowaveProbeEnvironmentKey(helper, {armDirectory});
+        require(before != present, "ARM Vulkan driver presence did not invalidate the probe cache");
+        require(driver.open(QIODevice::Append) && driver.write("-updated") > 0, "ARM driver fixture update failed");
+        driver.close();
+        require(present != pyrowaveProbeEnvironmentKey(helper, {armDirectory}), "ARM Vulkan driver update reused cached support");
+    }
     if (app.arguments().size() == 3 && app.arguments().at(1) == "--real-helper") {
         const auto result = probePyrowaveInChild(app.arguments().at(2));
         require(result.refusal.has_value(), "real helper did not return the versioned refusal contract");

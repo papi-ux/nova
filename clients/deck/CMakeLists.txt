@@ -73,6 +73,7 @@ add_library(nova_deck_core STATIC
     src/stream/deck_gamestream_session_builder.cpp
     src/stream/deck_stream_media_adapters.cpp
     src/stream/deck_video_color.cpp
+    src/stream/deck_v4l2_decoder.cpp
     src/stream/deck_video_capabilities.cpp
     src/stream/deck_pyrowave_probe.cpp
     src/stream/deck_audio_output.cpp
@@ -207,6 +208,13 @@ target_compile_definitions(nova_deck_core
         NOVA_DECK_FIXTURE_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures\"
 )
 
+add_executable(nova-deck-v4l2-probe src/stream/deck_v4l2_probe.cpp)
+target_link_libraries(nova-deck-v4l2-probe PRIVATE nova_deck_core)
+qt_add_resources(nova-deck-v4l2-probe nova_v4l2_fixtures
+    PREFIX "/nova-v4l2" BASE "${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    FILES fixtures/frame-1080p.h264 fixtures/frame-1080p.hevc)
+install(TARGETS nova-deck-v4l2-probe RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
 include(CTest)
 if(NOVA_DECK_BUILD_PYROWAVE)
     add_subdirectory(pyrowave)
@@ -263,6 +271,14 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_video_color_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_video_color_test COMMAND nova_deck_video_color_test)
     set_tests_properties(nova_deck_video_color_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+    add_executable(nova_deck_v4l2_decoder_test tests/deck_v4l2_decoder_test.cpp)
+    target_link_libraries(nova_deck_v4l2_decoder_test PRIVATE nova_deck_core)
+    nova_deck_enable_test_assertions(nova_deck_v4l2_decoder_test)
+    qt_add_resources(nova_deck_v4l2_decoder_test nova_v4l2_test_fixtures
+        PREFIX "/nova-v4l2" BASE "${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+        FILES fixtures/frame-1080p.h264 fixtures/frame-1080p.hevc)
+    add_test(NAME nova_deck_v4l2_decoder_test COMMAND nova_deck_v4l2_decoder_test)
+    set_tests_properties(nova_deck_v4l2_decoder_test PROPERTIES TIMEOUT 20)
     add_executable(nova_deck_video_capabilities_test tests/deck_video_capabilities_test.cpp)
     target_link_libraries(nova_deck_video_capabilities_test PRIVATE nova_deck_core)
     target_compile_definitions(nova_deck_video_capabilities_test PRIVATE
@@ -274,6 +290,11 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_vaapi_capabilities_test COMMAND nova_deck_vaapi_capabilities_test)
     set_tests_properties(nova_deck_vaapi_capabilities_test PROPERTIES TIMEOUT 20)
     if(NOVA_DECK_BUILD_HDR_VALIDATION)
+        add_executable(nova_deck_v4l2_upload_test tests/deck_v4l2_upload_test.cpp)
+        target_link_libraries(nova_deck_v4l2_upload_test PRIVATE nova_deck_hdr_render)
+        nova_deck_enable_test_assertions(nova_deck_v4l2_upload_test)
+        add_test(NAME nova_deck_v4l2_upload_test COMMAND nova_deck_v4l2_upload_test)
+        set_tests_properties(nova_deck_v4l2_upload_test PROPERTIES TIMEOUT 30)
         add_executable(nova_deck_video_scale_test tests/deck_video_scale_test.cpp)
         target_link_libraries(nova_deck_video_scale_test PRIVATE nova_deck_hdr_render)
         add_test(NAME nova_deck_video_scale_test COMMAND nova_deck_video_scale_test)

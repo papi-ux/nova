@@ -50,5 +50,21 @@ int main() {
     require(!metrics.sample(s).value("mediaLossFresh").toBool(), "stale video counters became fresh loss");
     s.atMs += 1000; s.media.reset();
     require(!metrics.sample(s).value("mediaLossFresh").toBool(), "absent media counters became healthy");
+    metrics.reset(); s = {};
+    s.decoderBackend = "V4L2"; s.frameTransferPath = "CPU upload";
+    s.compositionAvailable = s.cpuUploadsAvailable = true;
+    metrics.sample(s);
+    s.atMs = 1000; s.incoming = 90; s.decoded = 89; s.submitted = 88;
+    s.composed = s.cpuUploadCompositions = 87;
+    view = metrics.sample(s);
+    require(view.value("decoderBackend") == "V4L2" && view.value("frameTransferPath") == "CPU upload",
+        "hardware decode and frame transfer were conflated");
+    require(view.value("decoded") == "89.0" && view.value("submitted") == "88.0" &&
+        view.value("cpuUploadCompositions") == "87.0", "decoder/handoff/upload-composition counts were conflated");
+    s.atMs += 1000; s.decoderBackend = "VA-API"; s.frameTransferPath = "DMA-BUF";
+    s.cpuUploadsAvailable = false;
+    view = metrics.sample(s);
+    require(!view.value("fresh").toBool() && view.value("cpuUploadCompositions") == "--",
+        "a backend change or unavailable upload counter bridged the old readings");
     std::cout << "HUD metrics passed: provenance, cadence, gaps, resets, unavailable values and bounded history\n";
 }

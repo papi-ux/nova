@@ -99,8 +99,7 @@ DeckPyrowaveProbeResult DeckPyrowaveProbeCache::get(const QString& key,
     return *result_;
 }
 
-namespace {
-QString environmentKey(const QString& program) {
+QString pyrowaveProbeEnvironmentKey(const QString& program, const QStringList& additionalLibraryDirectories) {
     QCryptographicHash hash(QCryptographicHash::Sha256);
     const auto fileIdentity = [&](const QString& path) {
         const QFileInfo file(path);
@@ -112,10 +111,13 @@ QString environmentKey(const QString& program) {
     fileIdentity(program);
     // Flatpak mounts a new driver extension after a restart. Native installs can
     // update the ICDs/libraries in place, so include their identities as well.
-    for (const auto* path : {"/usr/share/vulkan/icd.d", "/etc/vulkan/icd.d", "/usr/lib64", "/usr/lib/x86_64-linux-gnu",
-            "/usr/lib/x86_64-linux-gnu/GL/default/lib"}) {
-        QDir dir(QString::fromUtf8(path));
-        for (const auto& name : dir.entryList({"*.json", "libvulkan*", "libGLX_nvidia*"}, QDir::Files, QDir::Name))
+    QStringList directories{"/usr/share/vulkan/icd.d", "/etc/vulkan/icd.d", "/app/lib", "/usr/lib", "/usr/lib64",
+        "/usr/lib/x86_64-linux-gnu", "/usr/lib/x86_64-linux-gnu/GL/default/lib",
+        "/usr/lib/aarch64-linux-gnu", "/usr/lib/aarch64-linux-gnu/GL/default/lib"};
+    directories.append(additionalLibraryDirectories);
+    for (const auto& path : directories) {
+        QDir dir(path);
+        for (const auto& name : dir.entryList({"*.json", "libvulkan*", "libGLX_nvidia*", "libpyrowave*"}, QDir::Files, QDir::Name))
             fileIdentity(dir.filePath(name));
     }
     QDir drm("/sys/class/drm");
@@ -132,12 +134,11 @@ QString environmentKey(const QString& program) {
     }
     return QString::fromLatin1(hash.result().toHex());
 }
-}
 DeckPyrowaveProbeResult cachedPyrowaveDecodeSupport() {
 #ifdef NOVA_DECK_BUILD_PYROWAVE
     static DeckPyrowaveProbeCache cache;
     const auto program = QCoreApplication::applicationDirPath() + "/nova-deck-pyrowave-probe";
-    return cache.get(environmentKey(program), [&] { return probePyrowaveInChild(program); });
+    return cache.get(pyrowaveProbeEnvironmentKey(program), [&] { return probePyrowaveInChild(program); });
 #else
     return {{}, "This Nova build does not include PyroWave. Choose another codec."};
 #endif

@@ -1,0 +1,43 @@
+{
+  "purpose": "Two-frame gray Annex-B decode-route fixtures; no refresh-rate or hardware acceptance evidence.",
+  "encoder": "FFmpeg 8.1.1 with test-only libx264/libx265",
+  "common_arguments": [
+    "-f",
+    "lavfi",
+    "-i",
+    "color=c=gray:s=1920x1080:r=60",
+    "-frames:v",
+    "2",
+    "-preset",
+    "ultrafast",
+    "-pix_fmt",
+    "yuv420p",
+    "-color_range",
+    "tv",
+    "-color_primaries",
+    "bt709",
+    "-color_trc",
+    "bt709",
+    "-colorspace",
+    "bt709"
+  ],
+  "files": {
+    "frame-1080p.h264": {
+      "sha256": "f14e5bbe1bbeea18ee186be8fe4dd50552ddfa008b20db228444cd4d5797a422",
+      "profile": "High",
+      "codec": "libx264",
+      "parameters": "threads=2:bframes=0:cabac=1:8x8dct=1:colorprim=bt709:transfer=bt709:colormatrix=bt709:keyint=60:repeat-headers=1",
+      "extra_arguments": [
+        "-tune",
+        "zerolatency"
+      ]
+    },
+    "frame-1080p.hevc": {
+      "sha256": "29e4a8073d11a461df28a1f6bfd9005a93217f389fb67f9c52ea85a7953974ba",
+      "profile": "Main",
+      "codec": "libx265",
+      "parameters": "pools=1:frame-threads=1:bframes=0:colorprim=1:transfer=1:colormatrix=1:keyint=60:repeat-headers=1:log-level=error",
+      "extra_arguments": []
+    }
+  }
+}

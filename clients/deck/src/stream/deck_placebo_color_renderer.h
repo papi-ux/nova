@@ -17,7 +17,7 @@ enum class DeckColorOutput { Srgb, Hdr10Pq };
 // Unsupported encodings and low-precision PQ surfaces stay unsupported.
 std::optional<DeckColorOutput> deckSurfaceColorOutput(const pl_swapchain_frame& frame);
 
-// Validate the exact NV12/P010 software format, separate DRM layers and object
+// Validate the exact NV12/P010 or PyroWave YUV420P software format, separate DRM layers and object
 // bounds before libplacebo's asserting import helper. No GPU or fd import here.
 bool deckDrmFrameLayoutSupported(const AVFrame& frame);
 
